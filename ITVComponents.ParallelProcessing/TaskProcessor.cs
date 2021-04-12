@@ -8,7 +8,7 @@ using ITVComponents.Logging;
 
 namespace ITVComponents.ParallelProcessing
 {
-    public sealed class TaskProcessor:IDisposable
+    public sealed class TaskProcessor:IDisposable, ITaskProcessor
     {
         /// <summary>
         /// indicates whether to use ThreadAffinity for the inner worker
@@ -98,7 +98,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// /The current state of this processor instance
         /// </summary>
-        private ProcessorState currentState = ProcessorState.Idle;
+        private TaskProcessorState currentState = TaskProcessorState.Idle;
 
         /// <summary>
         /// Initializes a new instance of the TaskProcessor class
@@ -126,6 +126,7 @@ namespace ITVComponents.ParallelProcessing
             this.tasks = tasks;
             this.parent = parent;
             this.useAffineThread = useAffineThread;
+            ((ITaskProcessor) this).StartupThread();
             BuildProcessCycle();
             lastActivity = DateTime.Now;
             enterprocessingLoopWait.Set();
@@ -141,42 +142,42 @@ namespace ITVComponents.ParallelProcessing
             processCycle = new List<int>();
             startupWait = new ManualResetEvent(false);
             enterprocessingLoopWait = new ManualResetEvent(false);
-            StartupThread();
         }
 
         /// <summary>
         /// Gets the Worker-instance that is used by this Processor instance
         /// </summary>
-        public ITaskWorker Worker => worker;
+        ITaskWorker ITaskProcessor.Worker => worker;
 
         /// <summary>
         /// Gets the last time the workerthread was in a defined-status
         /// </summary>
-        public DateTime LastActivity => lastActivity;
+        DateTime ITaskProcessor.LastActivity => lastActivity;
 
         /// <summary>
         /// Gets the current running-state of this TaskProcessor instance
         /// </summary>
-        public ProcessorState State => currentState;
+        TaskProcessorState ITaskProcessor.State => currentState;
 
         /// <summary>
         /// gets the parent queue of this processor instance
         /// </summary>
-        internal ParallelTaskProcessor Parent => parent;
+        ParallelTaskProcessor ITaskProcessor.Parent => parent;
 
         /// <summary>
         /// Gets the lowest priority that is processed with this TaskProcessor instance
         /// </summary>
-        internal int LowestPriority => lowestPriority;
+        int ITaskProcessor.LowestPriority => lowestPriority;
 
         /// <summary>
         /// Waits until this worker has stopped
         /// </summary>
-        internal void Join()
+        void ITaskProcessor.Join()
         {
-            currentState = ProcessorState.Stopping;
+            currentState = TaskProcessorState.Stopping;
             workerThread.Join();
-            currentState = ProcessorState.Stopped;
+
+            currentState = TaskProcessorState.Stopped;
         }
 
         /// <summary>
@@ -192,56 +193,56 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Sets this worker into a wait-state
         /// </summary>
-        internal void Suspend()
+        void ITaskProcessor.Suspend()
         {
-            currentState = ProcessorState.Stopping;
+            currentState = TaskProcessorState.Stopping;
             suspendEvent.Reset();
             suspendedEvent.WaitOne();
-            currentState = ProcessorState.Stopped;
+            currentState = TaskProcessorState.Stopped;
         }
 
         /// <summary>
         /// Resumes this worker
         /// </summary>
-        internal void Resume()
+        void ITaskProcessor.Resume()
         {
             lastActivity = DateTime.Now;
             suspendedEvent.Reset();
             suspendEvent.Set();
-            currentState = ProcessorState.Running;
+            currentState = TaskProcessorState.Running;
         }
 
         /// <summary>
         /// Kills the thread that is powering this processor
         /// </summary>
-        internal void KillThread()
+        void ITaskProcessor.KillThread()
         {
             workerThread.Abort();
             suspendEvent.Set();
             suspendedEvent.Reset();
             startupWait.Reset();
-            currentState = ProcessorState.Idle;
+            currentState = TaskProcessorState.Idle;
             //enterprocessingLoopWait.Reset();
         }
 
         /// <summary>
         /// Sets this processor into a zombie mode where it won't process any tasks
         /// </summary>
-        internal void Zombie()
+        void ITaskProcessor.Zombie()
         {
             LogEnvironment.LogDebugEvent("This TaskProcessor just turned into a zombie!", LogSeverity.Warning);
-            currentState = ProcessorState.Zombie;
+            currentState = TaskProcessorState.Zombie;
         }
 
         /// <summary>
         /// Starts the thread
         /// </summary>
-        internal void StartupThread()
+        void ITaskProcessor.StartupThread()
         {
             workerThread = new Thread(Work);
             workerThread.Start();
             startupWait.WaitOne();
-            currentState = ProcessorState.Running;
+            currentState = TaskProcessorState.Running;
         }
 
         /// <summary>
@@ -319,7 +320,7 @@ namespace ITVComponents.ParallelProcessing
                     break;
                 }
 
-                if (currentState == ProcessorState.Running)
+                if (currentState == TaskProcessorState.Running)
                 {
                     foreach (int i in processCycle)
                     {
@@ -334,7 +335,9 @@ namespace ITVComponents.ParallelProcessing
                                     try
                                     {
                                         tasksFound = true;
+
                                         worker.Process(t);
+                                        t.Fulfill();
                                     }
                                     catch (Exception ex)
                                     {
@@ -403,31 +406,6 @@ namespace ITVComponents.ParallelProcessing
         private void CheckSchedule(TaskContainer task, Action<ITask> action)
         {
             bool scheduled = false;
-            /*using (task.DemandExclusive())
-            {
-                foreach (SchedulerPolicy policy in task.Schedules)
-                    // (!string.IsNullOrEmpty(task.SchedulerName) && TaskScheduler.SchedulerExists(task.SchedulerName) && task.Active)
-                {
-                    if (!string.IsNullOrEmpty(policy.SchedulerName) &&
-                        TaskScheduler.SchedulerExists(policy.SchedulerName) &&
-                        task.Active)
-                    {
-                        if (requests.ContainsKey(policy.SchedulerName))
-                        {
-                            requests[policy.SchedulerName].AddInstruction(policy.SchedulerInstruction);
-                        }
-                        else
-                        {
-                            TaskScheduler scl = TaskScheduler.GetScheduler(policy.SchedulerName);
-                            requests.Add(policy.SchedulerName,
-                                         scl.CreateRequest(parent, task, policy.SchedulerInstruction));
-                        }
-                    }
-                }
-            }*/
-
-            /*foreach (KeyValuePair<string, TaskScheduler.ScheduleRequest> req in requests)
-            {*/
             if (task.Request?.SchedulerName != null)
             {
                 TaskScheduler scl = TaskScheduler.GetScheduler(task.Request.SchedulerName);
@@ -443,13 +421,27 @@ namespace ITVComponents.ParallelProcessing
             }
         }
 
-        public enum ProcessorState
+        /// <summary>
+        /// Checks the schedule for a specific task
+        /// </summary>
+        /// <param name="task">the task for which to create a schedule request</param>
+        /// <param name="action">the action to take when the schedule applies</param>
+        private async Task CheckScheduleAsync (TaskContainer task, Func<ITask,Task> action)
         {
-            Idle,
-            Running,
-            Stopping,
-            Stopped,
-            Zombie
+            bool scheduled = false;
+            if (task.Request?.SchedulerName != null)
+            {
+                TaskScheduler scl = TaskScheduler.GetScheduler(task.Request.SchedulerName);
+                if (await scl.RunScheduledTaskAsync(task.Request, action))
+                {
+                    scheduled = true;
+                }
+            }
+
+            if (!scheduled && task.Task.Active)
+            {
+                await action(task.Task);
+            }
         }
     }
 }

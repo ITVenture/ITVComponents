@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
 using ITVComponents.Settings;
 using Newtonsoft.Json;
 
@@ -52,7 +53,7 @@ namespace ITVComponents.Helpers
             NullValueHandling = NullValueHandling.Include,
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full,
             TypeNameHandling = TypeNameHandling.All,
-            PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+            PreserveReferencesHandling = PreserveReferencesHandling.Objects
         };
 
         /// <summary>
@@ -337,6 +338,7 @@ namespace ITVComponents.Helpers
         /// <returns>the json-string representation of the given object</returns>
         public static string ToJsonStrongTyped(object value, bool preserveReferences = false)
         {
+            LogEnvironment.LogDebugEvent($"Type is {value?.GetType()?.AssemblyQualifiedName}",LogSeverity.Report);
             return JsonConvert.SerializeObject(value, !preserveReferences ? strongTypedSerializerSettings : strongTypedSerializerSettingsWithReferences);
         }
 

@@ -29,7 +29,7 @@ namespace ITVComponents.Threading
         public NamedLock(string name)
         {
             lockedObject = AcquireMutex(name);
-            Monitor.Enter(lockedObject);
+            AsyncMonitor.Enter(lockedObject);
         }
 
         /// <summary>
@@ -47,7 +47,7 @@ namespace ITVComponents.Threading
         /// </summary>
         public IResourceLock InnerLock { get; }
 
-        /// <summary>
+        /*/// <summary>
         /// Awaits a Pluse on this mutexes inner lock
         /// </summary>
         public void Wait()
@@ -75,9 +75,9 @@ namespace ITVComponents.Threading
             }
 
             throw new ObjectDisposedException("This mutex is no longer valid!");
-        }
+        }*/
 
-        /// <summary>
+        /*/// <summary>
         /// Pulses this mutexes inner lock
         /// </summary>
         public void Pulse()
@@ -105,7 +105,7 @@ namespace ITVComponents.Threading
             {
                 throw new ObjectDisposedException("This mutex is no longer valid!");
             }
-        }
+        }*/
 
         /// <summary>Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.</summary>
         /// <filterpriority>2</filterpriority>
@@ -113,7 +113,7 @@ namespace ITVComponents.Threading
         {
             if (lockedObject != null)
             {
-                Monitor.Exit(lockedObject);
+                AsyncMonitor.Exit(lockedObject);
                 lockedObject = null;
             }
 

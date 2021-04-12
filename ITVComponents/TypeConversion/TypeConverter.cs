@@ -24,6 +24,11 @@ namespace ITVComponents.TypeConversion
             var converters = Snapshot();
             var converter = converters.FirstOrDefault(n => n.CapableFor(value, targetType));
             object result = null;
+            if (value != null && targetType.IsInstanceOfType(value))
+            {
+                return value;
+            }
+
             if (converter?.TryConvert(value, targetType, out result)??false)
             {
                 return result;

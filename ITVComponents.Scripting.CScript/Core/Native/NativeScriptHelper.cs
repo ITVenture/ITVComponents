@@ -19,6 +19,7 @@ using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.Optimization;
+using ITVComponents.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Diagnostics;

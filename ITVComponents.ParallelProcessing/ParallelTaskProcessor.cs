@@ -38,6 +38,7 @@ namespace ITVComponents.ParallelProcessing
         private int highTaskThreshold;
 
         private readonly bool useAffineThreads;
+        private readonly bool useTasks;
 
         /// <summary>
         /// indicates whether the GetMoreJobs event needs to be triggered
@@ -67,7 +68,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Processors that are working for this ParallelTaskProcessor instance
         /// </summary>
-        private List<TaskProcessor> processors;
+        private List<ITaskProcessor> processors;
 
         /// <summary>
         /// ThreadTimer used to moderate the queues 
@@ -130,8 +131,8 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
         /// <param name="watchDog">a watchdog instance that will restart worker-instances when they become unresponsive</param>
-        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, WatchDog watchDog) :
-            this(identifier, worker, highestPriority, lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads)
+        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool useTasks, WatchDog watchDog) :
+            this(identifier, worker, highestPriority, lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, useTasks)
         {
             this.watchDog = watchDog;
         }
@@ -148,7 +149,7 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="lowTaskThreshold">the minimum number of Items that should be in a queue for permanent processing</param>
         /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
-        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads)
+        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool useTasks)
             : this()
         {
             this.identifier = identifier;
@@ -160,6 +161,7 @@ namespace ITVComponents.ParallelProcessing
             this.lowTaskThreshold = lowTaskThreshold;
             this.highTaskThreshold = highTaskThreshold;
             this.useAffineThreads = useAffineThreads;
+            this.useTasks = useTasks;
             this.workerPollTime = workerPollTime;
             if (lowestPriority < highestPriority)
             {
@@ -207,7 +209,7 @@ namespace ITVComponents.ParallelProcessing
             workerPulse = new object();
             stopEvent = new ManualResetEvent(false);
             stoppedEvent = new ManualResetEvent(false);
-            processors = new List<TaskProcessor>();
+            processors = new List<ITaskProcessor>();
             moderatorTimer = new Timer(Moderate,string.Format("::{0}::", GetHashCode()), Timeout.Infinite,
                                          Timeout.Infinite);
         }
@@ -238,7 +240,7 @@ namespace ITVComponents.ParallelProcessing
         public void Suspend()
         {
             moderatorTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            TaskProcessor[] procs;
+            ITaskProcessor[] procs;
             lock (processors)
             {
                 procs = processors.ToArray();
@@ -254,7 +256,7 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         public void Resume()
         {
-            TaskProcessor[] procs;
+            ITaskProcessor[] procs;
             lock (processors)
             {
                 procs = processors.ToArray();
@@ -330,14 +332,14 @@ namespace ITVComponents.ParallelProcessing
                 ParallelTaskProcessor t;
                 initializedProcessors.TryRemove(identifier,out t);
                 disposed = true;
-                TaskProcessor[] procs;
+                ITaskProcessor[] procs;
                 lock (processors)
                 {
                     procs = processors.ToArray();
                 }
-                foreach (TaskProcessor processor in procs)
+                foreach (ITaskProcessor processor in procs)
                 {
-                    ((IDisposable)processor).Dispose();
+                    processor.Dispose();
                 }
 
                 moderatorTimer.Dispose();
@@ -352,12 +354,12 @@ namespace ITVComponents.ParallelProcessing
         public void Stop()
         {
             stopEvent.Set();
-            TaskProcessor[] procs;
+            ITaskProcessor[] procs;
             lock (processors)
             {
                 procs = processors.ToArray();
             }
-            foreach (TaskProcessor processor in procs)
+            foreach (ITaskProcessor processor in procs)
             {
                 processor.Join();
             }
@@ -391,12 +393,12 @@ namespace ITVComponents.ParallelProcessing
         /// Removes a processor from the list of active processors
         /// </summary>
         /// <param name="processor">a processor that is being stopped</param>
-        internal void UnRegisterProcessor(TaskProcessor processor)
+        internal void UnRegisterProcessor(ITaskProcessor processor)
         {
             lock (processors)
             {
                 processors.Remove(processor);
-                ((IDisposable)processor).Dispose();
+                processor.Dispose();
             }
         }
 
@@ -408,8 +410,27 @@ namespace ITVComponents.ParallelProcessing
         {
             lock (processors)
             {
-                processors.Add(new TaskProcessor(worker(), workerPulse, stopEvent, workerPollTime, highestPriority, startPriority, this, tasks, useAffineThreads));
+                if (!useTasks)
+                {
+                    processors.Add(new TaskProcessor(worker(), workerPulse, stopEvent, workerPollTime, highestPriority, startPriority, this, tasks, useAffineThreads));
+                }
+                else
+                {
+                    processors.Add(new AsyncTaskProcessor(worker(), workerPulse, stopEvent, workerPollTime, highestPriority, startPriority, this, tasks));
+                }
             }
+        }
+
+        /// <summary>
+        /// Enqueues a task and when its done returns the fulfilled task object
+        /// </summary>
+        /// <param name="task">the task to process</param>
+        /// <returns>a Task that returns after the provided task was fulfilled</returns>
+        protected async Task<ITask> ProcessAsync(ITask task)
+        {
+            EnqueueTask(task);
+            await task.Processing();
+            return task;
         }
 
         /// <summary>
@@ -425,35 +446,38 @@ namespace ITVComponents.ParallelProcessing
                 new Dictionary<string, TaskScheduler.ScheduleRequest>();
                 using (task.DemandExclusive())
                 {
-                    foreach (SchedulerPolicy policy in task.Schedules)
+                    if (task.Schedules != null && task.Schedules.Count != 0)
                     {
-                        if (string.IsNullOrEmpty(policy.SchedulerName) || !TaskScheduler.SchedulerExists(policy.SchedulerName))
+                        foreach (SchedulerPolicy policy in task.Schedules)
                         {
-                            if (!string.IsNullOrEmpty(policy.SchedulerName))
+                            if (string.IsNullOrEmpty(policy.SchedulerName) || !TaskScheduler.SchedulerExists(policy.SchedulerName))
                             {
-                                LogEnvironment.LogDebugEvent(string.Format("Unable to find Scheduler @ParallelTaskProcessor Line 311: {0}", policy.SchedulerName), LogSeverity.Warning);
-                            }
-                        }
-                        else
-                        {
-                            TaskScheduler scheduler = TaskScheduler.GetScheduler(policy.SchedulerName);
-                            var policyContext = (scheduler as ISchedulerlPolicyContextProvider)?.EnterPolicyContext();
-                            try
-                            {
-                                if (requests.ContainsKey(policy.SchedulerName))
+                                if (!string.IsNullOrEmpty(policy.SchedulerName))
                                 {
-                                    requests[policy.SchedulerName].AddInstruction(policy.SchedulerInstruction);
-                                }
-                                else
-                                {
-                                    var request = scheduler.CreateRequest(this, task);
-                                    requests.Add(policy.SchedulerName,request);
-                                    request.AddInstruction(policy.SchedulerInstruction);
+                                    LogEnvironment.LogDebugEvent(string.Format("Unable to find Scheduler @ParallelTaskProcessor Line 311: {0}", policy.SchedulerName), LogSeverity.Warning);
                                 }
                             }
-                            finally
+                            else
                             {
-                                policyContext?.Dispose();
+                                TaskScheduler scheduler = TaskScheduler.GetScheduler(policy.SchedulerName);
+                                var policyContext = (scheduler as ISchedulerlPolicyContextProvider)?.EnterPolicyContext();
+                                try
+                                {
+                                    if (requests.ContainsKey(policy.SchedulerName))
+                                    {
+                                        requests[policy.SchedulerName].AddInstruction(policy.SchedulerInstruction);
+                                    }
+                                    else
+                                    {
+                                        var request = scheduler.CreateRequest(this, task);
+                                        requests.Add(policy.SchedulerName, request);
+                                        request.AddInstruction(policy.SchedulerInstruction);
+                                    }
+                                }
+                                finally
+                                {
+                                    policyContext?.Dispose();
+                                }
                             }
                         }
                     }
@@ -553,7 +577,7 @@ namespace ITVComponents.ParallelProcessing
 
                     if (watchDog != null)
                     {
-                        TaskProcessor[] procs;
+                        ITaskProcessor[] procs;
                         lock (processors)
                         {
                             procs = processors.ToArray();

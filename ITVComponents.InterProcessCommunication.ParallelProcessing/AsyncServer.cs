@@ -6,6 +6,7 @@ using System.Security.Authentication;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.ParallelProcessing.Resources;
 using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.Logging;
@@ -17,7 +18,7 @@ using ITVComponents.Threading;
 
 namespace ITVComponents.InterProcessCommunication.ParallelProcessing
 {
-    public abstract class ParallelServer<TPackage, TTask>: IParallelServer, IStatusSerializable, IStatisticsProvider, IStoppable, IDeferredInit
+    public abstract class AsyncServer<TPackage, TTask>: IAsyncServer, IStatisticsProvider, IStoppable, IDeferredInit
                                                                       where TTask:IProcessTask 
                                                                       where TPackage:IProcessPackage 
     {
@@ -25,31 +26,6 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// TaskProcessor class that is used to process the provided items coming from the client
         /// </summary>
         private ParallelTaskProcessor<TTask> processor;
-
-        /// <summary>
-        /// Holds a list of packages that require processing 
-        /// </summary>
-        private Dictionary<int, ConcurrentBag<TPackage>> packages;
-
-        /// <summary>
-        /// Holds a list of packages that are currently in progress
-        /// </summary>
-        private List<TPackage> workingPackages;
-
-        /// <summary>
-        /// Holds a list of events that have been triggered and possibly need to be re-triggered
-        /// </summary>
-        private List<PackageFinishedEventArgsReTriggerContainer> triggeredEvents;
-
-        /// <summary>
-        /// the timeout after which an event that has not been commited by a client is being re-triggered
-        /// </summary>
-        private int eventReTriggerInterval;
-
-        /// <summary>
-        /// Timer instance that re-triggers event that were not commited in a timely fashion
-        /// </summary>
-        private Timer eventReTriggerer;
 
         /// <summary>
         /// the highest priority that is processed by this service
@@ -123,13 +99,11 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="lowTaskThreshold">the minimum number of tasks that the workerqueue should contain</param>
         /// <param name="highTaskThreshold">the maximum number of tasks that the workerqueue should contain</param>
         /// <param name="useAffineThreads">indicates whether to use affine threads</param>
-        /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
-        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
-                                 int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, bool useTasks, PluginFactory factory)
+        protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
+                                 int highTaskThreshold, bool useAffineThreads, bool useTasks, PluginFactory factory)
             : this(
-                highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads,
-                eventReTriggerInterval, 0, useTasks, factory)
+                highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, 0, useTasks, factory)
         {
         }
 
@@ -143,14 +117,12 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="lowTaskThreshold">the minimum number of tasks that the workerqueue should contain</param>
         /// <param name="highTaskThreshold">the maximum number of tasks that the workerqueue should contain</param>
         /// <param name="useAffineThreads">indicates whether to use affine threads</param>
-        /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
         /// <param name="watchDog">a watchdog instance that is used to restart non-responsive processors</param>
-        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
-            int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, bool useTasks, PluginFactory factory, WatchDog watchDog)
+        protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
+            int highTaskThreshold, bool useAffineThreads, bool useTasks, PluginFactory factory, WatchDog watchDog)
             : this(
-                highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads,
-                eventReTriggerInterval, 0, useTasks, factory, watchDog)
+                highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, 0, useTasks, factory, watchDog)
         {
         }
 
@@ -164,12 +136,11 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="lowTaskThreshold">the minimum number of tasks that the workerqueue should contain</param>
         /// <param name="highTaskThreshold">the maximum number of tasks that the workerqueue should contain</param>
         /// <param name="useAffineThreads">indicates whether to use affine threads</param>
-        /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
         /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
         /// <param name="watchDog">a watchdog instance that is used to restart non-responsive processors</param>
-        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, bool useTasks, PluginFactory factory, WatchDog watchDog) :
-            this(highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, eventReTriggerInterval, maximumFailsPerItem, useTasks, factory)
+        protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int maximumFailsPerItem, bool useTasks, PluginFactory factory, WatchDog watchDog) :
+            this(highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, maximumFailsPerItem, useTasks, factory)
         {
             this.watchDog = watchDog;
         }
@@ -184,17 +155,10 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="lowTaskThreshold">the minimum number of tasks that the workerqueue should contain</param>
         /// <param name="highTaskThreshold">the maximum number of tasks that the workerqueue should contain</param>
         /// <param name="useAffineThreads">indicates whether to use affine threads</param>
-        /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
         /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
-        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, bool useTasks, PluginFactory factory) : this()
+        protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int maximumFailsPerItem, bool useTasks, PluginFactory factory) : this()
         {
-            packages = new Dictionary<int, ConcurrentBag<TPackage>>();
-            for (int i = highestPriority; i <= lowestPriority; i++)
-            {
-                packages.Add(i, new ConcurrentBag<TPackage>());
-            }
-
             this.highestPriority = highestPriority;
             this.lowestPriority = lowestPriority;
             this.workerCount = workerCount;
@@ -202,22 +166,16 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             this.lowTaskThreshold = lowTaskThreshold;
             this.highTaskThreshold = highTaskThreshold;
             this.useAffineThreads = useAffineThreads;
-            this.eventReTriggerInterval = eventReTriggerInterval;
             this.maximumFailsPerItem = maximumFailsPerItem;
             this.useTasks = useTasks;
             this.factory = factory;
-            eventReTriggerer.Change(10000, 10000);
         }
 
         /// <summary>
         /// Prevents a default instance of the ParallelServer class from being created
         /// </summary>
-        private ParallelServer()
+        private AsyncServer()
         {
-            workingPackages = new List<TPackage>();
-            triggeredEvents = new List<PackageFinishedEventArgsReTriggerContainer>();
-            eventReTriggerer = new Timer(RetriggerEvents, string.Format("::{0}::", GetHashCode()), Timeout.Infinite,
-                                         Timeout.Infinite);
             statData = new StatisticData();
         }
 
@@ -278,90 +236,11 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         }
 
         /// <summary>
-        /// Gets the Runtime information required to restore the status when the application restarts
-        /// </summary>
-        /// <returns>an object serializer containing all required data for object re-construction on application reboot</returns>
-        public virtual RuntimeInformation GetPostDisposalSerializableStaus()
-        {
-            RuntimeInformation retVal = new RuntimeInformation();
-            retVal.Add("processor", processor.GetPostDisposalSerializableStaus());
-            for (int i = highestPriority; i <= lowestPriority; i++)
-            {
-                retVal.Add(string.Format("priority_{0}_packages", i), packages[i].ToArray());
-            }
-
-            retVal.Add("WorkingPackages", workingPackages.ToArray());
-            retVal.Add("TriggeredEvents", triggeredEvents.ToArray());
-            return retVal;
-        }
-
-        /// <summary>
-        /// Enables a client to commit that it recieved the TaskDone event for a specific package
-        /// </summary>
-        /// <param name="requestingSystem">the identifier of the requesting system</param>
-        /// <param name="packageId">the package identifier for that system</param>
-        public void CommitTaskDoneRecieved(string requestingSystem, int packageId)
-        {
-            lock (triggeredEvents)
-            {
-                LogEnvironment.LogDebugEvent(string.Format(ParallellResources.ParallelServer_CommitTaskDoneRecieved_System__0__confirms_that_TaskDone_of_the_Task__1__was_received_,
-                                         requestingSystem, packageId), LogSeverity.Report);
-                var commitedEvent = (from t in triggeredEvents
-                                     where
-                                         t.Args.Package.RequestingSystem == requestingSystem &&
-                                         t.Args.Package.Id == packageId
-                                     select t).ToArray();
-                if (commitedEvent.Length != 1)
-                {
-                    LogEnvironment.LogDebugEvent(ParallellResources.ParallelServer_Unable_to_commit_this_event_, LogSeverity.Warning);
-                    return;
-                }
-
-                triggeredEvents.Remove(commitedEvent[0]);
-            }
-        }
-
-        /// <summary>
-        /// Applies Runtime information that was loaded from a file
-        /// </summary>
-        /// <param name="runtimeInformation">the runtime information describing the status of this object before the last shutdown</param>
-        public virtual void LoadRuntimeStatus(RuntimeInformation runtimeInformation)
-        {
-            for (int i = highestPriority; i <= lowestPriority; i++)
-            {
-                TPackage[] packsI = (TPackage[]) runtimeInformation[string.Format("priority_{0}_packages", i)];
-                foreach (TPackage package in packsI)
-                {
-                    IntegratePackage(package, PackageReintegrationStatus.Pending);
-                    packages[i].Add(package);
-                }
-            }
-
-            foreach (TPackage package in (TPackage[]) runtimeInformation["WorkingPackages"])
-            {
-                package.PackageFinished += PackageFinished;
-                package.DemandForRequeue += DemandForRequeue;
-                IntegratePackage(package, PackageReintegrationStatus.Processing);
-                workingPackages.Add(package);
-            }
-
-            foreach (
-                PackageFinishedEventArgsReTriggerContainer container in
-                    (PackageFinishedEventArgsReTriggerContainer[]) runtimeInformation["TriggeredEvents"])
-            {
-                IntegratePackage((TPackage)container.Args.Package, PackageReintegrationStatus.Done);
-                triggeredEvents.Add(container);
-            }
-
-            processor.LoadRuntimeStatus((RuntimeInformation)runtimeInformation["processor"]);
-        }
-
-        /// <summary>
         /// Enqueues a package into the list of processable packages
         /// </summary>
         /// <param name="package">the package that requires processing</param>
         [UserDelegation("enqueueUser")]
-        public void EnqueuePackage(TPackage package)
+        public async Task<TPackage> EnqueuePackage(TPackage package)
         {
             IIdentity identity = package.LocalConfiguration<IIdentity>("enqueueUser");
             if (!CheckAuthenticatedUser(identity))
@@ -369,9 +248,17 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
                 throw new InvalidOperationException("You are not authorized to perform the demanded Action");
             }
 
-            ConcurrentBag<TPackage> target = packages[package.PackagePriority];
-            IntegratePackage(package, PackageReintegrationStatus.Pending);
-            target.Add(package);
+            package.DemandForRequeue += DemandForRequeue;
+            try
+            {
+                await Task.WhenAll(package.GetTasks().Cast<TTask>().Select(n => processor.ProcessAsync(n)));
+            }
+            finally
+            {
+                package.DemandForRequeue -= DemandForRequeue;
+            }
+            
+            return package;
         }
 
         /// <summary>
@@ -379,7 +266,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// </summary>
         /// <param name="package">the package that requires processing</param>
         [UserDelegation("enqueueUser")]
-        public void EnqueuePackage(IProcessPackage package)
+        public async Task<IProcessPackage> EnqueuePackage(IProcessPackage package)
         {
             IIdentity identity = package.LocalConfiguration<IIdentity>("enqueueUser");
             if (!CheckAuthenticatedUser(identity))
@@ -387,12 +274,14 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
                 throw new InvalidOperationException("You are not authorized to perform the demanded Action");
             }
 
-            if (package is TPackage)
+            if (package is TPackage pack)
             {
-                EnqueuePackage((TPackage) package);
+                return await EnqueuePackage(pack);
             }
-        }
 
+            throw new InvalidOperationException("This package type can not be processed by this Server");
+        }
+        
         /// <summary>
         /// Requeues a task to the worker queue
         /// </summary>
@@ -400,22 +289,6 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         protected bool RequeueTask(TTask task)
         {
             return processor.EnqueueTask(task);
-        }
-
-        /// <summary>
-        /// Allows this object to do required initializations when no runtime status is provided by the calling object
-        /// </summary>
-        public virtual void InitializeWithoutRuntimeInformation()
-        {
-            processor.InitializeWithoutRuntimeInformation();
-        }
-
-        /// <summary>
-        /// Is called when the runtime is completly available and ready to run
-        /// </summary>
-        public void RuntimeReady()
-        {
-            processor.RuntimeReady();
         }
 
         /// <summary>
@@ -485,21 +358,6 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             retVal["AvgItemsPerSecond"] = statData.ProcessingData.Count != 0
                                               ? statData.ProcessingData.Average(n => n.ItemCount/n.Duration)
                                               : 0;
-            foreach (KeyValuePair<int, ConcurrentBag<TPackage>> queue in packages)
-            {
-                retVal[string.Format("WaitingTasksPriority{0}", queue.Key)] = queue.Value.Count;
-            }
-
-            lock (triggeredEvents)
-            {
-                retVal["uncommittedEvents"] = triggeredEvents.Count;
-            }
-
-            lock (workingPackages)
-            {
-                retVal["workingPackages"] = workingPackages.Count;
-            }
-
             return retVal;
         }
 
@@ -536,22 +394,6 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         }
 
         /// <summary>
-        /// Enables a derived class to perform required actions to integrate a pending task into the current environment
-        /// </summary>
-        /// <param name="task">the task that needs to be integrated into the running environment</param>
-        protected virtual void IntegrateTask(TTask task)
-        {
-        }
-
-        /// <summary>
-        /// Enables a derived class to perform required actions to integrate packages that are either pending or in progress or done
-        /// </summary>
-        /// <param name="package">the package that needs to be integrated into the running environment</param>
-        protected virtual void IntegratePackage(TPackage package, PackageReintegrationStatus status)
-        {
-        }
-
-        /// <summary>
         /// Creates a new worker instance when requested by one of the workers
         /// </summary>
         /// <returns>a worker that is capable for processing tasks generated by this Server instance</returns>
@@ -583,125 +425,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             processor = new ParallelTaskProcessor<TTask>(workerName,GetWorker, highestPriority, lowestPriority, workerCount,
                 workerPollInterval, lowTaskThreshold, highTaskThreshold,
                 useAffineThreads, useTasks, watchDog);
-            processor.GetMoreTasks += FetchMoreTasks;
-            processor.IntegratePendingTask += IntegratePendingTasks;
             factory.RegisterObject(workerName, processor);
-        }
-
-        /// <summary>
-        /// Fetches tasks that are waiting to be processed
-        /// </summary>
-        /// <param name="sender">the event-sender</param>
-        /// <param name="e">event information</param>
-        private void FetchMoreTasks(object sender, GetMoreTasksEventArgs e)
-        {
-            TPackage package;
-            if (packages[e.Priority].TryTake(out package))
-            {
-                IProcessTask[] items = package.GetTasks();
-                lock (workingPackages)
-                {
-                    package.PackageFinished += PackageFinished;
-                    package.DemandForRequeue += DemandForRequeue;
-                    workingPackages.Add(package);
-                }
-
-                bool[] ok = new bool[items.Length];
-                while (ok.Any(n => !n))
-                {
-                    for (int index = 0; index < items.Length; index++)
-                    {
-                        IProcessTask item = items[index];
-                        ok[index] = processor.EnqueueTask((TTask) item);
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Integrates deserialized tasks into the runtime environment of the current application
-        /// </summary>
-        /// <param name="sender">the event-sender</param>
-        /// <param name="e">the integration arguments containing the package that needs to be integrated</param>
-        private void IntegratePendingTasks(object sender, IntegrationEventArgs e)
-        {
-            IntegrateTask((TTask) e.Task);
-        }
-
-        /// <summary>
-        /// Triggers events that have not been commited yet
-        /// </summary>
-        /// <param name="state">unused state object</param>
-        private void RetriggerEvents(object state)
-        {
-            eventReTriggerer.Change(Timeout.Infinite, Timeout.Infinite);
-            state.LocalOwner(state.ToString());
-            try
-            {
-                lock (triggeredEvents)
-                {
-                    foreach (
-                        var arg in
-                            (from t in triggeredEvents
-                             where DateTime.Now.Subtract(t.LastTrigger).TotalMinutes > eventReTriggerInterval
-                             select t))
-                    {
-                        arg.LastTrigger = DateTime.Now;
-                        if (PackageProcessed != null)
-                        {
-                            PackageProcessed(this, arg.Args);
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                eventReTriggerer.Change(eventReTriggerInterval, eventReTriggerInterval);
-                state.LocalOwner(null);
-            }
-        }
-
-        /// <summary>
-        /// Handles the PackageFinished event of a processed package
-        /// </summary>
-        /// <param name="sender">the event-sender</param>
-        /// <param name="e">arguments about the finished package</param>
-        private void PackageFinished(object sender, PackageFinishedEventArgs e)
-        {
-            e.Package.PackageFinished -= PackageFinished;
-            e.Package.DemandForRequeue -= DemandForRequeue;
-            lock (triggeredEvents)
-            {
-                triggeredEvents.Add(new PackageFinishedEventArgsReTriggerContainer
-                                        {
-                                            Args = e,
-                                            LastTrigger = DateTime.Now
-                                        });
-            }
-
-            if (PackageProcessed != null)
-            {
-                PackageProcessed(this, e);
-            }
-            bool collect;
-            lock (this)
-            {
-                collect = collectStats;
-            }
-            if (collect)
-            {
-                ProcessedPackageInfo info = new ProcessedPackageInfo();
-                info.Duration = DateTime.Now.Subtract(e.Package.CreationTime).TotalSeconds;
-                info.ItemCount = e.Tasks.Length;
-                info.SuccessCount = (from i in e.Tasks where i.Success select i).Count();
-                info.FailCount = (from i in e.Tasks select i.FailCount).Sum();
-                CollectSpecialPackageStatistics(e);
-                statData.ProcessingData.Add(info);
-            }
-            lock (workingPackages)
-            {
-                workingPackages.Remove((TPackage)e.Package);
-            }
         }
 
         /// <summary>
@@ -720,11 +444,6 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
 
             return retVal;
         }
-
-        /// <summary>
-        /// Informs listening clients that a package that has been passed for processing is done
-        /// </summary>
-        public event PackageFinishedEventHandler PackageProcessed;
 
         /// <summary>
         /// Informs a calling class of a Disposal of this Instance

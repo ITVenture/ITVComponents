@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using ITVComponents.DataAccess.FileOutput;
+using ITVComponents.Threading;
 
 namespace ITVComponents.DataAccess
 {
@@ -359,7 +360,7 @@ namespace ITVComponents.DataAccess
                 this.lockObject = lockObject;
                 this.triggerObject = triggerObject;
                 this.offline = offline;
-                Monitor.Enter(lockObject);
+                AsyncMonitor.Enter(lockObject);
             }
 
             /// <summary>
@@ -386,7 +387,7 @@ namespace ITVComponents.DataAccess
                 }
                 finally
                 {
-                    Monitor.Exit(lockObject);
+                    AsyncMonitor.Exit(lockObject);
                 }
             }
         }

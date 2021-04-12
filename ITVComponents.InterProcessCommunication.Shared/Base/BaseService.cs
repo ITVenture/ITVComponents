@@ -4,9 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Proxying;
@@ -19,7 +21,8 @@ using ITVComponents.Threading;
 namespace ITVComponents.InterProcessCommunication.Shared.Base
 {
     public abstract class BaseServer:IPlugin, IDeferredInit
-    {
+    {private static readonly MethodInfo makeAsyncAwaitInfo = typeof(BaseServer).GetMethod(nameof(MakeAsyncAwait), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.InvokeMethod);
+
         /// <summary>
         /// A dictionary containing the names of loaded plugins
         /// </summary>
@@ -362,8 +365,26 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                         throw new InterProcessException(reason, null);
                     }
 
-                    retVal.Result = targetMethod.Invoke(obj, param);
-                    if (targetMethod.ReturnType.IsInterface && useExtendedProxying)
+                    var ret = targetMethod.Invoke(obj, param);
+                    if (ret != null)
+                    {
+                        var tret = targetMethod.ReturnType;
+                        if (ret is Task && tret.IsGenericType && tret.GetGenericTypeDefinition() == typeof(Task<>))
+                        {
+                            tret.GetGenericArguments().ForEach(Console.WriteLine);
+                            var fc = (Delegate)makeAsyncAwaitInfo.MakeGenericMethod(tret.GetGenericArguments()).Invoke(null,null);
+                            Task<object> tmp = (Task<object>) fc.DynamicInvoke(ret);
+                            ret = AsyncHelpers.RunSync(async () => await tmp);
+                        }
+                        else if (ret is Task tmpT)
+                        {
+                            AsyncHelpers.RunSync(async () => await tmpT);
+                            ret = null;
+                        }
+                    }
+
+                    retVal.Result = ret;
+                    if (targetMethod.ReturnType.IsInterface && useExtendedProxying && retVal.Result is not ISerializable)
                     {
                         retVal.Result = GetBufferFor(retVal.Result, targetMethod.ReturnType, authenticatedUser);
                     }
@@ -821,7 +842,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 {
                     types[i] = types[i].GetElementType();
                     retVal[i] = arguments[i];
-                    if (types[i].IsInterface && useExtendedProxying)
+                    if (types[i].IsInterface && useExtendedProxying && retVal[i] is not ISerializable)
                     {
                         retVal[i] = GetBufferFor(retVal[i], types[i], owner);
                     }
@@ -829,6 +850,14 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             }
 
             return retVal;
+        }
+
+        private static Func<Task<T>, Task<object>> MakeAsyncAwait<T>()
+        {
+            return async (t) =>
+            {
+                return await t;
+            };
         }
 
         /// <summary>

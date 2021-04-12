@@ -1,4 +1,6 @@
-﻿using ITVComponents.InterProcessCommunication.Shared.Helpers;
+﻿using System;
+using System.Runtime.Serialization;
+using ITVComponents.InterProcessCommunication.Shared.Helpers;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Proxying
 {

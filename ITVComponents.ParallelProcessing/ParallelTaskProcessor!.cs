@@ -24,8 +24,8 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="lowTaskThreshold">the minimum number of Items that should be in a queue for permanent processing</param>
         /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
-        public ParallelTaskProcessor(string identifier, Func<ITaskWorker<TTask>> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads)
-            : base(identifier, worker, highestPriority,lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads)
+        public ParallelTaskProcessor(string identifier, Func<ITaskWorker<TTask>> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool useTasks)
+            : base(identifier, worker, highestPriority,lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, useTasks)
         {
         }
 
@@ -42,9 +42,21 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
         /// <param name="watchDog">a watchdog instance that will restart worker-instances when they become unresponsive</param>
-        public ParallelTaskProcessor(string identifier, Func<ITaskWorker<TTask>> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, WatchDog watchDog)
-            : base(identifier, worker, highestPriority,lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, watchDog)
+        public ParallelTaskProcessor(string identifier, Func<ITaskWorker<TTask>> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool useTasks, WatchDog watchDog)
+            : base(identifier, worker, highestPriority,lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, useTasks, watchDog)
         {
+        }
+
+        /// <summary>
+        /// Enqueues a task and when its done returns the fulfilled task object
+        /// </summary>
+        /// <param name="task">the task to process</param>
+        /// <returns>a Task that returns after the provided task was fulfilled</returns>
+        public async Task<TTask> ProcessAsync(TTask task)
+        {
+            EnqueueTask(task);
+            await task.Processing();
+            return task;
         }
 
         /// <summary>
