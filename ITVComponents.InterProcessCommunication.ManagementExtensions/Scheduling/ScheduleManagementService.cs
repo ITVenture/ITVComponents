@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Antlr4.Runtime;
+using ITVComponents.InterProcessCommunication.Shared.Security;
+using ITVComponents.InterProcessCommunication.Shared.Security.PermissionBasedSecurity;
 using ITVComponents.ParallelProcessing;
 using ITVComponents.Plugins;
 
@@ -11,6 +13,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
     /// <summary>
     /// Allows a client object to manage schedulers and push schedule-requests
     /// </summary>
+    [UseSecurity]
     public class ScheduleManagementService:IPlugin, ISchedulingManager
     {
         /// <summary>
@@ -22,7 +25,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
         /// Gets a list of available Schedulers
         /// </summary>
         /// <returns>a string array containing the unique names of all available scheduler objects</returns>
-        public SchedulerDescription[] GetAvailableSchedulers()
+        public virtual SchedulerDescription[] GetAvailableSchedulers()
         {
             return (from t in TaskScheduler.GetAvailableSchedulers()
                     select
@@ -39,7 +42,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
         /// </summary>
         /// <param name="schedulerName">the scheduler on which to check for scheduled tasks</param>
         /// <returns>a list of scheduled tasks</returns>
-        public ScheduledTaskDescription[] GetScheduledTasks(string schedulerName)
+        public virtual ScheduledTaskDescription[] GetScheduledTasks(string schedulerName)
         {
             ScheduledTaskDescription[] retVal = null;
             if (TaskScheduler.SchedulerExists(schedulerName))
@@ -66,7 +69,8 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
         /// <param name="schedulerName">the scheduler on which to push the given request</param>
         /// <param name="requestId">the id of the request that needs to be executed instantly</param>
         /// <returns>a value indicating whether the request could be activated</returns>
-        public bool PushRequest(string schedulerName, string requestId)
+        [HasPermission("PushSchedulerRequest")]
+        public virtual bool PushRequest(string schedulerName, string requestId)
         {
             bool retVal = false;
             if (TaskScheduler.SchedulerExists(schedulerName))
