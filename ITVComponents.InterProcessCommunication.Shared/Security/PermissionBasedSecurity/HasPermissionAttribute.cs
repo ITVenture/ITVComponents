@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
+namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBasedSecurity
 {
     /// <summary>
     /// Provides a security extension for any class that may be exposed with a server
