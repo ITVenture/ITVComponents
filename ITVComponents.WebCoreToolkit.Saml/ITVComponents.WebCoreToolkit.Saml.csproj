@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+  <PropertyGroup>
+    <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>2.0.1</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/IT-Venture-Core-Libraries</RepositoryUrl>
+    <!--TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeReferencedProjectInPackage</TargetsForTfmSpecificContentInPackage-->
+  </PropertyGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <!--Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" /-->
+  </Target>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <!--Target Name="IncludeReferencedProjectInPackage" Condition="'$(IncludeBuildOutput)' != 'false'">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="..\..\..\repos\Saml2\Sustainsys.Saml2.AspNetCore2\bin\Debug\netstandard2.0\Sustainsys.Saml2.AspNetCore2.dll" PackagePath="lib/$(TargetFramework)" />
+      <TfmSpecificPackageFile Include="..\..\..\repos\Saml2\Sustainsys.Saml2.AspNetCore2\bin\Debug\netstandard2.0\Sustainsys.Saml2.dll" PackagePath="lib/$(TargetFramework)" />
+      <TfmSpecificPackageFile Include="..\..\..\repos\Saml2\Sustainsys.Saml2.AspNetCore2\bin\Debug\netstandard2.0\Sustainsys.Saml2.Metadata.dll" PackagePath="lib/$(TargetFramework)" />
+    </ItemGroup>
+  </Target-->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.IdentityModel.Tokens.Saml" Version="6.8.0" />
+    <PackageReference Include="Sustainsys.Saml2.AspNetCore2" Version="2.8.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
+  </ItemGroup>
+  <!--ItemGroup>
+    <Reference Include="Sustainsys.Saml2.AspNetCore2" PrivateAssets="All">
+      <HintPath>..\..\..\repos\Saml2\Sustainsys.Saml2.AspNetCore2\bin\Debug\netstandard2.0\Sustainsys.Saml2.AspNetCore2.dll</HintPath>
+    </Reference>
+    <Reference Include="Sustainsys.Saml2" PrivateAssets="All">
+      <HintPath>..\..\..\repos\Saml2\Sustainsys.Saml2.AspNetCore2\bin\Debug\netstandard2.0\Sustainsys.Saml2.dll</HintPath>
+    </Reference>
+    <Reference Include="Sustainsys.Saml2.Metadata" PrivateAssets="All">
+      <HintPath>..\..\..\repos\Saml2\Sustainsys.Saml2.AspNetCore2\bin\Debug\netstandard2.0\Sustainsys.Saml2.Metadata.dll</HintPath>
+    </Reference>
+  </ItemGroup-->
+  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
+    <Copy SourceFiles="$(OutputPath)$(PackageId).$(PackageVersion).nupkg" DestinationFolder="\\itv-hv\E\noog\" />
+    <Exec Command="%userprofile%\.nuget\nuget.exe push &quot;$(OutputPath)$(PackageId).$(PackageVersion).nupkg&quot; -Source github" />
+  </Target>
+</Project>

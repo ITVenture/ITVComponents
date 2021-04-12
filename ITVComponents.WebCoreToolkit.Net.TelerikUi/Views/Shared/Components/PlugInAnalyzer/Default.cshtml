@@ -1,0 +1,47 @@
+﻿@using ITVComponents.Plugins.PluginServices
+@using Kendo.Mvc.UI
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewModel.AssemblyDescriptionModel
+@if (Model != null)
+{
+    @(Html.Kendo()
+        .Grid(Model.Types)
+        .Name("AllTypes")
+        .Columns(n =>
+        {
+            n.Bound(c => c.TypeFullName);
+            n.Bound(c => c.Remarks);
+        })
+        .ClientDetailTemplateId("TypeDetails")
+        )
+}
+
+<script id="TypeDetails" type="text/x-kendo-template">
+        @(Html.Kendo()
+            .Grid<ConstructorDescriptor>()
+            .Columns(g =>
+            {
+                g.Bound(h => h.ConstructorName);
+                g.Bound(h => h.Sample);
+                g.Bound(h => h.Remarks);
+            })
+            .Name("ConstructorTable#=Uid#")
+            .DataSource("ITVenture.Tools.AssemblyAnalyzerDataSource.GetConstructors(#=Uid#)")
+            .Resizable(c => c.Columns(true))
+            .ClientDetailTemplateId("ConstructorDetails").ToClientTemplate())
+    </script>
+
+<script  id="ConstructorDetails" type="text/x-kendo-template">
+        @(Html.Kendo()
+            .Grid<ConstructorParameterDescriptor>()
+            .Name("ParamsTable#=Uid#")
+            .Columns(h =>
+            {
+                h.Bound(j => j.ParameterName);
+                h.Bound(j => j.ParameterType);
+                h.Bound(j => j.ParameterDescription);
+                h.Bound(j => j.TypePrefix);
+                h.Bound(j => j.Remarks);
+            })
+            .DataSource("ITVenture.Tools.AssemblyAnalyzerDataSource.GetArguments(#=Uid#)")
+            .ToClientTemplate())
+</script>

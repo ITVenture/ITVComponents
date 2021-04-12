@@ -1,0 +1,269 @@
+﻿/**
+    Marker Style for Row-Reordering
+*/
+.sort-dragger {
+}
+
+/**
+    Marker Style for Row-Reordering
+*/
+.sort-ignore {
+}
+
+a.itv-grid-button {
+    border: 0;
+    width: 30px;
+    height: 30px;
+    min-width: 0 !important;
+    max-width: 30px !important;
+    text-align: center !important;
+    /*padding: 7px 1px 0 7px !important;*/
+    background: no-repeat center;
+    background-size: contain;
+    overflow: hidden;
+    display: inline-block;
+    font-size: 0;
+    line-height: 0;
+    white-space: nowrap;
+    background-repeat: no-repeat;
+    vertical-align: top !important;
+    padding: 7px 1px 0 7px !important;
+}
+
+.glyphSprite {
+    font-size: inherit !important;
+}
+
+.itv-tool-button{
+    display:inline-block;
+    width:33px;
+    height:33px;
+    text-align:center !important;
+    padding: 7px 1px 5px 7px !important;
+    /*text-indent:-200%;*/
+    min-width:0 !important;
+    border:0;
+    background-repeat:no-repeat;
+    background: no-repeat center;
+    background-size: contain;
+    box-shadow:none;
+    white-space: nowrap;
+    overflow: hidden;
+    /*font-size: 0;
+    line-height: 0;*/
+}
+
+a.itv-strong-button > span {
+    color: black;
+}
+
+a.itv-weak-button > span {
+    color: lightgray !important;
+}
+
+/**
+    kendo-styles
+*/
+
+.editwindowpos {
+          
+            
+            top:96px !important;
+            /*visibility:visible;*/
+        }
+ .k-edit-form-container{
+     width:98%;
+ }
+
+/*.k-state-active {
+    background-color: #42b1ca;
+}*/
+
+/*start of widgetStyles*/
+
+.itv-panel-wrap {
+    display: flex;
+    margin: 0 0 20px;
+    /*width: 900px;*/
+    width: 100%;
+    background-color: #f5f5f5;
+    border: 1px solid #e5e5e5;
+    flex-flow: row wrap;
+}
+
+.itv-widgetbox.placeholder {
+    opacity: 0.4;
+    border: 1px dashed #a6a6a6;
+}
+
+/* widgetboxS */
+.itv-widgetbox {
+    margin: 5px 5px 20px;
+    padding: 0;
+    background-color: #ffffff;
+    border: 1px solid #e7e7e7;
+    border-radius: 3px;
+}
+
+.itv-widgetbox:hover {
+    background-color: #fcfcfc;
+    border-color: #cccccc;
+}
+
+
+
+.itv-widgetbox h3 {
+    font-size: 12px;
+    padding: 8px 10px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #e7e7e7;
+}
+
+.itv-widgetbox h3 span {
+    float: right;
+}
+
+.itv-widgetbox h3 span:hover {
+    cursor: pointer;
+    background-color: #e7e7e7;
+    border-radius: 20px;
+}
+
+/*End of widgetStyles*/
+
+/*.k-button-icon{
+    background-color: #42b1ca;
+}*/
+
+.imglinkUp
+{
+    width:32px;
+    height:26px;
+    background:url(../images/hyperlink.png) no-repeat top left;
+    background-size: contain;
+    display:block;
+    text-indent:30px;
+}
+
+.k-datepicker,
+.k-dropdown,
+.k-combobox,
+.k-dropdown,
+.k-numerictextbox{
+    width: 100%;
+}
+
+div.k-grid .k-grid-edit,
+div.k-grid .k-grid-delete,
+div.k-grid .k-grid-cancel,
+/*div.k-grid .k-grid-update,*/
+div.k-grid .k-grid-cover-page,
+div.k-grid .k-grid-document  {
+    display:inline-block;
+    width:30px;
+    height:30px;
+    text-align:center!important;
+    /*text-indent:100%;*/
+    padding: 7px 1px 0 7px !important;
+    vertical-align: top !important;
+    min-width:0 !important;
+    max-width: 30px !important;
+    border:0;
+    background-size: contain;
+    box-shadow:none;
+    white-space: nowrap;
+    overflow: hidden;
+    border: 0;
+    font-size: 0;
+    line-height: 0;
+}
+
+    div.k-grid .k-grid-edit:not(:hover),
+    div.k-grid .k-grid-delete:not(:hover),
+    div.k-grid .k-grid-cancel:not(:hover),
+    /*div.k-grid .k-grid-update,*/
+    div.k-grid .k-grid-cover-page:not(:hover),
+    div.k-grid .k-grid-document:not(:hover) {
+        background-repeat:no-repeat;
+        background: no-repeat center;
+    }
+
+    div.k-grid .k-primary {
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        text-align: center !important;
+        /*text-indent:100%;*/
+        padding: 7px 1px 0 7px !important;
+        vertical-align: top !important;
+        min-width: 0 !important;
+        max-width: 30px !important;
+        border: 0;
+        /*background-repeat: no-repeat;
+    background: no-repeat center;*/
+        background-size: contain;
+        box-shadow: none;
+        white-space: nowrap;
+        overflow: hidden;
+        border: 0;
+        font-size: 0;
+        line-height: 0;
+    }
+
+
+.k-icon > .k-sprite.svg-inline--fa,
+.itv-grid-button > .svg-inline--fa,
+.itv-tool-button > .svg-inline--fa,
+.k-sprite.svg-inline--fa,
+.k-icon > .k-sprite.fas,
+.itv-grid-button > .fas,
+.itv-tool-button > .fas,
+.k-sprite.fas,
+.k-icon > .k-sprite.fab,
+.itv-grid-button > .fab,
+.itv-tool-button > .fab,
+.k-sprite.fab,
+.k-icon > .k-sprite.far,
+.itv-grid-button > .far,
+.itv-tool-button > .far,
+.k-sprite.far,
+.k-icon > .k-sprite.fad,
+.itv-grid-button > .fad,
+.itv-tool-button > .fad,
+.k-sprite.fad,
+.k-icon > .k-sprite.fal,
+.itv-grid-button > .fal,
+.itv-tool-button > .fal,
+.k-sprite.fal {
+    font-size: inherit !important;
+    line-height: inherit !important;
+    position: relative;
+    width: 16px;
+    height: 16px;
+    margin-left: 0;
+    padding: 2px 1px 2px 1px !important;
+}
+
+.itv-grid-button.itv-fa-gbx {
+    padding: 8px 8px !important;
+    line-height: 1;
+}
+
+a.itv-grid-button,
+.k-command-cell > .k-button {
+    margin-top: calc(-1px + -.1rem) !important;
+    margin-bottom: calc(-1px + -.1rem) !important;
+    padding: 0 0 9px 12px;
+}
+
+.itv-tool-button.itv-fa-tbx {
+    padding: 6px 5px !important;
+}
+
+.k-menu > li.k-item > span {
+    padding: 0 1.1em !important;
+}
+
+div.k-grid .k-button:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 2px 3px rgba(0, 0, 0, 0.05);
+}

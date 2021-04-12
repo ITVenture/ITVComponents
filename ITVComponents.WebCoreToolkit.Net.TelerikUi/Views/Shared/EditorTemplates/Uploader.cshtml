@@ -1,0 +1,7 @@
+﻿@using System.Linq.Expressions
+@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers
+@model object
+
+@Html.UploaderFor(m => m, UploadMode.Upload, ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_uploadModule"] as string, ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_uploadReason"] as string, (bool)ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_preserveOriginal"], ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_originalNameColumn"] as string, ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_uploadHint"] as string, ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_customCallback"] as string, (bool)ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_UpdateNullOriginalOnly"])

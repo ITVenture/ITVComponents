@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>2.0.1</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/IT-Venture-Core-Libraries</RepositoryUrl>
+    <Authors>mw</Authors>
+    <Company>IT-Venture GmbH</Company>
+    <Copyright>2020 by IT-Venture GmbH</Copyright>
+    <RepositoryType>git</RepositoryType>
+    <Description>ITV Core Components Basic classes</Description>
+    <PackageProjectUrl>https://github.com/ITVenture/IT-Venture-Core-Libraries</PackageProjectUrl>
+    <PackageLicenseExpression>wtf-pl</PackageLicenseExpression>
+    <ApplicationIcon />
+    <OutputType>Library</OutputType>
+    <StartupObject />
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Settings\XmlSettings.cs" />
+    <Compile Remove="Settings\XmlSettingsSection.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="microsoft.csharp" Version="4.7.0" />
+    <PackageReference Include="microsoft.extensions.configuration" Version="5.0.0" />
+    <PackageReference Include="microsoft.extensions.configuration.binder" Version="5.0.0" />
+    <PackageReference Include="microsoft.extensions.configuration.Json" Version="5.0.0" />
+    <PackageReference Include="microsoft.extensions.primitives" Version="5.0.0" />
+    <PackageReference Include="newtonsoft.json" Version="12.0.3" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="5.0.0" />
+    <PackageReference Include="system.directoryservices" Version="5.0.0" />
+    <PackageReference Include="system.directoryservices.accountmanagement" Version="5.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="5.0.0" />
+    <PackageReference Include="System.Security.Principal.Windows" Version="5.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.DirectoryServices.AccountManagement" />
+    <Reference Include="System.Management.Automation">
+      <HintPath>..\..\..\..\..\..\Windows\assembly\GAC_MSIL\System.Management.Automation\1.0.0.0__31bf3856ad364e35\System.Management.Automation.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <!--Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" /-->
+  </Target>
+  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
+    <Copy SourceFiles="$(OutputPath)$(PackageId).$(PackageVersion).nupkg" DestinationFolder="\\itv-hv\E\noog\" />
+    <Exec Command="%userprofile%\.nuget\nuget.exe push &quot;$(OutputPath)$(PackageId).$(PackageVersion).nupkg&quot; -Source github" />
+  </Target>
+</Project>

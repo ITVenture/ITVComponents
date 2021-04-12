@@ -1,0 +1,6 @@
+﻿@using System.Collections
+@using ITVComponents.Plugins.PluginServices
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@using Kendo.Mvc.UI
+@model string
+@await Component.InvokeAsync(typeof(PlugInAnalyzer), new { local=true, assemblyName=Model })

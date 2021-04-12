@@ -1,0 +1,17 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@{
+    Layout = "_Layout";
+}
+@{
+
+    ViewBag.Title =TextsAndMessagesHelper.IWCN_Titles_Navigation;
+}
+<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/viewScripts.min.js"></script>
+<div class="row">
+    @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "parentId", null }, { "Permissions", ViewData["Permissions"] } } })
+</div>
+
+@Html.DetailViewScript("NavDetails", "Nav#=NavigationMenuId#", "~/Security/Navigation/NavTable?parentId=#=NavigationMenuId#")

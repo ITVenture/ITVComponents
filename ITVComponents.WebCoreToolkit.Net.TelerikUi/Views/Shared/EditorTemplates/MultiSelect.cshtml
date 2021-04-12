@@ -1,0 +1,15 @@
+﻿@using ITVComponents.WebCoreToolkit.Routing
+@using Kendo.Mvc.UI
+@inject IUrlFormat urlFormat
+@Html.Kendo().MultiSelectFor(m => m).DataTextField("Label").DataValueField("Key").DataSource(ds =>
+{
+    ds.Ajax().Read(ru =>
+    {
+        var area = (string) ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_Area"];
+        var url = urlFormat != null ?
+            urlFormat.FormatUrl($"~[SlashPermissionScope]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}") :
+            $"~{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}";
+        url += $"/ForeignKey/{ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_RepoName"]}/{ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_TableName"]}";
+        ru.Url(Url.Content(url));
+    }).ServerOperation(true);
+}).Placeholder((string)ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_Placeholder"])

@@ -1,0 +1,10 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@using Kendo.Mvc.UI
+@using Kendo.Mvc.UI.Fluent
+@model int
+@await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "userId", Model } } })

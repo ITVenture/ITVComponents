@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+  <PropertyGroup>
+    <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>2.0.1</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/IT-Venture-Core-Libraries</RepositoryUrl>
+  </PropertyGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <!--Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" /-->
+  </Target>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />
+    <ProjectReference Include="..\ITVComponents.Formatting\ITVComponents.Formatting.csproj" />
+    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Resources\Localization\DefaultModelMessages.it.resx">
+      <SubType>Designer</SubType>
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\Localization\DefaultModelMessages.fr.resx">
+      <SubType>Designer</SubType>
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\Localization\DefaultModelMessages.resx">
+      <SubType>Designer</SubType>
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\Localization\DefaultModelMessages.de.resx">
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\Localization\MvcModelMessageLocalizer.it.resx">
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\Localization\MvcModelMessageLocalizer.fr.resx">
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\Localization\MvcModelMessageLocalizer.de.resx">
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\Localization\MvcModelMessageLocalizer.resx">
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
+    <Copy SourceFiles="$(OutputPath)$(PackageId).$(PackageVersion).nupkg" DestinationFolder="\\itv-hv\E\noog\" />
+    <Exec Command="%userprofile%\.nuget\nuget.exe push &quot;$(OutputPath)$(PackageId).$(PackageVersion).nupkg&quot; -Source github" />
+  </Target>
+</Project>

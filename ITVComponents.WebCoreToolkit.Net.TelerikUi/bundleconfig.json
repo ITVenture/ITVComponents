@@ -1,0 +1,48 @@
+[
+  {
+    "outputFileName": "wwwroot/js/itvComponents.min.js",
+    "inputFiles": [
+      "lib/js/ItvGlobalScript.js",
+      "lib/js/Tools/*.js",
+      "lib/js/Lang/*.js",
+      "lib/js/Tools/**/*.js"
+    ],
+    "minify": {
+      "enabled": true,
+      "renameLocals": true
+    },
+    "sourceMap": true
+  },
+  {
+    "outputFileName": "wwwroot/js/itvJqPlugs.min.js",
+    "inputFiles": [
+      "lib/js/jqueryPlugin/*.js"
+    ],
+    "minify": {
+      "enabled": true,
+      "renameLocals": true
+    },
+    "sourceMap": true
+  },
+  {
+    "outputFileName": "wwwroot/js/viewScripts.min.js",
+    "inputFiles": [
+      "Areas/**/*.js"
+    ],
+    "minify": {
+      "enabled": true,
+      "renameLocals": true
+    },
+    "sourceMap": true
+  },
+  {
+    "outputFileName": "wwwroot/css/itvComponentsBS4.min.css",
+    "inputFiles": [
+      "lib/styles/*.css"
+    ],
+    "minify": {
+      "enabled": true,
+      "renameLocals": true
+    }
+  }
+]

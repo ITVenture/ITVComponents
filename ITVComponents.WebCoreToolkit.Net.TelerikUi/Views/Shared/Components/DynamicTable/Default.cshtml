@@ -1,0 +1,142 @@
+﻿@using ITVComponents.EFRepo.DynamicData
+@using ITVComponents.Plugins.PluginServices
+@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using Kendo.Mvc.UI
+@using Microsoft.AspNetCore.Routing
+@model ICollection<ITVComponents.EFRepo.DynamicData.TableColumnDefinition>
+
+@{
+    var pk = (TableColumnDefinition) Model.First(n => n.IsPrimaryKey);
+}
+@(Html.Kendo().Grid<object>
+    ().Name((string)ViewData["name"])
+    .Columns(col =>
+    {
+        foreach(var item in Model)
+        {
+            if (!item.IsForeignKey)
+            {
+               var c = col.Bound(item.Type.ManagedType, item.ColumnName).Sortable(true).Filterable(true);
+                switch (item.DataType.ToLower())
+                {
+                    case "bit":
+                        c.EditorTemplateName("Boolean");
+                        break;
+                    case "tinyint":
+                        c.EditorTemplateName("Integer");
+                        break;
+                    case "smallint":
+                        c.EditorTemplateName("Integer");
+                        break;
+                    case "int":
+                        c.EditorTemplateName("Integer");
+                        break;
+                    case "bigint":
+                        c.EditorTemplateName("Integer");
+                        break;
+                    case "float":
+                        c.EditorTemplateName("Number");
+                        break;
+                    case "money":
+                    case "numeric":
+                    case "real":
+                    case "smallmoney":
+                    case "decimal":
+                        c.EditorTemplateName("Currency");
+                        break;
+                    case "uniqueidentifier":
+                        c.EditorTemplateName("String");
+                        break;
+                    case "date":
+                        c.EditorTemplateName("Date");
+                        break;
+                    case "datetime":
+                    case "smalldatetime":
+                    case "datetime2":
+                        c.EditorTemplateName("DateTime");
+                        break;
+                    case "varchar":
+                    case "char":
+                    case "nvarchar":
+                        if (item.DataLength <= 200)
+                        {
+                            c.EditorTemplateName("String");
+                        }
+                        else
+                        {
+                            c.EditorTemplateName("MultilineText");
+                        }
+                        break;
+                    case "text":
+                    case "ntext":
+                        c.EditorTemplateName("MultilineText");
+                        break;
+                }
+            }
+            else
+            {
+                col.AjaxFk(item.Type.ManagedType, item.ColumnName, (string) ViewData["contextForFk"], item.RefTable, pk.ColumnName, 0, filterable: true).Sortable(true).Filterable(true);
+            }
+        }
+
+        if ((bool) ViewData["update"] || (bool) ViewData["delete"])
+        {
+            col.Command(cmd =>
+            {
+                if ((bool) ViewData["update"])
+                {
+                    cmd.Edit();
+                }
+                if ((bool) ViewData["delete"])
+                {
+                    cmd.PopupConfirmDelete();
+                }
+            });
+        }
+    })
+    .ToolBar(tb =>
+    {
+        tb.RefreshTable();
+        if ((bool) ViewData["create"])
+        {
+            tb.Create();
+        }
+    })
+    .Pageable()
+    .Filterable()
+    .Sortable(c => {
+                       c.Enabled(true).AllowUnsort(false); })
+    .DataSource(src =>
+    {
+        var s = src.Ajax()
+            .Read(c => c.Action("Read", (string)ViewData["controllerName"],ViewData["customRouteData"])).Sort(so => so.Add(pk.ColumnName));
+        if ((bool)ViewData["create"])
+        {
+            s.Create(c => c.Action("Create", (string)ViewData["controllerName"], ViewData["customRouteData"]));
+        }
+        if ((bool) ViewData["update"])
+        {
+            s.Update(c => c.Action("Update", (string)ViewData["controllerName"], ViewData["customRouteData"]));
+        }
+        if ((bool) ViewData["delete"])
+        {
+            s.Destroy(c => c.Action("Delete", (string)ViewData["controllerName"], ViewData["customRouteData"]));
+        }
+        s.Model(c =>
+        {
+            foreach (var col in Model)
+            {
+                if (col.IsPrimaryKey)
+                {
+                    c.Field(col.ColumnName, col.Type.ManagedType).Editable(false);
+                }
+                else
+                {
+                    c.Field(col.ColumnName, col.Type.ManagedType);
+                }
+            }
+
+            c.Id(pk.ColumnName);
+        });
+    }))

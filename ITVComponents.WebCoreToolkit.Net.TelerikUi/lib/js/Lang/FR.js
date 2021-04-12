@@ -1,0 +1,22 @@
+﻿ITVenture.Text.setText("fr","Popup_General_OK","OK");
+ITVenture.Text.setText("fr","Popup_General_Cancel","Annuler");
+ITVenture.Text.setText("fr","Popup_Confirm_Title","Confirmer");
+ITVenture.Text.setText("fr","Popup_Alert_Title","Informations");
+ITVenture.Text.setText("fr","Popup_Input_Title","Entrée");
+ITVenture.Text.setText("fr","Popup_PdfView_Title","Affichage PDF");
+ITVenture.Text.setText("fr","FKHelp_Resolve_Wait", "Veuillez attendre...");
+ITVenture.Text.setText("fr","TableHelp_DeleteConfirm_Body","Cet enregistrement devrait-il vraiment être supprimé ?");
+ITVenture.Text.setText("fr","ITVHelpers_generatedLEH_FAIL", "Le serveur a signalé une erreur. Il se peut que la commande n'ait pas été entièrement exécutée.")
+ITVenture.Text.setText("fr", "ITVGlobal_Disable_Reorder", "Activer le tri manuel");
+ITVenture.Text.setText("fr", "ITVGlobal_Enable_Reorder","Désactiver le tri manuel");
+ITVenture.Text.setText("fr", "ITVTools_Uploader_Success_Message","upload réussi");
+ITVenture.Text.setText("fr", "Drop files here to upload","Stockez les fichiers à télécharger ici.");
+ITVenture.Text.setText("fr", "Your browser does not support drag'n'drop file uploads.","Votre navigateur ne prend pas en charge les téléchargements par glisser-déposer.");
+ITVenture.Text.setText("fr", "Please use the fallback form below to upload your files like in the olden days.","Utilisez le formulaire pour télécharger des fichiers.");
+ITVenture.Text.setText("fr", "File is too big.", "Le dossier est trop volumineux ({{filesize}}MiB). Taille maximale du fichier: {{maxFilesize}}MiB");
+ITVenture.Text.setText("fr", "You can't upload files of this type.","Ce type de fichier n'est pas pris en charge");
+ITVenture.Text.setText("fr", "Server responded with code", "Le serveur a renvoyé le code d'erreur suivant : {{statusCode}}");
+ITVenture.Text.setText("fr", "Cancel upload", "Annuler le téléchargement ");
+ITVenture.Text.setText("fr", "Are you sure you want to cancel this upload?", "Le téléchargement doit-il vraiment être interrompu?");
+ITVenture.Text.setText("fr", "Remove file", "Supprimer le fichier");
+ITVenture.Text.setText("fr", "You can not upload any more files.","Vous ne pouvez plus télécharger de fichiers.");

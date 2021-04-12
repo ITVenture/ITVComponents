@@ -1,0 +1,22 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@using Kendo.Mvc.UI
+@model int
+@{
+    Layout = "_Layout";
+}
+@{
+
+    ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_Roles;
+}
+
+<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/viewScripts.min.js"></script>
+
+<div class="row">
+    @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", Model }, { "permissionId", null }, { "userId", null } } })
+</div>
+
+@Html.DetailViewScript("RoleDetails","RasDummy#=RoleId#",$"~/Security/Role/RoleDetails?roleId=#=RoleId#&tenantId={Model}",false)

@@ -1,0 +1,77 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using ITVComponents.WebCoreToolkit.Routing
+@using Kendo.Mvc.UI
+@{
+    Layout = "_Layout";
+}
+@{
+
+    ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_DiagnosticsQueries;
+}
+
+@(Html.Kendo().Grid<DiagnosticsQueryViewModel>().Name("DiagQueryList")
+        //.HtmlAttributes(new { style = "width:50vw;" })
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.DiagnosticsQueryName).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
+            columns.Bound(c => c.DbContext).Title(TextsAndMessagesHelper.IWCN_DQ_DbContext);
+            columns.Bound(c => c.AutoReturn).Title(TextsAndMessagesHelper.IWCN_DQ_ImplicitReturn);
+            columns.MultiSelect(c => c.Tenants, "sys", "Tenants", "DiagnosticsQueryId", TextsAndMessagesHelper.IWCN_NV_STDV_No_Tenant_Selected);
+            columns.Bound(n => n.QueryText).Title("Query").ClientTemplate("<pre>#=QueryText#</pre>");
+            columns.AjaxFk(p => p.PermissionId, "sys", "Permissions", "DiagnosticsQueryId", 2, filterable: true).Filterable(true);
+            /*columns.ForeignKey(p => p.PermissionId, ds =>
+            {
+                ds.Ajax().Read(cfg =>
+                {
+                    cfg.Url("/ForeignKey/sys/Permissions");
+                }).ServerOperation(true);
+            }, "Key", "Label");*/
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"DiagnosticsQueries.Write"}))
+            {
+                columns.Command(ga =>
+                {
+                    ga.Edit();
+                    ga.PopupConfirmDelete();
+                }).Width(180);
+            }
+
+        })
+        .ToolBar(toolbar =>
+        {
+            toolbar.RefreshTable();
+            if (Context.RequestServices.VerifyUserPermissions(new []{"DiagnosticsQueries.Write"}))
+            {
+                toolbar.Create();
+            }
+        })
+        //.Events(e => e.UseForeignKeyFilter())
+        .DataSource(dataSource =>
+        {
+            var src = dataSource
+                .Ajax()
+                .Read(read => read.Action("Read", "DiagnosticsQuery"));
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"DiagnosticsQueries.Write"}))
+            {
+                src.Create(create => create.Action("Create", "DiagnosticsQuery").Data("ITVenture.Tools.TableHelper.serializeArrays"))
+                    .Update(update => update.Action("Update", "DiagnosticsQuery").Data("ITVenture.Tools.TableHelper.serializeArrays"))
+                    .Destroy(destroy => destroy.Action("Destroy", "DiagnosticsQuery"));
+            }
+            src.Model(m => m.Id(t => t.DiagnosticsQueryId));
+        })
+        .Scrollable(s => s.Height("auto"))
+        .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
+        .Sortable(c => c.Enabled(true))
+    .Resizable(c => c.Columns(true))
+    .Filterable(f => f.Enabled(true))
+    .ClientDetailTemplateId("QueryArg"))
+
+
+@Html.DetailViewScript("QueryArg", "QRG#=DiagnosticsQueryId#", "~/Util/DiagnosticsQuery/ParameterTable?diagnosticsQueryId=#=DiagnosticsQueryId#")

@@ -1,0 +1,72 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Grpc.Net.Client;
+
+namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Client
+{
+    /// <summary>
+    /// Enables the usage of multiple configurators
+    /// </summary>
+    public class CollectedClientInit:IHubClientConfigurator
+    {
+        /// <summary>
+        /// Holds a list of inner-configurators that will be invoked when a new channel was created
+        /// </summary>
+        private List<IHubClientConfigurator> innerConfigurators;
+
+        /// <summary>
+        /// Initializes a new instance of the CollectedClientInit class
+        /// </summary>
+        public CollectedClientInit()
+        {
+            innerConfigurators = new List<IHubClientConfigurator>();
+        }
+
+        /// <summary>
+        /// Gets or sets the UniqueName of this Plugin
+        /// </summary>
+        public string UniqueName { get; set; }
+
+        /// <summary>
+        /// Registers a configurator that will be invoied when a configuration-method is called
+        /// </summary>
+        /// <param name="configurator"></param>
+        public void RegisterConfigurator(IHubClientConfigurator configurator)
+        {
+            innerConfigurators.Add(configurator);
+        }
+
+        /// <summary>
+        /// Configures a channel before a grpc-client is created
+        /// </summary>
+        /// <param name="options">the channel-options to configure</param>
+        public void ConfigureChannel(GrpcChannelOptions options)
+        {
+            innerConfigurators.ForEach(n => n.ConfigureChannel(options));
+        }
+
+        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
+        public void Dispose()
+        {
+            OnDisposed();
+        }
+
+        /// <summary>
+        /// Raises the Disposed event
+        /// </summary>
+        protected virtual void OnDisposed()
+        {
+            Disposed?.Invoke(this, EventArgs.Empty);
+        }
+
+
+        /// <summary>
+        /// Informs a calling class of a Disposal of this Instance
+        /// </summary>
+        public event EventHandler Disposed;
+
+    }
+}

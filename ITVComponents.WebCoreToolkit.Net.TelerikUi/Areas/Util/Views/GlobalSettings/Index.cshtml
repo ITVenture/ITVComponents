@@ -1,0 +1,59 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@{
+    Layout = "_Layout";
+}
+@{
+
+    ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_GlobalSettings;
+}
+
+@(Html.Kendo().Grid<GlobalSettingViewModel>().Name("GlobalSettingTable")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.SettingsKey).Title(TextsAndMessagesHelper.IWCN_General_ParameterName);
+        columns.Bound(c => c.JsonSetting).Title(TextsAndMessagesHelper.IWCN_TST_JsonParam);
+        columns.Bound(c => c.SettingsValue).ClientTemplate("<pre>#=SettingsValue#</pre>").Title(TextsAndMessagesHelper.IWCN_General_Value);
+        if (Context.RequestServices.VerifyUserPermissions(new [] {"GlobalSettings.Write"}))
+        {
+            columns.Command(ga =>
+            {
+                ga.Edit();
+                ga.PopupConfirmDelete ();
+            }).Width(180);
+        }
+
+    })
+    .ToolBar(toolbar =>
+    {
+        toolbar.RefreshTable();
+        if (Context.RequestServices.VerifyUserPermissions(new[] { "GlobalSettings.Write" }))
+        {
+            toolbar.Create();
+        }
+    })
+    .DataSource(dataSource =>
+    {
+        var src = dataSource
+            .Ajax()
+            .Read(read => read.Action("ReadSettings", "GlobalSettings"))
+            .Sort(s => s.Add(m => m.SettingsKey).Ascending());
+        if (Context.RequestServices.VerifyUserPermissions(new[] { "GlobalSettings.Write" }))
+        {
+            src.Create(create => create.Action("CreateSetting", "GlobalSettings"))
+                .Update(update => update.Action("UpdateSetting", "GlobalSettings"))
+                .Destroy(destroy => destroy.Action("DestroySetting", "GlobalSettings"));
+        }
+        src.Model(m => m.Id(t => t.GlobalSettingId));
+    })
+    .Scrollable(s => s.Height("auto"))
+    .Resizable(c => c.Columns(true)))
