@@ -11,6 +11,7 @@ using ITVComponents.EFRepo.DynamicData;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataSources;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl;
+using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.Diagnostics;
@@ -34,13 +35,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         /// <param name="queryName">the name of the requested query</param>
         /// <param name="queryObject">the query-object that was found in the Diagnostics-DB</param>
         /// <returns>the Db-Context that is used to execute the requested query</returns>
-        public static IWrappedDataSource ContextForDiagnosticsQuery(this IServiceProvider services, string queryName, string area, out DiagnosticsQuery queryObject)
+        public static IWrappedDataSource ContextForDiagnosticsQuery(this IServiceProvider services, string queryName, string area, out DiagnosticsQueryDefinition queryObject)
         {
-            var securityContext = services.GetService<SecurityContext>();
-            queryObject = securityContext.DiagnosticsQueries.FirstOrDefault(n => n.DiagnosticsQueryName == queryName);
+            var store= services.GetService<IDiagnosticsQueryStore>();
+            queryObject = store.GetQuery(queryName);
             if (queryObject != null)
             {
-                if (services.VerifyUserPermissions(new[] {queryObject.Permission.PermissionName}))
+                if (services.VerifyUserPermissions(new[] {queryObject.Permission}))
                 {
                     var options = services.GetService<IOptions<DiagnosticsSourceOptions>>().Value;
                     Func<IServiceProvider, string, string, object> factory = null;
@@ -172,7 +173,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 foreach (var p in typeAnalysis)
                 {
                     IWrappedDataSource context = null;
-                    DiagnosticsQuery qr = null;
+                    DiagnosticsQueryDefinition qr = null;
                     if (knownQueries.ContainsKey(p.Attribute.DiagnosticQueryName))
                     {
                         var item = knownQueries[p.Attribute.DiagnosticQueryName];

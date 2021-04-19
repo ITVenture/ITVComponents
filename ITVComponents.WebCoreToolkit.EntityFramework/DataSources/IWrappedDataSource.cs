@@ -10,8 +10,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources
 {
     public interface IWrappedDataSource: IWrappedFkSource
     {
-        IEnumerable RunDiagnosticsQuery(DiagnosticsQuery qr, IDictionary<string, string> queryArguments);
+        IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition qr, IDictionary<string, string> queryArguments);
 
-        IEnumerable RunDiagnosticsQuery(DiagnosticsQuery query, IDictionary<string, object> arguments);
+        IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments);
     }
 }

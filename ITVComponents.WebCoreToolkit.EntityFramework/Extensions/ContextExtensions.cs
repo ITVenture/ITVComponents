@@ -95,13 +95,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             }
         }
 
-        public static IEnumerable RunDiagnosticsQuery(this DbContext context, DiagnosticsQuery query, IDictionary<string, string> arguments)
+        public static IEnumerable RunDiagnosticsQuery(this DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
         {
             var queryText = CreateDiagQuery(context, query, arguments, out var args);
             return RunQuery(context, queryText, RosDiagConfig, args);
         }
 
-        public static IEnumerable RunDiagnosticsQuery(this DbContext context, DiagnosticsQuery query, IDictionary<string, object> arguments)
+        public static IEnumerable RunDiagnosticsQuery(this DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
             var args = new Dictionary<string, object>(arguments);
             var queryText = CreateDiagQuery(context, query, args);
@@ -113,7 +113,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             return (IEnumerable) NativeScriptHelper.RunLinqQuery(configName, context, "Db", query, data??new Dictionary<string,object>());
         }
 
-        private static string CreateDiagQuery(DbContext context, DiagnosticsQuery query, IDictionary<string, object> arguments)
+        private static string CreateDiagQuery(DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
             ConfigureLinqForContext(context, RosDiagConfig, out var contextType);
             StringBuilder fullQuery = new StringBuilder($@"{contextType.Name} db = Global.Db;
@@ -123,7 +123,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             return fullQuery.ToString();
         }
 
-        private static string CreateDiagQuery(DbContext context, DiagnosticsQuery query, IDictionary<string, string> arguments, out IDictionary<string, object> queryArguments)
+        private static string CreateDiagQuery(DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, out IDictionary<string, object> queryArguments)
         {
             ConfigureLinqForContext(context, RosDiagConfig, out var contextType);
             StringBuilder fullQuery = new StringBuilder($@"{contextType.Name} db = Global.Db;

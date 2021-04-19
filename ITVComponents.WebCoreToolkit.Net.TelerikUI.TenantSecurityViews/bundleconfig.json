@@ -1,0 +1,13 @@
+[
+  {
+    "outputFileName": "wwwroot/js/viewScripts.min.js",
+    "inputFiles": [
+      "Areas/**/*.js"
+    ],
+    "minify": {
+      "enabled": true,
+      "renameLocals": true
+    },
+    "sourceMap": true
+  }
+]

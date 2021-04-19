@@ -18,12 +18,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
         {
             this.decoratedContext = decoratedContext;
         }
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQuery qr, IDictionary<string, string> queryArguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition qr, IDictionary<string, string> queryArguments)
         {
             return decoratedContext.RunDiagnosticsQuery(qr, queryArguments);
         }
 
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQuery query, IDictionary<string, object> arguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
             return decoratedContext.RunDiagnosticsQuery(query, arguments);
         }

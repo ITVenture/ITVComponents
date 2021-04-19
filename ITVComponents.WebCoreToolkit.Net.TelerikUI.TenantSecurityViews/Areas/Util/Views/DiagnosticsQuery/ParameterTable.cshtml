@@ -1,0 +1,55 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@(Html.Kendo().Grid<DiagnosticsQueryParameterViewModel>().Name($"QParamTab{ViewData["diagnosticsQueryId"]}")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.ParameterName).Title(TextsAndMessagesHelper.IWCN_General_ParameterName);
+        columns.ForeignKey(c => c.ParameterType,(SelectList)ViewData["ParameterTypes"]).Title(TextsAndMessagesHelper.IWCN_DQP_Type);
+        columns.Bound(c => c.Format).Title(TextsAndMessagesHelper.IWCN_DQP_DateFormat);
+        columns.Bound(c => c.Optional);
+        columns.Bound(c => c.DefaultValue).Title(TextsAndMessagesHelper.IWCN_DPQ_DefaultValue);
+        if (Context.RequestServices.VerifyUserPermissions(new [] {"DiagnosticsQueries.Write"}))
+        {
+            columns.Command(ga =>
+            {
+                ga.Edit();
+                ga.PopupConfirmDelete();
+            }).Width(180);
+        }
+
+    })
+    //.Events(c => c.UseForeignKeyFilter())
+    .ToolBar(toolbar =>
+    {
+        toolbar.RefreshTable();
+        if (Context.RequestServices.VerifyUserPermissions(new[] {"DiagnosticsQueries.Write"}))
+        {
+            toolbar.Create();
+        }
+    })
+    .DataSource(dataSource =>
+    {
+        var src = dataSource
+            .Ajax()
+            .Read(read => read.Action("ReadParameters", "DiagnosticsQuery", new {diagnosticsQueryId = ViewData["diagnosticsQueryId"]}))
+            .Sort(s => s.Add(m => m.ParameterName).Ascending());
+        if (Context.RequestServices.VerifyUserPermissions(new[] {"DiagnosticsQueries.Write"}))
+        {
+            src.Create(create => create.Action("CreateParameter", "DiagnosticsQuery", new {diagnosticsQueryId = ViewData["diagnosticsQueryId"]}))
+                .Update(update => update.Action("UpdateParameter", "DiagnosticsQuery"))
+                .Destroy(destroy => destroy.Action("DestroyParameter", "DiagnosticsQuery"));
+        }
+        src.Model(m => m.Id(t => t.DiagnosticsQueryParameterId));
+    })
+    .Scrollable(s => s.Height("auto"))
+    .Resizable(c => c.Columns(true)))
