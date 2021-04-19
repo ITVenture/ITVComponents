@@ -20,13 +20,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             this.src = src;
         }
         
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQuery query, IDictionary<string, string> queryArguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, string> queryArguments)
         {
             var arguments = DiagnoseQueryHelper.BuildArguments(query, queryArguments);
             return src.SqlQuery(query.QueryText, arguments);
         }
 
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQuery query, IDictionary<string, object> arguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
             var arg = DiagnoseQueryHelper.VerifyArguments(query, arguments);
             return src.SqlQuery(query.QueryText, arg);

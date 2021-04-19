@@ -117,136 +117,13 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="IWCN_General_Description" xml:space="preserve">
-    <value>Description</value>
-  </data>
-  <data name="IWCN_General_DisplayName" xml:space="preserve">
-    <value>Nom d'affichage</value>
-  </data>
-  <data name="IWCN_General_Name" xml:space="preserve">
-    <value>Nom</value>
-  </data>
-  <data name="IWCN_General_SystemName" xml:space="preserve">
-    <value>Nom du système</value>
-  </data>
-  <data name="IWCN_General_ToggleReordering" xml:space="preserve">
-    <value>Activer le tri manuel</value>
-  </data>
-  <data name="IWCN_NV_STDV_IconClass" xml:space="preserve">
-    <value>Classe d'icônes</value>
-  </data>
-  <data name="IWCN_NV_STDV_No_Tenant_Selected" xml:space="preserve">
-    <value>Aucun client sélectionné</value>
-  </data>
-  <data name="IWCN_General_TenantTitle" xml:space="preserve">
-    <value>client</value>
-  </data>
-  <data name="IWCN_PC_Tenant_And_Role_Required" xml:space="preserve">
-    <value>On attend soit un client ET un rôle, soit aucun des deux.</value>
-  </data>
-  <data name="IWCN_P_STDV_Assigned" xml:space="preserve">
-    <value>Alloué</value>
-  </data>
-  <data name="IWCN_RC_Tenant_And_Permission_Required" xml:space="preserve">
-    <value>On attend soit le client ET l'autorisation, soit aucun des deux.</value>
-  </data>
-  <data name="IWCN_TPC_Permission_Or_Role_Selection" xml:space="preserve">
-    <value>Le mode d'autorisation ou le mode basé sur le rôle doit être clairement identifiable.</value>
-  </data>
-  <data name="IWCN_DQ_DbContext" xml:space="preserve">
-    <value>contexte db</value>
-  </data>
-  <data name="IWCN_DQ_ImplicitReturn" xml:space="preserve">
-    <value>return implicite</value>
-  </data>
-  <data name="IWCN_General_Value" xml:space="preserve">
-    <value>Valeur</value>
-  </data>
-  <data name="IWCN_Titles_Assemblies" xml:space="preserve">
-    <value>Assemblies utilisés</value>
-  </data>
-  <data name="IWCN_Titles_AuthenticationTypes" xml:space="preserve">
-    <value>types d'authentification</value>
-  </data>
-  <data name="IWCN_Titles_DiagnosticsQueries" xml:space="preserve">
-    <value>Queries de diagnostic</value>
-  </data>
-  <data name="IWCN_Titles_Navigation" xml:space="preserve">
-    <value>Navigation</value>
-  </data>
-  <data name="IWCN_Titles_Permissions" xml:space="preserve">
-    <value>Permissions</value>
-  </data>
-  <data name="IWCN_Titles_Properties" xml:space="preserve">
-    <value>Caractéristiques</value>
-  </data>
-  <data name="IWCN_Titles_Roles" xml:space="preserve">
-    <value>Rôles</value>
-  </data>
-  <data name="IWCN_Titles_Tenants" xml:space="preserve">
-    <value>Locataires</value>
-  </data>
-  <data name="IWCN_Titles_Users" xml:space="preserve">
-    <value>Utilisateurs</value>
-  </data>
-  <data name="IWCN_TST_JsonParam" xml:space="preserve">
-    <value>JSON</value>
-  </data>
-  <data name="IWCN_TST_ParameterName" xml:space="preserve">
-    <value>Nom du paramètre</value>
-  </data>
-  <data name="IWCN_DQP_Type" xml:space="preserve">
-    <value>Type</value>
-  </data>
-  <data name="IWCN_Titles_GlobalSettings" xml:space="preserve">
-    <value>paramètres globaux</value>
-  </data>
-  <data name="IWCN_DPQ_DefaultValue" xml:space="preserve">
-    <value>Valeur par défaut</value>
-  </data>
-  <data name="IWCN_DQP_DateFormat" xml:space="preserve">
-    <value>Format (pour la date uniquement)</value>
-  </data>
-  <data name="IWCN_Titles_PlugInConstants" xml:space="preserve">
-    <value>Constantes</value>
-  </data>
   <data name="IWCN_KX_PCD_Caption" xml:space="preserve">
     <value>Supprimer</value>
   </data>
   <data name="IWCN_KX_RTB_Caption" xml:space="preserve">
     <value>Actualiser</value>
   </data>
-  <data name="IWCN_P_Illegal_Permission_Override" xml:space="preserve">
-    <value>Les autorisations globales ne peuvent pas être écrasées au niveau du client.</value>
-  </data>
-  <data name="IWCN_P_Sysadmin_Req_To_Del_Global_Perm" xml:space="preserve">
-    <value>Les autorisations globales ne peuvent être supprimées que par un administrateur du système.</value>
-  </data>
-  <data name="IWCN_P_Tenant_Req_For_Non_Admins" xml:space="preserve">
-    <value>Seul un administrateur système est autorisé à créer des autorisations globales.</value>
-  </data>
-  <data name="IWCN_PC_Only_Sysadmin_Can_View_and_Modify_System_Role_Perms" xml:space="preserve">
-    <value>Seul un administrateur système peut consulter ou modifier les autorisations d'un rôle système.</value>
-  </data>
-  <data name="IWCN_RC_Must_Be_Sysadmin_To_Edit_Or_Create_SysRole" xml:space="preserve">
-    <value>Seul un administrateur du système peut créer ou modifier les rôles du système.</value>
-  </data>
-  <data name="IWCN_RC_Tenant_Bound_User_Required_For_Index" xml:space="preserve">
-    <value>Cette page nécessite un utilisateur lié au client.</value>
-  </data>
-  <data name="IWCN_Titles_PlugIns" xml:space="preserve">
-    <value>PlugIns</value>
-  </data>
-  <data name="IWCN_Titles_TenantSettings" xml:space="preserve">
-    <value>Paramètres de base</value>
-  </data>
-  <data name="IWCN_TV_Edit_Details" xml:space="preserve">
-    <value>Gérer les paramètres pour le client</value>
-  </data>
-  <data name="IWCN_TV_STDV_Assigned" xml:space="preserve">
-    <value>Alloué</value>
-  </data>
-  <data name="IWCN_General_Is_SystemRole" xml:space="preserve">
-    <value>Rôle du système</value>
+  <data name="IWCN_Titles_Assemblies" xml:space="preserve">
+    <value>Assemblies utilisés</value>
   </data>
 </root>

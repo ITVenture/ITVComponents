@@ -19,21 +19,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             return (from t in retType.GetProperties(BindingFlags.SetProperty | BindingFlags.Public | BindingFlags.Instance) where Attribute.IsDefined(t, typeof(DiagnosticResultAttribute)) select new DiagEntityAnlyseItem{Attribute = (DiagnosticResultAttribute) Attribute.GetCustomAttribute(t, typeof(DiagnosticResultAttribute)), Property = t}).ToArray();
         }
 
-        public static IDictionary<string, object> VerifyArguments(DiagnosticsQuery query, IDictionary<string, object> arguments)
+        public static IDictionary<string, object> VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
             var retVal = new Dictionary<string, object>();
             VerifyArguments(query, arguments, (name, value, type, nullable) => retVal.Add(name, value), (name, type, nullable) => retVal.Add(name, DBNull.Value));
             return retVal;
         }
         
-        public static IDictionary<string, object> BuildArguments(DiagnosticsQuery query, IDictionary<string, string> arguments)
+        public static IDictionary<string, object> BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
         {
             var retVal = new Dictionary<string, object>();
             BuildArguments(query, arguments, (name, value, type, nullable) => retVal.Add(name, value), (name, type, nullable) => retVal.Add(name, DBNull.Value));
             return retVal;
         }
         
-        public static void VerifyArguments(DiagnosticsQuery query, IDictionary<string, object> queryArguments, StringBuilder fullQuery)
+        public static void VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> queryArguments, StringBuilder fullQuery)
         {
             var writeParam = new Action<string, string, bool>((name, type, nullable) =>
             {
@@ -51,7 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }, writeParam);
         }
 
-        private static void VerifyArguments(DiagnosticsQuery query, IDictionary<string, object> rawArguments, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
+        private static void VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> rawArguments, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
         {
             ProcessArguments(query, s =>
             {
@@ -65,7 +65,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }, paramWithValue, paramWithoutValue);
         }
 
-        public static void BuildArguments(DiagnosticsQuery query, IDictionary<string, string> arguments, IDictionary<string, object> queryArguments, StringBuilder fullQuery)
+        public static void BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, IDictionary<string, object> queryArguments, StringBuilder fullQuery)
         {
             var writeParam = new Action<string, string, bool>((name, type, nullable) =>
             {
@@ -83,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }, writeParam);
         }
 
-        private static void BuildArguments(DiagnosticsQuery query, IDictionary<string, string> arguments, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
+        private static void BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
         {
             ProcessArguments(query, s =>
             {
@@ -97,7 +97,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }, paramWithValue, paramWithoutValue);
         }
 
-        private static void ProcessArguments(DiagnosticsQuery query, Func<string, object> argumentValue, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
+        private static void ProcessArguments(DiagnosticsQueryDefinition query, Func<string, object> argumentValue, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
         {
             foreach (var arg in query.Parameters)
             {
@@ -198,7 +198,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
         {
             public IWrappedDataSource Context {get; set; }
 
-            public DiagnosticsQuery Query { get; set; }
+            public DiagnosticsQueryDefinition Query { get; set; }
         }
 
         public class DiagEntityAnlyseItem

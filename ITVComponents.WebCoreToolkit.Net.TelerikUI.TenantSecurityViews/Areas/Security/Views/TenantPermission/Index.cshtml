@@ -1,0 +1,30 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@(Html.Kendo().Grid<TenantViewModel>().Name($"TenantsOf{ViewData["permissionId"]}{ViewData["roleId"]}")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+    .Columns(columns =>
+    {
+        columns.Bound(m => m.TenantName).Title(TextsAndMessagesHelper.IWCN_General_TenantTitle);
+
+    })
+    .ToolBar(toolbar =>
+    {
+        toolbar.RefreshTable();
+    })
+    .DataSource(dataSource => dataSource
+        .Ajax()
+        .Read(read => read.Action("Read","Tenant"))
+        .Model(m => m.Id(t => t.TenantId))
+
+    )
+    .Scrollable(s => s.Height("auto"))
+    .ClientDetailTemplateId($"DetailPermissions_{ViewData["permissionId"]}_{ViewData["roleId"]}")
+    .Resizable(c => c.Columns(true)))
+
+@Html.DetailViewScript($"DetailPermissions_{ViewData["permissionId"]}_{ViewData["roleId"]}", $"TenantDetails4#=TenantId#_{ViewData["permissionId"]}_{ViewData["roleId"]}", ViewData["permissionId"] != null ? $"~/Security/Role/RoleTable?tenantId=#=TenantId#&permissionId={ViewData["permissionId"]}" : $"~/Security/Permission/PermissionTable?tenantId=#=TenantId#&roleId={ViewData["roleId"]}")

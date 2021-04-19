@@ -1,0 +1,57 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@{
+    Layout = "_Layout";
+}
+@{
+
+    ViewBag.Title = "System-Log";
+}
+
+@(Html.Kendo().Grid<SystemEventViewModel>().Name("SystemLogView")
+        //.HtmlAttributes(new { style = "width:50vw;" })
+        .Columns(columns =>
+        {
+            columns.InfoBubble(n => n.LogLevel, "SystemEventId", "glyphSprite fad #=LogLevel==0?'fa-glasses':(LogLevel==1?'fa-bug':(LogLevel==2?'fa-info-circle':(LogLevel==3?'fa-exclamation-circle':(LogLevel==4?'fa-times-circle':(LogLevel==5?'fa-skull-crossbones':'fa-question-circle')))))#",
+                "--fa-secondary-color:#=LogLevel==0?'\\#fcd2d5':(LogLevel==1?'\\#000000':(LogLevel==2?'\\#92a5f0':(LogLevel==3?'\\#f2e296':(LogLevel==4?'\\#bf6363':(LogLevel==5?'red':'\\#faffa3')))))#;" +
+                $"--fa-primary-color:#=LogLevel==0?'\\#362b2c':(LogLevel==1?'\\#324d05':(LogLevel==2?'\\#000000':(LogLevel==3?'\\#000000':(LogLevel==4?'\\#000000':(LogLevel==5?'\\#750721':'\\#000000')))))#",
+                "SystemEvent",
+                "#=LogLevel==0?'\\#362b2c':(LogLevel==1?'\\#000000':(LogLevel==2?'\\#92a5f0':(LogLevel==3?'\\#c09854':(LogLevel==4?'\\#bf6363':(LogLevel==5?'red':'\\#faffa3')))))#",
+                "#=LogLevel==0?'\\#fcd2d5':(LogLevel==1?'\\#324d05':(LogLevel==2?'\\#000000':(LogLevel==3?'\\#1a3c4d':(LogLevel==4?'\\#000000':(LogLevel==5?'\\#750721':'\\#000000')))))#", "Message").Width(40).Title(" ");
+            /*columns.Bound(n => n.LogLevel).ClientTemplate($"<span class=\"\" " +
+                                                          $"style=\"--fa-secondary-color:#=LogLevel==0?'\\#fcd2d5':(LogLevel==1?'\\#000000':(LogLevel==2?'\\#92a5f0':(LogLevel==3?'\\#f2e296':(LogLevel==4?'\\#bf6363':(LogLevel==5?'red':'\\#faffa3')))))#;" +
+                                                                $"--fa-primary-color:#=LogLevel==0?'\\#362b2c':(LogLevel==1?'\\#324d05':(LogLevel==2?'\\#000000':(LogLevel==3?'\\#000000':(LogLevel==4?'\\#000000':(LogLevel==5?'\\#750721':'\\#000000')))))#\"></span>").Title(" ").Width(50);*/
+            columns.Bound(n => n.EventTime).Format("{0:dd.MM.yyyy HH:mm:ss}");
+            columns.Bound(n => n.Category);
+            columns.Bound(n => n.Title);
+
+        })
+        .ToolBar(toolbar =>
+        {
+            toolbar.RefreshTable();
+        })
+        .DataSource(dataSource =>
+        {
+            var src = dataSource
+                .Ajax()
+                .Read(read => read.Action("ReadLog", "SystemLog")).Sort(n => n.Add(x => x.EventTime).Descending());
+        })
+        .Scrollable(s => s.Height("auto"))
+        .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
+        .Sortable(c => c.Enabled(true))
+    .Resizable(c => c.Columns(true))
+    .Filterable(f => f.Enabled(true))
+    .ClientDetailTemplateId("MsgDisplay"))
+
+<script id="MsgDisplay" type="text/x-kendo-template">
+<pre>
+#=Message#
+</pre>
+</script>
