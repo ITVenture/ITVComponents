@@ -10,18 +10,6 @@
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="wwwroot\**" />
-    <Content Remove="wwwroot\**" />
-    <EmbeddedResource Remove="wwwroot\**" />
-    <None Remove="wwwroot\**" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Remove="package.json" />
-  </ItemGroup>
-  <ItemGroup>
-    <_ContentIncludedByDefault Remove="package.json" />
-  </ItemGroup>
-  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
