@@ -49,6 +49,34 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Server
         {
         }
 
+        public GrpcServer(string hubAddress, IDictionary<string,object> exposedObjects, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(exposedObjects, useExtendedProxying, useSecurity, security)
+        {
+            hubClient = new ServiceHubConsumer(hubAddress, serviceName, configurator);
+            hubClient.MessageArrived += ClientInvokation;
+        }
+
+        public GrpcServer(IServiceHubProvider serviceHub, IDictionary<string,object> exposedObjects, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(exposedObjects, useExtendedProxying, useSecurity, security)
+        {
+            hubClient = new LocalServiceHubConsumer(serviceName, serviceHub, null);
+            hubClient.MessageArrived += ClientInvokation;
+        }
+
+        public GrpcServer(string hubAddress, IDictionary<string,object> exposedObjects, IHubClientConfigurator configurator, string serviceName):this(hubAddress, exposedObjects, configurator, serviceName, false,false,null)
+        {
+        }
+
+        public GrpcServer(IServiceHubProvider serviceHub, IDictionary<string,object> exposedObjects, string serviceName):this(serviceHub, exposedObjects, serviceName, false,false,null)
+        {
+        }
+
+        public GrpcServer(string hubAddress, IDictionary<string,object> exposedObjects, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying):this(hubAddress, exposedObjects, configurator, serviceName, useExtendedProxying,false,null)
+        {
+        }
+
+        public GrpcServer(IServiceHubProvider serviceHub, IDictionary<string,object> exposedObjects, string serviceName, bool useExtendedProxying):this(serviceHub, exposedObjects, serviceName, useExtendedProxying,false,null)
+        {
+        }
+
         /// <summary>
         /// Raises an event on the client
         /// </summary>

@@ -10,7 +10,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// </summary>
         /// <param name="plugin">the plugin that is being requested by a client</param>
         /// <returns>a value indicating whether the provided plugin requires security</returns>
-        public static bool RequiresSecurity(this IPlugin plugin)
+        public static bool RequiresSecurity(this object plugin)
         {
             Type t = plugin?.GetType();
             if (t == null)

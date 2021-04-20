@@ -7,10 +7,12 @@ using System.Reflection;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
+//using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Proxying;
 using ITVComponents.InterProcessCommunication.Shared.Security;
+using ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrappers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core.Methods;
@@ -23,7 +25,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <summary>
         /// A dictionary containing the names of loaded plugins
         /// </summary>
-        protected readonly FactoryWrapper plugins;
+        protected readonly IFactoryWrapper plugins;
 
         /// <summary>
         /// the next Id to assign to ae extended proxy
@@ -72,6 +74,21 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             this.useExtendedProxying = useExtendedProxying;
             this.serverSecurity = security;
             this.plugins = new FactoryWrapper(factory, extendedProxies, useSecurity);
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the Server class
+        /// </summary>
+        /// <param name="exposedObjects">A Dictionary containing objects that are exposed through this service</param>
+        /// <param name="useExtendedProxying">indicates whether to use extended proxies</param>
+        /// <param name="useSecurity">indicates whether to use security on this service</param>
+        /// <param name="security">the custom server security implementation to use</param>
+        protected BaseServer(IDictionary<string,object> exposedObjects, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security)
+            : this()
+        {
+            this.useExtendedProxying = useExtendedProxying;
+            this.serverSecurity = security;
+            this.plugins = new DictionaryWrapper(exposedObjects, extendedProxies, useSecurity);
         }
 
         /// <summary>
