@@ -8,7 +8,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
     /// <summary>
     /// Wraps a PluginFactory and performs checks about security requriements of requested objects
     /// </summary>
-    public class FactoryWrapper
+    public class FactoryWrapper : IFactoryWrapper
     {
         /// <summary>
         /// holds the factory that holds all accessible objects
