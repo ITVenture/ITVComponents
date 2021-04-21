@@ -13,7 +13,5 @@
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
   <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
-    <Copy SourceFiles="$(OutputPath)$(PackageId).$(PackageVersion).nupkg" DestinationFolder="\\itv-hv\E\noog\" />
-    <Exec Command="%userprofile%\.nuget\nuget.exe push &quot;$(OutputPath)$(PackageId).$(PackageVersion).nupkg&quot; -Source nuget.org -ApiKey oy2kkfetxfoyidurg7ca557pcdfsqxluvjzrvleo43yj7y" />
   </Target>
 </Project>
