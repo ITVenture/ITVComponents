@@ -41,17 +41,10 @@ namespace ITVComponents.Scripting.CScript.Core.ExternalMethods
             {
                 if (!expressionMethods.TryAdd(names[i], methods[i]))
                 {
-#if !Community
                     LogEnvironment.LogDebugEvent(null,
                         string.Format(
                             "Failed to register method {0} because the method has already been registered with the same signature",
                             names[i]), (int)LogSeverity.Warning, "Scripting");
-#else
-                    throw new InvalidOperationException(
-                        string.Format(
-                            "Failed to register method {0} because the method has already been registered with the same signature",
-                            names[i]));
-#endif
                 }
             }
         }

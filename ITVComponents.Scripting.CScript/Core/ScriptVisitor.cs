@@ -2728,7 +2728,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 retVal.Initialize(function);
                 if (identifier != null)
                 {
-                    variables[identifier] = retVal;
+                    variables[identifier] = function;
                 }
 
                 return retVal;
