@@ -11,7 +11,5 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         public List<string> Usings { get; } = new List<string>();
 
         public List<string> References { get; } = new List<string>();
-
-        public bool UseRoslyn = false;
     }
 }
