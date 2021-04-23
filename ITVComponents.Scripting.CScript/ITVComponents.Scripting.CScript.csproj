@@ -10,7 +10,6 @@
     <PackageReference Include="antlr4.runtime.standard" Version="4.9.0" />
     <PackageReference Include="impromptuinterface" Version="7.0.1" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="3.9.0-2.final" />
-    <PackageReference Include="System.CodeDom" Version="5.0.0" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="5.0.0" />
   </ItemGroup>
   <ItemGroup>

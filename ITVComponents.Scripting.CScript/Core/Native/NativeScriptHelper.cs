@@ -23,6 +23,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Scripting;
+using Microsoft.CodeAnalysis.Scripting.Hosting;
 #if !Community
 using ITVComponents.Logging;
 #endif
@@ -33,8 +34,10 @@ namespace ITVComponents.Scripting.CScript.Core.Native
     public static class NativeScriptHelper
     {
         private static readonly ConcurrentDictionary<string, NativeConfiguration> configurations = new ConcurrentDictionary<string, NativeConfiguration>();
-        private static readonly ConcurrentDictionary<string, Lazy<MethodInfo>> scripts = new ConcurrentDictionary<string, Lazy<MethodInfo>>();
         private static readonly ConcurrentDictionary<string, Lazy<ScriptRunner<object>>> roslynScripts = new ConcurrentDictionary<string, Lazy<ScriptRunner<object>>>();
+        private static object initializationLock = new object();
+        private static InteractiveAssemblyLoader loader;
+        private static DateTime loaderInitializationTime;
 
         /// <summary>
         /// Adds a reference to a specific Assembly. You can either speify the assembly with path, Name (i.e. System.dll) or with its AssemblyName 
@@ -48,7 +51,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             {
                 if (reference == "--ROSLYN--")
                 {
-                    cfg.UseRoslyn = true;
+                    LogEnvironment.LogEvent("Legacy Reference '--ROSLYN--' is ignored.", LogSeverity.Warning);
                 }
                 else
                 {
@@ -99,114 +102,22 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         public static object RunLinqQuery(string configuration, string expression, IDictionary<string, object> arguments)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
-            if (cfg.UseRoslyn)
+            string roslynHash = GetFlatString(expression);
+            var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
-                string roslynHash = GetFlatString(expression);
-                var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
-                {
-                    var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] {"System", "System.Linq", "System.Collections.Generic"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"),NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")}.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
-                    var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
-                    retVal.Compile();
-                    return retVal.CreateDelegate();
-                }));
-                var dic = new ExpandoObject();
-                var idic = dic as IDictionary<string, object>;
-                foreach (var argument in arguments)
-                {
-                    idic[argument.Key] = argument.Value;
-                }
-
-                return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper {Global = idic}));
-            }
-
-            string code = $@"using System;
-using System.Linq;
-using System.Collections.Generic;
-{string.Join("\r\n", cfg.Usings.Select(n => $"using {n};"))}
-                // cfg: {configuration}
-                namespace ITVComponents.Scripting.CScript.Native
-                {{                
-                    public class NativeScriptEval
-                    {{      
-                        public static object evalExpression({string.Join(",", from t in arguments orderby t.Key select $"{GetFriendlyName(t.Value.GetType())} {t.Key}")})
-                        {{
-                            return {expression};
-                        }}
-                    }}
-
-                }}";
-            string hash = GetFlatString(code);
-            bool success = true;
-            Exception compileX = null;
-            var script = scripts.GetOrAdd(hash, new Lazy<MethodInfo>(() =>
-            {
-#if !Community
-                LogEnvironment.LogDebugEvent($"Creating new native Script-Part. Hash: {hash}", LogSeverity.Report);
-#endif
-                CSharpCodeProvider provider = new CSharpCodeProvider();
-                CompilerParameters parameters = new CompilerParameters();
-                parameters.ReferencedAssemblies.Add(@"System.dll");
-                parameters.ReferencedAssemblies.Add(@"System.Core.dll");
-                if (cfg.References.Count != 0)
-                {
-                    parameters.ReferencedAssemblies.AddRange(cfg.References.ToArray());
-                }
-
-                parameters.GenerateInMemory = true;
-                parameters.GenerateExecutable = false;
-                try
-                {
-                    CompilerResults results = provider.CompileAssemblyFromSource(parameters, code);
-
-                    if (results.Errors.HasErrors)
-                    {
-                        StringBuilder sb = new StringBuilder();
-
-                        foreach (CompilerError error in results.Errors)
-                        {
-                            sb.AppendLine(String.Format("Error ({0}): {1}", error.ErrorNumber, error.ErrorText));
-                        }
-
-                        throw new InvalidOperationException(sb.ToString());
-                    }
-
-                    Type binaryFunction =
-                        results.CompiledAssembly.GetType("ITVComponents.Scripting.CScript.Native.NativeScriptEval");
-                    return binaryFunction.GetMethod("evalExpression");
-                }
-                catch (Exception ex)
-                {
-#if (!Community)
-                    LogEnvironment.LogDebugEvent(ex.OutlineException(), LogSeverity.Error);
-                    LogEnvironment.LogDebugEvent(code,LogSeverity.Error);
-#endif
-                    compileX = ex;
-
-                    success = false;
-                }
-
-                return null;
+                var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] {"System", "System.Linq", "System.Collections.Generic"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")}.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
+                var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
+                retVal.Compile();
+                return retVal.CreateDelegate();
             }));
-
-
-
-            var function = script.Value;
-            if (!success)
+            var dic = new ExpandoObject();
+            var idic = dic as IDictionary<string, object>;
+            foreach (var argument in arguments)
             {
-                Lazy<MethodInfo> dummy;
-                scripts.TryRemove(hash, out dummy);
-#if (!Community)
-                LogEnvironment.LogDebugEvent("Method-creation failed. Method removed from buffer.", LogSeverity.Error);
-#endif
-                throw new ScriptException("Linq query failed. See log for further details."
-                    ,compileX
-                );
+                idic[argument.Key] = argument.Value;
             }
 
-            List<object> arg = new List<object>();
-            arg.AddRange(from t in arguments orderby t.Key select t.Value);
-            var result = function.Invoke(null, arg.ToArray());
-            return result;
+            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper {Global = idic}));
         }
 
         /// <summary>
@@ -221,116 +132,70 @@ using System.Collections.Generic;
         public static object RunLinqQuery(string configuration, object target, string nameOfTarget, string expression, IDictionary<string, object> arguments)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
-            if (cfg.UseRoslyn)
+            string roslynHash = GetFlatString(expression);
+            var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
-                string roslynHash = GetFlatString(expression);
-                var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
-                {
-                    var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] {"System", "System.Linq", "System.Collections.Generic"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"),NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")}.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
-                    var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
-                    retVal.Compile();
-                    return retVal.CreateDelegate();
-                }));
-                var dic = new ExpandoObject();
-                var idic = dic as IDictionary<string, object>;
-                idic[nameOfTarget] = target;
-                foreach (var argument in arguments)
-                {
-                    idic[argument.Key] = argument.Value;
-                }
-
-                return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper {Global = idic}));
-            }
-
-            string code = $@"using System;
-using System.Linq;
-using System.Collections.Generic;
-{string.Join("\r\n", cfg.Usings.Select(n => $"using {n};"))}
-                // cfg: {configuration}
-                namespace ITVComponents.Scripting.CScript.Native
-                {{                
-                    public class NativeScriptEval
-                    {{      
-                        public static object evalExpression({GetFriendlyName(target.GetType())} {nameOfTarget}{(arguments.Keys.Count != 0 ? "," + string.Join(",", from t in arguments orderby t.Key select $"{GetFriendlyName(t.Value.GetType())} {t.Key}") : "")})
-                        {{
-                            return {expression};
-                        }}
-                    }}
-
-                }}";
-            string hash = GetFlatString(code);
-            bool success = true;
-            Exception compileX = null;
-            var script = scripts.GetOrAdd(hash, new Lazy<MethodInfo>(() =>
-            {
-#if !Community
-                LogEnvironment.LogDebugEvent($"Creating new native Script-Part. Hash: {hash}", LogSeverity.Report);
-#endif
-                CSharpCodeProvider provider = new CSharpCodeProvider();
-                CompilerParameters parameters = new CompilerParameters();
-                parameters.ReferencedAssemblies.Add(@"System.dll");
-                parameters.ReferencedAssemblies.Add(@"System.Core.dll");
-                if (cfg.References.Count != 0)
-                {
-                    parameters.ReferencedAssemblies.AddRange(cfg.References.ToArray());
-                }
-
-                parameters.GenerateInMemory = true;
-                parameters.GenerateExecutable = false;
-                try
-                {
-                    CompilerResults results = provider.CompileAssemblyFromSource(parameters, code);
-
-                    if (results.Errors.HasErrors)
-                    {
-                        StringBuilder sb = new StringBuilder();
-
-                        foreach (CompilerError error in results.Errors)
-                        {
-                            sb.AppendLine(String.Format("Error ({0}): {1}", error.ErrorNumber, error.ErrorText));
-                        }
-
-                        throw new InvalidOperationException(sb.ToString());
-                    }
-
-                    Type binaryFunction =
-                        results.CompiledAssembly.GetType("ITVComponents.Scripting.CScript.Native.NativeScriptEval");
-                    return binaryFunction.GetMethod("evalExpression");
-                }
-                catch (Exception ex)
-                {
-#if (!Community)
-                    LogEnvironment.LogDebugEvent(ex.OutlineException(), LogSeverity.Error);
-                    LogEnvironment.LogDebugEvent(code,LogSeverity.Error);
-#endif
-                    compileX = ex;
-
-                    success = false;
-                }
-
-                return null;
+                var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] {"System", "System.Linq", "System.Collections.Generic"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")}.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
+                var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
+                retVal.Compile();
+                return retVal.CreateDelegate();
             }));
-
-
-
-            var function = script.Value;
-            if (!success)
+            var dic = new ExpandoObject();
+            var idic = dic as IDictionary<string, object>;
+            idic[nameOfTarget] = target;
+            foreach (var argument in arguments)
             {
-                Lazy<MethodInfo> dummy;
-                scripts.TryRemove(hash, out dummy);
-#if (!Community)
-                LogEnvironment.LogDebugEvent("Method-creation failed. Method removed from buffer.", LogSeverity.Error);
-#endif
-                throw new ScriptException("Linq query failed. See log for further details."
-                    ,compileX
-                );
+                idic[argument.Key] = argument.Value;
             }
 
-            List<object> arg = new List<object>();
-            arg.Add(target);
-            arg.AddRange(from t in arguments orderby t.Key select t.Value);
-            var result = function.Invoke(null, arg.ToArray());
-            return result;
+            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper {Global = idic}));
+        }
+
+        private static InteractiveAssemblyLoader Loader
+        {
+            get
+            {
+                var retVal = loader;
+                if (loader == null)
+                {
+                    lock (initializationLock)
+                    {
+                        if (loader == null)
+                        {
+                            loader = new InteractiveAssemblyLoader();
+                            loaderInitializationTime = DateTime.Now;
+                        }
+                    }
+                }
+                else
+                {
+                    var diff = DateTime.Now.Subtract(loaderInitializationTime);
+                    if (diff.TotalDays > 10)
+                    {
+                        lock (initializationLock)
+                        {
+                            diff = DateTime.Now.Subtract(loaderInitializationTime);
+                            if (diff.TotalDays > 10)
+                            {
+                                var scripts = roslynScripts.ToArray();
+                                foreach (var sc in scripts)
+                                {
+                                    if (sc.Value.IsValueCreated)
+                                    {
+                                        roslynScripts.TryRemove(sc.Key, out _);
+                                    }
+                                }
+                            }
+
+                            loader.Dispose();
+                            loader = null;
+                            retVal = Loader;
+                        }
+                    }
+                }
+
+                return retVal;
+            }
         }
 
         /// <summary>

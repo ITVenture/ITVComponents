@@ -2700,7 +2700,7 @@ namespace ITVComponents.Scripting.CScript.Core
             string identifier = context.Identifier().GetText();
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             retVal.Initialize(function);
-            variables[identifier] = retVal;
+            variables[identifier] = function;
             return retVal;
         }
 
