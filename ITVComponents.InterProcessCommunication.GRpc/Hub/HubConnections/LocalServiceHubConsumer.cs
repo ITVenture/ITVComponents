@@ -10,6 +10,7 @@ using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides;
 using ITVComponents.InterProcessCommunication.Grpc.Security;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.InterProcessCommunication.Shared.Security;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
 {
@@ -19,17 +20,19 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         private bool initialized;
         private Random rnd;
         private string consumedService;
+        private readonly ICustomServerSecurity serverSecurity;
 
         /// <summary>
         /// Initializes a new instance of the LocalServiceHubConsumer class
         /// </summary>
         /// <param name="serviceName">the local service name</param>
         /// <param name="localProvider">the local serviceHubProvider instance</param>
-        public LocalServiceHubConsumer(string serviceName, IServiceHubProvider localProvider, string consumedService)
+        public LocalServiceHubConsumer(string serviceName, IServiceHubProvider localProvider, string consumedService, ICustomServerSecurity serverSecurity)
         {
             this.localProvider = localProvider;
             ServiceName = serviceName;
             this.consumedService = consumedService;
+            this.serverSecurity = serverSecurity;
             rnd = new Random();
             if (!string.IsNullOrEmpty(serviceName) && !string.IsNullOrEmpty(consumedService))
             {
@@ -62,7 +65,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
 
             if (!string.IsNullOrEmpty(message.HubUser))
             {
-                msg.HubUser = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(message.HubUser).ToIdentity();
+                msg.HubUser = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(message.HubUser).ToIdentity(serverSecurity);
             }
 
             OnMessageArrived(msg);

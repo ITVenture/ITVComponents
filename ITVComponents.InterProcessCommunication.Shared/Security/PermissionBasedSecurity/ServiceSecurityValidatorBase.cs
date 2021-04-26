@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Security.Principal;
@@ -129,6 +130,16 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
             return retVal;
         }
 
+        /// <summary>
+        /// Gets the custom properties for a specific identity
+        /// </summary>
+        /// <param name="identity">the identity for which to get the custom properties</param>
+        /// <returns>an enuerable containing all custom properties for the given identity</returns>
+        public IEnumerable<KeyValuePair<string,string>> GetCustomProperties(IIdentity identity)
+        {
+            return SelectCustomProperties(identity);
+        }
+
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
@@ -163,6 +174,13 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
 
             return retVal;
         }
+
+        /// <summary>
+        /// Gets the custom properties for a specific identity
+        /// </summary>
+        /// <param name="identity">the identity for which to get the custom properties</param>
+        /// <returns>an enuerable containing all custom properties for the given identity</returns>
+        protected abstract IEnumerable<KeyValuePair<string,string>> SelectCustomProperties(IIdentity identity);
 
         /// <summary>
         /// Verifies the permissions of a user for a set of assigned HasPermission attributes

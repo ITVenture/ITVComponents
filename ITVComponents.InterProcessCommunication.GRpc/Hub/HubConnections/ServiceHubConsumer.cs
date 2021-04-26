@@ -9,7 +9,9 @@ using ITVComponents.InterProcessCommunication.Grpc.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
 using ITVComponents.InterProcessCommunication.Grpc.Security;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.Logging;
+using ITVComponents.WebCoreToolkit.Security;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
 {
@@ -44,6 +46,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         private Timer reconnector;
 
         private string myServiceName;
+        private ICustomServerSecurity customServerSecurity;
 
         /// <summary>
         /// Initializes a new instance of the ServiceConsumer class
@@ -51,12 +54,19 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         /// <param name="serviceAddr">the address of the Hub</param>
         /// <param name="serviceName">the name of this service</param>
         /// <param name="configurator">a hub-configurator that configures the channel options for this consumer object</param>
-        public ServiceHubConsumer(string serviceAddr, string serviceName, IHubClientConfigurator configurator):this(serviceAddr, configurator, null)
+        /// <param name="consumedService">the remote-service that is being consumed</param>
+        public ServiceHubConsumer(string serviceAddr, string serviceName, IHubClientConfigurator configurator, string consumedService) : this(serviceAddr, configurator, consumedService, null)
         {
             this.myServiceName = serviceName;
         }
 
-        public ServiceHubConsumer(string serviceAddr, string serviceName, IHubClientConfigurator configurator, string consumedService) : this(serviceAddr, configurator, consumedService)
+        /// <summary>
+        /// Initializes a new instance of the ServiceConsumer class
+        /// </summary>
+        /// <param name="serviceAddr">the address of the Hub</param>
+        /// <param name="serviceName">the name of this service</param>
+        /// <param name="configurator">a hub-configurator that configures the channel options for this consumer object</param>
+        public ServiceHubConsumer(string serviceAddr, string serviceName, IHubClientConfigurator configurator, ICustomServerSecurity customServerSecurity):this(serviceAddr, configurator, null, customServerSecurity)
         {
             this.myServiceName = serviceName;
         }
@@ -66,11 +76,25 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         /// </summary>
         /// <param name="serviceAddr">the address of the Hub</param>
         /// <param name="configurator">a hub-configurator that configures the channel options for this consumer object</param>
-        public ServiceHubConsumer(string serviceAddr, IHubClientConfigurator configurator, string consumedService)
+        /// <param name="consumedService">the remote-service that is being consumed</param>
+        public ServiceHubConsumer(string serviceAddr, IHubClientConfigurator configurator, string consumedService):this(serviceAddr, configurator, consumedService, null)
+        {
+
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the ServiceConsumer class
+        /// </summary>
+        /// <param name="serviceAddr">the address of the Hub</param>
+        /// <param name="configurator">a hub-configurator that configures the channel options for this consumer object</param>
+        /// <param name="consumedService">the remote-service that is being consumed</param>
+        /// <param name="customServerSecurity">a security-repo that allows this object to perform user-transformations</param>
+        public ServiceHubConsumer(string serviceAddr, IHubClientConfigurator configurator, string consumedService, ICustomServerSecurity customServerSecurity)
         {
             this.serviceAddr = serviceAddr;
             this.configurator = configurator;
             this.consumedService = consumedService;
+            this.customServerSecurity = customServerSecurity;
             tickTimer = new Timer(SendTick,null, Timeout.Infinite, Timeout.Infinite);
             reconnector = new Timer(ReConnect, null, Timeout.Infinite, Timeout.Infinite);
         }
@@ -316,7 +340,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
 
                                     if (!string.IsNullOrEmpty(c.HubUser))
                                     {
-                                        msg.HubUser = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(c.HubUser).ToIdentity();
+                                        msg.HubUser = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(c.HubUser).ToIdentity(customServerSecurity);
                                     }
 
                                     OnMessageArrived(msg);

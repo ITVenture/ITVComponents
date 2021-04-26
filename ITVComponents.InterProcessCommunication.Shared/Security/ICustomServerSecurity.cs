@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
@@ -48,5 +49,12 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// <param name="reason">provides a reason when the access was denied</param>
         /// <returns>a value indicating whether to allow the provieded event-access</returns>
         bool VerifyAccess(EventInfo objectEvent, string objectName, IIdentity userIdentity, out string reason);
+
+        /// <summary>
+        /// Gets the custom properties for a specific identity object
+        /// </summary>
+        /// <param name="identity">the identity for which to get the custom properties</param>
+        /// <returns>an enumerable containing all custom properties for the given identity</returns>
+        IEnumerable<KeyValuePair<string,string>> GetCustomProperties(IIdentity identity);
     }
 }

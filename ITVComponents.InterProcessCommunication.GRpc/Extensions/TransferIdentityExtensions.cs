@@ -6,6 +6,8 @@ using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Grpc.Security;
+using ITVComponents.InterProcessCommunication.Shared.Security;
+using ITVComponents.WebCoreToolkit.Security;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Extensions
 {
@@ -28,6 +30,21 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Extensions
             }
 
             return null;
+        }
+
+        public static IIdentity ToIdentity(this TransferIdentity transferred, ICustomServerSecurity serverSecurity)
+        {
+            var retVal = transferred.ToIdentity();
+            if (retVal != null && serverSecurity != null && retVal is ClaimsIdentity ci)
+            {
+                var props = serverSecurity.GetCustomProperties(retVal);
+                foreach(var item in props)
+                {
+                    ci.AddClaim(new Claim(item.Key, item.Value));
+                }
+            }
+
+            return retVal;
         }
 
         public static TransferIdentity ForTransfer(this ClaimsIdentity identity, string transferNameClaim = null, string transferRoleClaim = null)
