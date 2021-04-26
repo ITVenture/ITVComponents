@@ -51,11 +51,11 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Client
         {
             if (!useEvents)
             {
-                connection = new LocalServiceHubConsumer(null, serviceHub, targetService);
+                connection = new LocalServiceHubConsumer(null, serviceHub, targetService, null);
             }
             else
             {
-                connection = new LocalServiceHubConsumer($"{Guid.NewGuid()}", serviceHub, targetService);
+                connection = new LocalServiceHubConsumer($"{Guid.NewGuid()}", serviceHub, targetService, null);
                 isBidirectional = true;
             }
 

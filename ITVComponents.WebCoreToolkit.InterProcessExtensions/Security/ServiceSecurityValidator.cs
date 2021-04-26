@@ -33,6 +33,11 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
             this.nameMapper = nameMapper;
         }
 
+        protected override IEnumerable<KeyValuePair<string, string>> SelectCustomProperties(IIdentity identity)
+        {
+            return securityRepo.GetCustomProperties(nameMapper.GetUserLabels(identity), identity.AuthenticationType).Select(m => new KeyValuePair<string, string>(m.PropertyName, m.Value));
+        }
+
         /// <summary>
         /// Verifies the permissions of a user for a set of assigned HasPermission attributes
         /// </summary>

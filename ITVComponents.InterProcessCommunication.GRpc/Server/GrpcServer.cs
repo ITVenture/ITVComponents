@@ -23,13 +23,13 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Server
 
         public GrpcServer(string hubAddress, PluginFactory factory, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(factory, useExtendedProxying, useSecurity, security)
         {
-            hubClient = new ServiceHubConsumer(hubAddress, serviceName, configurator);
+            hubClient = new ServiceHubConsumer(hubAddress, serviceName, configurator, security);
             hubClient.MessageArrived += ClientInvokation;
         }
 
         public GrpcServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(factory, useExtendedProxying, useSecurity, security)
         {
-            hubClient = new LocalServiceHubConsumer(serviceName, serviceHub, null);
+            hubClient = new LocalServiceHubConsumer(serviceName, serviceHub, null, security);
             hubClient.MessageArrived += ClientInvokation;
         }
 
@@ -51,13 +51,13 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Server
 
         public GrpcServer(string hubAddress, IDictionary<string,object> exposedObjects, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(exposedObjects, useExtendedProxying, useSecurity, security)
         {
-            hubClient = new ServiceHubConsumer(hubAddress, serviceName, configurator);
+            hubClient = new ServiceHubConsumer(hubAddress, serviceName, configurator, security);
             hubClient.MessageArrived += ClientInvokation;
         }
 
         public GrpcServer(IServiceHubProvider serviceHub, IDictionary<string,object> exposedObjects, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(exposedObjects, useExtendedProxying, useSecurity, security)
         {
-            hubClient = new LocalServiceHubConsumer(serviceName, serviceHub, null);
+            hubClient = new LocalServiceHubConsumer(serviceName, serviceHub, null, security);
             hubClient.MessageArrived += ClientInvokation;
         }
 
