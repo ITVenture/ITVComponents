@@ -215,6 +215,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                     {
                         var typ = NativeScriptHelper.GetFriendlyName(prop.PropertyType);
                         var cvTyp = "";
+                        var attr = (NullSensitiveFkQueryExpressionAttribute)Attribute.GetCustomAttributes(prop, typeof(NullSensitiveFkQueryExpressionAttribute)).FirstOrDefault();
+                        var defaultNullSensitiveQuery = attr?.GetQueryPart($"t.{prop.Name}", $"Var{index}");
                         if (prop.PropertyType != typeof(string))
                         {
                             if (!typ.EndsWith("?"))
@@ -226,14 +228,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                             filterDecl += $@"{typ} Var{index} = ValueConvertHelper.TryChangeType<{cvTyp}>((string)Global.{prop.Name});
 bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
 ";
-                            specialWhere += $"{(specialWhere != "" ? " && " : "")}(Var{index} == null && !Var{index}NullExpected || t.{prop.Name} == Var{index})";
+                            var nsq = defaultNullSensitiveQuery ?? $"t.{prop.Name} == Var{index}";
+                            specialWhere += $"{(specialWhere != "" ? " && " : "")}(Var{index} == null && !Var{index}NullExpected || ({nsq}))";
                         }
                         else
                         {
                             filterDecl += $@"string Var{index} = (string)Global.{prop.Name};
 bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
 ";
-                            specialWhere += $"{(specialWhere != "" ? " && " : "")}(Var{index}NullExpected && t.{prop.Name} == null || !Var{index}NullExpected && t.{prop.Name}.Contains(Var{index}))";
+                            var nsq = defaultNullSensitiveQuery ?? $"t.{prop.Name}.Contains(Var{index})";
+                            specialWhere += $"{(specialWhere != "" ? " && " : "")}(Var{index}NullExpected && t.{prop.Name} == null || !Var{index}NullExpected && ({nsq}))";
                         }
                     }
                     else if (!string.IsNullOrEmpty(generalFilter))
