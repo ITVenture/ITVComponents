@@ -87,7 +87,7 @@
                 string columnName = retVal.Column.Member;
                 string idRaw = CustomActionHelper.RandomName(retVal.Column.Member);
                 string id = $"{idRaw}#={pkName}#";
-                string template = $@"<input id='{id}' class='itv-icb-marker' data-col-name='{columnName}' #if ({columnName}) {{ # checked='checked' # }} # type='checkbox' {(!string.IsNullOrEmpty(customChangeHandler) ? $"itvCustomChangeHandler='{customChangeHandler}'" : "")} />
+                string template = $@"<input id='{id}' class='itv-icb-marker' data-col-name='{columnName}' #if ({columnName}) {{ # checked='checked' # }} # type='checkbox' style='display:none;' {(!string.IsNullOrEmpty(customChangeHandler) ? $"itvCustomChangeHandler='{customChangeHandler}'" : "")} />
     #{{
         var nameId = {pkName}.toString();
         var name = ""\#{idRaw}"".concat(nameId);
@@ -144,7 +144,7 @@
                 string displayTemplateName = $"{columnName}#={pkName}#";
                 string idRaw = CustomActionHelper.RandomName(retVal.Column.Member);
                 string id = $"{idRaw}#={pkName}#";
-                var clientTemplate = @$"<select {(!alwaysActive?@"disabled=""disabled""":"")} id=""{id}"" multiple=""multiple"" name=""{displayTemplateName}"" data-col-name='{columnName}'></select>
+                var clientTemplate = @$"<select {(!alwaysActive?@"disabled=""disabled""":"")} id=""{id}"" multiple=""multiple"" style='display:none;' name=""{displayTemplateName}"" data-col-name='{columnName}'></select>
     #{{
         if (typeof({retVal.Column.Member}) !== ""undefined""){{
             var nameId = {pkName}.toString();
