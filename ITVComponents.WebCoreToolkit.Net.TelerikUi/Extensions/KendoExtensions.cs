@@ -117,16 +117,19 @@
             /// <param name="target">the column-factory of the list</param>
             /// <param name="expression">the expression targeting an enumerable field</param>
             /// <param name="repoName">the name of the repository that provides the fk-data</param>
-            /// /// <param name="tableName">the name of the source table</param>
+            /// <param name="tableName">the name of the source table</param>
             /// <param name="pkName">the name of the primary-key</param>
             /// <param name="placeholder">a placeholder text that is being displayed when nothing is selected</param>
+            /// <param name="alwaysActive">Indicates whether to keep the display-template editable, so that this column can be edited without entering edit-mode</param>
+            /// <param name="customInlineChangedHandler">defines a custom handler that will be called, when an item was selected or deleted. If no value is provided, the default handler will be used and the grid will be synced on every modification action of the item.</param>
             /// <returns>the ColumnBuilder object for the bound field</returns>
-            public static GridBoundColumnBuilder<TModel> MultiSelect<TModel, TValue>(this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName, string placeholder = "") where TModel : class
+            public static GridBoundColumnBuilder<TModel> MultiSelect<TModel, TValue>(this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName, string placeholder = "", bool alwaysActive = false, string customInlineChangedHandler = null) where TModel : class
                 where TValue : IEnumerable
             {
                 var retVal = target.Bound(expression);
                 var route = target.Container.HtmlHelper.ViewContext.HttpContext.Request.RouteValues;
                 string area = null;
+                string changedHandler = customInlineChangedHandler ?? "ITVenture.Tools.TableHelper.defaultMultiSelectCallback";
                 if (route.ContainsKey("area"))
                 {
                     area = (string) route["area"];
@@ -141,7 +144,7 @@
                 string displayTemplateName = $"{columnName}#={pkName}#";
                 string idRaw = CustomActionHelper.RandomName(retVal.Column.Member);
                 string id = $"{idRaw}#={pkName}#";
-                var clientTemplate = @$"<select disabled=""disabled"" id=""{id}"" multiple=""multiple"" name=""{displayTemplateName}""></select>
+                var clientTemplate = @$"<select {(!alwaysActive?@"disabled=""disabled""":"")} id=""{id}"" multiple=""multiple"" name=""{displayTemplateName}"" data-col-name='{columnName}'></select>
     #{{
         if (typeof({retVal.Column.Member}) !== ""undefined""){{
             var nameId = {pkName}.toString();
@@ -150,7 +153,7 @@
             var dataItem = this;
             $(function(){{    
                 var item = $(name);
-                var select = item.kendoMultiSelect({{""dataTextField"":""Label"",""dataValueField"":""Key"",""enable"":false,""placeholder"":""{placeholder}"",""dataSource"":{{""transport"":{{""read"":{{""url"":""{url}""}},""prefix"":""""}},""schema"":{{""errors"":""Errors""}}}}}}).data(""kendoMultiSelect"");
+                var select = item.kendoMultiSelect({{""dataTextField"":""Label"",""dataValueField"":""Key"",""enable"":{(alwaysActive?$"true,\"change\":{changedHandler}":"false")},""placeholder"":""{placeholder}"",""dataSource"":{{""transport"":{{""read"":{{""url"":""{url}""}},""prefix"":""""}},""schema"":{{""errors"":""Errors""}}}}}}).data(""kendoMultiSelect"");
                 if (typeof(select) !== ""undefined""){{
                     select.value(ids);
                 }}

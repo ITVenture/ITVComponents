@@ -46,6 +46,16 @@
         dataItem.set(colName, checked);
         grid.dataSource.sync();
     },
+    defaultMultiSelectCallback: function(e) {
+        var elem = e.sender.element;
+        var colName = elem.attr("data-col-name");
+        var row = e.sender.element.closest("tr");
+        var grid = row.closest(".k-grid").data("kendoGrid");
+        var dataItem = grid.dataItem(row);
+        var value = $(elem).data("kendoMultiSelect").value();
+        dataItem.set(colName, value);
+        grid.dataSource.sync();
+    },
     serializeArrays: function(data) {
         for (var a in data) {
             if (data.hasOwnProperty(a) && $.isArray(data[a])) {
