@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Scripting.CScript.Helpers;
-using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
+using ValueType = ITVComponents.Scripting.CScript.Helpers.ValueType;
 
 namespace ITVComponents.Scripting.CScript.ReflectionHelpers
 {

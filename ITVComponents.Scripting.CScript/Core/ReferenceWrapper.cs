@@ -5,18 +5,13 @@ using System.Text;
 
 namespace ITVComponents.Scripting.CScript.Core
 {
-    public class ReferenceWrapper:TypedNull
+    public class ReferenceWrapper:TypedNull, ITransparentValue
     {
         public object WrappedValue { get; private set; }
 
-        public ReferenceWrapper Value()
+        public void SetValue(object value)
         {
-            return new ReferenceWrapper {Type = Type};
-        }
-
-        public ReferenceWrapper Value(object value)
-        {
-            return new ReferenceWrapper {Type = Type, WrappedValue = value};
+            WrappedValue = value;
         }
     }
 }

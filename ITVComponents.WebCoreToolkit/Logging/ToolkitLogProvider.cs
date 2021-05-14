@@ -80,7 +80,14 @@ namespace ITVComponents.WebCoreToolkit.Logging
                             {
                                 while (events.TryDequeue(out var eventData))
                                 {
-                                    adapter.PopulateEvent(eventData);
+                                    try
+                                    {
+                                        adapter.PopulateEvent(eventData);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine(ex.OutlineException());
+                                    }
                                 }
                             }
                             finally
@@ -89,11 +96,16 @@ namespace ITVComponents.WebCoreToolkit.Logging
                             }
                         }
                     }
+                    else
+                    {
+                        events.Clear();
+                    }
                 }
             }
             catch(Exception ex)
             {
                 Console.WriteLine(ex.OutlineException());
+                events.Clear();
             }
             finally
             {

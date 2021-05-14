@@ -17,7 +17,7 @@ using ITVComponents.Scripting.CScript.Operating;
 using ITVComponents.Scripting.CScript.Optimization;
 using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 using ITVComponents.Scripting.CScript.ScriptValues;
-using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
+using ValueType = ITVComponents.Scripting.CScript.Helpers.ValueType;
 using Void = ITVComponents.Scripting.CScript.ScriptValues.Void;
 
 namespace ITVComponents.Scripting.CScript.Core
@@ -896,7 +896,8 @@ namespace ITVComponents.Scripting.CScript.Core
             return rv;
         }
 
-        public override ScriptValue VisitArguments(ITVScriptingParser.ArgumentsContext context)
+        public override ScriptValue 
+            VisitArguments(ITVScriptingParser.ArgumentsContext context)
         {
             return VisitArgumentList(context.argumentList());
         }

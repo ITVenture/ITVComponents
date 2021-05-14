@@ -7,7 +7,7 @@ using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.Optimization;
-using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
+using ValueType = ITVComponents.Scripting.CScript.Helpers.ValueType;
 
 namespace ITVComponents.Scripting.CScript.ScriptValues
 {
@@ -117,7 +117,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// Sets the Value of this ScriptValue object
         /// </summary>
         /// <param name="value">the new Value to assign to this Value</param>
-        internal override void SetValue(object value)
+        public override void SetValue(object value)
         {
             if (ValueType != ValueType.PropertyOrField)
             {

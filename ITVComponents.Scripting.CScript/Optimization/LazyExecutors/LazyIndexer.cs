@@ -28,6 +28,16 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
             return indexProperty.GetValue(value, (from t in arguments select t.GetValue(null)).ToArray());
         }
 
+        public override bool CanExecute(object value, object[] arguments)
+        {
+            return value != null && (arguments.Length == types.Length || lastParams);
+        }
+
+        public override object Invoke(object value, object[] arguments)
+        {
+            return indexProperty.GetValue(value, arguments);
+        }
+
         #endregion
     }
 }

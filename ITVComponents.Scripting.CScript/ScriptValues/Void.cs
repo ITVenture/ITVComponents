@@ -40,9 +40,9 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// <summary>
         /// Gets the Value Type of this ScriptValue
         /// </summary>
-        public override ValueType ValueType
+        public override Helpers.ValueType ValueType
         {
-            get { return ValueType.Literal; }
+            get { return Helpers.ValueType.Literal; }
             set { }
         }
 
@@ -58,7 +58,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// Sets the Value of this ScriptValue object
         /// </summary>
         /// <param name="value">the new Value to assign to this Value</param>
-        internal override void SetValue(object value)
+        public override void SetValue(object value)
         {
             throw new NotImplementedException();
         }

@@ -4,23 +4,95 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Scripting.CScript.Core.Invokation;
 #if (!Community)
 using ITVComponents.ExtendedFormatting;
 #endif
 using ITVComponents.Scripting.CScript.Core.Literals;
+using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Exceptions;
+using ITVComponents.Scripting.CScript.Optimization;
+using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 
 namespace ITVComponents.Scripting.CScript.Helpers
 {
     internal static class MemberAccessHelper
     {
-        public static object GetMemberValue(this object target, string name, Type explicitType, ScriptValues.ValueType valueType)
+
+        public static object GetIndexOnValue(object rawValue, object[] arguments, Type explicitType, bool useLazyEvaluation, ref IExecutor lazyExecutor)
         {
-            if (valueType== ScriptValues.ValueType.Method || valueType == ScriptValues.ValueType.Constructor)
+            if (arguments == null || arguments.Length == 0)
+            {
+                if (rawValue is InvokationHelper invokationHelper)
+                {
+                    bool ok;
+                    object retVal = invokationHelper.Invoke(null, out ok);
+                    if (ok)
+                    {
+                        return retVal;
+                    }
+                }
+
+                if (rawValue is FunctionLiteral fx && fx.AutoInvokeEnabled)
+                {
+                    return fx.Invoke(null);
+                }
+
+                return rawValue;
+            }
+
+            if (rawValue == null)
+                {
+                    throw new ScriptException("Indexer Failed for NULL - Value");
+                }
+
+                if (rawValue is Type)
+                {
+                    throw new ScriptException("Indexer call for Types not supported");
+                }
+
+                
+                if (!(rawValue is Array))
+                {
+                    object[] args;
+                    Type targetType = rawValue.GetType();
+                    if (explicitType != null)
+                    {
+                        if (!explicitType.IsAssignableFrom(targetType))
+                        {
+                            throw new ScriptException("Provided Type is not implemented by the target-object");
+                        }
+
+                        targetType = explicitType;
+                    }
+
+                    PropertyInfo pi = MethodHelper.GetCapableIndexer(targetType,
+                                                                     arguments,
+                                                                     out args);
+                    if (pi == null)
+                    {
+                        throw new ScriptException("No capable Indexer found for the provided arguments");
+                    }
+
+                    if (useLazyEvaluation)
+                    {
+                        lazyExecutor = new LazyIndexer(pi,arguments.Length != args.Length);
+                    }
+
+                    return pi.GetValue(rawValue, args);
+                }
+
+                Array arr = (Array)rawValue;
+                return arr.GetValue(arguments.Cast<int>().ToArray());
+        }
+
+        public static object GetMemberValue(this object target, string name, Type explicitType, ValueType valueType)
+        {
+            if (valueType== ValueType.Method || valueType == ValueType.Constructor)
             {
                 var bv = target;
                 var olt = bv as ObjectLiteral;
-                if (valueType == ScriptValues.ValueType.Constructor && olt != null)
+                if (valueType == ValueType.Constructor && olt != null)
                 {
                     return olt[name];
                 }
@@ -106,7 +178,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
             throw new ScriptException(string.Format("GetValue is not supported for MemberType {0}", mi.MemberType));
         }
 
-        public static void SetMemberValue(this object target, string name, object value, Type explicitType, ScriptValues.ValueType valueType)
+        public static void SetMemberValue(this object target, string name, object value, Type explicitType, ValueType valueType)
         {
             object targetObject;
             bool isEnum;
@@ -195,5 +267,31 @@ namespace ITVComponents.Scripting.CScript.Helpers
             Type t = (Type)baseVal;
             return (from m in t.GetMembers(BindingFlags.Public | (isStatic ? BindingFlags.Static : BindingFlags.Instance)) where m.Name == memberName select m).FirstOrDefault();
         }
+    }
+
+    /// <summary>
+    /// Enum for the Supported Value Types in a Script
+    /// </summary>
+    public enum ValueType
+    {
+        /// <summary>
+        /// The value is literal and can not be assigned
+        /// </summary>
+        Literal,
+
+        /// <summary>
+        /// The Value is a Property and can be read and written
+        /// </summary>
+        PropertyOrField,
+
+        /// <summary>
+        /// The Value is a Method and can only be read
+        /// </summary>
+        Method,
+
+        /// <summary>
+        /// The Value is a Constructor and can only be read
+        /// </summary>
+        Constructor
     }
 }

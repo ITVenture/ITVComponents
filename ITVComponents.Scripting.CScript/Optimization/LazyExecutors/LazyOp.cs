@@ -28,6 +28,16 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
             return invoker(arguments[0].GetValue(null), arguments[1].GetValue(null), typeSave);
         }
 
+        public bool CanExecute(object value, object[] arguments)
+        {
+            return value == null && arguments.Length == 2;
+        }
+
+        public object Invoke(object value, object[] arguments)
+        {
+            return invoker(arguments[0], arguments[1], typeSave);
+        }
+
         #endregion
     }
 }

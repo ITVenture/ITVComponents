@@ -30,7 +30,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// <param name="variableName">the name of the accessed variable</param>
         public void Initialize(IScope variables, string variableName)
         {
-            ValueType = ValueType.PropertyOrField;
+            ValueType = Helpers.ValueType.PropertyOrField;
             this.variables = variables;
             this.variableName = variableName;
         }
@@ -70,7 +70,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// <summary>
         /// Gets the Value Type of this ScriptValue
         /// </summary>
-        public override ValueType ValueType
+        public override Helpers.ValueType ValueType
         {
             get; set; }
 
@@ -97,7 +97,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// Sets the Value of this ScriptValue object
         /// </summary>
         /// <param name="value">the new Value to assign to this Value</param>
-        internal override void SetValue(object value)
+        public override void SetValue(object value)
         {
             variables[variableName] = value;
         }

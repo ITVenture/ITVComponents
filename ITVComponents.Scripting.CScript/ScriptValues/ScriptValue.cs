@@ -9,12 +9,13 @@ using ITVComponents.Scripting.CScript.Core.Invokation;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Exceptions;
+using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.Optimization;
 using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 
 namespace ITVComponents.Scripting.CScript.ScriptValues
 {
-    public abstract class ScriptValue: IDisposable
+    public abstract class ScriptValue: IDisposable, ITransparentValue
     {
         /// <summary>
         /// The Creator symbol that leads to this ScriptValue
@@ -52,7 +53,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// <summary>
         /// Gets the Value Type of this ScriptValue
         /// </summary>
-        public abstract ValueType ValueType { get; set; }
+        public abstract Helpers.ValueType ValueType { get; set; }
 
         /// <summary>
         /// The Name of the Target object. This is only required for Methods
@@ -91,80 +92,25 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 }
             }
 
-            if (ValueType == ValueType.Literal)
+            if (ValueType == Helpers.ValueType.Literal)
             {
                 return Value;
             }
 
             object tmpValue = Value;
-            if (ValueType == ValueType.PropertyOrField)
+            if (ValueType == Helpers.ValueType.PropertyOrField)
             {
-                if (arguments == null || arguments.Length == 0)
+                IExecutor exec = null;
+                object retVal = MemberAccessHelper.GetIndexOnValue(tmpValue, arguments, ExplicitType, creator != null, ref exec);
+                if (creator != null)
                 {
-                    var invokationHelper = tmpValue as InvokationHelper;
-                    if (invokationHelper != null)
-                    {
-                        bool ok;
-                        object retVal = invokationHelper.Invoke(null, out ok);
-                        if (ok)
-                        {
-                            return retVal;
-                        }
-                    }
-
-                    FunctionLiteral fx = tmpValue as FunctionLiteral;
-                    if (fx != null && fx.AutoInvokeEnabled)
-                    {
-                        return ((FunctionLiteral) tmpValue).Invoke(null);
-                    }
-
-                    return tmpValue;
-                }
-                if (tmpValue == null)
-                {
-                    throw new ScriptException("Indexer Failed for NULL - Value");
+                    creator.SetPreferredExecutor(exec);
                 }
 
-                if (tmpValue is Type)
-                {
-                    throw new ScriptException("Indexer call for Types not supported");
-                }
-
-                object[] parameters = (from t in arguments select t.GetValue(null)).ToArray();
-                if (!(tmpValue is Array))
-                {
-                    object[] args;
-                    Type targetType = tmpValue.GetType();
-                    if (ExplicitType != null)
-                    {
-                        if (!ExplicitType.IsAssignableFrom(targetType))
-                        {
-                            throw new ScriptException("Provided Type is not implemented by the target-object");
-                        }
-
-                        targetType = ExplicitType;
-                    }
-                    PropertyInfo pi = MethodHelper.GetCapableIndexer(targetType,
-                                                                     parameters,
-                                                                     out args);
-                    if (pi == null)
-                    {
-                        throw new ScriptException("No capable Indexer found for the provided arguments");
-                    }
-
-                    if (creator != null)
-                    {
-                        creator.SetPreferredExecutor(new LazyIndexer(pi,parameters.Length != args.Length));
-                    }
-
-                    return pi.GetValue(tmpValue, args);
-                }
-
-                Array arr = (Array)tmpValue;
-                return arr.GetValue(parameters.Cast<int>().ToArray());
+                return retVal;
             }
 
-            if (ValueType == ValueType.Method)
+            if (ValueType == Helpers.ValueType.Method)
             {
                 SequenceValue ta = (SequenceValue) arguments[0];
                 SequenceValue a = (SequenceValue) arguments[1];
@@ -186,7 +132,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 
                 if (tmpValue == null)
                 {
-                    ValueType = ValueType.PropertyOrField;
+                    ValueType = Helpers.ValueType.PropertyOrField;
                 }
 
                 if (Name == null)
@@ -220,7 +166,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                     }
                     finally
                     {
-                        ValueType = ValueType.Method;
+                        ValueType = Helpers.ValueType.Method;
                     }
                 }
 
@@ -316,7 +262,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
 #endif
             }
 
-            if (ValueType == ValueType.Constructor)
+            if (ValueType == Helpers.ValueType.Constructor)
             {
                 if (tmpValue == null || !(tmpValue is Type))
                 {
@@ -377,13 +323,13 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 }
             }
 
-            if (ValueType == ValueType.Literal)
+            if (ValueType == Helpers.ValueType.Literal)
             {
                 return false;
             }
 
             object tmpValue = Value;
-            if (ValueType == ValueType.PropertyOrField)
+            if (ValueType == Helpers.ValueType.PropertyOrField)
             {
                 if (arguments == null || arguments.Length == 0)
                 {
@@ -420,7 +366,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 return retVal;
             }
 
-            if (ValueType == ValueType.Method)
+            if (ValueType == Helpers.ValueType.Method)
             {
                 SequenceValue ta = (SequenceValue)arguments[0];
                 SequenceValue a = (SequenceValue)arguments[1];
@@ -436,7 +382,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
 
                 if (tmpValue == null)
                 {
-                    ValueType = ValueType.PropertyOrField;
+                    ValueType = Helpers.ValueType.PropertyOrField;
                 }
 
                 if (Name == null)
@@ -460,7 +406,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                     }
                     finally
                     {
-                        ValueType = ValueType.Method;
+                        ValueType = Helpers.ValueType.Method;
                     }
                 }
 
@@ -513,7 +459,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 return true;
             }
 
-            if (ValueType == ValueType.Constructor)
+            if (ValueType ==Helpers.ValueType.Constructor)
             {
                 if (tmpValue == null || !(tmpValue is Type))
                 {
@@ -616,32 +562,6 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// Sets the Value of this ScriptValue object
         /// </summary>
         /// <param name="value">the new Value to assign to this Value</param>
-        internal abstract void SetValue(object value);
-    }
-
-    /// <summary>
-    /// Enum for the Supported Value Types in a Script
-    /// </summary>
-    public enum ValueType
-    {
-        /// <summary>
-        /// The value is literal and can not be assigned
-        /// </summary>
-        Literal,
-
-        /// <summary>
-        /// The Value is a Property and can be read and written
-        /// </summary>
-        PropertyOrField,
-
-        /// <summary>
-        /// The Value is a Method and can only be read
-        /// </summary>
-        Method,
-
-        /// <summary>
-        /// The Value is a Constructor and can only be read
-        /// </summary>
-        Constructor
+        public abstract void SetValue(object value);
     }
 }

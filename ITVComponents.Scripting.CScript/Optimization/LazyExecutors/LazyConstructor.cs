@@ -29,6 +29,17 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
             return constructor.Invoke(args);
         }
 
+        public override bool CanExecute(object value, object[] arguments)
+        {
+            return ((arguments.Length ) == types.Length) || lastParams;
+        }
+
+        public override object Invoke(object value, object[] arguments)
+        {
+            object[] args = TranslateParams(arguments);
+            return constructor.Invoke(args);
+        }
+
         #endregion
     }
 }

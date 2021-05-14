@@ -12,7 +12,7 @@ using ITVComponents.ExtendedFormatting;
 #endif
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.ScriptValues;
-using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
+using ValueType = ITVComponents.Scripting.CScript.Helpers.ValueType;
 
 //using ITVComponents.DataAccess.Extensions;
 

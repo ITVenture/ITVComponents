@@ -23,6 +23,10 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
 
         public abstract object Invoke(object value, ScriptValue[] arguments);
 
+        public abstract bool CanExecute(object value, object[] arguments);
+
+        public abstract object Invoke(object value, object[] arguments);
+
         protected object[] TranslateParams(object[] parameters)
         {
             int diff = parameters.Length - types.Length + 1;

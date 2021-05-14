@@ -10,6 +10,6 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
     {
         public int Index { get; set; }
 
-        public ScriptValue Target { get; set; }
+        public ITransparentValue Target { get; set; }
     }
 }

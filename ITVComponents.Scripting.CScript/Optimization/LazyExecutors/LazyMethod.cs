@@ -70,6 +70,51 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
             return retVal;
         }
 
+        public override bool CanExecute(object value, object[] arguments)
+        {
+            int diff = !isExtension ? 0 : 1;
+            return ((arguments.Length + diff) == types.Length) || lastParams;
+        }
+
+        public override object Invoke(object value, object[] arguments)
+        {
+            object[] raw = arguments;
+            if (isExtension)
+            {
+                raw = new[] {value}.Concat(raw).ToArray();
+            }
+
+            if (isStatic)
+            {
+                value = null;
+            }
+
+            object[] cargs = TranslateParams(raw);
+            WritebackContainer[] writeBacks = null;
+            object retVal;
+            try
+            {
+                if (hasRef)
+                {
+                    writeBacks = MethodHelper.GetWritebacks(method, cargs, arguments.Where(n => n is WritebackContainer).ToArray());
+                }
+
+                retVal = method.Invoke(value, cargs);
+            }
+            finally
+            {
+                if (writeBacks != null)
+                {
+                    foreach (var container in writeBacks)
+                    {
+                        container.Target.SetValue(cargs[container.Index]);
+                    }
+                }
+            }
+
+            return retVal;
+        }
+
         #endregion
     }
 

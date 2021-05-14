@@ -8,6 +8,7 @@ using System.Reflection;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core.Literals;
+using ITVComponents.Scripting.CScript.Evaluators.FlowControl;
 using ITVComponents.Scripting.CScript.ScriptValues;
 
 namespace ITVComponents.Scripting.CScript.Core.Methods
@@ -87,6 +88,17 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
                               join g in sequence.Select((v, i) => new { Index = i, Value = v }) on t.Index equals g.Index
                               where t.Value && g.Value.Writable
                               select new WritebackContainer{ Index=t.Index, Target = g.Value }).ToArray();
+            return writeBacks;
+        }
+
+        internal static WritebackContainer[] GetWritebacks(MethodInfo method, object[] evaluatedArguments, object[] sequence)
+        {
+            bool[] isOut = (from t in method.GetParameters() select t.IsOut || t.ParameterType.IsByRef).ToArray();
+            var writeBacks = (from t in isOut.Select((v, i) => new { Index = i, Value = v })
+                join r in evaluatedArguments.Select((v, i) => new { Index = i, Value = v }) on t.Index equals r.Index
+                join g in sequence.Select((v, i) => new { Index = i, Value = v }) on t.Index equals g.Index
+                where t.Value && g.Value is ReferenceWrapper
+                select new WritebackContainer{ Index=t.Index, Target = (ITransparentValue)g.Value }).ToArray();
             return writeBacks;
         }
 
