@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling
     /// <summary>
     /// Implements a components that is capable for parsing the form-content of a multipart-message that was posted to a file-action
     /// </summary>
-    public interface IFormProcessor
+    public interface IFormProcessor:IFileHandler
     {
         /// <summary>
         /// Processes a form that was found in an upload-multipart-message

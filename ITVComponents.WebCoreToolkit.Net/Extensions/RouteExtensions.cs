@@ -390,7 +390,15 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                             }
                         }
 
-                        await new OkResult().ExecuteResultAsync(actionContext);
+                        if (fileHandler is not IRespondingFileHandler rfh)
+                        {
+                            await new OkResult().ExecuteResultAsync(actionContext);
+                        }
+                        else
+                        {
+                            await rfh.GetUploadResult().ExecuteResultAsync(actionContext);
+                        }
+
                         return;
                     }
                     catch (Exception ex)

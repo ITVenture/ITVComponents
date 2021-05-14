@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
         /// <returns>the provided ServiceCollection for method-chaining</returns>
         public static IServiceCollection UseScriptLocalization(this IServiceCollection services)
         {
-            return services.AddTransient(typeof(ILocalScriptProvider<>), typeof(ClientScriptResourceProvider<>));
+            return services.AddScoped(typeof(ILocalScriptProvider<>), typeof(ClientScriptResourceProvider<>));
         }
     }
 }
