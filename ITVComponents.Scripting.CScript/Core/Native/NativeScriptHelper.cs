@@ -19,6 +19,7 @@ using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.Optimization;
+using ITVComponents.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -35,6 +36,9 @@ namespace ITVComponents.Scripting.CScript.Core.Native
     {
         private static readonly ConcurrentDictionary<string, NativeConfiguration> configurations = new ConcurrentDictionary<string, NativeConfiguration>();
         private static readonly ConcurrentDictionary<string, Lazy<ScriptRunner<object>>> roslynScripts = new ConcurrentDictionary<string, Lazy<ScriptRunner<object>>>();
+        private static object initializationLock = new object();
+        private static InteractiveAssemblyLoader loader;
+        private static DateTime loaderInitializationTime;
 
         /// <summary>
         /// Adds a reference to a specific Assembly. You can either speify the assembly with path, Name (i.e. System.dll) or with its AssemblyName 
@@ -103,6 +107,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
                 var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] {"System", "System.Linq", "System.Collections.Generic"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")}.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
+                //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
                 var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
                 retVal.Compile();
                 return retVal.CreateDelegate();
@@ -133,6 +138,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
                 var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] {"System", "System.Linq", "System.Collections.Generic"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")}.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
+                //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
                 var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
                 retVal.Compile();
                 return retVal.CreateDelegate();
@@ -146,6 +152,53 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             }
 
             return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper {Global = idic}));
+        }
+
+        private static InteractiveAssemblyLoader Loader
+        {
+            get
+            {
+                var retVal = loader;
+                if (loader == null)
+                {
+                    lock (initializationLock)
+                    {
+                        if (loader == null)
+                        {
+                            loader = new InteractiveAssemblyLoader();
+                            loaderInitializationTime = DateTime.Now;
+                        }
+                    }
+                }
+                /*else
+                {
+                    var diff = DateTime.Now.Subtract(loaderInitializationTime);
+                    if (diff.TotalMinutes > 10)
+                    {
+                        lock (initializationLock)
+                        {
+                            diff = DateTime.Now.Subtract(loaderInitializationTime);
+                            if (diff.TotalMinutes > 10)
+                            {
+                                var scripts = roslynScripts.ToArray();
+                                foreach (var sc in scripts)
+                                {
+                                    if (sc.Value.IsValueCreated)
+                                    {
+                                        roslynScripts.TryRemove(sc.Key, out _);
+                                    }
+                                }
+                            }
+
+                            loader.Dispose();
+                            loader = null;
+                            retVal = Loader;
+                        }
+                    }
+                }*/
+
+                return retVal;
+            }
         }
 
         /// <summary>
