@@ -21,7 +21,7 @@ ITVenture.Tools.Uploader = {
         var getUploadedMethod = function(e) {
             var tmp = e[0].attributes.nameTarget.value;
             var retVal = function(file, response) {
-                retVal.config[retVal.target](response.Message, response.OriginalFileName, e);
+                retVal.config[retVal.target](response.Message, response.OriginalFileName, e, file, response);
                 $(file.previewElement).children("div[class='dz-image']").hide();
                 $(file.previewElement).children("div[class='dz-success-mark']").hide();
                 $(file.previewElement).children("div[class='dz-error-mark']").hide();
