@@ -112,6 +112,11 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         private WatchDog watchDog;
 
         /// <summary>
+        /// Indicates whether to use processing without a Scheduler that defers the enqueued tasks
+        /// </summary>
+        private bool runWithoutSchedulers;
+
+        /// <summary>
         /// Initializes a new instance of the ParallelServer class
         /// </summary>
         /// <param name="highestPriority">the highest priority that is processed by this server</param>
@@ -124,10 +129,10 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
         protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
-                                 int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, PluginFactory factory)
+                                 int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, bool runWithoutSchedulers, PluginFactory factory)
             : this(
                 highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads,
-                eventReTriggerInterval, 0, factory)
+                eventReTriggerInterval, 0, runWithoutSchedulers, factory)
         {
         }
 
@@ -145,10 +150,10 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="factory">the factory that is used to initialize further plugins</param>
         /// <param name="watchDog">a watchdog instance that is used to restart non-responsive processors</param>
         protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
-            int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, PluginFactory factory, WatchDog watchDog)
+            int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, bool runWithoutSchedulers, PluginFactory factory, WatchDog watchDog)
             : this(
                 highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads,
-                eventReTriggerInterval, 0, factory, watchDog)
+                eventReTriggerInterval, 0, runWithoutSchedulers, factory, watchDog)
         {
         }
 
@@ -166,8 +171,8 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
         /// <param name="watchDog">a watchdog instance that is used to restart non-responsive processors</param>
-        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, PluginFactory factory, WatchDog watchDog) :
-            this(highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, eventReTriggerInterval, maximumFailsPerItem, factory)
+        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, bool runWithoutSchedulers, PluginFactory factory, WatchDog watchDog) :
+            this(highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, eventReTriggerInterval, maximumFailsPerItem, runWithoutSchedulers, factory)
         {
             this.watchDog = watchDog;
         }
@@ -185,7 +190,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
         /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
-        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, PluginFactory factory) : this()
+        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, bool runWithoutSchedulers, PluginFactory factory) : this()
         {
             packages = new Dictionary<int, ConcurrentBag<TPackage>>();
             for (int i = highestPriority; i <= lowestPriority; i++)
@@ -203,6 +208,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             this.eventReTriggerInterval = eventReTriggerInterval;
             this.maximumFailsPerItem = maximumFailsPerItem;
             this.factory = factory;
+            this.runWithoutSchedulers = runWithoutSchedulers;
             eventReTriggerer.Change(10000, 10000);
         }
 
@@ -579,7 +585,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             string workerName = this.UniqueName + "TaskProcessor";
             processor = new ParallelTaskProcessor<TTask>(workerName,GetWorker, highestPriority, lowestPriority, workerCount,
                 workerPollInterval, lowTaskThreshold, highTaskThreshold,
-                useAffineThreads, watchDog);
+                useAffineThreads, runWithoutSchedulers, watchDog);
             processor.GetMoreTasks += FetchMoreTasks;
             processor.IntegratePendingTask += IntegratePendingTasks;
             factory.RegisterObject(workerName, processor);

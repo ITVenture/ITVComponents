@@ -110,6 +110,11 @@ namespace ITVComponents.ParallelProcessing
         private readonly WatchDog watchDog;
 
         /// <summary>
+        /// Indicates whether to run tasks that could not be deferred by a scheduler. This may lead to uncontrolled task-executions
+        /// </summary>
+        private bool runWithoutSchedulers;
+
+        /// <summary>
         /// initializes static members of the ParallelTaskProcessor class
         /// </summary>
         static ParallelTaskProcessor()
@@ -130,8 +135,8 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
         /// <param name="watchDog">a watchdog instance that will restart worker-instances when they become unresponsive</param>
-        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, WatchDog watchDog) :
-            this(identifier, worker, highestPriority, lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads)
+        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool runWithoutSchedulers, WatchDog watchDog) :
+            this(identifier, worker, highestPriority, lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, runWithoutSchedulers)
         {
             this.watchDog = watchDog;
         }
@@ -148,7 +153,7 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="lowTaskThreshold">the minimum number of Items that should be in a queue for permanent processing</param>
         /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
-        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads)
+        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool runWithoutSchedulers)
             : this()
         {
             this.identifier = identifier;
@@ -161,6 +166,7 @@ namespace ITVComponents.ParallelProcessing
             this.highTaskThreshold = highTaskThreshold;
             this.useAffineThreads = useAffineThreads;
             this.workerPollTime = workerPollTime;
+            this.runWithoutSchedulers = runWithoutSchedulers;
             if (lowestPriority < highestPriority)
             {
                 throw new ArgumentException("Higher Priorities must have lower numbers (e.g. low=5, high=1)");
@@ -467,7 +473,14 @@ namespace ITVComponents.ParallelProcessing
 
                 if (!scheduled)
                 {
-                    TaskScheduled(new TaskContainer {Task= task});
+                    if (runWithoutSchedulers)
+                    {
+                        TaskScheduled(new TaskContainer {Task = task});
+                    }
+                    else // Don't run Tasks that are not deferrable by a scheduler
+                    {
+                        return false;
+                    }
                 }
 
                 return true;

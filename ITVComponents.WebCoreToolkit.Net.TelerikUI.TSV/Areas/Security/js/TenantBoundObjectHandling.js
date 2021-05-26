@@ -13,7 +13,7 @@ ITVenture.Pages.Security.TenantBoundObjectsHelper =
         var table = tr.closest(".k-grid").data("kendoGrid");
         var item = table.dataItem(tr);
         var url = "~/Security/Tenant/DetailsView?tenantId=".concat(item.TenantId);
-        ITVenture.Pages.Ssv.App.configPopup.Open(
+        ITVenture.Pages.Security.TenantBoundObjectsHelper.detailsDialog.Open(
             {
                 contentUrl:url,
                 dialogOpening:
