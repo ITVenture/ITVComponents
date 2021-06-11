@@ -3,11 +3,13 @@
 @using ITVComponents.WebCoreToolkit.Net.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using Kendo.Mvc.UI
+@using Kendo.Mvc.UI.Fluent
 @using Microsoft.AspNetCore.Routing
 @model ICollection<ITVComponents.EFRepo.DynamicData.TableColumnDefinition>
 
 @{
     var pk = (TableColumnDefinition) Model.First(n => n.IsPrimaryKey);
+    var columnCustomize = ViewData["ColumnFinalCallback"] != null ? (Action<GridBoundColumnBuilder<object>, string>) ViewData["ColumnFinalCallback"] : new Action<GridBoundColumnBuilder<object>, string>((o, s) => { });
 }
 @(Html.Kendo().Grid<object>
     ().Name((string)ViewData["name"])
@@ -15,68 +17,73 @@
     {
         foreach(var item in Model)
         {
-            if (!item.IsForeignKey)
+            if (!item.Hidden)
             {
-               var c = col.Bound(item.Type.ManagedType, item.ColumnName).Sortable(true).Filterable(true);
-                switch (item.DataType.ToLower())
+                if (!item.IsForeignKey)
                 {
-                    case "bit":
-                        c.EditorTemplateName("Boolean");
-                        break;
-                    case "tinyint":
-                        c.EditorTemplateName("Integer");
-                        break;
-                    case "smallint":
-                        c.EditorTemplateName("Integer");
-                        break;
-                    case "int":
-                        c.EditorTemplateName("Integer");
-                        break;
-                    case "bigint":
-                        c.EditorTemplateName("Integer");
-                        break;
-                    case "float":
-                        c.EditorTemplateName("Number");
-                        break;
-                    case "money":
-                    case "numeric":
-                    case "real":
-                    case "smallmoney":
-                    case "decimal":
-                        c.EditorTemplateName("Currency");
-                        break;
-                    case "uniqueidentifier":
-                        c.EditorTemplateName("String");
-                        break;
-                    case "date":
-                        c.EditorTemplateName("Date");
-                        break;
-                    case "datetime":
-                    case "smalldatetime":
-                    case "datetime2":
-                        c.EditorTemplateName("DateTime");
-                        break;
-                    case "varchar":
-                    case "char":
-                    case "nvarchar":
-                        if (item.DataLength <= 200)
-                        {
+                    var c = col.Bound(item.Type.ManagedType, item.ColumnName).Sortable(true).Filterable(true);
+                    switch (item.DataType.ToLower())
+                    {
+                        case "bit":
+                            c.EditorTemplateName("Boolean");
+                            break;
+                        case "tinyint":
+                            c.EditorTemplateName("Integer");
+                            break;
+                        case "smallint":
+                            c.EditorTemplateName("Integer");
+                            break;
+                        case "int":
+                            c.EditorTemplateName("Integer");
+                            break;
+                        case "bigint":
+                            c.EditorTemplateName("Integer");
+                            break;
+                        case "float":
+                            c.EditorTemplateName("Number");
+                            break;
+                        case "money":
+                        case "numeric":
+                        case "real":
+                        case "smallmoney":
+                        case "decimal":
+                            c.EditorTemplateName("Currency");
+                            break;
+                        case "uniqueidentifier":
                             c.EditorTemplateName("String");
-                        }
-                        else
-                        {
+                            break;
+                        case "date":
+                            c.EditorTemplateName("Date");
+                            break;
+                        case "datetime":
+                        case "smalldatetime":
+                        case "datetime2":
+                            c.EditorTemplateName("DateTime");
+                            break;
+                        case "varchar":
+                        case "char":
+                        case "nvarchar":
+                            if (item.DataLength <= 200)
+                            {
+                                c.EditorTemplateName("String");
+                            }
+                            else
+                            {
+                                c.EditorTemplateName("MultilineText");
+                            }
+                            break;
+                        case "text":
+                        case "ntext":
                             c.EditorTemplateName("MultilineText");
-                        }
-                        break;
-                    case "text":
-                    case "ntext":
-                        c.EditorTemplateName("MultilineText");
-                        break;
+                            break;
+                    }
+
+                    columnCustomize(c, item.ColumnName);
                 }
-            }
-            else
-            {
-                col.AjaxFk(item.Type.ManagedType, item.ColumnName, (string) ViewData["contextForFk"], item.RefTable, pk.ColumnName, 0, filterable: true).Sortable(true).Filterable(true);
+                else
+                {
+                    col.AjaxFk(item.Type.ManagedType, item.ColumnName, (string) ViewData["contextForFk"], item.RefTable, pk.ColumnName, 0, filterable: true).Sortable(true).Filterable(true);
+                }
             }
         }
 
@@ -107,6 +114,8 @@
     .Filterable()
     .Sortable(c => {
                        c.Enabled(true).AllowUnsort(false); })
+    .Scrollable(v => v.Enabled(true).Height("90%"))
+    .Resizable(r => r.Columns(true))
     .DataSource(src =>
     {
         var s = src.Ajax()
@@ -127,7 +136,7 @@
         {
             foreach (var col in Model)
             {
-                if (col.IsPrimaryKey)
+                if (col.IsPrimaryKey || col.ReadOnly)
                 {
                     c.Field(col.ColumnName, col.Type.ManagedType).Editable(false);
                 }

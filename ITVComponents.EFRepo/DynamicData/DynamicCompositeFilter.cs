@@ -52,11 +52,6 @@ namespace ITVComponents.EFRepo.DynamicData
         /// <returns>the complete query for this Filter-object</returns>
         public override string BuildQueryPart(TableColumnResolveCallback tableColumnNameCallback, Func<object,string> addQueryParam, IQuerySyntaxProvider syntaxProvider)
         {
-            if (innerFilter.Count == 0)
-            {
-                return "";
-            }
-
             return syntaxProvider.BooleanLogicFilter(type, innerFilter, tableColumnNameCallback, addQueryParam, Invert);
         }
     }

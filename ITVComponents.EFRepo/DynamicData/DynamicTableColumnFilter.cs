@@ -35,6 +35,10 @@ namespace ITVComponents.EFRepo.DynamicData
         public override string BuildQueryPart(TableColumnResolveCallback tableColumnNameCallback, Func<object, string> addQueryParam, IQuerySyntaxProvider syntaxProvider)
         {
             var fn = tableColumnNameCallback(columnName, out var columnDef);
+            if (columnDef is AliasQualifiedColumn aqc)
+            {
+                fn = aqc.FullQualifiedName;
+            }
             return syntaxProvider.BinaryCompareOperation(fn, op, TypeConverter.TryConvert(value, columnDef.Type.ManagedType), TypeConverter.TryConvert(value2, columnDef.Type.ManagedType), addQueryParam);
         }
     }
