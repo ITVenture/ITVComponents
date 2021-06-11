@@ -47,7 +47,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
                 StatusCodeResult notFound = new NotFoundResult();
                 await notFound.ExecuteResultAsync(actionContext);
             };
-            var tmp = builder.MapPost($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}{(forAreas?"/{area:exists}":"")}/ForeignKey/{{connection:alpha}}/{{table:alpha}}", dlg);
+            var tmp = builder.MapPost($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}{(forAreas?"/{area:exists}":"")}/ForeignKey/{{connection:regex(^[\\w_]+$)}}/{{table:regex(^[\\w_]+$)}}", dlg);
 
             if (withAuthorization)
             {

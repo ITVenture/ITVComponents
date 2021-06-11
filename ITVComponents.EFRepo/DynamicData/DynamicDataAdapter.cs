@@ -40,6 +40,12 @@ namespace ITVComponents.EFRepo.DynamicData
         public IQuerySyntaxProvider SyntaxProvider { get; protected set;}
 
         /// <summary>
+        /// Gets an entity that can be filled with data.
+        /// </summary>
+        /// <returns>an object that acts in the way an application would expect it to, based on the underlaying database</returns>
+        public abstract IDictionary<string, object> GetEntity();
+
+        /// <summary>
         /// Gets the direct Database interface of the parent context
         /// </summary>
         protected DatabaseFacade Facade => parentContext.Database;
@@ -116,7 +122,7 @@ namespace ITVComponents.EFRepo.DynamicData
         /// <param name="query">the query to execute</param>
         /// <param name="arguments">the arguments for the query</param>
         /// <returns>an enumerable of selected rows</returns>
-        public abstract IEnumerable<ExpandoObject> SqlQuery(string query, IDictionary<string, object> arguments);
+        public abstract IEnumerable<IDictionary<string,object>> SqlQuery(string query, IDictionary<string, object> arguments);
 
         /// <summary>
         /// Updates a specific record of the database

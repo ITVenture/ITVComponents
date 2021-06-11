@@ -31,5 +31,7 @@ namespace ITVComponents.EFRepo.DynamicData
         public bool IsUniqueKey{get; set; }
         
         public bool HasReferences{get; set; }
+        public bool ReadOnly { get; set; }
+        public bool Hidden { get; set; }
     }
 }

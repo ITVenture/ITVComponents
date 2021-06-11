@@ -30,12 +30,23 @@ namespace ITVComponents.EFRepo.SqlServer
             var desc = DescribeTable(tableName, true);
             using (Facade.UseConnection(out DbCommand cmd))
             {
+                var colFx = new Func<List<TableColumnDefinition>, string, string, TableColumnResolveCallback, string>((cols, colName, alias, cb) =>
+                {
+                    var retVal = BrowseColumns(cols, colName, alias, cb, out var tmp);
+                    if (tmp is AliasQualifiedColumn ali)
+                    {
+                        retVal = ali.FullQualifiedName;
+                    }
+
+                    return retVal;
+                });
                 var rawQuery = filter!=null?BuildWhereClause(desc, filter, cmd, 0, tableAlias, queryCallbacks):null;
-                var rawOrdering = (sorts != null && sorts.Count != 0) ? string.Join(", ", from t in sorts select $"{BrowseColumns(desc, t.ColumnName, tableAlias, queryCallbacks?.FQColumnQuery, out _)} {t.SortOrder}") : null;
+                var rawOrdering = (sorts != null && sorts.Count != 0) ? string.Join(", ", from t in sorts select $"{colFx(desc, t.ColumnName, tableAlias, queryCallbacks?.FQColumnQuery)} {t.SortOrder}") : null;
                 var rawCols = string.Join(", ", from t in desc select SyntaxProvider.FullQualifyColumn(tableAlias, t.ColumnName));
                 var finalQuery = $@"select {rawCols}{(!string.IsNullOrEmpty(queryCallbacks?.CustomQuerySelection) ? $", {queryCallbacks?.CustomQuerySelection}" : "")}, [$$totalRecordCount$$] = count(*) over() from [{tableName}] {(!string.IsNullOrEmpty(tableAlias) ? $"[{tableAlias}]" : "")} {queryCallbacks?.CustomQueryTablePart} {(!string.IsNullOrEmpty(rawQuery)?$"where {rawQuery}":"")} {(!string.IsNullOrEmpty(rawOrdering)?$"order by {rawOrdering}":"")}
 {(hitsPerPage != null && page != null?$@"offset {hitsPerPage*(page-1)} rows
 fetch next {hitsPerPage} rows only":"")}";
+                LogEnvironment.LogDebugEvent(null, finalQuery, (int) LogSeverity.Report, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
                 cmd.CommandText = finalQuery;
                 var retVal = cmd.ExecuteReader().ToDictionaries(true).ToList();
                 totalCount = 0;
@@ -59,6 +70,11 @@ fetch next {hitsPerPage} rows only":"")}";
                 par.Value = o;
                 return par.ParameterName;
             }, SyntaxProvider);
+        }
+
+        public override IDictionary<string, object> GetEntity()
+        {
+            return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         }
 
         public override IDictionary<string,object> Update(string tableName, IDictionary<string,object> values)
@@ -659,7 +675,7 @@ references [{item.RefTable}] ([{item.RefColumn}])");
             }
         }
 
-        public override IEnumerable<ExpandoObject> SqlQuery(string query, IDictionary<string, object> arguments)
+        public override IEnumerable<IDictionary<string,object>> SqlQuery(string query, IDictionary<string, object> arguments)
         {
             var id = 0;
             using (Facade.UseConnection(out DbCommand cmd))
@@ -667,7 +683,7 @@ references [{item.RefTable}] ([{item.RefColumn}])");
 
                 cmd.CommandText = query;
                 cmd.Parameters.AddRange((from t in arguments select CreateParameter(cmd, t.Key, t.Value)).ToArray());
-                return cmd.ExecuteReader().ToExpandoObjects(false).ToList();
+                return cmd.ExecuteReader().ToDictionaries(true).ToList();
             }
         }
 

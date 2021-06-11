@@ -137,7 +137,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 StatusCodeResult notFound = new NotFoundResult();
                 await notFound.ExecuteResultAsync(actionContext);
             };
-            var tmp = builder.MapGet($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}{(forAreas?"/{area:exists}":"")}/ForeignKey/{{connection:alpha}}/{{table:alpha}}/{{id:regex(^[-@\\w_\\+\\:]+$)?}}", dlg);
+            var tmp = builder.MapGet($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}{(forAreas?"/{area:exists}":"")}/ForeignKey/{{connection:regex(^[\\w_]+$)}}/{{table:regex(^[\\w_]+$)}}/{{id:regex(^[-@\\w_\\+\\:]+$)?}}", dlg);
 
             if (withAuthorization)
             {

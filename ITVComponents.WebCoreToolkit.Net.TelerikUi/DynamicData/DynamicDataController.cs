@@ -42,9 +42,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.DynamicData
         /// <param name="tableName">the table-name form which to read the model-fields</param>
         /// <param name="form">the form that contains the posted data</param>
         /// <returns>a dictionary containing the converted data that was posted</returns>
-        protected Dictionary<string, object> GetModel(string tableName, IFormCollection form)
+        protected IDictionary<string, object> GetModel(string tableName, IFormCollection form)
         {
-            var retVal = new Dictionary<string, object>();
+            var retVal = dataSource.GetEntity();
             var cols = dataSource.DescribeTable(tableName, true);
             foreach (var tmp in cols)
             {
@@ -71,7 +71,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.DynamicData
             return result;
         }
         
-        protected List<DynamicTableSort> TranslateSort(DataSourceRequest request)
+        protected List<DynamicTableSort> TranslateSort(DataSourceRequest request, DynamicTableSort defaultSort)
         {
             List<DynamicTableSort> retVal = new List<DynamicTableSort>();
             foreach (var sort in request.Sorts)
@@ -79,6 +79,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.DynamicData
                 retVal.Add(new DynamicTableSort {ColumnName = sort.Member, SortOrder = sort.SortDirection == ListSortDirection.Ascending ? SortOrder.Asc : SortOrder.Desc});
             }
 
+            if (retVal.Count == 0 && defaultSort != null)
+            {
+                retVal.Add(defaultSort);
+            }
             return retVal;
         }
 
