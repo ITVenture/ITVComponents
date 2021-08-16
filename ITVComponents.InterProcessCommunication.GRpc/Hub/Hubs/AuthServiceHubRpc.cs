@@ -11,6 +11,8 @@ using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.Grpc.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides;
+using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +20,7 @@ using Microsoft.AspNetCore.Authorization;
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
 {
     [Authorize]
-    internal class AuthServiceHubRpc:OpenServiceHubRpc
+    internal class AuthServiceHubRpc : OpenServiceHubRpc
     {
         public AuthServiceHubRpc(IServiceHubProvider serviceBackend) : base(serviceBackend)
         {
@@ -29,7 +31,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             try
             {
                 CheckAuth(context, "ConnectAnyService", request.TargetService);
-                request.HubUser = JsonHelper.ToJsonStrongTyped(((ClaimsIdentity) context.GetHttpContext().User.Identity).ForTransfer());
+                request.HubUser = JsonHelper.ToJsonStrongTyped(((ClaimsIdentity)context.GetHttpContext().User.Identity).ForTransfer());
                 return base.ConsumeService(request, context);
             }
             catch (Exception ex)
@@ -47,7 +49,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             }
             catch (Exception ex)
             {
-                return Task.FromResult(new ServiceDiscoverResponseMessage {Ok = false, Reason = ex.Message, TargetService = request.TargetService});
+                return Task.FromResult(new ServiceDiscoverResponseMessage { Ok = false, Reason = ex.Message, TargetService = request.TargetService });
             }
         }
 
@@ -71,7 +73,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             catch (Exception ex)
             {
                 LogEnvironment.LogEvent(ex.OutlineException(), LogSeverity.Error);
-                return Task.FromResult(new RegisterServiceResponseMessage {Ok = false, Reason = ex.Message});
+                return Task.FromResult(new RegisterServiceResponseMessage { Ok = false, Reason = ex.Message });
             }
         }
 

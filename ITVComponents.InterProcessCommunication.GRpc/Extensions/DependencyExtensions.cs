@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Grpc.Security;
 using ITVComponents.InterProcessCommunication.Grpc.Security.PrincipalProviders;
+using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Extensions

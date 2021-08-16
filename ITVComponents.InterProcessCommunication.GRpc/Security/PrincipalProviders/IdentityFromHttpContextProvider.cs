@@ -7,13 +7,15 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Grpc.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Security.Options;
+using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
+using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.WebCoreToolkit.Configuration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Security.PrincipalProviders
 {
-    internal class IdentityFromHttpContextProvider:IIdentityProvider
+    internal class IdentityFromHttpContextProvider : IIdentityProvider
     {
         private readonly IHttpContextAccessor httpContext;
 

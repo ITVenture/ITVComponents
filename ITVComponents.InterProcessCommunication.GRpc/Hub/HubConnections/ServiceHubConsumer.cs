@@ -8,6 +8,9 @@ using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.Grpc.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
 using ITVComponents.InterProcessCommunication.Grpc.Security;
+using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
+using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.Logging;
@@ -15,9 +18,9 @@ using ITVComponents.WebCoreToolkit.Security;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
 {
-    internal class ServiceHubConsumer:IHubConnection
+    internal class ServiceHubConsumer : IHubConnection
     {
-        private const int TickPeriod = 12000;
+        private const int TickPeriod = 6000;
 
         private const int ReconnectPeriod = 2000;
 
@@ -43,7 +46,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
 
         private bool disposing;
 
-        private Timer reconnector;
+        //private Timer reconnector;
 
         private string myServiceName;
         private ICustomServerSecurity customServerSecurity;
@@ -66,7 +69,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         /// <param name="serviceAddr">the address of the Hub</param>
         /// <param name="serviceName">the name of this service</param>
         /// <param name="configurator">a hub-configurator that configures the channel options for this consumer object</param>
-        public ServiceHubConsumer(string serviceAddr, string serviceName, IHubClientConfigurator configurator, ICustomServerSecurity customServerSecurity):this(serviceAddr, configurator, null, customServerSecurity)
+        public ServiceHubConsumer(string serviceAddr, string serviceName, IHubClientConfigurator configurator, ICustomServerSecurity customServerSecurity) : this(serviceAddr, configurator, null, customServerSecurity)
         {
             this.myServiceName = serviceName;
         }
@@ -77,7 +80,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         /// <param name="serviceAddr">the address of the Hub</param>
         /// <param name="configurator">a hub-configurator that configures the channel options for this consumer object</param>
         /// <param name="consumedService">the remote-service that is being consumed</param>
-        public ServiceHubConsumer(string serviceAddr, IHubClientConfigurator configurator, string consumedService):this(serviceAddr, configurator, consumedService, null)
+        public ServiceHubConsumer(string serviceAddr, IHubClientConfigurator configurator, string consumedService) : this(serviceAddr, configurator, consumedService, null)
         {
 
         }
@@ -95,8 +98,8 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
             this.configurator = configurator;
             this.consumedService = consumedService;
             this.customServerSecurity = customServerSecurity;
-            tickTimer = new Timer(SendTick,null, Timeout.Infinite, Timeout.Infinite);
-            reconnector = new Timer(ReConnect, null, Timeout.Infinite, Timeout.Infinite);
+            tickTimer = new Timer(SendTick, null, Timeout.Infinite, Timeout.Infinite);
+            //reconnector = new Timer(ReConnect, null, Timeout.Infinite, Timeout.Infinite);
         }
 
         /// <summary>
@@ -112,7 +115,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         /// <summary>
         /// Gets a value indicating whether this object is operational
         /// </summary>
-        public bool Operational { get; private set;}
+        public bool Operational { get; private set; }
 
         /// <summary>
         /// Initializes this deferred initializable object
@@ -130,7 +133,6 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 catch (Exception ex)
                 {
                     LogEnvironment.LogEvent($"Reconnect changed: {ex.Message}", LogSeverity.Error);
-                    reconnector.Change(ReconnectPeriod, Timeout.Infinite);
                 }
             }
         }
@@ -148,7 +150,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 OperationId = $"{serviceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
-                TickBack=false
+                TickBack = false
             });
 
             return cmt.ResponsePayload;
@@ -167,7 +169,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 OperationId = $"{serviceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
-                TickBack=false
+                TickBack = false
             });
 
             return cmt.ResponsePayload;
@@ -190,7 +192,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
             }
             catch (RpcException ex)
             {
-                LogEnvironment.LogEvent($"Discovery on {serviceAddr} for {serviceName} failed.",LogSeverity.Warning);
+                LogEnvironment.LogEvent($"Discovery on {serviceAddr} for {serviceName} failed.", LogSeverity.Warning);
                 ret = new ServiceDiscoverResponseMessage
                 {
                     Ok = false,
@@ -208,11 +210,14 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
-            disposing = true;
-            tickTimer.Dispose();
-            reconnector.Dispose();
-            serverCallbackCancel?.Cancel();
-            channel.Dispose();
+            if (!disposing)
+            {
+                disposing = true;
+                tickTimer.Dispose();
+                //reconnector.Dispose();
+                serverCallbackCancel?.Cancel();
+                channel.Dispose();
+            }
         }
 
         /// <summary>
@@ -232,7 +237,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
             }
         }
 
-        /// <summary>
+        /*/// <summary>
         /// When connection is lost, tries to reconnect to the hub
         /// </summary>
         /// <param name="state">nothing</param>
@@ -252,7 +257,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 LogEnvironment.LogEvent($"Reconnect changed: {ex.Message}", LogSeverity.Error);
                 reconnector.Change(ReconnectPeriod, Timeout.Infinite);
             }
-        }
+        }*/
 
         /// <summary>
         /// Performs a clean-up from old objects
@@ -270,7 +275,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
             }
             finally
             {
-                channel=null;
+                channel = null;
                 client = null;
                 serverCallbackCancel = null;
             }
@@ -303,7 +308,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
             ServiceName = myServiceName;
             if (!string.IsNullOrEmpty(ServiceName))
             {
-                mySvc = new RegisterServiceMessage {ServiceName = ServiceName, Ttl = 2000};
+                mySvc = new RegisterServiceMessage { ServiceName = ServiceName, Ttl = 15 };
                 if (!string.IsNullOrEmpty(consumedService))
                 {
                     mySvc.ResponderFor = consumedService;
@@ -312,7 +317,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 var reg = client.RegisterService(mySvc);
                 if (reg.Ok)
                 {
-                    session = new ServiceSessionOperationMessage {ServiceName = mySvc.ServiceName, SessionTicket = reg.SessionTicket, Ttl = mySvc.Ttl};
+                    session = new ServiceSessionOperationMessage { ServiceName = mySvc.ServiceName, SessionTicket = reg.SessionTicket, Ttl = mySvc.Ttl };
                     if (!string.IsNullOrEmpty(consumedService))
                     {
                         session.ResponderFor = consumedService;
@@ -432,14 +437,17 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         /// </summary>
         protected virtual void OnOperationalChanged(bool newOperationalStatus)
         {
-            Operational = newOperationalStatus;
-            if (!Operational)
+            if (!disposing)
             {
-                tickTimer.Change(Timeout.Infinite, Timeout.Infinite);
-                reconnector.Change(ReconnectPeriod, Timeout.Infinite);
-            }
+                Operational = newOperationalStatus;
+                if (!Operational)
+                {
+                    tickTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                    //reconnector.Change(ReconnectPeriod, Timeout.Infinite);
+                }
 
-            OperationalChanged?.Invoke(this, EventArgs.Empty);
+                OperationalChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         /// <summary>

@@ -22,7 +22,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
         }
 
         public IConfiguration Configuration { get; }
-        
+
         public void ConfigureServices(IServiceCollection services)
         {
             ServiceHubProvider.Instance.ConfigureServices(services);

@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.InterProcessCommunication.MessagingShared;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
 {
-    internal class JsonSettingsSecurityRepository:ISecurityRepository
+    internal class JsonSettingsSecurityRepository : ISecurityRepository
     {
         private ICollection<User> bufferedUsers;
         private DateTime lastUserRefresh;
@@ -22,17 +24,17 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
         /// <summary>
         /// Gets a list of users in the current application
         /// </summary>
-        public ICollection<User> Users => bufferedUsers = CheckRefresh(bufferedUsers, () => (from t in HubConfiguration.Helper.HubUsers select new User {UserName = t.UserName, AuthenticationType = t.AuthenticationType}).ToList(), ref lastUserRefresh);
+        public ICollection<User> Users => bufferedUsers = CheckRefresh(bufferedUsers, () => (from t in HubConfiguration.Helper.HubUsers select new User { UserName = t.UserName, AuthenticationType = t.AuthenticationType }).ToList(), ref lastUserRefresh);
 
         /// <summary>
         /// Gets a list of Roles that can be granted to users in the current application
         /// </summary>
-        public ICollection<Role> Roles => bufferedRoles = CheckRefresh(bufferedRoles, ()=>(from t in HubConfiguration.Helper.HubRoles select new Role{RoleName = t.RoleName}).ToList(), ref lastRoleRefresh);
+        public ICollection<Role> Roles => bufferedRoles = CheckRefresh(bufferedRoles, () => (from t in HubConfiguration.Helper.HubRoles select new Role { RoleName = t.RoleName }).ToList(), ref lastRoleRefresh);
 
         /// <summary>
         /// Gets a collection of defined Permissions in the current application
         /// </summary>
-        public ICollection<Permission> Permissions => bufferedPermissions = CheckRefresh(bufferedPermissions, ()=>(from t in HubConfiguration.Helper.KnownHubPermissions select new Permission{PermissionName = t}).ToList(), ref lastPermissionRefresh);
+        public ICollection<Permission> Permissions => bufferedPermissions = CheckRefresh(bufferedPermissions, () => (from t in HubConfiguration.Helper.KnownHubPermissions select new Permission { PermissionName = t }).ToList(), ref lastPermissionRefresh);
 
         /// <summary>
         /// Gets an enumeration of Roles that are assigned to the given user
@@ -41,7 +43,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
         /// <returns>an enumerable of all the user-roles</returns>
         public IEnumerable<Role> GetRoles(User user)
         {
-            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && n.AuthenticationType== user.AuthenticationType);
+            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && n.AuthenticationType == user.AuthenticationType);
             return from r in Roles join gr in hu.Roles on r.RoleName equals gr select r;
         }
 
@@ -53,7 +55,11 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user)
         {
             var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && n.AuthenticationType == user.AuthenticationType);
-            return hu.CustomInfo;
+            return hu.CustomInfo.Select(m => new CustomUserProperty
+            {
+                PropertyName = m.PropertyName,
+                Value = m.Value
+            });
         }
 
         /// <summary>
@@ -65,8 +71,12 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType)
         {
             return (from t in userLabels
-                join u in HubConfiguration.Helper.HubUsers on new {UserName=t, AuthenticationType=userAuthenticationType} equals new {u.UserName, u.AuthenticationType}
-                select u.CustomInfo).SelectMany(i => i);
+                    join u in HubConfiguration.Helper.HubUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
+                    select u.CustomInfo).SelectMany(i => i.Select(m => new CustomUserProperty
+                    {
+                        PropertyName = m.PropertyName,
+                        Value = m.Value
+                    }));
         }
 
         /// <summary>
@@ -80,7 +90,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
             return (from t in hu.Roles
                     join r in HubConfiguration.Helper.HubRoles on t equals r.RoleName
                     select r.Permissions).SelectMany(n => n)
-                .Select(p => new Permission {PermissionName = p});
+                .Select(p => new Permission { PermissionName = p });
         }
 
         /// <summary>
@@ -92,12 +102,12 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
             return (from ur in (from t in userLabels
-                        join u in HubConfiguration.Helper.HubUsers on new {UserName=t, AuthenticationType=userAuthenticationType} equals new {u.UserName, u.AuthenticationType}
-                        select u.Roles).SelectMany(r => r).Distinct()
+                                join u in HubConfiguration.Helper.HubUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
+                                select u.Roles).SelectMany(r => r).Distinct()
                     join hr in HubConfiguration.Helper.HubRoles on ur equals hr.RoleName
                     select hr.Permissions).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Union(TemporaryGrants.GetTemporaryPermissions(userLabels)).Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(p => new Permission {PermissionName = p});
+                .Select(p => new Permission { PermissionName = p });
         }
 
         /// <summary>
@@ -108,7 +118,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
         public IEnumerable<Permission> GetPermissions(Role role)
         {
             var ro = HubConfiguration.Helper.HubRoles.First(n => n.RoleName == role.RoleName);
-            return ro.Permissions.Select(p => new Permission {PermissionName = p});
+            return ro.Permissions.Select(p => new Permission { PermissionName = p });
         }
 
         /// <summary>
@@ -139,7 +149,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
         /// <param name="factory">a factory function that creates the new or initial value</param>
         /// <param name="lastRefresh">a timestamp that represents the last refresh of the given collection</param>
         /// <returns>the current to-use value of the requested collection</returns>
-        private T CheckRefresh<T>(T bufferedInstance, Func<T> factory, ref DateTime lastRefresh) where T:class
+        private T CheckRefresh<T>(T bufferedInstance, Func<T> factory, ref DateTime lastRefresh) where T : class
         {
             T retVal = bufferedInstance;
             if (retVal == null || DateTime.Now.Subtract(lastRefresh).TotalMinutes > 2)

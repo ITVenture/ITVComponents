@@ -11,13 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub
 {
-    public interface IServiceHubProvider
+    public interface IServiceHubProvider : ITVComponents.InterProcessCommunication.MessagingShared.Hub.IServiceHubProvider
     {
-        /// <summary>
-        /// Gets the EndPoint broker instance that manages all traffic between the communication endpoints
-        /// </summary>
-        EndPointBroker Broker { get; }
-
         /// <summary>
         /// Registers a ConfigureProvider that configures the AppBuilder or the Hosting-Environment
         /// </summary>
@@ -47,7 +42,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
         /// </summary>
         /// <param name="configurator">the configurator instance that is capable for configuring Listener-Options</param>
         void RegisterEndPointDefaultsConfigurator(IEndPointDefaultsConfigurator configurator);
-        
+
         /// <summary>
         /// Configures the app-builder
         /// </summary>

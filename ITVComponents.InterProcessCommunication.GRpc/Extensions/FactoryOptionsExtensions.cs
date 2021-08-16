@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Grpc.Security;
+using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.Extensions.DependencyInjection;
 

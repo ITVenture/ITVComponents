@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
+using ITVComponents.InterProcessCommunication.MessagingShared;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,11 +43,11 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
                 opt =>
                 {
                     opt.AllowedCertificateTypes = CertificateTypes.All;
-                    if (!HubConfiguration.Helper.TrustAllCertificates)
+                    if (!GrpcHubConfiguration.Helper.TrustAllCertificates)
                     {
                         opt.Events.OnCertificateValidated = context =>
                         {
-                            if (!HubConfiguration.Helper.TrustedCertificates.Any(n => n.Equals(context.ClientCertificate.SerialNumber, StringComparison.OrdinalIgnoreCase)))
+                            if (!GrpcHubConfiguration.Helper.TrustedCertificates.Any(n => n.Equals(context.ClientCertificate.SerialNumber, StringComparison.OrdinalIgnoreCase)))
                             {
                                 context.Fail($"The Certificate with the SerialNumber {context.ClientCertificate.SerialNumber} is untrusted!");
                             }

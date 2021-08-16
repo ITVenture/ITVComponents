@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.Plugins;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -18,7 +19,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub
 {
-    public class ServiceHubProvider:IPlugin, IDeferredInit, IServiceHubProvider
+    public class ServiceHubProvider : IPlugin, IDeferredInit, IServiceHubProvider
     {
         private static ServiceHubProvider instance;
 
@@ -31,6 +32,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
         private List<IEndPointInitializer> endPointInitializers;
         private List<IEndPointDefaultsConfigurator> listenOptionsConfigurators;
         private IHost webHost;
+        private bool ownsBroker = true;
 
         /// <summary>
         /// Gets the initialized singleton-instance of the ServiceHubProvider
@@ -76,6 +78,25 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
             endPointInitializers = new List<IEndPointInitializer>();
             listenOptionsConfigurators = new List<IEndPointDefaultsConfigurator>();
             Broker = new EndPointBroker();
+        }
+
+        public ServiceHubProvider(ITVComponents.InterProcessCommunication.MessagingShared.Hub.IServiceHubProvider parent, string hubAddresses, PluginFactory factory)
+        {
+            if (instance != null)
+            {
+                throw new NotSupportedException("Can have only one active Instance of ServiceHubProvider at a time");
+            }
+
+            instance = this;
+            this.hubAddresses = hubAddresses;
+            this.factory = factory;
+            appConfigProviders = new List<IAppConfigureProvider>();
+            serviceConfigProviders = new List<IServicesConfigureProvider>();
+            webHostBuilderConfigProviders = new List<IWebHostBuilderConfigureProvider>();
+            endPointInitializers = new List<IEndPointInitializer>();
+            listenOptionsConfigurators = new List<IEndPointDefaultsConfigurator>();
+            Broker = parent.Broker;
+            ownsBroker = false;
         }
 
         /// <summary>
@@ -196,6 +217,10 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
         public void Dispose()
         {
             webHost?.StopAsync().GetAwaiter().GetResult();
+            if (ownsBroker)
+            {
+                Broker.Dispose();
+            }
             OnDisposed();
         }
 
