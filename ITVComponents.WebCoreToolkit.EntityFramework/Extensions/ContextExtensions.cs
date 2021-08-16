@@ -36,6 +36,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             NativeScriptHelper.RunLinqQuery(RosFkConfig, new[] {"Fubar"}, "Fubar", "return null;", new Dictionary<string, object>());
             NativeScriptHelper.AddReference(RosDiagConfig,"--ROSLYN--");
             NativeScriptHelper.AddReference(RosDiagConfig, "ITVComponents.WebCoreToolkit.EntityFramework");
+            NativeScriptHelper.AddReference(RosDiagConfig, "ITVComponents.Decisions.Entities");
             NativeScriptHelper.AddUsing(RosDiagConfig,"ITVComponents.WebCoreToolkit.EntityFramework.Models");
             NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.Decisions");
             NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.Decisions.Entities.Results");

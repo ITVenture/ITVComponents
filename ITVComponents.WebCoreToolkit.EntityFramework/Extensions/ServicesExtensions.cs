@@ -14,6 +14,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.Diagnostics;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -35,13 +36,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         /// <param name="queryName">the name of the requested query</param>
         /// <param name="queryObject">the query-object that was found in the Diagnostics-DB</param>
         /// <returns>the Db-Context that is used to execute the requested query</returns>
-        public static IWrappedDataSource ContextForDiagnosticsQuery(this IServiceProvider services, string queryName, string area, out DiagnosticsQueryDefinition queryObject)
+        public static IWrappedDataSource ContextForDiagnosticsQuery(this IServiceProvider services, string queryName,
+            string area, out DiagnosticsQueryDefinition queryObject)
         {
-            var store= services.GetService<IDiagnosticsQueryStore>();
+            var store = services.GetService<IDiagnosticsQueryStore>();
             queryObject = store.GetQuery(queryName);
             if (queryObject != null)
             {
-                if (services.VerifyUserPermissions(new[] {queryObject.Permission}))
+                if (services.VerifyUserPermissions(new[] { queryObject.Permission }))
                 {
                     var options = services.GetService<IOptions<DiagnosticsSourceOptions>>().Value;
                     Func<IServiceProvider, string, string, object> factory = null;
@@ -83,7 +85,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         /// <param name="services">the serviceProvider containing services for the current request</param>
         /// <param name="contextName">the friendlyname of the required context</param>
         /// <returns>a dbcontext object when it could be created</returns>
-        public static IWrappedFkSource ContextForFkQuery(this IServiceProvider services, string contextName, string area)
+        public static IWrappedFkSource ContextForFkQuery(this IServiceProvider services, string contextName,
+            string area)
         {
             var options = services.GetService<IOptions<ForeignKeySourceOptions>>().Value;
             Func<IServiceProvider, string, string, object> factory = null;
@@ -129,16 +132,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         /// <param name="data">the selected data</param>
         /// <param name="argumentsFor">provides arguments for a specific record</param>
         /// <returns></returns>
-        public static IEnumerable<TViewModel> DiagnoseResults<TOrigin, TViewModel>(this IServiceProvider services, IEnumerable<TOrigin> data, Func<TOrigin, IDictionary<string, object>> argumentsFor, Action<TOrigin, TViewModel> postProcess)
+        public static IEnumerable<TViewModel> DiagnoseResults<TOrigin, TViewModel>(this IServiceProvider services,
+            IEnumerable<TOrigin> data, Func<TOrigin, IDictionary<string, object>> argumentsFor,
+            Action<TOrigin, TViewModel> postProcess)
             where TViewModel : class, new()
             where TOrigin : class
         {
-            Dictionary<string, DiagnoseQueryHelper.DiagQueryItem> knownQueries = new Dictionary<string, DiagnoseQueryHelper.DiagQueryItem>();
+            Dictionary<string, DiagnoseQueryHelper.DiagQueryItem> knownQueries =
+                new Dictionary<string, DiagnoseQueryHelper.DiagQueryItem>();
             DiagnoseQueryHelper.DiagEntityAnlyseItem[] typeAnalysis = null;
             var first = true;
             foreach (var t in data)
             {
-                yield return DiagnoseResult(services,t,argumentsFor(t),knownQueries, ref typeAnalysis , postProcess);
+                yield return DiagnoseResult(services, t, argumentsFor(t), knownQueries, ref typeAnalysis, postProcess);
             }
         }
 
@@ -151,7 +157,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         /// <param name="originalItem">the selected data</param>
         /// <param name="queryArguments">provides arguments for a specific record</param>
         /// <returns></returns>
-        public static TViewModel DiagnoseResult<TOrigin, TViewModel>(this IServiceProvider services, TOrigin originalItem, IDictionary<string, object> queryArguments, Dictionary<string, DiagnoseQueryHelper.DiagQueryItem> knownQueries, ref DiagnoseQueryHelper.DiagEntityAnlyseItem[] typeAnalysis, Action<TOrigin, TViewModel> postProcess = null)
+        public static TViewModel DiagnoseResult<TOrigin, TViewModel>(this IServiceProvider services,
+            TOrigin originalItem, IDictionary<string, object> queryArguments,
+            Dictionary<string, DiagnoseQueryHelper.DiagQueryItem> knownQueries,
+            ref DiagnoseQueryHelper.DiagEntityAnlyseItem[] typeAnalysis, Action<TOrigin, TViewModel> postProcess = null)
             where TViewModel : class, new()
             where TOrigin : class
 
@@ -167,13 +176,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                     area = (string)routeData.Values["area"];
                 }
             }
-            var ret = originalItem.ToViewModel<TOrigin, TViewModel>();
-            if (typeAnalysis.Length != 0)
+
+            var ret = originalItem.ToViewModel<TOrigin, TViewModel>(t =>
             {
+                if (t == typeof(IServiceProvider))
+                {
+                    return services;
+                }
+
+                if (t == typeof(DiagnoseQueryOptions))
+                {
+                    return new DiagnoseQueryOptions
+                    {
+                        Area = area,
+                        KnownQueries = knownQueries,
+                        Arguments = queryArguments
+                    };
+                }
+
+                return null;
+            }, postProcess);
+/*if (typeAnalysis.Length != 0)
+{
                 foreach (var p in typeAnalysis)
                 {
                     IWrappedDataSource context = null;
-                    DiagnosticsQueryDefinition qr = null;
+                    DiagnosticsQuery qr = null;
                     if (knownQueries.ContainsKey(p.Attribute.DiagnosticQueryName))
                     {
                         var item = knownQueries[p.Attribute.DiagnosticQueryName];
@@ -204,7 +232,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 }
 
                 postProcess?.Invoke(originalItem, ret);
-            }
+
+            }*/
 
             return ret;
         }

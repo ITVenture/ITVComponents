@@ -8,7 +8,7 @@ using ITVComponents.Logging;
 
 namespace ITVComponents.EFRepo.SqlServer
 {
-    public class SqlQuerySyntaxProvider:IQuerySyntaxProvider
+    public class SqlQuerySyntaxProvider : IQuerySyntaxProvider
     {
         private static readonly DynamicDataColumnType[] EligibleDbTypes =
         {
@@ -179,7 +179,7 @@ namespace ITVComponents.EFRepo.SqlServer
         /// /Gets a list of eligible types that can be used to design a table
         /// </summary>
         public DynamicDataColumnType[] EligibleTypes => EligibleDbTypes;
-        
+
         /// <summary>
         /// Builds a logic Operand chain for a specific boolean operator (AND/OR)
         /// </summary>
@@ -191,12 +191,17 @@ namespace ITVComponents.EFRepo.SqlServer
         /// <returns>a string representing the boolean filter chain represented by the provided params</returns>
         public string BooleanLogicFilter(DynamicCompositeFilterType type, ICollection<DynamicTableFilter> filterParts, TableColumnResolveCallback tableColumnNameCallback, Func<object, string> addQueryParam, bool invertEntireFilter)
         {
-            if (type == DynamicCompositeFilterType.And || filterParts.Count == 1)
+            if (filterParts.Count != 0)
             {
-                return $"{(invertEntireFilter?"NOT ":"")}({string.Join(" AND ", from t in filterParts select t.BuildQueryPart(tableColumnNameCallback, addQueryParam, this))})";
+                if (type == DynamicCompositeFilterType.And || filterParts.Count == 1)
+                {
+                    return $"{(invertEntireFilter ? "NOT " : "")}({string.Join(" AND ", from t in filterParts let p = t.BuildQueryPart(tableColumnNameCallback, addQueryParam, this) where p != null select p)})";
+                }
+
+                return $"{(invertEntireFilter ? "NOT " : "")}({string.Join(" OR ", from t in filterParts let p = t.BuildQueryPart(tableColumnNameCallback, addQueryParam, this) where p != null select p)})";
             }
 
-            return $"{(invertEntireFilter?"NOT ":"")}({string.Join(" OR ", from t in filterParts select t.BuildQueryPart(tableColumnNameCallback, addQueryParam, this))})";
+            return null;
         }
 
         /// <summary>
@@ -225,7 +230,7 @@ namespace ITVComponents.EFRepo.SqlServer
                     {
                         paramop = "is";
                     }
-                    
+
                     break;
                 case BinaryCompareFilterOperator.NotEqual:
                     if (value != null)
@@ -236,8 +241,8 @@ namespace ITVComponents.EFRepo.SqlServer
                     {
                         paramop = "is not";
                     }
-                    
-                    
+
+
                     break;
                 case BinaryCompareFilterOperator.GreaterThan:
                     if (value != null)
@@ -278,13 +283,13 @@ namespace ITVComponents.EFRepo.SqlServer
                     }
                     break;
                 case BinaryCompareFilterOperator.NotLike:
-                {
-                    if (value != null)
                     {
-                        paramop = "not like";
+                        if (value != null)
+                        {
+                            paramop = "not like";
+                        }
+                        break;
                     }
-                    break;
-                }
                 case BinaryCompareFilterOperator.Between:
                     paramop = "between";
                     break;
@@ -302,7 +307,7 @@ namespace ITVComponents.EFRepo.SqlServer
                 {
                     return $"{columnName} {paramop} {param1} and {param2}";
                 }
-                
+
                 return $"{columnName} {paramop} {param1}";
             }
 
@@ -313,12 +318,12 @@ namespace ITVComponents.EFRepo.SqlServer
         {
             return $"{(tableName != null ? $"{FormatObjectName(tableName)}." : "")}{FormatObjectName(columnName)}";
         }
-        
+
         public string FormatObjectName(string objectName)
         {
             return $"[{objectName}]";
         }
-        
+
         public DynamicDataColumnType GetAppropriateType(TableColumnDefinition definition, bool throwOnError)
         {
             var retVal = EligibleTypes.FirstOrDefault(n => n.DataTypeName.Equals(definition.DataType, StringComparison.OrdinalIgnoreCase));
@@ -326,14 +331,14 @@ namespace ITVComponents.EFRepo.SqlServer
             {
                 return retVal;
             }
-            
+
             var msg = $"Type {definition.DataType} not supported!";
             if (throwOnError)
             {
                 throw new InvalidOperationException(msg);
             }
 
-            LogEnvironment.LogEvent(msg,LogSeverity.Error);
+            LogEnvironment.LogEvent(msg, LogSeverity.Error);
             return null;
         }
     }

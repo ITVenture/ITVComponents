@@ -114,8 +114,13 @@
     .Filterable()
     .Sortable(c => {
                        c.Enabled(true).AllowUnsort(false); })
+    .ColumnMenu(c => c.Enabled(true).Columns(true).Filterable(true).Sortable(true))
     .Scrollable(v => v.Enabled(true).Height("90%"))
     .Resizable(r => r.Columns(true))
+    .Events(e =>
+    {
+        e.DataBound("ITVenture.Tools.DynamicData.AutoSizeColumns");
+    })
     .DataSource(src =>
     {
         var s = src.Ajax()

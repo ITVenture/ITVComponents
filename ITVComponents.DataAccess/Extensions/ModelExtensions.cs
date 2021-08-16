@@ -69,17 +69,28 @@ namespace ITVComponents.DataAccess.Extensions
             PropertyInfo[] allViewProperties = viewType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             var customValueProps = (from t in allViewProperties
                 where t.CanWrite && t.GetIndexParameters().Length == 0 && Attribute.IsDefined(t, typeof(CustomValueSourceAttribute), true)
-                select new {Property = t, Attributes = System.Linq.Enumerable.Cast<CustomValueSourceAttribute>(Attribute.GetCustomAttributes(t, typeof(CustomValueSourceAttribute), true)).First()});
-
+                select new { Property = t, Attributes = System.Linq.Enumerable.Cast<CustomValueSourceAttribute>(Attribute.GetCustomAttributes(t, typeof(CustomValueSourceAttribute), true)).First() }).ToArray();
+            var hashCalc = customValueProps.FirstOrDefault(n => n.Attributes is ModelHashAttribute);
             var action = GetActionFor<TDbModel, T>(toViewModelActions, SelectToViewModelProps<TDbModel, T>);
             action(modelObject, retVal);
             foreach (var customValue in customValueProps)
             {
-                var computed = customValue.Attributes.GetCustomValueFor(modelObject, requestObjectInstance);
-                customValue.Property.SetValue(retVal, computed, null);
+                if (customValue != hashCalc)
+                {
+                    var computed = customValue.Attributes.GetCustomValueFor(modelObject, requestObjectInstance);
+                    customValue.Property.SetValue(retVal, computed, null);
+                }
             }
 
             postProcessAction?.Invoke(modelObject, retVal);
+            if (hashCalc != null)
+            {
+                var allProps = allViewProperties.Where(n => n.Name != hashCalc.Property.Name && n.CanRead).OrderBy(n => n.Name);
+                var raw = string.Join(";", allProps.Select(n => n.GetValue(retVal)?.ToString()));
+                //Console.WriteLine(raw);
+                hashCalc.Property.SetValue(retVal, hashCalc.Attributes.GetCustomValueFor(raw, requestObjectInstance), null);
+            }
+
             return retVal;
         }
 
