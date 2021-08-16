@@ -21,7 +21,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators
         private readonly SequenceEvaluator genericArgumentsExpression;
         private readonly TypeIdentifierEvaluator explicitType;
 
-        private LazyMethod lazyEvaluator;
+        //private MethodInfo targetMethod;
 
 
         public CallMethodEvaluator(EvaluatorBase methodSource, SequenceEvaluator argumentsExpression, SequenceEvaluator genericArgumentsExpression, TypeIdentifierEvaluator explicitType, ParserRuleContext parserElementContext) : base(null,null, BuildArguments(methodSource, argumentsExpression,genericArgumentsExpression, explicitType), parserElementContext, null,null)
@@ -33,25 +33,58 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             this.explicitType = explicitType;
         }
 
+        public override AccessMode AccessMode
+        {
+            get
+            {
+                return AccessMode.Read;
+            }
+            internal set
+            {
+                if ((value & AccessMode.Write) == AccessMode.Write)
+                {
+                    throw new InvalidOperationException("This is a read-only evaluator!");
+                }
+            }
+        }
+
+        public override ResultType ExpectedResult
+        {
+            get
+            {
+                return ResultType.Literal;
+            }
+            internal set
+            {
+                if (ExpectedResult != ResultType.Literal)
+                {
+                    throw new InvalidOperationException("This is a literal-only evaluator!");
+                }
+            }
+        }
+
+        public override bool PutValueOnStack { get; } = true;
+
         protected override object Evaluate(object[] arguments, EvaluationContext context)
         {
             var lastResult = arguments[0] as MethodInformation;
-            var tmparg = arguments[1] as object[];
-            Type[] tmpTypes = genericArgumentExpressions != null && genericArgumentExpressions.Count != 0 ? new Type[genericArgumentExpressions.Count] : new Type[0];
+            var nextRoot = 1;
+            object[] tmparg = null;
+            Type[] tmpTypes = null;
+
+            if (argumentsExpression != null)
+            {
+                tmparg = arguments[nextRoot] as object[];
+                nextRoot++;
+            }
+
+            if (genericArgumentsExpression != null)
+            {
+                tmpTypes = ((object[])arguments[nextRoot]).Cast<Type>().ToArray();
+                nextRoot++;
+            }
+
             Type xpt = null;
-            var nextRoot = 0;
-            if (tmparg.Length != 0)
-            {
-                Array.Copy(arguments, nextRoot, tmparg, 0, tmparg.Length);
-                nextRoot = tmparg.Length;
-            }
-
-            if (tmpTypes.Length != 0)
-            {
-                Array.Copy(arguments, nextRoot, tmpTypes, 0, tmpTypes.Length);
-                nextRoot += tmpTypes.Length;
-            }
-
             if (explicitType != null)
             {
                 xpt = (Type) arguments[nextRoot];
@@ -97,7 +130,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             }
 
             var writeBacks = MethodHelper.GetWritebacks(method, args, tmparg);
-            lazyEvaluator = new LazyMethod(method, tmpStatic, !tmpStatic && isStatic, args.Length != a.Sequence.Length);
+            
 
             try
             {
