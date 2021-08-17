@@ -69,8 +69,9 @@ namespace ITVComponents.EFRepo.DynamicData
         /// </summary>
         /// <param name="tableName">the name of the Table that is described</param>
         /// <param name="ignoreUnknownTypes">indicates whether to ignore errors of db-types that could not be matched to managed types</param>
+        /// <param name="definitionEditable">indicates whether the dynamicData adapter supports editing the given table-Definition</param>
         /// <returns>a list of columns of the requested table</returns>
-        public abstract List<TableColumnDefinition> DescribeTable(string tableName, bool ignoreUnknownTypes);
+        public abstract List<TableColumnDefinition> DescribeTable(string tableName, bool ignoreUnknownTypes, out bool definitionEditable);
 
         /// <summary>
         /// Copies the data of the specified src table to the specified destination table. if ignoreMissiongColumns is true, no exception is thrown, when a source-column can not be copied

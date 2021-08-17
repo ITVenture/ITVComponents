@@ -18,16 +18,16 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ITVComponents.EFRepo.SqlServer
 {
-    public class SqlDynamicDataAdapter:DynamicDataAdapter
+    public class SqlDynamicDataAdapter : DynamicDataAdapter
     {
         public SqlDynamicDataAdapter(DbContext parentContext) : base(parentContext)
         {
             SyntaxProvider = new SqlQuerySyntaxProvider();
         }
 
-        public override List<IDictionary<string,object>> QueryDynamicTable(string tableName, DynamicTableFilter filter, ICollection<DynamicTableSort> sorts, out int totalCount, string tableAlias = null, DynamicQueryCallbackProvider queryCallbacks = null, int? hitsPerPage=null, int?page=null)
+        public override List<IDictionary<string, object>> QueryDynamicTable(string tableName, DynamicTableFilter filter, ICollection<DynamicTableSort> sorts, out int totalCount, string tableAlias = null, DynamicQueryCallbackProvider queryCallbacks = null, int? hitsPerPage = null, int? page = null)
         {
-            var desc = DescribeTable(tableName, true);
+            var desc = DescribeTable(tableName, true, out _);
             using (Facade.UseConnection(out DbCommand cmd))
             {
                 var colFx = new Func<List<TableColumnDefinition>, string, string, TableColumnResolveCallback, string>((cols, colName, alias, cb) =>
@@ -40,13 +40,13 @@ namespace ITVComponents.EFRepo.SqlServer
 
                     return retVal;
                 });
-                var rawQuery = filter!=null?BuildWhereClause(desc, filter, cmd, 0, tableAlias, queryCallbacks):null;
+                var rawQuery = filter != null ? BuildWhereClause(desc, filter, cmd, 0, tableAlias, queryCallbacks) : null;
                 var rawOrdering = (sorts != null && sorts.Count != 0) ? string.Join(", ", from t in sorts select $"{colFx(desc, t.ColumnName, tableAlias, queryCallbacks?.FQColumnQuery)} {t.SortOrder}") : null;
                 var rawCols = string.Join(", ", from t in desc select SyntaxProvider.FullQualifyColumn(tableAlias, t.ColumnName));
-                var finalQuery = $@"select {rawCols}{(!string.IsNullOrEmpty(queryCallbacks?.CustomQuerySelection) ? $", {queryCallbacks?.CustomQuerySelection}" : "")}, [$$totalRecordCount$$] = count(*) over() from [{tableName}] {(!string.IsNullOrEmpty(tableAlias) ? $"[{tableAlias}]" : "")} {queryCallbacks?.CustomQueryTablePart} {(!string.IsNullOrEmpty(rawQuery)?$"where {rawQuery}":"")} {(!string.IsNullOrEmpty(rawOrdering)?$"order by {rawOrdering}":"")}
-{(hitsPerPage != null && page != null?$@"offset {hitsPerPage*(page-1)} rows
-fetch next {hitsPerPage} rows only":"")}";
-                LogEnvironment.LogDebugEvent(null, finalQuery, (int) LogSeverity.Report, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
+                var finalQuery = $@"select {rawCols}{(!string.IsNullOrEmpty(queryCallbacks?.CustomQuerySelection) ? $", {queryCallbacks?.CustomQuerySelection}" : "")}, [$$totalRecordCount$$] = count(*) over() from [{tableName}] {(!string.IsNullOrEmpty(tableAlias) ? $"[{tableAlias}]" : "")} {queryCallbacks?.CustomQueryTablePart} {(!string.IsNullOrEmpty(rawQuery) ? $"where {rawQuery}" : "")} {(!string.IsNullOrEmpty(rawOrdering) ? $"order by {rawOrdering}" : "")}
+{(hitsPerPage != null && page != null ? $@"offset {hitsPerPage * (page - 1)} rows
+fetch next {hitsPerPage} rows only" : "")}";
+                LogEnvironment.LogDebugEvent(null, finalQuery, (int)LogSeverity.Report, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
                 cmd.CommandText = finalQuery;
                 var retVal = cmd.ExecuteReader().ToDictionaries(true).ToList();
                 totalCount = 0;
@@ -54,7 +54,7 @@ fetch next {hitsPerPage} rows only":"")}";
                 {
                     totalCount = Convert.ToInt32(retVal[0]["$$totalRecordCount$$"]);
                 }
-                
+
                 return retVal;
             }
         }
@@ -77,9 +77,9 @@ fetch next {hitsPerPage} rows only":"")}";
             return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         }
 
-        public override IDictionary<string,object> Update(string tableName, IDictionary<string,object> values)
+        public override IDictionary<string, object> Update(string tableName, IDictionary<string, object> values)
         {
-            var desc = DescribeTable(tableName, true);
+            var desc = DescribeTable(tableName, true, out _);
             var pks = desc.Where(n => n.IsPrimaryKey).ToArray();
             DynamicTableFilter filter;
             Dictionary<string, object> paramHolder = new Dictionary<string, object>();
@@ -98,8 +98,8 @@ fetch next {hitsPerPage} rows only":"")}";
                 filter = new DynamicTableColumnFilter(pks[0].ColumnName, BinaryCompareFilterOperator.Equal, values[pks[0].ColumnName]);
             }
 
-            var sort = new DynamicTableSort {ColumnName = desc[0].ColumnName, SortOrder = SortOrder.Asc};
-            var origin = QueryDynamicTable(tableName, filter, new[] {sort}, out _);
+            var sort = new DynamicTableSort { ColumnName = desc[0].ColumnName, SortOrder = SortOrder.Asc };
+            var origin = QueryDynamicTable(tableName, filter, new[] { sort }, out _);
             if (origin.Count == 1)
             {
                 var oriItem = origin[0];
@@ -114,7 +114,7 @@ fetch next {hitsPerPage} rows only":"")}";
                         var equal = nv == null && ov == null || nv != null && ov != null && nv.Equals(ov);
                         if (!equal)
                         {
-                            l.Add(new (col.ColumnName, col, nv));
+                            l.Add(new(col.ColumnName, col, nv));
                         }
                     }
                 }
@@ -132,8 +132,8 @@ fetch next {hitsPerPage} rows only":"")}";
                             {
                                 bld.Append(", ");
                             }
-                            
-                            
+
+
                             var param = CreateParameter(cmd, ref paramId, item.changedValue, paramHolder);
                             bld.Append($"{item.name} = {param.ParameterName}");
                             cmd.Parameters.Add(param);
@@ -150,13 +150,13 @@ fetch next {hitsPerPage} rows only":"")}";
                     }
                 }
             }
-            
+
             return null;
         }
 
         public override IDictionary<string, object> Create(string tableName, IDictionary<string, object> values)
         {
-            var desc = DescribeTable(tableName, true);
+            var desc = DescribeTable(tableName, true, out _);
             var hasIdentity = false;
             string identityCol = null;
             StringBuilder cols = new StringBuilder();
@@ -203,7 +203,7 @@ fetch next {hitsPerPage} rows only":"")}";
                 }
 
                 cmd.CommandText = paramHolder.FormatText($@"insert into [{tableName}] ({cols}) values ({args});
-{(hasIdentity?"select scope_identity()":"")}", ParameterFilter);
+{(hasIdentity ? "select scope_identity()" : "")}", ParameterFilter);
                 if (hasIdentity)
                 {
                     values[identityCol] = cmd.ExecuteScalar();
@@ -212,14 +212,14 @@ fetch next {hitsPerPage} rows only":"")}";
                 {
                     cmd.ExecuteNonQuery();
                 }
-                
+
                 return values;
             }
         }
-        
+
         public override bool Delete(string tableName, IDictionary<string, object> record)
         {
-            var desc = DescribeTable(tableName, true);
+            var desc = DescribeTable(tableName, true, out _);
             var pks = desc.Where(n => n.IsPrimaryKey).ToArray();
             DynamicTableFilter filter;
             if (pks.Length > 1)
@@ -236,7 +236,7 @@ fetch next {hitsPerPage} rows only":"")}";
             {
                 filter = new DynamicTableColumnFilter(pks[0].ColumnName, BinaryCompareFilterOperator.Equal, record[pks[0].ColumnName]);
             }
-            
+
             using (Facade.UseConnection(out DbCommand cmd))
             {
                 cmd.CommandText = $"delete from [{tableName}] where {BuildWhereClause(pks, filter, cmd)}";
@@ -244,7 +244,7 @@ fetch next {hitsPerPage} rows only":"")}";
             }
         }
 
-        public override List<TableColumnDefinition> DescribeTable(string tableName, bool ignoreUnknownTypes)
+        public override List<TableColumnDefinition> DescribeTable(string tableName, bool ignoreUnknownTypes, out bool definitionEditable)
         {
             var tmp = SqlQuery<TableColumnDefinition>(@"SELECT c.COLUMN_NAME ColumnName, c.DATA_TYPE DataType, c.CHARACTER_MAXIMUM_LENGTH DataLength, convert(bit,case c.IS_NULLABLE when 'Yes' then 1 else 0 end) Nullable,
 c.ordinal_position Position,
@@ -274,19 +274,43 @@ convert(bit,case when k.column_name is not null then 1 else 0 end),
 convert(bit, case when pk.type='PK' then 1 else 0 end),
 pk.type
 ORDER BY c.ORDINAL_POSITION", tableName);
-            tmp.ForEach(n => n.Type = SyntaxProvider.GetAppropriateType(n, !ignoreUnknownTypes));
+            var tmp2 = (from t in tmp group t by new { t.ColumnName, t.DataLength, t.DataType, t.Nullable, t.Position, t.RefTable, t.RefColumn, t.HasReferences })
+                .ToList();
+            tmp.Clear();
+            definitionEditable = true;
+            foreach (var t in tmp2)
+            {
+                tmp.Add(new TableColumnDefinition
+                {
+                    ColumnName = t.Key.ColumnName,
+                    DataLength = t.Key.DataLength,
+                    DataType = t.Key.DataType,
+                    Nullable = t.Key.Nullable,
+                    Position = t.Key.Position,
+                    RefTable = t.Key.RefTable,
+                    RefColumn = t.Key.RefColumn,
+                    HasReferences = t.Key.HasReferences,
+                    HasIndex = t.All(n => n.HasIndex),
+                    IsForeignKey = t.All(n => n.IsForeignKey),
+                    IsIdentity = t.All(n => n.IsIdentity),
+                    IsPrimaryKey = t.All(n => n.IsPrimaryKey),
+                    IsUniqueKey = t.All(n => n.IsUniqueKey),
+                    Type = SyntaxProvider.GetAppropriateType(t.First(), !ignoreUnknownTypes)
+                });
+                definitionEditable &= t.Count() == 1;
+            }
             if (ignoreUnknownTypes)
             {
                 tmp = tmp.Where(n => n.Type != null).ToList();
             }
-            
+
             return tmp;
         }
 
         public override void CopyTableData(string src, string dst, bool ignoreMissingColumn = false, bool whatIf = false)
         {
-            var srcColumns = DescribeTable(src, false);
-            var dstColumns = DescribeTable(dst, false);
+            var srcColumns = DescribeTable(src, false, out _);
+            var dstColumns = DescribeTable(dst, false, out _);
             var diff = DynamicTableHelper.CompareDefinitions(srcColumns, dstColumns);
             List<string> columns = new List<string>();
             foreach (var item in diff)
@@ -299,11 +323,11 @@ ORDER BY c.ORDINAL_POSITION", tableName);
                     }
                     else
                     {
-                        LogEnvironment.LogEvent("CopyJob would fail due to data-loss!",LogSeverity.Error, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
+                        LogEnvironment.LogEvent("CopyJob would fail due to data-loss!", LogSeverity.Error, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
                     }
                 }
 
-                if (item.Table1Def!= null && item.Table2Def != null)
+                if (item.Table1Def != null && item.Table2Def != null)
                 {
                     columns.Add($"[{item.ColumnName}]");
                     if (!item.Table1Def.DataType.Equals(item.Table2Def.DataType, StringComparison.OrdinalIgnoreCase))
@@ -341,7 +365,7 @@ ORDER BY c.ORDINAL_POSITION", tableName);
             var lenFx = new Func<TableColumnDefinition, string>(def =>
             {
                 var ln = def.DataLength ?? -1;
-                return $"{(def.Type.LengthRequired?$"({(ln != -1?ln.ToString():"max")})":"")}";
+                return $"{(def.Type.LengthRequired ? $"({(ln != -1 ? ln.ToString() : "max")})" : "")}";
             });
             var pos = 1;
             foreach (var col in columns)
@@ -356,7 +380,7 @@ ORDER BY c.ORDINAL_POSITION", tableName);
                     col.Position = pos++;
                 }
             }
-            
+
             bool transactionCreated = false;
             if (useTransaction && (Facade.CurrentTransaction == null))
             {
@@ -368,7 +392,7 @@ ORDER BY c.ORDINAL_POSITION", tableName);
                 {
                     LogEnvironment.LogEvent("Table-Modification would start a new transaction!", LogSeverity.Report, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
                 }
-                
+
                 transactionCreated = true;
             }
 
@@ -380,7 +404,7 @@ ORDER BY c.ORDINAL_POSITION", tableName);
                 var cmd = "";
                 if (TableExists(tableName))
                 {
-                    var orig = DescribeTable(tableName, false);
+                    var orig = DescribeTable(tableName, false, out var definitionEditable);
                     var differ = DynamicTableHelper.CompareDefinitions(orig, columns);
                     List<string> addCols = new List<string>();
                     List<string> dropCols = new List<string>();
@@ -398,13 +422,25 @@ ORDER BY c.ORDINAL_POSITION", tableName);
                                 LogEnvironment.LogEvent("Table-Modification would fail due to a column-removal with forceDeleteColumn=false!", LogSeverity.Error, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
                             }
                         }
-                        
+
+                        if (item.Table2Def == null && !definitionEditable)
+                        {
+                            if (!whatIf)
+                            {
+                                throw new InvalidOperationException("Column removal is not supported on this table, because the index-configuration is not supported!");
+                            }
+                            else
+                            {
+                                LogEnvironment.LogEvent("Table-Modification would fail due to a column-removal on a table with an unsupported index-configuration!", LogSeverity.Error, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
+                            }
+                        }
+
                         if (item.Table2Def == null)
                         {
                             dropCols.Add($"[{item.ColumnName}]");
                         }
 
-                        if (item.Table1Def!= null && item.Table2Def != null)
+                        if (item.Table1Def != null && item.Table2Def != null)
                         {
                             if (!item.Table1Def.DataType.Equals(item.Table2Def.DataType, StringComparison.OrdinalIgnoreCase))
                             {
@@ -417,7 +453,7 @@ ORDER BY c.ORDINAL_POSITION", tableName);
                                     LogEnvironment.LogEvent("Table-Modification would fail, because DataTypes must not be altered!", LogSeverity.Error, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
                                 }
                             }
-                            
+
                             if (item.Table1Def.DataLength != item.Table2Def.DataLength || item.Table1Def.Nullable != item.Table2Def.Nullable)
                             {
                                 alterCols.Add($"[{item.ColumnName}] {item.Table2Def.DataType}{lenFx(item.Table2Def)} {(item.Table2Def.Nullable ? "" : "NOT ")}NULL");
@@ -434,6 +470,18 @@ ORDER BY c.ORDINAL_POSITION", tableName);
                                     else
                                     {
                                         LogEnvironment.LogEvent("Table-Modification would fail, because Primary-Key Columns may not be altered!", LogSeverity.Error, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
+                                    }
+                                }
+
+                                if (!definitionEditable)
+                                {
+                                    if (!whatIf)
+                                    {
+                                        throw new InvalidOperationException("Index-Changes not supported on this table. Use Management studio to alter table.");
+                                    }
+                                    else
+                                    {
+                                        LogEnvironment.LogEvent("Table-Modification would fail, because index-configuration of the table is not supported!", LogSeverity.Error, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
                                     }
                                 }
 
@@ -461,6 +509,18 @@ ORDER BY c.ORDINAL_POSITION", tableName);
 
                             if (item.Table2Def.IsForeignKey != item.Table1Def.IsForeignKey)
                             {
+                                if (!definitionEditable)
+                                {
+                                    if (!whatIf)
+                                    {
+                                        throw new InvalidOperationException("Constraint-Changes not supported on this table. Use Management studio to alter table.");
+                                    }
+                                    else
+                                    {
+                                        LogEnvironment.LogEvent("Table-Modification would fail, because index-configuration of the table is not supported!", LogSeverity.Error, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
+                                    }
+                                }
+
                                 if (item.Table1Def.IsForeignKey)
                                 {
                                     constraintChanges.Add($"Alter Table [{tableName}] drop constraint [FK_{tableName}_{item.Table1Def.Position}_{item.Table1Def.RefTable}_{item.Table1Def.RefColumn}]");
@@ -474,7 +534,7 @@ references [{item.Table2Def.RefTable}] ([{item.Table2Def.RefColumn}])");
                         }
                         else if (item.Table2Def != null)
                         {
-                            addCols.Add($"[{item.ColumnName}] {item.Table2Def.DataType}{lenFx(item.Table2Def)} {(item.Table2Def.Nullable?"":"NOT ")}NULL");
+                            addCols.Add($"[{item.ColumnName}] {item.Table2Def.DataType}{lenFx(item.Table2Def)} {(item.Table2Def.Nullable ? "" : "NOT ")}NULL");
                             if (!item.Table2Def.IsPrimaryKey && !item.Table2Def.IsForeignKey && (item.Table2Def.HasIndex || item.Table2Def.IsUniqueKey))
                             {
                                 if (item.Table2Def.IsUniqueKey)
@@ -539,7 +599,7 @@ references [{item.Table2Def.RefTable}] ([{item.Table2Def.RefColumn}])");
                 }
                 else
                 {
-                    cmd = $"CREATE TABLE [{tableName}] ({string.Join(", ", from t in columns select $"[{t.ColumnName}] {t.DataType}{lenFx(t)} {(t.Nullable?"":"NOT")} NULL {(t.IsPrimaryKey?"IDENTITY(1,1) PRIMARY KEY":"")}")})";
+                    cmd = $"CREATE TABLE [{tableName}] ({string.Join(", ", from t in columns select $"[{t.ColumnName}] {t.DataType}{lenFx(t)} {(t.Nullable ? "" : "NOT")} NULL {(t.IsPrimaryKey ? "IDENTITY(1,1) PRIMARY KEY" : "")}")})";
                     if (!whatIf)
                     {
                         Facade.ExecuteSqlRaw(cmd);
@@ -548,8 +608,8 @@ references [{item.Table2Def.RefTable}] ([{item.Table2Def.RefColumn}])");
                     {
                         LogEnvironment.LogEvent($"Table-Modification would execute the following SQL-Command: {{{cmd}}}", LogSeverity.Report, "ITVComponents.EFRepo.SqlServer.SqlDynamicDataAdapter");
                     }
-                    
-                    foreach(var item in columns)
+
+                    foreach (var item in columns)
                     {
                         if (!item.IsPrimaryKey && (item.HasIndex || item.IsUniqueKey))
                         {
@@ -562,7 +622,7 @@ references [{item.Table2Def.RefTable}] ([{item.Table2Def.RefColumn}])");
                                 addIndices.Add($"Create NONCLUSTERED INDEX [CX_{tableName}_{item.ColumnName}] on [{tableName}] ({item.ColumnName})");
                             }
                         }
-                        
+
                         if (item.IsForeignKey)
                         {
                             constraintChanges.Add($@"Alter Table [{tableName}] add constraint [FK_{tableName}_{item.Position}_{item.RefTable}_{item.RefColumn}] Foreign Key ({item.ColumnName})
@@ -571,10 +631,10 @@ references [{item.RefTable}] ([{item.RefColumn}])");
                     }
 
                 }
-                
+
                 if (dropIndices.Count != 0)
                 {
-                    foreach(var di in dropIndices)
+                    foreach (var di in dropIndices)
                     {
                         cmd = $"Drop INDEX IF EXISTS [{di}] on [{tableName}]";
                         if (!whatIf)
@@ -587,10 +647,10 @@ references [{item.RefTable}] ([{item.RefColumn}])");
                         }
                     }
                 }
-                    
+
                 if (addIndices.Count != 0)
                 {
-                    foreach(var ai in addIndices)
+                    foreach (var ai in addIndices)
                     {
                         cmd = ai;
                         if (!whatIf)
@@ -650,7 +710,7 @@ references [{item.RefTable}] ([{item.RefColumn}])");
                 throw;
             }
         }
-        
+
         public override List<T> SqlQuery<T>(string query, params object[] arguments) //where T:new()
         {
             var id = 0;
@@ -662,20 +722,20 @@ references [{item.RefTable}] ([{item.RefColumn}])");
                 return cmd.ExecuteReader().GetModelResult<T, T>().ToList();
             }
         }
-        
+
         public override List<object> SqlQuery(string query, Type targetType, params object[] arguments) //where T:new()
         {
             var id = 0;
             using (Facade.UseConnection(out DbCommand cmd))
             {
                 Dictionary<string, object> paramHolder = new Dictionary<string, object>();
-                cmd.Parameters.AddRange((from t in arguments select CreateParameter(cmd, ref id, t,paramHolder)).ToArray());
+                cmd.Parameters.AddRange((from t in arguments select CreateParameter(cmd, ref id, t, paramHolder)).ToArray());
                 cmd.CommandText = paramHolder.FormatText(query, ParameterFilter);
                 return cmd.ExecuteReader().GetModelResult(targetType, targetType).ToList();
             }
         }
 
-        public override IEnumerable<IDictionary<string,object>> SqlQuery(string query, IDictionary<string, object> arguments)
+        public override IEnumerable<IDictionary<string, object>> SqlQuery(string query, IDictionary<string, object> arguments)
         {
             var id = 0;
             using (Facade.UseConnection(out DbCommand cmd))
@@ -692,7 +752,7 @@ references [{item.RefTable}] ([{item.RefColumn}])");
             return SqlQuery<(string object_Id, string name)>("select object_id, name from sys.objects where object_id = object_ID(@p0) and type = N'U'", tableName).Count != 0;
         }
 
-        private DbParameter CreateParameter(DbCommand cmd, ref int id, object value, Dictionary<string,object> parameterMapper)
+        private DbParameter CreateParameter(DbCommand cmd, ref int id, object value, Dictionary<string, object> parameterMapper)
         {
             string pn = $"p{id++}";
             string fpn = $"@{pn}";
@@ -719,11 +779,11 @@ references [{item.RefTable}] ([{item.RefColumn}])");
             retVal.Value = value;
             return retVal;
         }
-        
+
         private string BrowseColumns(ICollection<TableColumnDefinition> desc, string columnName, string tableAlias, TableColumnResolveCallback getCustomColumnDef, out TableColumnDefinition def)
         {
             def = desc.FirstOrDefault(n => n.ColumnName.Equals(columnName, StringComparison.OrdinalIgnoreCase));
-            if (def!= null)
+            if (def != null)
             {
                 return SyntaxProvider.FullQualifyColumn(tableAlias, def.ColumnName); // $"{(tableAlias != null ? $"[{tableAlias}]." : "")}[{col.ColumnName}]";
             }

@@ -34,7 +34,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
 
         public IEnumerable ReadForeignKey(string tableName, string id = null, Dictionary<string, object> postedFilter = null)
         {
-            var desc = src.DescribeTable(tableName, true);
+            var desc = src.DescribeTable(tableName, true, out _);
             var idColumnCount = desc.Count(n => n.IsPrimaryKey);
             if (idColumnCount != 1)
             {

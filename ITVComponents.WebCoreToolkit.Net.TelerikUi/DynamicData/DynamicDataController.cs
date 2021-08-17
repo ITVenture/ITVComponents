@@ -45,7 +45,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.DynamicData
         protected IDictionary<string, object> GetModel(string tableName, IFormCollection form)
         {
             var retVal = dataSource.GetEntity();
-            var cols = dataSource.DescribeTable(tableName, true);
+            var cols = dataSource.DescribeTable(tableName, true, out _);
             foreach (var tmp in cols)
             {
                 if (form.ContainsKey(tmp.ColumnName))
