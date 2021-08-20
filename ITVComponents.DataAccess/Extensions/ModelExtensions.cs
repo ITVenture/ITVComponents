@@ -10,6 +10,7 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 using ITVComponents.DataAccess.DataAnnotations;
+using ITVComponents.TypeConversion;
 
 namespace ITVComponents.DataAccess.Extensions
 {
@@ -22,17 +23,17 @@ namespace ITVComponents.DataAccess.Extensions
         /// Holds buffered setter methods for the assignment of ViewModel to model
         /// </summary>
         private static ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> assignmentDbActions = new ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>>();
-        
+
         /// <summary>
         /// Holds buffered setter methods for the assignment of model to an other
         /// </summary>
         private static ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> modelCopyActions = new ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>>();
-        
+
         /// <summary>
         /// Holds buffered setter methods for the assignment of model to ViewModel
         /// </summary>
         private static ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> toViewModelActions = new ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>>();
-        
+
         /// <summary>
         /// Creates an instance of the given ViewModelType and sets all correspondig Properties on it
         /// </summary>
@@ -56,8 +57,8 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="requestObjectInstance">offsers a customValueSoruce attribute to access custom required objects</param>
         /// <param name="postProcessAction">a user defined action that is performed after converting the requested data to a viewModel object</param>
         /// <returns>a Viewmodel that contains all Data that was read from the model</returns>
-        public static T ToViewModel<TDbModel, T>(this TDbModel modelObject, Func<Type, object> requestObjectInstance, Action<TDbModel,T> postProcessAction = null) where T : class, new()
-                                                                                                                where TDbModel: class
+        public static T ToViewModel<TDbModel, T>(this TDbModel modelObject, Func<Type, object> requestObjectInstance, Action<TDbModel, T> postProcessAction = null) where T : class, new()
+                                                                                                                where TDbModel : class
         {
             if (modelObject == null)
             {
@@ -65,11 +66,11 @@ namespace ITVComponents.DataAccess.Extensions
             }
 
             T retVal = new T();
-            Type viewType = typeof (T);
+            Type viewType = typeof(T);
             PropertyInfo[] allViewProperties = viewType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             var customValueProps = (from t in allViewProperties
-                where t.CanWrite && t.GetIndexParameters().Length == 0 && Attribute.IsDefined(t, typeof(CustomValueSourceAttribute), true)
-                select new { Property = t, Attributes = System.Linq.Enumerable.Cast<CustomValueSourceAttribute>(Attribute.GetCustomAttributes(t, typeof(CustomValueSourceAttribute), true)).First() }).ToArray();
+                                    where t.CanWrite && t.GetIndexParameters().Length == 0 && Attribute.IsDefined(t, typeof(CustomValueSourceAttribute), true)
+                                    select new { Property = t, Attributes = System.Linq.Enumerable.Cast<CustomValueSourceAttribute>(Attribute.GetCustomAttributes(t, typeof(CustomValueSourceAttribute), true)).First() }).ToArray();
             var hashCalc = customValueProps.FirstOrDefault(n => n.Attributes is ModelHashAttribute);
             var action = GetActionFor<TDbModel, T>(toViewModelActions, SelectToViewModelProps<TDbModel, T>);
             action(modelObject, retVal);
@@ -108,7 +109,7 @@ namespace ITVComponents.DataAccess.Extensions
         {
             if (modelObject == null || target == null)
             {
-                return ;
+                return;
             }
 
             var action = GetActionFor<TDbModel, T>(modelCopyActions, SelectCopyToVmProps<TDbModel, T>);
@@ -126,13 +127,13 @@ namespace ITVComponents.DataAccess.Extensions
             Type viewType = typeof(T);
             PropertyInfo[] allViewProperties = viewType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             return (from t in allViewProperties
-                where
-                    t.GetIndexParameters().Length == 0 &&
-                    t.CanWrite &&
-                    !Attribute.IsDefined(t, typeof (IgnorePropertyAttribute), true)
-                select t.Name).ToArray();
+                    where
+                        t.GetIndexParameters().Length == 0 &&
+                        t.CanWrite &&
+                        !Attribute.IsDefined(t, typeof(IgnorePropertyAttribute), true)
+                    select t.Name).ToArray();
         }
-        
+
         /// <summary>
         /// Creates an instance of the given ViewModelType and sets all correspondig Properties on it
         /// </summary>
@@ -146,7 +147,7 @@ namespace ITVComponents.DataAccess.Extensions
         {
             if (modelObject == null || target == null)
             {
-                return ;
+                return;
             }
 
             var action = GetActionFor<TViewModel, TDbModel>(assignmentDbActions, CreateDbCopyMethod<TViewModel, TDbModel>);
@@ -161,11 +162,11 @@ namespace ITVComponents.DataAccess.Extensions
                 modelType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             PropertyInfo[] allViewProperties = viewType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             return (from t in allViewProperties
-                join a in allModelProperties on t.Name equals a.Name
-                where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(t, typeof(IgnorePropertyAttribute), true) && !Attribute.IsDefined(a, typeof(IgnorePropertyAttribute), true)
-                select new AssignmentHolder{Destination = t, Source= a, PropType=t.PropertyType});
+                    join a in allModelProperties on t.Name equals a.Name
+                    where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(t, typeof(IgnorePropertyAttribute), true) && !Attribute.IsDefined(a, typeof(IgnorePropertyAttribute), true)
+                    select new AssignmentHolder { Destination = t, Source = a, PropType = t.PropertyType });
         }
-        
+
         /// <summary>
         /// Selectes ToViewModel properties for the given model and viewmodel
         /// </summary>
@@ -175,14 +176,14 @@ namespace ITVComponents.DataAccess.Extensions
         private static IEnumerable<AssignmentHolder> SelectToViewModelProps<TModel, TViewModel>()
         {
             Type modelType = typeof(TModel);
-            Type viewType = typeof (TViewModel);
+            Type viewType = typeof(TViewModel);
             PropertyInfo[] allModelProperties =
                 modelType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             PropertyInfo[] allViewProperties = viewType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             var tmp = (from t in allViewProperties
-                join a in allModelProperties on t.Name equals a.Name
-                where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(t, typeof(IgnorePropertyAttribute), true) && !Attribute.IsDefined(a, typeof(IgnorePropertyAttribute), true)
-                select new {Property = t, SourceProperty = a});
+                       join a in allModelProperties on t.Name equals a.Name
+                       where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(t, typeof(IgnorePropertyAttribute), true) && !Attribute.IsDefined(a, typeof(IgnorePropertyAttribute), true)
+                       select new { Property = t, SourceProperty = a });
             foreach (var item in tmp)
             {
                 if (item.Property.PropertyType.IsAssignableFrom(item.SourceProperty.PropertyType) ||
@@ -195,7 +196,7 @@ namespace ITVComponents.DataAccess.Extensions
                      item.Property.PropertyType.IsAssignableFrom(
                          Nullable.GetUnderlyingType(item.SourceProperty.PropertyType))))
                 {
-                    yield return new AssignmentHolder {PropType = item.Property.PropertyType, Source = item.SourceProperty, Destination = item.Property};
+                    yield return new AssignmentHolder { PropType = item.Property.PropertyType, Source = item.SourceProperty, Destination = item.Property };
                 }
                 else if (Attribute.IsDefined(item.Property, typeof(SetterMethodAttribute)))
                 {
@@ -204,12 +205,17 @@ namespace ITVComponents.DataAccess.Extensions
                         Attribute.GetCustomAttribute(item.Property, typeof(SetterMethodAttribute));
                     MethodInfo inf = viewType.GetMethod(sat.MethodName,
                         BindingFlags.Public | BindingFlags.Instance | BindingFlags.InvokeMethod, null,
-                        new[] {item.SourceProperty.PropertyType}, null);
+                        new[] { item.SourceProperty.PropertyType }, null);
                     /*if (inf != null)
                     {
                         inf.Invoke(retVal, new[] {item.Value});
                     }*/
-                    yield return new AssignmentHolder {Setter = inf, PropType = item.SourceProperty.PropertyType, Source = item.SourceProperty, Destination = null};
+                    yield return new AssignmentHolder { Setter = inf, PropType = item.SourceProperty.PropertyType, Source = item.SourceProperty, Destination = null };
+                }
+                else
+                {
+                    yield return new AssignmentHolder
+                    { Source = item.SourceProperty, Destination = item.Property, UseConvert = true, PropType = item.Property.PropertyType };
                 }
             }
         }
@@ -222,10 +228,10 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="methodTargetDic">the Dictionary where the assignment-method is being stored</param>
         /// <param name="selector">the Property-Selector method</param>
         /// <returns></returns>
-        private static Action<TSource, TTarget> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type,ConcurrentDictionary<Type, Delegate>> methodTargetDic, Func<IEnumerable<AssignmentHolder>> selector)
+        private static Action<TSource, TTarget> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> methodTargetDic, Func<IEnumerable<AssignmentHolder>> selector)
         {
             var tmp1 = methodTargetDic.GetOrAdd(typeof(TSource), t => new ConcurrentDictionary<Type, Delegate>());
-            Action<TSource, TTarget> copyAction = (Action<TSource, TTarget>) tmp1.GetOrAdd(typeof(TTarget), t => BuildAssignmentLambda<TSource,TTarget>(selector()));
+            Action<TSource, TTarget> copyAction = (Action<TSource, TTarget>)tmp1.GetOrAdd(typeof(TTarget), t => BuildAssignmentLambda<TSource, TTarget>(selector()));
             return copyAction;
         }
 
@@ -243,10 +249,10 @@ namespace ITVComponents.DataAccess.Extensions
                 viewType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             PropertyInfo[] allDbProperties = modelType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             return (from t in allDbProperties
-                join a in allVmProperties on t.Name equals a.Name
-                where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(a, typeof(KeyAttribute), true)
-                      && t.PropertyType == a.PropertyType
-                select new AssignmentHolder{ PropType = t.PropertyType, Source = a, Destination = t});
+                    join a in allVmProperties on t.Name equals a.Name
+                    where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(a, typeof(KeyAttribute), true)
+                          && t.PropertyType == a.PropertyType
+                    select new AssignmentHolder { PropType = t.PropertyType, Source = a, Destination = t });
         }
 
         /// <summary>
@@ -260,12 +266,18 @@ namespace ITVComponents.DataAccess.Extensions
         {
             var p1 = Expression.Parameter(typeof(TSource));
             var p2 = Expression.Parameter(typeof(TTarget));
+            var tryConvertMethod = typeof(TypeConverter).GetMethod("TryConvert",
+                BindingFlags.Public | BindingFlags.Static, null, new Type[]
+                {
+                    typeof(object),
+                    typeof(Type)
+                }, null);
             var assignments = new List<Expression>();
             foreach (var item in assignmentSource)
             {
-                var propNullType = item.PropType.IsPrimitive?typeof(Nullable<>).MakeGenericType(item.PropType):null;
+                var propNullType = item.PropType.IsPrimitive ? typeof(Nullable<>).MakeGenericType(item.PropType) : null;
                 var propNullValue = propNullType?.GetProperty("Value");
-                if (propNullType != null && item.Source.PropertyType == propNullType)
+                if (propNullType != null && item.Source.PropertyType == propNullType && !item.UseConvert)
                 {
                     var propX = Expression.Property(p1, item.Source);
                     var valX = Expression.Condition(Expression.NotEqual(propX, Expression.Constant(null, propNullType)), Expression.Property(propX, propNullValue), Expression.Default(item.PropType));
@@ -278,7 +290,7 @@ namespace ITVComponents.DataAccess.Extensions
                         assignments.Add(Expression.Call(p2, item.Setter, valX));
                     }
                 }
-                else if (item.PropType != item.Source.PropertyType)
+                else if (item.PropType != item.Source.PropertyType && !item.UseConvert)
                 {
                     var valX = Expression.Convert(Expression.Property(p1, item.Source), item.PropType);
                     if (item.Setter == null)
@@ -290,16 +302,29 @@ namespace ITVComponents.DataAccess.Extensions
                         assignments.Add(Expression.Call(p2, item.Setter, valX));
                     }
                 }
+                else if (item.UseConvert)
+                {
+                    var valX = Expression.Convert(Expression.Call(null, tryConvertMethod, Expression.Convert(Expression.Property(p1, item.Source), typeof(object)),
+                        Expression.Constant(item.PropType)), item.PropType);
+                    if (item.Setter == null)
+                    {
+                        assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Assign(Expression.Property(p2, item.Destination), valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
+                    }
+                    else
+                    {
+                        assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Call(p2, item.Setter, valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
+                    }
+                }
                 else
                 {
                     var valX = Expression.Property(p1, item.Source);
                     if (item.Setter == null)
                     {
-                        assignments.Add(Expression.Assign(Expression.Property(p2, item.Destination), valX));
+                        assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Assign(Expression.Property(p2, item.Destination), valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
                     }
                     else
                     {
-                        assignments.Add(Expression.Call(p2, item.Setter, valX));
+                        assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Call(p2, item.Setter, valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
                     }
                 }
             }
@@ -313,11 +338,12 @@ namespace ITVComponents.DataAccess.Extensions
         /// </summary>
         private class AssignmentHolder
         {
-            public PropertyInfo Source{get;set;}
-            public PropertyInfo Destination{get;set;}
+            public PropertyInfo Source { get; set; }
+            public PropertyInfo Destination { get; set; }
             //public MethodInfo Getter{get;set;}
-            public MethodInfo Setter{get;set;}
+            public MethodInfo Setter { get; set; }
             public Type PropType { get; set; }
+            public bool UseConvert { get; set; }
         }
     }
 }

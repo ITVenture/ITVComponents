@@ -61,7 +61,42 @@ namespace ITVComponents.TypeConversion
 
             return null;
         }
-        
+
+        /// <summary>
+        /// Converts a value to a differed type
+        /// </summary>
+        /// <param name="value">the value that requires conversion</param>
+        /// <param name="targetType">the target-type into which the value needs to be converted</param>
+        /// <param name="result">the result of the conversion</param>
+        /// <returns>the converted value in the requested type</returns>
+        public static bool TryConvert(object value, Type targetType, out object result)
+        {
+            var converters = Snapshot();
+            var converter = converters.FirstOrDefault(n => n.CapableFor(value, targetType));
+            if (value != null)
+            {
+                if (converter != null && converter.TryConvert(value, targetType, out result))
+                {
+                    return true;
+                }
+
+                try
+                {
+                    result = System.Convert.ChangeType(value, targetType);
+                    return true;
+                }
+                catch
+                {
+                    result = null;
+                    return false;
+                }
+            }
+
+            result = null;
+            return targetType.IsClass ||
+                   (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Nullable<>));
+        }
+
         /// <summary>
         /// Registers a Conversion-Provider as available Converter instance
         /// </summary>

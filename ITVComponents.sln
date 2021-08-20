@@ -117,6 +117,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.InterProcessC
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.InterProcessCommunication.InMemory", "ITVComponents.InterProcessCommunication.InMemory\ITVComponents.InterProcessCommunication.InMemory.csproj", "{642AFAC3-D33D-4C52-A144-CE2C577D6A1F}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.TypeConversion.Tests", "ITVComponents.TypeConversion.Tests\ITVComponents.TypeConversion.Tests.csproj", "{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -581,6 +583,14 @@ Global
 		{642AFAC3-D33D-4C52-A144-CE2C577D6A1F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{642AFAC3-D33D-4C52-A144-CE2C577D6A1F}.Release|x86.ActiveCfg = Release|Any CPU
 		{642AFAC3-D33D-4C52-A144-CE2C577D6A1F}.Release|x86.Build.0 = Release|Any CPU
+		{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}.Debug|x86.Build.0 = Debug|Any CPU
+		{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}.Release|x86.ActiveCfg = Release|Any CPU
+		{BCFEB95E-7580-4215-ADD4-178E2AD02CD4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -41,7 +41,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         private static DateTime loaderInitializationTime;
 
         /// <summary>
-        /// Adds a reference to a specific Assembly. You can either speify the assembly with path, Name (i.e. System.dll) or with its AssemblyName 
+        /// Adds a reference to a specific Assembly. You can either specify the assembly with path, Name (i.e. System.dll) or with its AssemblyName 
         /// </summary>
         /// <param name="configuration">the configuration to use for adding the specified assembly-reference</param>
         /// <param name="reference">the reference identifying the required assembly</param>
@@ -53,6 +53,14 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 if (reference == "--ROSLYN--")
                 {
                     LogEnvironment.LogEvent("Legacy Reference '--ROSLYN--' is ignored.", LogSeverity.Warning);
+                }
+                else if (reference == "--AUTOREF--")
+                {
+                    cfg.AutoReferences = true;
+                }
+                else if (reference == "--NOAUTOREF--")
+                {
+                    cfg.AutoReferences = false;
                 }
                 else
                 {
@@ -91,7 +99,19 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             }
         }
 
-
+        /// <summary>
+        /// Sets a value on the given configuration that indicates whether automatic referencing should be used for native script-parts
+        /// </summary>
+        /// <param name="configuration">the configuration that will be used in native scripts</param>
+        /// <param name="enabled">a value indicating whether auto-referencing must be enabled</param>
+        public static void SetAutoReferences(string configuration, bool enabled)
+        {
+            var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+            lock (cfg)
+            {
+                cfg.AutoReferences = enabled;
+            }
+        }
 
         /// <summary>
         /// Runs and compiles a linq-query
@@ -103,6 +123,11 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         public static object RunLinqQuery(string configuration, string expression, IDictionary<string, object> arguments)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+            if (cfg.AutoReferences)
+            {
+                ApplyAutoRef(cfg, arguments.Values, false);
+            }
+
             string roslynHash = GetFlatString(expression);
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
@@ -134,6 +159,12 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         public static object RunLinqQuery(string configuration, object target, string nameOfTarget, string expression, IDictionary<string, object> arguments)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+            if (cfg.AutoReferences)
+            {
+                ApplyAutoRef(cfg, arguments.Values, false);
+                ApplyAutoRef(cfg, new[] { target }, true);
+            }
+
             string roslynHash = GetFlatString(expression);
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
@@ -263,6 +294,41 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 }
 
                 return type.Name;
+            }
+        }
+
+        // <summary>
+        /// Applies required references and usings to the given native-script configuration
+        /// </summary>
+        /// <param name="cfg">the script configuration on which to add required references</param>
+        /// <param name="scriptObjects">the objects that will be passed to the script</param>
+        /// <param name="usings">indicates whether to apply also the usings on the given configuration</param>
+        private static void ApplyAutoRef(NativeConfiguration cfg, ICollection<object> scriptObjects, bool usings)
+        {
+            var sysAssembly = typeof(object).Assembly.FullName;
+            foreach (var obj in scriptObjects)
+            {
+                if (obj != null)
+                {
+                    var contextType = obj.GetType();
+                    var nameSpace = contextType.Namespace;
+                    var assemblyName = contextType.Assembly.FullName;
+                    if (assemblyName != sysAssembly)
+                    {
+                        lock (cfg)
+                        {
+                            if (!cfg.References.Contains(assemblyName))
+                            {
+                                cfg.References.Add(assemblyName);
+                            }
+
+                            if (usings && cfg.Usings.Contains(nameSpace))
+                            {
+                                cfg.Usings.Add(nameSpace);
+                            }
+                        }
+                    }
+                }
             }
         }
     }

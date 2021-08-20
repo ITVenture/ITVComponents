@@ -43,21 +43,28 @@ namespace ITVComponents.TypeConversion.DefaultConverters
             }
 
             bool srcNullable = srcType.IsGenericType && srcType.GetGenericTypeDefinition() == typeof(Nullable<>);
-            bool typesCompatible = (srcNullable ? srcType.GetGenericArguments()[0] : srcType) == (targetNullable ? targetType.GetGenericArguments()[0] : targetType);
+            var dstType = (targetNullable ? targetType.GetGenericArguments()[0] : targetType);
+            bool typesCompatible = (srcNullable ? srcType.GetGenericArguments()[0] : srcType) == dstType;
+            object srcValue = (srcNullable ? srcType.GetProperty("Value").GetValue(value) : value);
             if (!typesCompatible)
             {
-                result = null;
-                return false;
+                if (!TypeConverter.TryConvert(srcValue, dstType, out var tmpSrcValue))
+                {
+                    result = null;
+                    return false;
+                }
+
+                srcValue = tmpSrcValue;
             }
 
             if (srcNullable)
             {
-                result = srcType.GetProperty("Value").GetValue(value);
+                result = srcValue;
                 return true;
             }
 
-            var ctor = targetType.GetConstructor(new[] { srcType });
-            result = ctor.Invoke(new[] { value });
+            var ctor = targetType.GetConstructor(new[] { srcType }) ?? targetType.GetConstructor(new[] { dstType });
+            result = ctor.Invoke(new[] { srcValue });
             return true;
         }
     }

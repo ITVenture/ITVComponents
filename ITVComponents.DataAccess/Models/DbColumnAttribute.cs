@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -122,13 +123,17 @@ namespace ITVComponents.DataAccess.Models
                 return new DbColumnAttribute(false);
             }
 
-            Attribute retVal = Attribute.GetCustomAttribute(info, typeof (DbColumnAttribute));
-            if (!(retVal is DbColumnAttribute))
+            Attribute retVal = Attribute.GetCustomAttribute(info, typeof(DbColumnAttribute)) ?? Attribute.GetCustomAttribute(info, typeof(ColumnAttribute));
+            if (retVal == null)
             {
                 retVal = new DbColumnAttribute(info.Name);
             }
+            if (retVal is ColumnAttribute ca)
+            {
+                retVal = new DbColumnAttribute(ca.Name ?? info.Name);
+            }
 
-            return (DbColumnAttribute) retVal;
+            return (DbColumnAttribute)retVal;
         } 
     }
 }
