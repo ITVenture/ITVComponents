@@ -273,7 +273,6 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
                     }
                     catch (Exception ex)
                     {
-                        System.Console.WriteLine(ex);
                     }
                 }
 

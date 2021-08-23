@@ -27,7 +27,6 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Communication
             var secAttribs = CreateSecAttribs();
             try
             {
-                Console.WriteLine("{0}->{1}", name, size);
                 memBuffer = NativeMethods.CreateFileMapping(
                     new IntPtr(-1),
                     ref secAttribs,
@@ -41,7 +40,6 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Communication
                     //Console.WriteLine(memBuffer.DangerousGetHandle());
                     int lasterror = Marshal.GetLastWin32Error();
                     memBuffer.Dispose();
-                    Console.WriteLine(lasterror);
                     if (lasterror == 5)
                     {
                         throw new IOException("Access denied!");

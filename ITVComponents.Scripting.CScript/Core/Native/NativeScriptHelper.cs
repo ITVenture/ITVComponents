@@ -322,7 +322,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                                 cfg.References.Add(assemblyName);
                             }
 
-                            if (usings && cfg.Usings.Contains(nameSpace))
+                            if (usings && !cfg.Usings.Contains(nameSpace))
                             {
                                 cfg.Usings.Add(nameSpace);
                             }
