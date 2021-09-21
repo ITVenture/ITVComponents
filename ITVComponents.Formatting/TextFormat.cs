@@ -39,7 +39,7 @@ namespace ITVComponents.Formatting
             {
                 if (tmp[i] is FormatElement fmt)
                 {
-                    bool keep = customExpressionParser(fmt.Content, out var newContent);
+                    bool keep = customExpressionParser(fmt.Content.ToString(), out var newContent);
                     if (!keep)
                     {
                         string pref = "";
@@ -55,16 +55,18 @@ namespace ITVComponents.Formatting
                                 pref = "$£";
                                 break;
                         }
-                        
-                        tmp[i] = new StringElement {Content = $"{pref}[{fmt.Content}]", Length = fmt.Length, Start = fmt.Start};
+
+                        tmp[i] = new StringElement { Length = fmt.Length, Start = fmt.Start };
+                        tmp[i].Content.Append($"{pref}[{fmt.Content}]");
                     }
                     else
                     {
-                        fmt.Content = newContent;
+                        fmt.Content.Clear();
+                        fmt.Content.Append(newContent);
                     }
                 }
             }
-            
+
             using (var context = CreateScriptingSession(target))
             {
                 return string.Concat(from t in tmp select Stringify(t, context));
@@ -80,7 +82,7 @@ namespace ITVComponents.Formatting
                 {
                     if (tmp[i] is FormatElement fmt)
                     {
-                        bool keep = customExpressionParser(fmt.Content, out var newContent);
+                        bool keep = customExpressionParser(fmt.Content.ToString(), out var newContent);
                         if (!keep)
                         {
                             string pref = "";
@@ -97,11 +99,13 @@ namespace ITVComponents.Formatting
                                     break;
                             }
 
-                            tmp[i] = new StringElement {Content = $"{pref}[{fmt.Content}]", Length = fmt.Length, Start = fmt.Start};
+                            tmp[i] = new StringElement { Length = fmt.Length, Start = fmt.Start };
+                            tmp[i].Content.Append($"{pref}[{fmt.Content}]");
                         }
                         else
                         {
-                            fmt.Content = newContent;
+                            fmt.Content.Clear();
+                            fmt.Content.Append(newContent);
                         }
                     }
                 }
@@ -109,7 +113,7 @@ namespace ITVComponents.Formatting
                 return string.Concat(from t in tmp select Stringify(t, scriptingContext));
             }
 
-            return FormatText((object) scriptingContext, format, customExpressionParser);
+            return FormatText((object)scriptingContext, format, customExpressionParser);
         }
 
         public static string FormatText(IDisposable scriptingContext, string format)
@@ -120,7 +124,7 @@ namespace ITVComponents.Formatting
                 return string.Concat(from t in tmp select Stringify(t, scriptingContext));
             }
 
-            return FormatText((object) scriptingContext, format);
+            return FormatText((object)scriptingContext, format);
         }
 
         public static void AddCustomFormatHint(string hint, Func<object, string> formatFunction)
@@ -141,23 +145,24 @@ namespace ITVComponents.Formatting
         {
             if (element is StringElement)
             {
-                return element.Content;
+                return element.Content.ToString();
             }
 
             FormatElement fe = (FormatElement)element;
             object val = null;
-            if (fe.Content == ".")
+            if (fe.Content.Equals("."))
             {
-                fe.Content = "$data";
+                fe.Content.Clear();
+                fe.Content.Append("$data");
             }
 
             if (fe.CodeType == CodeType.Expression || fe.CodeType == CodeType.RecursiveExpression)
             {
-                val = ExpressionParser.Parse(fe.Content, sessionContext);
+                val = ExpressionParser.Parse(fe.Content.ToString(), sessionContext);
             }
             else
             {
-                val = ExpressionParser.ParseBlock(fe.Content,sessionContext);
+                val = ExpressionParser.ParseBlock(fe.Content.ToString(), sessionContext);
             }
 
             if (fe.CodeType == CodeType.RecursiveExpression || fe.CodeType == CodeType.RecursiveBlock)
@@ -168,22 +173,23 @@ namespace ITVComponents.Formatting
                 }
             }
 
-            bool useFormat = !string.IsNullOrEmpty(fe.FormatHint) && !customFormatHints.ContainsKey(fe.FormatHint);
-            bool preFormat = !string.IsNullOrEmpty(fe.FormatHint) && customFormatHints.ContainsKey(fe.FormatHint);
+            var fint = fe.FormatHint.ToString();
+            bool useFormat = fe.FormatHint.Length != 0 && !customFormatHints.ContainsKey(fint);
+            bool preFormat = fe.FormatHint.Length != 0 && customFormatHints.ContainsKey(fint);
 
             if (preFormat)
             {
-                val = customFormatHints[fe.FormatHint](val);
+                val = customFormatHints[fint](val);
             }
 
             return
                 string.Format(
-                    $"{{0{(!string.IsNullOrEmpty(fe.FormatLength) ? $",{fe.FormatLength}" : "")}{(useFormat ? $":{fe.FormatHint}" : "")}}}",val);
+                    $"{{0{(fe.FormatLength.Length != 0 ? $",{fe.FormatLength}" : "")}{(useFormat ? $":{fe.FormatHint}" : "")}}}", val);
         }
 
         private static IFormatElement[] TokenizeString(string s)
         {
-            Stack<ParseState> parserStack= new Stack<ParseState>();
+            Stack<ParseState> parserStack = new Stack<ParseState>();
             ParseState currentState = ParseState.String;
             IFormatElement currentElement = new StringElement();
             int len = s.Length;
@@ -203,7 +209,7 @@ namespace ITVComponents.Formatting
                     t2 = s.Substring(i, 3);
                 }
                 string t3 = "";
-                if (i < len -3 && t2 == "$£[")
+                if (i < len - 3 && t2 == "$£[")
                 {
                     t3 = s.Substring(i, 4);
                 }
@@ -217,7 +223,7 @@ namespace ITVComponents.Formatting
                                 elements.Add(currentElement);
                             }
 
-                            currentElement = new FormatElement {Start = i};
+                            currentElement = new FormatElement { Start = i };
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatExpression;
                         }
@@ -247,7 +253,7 @@ namespace ITVComponents.Formatting
                         }
                         else if (o == "$" && t == "$£" && t2 == "$£[" && t3 != "$£[[")
                         {
-                            i+=2;
+                            i += 2;
                             if (currentElement.Length != 0)
                             {
                                 elements.Add(currentElement);
@@ -261,13 +267,13 @@ namespace ITVComponents.Formatting
                         {
                             currentElement.Length++;
                             if (t != "[[" && t != "]]" && t != "$$" && t != "££")
-                            { 
-                                currentElement.Content += o;
+                            {
+                                currentElement.Content.Append(o);
                             }
                             else
                             {
                                 i++;
-                                currentElement.Content += o;
+                                currentElement.Content.Append(o);
                             }
                         }
 
@@ -276,28 +282,28 @@ namespace ITVComponents.Formatting
                         if (o == "(")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatParenthesis;
                         }
                         else if (o == "[")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatIndexer;
                         }
                         else if (o == "{")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatBracket;
                         }
                         else if (o == "@" && t == "@\"")
                         {
-                            currentElement.Length+=2;
-                            currentElement.Content += t;
+                            currentElement.Length += 2;
+                            currentElement.Content.Append(t);
                             parserStack.Push(currentState);
                             i++;
                             currentState = ParseState.FormatVerbatimString;
@@ -305,14 +311,14 @@ namespace ITVComponents.Formatting
                         else if (o == "\"")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatString;
                         }
                         else if (o == "?" && t != "?." && t != "?[") //Exclude Null-Propagations
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatTerentary;
                         }
@@ -346,14 +352,14 @@ namespace ITVComponents.Formatting
                         else
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                         }
                         break;
                     case ParseState.FormatParenthesis:
                         if (o == "@" && t == "@\"")
                         {
                             currentElement.Length += 2;
-                            currentElement.Content += t;
+                            currentElement.Content.Append(t);
                             parserStack.Push(currentState);
                             i++;
                             currentState = ParseState.FormatVerbatimString;
@@ -361,34 +367,34 @@ namespace ITVComponents.Formatting
                         else if (o == "\"")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatString;
                         }
                         else if (o == "(")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatParenthesis;
                         }
                         else if (o == ")")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             currentState = parserStack.Pop();
                         }
                         else
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                         }
                         break;
                     case ParseState.FormatBracket:
                         if (o == "@" && t == "@\"")
                         {
                             currentElement.Length += 2;
-                            currentElement.Content += t;
+                            currentElement.Content.Append(t);
                             parserStack.Push(currentState);
                             i++;
                             currentState = ParseState.FormatVerbatimString;
@@ -396,34 +402,34 @@ namespace ITVComponents.Formatting
                         else if (o == "\"")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatString;
                         }
                         else if (o == "{")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatBracket;
                         }
                         else if (o == "}")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             currentState = parserStack.Pop();
                         }
                         else
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                         }
                         break;
                     case ParseState.FormatIndexer:
                         if (o == "@" && t == "@\"")
                         {
                             currentElement.Length += 2;
-                            currentElement.Content += t;
+                            currentElement.Content.Append(t);
                             parserStack.Push(currentState);
                             i++;
                             currentState = ParseState.FormatVerbatimString;
@@ -431,27 +437,27 @@ namespace ITVComponents.Formatting
                         else if (o == "\"")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatString;
                         }
                         else if (o == "[")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatIndexer;
                         }
                         else if (o == "]")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             currentState = parserStack.Pop();
                         }
                         else
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                         }
                         break;
                     case ParseState.FormatString:
@@ -459,18 +465,18 @@ namespace ITVComponents.Formatting
                         {
                             i++;
                             currentElement.Length += 2;
-                            currentElement.Content += t;
+                            currentElement.Content.Append(t);
                         }
                         else if (o == "\"")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             currentState = parserStack.Pop();
                         }
                         else
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                         }
                         break;
                     case ParseState.FormatVerbatimString:
@@ -478,27 +484,27 @@ namespace ITVComponents.Formatting
                         {
                             i++;
                             currentElement.Length += 2;
-                            currentElement.Content += t;
+                            currentElement.Content.Append(t);
                         }
                         else if (o == "\"")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             currentState = parserStack.Pop();
                         }
                         else
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                         }
-                        
-                        
-                            break;
+
+
+                        break;
                     case ParseState.FormatTerentary:
                         if (o == "@" && t == "@\"")
                         {
                             currentElement.Length += 2;
-                            currentElement.Content += t;
+                            currentElement.Content.Append(t);
                             parserStack.Push(currentState);
                             i++;
                             currentState = ParseState.FormatVerbatimString;
@@ -506,27 +512,27 @@ namespace ITVComponents.Formatting
                         else if (o == "\"")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatString;
                         }
                         else if (o == "?" && t != "?." && t != "?[")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatTerentary;
                         }
                         else if (o == ":")
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                             currentState = parserStack.Pop();
                         }
                         else
                         {
                             currentElement.Length++;
-                            currentElement.Content += o;
+                            currentElement.Content.Append(o);
                         }
                         break;
                     case ParseState.FormatterHint:
@@ -543,7 +549,7 @@ namespace ITVComponents.Formatting
                         else
                         {
                             currentElement.Length++;
-                            ((FormatElement) currentElement).FormatHint += o;
+                            ((FormatElement)currentElement).FormatHint.Append(o);
                         }
                         break;
                     case ParseState.FormatterHintString:
@@ -551,18 +557,18 @@ namespace ITVComponents.Formatting
                         {
                             i++;
                             currentElement.Length += 2;
-                            ((FormatElement)currentElement).FormatHint += t;
+                            ((FormatElement)currentElement).FormatHint.Append(t);
                         }
                         else if (o == "\"")
                         {
                             currentElement.Length++;
-                            ((FormatElement)currentElement).FormatHint += o;
+                            ((FormatElement)currentElement).FormatHint.Append(o);
                             currentState = parserStack.Pop();
                         }
                         else
                         {
                             currentElement.Length++;
-                            ((FormatElement)currentElement).FormatHint += o;
+                            ((FormatElement)currentElement).FormatHint.Append(o);
                         }
                         break;
                     case ParseState.FormatterLength:
@@ -574,7 +580,7 @@ namespace ITVComponents.Formatting
                         else
                         {
                             currentElement.Length++;
-                            ((FormatElement)currentElement).FormatLength += o;
+                            ((FormatElement)currentElement).FormatLength.Append(o);
                         }
                         break;
                     default:
@@ -588,7 +594,7 @@ namespace ITVComponents.Formatting
             }
             if (currentElement.Length != 0)
             {
-                elements.Add( currentElement);
+                elements.Add(currentElement);
             }
 
             return elements.ToArray();

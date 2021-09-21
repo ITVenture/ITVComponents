@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -11,17 +12,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Routing
 {
-    public class CheckPermissionScopeExists:IRouteConstraint
+    public class CheckPermissionScopeExists : IRouteConstraint
     {
-        private readonly IServiceProvider services;
-        
         /// <summary>
         /// 
         /// </summary>
         /// <param name="secrepo"></param>
-        public CheckPermissionScopeExists(IServiceProvider services)
+        public CheckPermissionScopeExists()
         {
-            this.services = services;
         }
 
         /// <summary>
@@ -36,12 +34,11 @@ namespace ITVComponents.WebCoreToolkit.Routing
         /// when an incoming request is being handled or when a URL is being generated.
         /// </param>
         /// <returns><c>true</c> if the URL parameter contains a valid value; otherwise, <c>false</c>.</returns>
-        public bool Match(HttpContext? httpContext, IRouter? route, string routeKey, RouteValueDictionary values, RouteDirection routeDirection)
+        public bool Match(HttpContext? httpContext, IRouter? route, string routeKey, RouteValueDictionary values,
+            RouteDirection routeDirection)
         {
-            using (var scopedSvc = services.CreateScope())
+            if (httpContext != null)
             {
-                var secrepo = scopedSvc.ServiceProvider.GetService<ISecurityRepository>();
-                var scopeProvider = scopedSvc.ServiceProvider.GetService<IPermissionScope>();
                 if (values.TryGetValue(routeKey, out object value))
                 {
                     var parameterValueString = Convert.ToString(value,
@@ -51,12 +48,14 @@ namespace ITVComponents.WebCoreToolkit.Routing
                         return false;
                     }
 
+                    var secrepo = httpContext.RequestServices.GetService<ISecurityRepository>();
+                    var scopeProvider = httpContext.RequestServices.GetService<IPermissionScope>();
                     var retVal = secrepo.PermissionScopeExists(parameterValueString);
                     return retVal;
                 }
-
-                return false;
             }
+
+            return false;
         }
     }
 }

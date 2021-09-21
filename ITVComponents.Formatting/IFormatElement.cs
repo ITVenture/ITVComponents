@@ -12,6 +12,6 @@ namespace ITVComponents.Formatting
 
         int Length { get; set; }
 
-        string Content { get; set; }
+        StringBuilder Content { get; }
     }
 }

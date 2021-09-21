@@ -85,7 +85,7 @@ namespace ITVComponents.FileWrapping.DefaultImplementations.Tar
         /// </summary>
         public override string FileExtension
         {
-            get { return ".tar" + (useGz ? ".gz" : ""); }
+            get { return $".tar{(useGz ? ".gz" : "")}"; }
         }
 
         /// <summary>

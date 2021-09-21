@@ -79,6 +79,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<User> Users { get; set; }
 
+        public DbSet<DashboardWidget> Widgets { get; set; }
+
+        public DbSet<UserWidget> UserWidgets { get; set; }
+
         public DbSet<CustomUserProperty> UserProperties { get; set; }
 
         public DbSet<Role> Roles { get;set; }
@@ -147,6 +151,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 modelBuilder.Entity<Role>().HasQueryFilter(ro => ShowAllTenants || !FilterAvailable || ro.Tenant.TenantName == tenantProvider.PermissionPrefix);
                 modelBuilder.Entity<WebPlugin>().HasQueryFilter(wp => ShowAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantName == tenantProvider.PermissionPrefix || wp.TenantId == null && !HideGlobals);
                 modelBuilder.Entity<WebPluginConstant>().HasQueryFilter(wc => ShowAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName == tenantProvider.PermissionPrefix || wc.TenantId == null && !HideGlobals);
+                modelBuilder.Entity<DashboardWidget>().HasQueryFilter(dw => ShowAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix));
+                modelBuilder.Entity<UserWidget>().HasQueryFilter(uw => ShowAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix) && uw.Tenant.TenantName == tenantProvider.PermissionPrefix && uw.UserName == httpContext.HttpContext.User.Identity.Name));
             }
         }
 
@@ -160,6 +166,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             if (tableName == "TenantSelectionFk")
             {
                 return (from t in Tenants orderby t.DisplayName select new ForeignKeyData<string>{Key=t.TenantName,Label=t.DisplayName, FullRecord=t.ToDictionary(true)}).ToList().Where(n => httpContext.HttpContext.RequestServices.VerifyUserPermissions(new []{n.Key}));
+            }
+
+            if (tableName == "AuthorizedWidgets")
+            {
+                if (httpContext?.HttpContext != null)
+                {
+                    var ret = (from t in Widgets.ToArray()
+                        where httpContext.HttpContext.RequestServices.VerifyUserPermissions(new[]
+                            { t.DiagnosticsQuery.Permission.PermissionName })
+                        orderby t.DisplayName
+                        select new ForeignKeyData<int>
+                        {
+                            Key = t.DashboardWidgetId,
+                            Label = t.DisplayName,
+                            FullRecord = t.ToDictionary(true)
+                        });
+                }
             }
 
             /*if (tableName == "Permissions")
@@ -183,6 +206,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 return (from t in Tenants orderby t.DisplayName select new ForeignKeyData<string>{Key=t.TenantName,Label=t.DisplayName, FullRecord = t.ToDictionary(true)}).ToList().Where(n => httpContext.HttpContext.RequestServices.VerifyUserPermissions(new []{n.Key}));
             }
 
+            if (tableName == "AuthorizedWidgets")
+            {
+                if (httpContext?.HttpContext != null)
+                {
+                    var ret = (from t in Widgets.ToArray()
+                        where httpContext.HttpContext.RequestServices.VerifyUserPermissions(new[]
+                            { t.DiagnosticsQuery.Permission.PermissionName })
+                        orderby t.DisplayName
+                        select new ForeignKeyData<int>
+                        {
+                            Key = t.DashboardWidgetId,
+                            Label = t.DisplayName,
+                            FullRecord = t.ToDictionary(true)
+                        });
+                }
+            }
+
             /*if (tableName == "Permissions")
             {
                 return from t in Permissions orderby t.PermissionName select new ForeignKeyData<int> {Key = t.PermissionId, Label = t.PermissionName};
@@ -197,6 +237,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             {
                 int tid = Convert.ToInt32(id);
                 return (from t in Tenants where t.TenantId == tid select new ForeignKeyData<string>{Key=t.TenantName,Label=t.DisplayName, FullRecord = t.ToDictionary(true)}).ToList().Where(n => httpContext.HttpContext.RequestServices.VerifyUserPermissions(new []{n.Key}));
+            }
+
+            if (tableName == "AuthorizedWidgets")
+            {
+                if (httpContext?.HttpContext != null)
+                {
+                    var ret = (from t in Widgets.ToArray()
+                        where httpContext.HttpContext.RequestServices.VerifyUserPermissions(new[]
+                                  { t.DiagnosticsQuery.Permission.PermissionName })
+                              && t.DashboardWidgetId == Convert.ToInt32(id)
+                        orderby t.DisplayName
+                        select new ForeignKeyData<int>
+                        {
+                            Key = t.DashboardWidgetId,
+                            Label = t.DisplayName,
+                            FullRecord = t.ToDictionary(true)
+                        });
+                    return ret;
+                }
             }
 
             return null;

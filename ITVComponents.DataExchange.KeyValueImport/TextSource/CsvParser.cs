@@ -91,7 +91,7 @@ namespace ITVComponents.DataExchange.KeyValueImport.TextSource
             {
                 if (!string.IsNullOrEmpty(currentField.RawText))
                 {
-                    var conversion = importConfiguration.TypeConversions.FirstOrDefault(n => Regex.IsMatch(currentField.RawText, n.RawValuePattern, RegexOptions.CultureInvariant | RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Multiline));
+                    var conversion = importConfiguration.TypeConversions.FirstOrDefault(n => Regex.IsMatch(currentField.RawText, n.RawValuePattern, RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Multiline));
                     if (conversion != null)
                     {
                         currentField.Converted = ExpressionParser.Parse(conversion.ParseExpression, currentField, i => DefaultCallbacks.PrepareDefaultCallbacks(i.Scope, i.ReplSession));
@@ -112,7 +112,7 @@ namespace ITVComponents.DataExchange.KeyValueImport.TextSource
             string rx = importConfiguration.ValuesWrapped?
                 $"{Regex.Escape(importConfiguration.CsvSeparator)}?{Regex.Escape(importConfiguration.ValueStartCharacter)}(?<value>({importConfiguration.ValueWrapperEscapes}|[^{string.Concat(new[] {Regex.Escape(importConfiguration.ValueStartCharacter), Regex.Escape(importConfiguration.ValueEndCharacter)}.Distinct())}])*){Regex.Escape(importConfiguration.ValueEndCharacter)}":
                 $"{Regex.Escape(importConfiguration.CsvSeparator)}?(?<value>({importConfiguration.ValueWrapperEscapes}|[^{Regex.Escape(importConfiguration.CsvSeparator)}])*)";
-            fieldRegex = new Regex(rx,RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Multiline);
+            fieldRegex = new Regex(rx,RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Multiline);
         }
     }
 }

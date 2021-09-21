@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using Microsoft.AspNetCore.Builder;
@@ -21,33 +23,43 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
             ContextExtensions.Init();
             RequestDelegate dlg = async context =>
             {
-                var connection = (string) context.Request.RouteValues["connection"];
-                var table = (string) context.Request.RouteValues["table"];
-                string area = null;
-                if (context.Request.RouteValues.ContainsKey("area"))
-                {
-                    area = (string) context.Request.RouteValues["area"];
-                }
-
+                //{{connection:regex(^[\\w_]+$)}}/{{table:regex(^[\\w_]+$)}}
                 RouteData routeData = context.GetRouteData();
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
-                FormReader former = new FormReader(context.Request.Body);
-                var formsDictionary = await former.ReadFormAsync();
-                var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
-                if (dbContext != null)
+                if (context.Request.RouteValues.ContainsKey("dataResolveHint"))
                 {
-                    //LogEnvironment.LogEvent(Stringify(formsDictionary), LogSeverity.Report);
-                    var newDic = TranslateForm(formsDictionary, true);
-                    JsonResult result = new JsonResult(dbContext.ReadForeignKey(table, postedFilter: newDic).ToDummyDataSourceResult());
-                    await result.ExecuteResultAsync(actionContext);
-                    return;
+                    var baseHint = ((string)context.Request.RouteValues["dataResolveHint"])?.Split("/")
+                        .Select(n => HttpUtility.UrlDecode(n)).ToArray();
+                    if (baseHint is { Length: 2 })
+                    {
+                        var connection = RegexValidate(baseHint[0], "^[\\w_]+$") ? baseHint[0] : null; //(string) context.Request.RouteValues["connection"];
+                        var table = RegexValidate(baseHint[1], "^[\\w_]+$") ? baseHint[1] : null; //(string) context.Request.RouteValues["table"];
+                        string area = null;
+                        if (context.Request.RouteValues.ContainsKey("area"))
+                        {
+                            area = (string)context.Request.RouteValues["area"];
+                        }
+
+                        FormReader former = new FormReader(context.Request.Body);
+                        var formsDictionary = await former.ReadFormAsync();
+                        var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
+                        if (dbContext != null)
+                        {
+                            //LogEnvironment.LogEvent(Stringify(formsDictionary), LogSeverity.Report);
+                            var newDic = TranslateForm(formsDictionary, true);
+                            JsonResult result = new JsonResult(dbContext.ReadForeignKey(table, postedFilter: newDic)
+                                .ToDummyDataSourceResult());
+                            await result.ExecuteResultAsync(actionContext);
+                            return;
+                        }
+                    }
                 }
 
                 StatusCodeResult notFound = new NotFoundResult();
                 await notFound.ExecuteResultAsync(actionContext);
             };
-            var tmp = builder.MapPost($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}{(forAreas?"/{area:exists}":"")}/ForeignKey/{{connection:regex(^[\\w_]+$)}}/{{table:regex(^[\\w_]+$)}}", dlg);
+            var tmp = builder.MapPost($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}{(forAreas ? "/{area:exists}" : "")}/ForeignKey/{{**dataResolveHint}}", dlg);
 
             if (withAuthorization)
             {
@@ -112,6 +124,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
             }
 
             return ret;
+        }
+
+        private static bool RegexValidate(string value, string regexPattern)
+        {
+            return Regex.IsMatch(value, regexPattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
         }
     }
 }

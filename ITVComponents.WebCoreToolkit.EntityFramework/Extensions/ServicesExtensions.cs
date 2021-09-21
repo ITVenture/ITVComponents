@@ -39,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         public static IWrappedDataSource ContextForDiagnosticsQuery(this IServiceProvider services, string queryName,
             string area, out DiagnosticsQueryDefinition queryObject)
         {
-            var store = services.GetService<IDiagnosticsQueryStore>();
+            var store = services.GetService<IDiagnosticsStore>();
             queryObject = store.GetQuery(queryName);
             if (queryObject != null)
             {

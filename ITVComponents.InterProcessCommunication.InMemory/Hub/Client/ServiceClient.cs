@@ -64,6 +64,8 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Client
 
         public void Dispose()
         {
+            channel.ObjectReceived -= IncomingChannelData;
+            channel.ConnectionStatusChanged -= LosingConnection;
             baseChannel.Dispose();
             channel.Dispose();
             backStream.Dispose();

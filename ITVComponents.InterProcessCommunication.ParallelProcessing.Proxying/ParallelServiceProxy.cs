@@ -354,7 +354,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing.Proxying
                                           }
                                       }
                                   }));
-            client.OperationalChanged += (o, e) =>
+            void OpCallback(object o, EventArgs e)
             {
                 if (client.Operational)
                 {
@@ -367,8 +367,11 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing.Proxying
                 {
                     timeOfCommunicationLoss = DateTime.Now;
                 }
+
+                ((IBidirectionalClient)o).OperationalChanged -= OpCallback;
             };
 
+            client.OperationalChanged += OpCallback;
             InitializeService();
             BackgroundRunner.AddPeriodicTask(ReTriggerPendingTasks,20000);
         }

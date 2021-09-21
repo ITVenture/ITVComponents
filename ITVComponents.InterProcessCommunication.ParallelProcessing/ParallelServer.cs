@@ -269,6 +269,8 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <filterpriority>2</filterpriority>
         public virtual void Dispose()
         {
+            processor.GetMoreTasks -= FetchMoreTasks;
+            processor.IntegratePendingTask -= IntegratePendingTasks;
             processor.Dispose();
         }
 
@@ -582,7 +584,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// </summary>
         private void Ready()
         {
-            string workerName = this.UniqueName + "TaskProcessor";
+            string workerName = $"{this.UniqueName }TaskProcessor";
             processor = new ParallelTaskProcessor<TTask>(workerName,GetWorker, highestPriority, lowestPriority, workerCount,
                 workerPollInterval, lowTaskThreshold, highTaskThreshold,
                 useAffineThreads, runWithoutSchedulers, watchDog);

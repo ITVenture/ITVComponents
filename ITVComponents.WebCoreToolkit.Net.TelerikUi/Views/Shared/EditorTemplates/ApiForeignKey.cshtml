@@ -1,4 +1,5 @@
-﻿@using ITVComponents.WebCoreToolkit.Routing
+﻿@using System.Text
+@using ITVComponents.WebCoreToolkit.Routing
 @using Kendo.Mvc.UI
 @model object
 @inject IUrlFormat urlFormat
@@ -6,13 +7,14 @@
     Html.Kendo().DropDownListFor(m => m)
         .DataSource(d => d.Ajax().Read(ra =>
         {
-            var tmp = (string)ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_DataCallback"];
-            var area = (string) ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_Area"];
-            var url = urlFormat != null ?
+            var tmp = (string)ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_DataCallback"];
+            var area = (string) ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_Area"];
+            var url = new StringBuilder();
+            url.Append(urlFormat != null ?
                 urlFormat.FormatUrl($"~[SlashPermissionScope]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}") :
-                $"~{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}";
-            url += $"/ForeignKey/{ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_RepoName"]}/{ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_TableName"]}";
-            var handler = ra.Url(Url.Content(url));
+                $"~{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}");
+            url.Append($"/ForeignKey/{ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_RepoName"]}/{ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_TableName"]}");
+            var handler = ra.Url(Url.Content(url.ToString()));
             if (!string.IsNullOrEmpty(tmp))
             {
                 handler.Data(tmp);
@@ -21,9 +23,9 @@
         .DataValueField("Key")
         .DataTextField("Label")
         .OptionLabel("--Select Value--")
-        .MinLength((int)ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_minLength"]).AutoBind(true)
+        .MinLength((int)ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_minLength"]).AutoBind(true)
         .Filter("contains")
         .ValuePrimitive(true)
-        .CascadeFrom(ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_CascadeTarget"] as string)
-        .HtmlAttributes(new { id = ViewData[ViewData.TemplateInfo.GetFullHtmlFieldName("") + "_ID"] })
+        .CascadeFrom(ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_CascadeTarget"] as string)
+        .HtmlAttributes(new { id = ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_ID"] })
     )

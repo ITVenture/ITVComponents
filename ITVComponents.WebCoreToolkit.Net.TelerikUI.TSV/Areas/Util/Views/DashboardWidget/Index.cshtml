@@ -1,0 +1,73 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using ITVComponents.WebCoreToolkit.Routing
+@using Kendo.Mvc.UI
+@{
+    Layout = "_Layout";
+}
+@{
+
+    ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_DashboardWidgets;
+}
+
+@(Html.Kendo().Grid<DashboardWidgetViewModel>().Name("WidgetList")
+        //.HtmlAttributes(new { style = "width:50vw;" })
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.DisplayName).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
+            columns.Bound(c => c.SystemName).Title(TextsAndMessagesHelper.IWCN_General_SystemName);
+            columns.AjaxFk(c => c.DiagnosticsQueryId, "sys","DiagnosticsQueries","DashboardWidgetId",2,filterable:true);
+            columns.Bound(n => n.Area);
+            columns.Bound(n => n.CustomQueryString);
+            columns.Bound(n => n.Template).Title("Template").ClientTemplate("<pre>#=ITVenture.Helpers.htmlEntities(Template)#</pre>");
+            /*columns.ForeignKey(p => p.PermissionId, ds =>
+            {
+                ds.Ajax().Read(cfg =>
+                {
+                    cfg.Url("/ForeignKey/sys/Permissions");
+                }).ServerOperation(true);
+            }, "Key", "Label");*/
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"DashboardWidgets.Write"}))
+            {
+                columns.Command(ga =>
+                {
+                    ga.Edit();
+                    ga.PopupConfirmDelete();
+                }).Width(180);
+            }
+
+        })
+        .ToolBar(toolbar =>
+        {
+            toolbar.RefreshTable();
+            if (Context.RequestServices.VerifyUserPermissions(new []{"DashboardWidgets.Write"}))
+            {
+                toolbar.Create();
+            }
+        })
+        //.Events(e => e.UseForeignKeyFilter())
+        .DataSource(dataSource =>
+        {
+            var src = dataSource
+                .Ajax()
+                .Read(read => read.Action("Read", "DashboardWidget"));
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"DashboardWidgets.Write"}))
+            {
+                src.Create(create => create.Action("Create", "DashboardWidget"))
+                    .Update(update => update.Action("Update", "DashboardWidget"))
+                    .Destroy(destroy => destroy.Action("Destroy", "DashboardWidget"));
+            }
+            src.Model(m => m.Id(t => t.DashboardWidgetId));
+        })
+        .Scrollable(s => s.Height("auto"))
+        .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
+        .Sortable(c => c.Enabled(true))
+    .Resizable(c => c.Columns(true))
+    .Filterable(f => f.Enabled(true)))

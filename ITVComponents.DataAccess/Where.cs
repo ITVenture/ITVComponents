@@ -276,7 +276,7 @@ namespace ITVComponents.DataAccess
                                                                                                         "%").
                                                           Replace("\\UNDERSCORE\\", "_"));
                     regexes.Add(rx, new Regex(expression,
-                              RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline |
+                              RegexOptions.CultureInvariant | RegexOptions.Multiline |
                               RegexOptions.IgnoreCase));
                 }
             }

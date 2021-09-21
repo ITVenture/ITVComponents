@@ -14,14 +14,14 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
         public const string ITVentureIssuerString = "IT-Venture WebCore-Toolkit";
 
         private readonly ISecurityRepository securityRepository;
-        private readonly IServiceProvider serviceProvider;
+        private readonly IServiceScopeFactory serviceProvider;
 
         /// <summary>
         /// Initializes a new instance of the SettingsClaimsTransformation class
         /// </summary>
         /// <param name="securityRepository">the configured user-repository</param>
         /// <param name="serviceProvider">the service-provider that enables this object to get registered services</param>
-        public RepositoryClaimsTransformation(ISecurityRepository securityRepository, IServiceProvider serviceProvider)
+        public RepositoryClaimsTransformation(ISecurityRepository securityRepository, IServiceScopeFactory serviceProvider)
         {
             this.securityRepository = securityRepository;
             this.serviceProvider = serviceProvider;

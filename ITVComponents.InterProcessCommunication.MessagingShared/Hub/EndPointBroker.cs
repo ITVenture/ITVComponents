@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
@@ -14,7 +15,7 @@ using Exception = System.Exception;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
 {
-    public class EndPointBroker:IDisposable
+    public class EndPointBroker : IDisposable
     {
         private ConcurrentDictionary<string, ConcurrentQueue<OperationWaitHandle>> messages = new ConcurrentDictionary<string, ConcurrentQueue<OperationWaitHandle>>();
         private ConcurrentDictionary<string, ServiceStatus> services = new ConcurrentDictionary<string, ServiceStatus>();
@@ -56,7 +57,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                                 operations.Enqueue(hnd);
                             }
                         }
-                        catch(Exception ex)
+                        catch (Exception ex)
                         {
                             hnd.ServerResponse.SetException(ex);
                         }
@@ -131,7 +132,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
 
                 if (retTask != null)
                 {
-                    return retTask.ContinueWith((t,s)=>
+                    return retTask.ContinueWith((t, s) =>
                     {
                         if (t.Result != null && !t.Result.ClientRequest.TickBack)
                         {
@@ -139,7 +140,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                         }
 
                         return t.Result?.ClientRequest;
-                    },null, TaskContinuationOptions.None);
+                    }, null, TaskContinuationOptions.None);
                 }
 
                 //return retTask;
@@ -164,7 +165,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                 }
                 catch (Exception x)
                 {
-                    LogEnvironment.LogEvent($"Failed to set ServerResponse: {x.Message}",LogSeverity.Error);
+                    LogEnvironment.LogEvent($"Failed to set ServerResponse: {x.Message}", LogSeverity.Error);
                 }
             }
         }
@@ -212,30 +213,30 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                         RegistrationTicket = $"{registration.ServiceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
                         ServiceKind = ServiceStatus.ServiceType.InterProcess
                     };
-                    string fmsg = "";
+                    StringBuilder fmsg = new StringBuilder();
                     bool ok = services.TryAdd(registration.ServiceName, newSvc);
                     if (!ok)
                     {
-                        fmsg += @"Service-Entry could not be added.
-";
+                        fmsg.Append(@"Service-Entry could not be added.
+");
                     }
                     ok = ok && openWaitHandles.TryAdd(registration.ServiceName, new ConcurrentDictionary<string, OperationWaitHandle>());
                     if (!ok)
                     {
-                        fmsg += @"OpenWait-Entry could not be added.
-";
+                        fmsg.Append(@"OpenWait-Entry could not be added.
+");
                     }
                     ok = ok && messages.TryAdd(registration.ServiceName, new ConcurrentQueue<OperationWaitHandle>());
                     if (!ok)
                     {
-                        fmsg += @"OpenMsg-Entry could not be added.
-";
+                        fmsg.Append(@"OpenMsg-Entry could not be added.
+");
                     }
                     var retVal = new RegisterServiceResponseMessage
                     {
                         SessionTicket = newSvc.RegistrationTicket,
                         Ok = ok,
-                        Reason = ok ? "" : fmsg
+                        Reason = ok ? "" : fmsg.ToString()
                     };
                     if (!ok)
                     {
@@ -479,7 +480,7 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
 
         private void TickOpenWaits(object state)
         {
-            foreach(var s in services)
+            foreach (var s in services)
             {
                 lock (s.Value)
                 {
@@ -491,7 +492,7 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
                     }
                     else if (s.Value.IsAlive && messages.TryGetValue(s.Key, out var q) && !q.IsEmpty && s.Value.OpenTaskWait != null && q.TryDequeue(out var m))
                     {
-                        LogEnvironment.LogEvent("Unexpected Behavior in OpenTickWaits!",LogSeverity.Warning);
+                        LogEnvironment.LogEvent("Unexpected Behavior in OpenTickWaits!", LogSeverity.Warning);
                         var t = s.Value.OpenTaskWait;
                         s.Value.OpenTaskWait = null;
                         t.SetResult(m);

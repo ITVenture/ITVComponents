@@ -19,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
 {
     internal class ToolkitLogProvider:ILoggerProvider, ILogCollectorService, ILogTarget, IDebugLogTarget
     {
-        private readonly IServiceProvider services;
+        private readonly IServiceScopeFactory services;
 
         private Timer timer;
 
@@ -35,7 +35,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
 
         private Dictionary<LogLevel, string[]> logFilters = new Dictionary<LogLevel, string[]>();
 
-        public ToolkitLogProvider(IServiceProvider services)
+        public ToolkitLogProvider(IServiceScopeFactory services)
         {
             this.services = services;
             LogEnvironment.RegisterLogTarget(this);

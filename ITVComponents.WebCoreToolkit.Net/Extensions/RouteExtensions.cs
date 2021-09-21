@@ -4,11 +4,16 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Web;
+using ITVComponents.DataAccess.Extensions;
+using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework;
+using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
@@ -36,6 +41,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
+using Newtonsoft.Json;
 
 namespace ITVComponents.WebCoreToolkit.Net.Extensions
 {
@@ -68,7 +74,18 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 var dbContext = context.RequestServices.ContextForDiagnosticsQuery(query, area, out var diagQuery);
                 if (dbContext != null)
                 {
-                    JsonResult result = new JsonResult(dbContext.RunDiagnosticsQuery(diagQuery, new Dictionary<string, string>(context.Request.Query.Select(n => new KeyValuePair<string, string>(n.Key, n.Value.ToString())))));
+                    var contextObj = new
+                    {
+                        HttpContext = context,
+                        User = context.User.Identity,
+                        CurrentClaims = new Dictionary<string, IList<string>>(from c in context.User.Claims
+                            group c by c.Type
+                            into g
+                            select new KeyValuePair<string, IList<string>>(g.Key, g.Select(n => n.Value).ToList())),
+                        ActionContext = actionContext
+                    };
+
+                    JsonResult result = new JsonResult(dbContext.RunDiagnosticsQuery(diagQuery, new Dictionary<string, string>(context.Request.Query.Select(n => new KeyValuePair<string, string>(n.Key, TranslateValue(n.Value.ToString(), contextObj))))));
                     await result.ExecuteResultAsync(actionContext);
                     return;
                 }
@@ -87,6 +104,84 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             return tmp;
         }
 
+        public static void UseWidgets(this IEndpointRouteBuilder builder, string explicitTenantParam, out IEndpointConventionBuilder getAction, out IEndpointConventionBuilder postAction, bool withAuthorization = true)
+        {
+            bool forExplicitTenants = !string.IsNullOrEmpty(explicitTenantParam);
+            ContextExtensions.Init();
+            RequestDelegate dg = async context =>
+            {
+                var widget = (string)context.Request.RouteValues["widgetName"];
+                RouteData routeData = context.GetRouteData();
+                ActionDescriptor actionDescriptor = new ActionDescriptor();
+                ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
+                var dbContext = context.RequestServices.GetService<IDiagnosticsStore>();
+                if (dbContext != null)
+                {
+                    var model = dbContext.GetDashboard(widget);
+                    if (context.RequestServices.VerifyUserPermissions(new[]
+                        { model.DiagnosticsQuery.Permission }))
+                    {
+                        JsonResult result = new JsonResult(model.ToViewModel<DashboardWidgetDefinition, DBWidget>(
+                            (e, v) => { v.QueryName = e.DiagnosticsQuery.DiagnosticsQueryName; }));
+                        await result.ExecuteResultAsync(actionContext);
+                        return;
+                    }
+                }
+
+                StatusCodeResult notFound = new NotFoundResult();
+                await notFound.ExecuteResultAsync(actionContext);
+            };
+
+            RequestDelegate dgPost = async context =>
+            {
+                //{{connection:regex(^[\\w_]+$)}}/{{table:regex(^[\\w_]+$)}}
+                RouteData routeData = context.GetRouteData();
+                ActionDescriptor actionDescriptor = new ActionDescriptor();
+                ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
+
+                var connection = context.RequestServices.GetService<IDiagnosticsStore>();
+#if NETCOREAPP3_1
+                SortedWidget[] widgets;
+                using (var reader = context.Request.Body)
+                {
+                    using (var textreader = new StreamReader(reader))
+                    {
+                        var jtx = new JsonTextReader(textreader);
+                        var ser = new JsonSerializer();
+                        widgets = ser.Deserialize<SortedWidget[]>(jtx);
+                    }
+                }
+
+#else
+                var widgets = await context.Request.ReadFromJsonAsync<SortedWidget[]>();
+#endif
+                if (connection != null && widgets != null)
+                {
+                    await connection.SetUserWidgets(
+                        (from t in widgets
+                            select new UserDashboardWidgetDefinition
+                            {
+                                DashboardWidgetName = t.WidgetName, SortOrder = t.SortOrder,
+                                UserName = context.User.Identity.Name
+                            }).ToArray(), context.User.Identity.Name);
+                    var result = new OkResult();
+                    await result.ExecuteResultAsync(actionContext);
+                    return;
+                }
+
+                StatusCodeResult notFound = new NotFoundResult();
+                await notFound.ExecuteResultAsync(actionContext);
+            };
+
+            getAction = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/DBW/{{widgetName:alpha}}", dg);
+            postAction = builder.MapPost($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/DBW", dgPost);
+            if (withAuthorization)
+            {
+                getAction.RequireAuthorization();
+                postAction.RequireAuthorization();
+            }
+        }
+
         /// <summary>
         /// Configures the ForeignKey-Endpoint for the current Web-Application
         /// </summary>
@@ -99,45 +194,61 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             ContextExtensions.Init();
             RequestDelegate dlg = async context =>
             {
-                var connection = (string) context.Request.RouteValues["connection"];
-                var table = (string) context.Request.RouteValues["table"];
-                string id = null;
-                string area = null;
-                if (context.Request.RouteValues.ContainsKey("id"))
-                {
-                    id = (string) context.Request.RouteValues["id"];
-                }
-
-                if (context.Request.RouteValues.ContainsKey("area"))
-                {
-                    area = (string) context.Request.RouteValues["area"];
-                }
-
                 RouteData routeData = context.GetRouteData();
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
-                var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
-                if (dbContext != null)
+                if (context.Request.RouteValues.ContainsKey("dataResolveHint"))
                 {
-
-                    JsonResult result;
-                    if (string.IsNullOrEmpty(id))
+                    var baseHint = ((string)context.Request.RouteValues["dataResolveHint"])?.Split("/")
+                        .Select(n => HttpUtility.UrlDecode(n)).ToArray();
+                    if (baseHint is { Length: >= 2 })
                     {
-                        result = new JsonResult(dbContext.ReadForeignKey(table));
-                    }
-                    else
-                    {
-                        result = new JsonResult(dbContext.ReadForeignKey(table, id: id).Cast<object>().FirstOrDefault());
-                    }
+                        var connection = RegexValidate(baseHint[0], "^[\\w_]+$") ? baseHint[0] : null; //(string) context.Request.RouteValues["connection"];
+                        var table = RegexValidate(baseHint[1], "^[\\w_]+$") ? baseHint[1] : null; //(string) context.Request.RouteValues["table"];
+                        string id = null;
+                        string area = null;
+                        bool valid = !string.IsNullOrEmpty(connection) && !string.IsNullOrEmpty(table);
+                        if (baseHint.Length > 2)
+                        {
+                            id = RegexValidate(baseHint[2], "^[-@\\w_\\+\\:]+$")
+                                ? baseHint[2]
+                                : null;
+                            valid &= !string.IsNullOrEmpty(id);
+                        }
 
-                    await result.ExecuteResultAsync(actionContext);
-                    return;
+                        if (context.Request.RouteValues.ContainsKey("area"))
+                        {
+                            area = (string)context.Request.RouteValues["area"];
+                        }
+
+                        if (valid)
+                        {
+                            var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
+                            if (dbContext != null)
+                            {
+
+                                JsonResult result;
+                                if (string.IsNullOrEmpty(id))
+                                {
+                                    result = new JsonResult(dbContext.ReadForeignKey(table));
+                                }
+                                else
+                                {
+                                    result = new JsonResult(dbContext.ReadForeignKey(table, id: id).Cast<object>()
+                                        .FirstOrDefault());
+                                }
+
+                                await result.ExecuteResultAsync(actionContext);
+                                return;
+                            }
+                        }
+                    }
                 }
 
                 StatusCodeResult notFound = new NotFoundResult();
                 await notFound.ExecuteResultAsync(actionContext);
             };
-            var tmp = builder.MapGet($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}{(forAreas?"/{area:exists}":"")}/ForeignKey/{{connection:regex(^[\\w_]+$)}}/{{table:regex(^[\\w_]+$)}}/{{id:regex(^[-@\\w_\\+\\:]+$)?}}", dlg);
+            var tmp = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}{(forAreas ? "/{area:exists}" : "")}/ForeignKey/{{**dataResolveHint}}", dlg);
 
             if (withAuthorization)
             {
@@ -232,7 +343,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
                 FormReader former = new FormReader(context.Request.Body);
-                var formsDictionary = TranslateForm(await former.ReadFormAsync());
+                var formsDictionary = TranslateForm(await former.ReadFormAsync(), false);
                 if (formsDictionary.ContainsKey("NewTenant"))
                 {
                     var newTenant = (string) formsDictionary["NewTenant"];
@@ -484,18 +595,18 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
         {
             var tmp = builder.MapGet("/FileSys/{Action:alpha}", async context =>
             {
-                var action = (string) context.Request.RouteValues["Action"];
+                var action = (string)context.Request.RouteValues["Action"];
                 RouteData routeData = context.GetRouteData();
 
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
-                if (!withAuthorization || context.RequestServices.VerifyUserPermissions(new []{"BrowseFs"}))
+                if (!withAuthorization || context.RequestServices.VerifyUserPermissions(new[] { "BrowseFs" }))
                 {
-                    string path = "/";
+                    StringBuilder path = new StringBuilder("/");
                     string pattern = null;
                     if (context.Request.Query.ContainsKey("Path"))
                     {
-                        path += context.Request.Query["Path"];
+                        path.Append(context.Request.Query["Path"]);
                     }
 
                     if (context.Request.Query.ContainsKey("Pattern"))
@@ -503,30 +614,31 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                         pattern = context.Request.Query["Pattern"];
                     }
 
+                    var pth = path.ToString();
                     switch (action.ToLower())
                     {
                         case "download":
-                            if (File.Exists(path))
+                            if (File.Exists(pth))
                             {
-                                FileResult fsr = new FileContentResult(File.ReadAllBytes(path), "application/octet-stream");
+                                FileResult fsr = new FileContentResult(File.ReadAllBytes(pth), "application/octet-stream");
                                 await fsr.ExecuteResultAsync(actionContext);
                                 return;
                             }
                             break;
                         case "list":
-                            if (Directory.Exists(path))
+                            if (Directory.Exists(pth))
                             {
-                                JsonResult result = new JsonResult((from t in Directory.GetFiles(path) select new {Name = Path.GetFileName(t), Type="File", Path = Path.GetDirectoryName(t)}).Union((from t in Directory.GetDirectories(path) select new {Name = Path.GetFileName(t), Type="Directory", Path = Path.GetDirectoryName(t)}).OrderBy(n => n.Name)).ToArray());
+                                JsonResult result = new JsonResult((from t in Directory.GetFiles(pth) select new { Name = Path.GetFileName(t), Type = "File", Path = Path.GetDirectoryName(t) }).Union((from t in Directory.GetDirectories(pth) select new { Name = Path.GetFileName(t), Type = "Directory", Path = Path.GetDirectoryName(t) }).OrderBy(n => n.Name)).ToArray());
                                 await result.ExecuteResultAsync(actionContext);
                                 return;
                             }
 
                             break;
                         case "search":
-                            if (Directory.Exists(path) && !string.IsNullOrEmpty(pattern))
+                            if (Directory.Exists(pth) && !string.IsNullOrEmpty(pattern))
                             {
                                 var directories = new List<string>();
-                                var dir = new string[] {path};
+                                var dir = new string[] { pth };
                                 var files = new List<string>();
                                 while (dir.Length != 0)
                                 {
@@ -534,7 +646,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                     {
                                         try
                                         {
-                                            files.AddRange(Directory.GetFiles(item,pattern));
+                                            files.AddRange(Directory.GetFiles(item, pattern));
                                             directories.AddRange(Directory.GetDirectories(item));
                                         }
                                         catch (Exception ex)
@@ -545,7 +657,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                     directories.Clear();
                                 }
 
-                                JsonResult result = new JsonResult((from t in files select new {Name = Path.GetFileName(t), Type="File", Path = Path.GetDirectoryName(t)}).ToArray());
+                                JsonResult result = new JsonResult((from t in files select new { Name = Path.GetFileName(t), Type = "File", Path = Path.GetDirectoryName(t) }).ToArray());
                                 await result.ExecuteResultAsync(actionContext);
                                 return;
                             }
@@ -599,20 +711,81 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
         }
 
         /// <summary>
+        /// Translates the given input field. If a value was prefixed with a dollar-sign, it will be formatted using ITVComponents.Formatting feature
+        /// </summary>
+        /// <param name="input">the query-value that needs to be translated</param>
+        /// <param name="actionContext">the context of the current action</param>
+        /// <returns></returns>
+        private static string TranslateValue(string input, object actionContext)
+        {
+            if (!string.IsNullOrEmpty(input) && input.StartsWith("$"))
+            {
+                return actionContext.FormatText(input.Substring(1));
+            }
+
+            return input;
+        }
+
+        /// <summary>
         /// Translates a specific filter to a Dictionary that is processable by the Context-Extensions for ForeignKey processing
         /// </summary>
         /// <param name="values">the values that were posted in a forms-dictionary</param>
         /// <returns>a more accurate search-dictioanry</returns>
-        private static Dictionary<string,object> TranslateForm(Dictionary<string,StringValues> values)
+        private static Dictionary<string, object> TranslateForm(Dictionary<string, StringValues> values, bool expectFilterForm)
         {
             var ret = new Dictionary<string, object>();
             foreach (var v in values)
             {
-                
+                if (expectFilterForm)
+                {
+                    switch (v.Key)
+                    {
+                        case "sort":
+                        case "page":
+                        case "group":
+                            {
+                                LogEnvironment.LogDebugEvent($"Ignoring {v.Key}", LogSeverity.Report);
+                                break;
+                            }
+                        case "filter":
+                            {
+                                var tmpFilter = v.Value.FirstOrDefault();
+                                var st = "Label~contains~'";
+                                if (tmpFilter?.StartsWith(st, StringComparison.OrdinalIgnoreCase) ?? false)
+                                {
+                                    var ln = tmpFilter.Length - 1 - st.Length;
+                                    if (ln > 0)
+                                    {
+                                        tmpFilter = tmpFilter.Substring(st.Length, ln);
+                                        ret.Add("Filter", tmpFilter);
+                                    }
+                                }
+                                else
+                                {
+                                    LogEnvironment.LogEvent($"Unexpected Search-Filter: {tmpFilter}", LogSeverity.Warning);
+                                }
+
+                                break;
+                            }
+                        default:
+                            {
+                                ret.Add(v.Key, v.Value.FirstOrDefault());
+                                break;
+                            }
+                    }
+                }
+                else
+                {
                     ret.Add(v.Key, v.Value.FirstOrDefault());
+                }
             }
 
             return ret;
+        }
+
+        private static bool RegexValidate(string value, string regexPattern)
+        {
+            return Regex.IsMatch(value, regexPattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
         }
     }
 }

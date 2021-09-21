@@ -28,19 +28,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
         static ContextExtensions()
         {
-            NativeScriptHelper.AddReference(RosFkConfig,"--ROSLYN--");
+            NativeScriptHelper.AddReference(RosFkConfig, "--ROSLYN--");
             NativeScriptHelper.AddReference(RosFkConfig, "ITVComponents.WebCoreToolkit.EntityFramework");
-            NativeScriptHelper.AddUsing(RosFkConfig,"ITVComponents.WebCoreToolkit.EntityFramework.Models");
-            NativeScriptHelper.AddUsing(RosFkConfig,"ITVComponents.WebCoreToolkit.EntityFramework.Helpers");
+            NativeScriptHelper.AddUsing(RosFkConfig, "ITVComponents.WebCoreToolkit.EntityFramework.Models");
+            NativeScriptHelper.AddUsing(RosFkConfig, "ITVComponents.WebCoreToolkit.EntityFramework.Helpers");
             NativeScriptHelper.AddUsing(RosFkConfig, "ITVComponents.Helpers");
-            NativeScriptHelper.RunLinqQuery(RosFkConfig, new[] {"Fubar"}, "Fubar", "return null;", new Dictionary<string, object>());
-            NativeScriptHelper.AddReference(RosDiagConfig,"--ROSLYN--");
+            NativeScriptHelper.RunLinqQuery(RosFkConfig, new[] { "Fubar" }, "Fubar", "return null;", new Dictionary<string, object>());
+            NativeScriptHelper.AddReference(RosDiagConfig, "--ROSLYN--");
             NativeScriptHelper.AddReference(RosDiagConfig, "ITVComponents.WebCoreToolkit.EntityFramework");
             NativeScriptHelper.AddReference(RosDiagConfig, "ITVComponents.Decisions.Entities");
-            NativeScriptHelper.AddUsing(RosDiagConfig,"ITVComponents.WebCoreToolkit.EntityFramework.Models");
+            NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.WebCoreToolkit.EntityFramework.Models");
             NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.Decisions");
             NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.Decisions.Entities.Results");
-            NativeScriptHelper.RunLinqQuery(RosDiagConfig, new[] {"Fubar"}, "Fubar", "return null;", new Dictionary<string, object>());
+            NativeScriptHelper.RunLinqQuery(RosDiagConfig, new[] { "Fubar" }, "Fubar", "return null;", new Dictionary<string, object>());
         }
 
         /// <summary>
@@ -92,7 +92,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 query = $@"{typeName} db = Global.Db;
             {query}";
                 //query = string.Format(query, $"t.{labelColumn}.Contains(filter)");
-                return RunQuery(context, query, RosFkConfig, new Dictionary<string, object> {{"Id", id}});
+                return RunQuery(context, query, RosFkConfig, new Dictionary<string, object> { { "Id", id } });
             }
         }
 
@@ -111,7 +111,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
         private static IEnumerable RunQuery(DbContext context, string query, string configName, IDictionary<string, object> data)
         {
-            return (IEnumerable) NativeScriptHelper.RunLinqQuery(configName, context, "Db", query, data??new Dictionary<string,object>());
+            return (IEnumerable)NativeScriptHelper.RunLinqQuery(configName, context, "Db", query, data ?? new Dictionary<string, object>());
         }
 
         private static string CreateDiagQuery(DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
@@ -141,7 +141,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             var keyPropertyType = GetKeyType(context, tableName, out var keyColumn, out var tableType, out var isKeyless);
             if (tableType != null)
             {
-                string where = null;
+                StringBuilder where = new StringBuilder();
                 var selAttr = tableType.GetCustomAttributes(typeof(ForeignKeySelectionAttribute), true);
                 if (selAttr.Length == 0)
                 {
@@ -151,17 +151,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                         throw new InvalidOperationException("Unable to process entities that have no string-columns!");
                     }
 
-                    where = CreateWhereClause(tableType, postedFilter, out filterDecl);
+                    where.Append(CreateWhereClause(tableType, postedFilter, out filterDecl));
 
                     //return $@"from t in db.{tableName} orderby t.{firstStringCol.Name} select new ForeignKeyData<{keyPropertyType}>{{{{Key=t.{keyColumn}, Label=t.{firstStringCol.Name}}}}};";
-                    return $@"from t in db.{tableName} {where} orderby t.{firstStringCol.Name} select new ForeignKeyData<{keyPropertyType}>{{Key={(!isKeyless?$"t.{keyColumn}":"\"-\"")}, Label=t.{firstStringCol.Name}, FullRecord=t.ToDictionary(true)}};";
+                    return $@"from t in db.{tableName} {where} orderby t.{firstStringCol.Name} select new ForeignKeyData<{keyPropertyType}>{{Key={(!isKeyless ? $"t.{keyColumn}" : "\"-\"")}, Label=t.{firstStringCol.Name}, FullRecord=t.ToDictionary(true)}};";
                 }
 
-                var att = (ForeignKeySelectionAttribute) selAttr[0];
+                var att = (ForeignKeySelectionAttribute)selAttr[0];
                 if (postedFilter != null && att.FilterKeys != null && att.FilterKeys.Length != 0)
                 {
-                    filterDecl = "";
-                    where = "";
+                    var filterDcl = new StringBuilder();
+                    where.Clear();
                     for (var index = 0; index < att.FilterKeys.Length; index++)
                     {
                         var s = att.FilterKeys[index];
@@ -169,20 +169,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                         var flt = att.Filters[index];
                         if (postedFilter.ContainsKey(s) && postedFilter[s] != null)
                         {
-                            filterDecl += $@"{dec}
-";
-                            where += $"{(where != "" ? " && " : "")}{flt}";
+                            filterDcl.Append($@"{dec}
+");
+                            where.Append($"{(where.Length != 0 ? " && " : "")}{flt}");
                         }
                     }
 
-                    if (where != "")
+                    filterDecl = filterDcl.ToString();
+                    if (where.Length != 0)
                     {
-                        where = $"where {where}";
+                        where.Insert(0, "where ");
                     }
                 }
                 else if (postedFilter != null)
                 {
-                    where = CreateWhereClause(tableType, postedFilter, out filterDecl);
+                    where.Clear();
+                    where.Append(CreateWhereClause(tableType, postedFilter, out filterDecl));
                 }
 
                 return $"from t in db.{tableName} {where} {att.OrderByExpression} select {att.CompleteSelect};";
@@ -193,20 +195,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
         private static string CreateWhereClause(Type tableType, IDictionary<string, object> postedFilter, out string filterDecl)
         {
-            var retVal = "";
+            var retVal = new StringBuilder();
             var availableFilterValues = tableType.GetProperties().Where(n => n.PropertyType == typeof(string) || n.PropertyType.IsValueType).ToArray();
-            filterDecl = "";
+            var filterDl = new StringBuilder();
             if (postedFilter != null && availableFilterValues.Length != 0)
             {
-                retVal = "";
-                var generalWhere = "";
+                var generalWhere = new StringBuilder();
                 var generalFilter = "";
-                var specialWhere = "";
+                var specialWhere = new StringBuilder();
                 if (postedFilter.ContainsKey("Filter") && postedFilter["Filter"] != null)
                 {
                     generalFilter = ".Contains(Filter)";
-                    filterDecl = @"string Filter = Global.Filter;
-";
+                    filterDl.Append(@"string Filter = Global.Filter;
+");
                 }
 
                 for (var index = 0; index < availableFilterValues.Length; index++)
@@ -226,26 +227,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                             }
 
                             cvTyp = typ.Substring(0, typ.Length - 1);
-                            filterDecl += $@"{typ} Var{index} = ValueConvertHelper.TryChangeType<{cvTyp}>((string)Global.{prop.Name});
+                            filterDl.Append($@"{typ} Var{index} = ValueConvertHelper.TryChangeType<{cvTyp}>((string)Global.{prop.Name});
 bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
-";
+");
                             var nsq = defaultNullSensitiveQuery ?? $"t.{prop.Name} == Var{index}";
-                            specialWhere += $"{(specialWhere != "" ? " && " : "")}(Var{index} == null && !Var{index}NullExpected || ({nsq}))";
+                            specialWhere.Append($"{(specialWhere.Length != 0 ? " && " : "")}(Var{index} == null && !Var{index}NullExpected || ({nsq}))");
                         }
                         else
                         {
-                            filterDecl += $@"string Var{index} = (string)Global.{prop.Name};
+                            filterDl.Append($@"string Var{index} = (string)Global.{prop.Name};
 bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
-";
+");
                             var nsq = defaultNullSensitiveQuery ?? $"t.{prop.Name}.Contains(Var{index})";
-                            specialWhere += $"{(specialWhere != "" ? " && " : "")}(Var{index}NullExpected && t.{prop.Name} == null || !Var{index}NullExpected && ({nsq}))";
+                            specialWhere.Append($"{(specialWhere.Length != 0 ? " && " : "")}(Var{index}NullExpected && t.{prop.Name} == null || !Var{index}NullExpected && ({nsq}))");
                         }
                     }
                     else if (!string.IsNullOrEmpty(generalFilter))
                     {
                         if (prop.PropertyType == typeof(string))
                         {
-                            generalWhere += $"{(generalWhere != "" ? " || " : "")}t.{prop.Name}{generalFilter}";
+                            generalWhere.Append($"{(generalWhere.Length != 0 ? " || " : "")}t.{prop.Name}{generalFilter}");
                         }
                         else
                         {
@@ -257,27 +258,37 @@ bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
                             }
 
                             cvTyp = typ.Substring(0, typ.Length - 1);
-                            filterDecl += $@"{typ} Var{index} = ValueConvertHelper.TryChangeType<{cvTyp}>(Filter);
-";
-                            generalWhere += $"{(generalWhere != "" ? " || " : "")}(Var{index} != null && t.{prop.Name} == Var{index})";
+                            filterDl.Append($@"{typ} Var{index} = ValueConvertHelper.TryChangeType<{cvTyp}>(Filter);
+");
+                            generalWhere.Append($"{(generalWhere.Length != 0 ? " || " : "")}(Var{index} != null && t.{prop.Name} == Var{index})");
                         }
                     }
                 }
 
-                retVal = generalWhere;
-                retVal = (retVal != "") ? $"({retVal})" : retVal;
-                if (specialWhere != "")
+                retVal.Append(generalWhere);
+                if (retVal.Length != 0)
                 {
-                    retVal += $"{(retVal != "" ? " && " : "")}{specialWhere}";
+                    retVal.Insert(0, "(");
+                    retVal.Append(")");
                 }
 
-                if (!string.IsNullOrEmpty(retVal))
+                if (specialWhere.Length != 0)
                 {
-                    retVal = $"where {retVal}";
+                    if (retVal.Length != 0)
+                    {
+                        retVal.Append(" && ");
+                    }
+                    retVal.Append(specialWhere);
+                }
+
+                if (retVal.Length != 0)
+                {
+                    retVal.Insert(0, "where ");
                 }
             }
 
-            return retVal;
+            filterDecl = filterDl.ToString();
+            return retVal.ToString();
         }
 
         private static string CreateRawResolveQuery(DbContext context, string tableName)
@@ -303,7 +314,7 @@ bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
 return from t in db.{tableName} where t.{keyColumn} == Id select new ForeignKeyData<{keyPropertyType}>{{Key=t.{keyColumn}, Label=t.{firstStringCol.Name}, FullRecord=t.ToDictionary(true)}};";
                 }
 
-                var att = (ForeignKeySelectionAttribute) selAttr[0];
+                var att = (ForeignKeySelectionAttribute)selAttr[0];
                 return $@"{keyPropertyType} Id = ValueConvertHelper.TryChangeType<{keyPropertyType}>((string)Global.Id)??default({keyPropertyType});
 return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSelect};";
             }
@@ -315,7 +326,7 @@ return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSe
         {
             ConfigureLinqForContext(context, RosFkConfig, out var contextType);
             tableType = contextType.GetProperty(tableName)?.PropertyType.GetGenericArguments()[0];
-            isKeyless = Attribute.IsDefined(tableType,typeof(KeylessAttribute));
+            isKeyless = Attribute.IsDefined(tableType, typeof(KeylessAttribute));
             if (!isKeyless)
             {
                 var keys = context.GetKeyProperties(tableType);

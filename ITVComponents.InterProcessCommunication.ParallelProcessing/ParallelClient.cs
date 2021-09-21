@@ -118,6 +118,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
                 stoppedEvent.Dispose();
                 client.UnSubscribeEvent(remoteObjectName, ParallellResources.ParallelMethod_PackageProcessed,
                                         packageFinishedHandler);
+                client.OperationalChanged -= HandleClientOperationalChanged;
             }
         }
 

@@ -323,13 +323,13 @@ namespace ITVComponents.ParallelProcessing
                 Target = targetProcessor;
                 Task = task;
                 LastExecution = lastExecution ?? DateTime.MinValue;
-                string metaInfo = "";
+                StringBuilder metaInfo = new StringBuilder();
                 var metaData = task.BuildMetaData();
                 if (metaData != null)
                 {
                     foreach (KeyValuePair<string, object> metaRecord in metaData)
                     {
-                        metaInfo += string.Format(":{0}:{1}", metaRecord.Key, metaRecord.Value);
+                        metaInfo.AppendFormat(":{0}:{1}", metaRecord.Key, metaRecord.Value);
                     }
                 }
                 LogEnvironment.LogDebugEvent($"Creating Schedule-Requeset for the following Meta-Data: {metaInfo}",

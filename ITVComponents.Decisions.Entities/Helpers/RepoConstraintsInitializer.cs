@@ -51,6 +51,8 @@ namespace ITVComponents.Decisions.Entities.Helpers
             {
                 context2Decisions.TryRemove(context.DbContext, out _);
             }
+
+            factory.Disposed -= UnRegisterFactory;
         }
 
         internal static IConstraintFactory GetFactory(DbContext context)

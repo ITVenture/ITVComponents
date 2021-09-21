@@ -202,7 +202,7 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
                             if (ForceAlphanumericColumnNames)
                             {
                                 name =
-                                    Regex.Replace(name, @"[^\w_@]", "", RegexOptions.Compiled | RegexOptions.Singleline);
+                                    Regex.Replace(name, @"[^\w_@]", "", RegexOptions.Singleline);
                             }
 
                             autoMap.Add(column, name);

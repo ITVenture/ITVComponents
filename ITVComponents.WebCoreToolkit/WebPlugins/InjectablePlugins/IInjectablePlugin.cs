@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
     /// Enables any object to consume a Configurable Plugin via dependencyInjection
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public interface IInjectablePlugin<T> where T:class,IPlugin
+    public interface IInjectablePlugin<T>: IDisposable where T:class,IPlugin
     {
         /// <summary>
         /// Gets the value of the injected PlugIn

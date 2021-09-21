@@ -86,7 +86,7 @@ namespace ITVComponents.DataExchange.FileDumping
                         var rv = s;
                         foreach (var es in settings.EscapeSettings)
                         {
-                            rv = Regex.Replace(rv, es.MatchRegex, es.RegexReplaceExpression, RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+                            rv = Regex.Replace(rv, es.MatchRegex, es.RegexReplaceExpression, RegexOptions.CultureInvariant | RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
                         }
 
                         return rv;
@@ -156,16 +156,16 @@ namespace ITVComponents.DataExchange.FileDumping
 
         private string GetColumnDefinition(string columnName, CsvColumnFormat customFormat, ConstConfiguration constDefinition, bool header)
         {
-            string retVal = "";
+            StringBuilder retVal = new StringBuilder();
             if (constDefinition == null || header)
             {
-                retVal = "$data.";
+                retVal.Append("$data.");
             }
 
-            retVal += columnName;
+            retVal.Append(columnName);
             if (customFormat != null && !header)
             {
-                retVal += customFormat.Format;
+                retVal.Append(customFormat.Format);
             }
 
             return $"[$$Format($$(\"[{retVal}]\"))]";

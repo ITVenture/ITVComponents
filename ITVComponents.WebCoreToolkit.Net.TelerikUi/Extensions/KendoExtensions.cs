@@ -30,15 +30,16 @@
             /// <returns>the provided GridEventBuilder for method-chaining</returns>
             public static GridEventBuilder UseForeignKeyFilter(this GridEventBuilder builder, bool valuePrimitive = false, string additionalEditHandler = null)
             {
-                var filter = @"function(e){
-        " + (!string.IsNullOrEmpty(additionalEditHandler)?$@"var additionalHandler = {additionalEditHandler};":"") + @"var ddl=e.container.find(""[data-role='dropdownlist']"").data(""kendoDropDownList"");
-        if(ddl){
-            ddl.setOptions({filter:'contains'});
-            " + (valuePrimitive?"ddl.setOptions({valuePrimitive:true});":"") + @"
-        }" + (!string.IsNullOrEmpty(additionalEditHandler)?@"
-    additionalHandler.apply(this,arguments)":"") + @"
-    }";
-                return builder.Edit(filter);
+            var filter = $@"function(e){{
+        {(!string.IsNullOrEmpty(additionalEditHandler) ? $@"var additionalHandler = {additionalEditHandler};" : "")}var ddl=e.container.find(""[data-role='dropdownlist']"").data(""kendoDropDownList"");
+        if(ddl){{
+            ddl.setOptions({{filter: 'contains'}});
+            {(valuePrimitive ? "ddl.setOptions({valuePrimitive:true});" : "")}
+       }}{(!string.IsNullOrEmpty(additionalEditHandler) ? @"
+    additionalHandler.apply(this,arguments);" : "")}
+    
+}}";
+            return builder.Edit(filter);
             }
 
             /// <summary>
@@ -49,14 +50,16 @@
             /// <returns>the provided GridEventBuilder for method-chaining</returns>
             public static GridEventBuilder ForeignKeyValuePrimitive(this GridEventBuilder builder, string additionalEditHandler = null)
             {
-                var filter = @"function(e){
-        " + (!string.IsNullOrEmpty(additionalEditHandler)?$@"var additionalHandler = {additionalEditHandler};":"") + @"var ddl=e.container.find(""[data-role='dropdownlist']"").data(""kendoDropDownList"");
-        if(ddl){
-            ddl.setOptions({valuePrimitive:true});
-            }" + (!string.IsNullOrEmpty(additionalEditHandler)?@"
-    additionalHandler.apply(this,arguments)":"") + @"
-    }";
-                return builder.Edit(filter);
+            var filter = $@"function(e){{
+        {(!string.IsNullOrEmpty(additionalEditHandler) ? $@"var additionalHandler = {additionalEditHandler};" : "")}
+        var ddl=e.container.find(""[data-role='dropdownlist']"").data(""kendoDropDownList"");
+        if(ddl){{
+            ddl.setOptions({{valuePrimitive: true}});
+        }}
+        {(!string.IsNullOrEmpty(additionalEditHandler) ? @"
+    additionalHandler.apply(this,arguments)" : "")}
+}}";
+            return builder.Edit(filter);
             }
 
             /// <summary>
@@ -136,11 +139,12 @@
                 }
 
                 var urlFormat = target.Container.HtmlHelper.ViewContext.HttpContext.RequestServices.GetService<IUrlFormat>();
-                var url = urlFormat != null ?
-                    urlFormat.FormatUrl($"[SlashPermissionScope]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}") :
-                    $"{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}";
-                url += $"/ForeignKey/{repoName}/{tableName}";
-                string columnName = $"{retVal.Column.Member}";
+            var url = new StringBuilder();
+            url.Append(urlFormat != null ?
+                urlFormat.FormatUrl($"[SlashPermissionScope]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}") :
+                $"{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}");
+            url.Append($"/ForeignKey/{repoName}/{tableName}");
+            string columnName = $"{retVal.Column.Member}";
                 string displayTemplateName = $"{columnName}#={pkName}#";
                 string idRaw = CustomActionHelper.RandomName(retVal.Column.Member);
                 string id = $"{idRaw}#={pkName}#";

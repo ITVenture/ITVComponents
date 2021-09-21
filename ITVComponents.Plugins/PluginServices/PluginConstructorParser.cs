@@ -19,7 +19,7 @@ namespace ITVComponents.Plugins.PluginServices
         private static readonly Regex StringRecognizer =
             new Regex(
                 @"(?<formatIndicator>\$?)\""(?<string>([^\\\""]|\\\""|\\\\|\\a|\\b|\\f|\\n|\\r|\\t|\\u\:[0-9a-f]{4}|\\x[0-9a-f]{1,4}|\\[0-7]{3})*)\""",
-                RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
+                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                 RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
 
         /// <summary>
@@ -30,7 +30,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// <summary>
         /// Parses constructorstrings for further processing
         /// </summary>
-        private static readonly Regex ConstructorParser = new Regex(@"\[ (?<Path>(\w\:|\.|\.\.)?((\\|/)?[\w \. \s _ \- \! \@ \#]*)*)\] \<(?<Type>[\w \.]*)\>(?<Parameters>.*)", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace | RegexOptions.CultureInvariant);
+        private static readonly Regex ConstructorParser = new Regex(@"\[ (?<Path>(\w\:|\.|\.\.)?((\\|/)?[\w \. \s _ \- \! \@ \#]*)*)\] \<(?<Type>[\w \.]*)\>(?<Parameters>.*)", RegexOptions.IgnoreCase | RegexOptions.Multiline| RegexOptions.IgnorePatternWhitespace | RegexOptions.CultureInvariant);
 
         /// <summary>
         /// Parses a constructor hint for a Plugin
@@ -224,8 +224,7 @@ namespace ITVComponents.Plugins.PluginServices
                     case "\"":
                     case "\\":
                         {
-                            return m.Groups["ident"].Value +
-                                   m.Groups["args"].Value ?? "";
+                            return $"{m.Groups["ident"].Value}{m.Groups["args"].Value ?? ""}";
                         }
                     default:
                         {

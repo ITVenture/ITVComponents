@@ -66,6 +66,12 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 {
                     if (hubClient != null && !hubClient.Operational)
                     {
+                        hubClient.MessageArrived -= ClientInvokation;
+                        if (hubClient is not LocalServiceHubConsumer)
+                        {
+                            hubClient.OperationalChanged -= ConnectedChanges;
+                        }
+
                         hubClient.Dispose();
                         hubClient = null;
                     }
@@ -96,6 +102,12 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
         {
             if (hubClient != null && !hubClient.Operational)
             {
+                hubClient.MessageArrived -= ClientInvokation;
+                if (hubClient is not LocalServiceHubConsumer)
+                {
+                    hubClient.OperationalChanged -= ConnectedChanges;
+                }
+
                 hubClient.Dispose();
                 hubClient = null;
                 reconnector.Change(reconnectTimeout, reconnectTimeout);

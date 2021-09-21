@@ -17,11 +17,7 @@ namespace ITVComponents.DataAccess.Helpers
             byte[] bytes = Encoding.Unicode.GetBytes(s);
             byte[] hash = algo.ComputeHash(bytes);
             string hashString = string.Empty;
-            foreach (byte x in hash)
-            {
-                hashString += String.Format("{0:x2}", x);
-            }
-
+            hashString = string.Concat(from t in hash select $"{t:x2}");
             return hashString;
         }
     }

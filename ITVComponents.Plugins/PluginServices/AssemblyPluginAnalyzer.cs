@@ -18,6 +18,16 @@ namespace ITVComponents.Plugins.PluginServices
         public AssemblyPluginAnalyzer(PluginFactory factory)
         {
             factory.PluginInitialized += PluginInitialized;
+            factory.Disposed += FactoryGone;
+        }
+
+        private void FactoryGone(object? sender, EventArgs e)
+        {
+            if (sender is PluginFactory factory)
+            {
+                factory.PluginInitialized -= PluginInitialized;
+                factory.Disposed -= FactoryGone;
+            }
         }
 
         /// <summary>
@@ -50,6 +60,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
+            availablePlugins.Clear();
             OnDisposed();
         }
 

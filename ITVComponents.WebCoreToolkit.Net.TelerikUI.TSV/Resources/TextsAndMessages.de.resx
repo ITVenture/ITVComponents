@@ -240,4 +240,7 @@
   <data name="IWCN_General_Is_SystemRole" xml:space="preserve">
     <value>Systemrolle</value>
   </data>
+  <data name="IWCN_Titles_DashboardWidgets" xml:space="preserve">
+    <value>Dashboard Widgets</value>
+  </data>
 </root>

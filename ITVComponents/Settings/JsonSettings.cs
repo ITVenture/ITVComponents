@@ -50,7 +50,7 @@ namespace ITVComponents.Settings
                 return;
             }
 
-            configName = entryAssembly.Location + ".jsonConfig";
+            configName = $"{entryAssembly.Location}.jsonConfig";
             configReady = true;
         }
 

@@ -23,30 +23,30 @@ namespace ITVComponents.Logging.SqlLite.Viewer
 
         public override string ToString()
         {
-            string retVal = string.Empty;
+            StringBuilder retVal = new StringBuilder();
             string typeFilter = EventType?.Tag as string;
             if (!string.IsNullOrEmpty(typeFilter))
             {
-                retVal = typeFilter;
+                retVal.Append(typeFilter);
             }
 
-            retVal += $"{(string.IsNullOrEmpty(retVal)?"":" and ")}EventTime between $startDate and $endDate";
+            retVal.Append($"{(retVal.Length == 0 ? "" : " and ")}EventTime between $startDate and $endDate");
             if (!string.IsNullOrEmpty(CategoryFilter))
             {
-                retVal += " and EventContext like $evContext";
+                retVal.Append(" and EventContext like $evContext");
             }
 
             if (!string.IsNullOrEmpty(EventFilter))
             {
-                retVal += " and EventText like $evText";
+                retVal.Append(" and EventText like $evText");
             }
 
-            if (!string.IsNullOrEmpty(retVal))
+            if (retVal.Length != 0)
             {
-                retVal = $"where {retVal}";
+                retVal.Insert(0, "where ");
             }
 
-            return retVal;
+            return retVal.ToString();
         }
 
         public IDbDataParameter[] GetArguments(IDbWrapper database)
@@ -59,12 +59,12 @@ namespace ITVComponents.Logging.SqlLite.Viewer
 
             if (!string.IsNullOrEmpty(CategoryFilter))
             {
-                retVal.Add(database.GetParameter("evContext",$"%{CategoryFilter}%"));
+                retVal.Add(database.GetParameter("evContext", $"%{CategoryFilter}%"));
             }
 
             if (!string.IsNullOrEmpty(EventFilter))
             {
-                retVal.Add(database.GetParameter("evText",$"%{EventFilter}%"));
+                retVal.Add(database.GetParameter("evText", $"%{EventFilter}%"));
             }
 
             return retVal.ToArray();

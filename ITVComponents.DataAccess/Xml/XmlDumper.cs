@@ -57,8 +57,8 @@ namespace ITVComponents.DataAccess.Xml
         public void DumpData(DynamicResult[] items, string fileName)
         {
             string completeFileName = string.Format(@"{0}\{1}", dataDumpDirectory, fileName);
-            string fillFileName = completeFileName + ".new";
-            string oldFileName = completeFileName + ".old";
+            string fillFileName = $"{completeFileName }.new";
+            string oldFileName = $"{completeFileName}.old";
             using (var stream = new FileStream(fillFileName, FileMode.Create, FileAccess.Write))
             {
                 DumpData(items, stream);

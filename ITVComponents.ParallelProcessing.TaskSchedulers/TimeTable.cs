@@ -484,7 +484,7 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         private void ParsePattern()
         {
             Match m = Regex.Match(pattern, TimePatternRegex,
-                                  RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
+                                  RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                                   RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
             if (m.Success)
             {

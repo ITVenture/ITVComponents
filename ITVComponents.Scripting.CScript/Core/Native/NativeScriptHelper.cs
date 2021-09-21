@@ -131,7 +131,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             string roslynHash = GetFlatString(expression);
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
-                var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] {"System", "System.Linq", "System.Collections.Generic"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")}.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
+                var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" })).WithReferences(new[] { typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp") }.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
                 //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
                 var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
                 retVal.Compile();
@@ -144,7 +144,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 idic[argument.Key] = argument.Value;
             }
 
-            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper {Global = idic}));
+            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper { Global = idic }));
         }
 
         /// <summary>
@@ -168,7 +168,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             string roslynHash = GetFlatString(expression);
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
-                var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] {"System", "System.Linq", "System.Collections.Generic"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")}.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
+                var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" })).WithReferences(new[] { typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp") }.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t))).WithOptimizationLevel(OptimizationLevel.Release);
                 //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
                 var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
                 retVal.Compile();
@@ -182,7 +182,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 idic[argument.Key] = argument.Value;
             }
 
-            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper {Global = idic}));
+            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper { Global = idic }));
         }
 
         private static InteractiveAssemblyLoader Loader
@@ -243,13 +243,13 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             using (SHA256Managed hahsher = new SHA256Managed())
             {
                 byte[] hash = hahsher.ComputeHash(bytes);
-                string hashString = string.Empty;
+                StringBuilder hashString = new StringBuilder();
                 foreach (byte x in hash)
                 {
-                    hashString += String.Format("{0:x2}", x);
+                    hashString.AppendFormat("{0:x2}", x);
                 }
 
-                return hashString;
+                return hashString.ToString();
             }
         }
 
@@ -283,9 +283,9 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 return "dynamic";
             }
             else if (type.IsGenericType && type.GetGenericTypeDefinition() != typeof(Nullable<>))
-                return type.Name.Split('`')[0] + "<" + string.Join(", ", type.GetGenericArguments().Select(GetFriendlyName).ToArray()) + ">";
+                return $"{type.Name.Split('`')[0]}<{string.Join(", ", type.GetGenericArguments().Select(GetFriendlyName).ToArray())}>";
             else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
-                return GetFriendlyName(type.GetGenericArguments().First()) + "?";
+                return $"{GetFriendlyName(type.GetGenericArguments().First())}?";
             else
             {
                 if (type.Assembly.IsDynamic)
@@ -297,7 +297,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             }
         }
 
-        // <summary>
+        /// <summary>
         /// Applies required references and usings to the given native-script configuration
         /// </summary>
         /// <param name="cfg">the script configuration on which to add required references</param>

@@ -327,6 +327,15 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
         protected override void Dispose(bool disposing)
         {
+            if (useEvents)
+            {
+                connection.MessageArrived -= ProcessMessage;
+                if (connection is not LocalServiceHubConsumer)
+                {
+                    connection.OperationalChanged -= ConnectivityChanged;
+                }
+            }
+
             connection.Dispose();
             base.Dispose(disposing);
         }
@@ -341,6 +350,12 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             connected = connection?.Operational??false;
             if (connection != null && !connection.Operational)
             {
+                if (useEvents)
+                {
+                    connection.MessageArrived -= ProcessMessage;
+                    connection.OperationalChanged -= ConnectivityChanged;
+                }
+
                 connection.Dispose();
                 connection = null;
             }

@@ -23,7 +23,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.Initialization
         /// <summary>
         /// the DI infrastructure
         /// </summary>
-        private readonly IServiceProvider serviceProvider;
+        private readonly IServiceScopeFactory serviceProvider;
 
         private readonly ILogger<UsePluginsInit> plugLogger;
 
@@ -33,7 +33,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.Initialization
         /// <param name="globalInit">the global PluginsInitOptions object</param>
         /// <param name="serviceProvider">the DI infrastructure</param>
         /// <param name="plugLogger">a loger instance that is used to log information from PluginsInit</param>
-        public UsePluginsInit(IPluginsInitOptions globalInit, IServiceProvider serviceProvider, ILogger<UsePluginsInit> plugLogger)
+        public UsePluginsInit(IPluginsInitOptions globalInit, IServiceScopeFactory serviceProvider, ILogger<UsePluginsInit> plugLogger)
         {
             this.globalInit = globalInit;
             this.serviceProvider = serviceProvider;
@@ -69,7 +69,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.Initialization
                                     {
                                         if (plugInst is IDependencyInit init)
                                         {
-                                            init.Initialize(serviceProvider);
+                                            init.Initialize(scope.ServiceProvider);
                                         }
                                     }
                                 }

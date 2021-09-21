@@ -59,7 +59,7 @@ namespace ITVComponents.DataExchange.TextImport
         {
             message = null;
             return Regex.IsMatch(data, linePattern,
-                RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline)
+                RegexOptions.CultureInvariant | RegexOptions.Multiline)
                 ? DecisionResult.Success
                 : DecisionResult.Fail;
         }

@@ -35,9 +35,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         /// <param name="services">the services-collection in which the options are injected</param>
         /// <param name="options">a callback for options</param>
         /// <returns>the provided ServiceCollection for method-chaining</returns>
-        public static IServiceCollection ConfigureDiagnosticsQueries<TDiagnosticsStore>(this IServiceCollection services, Action<DiagnosticsSourceOptions> options) where TDiagnosticsStore : class, IDiagnosticsQueryStore
+        public static IServiceCollection ConfigureDiagnosticsQueries<TDiagnosticsStore>(this IServiceCollection services, Action<DiagnosticsSourceOptions> options) where TDiagnosticsStore : class, IDiagnosticsStore
         {
-            return services.Configure(options).AddTransient<IDiagnosticsQueryStore,TDiagnosticsStore>();
+            return services.Configure(options).AddTransient<IDiagnosticsStore, TDiagnosticsStore>();
         }
     }
 }

@@ -36,7 +36,14 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         /// <summary>
         /// Gets a value indicating whether the PermissionScope was set explicitly
         /// </summary>
-        public bool IsScopeExplicit => scopeIsExplicit;
+        public bool IsScopeExplicit
+        {
+            get
+            {
+                var tmp = PermissionPrefix;
+                return scopeIsExplicit;
+            }
+        }
 
         /// <summary>
         /// Sets the permissionScope to a new value

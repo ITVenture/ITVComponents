@@ -235,6 +235,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
                 disposing = true;
                 tickTimer.Dispose();
                 //reconnector.Dispose();
+                client.Broken -= ClientBroken;
                 client.Dispose();
                 serverCallbackCancel?.Cancel();
                 channel.Dispose();

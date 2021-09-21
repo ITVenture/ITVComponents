@@ -13,7 +13,9 @@ namespace ITVComponents.WebCoreToolkit.Middleware
 {
     internal class ThreadCultureMiddleware
     {
-        RequestDelegate _next;
+        private RequestDelegate _next;
+
+        private CultureOptions cultureOpt;
 
         public ThreadCultureMiddleware(RequestDelegate next)
         {
@@ -23,7 +25,7 @@ namespace ITVComponents.WebCoreToolkit.Middleware
         public async Task InvokeAsync(HttpContext context, IOptions<CultureOptions> options)
         {
             var cultureProvider = context.Features.Get<IRequestCultureFeature>();
-            var opt = options.Value;
+            var opt = (cultureOpt ??= options.Value); 
             CultureInfo.CurrentCulture = opt.MapCulture(cultureProvider.RequestCulture.Culture);
             CultureInfo.CurrentUICulture = opt.MapUiCulture(cultureProvider.RequestCulture.UICulture);
             await _next(context);

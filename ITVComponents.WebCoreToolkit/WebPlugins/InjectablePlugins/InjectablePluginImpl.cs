@@ -36,5 +36,10 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
 
             return retVal;
         }
+
+        public void Dispose()
+        {
+            instance = null;
+        }
     }
 }

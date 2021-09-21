@@ -217,6 +217,8 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
             }
             finally
             {
+                channel.ObjectReceived -= ClientComm;
+                channel.ConnectionStatusChanged -= ClientConnectionChanged;
                 channel.Dispose();
             }
         }
@@ -224,6 +226,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
+            baseChannel.ObjectReceived -= ConnectionRequest;
             baseChannel.Dispose();
             if (ownsBroker)
             {

@@ -101,7 +101,12 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
 
                     src?.Cancel();
                     src?.Dispose();
-                    incoming?.Dispose();
+                    if (incoming != null)
+                    {
+                        incoming.DataReceived -= IncomingData;
+                        incoming.Dispose();
+                    }
+
                     outgoing?.Dispose();
                     src = null;
                     incoming = null;

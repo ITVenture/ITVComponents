@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.Text.RegularExpressions;
 using ITVComponents.Scripting.CScript.Exceptions;
 
@@ -18,7 +19,7 @@ namespace ITVComponents.Scripting.CScript.Operating
                 throw new ScriptException("Invalid String");
             }
 
-            string retVal = "";
+            StringBuilder retVal = new StringBuilder();
             bool escaping = false;
             for (int i = 1; i < rawString.Length - 1; i++)
             {
@@ -29,7 +30,7 @@ namespace ITVComponents.Scripting.CScript.Operating
                             escaping = !escaping;
                             if (!escaping)
                             {
-                                retVal += "\\";
+                                retVal.Append("\\");
                             }
 
                             break;
@@ -38,7 +39,7 @@ namespace ITVComponents.Scripting.CScript.Operating
                         {
                             if (escaping)
                             {
-                                retVal += "\"";
+                                retVal.Append("\"");
                                 escaping = false;
                             }
                             else
@@ -52,11 +53,11 @@ namespace ITVComponents.Scripting.CScript.Operating
                         {
                             if (!escaping)
                             {
-                                retVal += rawString[i];
+                                retVal.Append(rawString[i]);
                             }
                             else
                             {
-                                retVal += Escape(rawString, ref i);
+                                retVal.Append(Escape(rawString, ref i));
                                 escaping = false;
                             }
 
@@ -65,7 +66,7 @@ namespace ITVComponents.Scripting.CScript.Operating
                 }
             }
 
-            return retVal;
+            return retVal.ToString();
         }
 
         private static string Escape(string rawVal, ref int id)
@@ -118,7 +119,7 @@ namespace ITVComponents.Scripting.CScript.Operating
 
                         id++;*/
                         int val = Convert.ToInt32(rawVal.Substring(id + 1, 4), 16);
-                        retVal = ((char) val).ToString();
+                        retVal = ((char)val).ToString();
                         id += 4;
                         break;
                     }
@@ -132,7 +133,7 @@ namespace ITVComponents.Scripting.CScript.Operating
                         id++;*/
                         string ss = rawVal.Substring(id + 1, 4);
                         Match m = Regex.Match(ss, "[0-9a-fA-F]*",
-                                              RegexOptions.Compiled | RegexOptions.CultureInvariant |
+                                              RegexOptions.CultureInvariant |
                                               RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace |
                                               RegexOptions.Multiline);
                         if (!m.Success)
@@ -141,7 +142,7 @@ namespace ITVComponents.Scripting.CScript.Operating
                         }
 
                         int val = Convert.ToInt32(m.Value, 16);
-                        retVal = ((char) val).ToString();
+                        retVal = ((char)val).ToString();
                         id += m.Length;
                         break;
                     }
@@ -149,11 +150,11 @@ namespace ITVComponents.Scripting.CScript.Operating
                     {
                         string ss = rawVal.Substring(id, 3);
                         Match m = Regex.Match(ss, "[0-7]*",
-                                              RegexOptions.Compiled | RegexOptions.CultureInvariant |
+                                              RegexOptions.CultureInvariant |
                                               RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace |
                                               RegexOptions.Multiline);
                         int val = Convert.ToInt32(m.Value, 8);
-                        retVal = ((char) val).ToString();
+                        retVal = ((char)val).ToString();
                         id += (m.Length - 1);
                         break;
                     }

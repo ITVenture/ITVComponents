@@ -3,7 +3,7 @@
 var ITVenture = {
     Lang: "de",
     Text: {
-        setText: function(language, label, text) {
+        setText: function (language, label, text) {
             var lng = language; //.toUpperCase();
             if (!ITVenture.Text.hasOwnProperty(lng)) {
                 ITVenture.Text[lng] = {};
@@ -11,10 +11,10 @@ var ITVenture = {
 
             ITVenture.Text[lng][label] = text;
         },
-        getText: function(label, defaultValueOrValues) {
+        getText: function (label, defaultValueOrValues) {
             var lng = ITVenture.Lang; //.toUpperCase();
             if ((!ITVenture.Text.hasOwnProperty(lng) ||
-                    (ITVenture.Text.hasOwnProperty(lng) && !ITVenture.Text[lng].hasOwnProperty(label))) &&
+                (ITVenture.Text.hasOwnProperty(lng) && !ITVenture.Text[lng].hasOwnProperty(label))) &&
                 lng.indexOf("-") !== -1) {
                 lng = lng.substr(0, lng.indexOf("-"));
             }
@@ -22,13 +22,13 @@ var ITVenture = {
                 return ITVenture.Text.processMessage(label, ITVenture.Text[lng], defaultValueOrValues);
             }
 
-            if (typeof(defaultValueOrValues) === "string") {
+            if (typeof (defaultValueOrValues) === "string") {
                 return defaultValueOrValues;
             }
 
             return label;
         },
-        getLocaleMessage: function(messageObject, messageArguments) {
+        getLocaleMessage: function (messageObject, messageArguments) {
             if (typeof (messageObject) === "string") {
                 return ITVenture.Text.getText(messageObject, messageArguments);
             }
@@ -44,7 +44,7 @@ var ITVenture = {
 
             return messageObject;
         },
-        processMessage: function(label, messageSource, messageArguments) {
+        processMessage: function (label, messageSource, messageArguments) {
             var retVal = label;
             if (typeof (messageSource) === "object" && messageSource.hasOwnProperty(label)) {
                 retVal = messageSource[label];
@@ -53,16 +53,31 @@ var ITVenture = {
                 retVal = messageSource;
             }
             if (typeof messageArguments === "object") {
-                retVal = retVal.replaceAll(/\{\{\s*(?<paramName>(-\>)?\w+)\s*\}\}/g,
-                    function() {
-                        var p = arguments[arguments.length - 1];
-                        if (!p.paramName.startsWith("->") && messageArguments.hasOwnProperty(p.paramName)) {
-                            return messageArguments[p.paramName];
-                        } else if (p.paramName.startsWith("->")) {
-                            ITVenture.Text.getText(p.paramName.substring(2), messageArguments);
-                        }
+                retVal = retVal.replaceAll(/\{\{\s*(?<paramName>(-\>|!$|$)?(\\\{|\\\}|[^\}\{])+)\s*\}\}/g,
+                    function () {
+                        try {
+                            var p = arguments[arguments.length - 1];
+                            var paramName = p.paramName.replace("\\{", "{").replace("\\}", "}");
+                            if (!paramName.startsWith("->") &&
+                                !paramName.startsWith("$") &&
+                                messageArguments.hasOwnProperty(paramName)) {
+                                return messageArguments[paramName];
+                            } else if (paramName.startsWith("->")) {
+                                return ITVenture.Text.getText(paramName.substring(2), messageArguments);
+                            } else if (paramName.startsWith("!$")) {
+                                var fx = new Function("return ".concat(paramName.substring(2)).concat(";"));
+                                return fx.apply(messageArguments);
+                            } else if (paramName.startsWith("$")) {
+                                var fx = new Function(paramName.substring(1));
+                                return fx.apply(messageArguments);
+                            }
 
-                        return p.paramName;
+                            return paramName;
+
+                        }
+                        catch (e) {
+                            return "";
+                        }
                     });
             }
 
@@ -72,15 +87,19 @@ var ITVenture = {
     Tools: {},
     Pages: {},
     Helpers: {
+        htmlEntities: function (raw) {
+            return raw.replace(/[&<>'\"]/g,
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]));
+        },
         serializeArray: function (object, keys) {
             var retVal = {};
-            if (typeof(keys) === "undefined" || typeof(keys) === "function") {
+            if (typeof (keys) === "undefined" || typeof (keys) === "function") {
                 for (var key in object) {
                     if (object.hasOwnProperty(key) &&
                         typeof object[key] !== "function" &&
                         (key.substring(0, 1) !== "_") &&
                         key !== "dirty" &&
-                        (typeof(keys) === "undefined" || keys(key))) {
+                        (typeof (keys) === "undefined" || keys(key))) {
                         var val = object[key];
                         if (val instanceof Date) {
                             val = val.toJSON();
@@ -177,8 +196,8 @@ var ITVenture = {
                 }
             }
         },
-        makeListErrorHandler: function(gridName) {
-            var retVal = function(e) {
+        makeListErrorHandler: function (gridName) {
+            var retVal = function (e) {
                 var rollbackGrid = false;
                 var editError = false;
                 if (e.errors) {
@@ -228,7 +247,7 @@ var ITVenture = {
         }
     },
     Ajax: {
-        baseUrl:"/",
+        baseUrl: "/",
         ajaxGet: function (url, expectedType) {
             if (typeof expectedType === "undefined" || expectedType === null) {
                 expectedType = "json";

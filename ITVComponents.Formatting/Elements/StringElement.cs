@@ -12,7 +12,7 @@ namespace ITVComponents.Formatting.Elements
 
         public int Start { get; set; }
         public int Length { get; set; }
-        public string Content { get; set; }
+        public StringBuilder Content { get; } = new StringBuilder();
 
         #endregion
     }

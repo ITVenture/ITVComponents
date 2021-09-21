@@ -1,0 +1,91 @@
+﻿@using System.Collections
+@using System.Text
+@using ITVComponents.EFRepo.DynamicData
+@using ITVComponents.Plugins.PluginServices
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using ITVComponents.WebCoreToolkit.Routing
+@using Kendo.Mvc.UI
+@using Kendo.Mvc.UI.Fluent
+@using Microsoft.AspNetCore.Routing
+@inject IUrlFormat urlFormat
+@{
+    var initTemplates = new Dictionary<string, string>();
+}
+    
+<div class="d-inline-flex" style="width: 75%;">
+@(Html.Kendo().DropDownList().Name($"widgets4{ViewData["name"]}")
+    .BindTo((IEnumerable) ViewData["EligibleDBItems"])
+    .DataValueField("Key")
+    .DataTextField("Label")
+    .OptionLabel("--Select Value--")
+    .AutoBind(true)
+    .Filter("contains")
+    .ValuePrimitive(true))
+    @(Html.Kendo().Button().Name("addWidget").Content("+").Events(e => e.Click("ITVenture.Tools.DashboardWidgets.kendoExt.addDashboard")).HtmlAttributes(new{dropdown=$"widgets4{ViewData["name"]}", dashboard=$"{ViewData["name"]}"}))
+</div>
+@(Html.Kendo().TileLayout()
+        .Name((string)ViewData["name"])
+        .Columns((int)ViewData["columnCount"])
+        /*.RowsHeight("150px")
+        .ColumnsWidth("210px")*/
+        //.Resizable(true)
+        //.Width("1000px")
+        .Containers(c =>
+        {
+            var items = (IEnumerable<UserDashboardWidgetDefinition>)ViewData["DashboardItems"];
+            foreach (var item in items)
+            {
+                c.Add().Header(h => 
+                    h.Template($@"<div class=""k-tilelayout-item-header k-card-header k-cursor-grab"" style=""margin-right:25px;""><div class=""k-card-title"">{item.Widget.DisplayName}</div></div><a class=""k-button k-button-icon k-flat k-close-button""><span class=""k-icon k-i-close""></span></a></div>"))
+                    .BodyTemplate($"<div id='DashboardItem{item.Widget.SystemName}' dashboard-id='{item.Widget.SystemName}' dashboard-name='{item.Widget.SystemName}'></div>"); //.BodyTemplateId("income").ColSpan(2).RowSpan(1);
+                initTemplates.Add(item.Widget.SystemName, $"DashboardItem{item.Widget.SystemName}");
+            }
+        })
+        .Reorderable(true)
+        .Events(e => e.Reorder("ITVenture.Tools.DashboardWidgets.kendoExt.dashboardReorder"))
+        )
+
+    <script>
+        kendo.syncReady(function() {
+            @foreach (var item in initTemplates)
+            {
+
+                @Html.Raw($@"ITVenture.Tools.DashboardWidgets.addWidget(""{item.Key}"",""#{item.Value}"");
+")
+            }
+
+            setInterval(ITVenture.Tools.DashboardWidgets.renderAllWidgets, 2000);
+
+            $("#@(ViewData["name"])").on("click",
+                ".k-close-button",
+                ITVenture.Tools.DashboardWidgets.kendoExt.closeDashboardItem);
+
+            ITVenture.Tools.DashboardWidgets.renderAllWidgets();
+        });
+    </script>
+    <style>
+        .close-button {
+            float: right;
+        }
+
+        .k-close-button {
+            position: absolute;
+            right: 0;
+            top: 0;
+            margin: 5px;
+        }
+
+        .k-tilelayout-item:active,
+        .k-tilelayout-item.k-state-active {
+            opacity: 0.2;
+        }
+
+        .k-metroblack .item-values,
+        .k-black .item-values,
+        .k-highcontrast .item-values,
+        .k-materialblack .item-values,
+        .k-moonlight .item-values {
+            color: #fff;
+        }
+    </style>
