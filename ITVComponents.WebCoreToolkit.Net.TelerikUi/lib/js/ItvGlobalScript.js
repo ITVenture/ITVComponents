@@ -60,6 +60,7 @@ var ITVenture = {
                             var paramName = p.paramName.replace("\\{", "{").replace("\\}", "}");
                             if (!paramName.startsWith("->") &&
                                 !paramName.startsWith("$") &&
+                                !paramName.startsWith("!$") &&
                                 messageArguments.hasOwnProperty(paramName)) {
                                 return messageArguments[paramName];
                             } else if (paramName.startsWith("->")) {

@@ -17,7 +17,8 @@ ITVenture.Pages.Security.TenantBoundObjectsHelper =
             {
                 contentUrl:url,
                 dialogOpening:
-                    function(obj, dg) {
+                    function (obj, dg) {
+                        dg.title("Mandant-Infos bearbeiten (".concat(item.TenantName).concat(")"));
                         dg.maximize();
                     }
             });

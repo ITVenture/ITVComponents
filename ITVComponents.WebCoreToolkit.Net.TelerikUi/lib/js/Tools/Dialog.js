@@ -18,8 +18,8 @@
 
         return ITVenture.Tools.Popup.dialogs[name];
     },
-    FindDialog: function(element) {
-        return $($(element).parents().filter(function(i, a) { return typeof $(a).data("itvDialog") !== "undefined"; })[0]);
+    FindDialog: function (element) {
+        return $($(element).parents().filter(function (i, a) { return typeof $(a).data("itvDialog") !== "undefined"; })[0]);
     },
     Open: function (name, refObj, success, cancel) {
         ITVenture.Tools.Popup.dialogs[name].Open(refObj, success, cancel);
@@ -41,17 +41,17 @@
             pressedEnterCallbacks: [],
             handleReturn: false
         };
-        obj = $.extend(true,tmo,obj);
+        obj = $.extend(true, tmo, obj);
         obj.dialog = function () { return obj.window.data("kendoWindow"); };
         obj.window.data("itvDialog", obj);
         obj.window.on("keydown",
-            function(event) {
+            function (event) {
                 if (event.key === "Enter" && obj.handleReturn) {
                     obj.PressedEnter(event);
                 }
             });
         obj.dialog().bind("close",
-            function() {
+            function () {
                 var i;
                 if (!obj.accepted) {
                     for (i = 0; i < obj.cancelCallbacks.length; i++) {
@@ -64,14 +64,15 @@
                 }
 
                 obj.refObj = null;
+                $(document).scrollTop(obj.scrollTop);
             });
         obj.dialog().bind("activate",
-        function() {
-            for (var i = 0; i < obj.activatedCallbacks.length; i++) {
-                obj.activatedCallbacks[i](obj.window, obj.dialog(), obj.refObj);
-            }
+            function () {
+                for (var i = 0; i < obj.activatedCallbacks.length; i++) {
+                    obj.activatedCallbacks[i](obj.window, obj.dialog(), obj.refObj);
+                }
 
-        });
+            });
         obj.accepted = false;
         obj.Close = function (accepted) {
             obj.accepted = accepted;
@@ -100,10 +101,11 @@
                 obj.showCallbacks[i](obj.window, obj.dialog(), obj.refObj);
             }
 
+            obj.scrollTop = $(document).scrollTop();
             obj.dialog().open();
         };
 
-        obj.PressedEnter = function(event) {
+        obj.PressedEnter = function (event) {
             for (var i = 0; i < obj.pressedEnterCallbacks.length; i++) {
                 obj.pressedEnterCallbacks[i].apply(obj, [event]);
             }
@@ -132,14 +134,14 @@
                 obj.closedCallbacks.push(method);
             }
         };
-        
-        obj.onActivate = function(method) {
+
+        obj.onActivate = function (method) {
             if (typeof (method) === 'function') {
                 obj.activatedCallbacks.push(method);
             }
         }
 
-        obj.onPressedEnter = function(method) {
+        obj.onPressedEnter = function (method) {
             if (typeof (method) === 'function') {
                 obj.pressedEnterCallbacks.push(method);
             }
@@ -156,16 +158,16 @@
             closedCallbacks: [],
             window: $('<div class="k-edit-form-container">' +
                 '<div id="AlertMessage" class="span10"></div>' +
-    '<div class="k-edit-buttons k-state-default">' +
-        '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'confirm\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK","Ok") + '</a>' +
-        '<a class="k-button k-button-icontext k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'confirm\')"><span class="k-icon k-cancel" ></span>' + ITVenture.Text.getText("Popup_General_Cancel","Cancel") + '</a>' +
-    '</div>' +
-'</div>'),
-            handleReturn:true
+                '<div class="k-edit-buttons k-state-default">' +
+                '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'confirm\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</a>' +
+                '<a class="k-button k-button-icontext k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'confirm\')"><span class="k-icon k-cancel" ></span>' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</a>' +
+                '</div>' +
+                '</div>'),
+            handleReturn: true
         };
         obj.window.kendoWindow({
             visible: false,
-            title: ITVenture.Text.getText("Popup_Confirm_Title","Confirmation"),
+            title: ITVenture.Text.getText("Popup_Confirm_Title", "Confirmation"),
             minWidth: 400,
             minHeight: 110,
             modal: true,
@@ -176,7 +178,7 @@
             }
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
-        obj.onPressedEnter(function(event) {
+        obj.onPressedEnter(function (event) {
             if (!$(event.target).hasClass("k-button")) {
                 event.preventDefault();
                 ITVenture.Tools.Popup.Accept("confirm");
@@ -212,18 +214,18 @@
             closedCallbacks: [],
             window: $('<div class="k-edit-form-container d-flex flex-column align-items-fill">' +
                 '<div id="AlertMessage"></div>' +
-                '<div tag="buttons" class="k-edit-buttons k-state-default mt-auto p-2">'+
-                '</div>'+
+                '<div tag="buttons" class="k-edit-buttons k-state-default mt-auto p-2">' +
+                '</div>' +
                 '</div>'),
-            defaultButton : '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'alert\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK","Ok") + '</a>'
+            defaultButton: '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'alert\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</a>'
         };
         obj.window.kendoWindow({
             visible: false,
-            title: ITVenture.Text.getText("Popup_Alert_Title","Information"),
+            title: ITVenture.Text.getText("Popup_Alert_Title", "Information"),
             minWidth: 400,
             minHeight: 110,
             modal: true,
-            scrollable:false,
+            scrollable: false,
             position: {
                 top: "30%",
                 left: "30%"
@@ -239,7 +241,7 @@
                 obj.window.children("[id='AlertMessage']").html(refObj.Message);
                 var buttonArea = "";
                 $.each(refObj.Buttons,
-                    function(id, item) {
+                    function (id, item) {
                         buttonArea +=
                             '<a class="k-button k-button-icontext ' +
                             (item.Default ? 'k-primary k-grid-update' : '') +
@@ -284,27 +286,27 @@
             window: $('<div class="k-edit-form-container d-flex flex-column align-items-fill">' +
                 '<div id="AlertMessage"></div>' +
                 '<div tag="cip-Content" class="flex-row d-flex"></div>' +
-    '<div class="k-edit-buttons k-state-default mt-auto p-2">' +
-        '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'input\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK","Ok") + '</a>' +
-        '<a class="k-button k-button-icontext k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'input\')"><span class="k-icon k-cancel" ></span>' + ITVenture.Text.getText("Popup_General_Cancel","Cancel") + '</a>' +
-    '</div>' +
-'</div>'),
-            handleReturn:true
+                '<div class="k-edit-buttons k-state-default mt-auto p-2">' +
+                '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'input\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</a>' +
+                '<a class="k-button k-button-icontext k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'input\')"><span class="k-icon k-cancel" ></span>' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</a>' +
+                '</div>' +
+                '</div>'),
+            handleReturn: true
         };
         obj.window.kendoWindow({
             visible: false,
-            title: ITVenture.Text.getText("Popup_Input_Title","Input"),
+            title: ITVenture.Text.getText("Popup_Input_Title", "Input"),
             minWidth: 400,
             minHeight: 140,
             modal: true,
-            scrollable:false,
+            scrollable: false,
             position: {
                 top: "30%",
                 left: "30%"
             }
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
-        obj.onPressedEnter(function(event) {
+        obj.onPressedEnter(function (event) {
             if (!$(event.target).hasClass("k-button")) {
                 event.preventDefault();
                 ITVenture.Tools.Popup.Accept("input");
@@ -351,7 +353,7 @@
             obj.Open.oldOpen(refObj);
             obj.window.find("#UserInput").focus();
         };
-        obj.onActivate(function() {
+        obj.onActivate(function () {
             obj.window.find("#UserInput").focus();
         });
         obj.Open.oldOpen = oldOpen;
@@ -368,13 +370,13 @@
         };
         obj.window.kendoWindow({
             visible: false,
-            title: ITVenture.Text.getText("Popup_PdfView_Title","PdfView"),
+            title: ITVenture.Text.getText("Popup_PdfView_Title", "PdfView"),
             minWidth: 1000,
             minHeight: 500,
             width: 1000,
             height: 500,
             modal: true,
-            scrollable:false,
+            scrollable: false,
             position: {
                 top: "30%",
                 left: "30%"
@@ -400,11 +402,11 @@
 
         return obj;
     },
-    createGenericPopup: function(rootTagName, windowDef) {
-        if (typeof(rootTagName) === "undefined" || rootTagName === null || rootTagName === "") {
+    createGenericPopup: function (rootTagName, windowDef) {
+        if (typeof (rootTagName) === "undefined" || rootTagName === null || rootTagName === "") {
             rootTagName = "genericPopupRoot";
         }
-        if (typeof(windowDef) !== "object") {
+        if (typeof (windowDef) !== "object") {
             windowDef = {
                 visible: false,
                 title: "Generic Popup",
@@ -438,7 +440,7 @@
                 function () {
                     var dlg = obj;
                     $(dlg.window).html("");
-                    if (typeof(refObj.dialogClosing) === "function") {
+                    if (typeof (refObj.dialogClosing) === "function") {
                         refObj.dialogClosing(obj, dg);
                     }
                     obj.acceptCallbacks = [];
@@ -446,8 +448,8 @@
                     obj.closedCallbacks = [];
                 }
             ];
-            if (typeof(refObj) === "object") {
-                if (typeof(refObj.dialogOpening) === "function") {
+            if (typeof (refObj) === "object") {
+                if (typeof (refObj.dialogOpening) === "function") {
                     refObj.dialogOpening(obj, dg);
                 }
             }
@@ -457,19 +459,19 @@
         obj.Open.oldOpen = oldOpen;
 
         obj.onShow(function (window, dialog, refObj) {
-            if (typeof(refObj) === "object") {
-                if (typeof(refObj.contentUrl) === "string") {
+            if (typeof (refObj) === "object") {
+                if (typeof (refObj.contentUrl) === "string") {
                     ITVenture.Ajax.ajaxGet(refObj.contentUrl, "text").done(
-                        function(data) {
+                        function (data) {
                             $(obj.window).html(data);
-                            if (typeof(refObj.contentReady) === "function") {
+                            if (typeof (refObj.contentReady) === "function") {
                                 refObj.contentReady(window, dialog);
                             }
-                        }).fail(function(err) {
-                        if (typeof(refObj.contentFailed) === "function") {
-                            refObj.contentFailed(window, dialog, err);
-                        }
-                    });
+                        }).fail(function (err) {
+                            if (typeof (refObj.contentFailed) === "function") {
+                                refObj.contentFailed(window, dialog, err);
+                            }
+                        });
                 } else {
                     throw "property contentUrl expected!";
                 }
