@@ -102,7 +102,7 @@
             }
 
             obj.scrollTop = $(document).scrollTop();
-            obj.dialog().open();
+            obj.dialog().open().center();
         };
 
         obj.PressedEnter = function (event) {
@@ -384,15 +384,27 @@
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
         obj.onShow(function (window, dialog, refObj) {
+            var url = refObj;
+            var title = null;
+            if (typeof (refObj) === "object" && refObj.hasOwnProperty("url")) {
+                url = refObj.url;
+                if (refObj.hasOwnProperty("title") && typeof (refObj.title) !== "undefined" && refObj.title !== null && refObj.title !== "") {
+                    title = refObj.title;
+                }
+            }
             if (PDFObject) {
-                PDFObject.embed(refObj, obj.window);
+                PDFObject.embed(url, obj.window);
             } else {
                 obj.window.html(/*'<object data="' + refObj + '" id="viewer" type="application/pdf" width="99%" height="99%">' +*/
                     //"<div>" +
                     '<embed src="' +
-                    refObj +
+                    url +
                     '" id="emViewer" type="application/pdf" width="100%" height= "100%" />' //+
                     /*'</object>'*/);
+            }
+
+            if (title !== null) {
+                dialog.title(title);
             }
         });
 
