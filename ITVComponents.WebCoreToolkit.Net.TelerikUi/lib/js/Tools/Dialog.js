@@ -52,17 +52,21 @@
             });
         obj.dialog().bind("close",
             function () {
-                var i;
-                if (!obj.accepted) {
-                    for (i = 0; i < obj.cancelCallbacks.length; i++) {
-                        obj.cancelCallbacks[i](obj.window, obj.dialog(), obj.refObj);
+                try {
+                    var i;
+                    if (!obj.accepted) {
+                        for (i = 0; i < obj.cancelCallbacks.length; i++) {
+                            obj.cancelCallbacks[i](obj.window, obj.dialog(), obj.refObj);
+                        }
                     }
-                }
 
-                for (i = 0; i < obj.closedCallbacks.length; i++) {
-                    obj.closedCallbacks[i](obj.window, obj.dialog(), obj.refObj);
+                    for (i = 0; i < obj.closedCallbacks.length; i++) {
+                        obj.closedCallbacks[i](obj.window, obj.dialog(), obj.refObj);
+                    }
+                } catch (x) {
+                    console.log(x);
                 }
-
+                obj.dialog().restore();
                 obj.refObj = null;
                 $(document).scrollTop(obj.scrollTop);
             });
@@ -460,12 +464,12 @@
                     obj.closedCallbacks = [];
                 }
             ];
+            obj.Open.oldOpen(refObj);
             if (typeof (refObj) === "object") {
                 if (typeof (refObj.dialogOpening) === "function") {
                     refObj.dialogOpening(obj, dg);
                 }
             }
-            obj.Open.oldOpen(refObj);
         };
 
         obj.Open.oldOpen = oldOpen;
