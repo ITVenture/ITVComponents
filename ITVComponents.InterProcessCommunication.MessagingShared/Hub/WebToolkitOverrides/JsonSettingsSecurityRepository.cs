@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using ITVComponents.InterProcessCommunication.MessagingShared;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 
-namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
+namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkitOverrides
 {
-    internal class JsonSettingsSecurityRepository : ISecurityRepository
+    public class JsonSettingsSecurityRepository : ISecurityRepository
     {
         private ICollection<User> bufferedUsers;
         private DateTime lastUserRefresh;
@@ -20,6 +17,11 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
         private DateTime lastPermissionRefresh;
 
         private object writeSync = new object();
+
+        /// <summary>
+        /// Gets or sets the UniqueName of this Plugin
+        /// </summary>
+        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets a list of users in the current application
@@ -141,6 +143,12 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
             return new ScopeInfo[0];
         }
 
+        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
+        public void Dispose()
+        {
+            OnDisposed();
+        }
+
         /// <summary>
         /// Checks whether the buffered data of this repository is outdated and requires a refresh
         /// </summary>
@@ -162,5 +170,18 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides
 
             return retVal;
         }
+
+        /// <summary>
+        /// Raises the Disposed event
+        /// </summary>
+        protected virtual void OnDisposed()
+        {
+            Disposed?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Informs a calling class of a Disposal of this Instance
+        /// </summary>
+        public event EventHandler Disposed;
     }
 }

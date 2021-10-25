@@ -29,6 +29,11 @@ namespace ITVComponents.DataAccess.Linq
             this.context = context;
         }
 
+        public LinqDataConnector(IDataContextProvider contextProvider, object src)
+        {
+            context = contextProvider.GetContextFor(src);
+        }
+
         /// <summary>
         /// Prevents a default instance of the LinqDataConnector class from being created
         /// </summary>

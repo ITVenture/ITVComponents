@@ -8,13 +8,8 @@ using ITVComponents.Logging;
 
 namespace ITVComponents.ParallelProcessing
 {
-    public sealed class TaskProcessor:IDisposable, ITaskProcessor
+    public sealed class AsyncTaskProcessor : IDisposable, ITaskProcessor
     {
-        /// <summary>
-        /// indicates whether to use ThreadAffinity for the inner worker
-        /// </summary>
-        private bool useAffineThread;
-
         /// <summary>
         /// the exponent used to get an accurate task priority scheduling
         /// </summary>
@@ -61,9 +56,9 @@ namespace ITVComponents.ParallelProcessing
         private List<int> processCycle;
 
         /// <summary>
-        /// the worker Thread that is used to process items located in the queues
+        /// a Task object that represents an endlessly running thread that processes the queues
         /// </summary>
-        private Thread workerThread;
+        private Task workerTask;
 
         /// <summary>
         /// Waits until the Taskprocessing thread has been activated
@@ -111,10 +106,10 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="lowestPriority">the lowest priority that is processed by this worker</param>
         /// <param name="parent">the parent from which this processor gets tasks to process</param>
         /// <param name="tasks">the task queues that are used to process tasks</param>
-        internal TaskProcessor(ITaskWorker worker, object workerPulse, System.Threading.ManualResetEvent stopEvent,
+        internal AsyncTaskProcessor(ITaskWorker worker, object workerPulse, System.Threading.ManualResetEvent stopEvent,
                                int workerPollTime, int highestPriority, int lowestPriority,
                                 ParallelTaskProcessor parent,
-                               Dictionary<int, System.Collections.Concurrent.ConcurrentQueue<TaskContainer>> tasks, bool useAffineThread)
+                               Dictionary<int, System.Collections.Concurrent.ConcurrentQueue<TaskContainer>> tasks)
             : this()
         {
             this.worker = worker;
@@ -125,7 +120,6 @@ namespace ITVComponents.ParallelProcessing
             this.lowestPriority = lowestPriority;
             this.tasks = tasks;
             this.parent = parent;
-            this.useAffineThread = useAffineThread;
             ((ITaskProcessor)this).StartupThread();
             BuildProcessCycle();
             lastActivity = DateTime.Now;
@@ -135,7 +129,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Prevents a default instance of the TaskProcessor class from being created
         /// </summary>
-        private TaskProcessor()
+        private AsyncTaskProcessor()
         {
             suspendEvent = new ManualResetEvent(true);
             suspendedEvent = new ManualResetEvent(false);
@@ -152,7 +146,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Gets the last time the workerthread was in a defined-status
         /// </summary>
-        DateTime ITaskProcessor.LastActivity => lastActivity;
+        public DateTime LastActivity => lastActivity;
 
         /// <summary>
         /// Gets the current running-state of this TaskProcessor instance
@@ -175,7 +169,7 @@ namespace ITVComponents.ParallelProcessing
         void ITaskProcessor.Join()
         {
             currentState = TaskProcessorState.Stopping;
-            workerThread.Join();
+            workerTask.GetAwaiter().GetResult();
             currentState = TaskProcessorState.Stopped;
         }
 
@@ -216,7 +210,6 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         void ITaskProcessor.KillThread()
         {
-            workerThread.Abort();
             suspendEvent.Set();
             suspendedEvent.Reset();
             startupWait.Reset();
@@ -238,8 +231,7 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         void ITaskProcessor.StartupThread()
         {
-            workerThread = new Thread(Work);
-            workerThread.Start();
+            Task.Run(Work);
             startupWait.WaitOne();
             currentState = TaskProcessorState.Running;
         }
@@ -252,7 +244,7 @@ namespace ITVComponents.ParallelProcessing
             Random rnd = new Random();
             List<KeyValuePair<int, int>> l = new List<KeyValuePair<int, int>>();
             int priorityCount = (lowestPriority - highestPriority) + 1;
-            for (int i = highestPriority, a=0; i <= lowestPriority; i++, a++)
+            for (int i = highestPriority, a = 0; i <= lowestPriority; i++, a++)
             {
                 int mx = priorityCount - a;
                 mx = (int)Math.Pow(mx, PriorityExponent);
@@ -287,15 +279,10 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Works the all working queues
         /// </summary>
-        private void Work()
+        private async Task Work()
         {
             startupWait.Set();
             enterprocessingLoopWait.WaitOne();
-            if (useAffineThread)
-            {
-                Thread.BeginThreadAffinity();
-            }
-
             while (true)
             {
                 lastActivity = DateTime.Now;
@@ -329,12 +316,12 @@ namespace ITVComponents.ParallelProcessing
                         {
                             try
                             {
-                                CheckSchedule(task, t =>
+                                await CheckScheduleAsync(task, async t =>
                                 {
                                     try
                                     {
                                         tasksFound = true;
-                                        worker.Process(t);
+                                        await worker.ProcessAsync(t);
                                         t.Fulfill();
                                     }
                                     catch (Exception ex)
@@ -389,11 +376,6 @@ namespace ITVComponents.ParallelProcessing
                     break;
                 }
             }
-
-            if (useAffineThread)
-            {
-                Thread.EndThreadAffinity();
-            }
         }
 
         /// <summary>
@@ -404,31 +386,6 @@ namespace ITVComponents.ParallelProcessing
         private void CheckSchedule(TaskContainer task, Action<ITask> action)
         {
             bool scheduled = false;
-            /*using (task.DemandExclusive())
-            {
-                foreach (SchedulerPolicy policy in task.Schedules)
-                    // (!string.IsNullOrEmpty(task.SchedulerName) && TaskScheduler.SchedulerExists(task.SchedulerName) && task.Active)
-                {
-                    if (!string.IsNullOrEmpty(policy.SchedulerName) &&
-                        TaskScheduler.SchedulerExists(policy.SchedulerName) &&
-                        task.Active)
-                    {
-                        if (requests.ContainsKey(policy.SchedulerName))
-                        {
-                            requests[policy.SchedulerName].AddInstruction(policy.SchedulerInstruction);
-                        }
-                        else
-                        {
-                            TaskScheduler scl = TaskScheduler.GetScheduler(policy.SchedulerName);
-                            requests.Add(policy.SchedulerName,
-                                         scl.CreateRequest(parent, task, policy.SchedulerInstruction));
-                        }
-                    }
-                }
-            }*/
-
-            /*foreach (KeyValuePair<string, TaskScheduler.ScheduleRequest> req in requests)
-            {*/
             if (task.Request?.SchedulerName != null)
             {
                 TaskScheduler scl = TaskScheduler.GetScheduler(task.Request.SchedulerName);

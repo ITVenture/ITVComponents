@@ -18,7 +18,7 @@ namespace ITVComponents.EFRepo.Helpers
                 join d in table2Definition on a equals ignoreCase ? d.ColumnName.ToLower() : d.ColumnName into dg
                 from dc in dg.DefaultIfEmpty()
                 orderby sc?.Position ?? dc.Position
-                select new TableDiff {ColumnName = a, Table1Def = sc, Table2Def = dc}).ToArray();
+                select new TableDiff {ColumnName = sc?.ColumnName??dc?.ColumnName??a, Table1Def = sc, Table2Def = dc}).ToArray();
             return tmp;
         }
     }

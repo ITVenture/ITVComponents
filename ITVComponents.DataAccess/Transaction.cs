@@ -40,7 +40,7 @@ namespace ITVComponents.DataAccess
         public Transaction(IDbTransaction value, object synchronizedObject)
             : this()
         {
-            Monitor.Enter(synchronizedObject);
+            AsyncMonitor.Enter(synchronizedObject);
             this.synchronizedObject = synchronizedObject;
             transaction = value;
         }
@@ -72,7 +72,7 @@ namespace ITVComponents.DataAccess
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            if (Monitor.IsEntered(synchronizedObject))
+            if (AsyncMonitor.IsEntered(synchronizedObject))
             try
             {
                 if (transaction != null)
@@ -103,7 +103,7 @@ namespace ITVComponents.DataAccess
             }
             finally
             {
-                Monitor.Exit(synchronizedObject);
+                AsyncMonitor.Exit(synchronizedObject);
                 synchronizedObject = null;
             }
         }

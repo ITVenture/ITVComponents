@@ -18,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
         /// <param name="services">the serviceprovider that holds injectable services</param>
         /// <param name="rawName">the expected raw-name of the file-handler</param>
         /// <returns>the requested instance when it was found.</returns>
-        public static IFileHandler GetFileHandler(this IServiceProvider services, string rawName)
+        public static object GetFileHandler(this IServiceProvider services, string rawName)
         {
             IWebPluginHelper plugins = services.GetService<IWebPluginHelper>();
             IPermissionScope scope = services.GetService<IPermissionScope>();
@@ -30,7 +30,17 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 retVal = factory[rawName, true];
             }
 
-            return (IFileHandler) retVal;
+            if (retVal is IAsyncFileHandler afh)
+            {
+                return afh;
+            }
+
+            if (retVal is IFileHandler sfh)
+            {
+                return sfh;
+            }
+
+            return null;
         }
     }
 }

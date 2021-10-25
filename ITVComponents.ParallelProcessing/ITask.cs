@@ -19,6 +19,11 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         int Priority { get; }
 
+        /// <summary>
+        /// Gets the AsyncObject that is used to implement async completion
+        /// </summary>
+        IAsyncResult AsyncHelper { get; internal set; }
+
         /*/// <summary>
         /// Gets the Default Scheduler Name that is used to schedule tasks
         /// </summary>
@@ -69,6 +74,17 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         /// <param name="ex">the thrown exception</param>
         void Fail(SerializedException ex);
+
+        /// <summary>
+        /// Signals when this task is fulfilled
+        /// </summary>
+        /// <returns>When Fulfill is called, this task will end</returns>
+        Task Processing();
+
+        /// <summary>
+        /// Is automatically called after the task has ended
+        /// </summary>
+        void Fulfill();
 
         /// <summary>
         /// Demands exclusive Access for this Task

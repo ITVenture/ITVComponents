@@ -18,6 +18,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sec
         }
 
         /// <summary>
+        /// Gets or sets the UniqueName of this Plugin
+        /// </summary>
+        public string UniqueName { get; set; }
+
+        /// <summary>
         /// Gets a list of users in the current application
         /// </summary>
         public ICollection<User> Users
@@ -172,5 +177,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sec
                 orderby d.DisplayName
                 select new ScopeInfo {ScopeDisplayName = d.DisplayName, ScopeName = d.TenantName}).ToArray();
         }
+
+        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
+        public void Dispose()
+        {
+            OnDisposed();
+        }
+
+        /// <summary>
+        /// raises the Disposed event
+        /// </summary>
+        protected virtual void OnDisposed()
+        {
+            Disposed?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Informs a calling class of a Disposal of this Instance
+        /// </summary>
+        public event EventHandler Disposed;
     }
 }

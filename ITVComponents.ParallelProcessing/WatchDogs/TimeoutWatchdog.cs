@@ -45,7 +45,7 @@ namespace ITVComponents.ParallelProcessing.WatchDogs
         /// Checks whether the given taskProcessor is alive and takes appropriate actions if the processor is corrupted
         /// </summary>
         /// <param name="processor">the processor that is being watched</param>
-        protected override void WatchProcessorInstance(TaskProcessor processor)
+        protected override void WatchProcessorInstance(ITaskProcessor processor)
         {
             if (DateTime.Now.Subtract(processor.LastActivity).TotalMilliseconds > timeout)
             {

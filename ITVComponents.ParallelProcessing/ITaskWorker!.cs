@@ -23,5 +23,12 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         /// <param name="task">a task that was fetched from a priority queue</param>
         void Process(TTask task);
+
+        /// <summary>
+        /// Processes the given Task async
+        /// </summary>
+        /// <param name="task">the ITask object to process</param>
+        /// <returns>an async awaitable task object</returns>
+        Task ProcessAsync(TTask task);
     }
 }

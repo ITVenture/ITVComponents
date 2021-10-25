@@ -1,6 +1,6 @@
 ﻿using System;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
-using ITVComponents.InterProcessCommunication.Grpc.Hub.WebToolkitOverrides;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkitOverrides;
 using ITVComponents.WebCoreToolkit.ApiKeyAuthentication;
 using ITVComponents.WebCoreToolkit.ApiKeyAuthentication.Extensions;
 using ITVComponents.WebCoreToolkit.Extensions;

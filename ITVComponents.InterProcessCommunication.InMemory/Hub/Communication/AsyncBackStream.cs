@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Communication
 {
@@ -29,18 +30,23 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Communication
 
         internal void PushMessage(ServerOperationMessage message)
         {
+            TaskCompletionSource<ServerOperationMessage> target = null;
             lock (messageSync)
             {
                 if (openReadWait != null)
                 {
-                    var t = openReadWait;
+                    target = openReadWait;
                     openReadWait = null;
-                    t.SetResult(message);
                 }
                 else
                 {
                     messageQueue.Enqueue(message);
                 }
+            }
+
+            if (target != null)
+            {
+                target.SetResult(message);
             }
         }
 
@@ -72,12 +78,22 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Communication
             var t = Fetch();
             try
             {
-                Current = await t;
+                Current = await t.ConfigureAwait(false);
+                if (Current == null)
+                {
+                    LogEnvironment.LogEvent("Current message was set to null!", LogSeverity.Warning);
+                }
+
                 return Current != null;
             }
             catch (TaskCanceledException)
             {
-
+                LogEnvironment.LogEvent("Read cancelled!", LogSeverity.Warning);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogDebugEvent($"Un-Expected Error @MoveNext: {ex.OutlineException()}", LogSeverity.Error);
+                throw;
             }
 
             return false;
@@ -85,22 +101,28 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Communication
 
         private Task<ServerOperationMessage> Fetch()
         {
+            Task<ServerOperationMessage> retVal;
             lock (messageSync)
             {
                 if (messageQueue.IsEmpty && openReadWait == null)
                 {
-                    openReadWait = new TaskCompletionSource<ServerOperationMessage>(TaskCreationOptions.None);
+                    var ret = new TaskCompletionSource<ServerOperationMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    openReadWait = ret;
                     //Monitor.Pulse(messageSync);
-                    return openReadWait.Task;
+                    retVal = openReadWait.Task;
                 }
                 else if (!messageQueue.IsEmpty && messageQueue.TryDequeue(out var item))
                 {
-                    return Task.FromResult(item);
+                    retVal = Task.FromResult(item);
                 }
-
-                LogEnvironment.LogDebugEvent("Peng!", LogSeverity.Warning);
-                throw new InvalidOperationException("Multiple reads not allowed!");
+                else
+                {
+                    LogEnvironment.LogDebugEvent("Peng!", LogSeverity.Warning);
+                    throw new InvalidOperationException("Multiple reads not allowed!");
+                }
             }
+
+            return retVal;
         }
     }
 }

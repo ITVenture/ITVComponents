@@ -421,6 +421,8 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 var reason = (string) context.Request.RouteValues["UploadReason"];
                 var uploadHint = (string) context.Request.RouteValues["UploadHint"];
                 var fileHandler = context.RequestServices.GetFileHandler(handlerName);
+                var syncHandler = fileHandler as IFileHandler;
+                var asyncHandler = fileHandler as IAsyncFileHandler;
                 var handlerOptionsName = $"{handlerName}UploadSettings";
                 var handlerReasonOptionsName = $"{reason}_{handlerOptionsName}";
                 var logger = context.RequestServices.GetService<ILogger<IFileHandler>>();
@@ -437,7 +439,8 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
 
                 var maxSize = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
                 maxSize.MaxRequestBodySize = options.MaxUploadSize;
-                var requiredPermissions = fileHandler.PermissionsForReason(reason);
+                var requiredPermissions = asyncHandler?.PermissionsForReason(reason) ??
+                                          syncHandler.PermissionsForReason(reason);
                 if (!withAuthorization || (requiredPermissions != null && context.RequestServices.VerifyUserPermissions(requiredPermissions)))
                 {
                     var boundary = context.Request.GetMultipartBoundary();
@@ -467,11 +470,29 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                     {
                                         if (string.IsNullOrEmpty(uploadHint))
                                         {
-                                            fileHandler.AddFile(name, content, ms, context.User?.Identity, (n, c) => VerifyFile(n, c, options, out _));
+                                            if (asyncHandler != null)
+                                            {
+                                                await asyncHandler.AddFile(name, content, ms, context.User?.Identity,
+                                                    (n, c) => VerifyFile(n, c, options, out _));
+                                            }
+                                            else
+                                            {
+                                                syncHandler.AddFile(name, content, ms, context.User?.Identity,
+                                                    (n, c) => VerifyFile(n, c, options, out _));
+                                            }
                                         }
                                         else
                                         {
-                                            fileHandler.AddFile(name, content, uploadHint, ms, context.User?.Identity);
+                                            if (asyncHandler != null)
+                                            {
+                                                await asyncHandler.AddFile(name, content, uploadHint, ms,
+                                                    context.User?.Identity);
+                                            }
+                                            else
+                                            {
+                                                syncHandler.AddFile(name, content, uploadHint, ms,
+                                                    context.User?.Identity);
+                                            }
                                         }
                                         if (!ms.IsValid)
                                         {
@@ -490,9 +511,13 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                 else if (contentDisposition.IsFormDisposition())
                                 {
                                     string formContent = null;
-                                    if (fileHandler is IFormProcessor former)
+                                    if (asyncHandler != null && asyncHandler is IAsyncFormProcessor asyncFormer)
                                     {
-                                        formContent = former.ProcessForm(section.Headers, section.Body);
+                                        formContent = await asyncFormer.ProcessForm(section.Headers, section.Body);
+                                    }
+                                    else if (syncHandler != null && syncHandler is IFormProcessor syncFormer)
+                                    {
+                                        formContent = syncFormer.ProcessForm(section.Headers, section.Body);
                                     }
 
                                     formContent ??= Encoding.Default.GetString(await section.Body.ToArrayAsync());
@@ -501,9 +526,16 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                             }
                         }
 
-                        if (fileHandler is not IRespondingFileHandler rfh)
+                        var rfh = syncHandler as IRespondingFileHandler;
+                        var arh = asyncHandler as IAsyncRespondingFileHandler;
+                        if (rfh == null && arh == null)
                         {
                             await new OkResult().ExecuteResultAsync(actionContext);
+                        }
+                        else if (arh != null)
+                        {
+                            var r = await arh.GetUploadResult();
+                            await r.ExecuteResultAsync(actionContext);
                         }
                         else
                         {
@@ -544,16 +576,33 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
 
                 var fileToken = token.DecompressToken<DownloadToken>();
                 var fileHandler = context.RequestServices.GetFileHandler(fileToken.HandlerModuleName);
-                var requiredPermissions = fileHandler.PermissionsForReason(fileToken.DownloadReason);
+                var syncHandler = fileHandler as IFileHandler;
+                var asyncHandler = fileHandler as IAsyncFileHandler;
+                var requiredPermissions = asyncHandler?.PermissionsForReason(fileToken.DownloadReason) ??
+                                          syncHandler.PermissionsForReason(fileToken.DownloadReason);
                 if (!withAuthorization || (requiredPermissions != null && context.RequestServices.VerifyUserPermissions(requiredPermissions)))
                 {
                     string downloadName = fileToken.DownloadName;
                     string contentType = fileToken.ContentType;
                     bool forceDownload = fileToken.FileDownload;
-                    if (fileHandler.ReadFile(fileToken.FileIdentifier, context.User?.Identity, ref downloadName, ref contentType, ref forceDownload, out var fileContent))
+                    byte[] fileContent = null;
+                    bool asyncOk = false;
+                    if (asyncHandler != null)
+                    {
+                        var tmp = await asyncHandler.ReadFile(fileToken.FileIdentifier, context.User?.Identity);
+                        // ReSharper disable once AssignmentInConditionalExpression
+                        if (asyncOk = tmp.Success)
+                        {
+                            downloadName = tmp.DownloadName ?? downloadName;
+                            contentType = tmp.ContentType ?? contentType;
+                            forceDownload = tmp.FileDownload ?? forceDownload;
+                            fileContent = tmp.FileContent;
+                        }
+                    }
+                    if ((asyncOk && fileContent != null) ||
+                        (syncHandler != null && syncHandler.ReadFile(fileToken.FileIdentifier, context.User?.Identity, ref downloadName, ref contentType, ref forceDownload, out fileContent)))
                     {
                         var fileResult = new FileContentResult(fileContent, contentType);
-                        
                         fileResult.FileDownloadName = "";
                         if (forceDownload)
                         {

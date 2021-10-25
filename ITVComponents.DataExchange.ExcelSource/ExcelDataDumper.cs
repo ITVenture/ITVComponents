@@ -83,6 +83,7 @@ namespace ITVComponents.DataExchange.ExcelSource
             finally
             {
                 wb.Write(outputStream);
+                wb.Close();
             }
         }
 

@@ -3,34 +3,40 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security;
 using System.Security.Claims;
+using System.Security.Principal;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
 using ITVComponents.Helpers;
-using ITVComponents.InterProcessCommunication.Grpc.Extensions;
-using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
+using ITVComponents.InterProcessCommunication.InMemory.Hub.Channels;
+using ITVComponents.InterProcessCommunication.InMemory.Hub.Communication;
 using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.Logging;
-using ITVComponents.WebCoreToolkit.Extensions;
-using Microsoft.AspNetCore.Authorization;
+using ITVComponents.WebCoreToolkit.Security;
 
-namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
+namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Hubs
 {
-    [Authorize]
-    internal class AuthServiceHubRpc : OpenServiceHubRpc
+    internal class AuthServiceHubIm : OpenServiceHubIm
     {
-        public AuthServiceHubRpc(IServiceHubProvider serviceBackend) : base(serviceBackend)
+        private readonly IUserNameMapper userMapper;
+        private readonly ISecurityRepository securityRepo;
+
+        public AuthServiceHubIm(IServiceHubProvider serviceBackend, IUserNameMapper userMapper, ISecurityRepository securityRepo) :base(serviceBackend)
         {
+            this.userMapper = userMapper;
+            this.securityRepo = securityRepo;
         }
 
-        public override Task<ServiceOperationResponseMessage> ConsumeService(ServerOperationMessage request, ServerCallContext context)
+        public override Task<ServiceOperationResponseMessage> ConsumeService(ServerOperationMessage request, DataTransferContext context)
         {
             try
             {
                 CheckAuth(context, "ConnectAnyService", request.TargetService);
-                request.HubUser = JsonHelper.ToJsonStrongTyped(((ClaimsIdentity)context.GetHttpContext().User.Identity).ForTransfer());
+                request.HubUser = JsonHelper.ToJsonStrongTyped(((ClaimsIdentity)context.Identity).ForTransfer());
                 return base.ConsumeService(request, context);
             }
             catch (Exception ex)
@@ -39,7 +45,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             }
         }
 
-        public override Task<ServiceDiscoverResponseMessage> DiscoverService(ServiceDiscoverMessage request, ServerCallContext context)
+        public override Task<ServiceDiscoverResponseMessage> DiscoverService(ServiceDiscoverMessage request, DataTransferContext context)
         {
             try
             {
@@ -52,14 +58,14 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             }
         }
 
-        public override Task<RegisterServiceResponseMessage> RegisterService(RegisterServiceMessage request, ServerCallContext context)
+        public override Task<RegisterServiceResponseMessage> RegisterService(RegisterServiceMessage request, DataTransferContext context)
         {
             try
             {
                 if (string.IsNullOrEmpty(request.ResponderFor))
                 {
                     CheckAuth(context, "ActAsService");
-                    TemporaryGrants.RegisterService(request.ServiceName, context.GetHttpContext().User.Identity.Name);
+                    TemporaryGrants.RegisterService(request.ServiceName, context.Identity.Name);
                 }
                 else
                 {
@@ -76,7 +82,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             }
         }
 
-        public override async Task ServiceReady(ServiceSessionOperationMessage request, IServerStreamWriter<ServerOperationMessage> responseStream, ServerCallContext context)
+        public override async Task ServiceReady(ServiceSessionOperationMessage request, IMemoryChannel channel, DataTransferContext context)
         {
             try
             {
@@ -89,7 +95,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
                     CheckAuth(context, "ConnectAnyService", request.ResponderFor);
                 }
 
-                await base.ServiceReady(request, responseStream, context);
+                await base.ServiceReady(request, channel, context);
             }
             catch (Exception ex)
             {
@@ -106,7 +112,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             }
         }
 
-        public override Task<ServiceTickResponseMessage> ServiceTick(ServiceSessionOperationMessage request, ServerCallContext context)
+        public override Task<ServiceTickResponseMessage> ServiceTick(ServiceSessionOperationMessage request, DataTransferContext context)
         {
             try
             {
@@ -127,7 +133,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             }
         }
 
-        public override Task<Empty> CommitServiceOperation(ServiceOperationResponseMessage request, ServerCallContext context)
+        public override Task CommitServiceOperation(ServiceOperationResponseMessage request, DataTransferContext context)
         {
             try
             {
@@ -144,16 +150,24 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             }
             catch (Exception ex)
             {
-                return Task.FromException<Empty>(ex);
+                return Task.FromException(ex);
             }
         }
 
-        private void CheckAuth(ServerCallContext context, params string[] requiredPermissions)
+        private void CheckAuth(DataTransferContext context, params string[] requiredPermissions)
         {
-            if (!context.GetHttpContext().RequestServices.VerifyUserPermissions(requiredPermissions))
+            if (!VerifyUserPermissions(requiredPermissions, context))
             {
                 throw new SecurityException($"Access denied for the following permissions: {string.Join(",", requiredPermissions)}");
             }
+        }
+
+        private bool VerifyUserPermissions(string[] requiredPermissions, DataTransferContext context)
+        {
+            var labels = userMapper.GetUserLabels(context.Identity);
+            var permissions = securityRepo.GetPermissions(labels, ((ClaimsIdentity)context.Identity).AuthenticationType).Select(n => n.PermissionName).Distinct().ToArray();
+            return requiredPermissions.Length == 0 || requiredPermissions.Any(t => permissions.Contains(t, StringComparer.OrdinalIgnoreCase));
+
         }
     }
 }

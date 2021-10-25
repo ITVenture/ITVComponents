@@ -7,6 +7,7 @@ using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.SelfRegistration;
@@ -135,6 +136,17 @@ namespace ITVComponents.ParallelProcessing
         public virtual bool RunScheduledTask(ScheduleRequest task, Action<ITask> action)
         {
             action(task.Task);
+            return true;
+        }
+
+        /// <summary>
+        /// Executes a task that was previously scheduled if appropriate
+        /// </summary>
+        /// <param name="task">the task that was requested for execution</param>
+        /// <param name="action">the action that is performed to the provided task</param>
+        public virtual async Task<bool> RunScheduledTaskAsync(ScheduleRequest task, Func<ITask, Task> action)
+        {
+            await action(task.Task);
             return true;
         }
 

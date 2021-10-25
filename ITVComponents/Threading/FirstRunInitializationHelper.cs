@@ -34,11 +34,18 @@ namespace ITVComponents.Threading
             if (!handle.WaitOne(500))
             {
                 var lk = initializingComponents.GetOrAdd(componentToInitialize, s => new object());
-                if (Monitor.TryEnter(lk, 500))
+                if (AsyncMonitor.TryEnter(lk, 500))
                 {
-                    actionToPerform();
-                    handle.Set();
-                    return;
+                    try
+                    {
+                        actionToPerform();
+                        handle.Set();
+                        return;
+                    }
+                    finally
+                    {
+                        AsyncMonitor.Exit(lk);
+                    }
                 }
 
                 handle.WaitOne();

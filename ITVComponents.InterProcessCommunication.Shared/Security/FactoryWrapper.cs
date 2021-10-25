@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.ServiceModel;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.Plugins;
@@ -23,6 +25,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         private Dictionary<string, ProxyWrapper> extendedProxies;
 
         /// <summary>
+        /// Holds a dictionary of extended Decorators that are used to save delicate Services from being exposed directly
+        /// </summary>
+        private ConcurrentDictionary<string, IServiceDecorator> serviceDecorators = new();
+
+        /// <summary>
         /// Initializes a new instance of the FactoryWrapper class
         /// </summary>
         /// <param name="factory">the factory that is wrapped by this instance</param>
@@ -44,9 +51,29 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         {
             get
             {
-                object retVal = wrapped[pluginName];
+                object retVal = null;
+                if (serviceDecorators.TryGetValue(pluginName, out var deco))
+                {
+                    retVal = deco;
+                }
+                else
+                {
+                    retVal = wrapped[pluginName];
+                }
+
                 if (retVal != null)
                 {
+                    if (retVal is not IServiceDecorator)
+                    {
+                        var decorator =
+                            wrapped.FirstOrDefault(t => t is IServiceDecorator d && d.DecoratedService == retVal);
+                        if (decorator != null)
+                        {
+                            serviceDecorators.TryAdd(pluginName, (IServiceDecorator)decorator);
+                            retVal = decorator;
+                        }
+                    }
+
                     IPlugin plug = (IPlugin) retVal;
                     if (!hasSecurity && plug.RequiresSecurity())
                     {
@@ -74,11 +101,32 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         public bool Contains(string uniqueName, out bool securityRequired)
         {
 
-            bool retVal = wrapped.Contains(uniqueName);
+            bool retVal = wrapped.Contains(uniqueName) || serviceDecorators.ContainsKey(uniqueName);
             securityRequired = false;
             if (retVal)
             {
-                securityRequired = wrapped[uniqueName].RequiresSecurity();
+                IPlugin plug = null;
+                if (serviceDecorators.TryGetValue(uniqueName, out var deco))
+                {
+                    plug = deco;
+                }
+                else
+                {
+                    plug = wrapped[uniqueName];
+                }
+
+                if (plug is not IServiceDecorator)
+                {
+                    var decorator =
+                        wrapped.FirstOrDefault(t => t is IServiceDecorator d && d.DecoratedService == plug);
+                    if (decorator != null)
+                    {
+                        serviceDecorators.TryAdd(uniqueName, (IServiceDecorator)decorator);
+                        plug = decorator;
+                    }
+                }
+
+                securityRequired = plug.RequiresSecurity();
                 retVal = hasSecurity || !securityRequired;
             }
 

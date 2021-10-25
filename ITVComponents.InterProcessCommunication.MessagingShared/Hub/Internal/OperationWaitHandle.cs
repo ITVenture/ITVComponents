@@ -10,7 +10,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Internal
             ClientRequest = op;
             if (!op.TickBack)
             {
-                ServerResponse = new TaskCompletionSource<ServiceOperationResponseMessage>();
+                ServerResponse = new TaskCompletionSource<ServiceOperationResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
             }
         }
         public ServerOperationMessage ClientRequest { get; }

@@ -20,9 +20,9 @@ namespace ITVComponents.ParallelProcessing
         /// Checks whether the given taskProcessor is alive and takes appropriate actions if the processor is corrupted
         /// </summary>
         /// <param name="processor"></param>
-        public void WatchProcessor(TaskProcessor processor)
+        public void WatchProcessor(ITaskProcessor processor)
         {
-            if (processor.State == TaskProcessor.ProcessorState.Running)
+            if (processor.State == TaskProcessorState.Running)
             {
                 WatchProcessorInstance(processor);
             }
@@ -46,14 +46,14 @@ namespace ITVComponents.ParallelProcessing
         /// Checks whether the given taskProcessor is alive and takes appropriate actions if the processor is corrupted
         /// </summary>
         /// <param name="processor"></param>
-        protected abstract void WatchProcessorInstance(TaskProcessor processor);
+        protected abstract void WatchProcessorInstance(ITaskProcessor processor);
 
         /// <summary>
         /// Kills the given taskProcessor instance
         /// </summary>
         /// <param name="processor">the processor to kill</param>
         /// <param name="createNew">indicates whether to re-create the processor</param>
-        protected void KillProcessor(TaskProcessor processor, bool createNew)
+        protected void KillProcessor(ITaskProcessor processor, bool createNew)
         {
             LogEnvironment.LogEvent($"Killing a Worker-Thread of ParallelTaskProcessor {processor.Parent.Identifier}. {(!createNew?"Consider restarting the application soon. This action will cause the ParallelTaskProcessor to run with reduced capacity.":"")}", LogSeverity.Warning);
             if (!(processor.Worker.CurrentTask?.ExecutingUnsafe ?? false))
@@ -80,7 +80,7 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         /// <param name="processor">the processor on which to stop the worker-thread</param>
         /// <param name="resetWorker">indicates whether to re-set the used worker</param>
-        protected void RestartProcessor(TaskProcessor processor, bool resetWorker)
+        protected void RestartProcessor(ITaskProcessor processor, bool resetWorker)
         {
             LogEnvironment.LogEvent($"Restarting WorkerThread of ParallelTaskProcessor {processor.Parent.Identifier}", LogSeverity.Warning);
             if (!(processor.Worker.CurrentTask?.ExecutingUnsafe ?? false))

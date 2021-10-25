@@ -47,7 +47,7 @@ namespace ITVComponents.Plugins
         private ConcurrentDictionary<string, object> registeredObjects;
 
 
-        private ThreadLocal<Dictionary<string, object>> localRegistrations;
+        private AsyncLocal<Dictionary<string, object>> localRegistrations;
 
         /// <summary>
         /// A Reflection-only typelist that is used for test-only factories
@@ -230,7 +230,7 @@ namespace ITVComponents.Plugins
             this.plugins = new ConcurrentDictionary<string, IPlugin>();
             this.roTypeList = new ConcurrentDictionary<string, Type>();
             registeredObjects = new ConcurrentDictionary<string, object>();
-            localRegistrations = new ThreadLocal<Dictionary<string, object>>(() => new Dictionary<string, object>());
+            localRegistrations = new AsyncLocal<Dictionary<string, object>>();//() => new Dictionary<string, object>());
             disposer = new Thread(Dispose);
             waitForDisposedEvent = new ManualResetEvent(false);
             if (reflectionFactory)
@@ -603,6 +603,11 @@ namespace ITVComponents.Plugins
                 throw new InvalidOperationException("Supported only in Test-Mode!");
             }
 
+            if (localRegistrations.Value == null)
+            {
+                localRegistrations.Value = new Dictionary<string, object>();
+            }
+
             localRegistrations.Value[parameterName] = targetType;
         }
 
@@ -613,6 +618,11 @@ namespace ITVComponents.Plugins
         /// <param name="parameterInstance">the value to return if the factory requests the given parameter in the local thread</param>
         public void RegisterObjectLocal(string parameterName, object parameterInstance)
         {
+            if (localRegistrations.Value == null)
+            {
+                localRegistrations.Value = new Dictionary<string, object>();
+            }
+
             localRegistrations.Value[parameterName] = !testOnlyFactory ? parameterInstance : AssemblyResolver.FindReflectionOnlyTypeFor(parameterInstance.GetType());
         }
 
@@ -621,10 +631,8 @@ namespace ITVComponents.Plugins
         /// </summary>
         public void ClearLocalRegistrations()
         {
-            if (localRegistrations.IsValueCreated)
-            {
-                localRegistrations.Value.Clear();
-            }
+            localRegistrations.Value?.Clear();
+            localRegistrations.Value = null;
         }
 
         /// <summary>
@@ -634,7 +642,8 @@ namespace ITVComponents.Plugins
         /// <returns>a value indicating whether the given object is known</returns>
         public bool IsObjectRegistered(string parameterName)
         {
-            return registeredObjects.ContainsKey(parameterName) || localRegistrations.Value.ContainsKey(parameterName);
+            return registeredObjects.ContainsKey(parameterName) ||
+                   (localRegistrations.Value?.ContainsKey(parameterName) ?? false);
         }
 
         /// <summary>
@@ -645,7 +654,7 @@ namespace ITVComponents.Plugins
         public object GetRegisteredObject(string parameterName)
         {
             object retVal = null;
-            if (localRegistrations.IsValueCreated && localRegistrations.Value.ContainsKey(parameterName))
+            if (localRegistrations.Value?.ContainsKey(parameterName) ?? false)
             {
                 retVal = localRegistrations.Value[parameterName];
             }

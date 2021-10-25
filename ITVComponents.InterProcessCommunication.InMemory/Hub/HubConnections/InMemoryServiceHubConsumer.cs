@@ -359,10 +359,12 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
                         {
                             client.ServiceReady(session);
                             LogEnvironment.LogDebugEvent("Service is ready!", LogSeverity.Report);
-                            while (await channel.MoveNext())
+                            while (await channel.MoveNext().ConfigureAwait(false))
                             {
                                 var c = channel.Current;
-                                LogEnvironment.LogDebugEvent($"TargetService: {c.TargetService}, TickBack: {c.TickBack}, Id: {c.OperationId}", LogSeverity.Report);
+                                LogEnvironment.LogDebugEvent(
+                                    $"TargetService: {c.TargetService}, TickBack: {c.TickBack}, Id: {c.OperationId}",
+                                    LogSeverity.Report);
                                 if (!c.TickBack)
                                 {
                                     var msg = new MessageArrivedEventArgs
@@ -373,7 +375,8 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
 
                                     if (!string.IsNullOrEmpty(c.HubUser))
                                     {
-                                        msg.HubUser = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(c.HubUser).ToIdentity(customServerSecurity);
+                                        msg.HubUser = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(c.HubUser)
+                                            .ToIdentity(customServerSecurity);
                                     }
 
                                     OnMessageArrived(msg);
@@ -407,7 +410,9 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
                                         {
                                             OperationId = c.OperationId,
                                             TargetService = c.TargetService,
-                                            ResponsePayload = JsonHelper.ToJsonStrongTyped(new SerializedException("Message was not processed!", new SerializedException[0]), true),
+                                            ResponsePayload = JsonHelper.ToJsonStrongTyped(
+                                                new SerializedException("Message was not processed!",
+                                                    new SerializedException[0]), true),
                                             Ok = false
                                         };
                                     }
@@ -427,23 +432,19 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
                         }
                         catch (IOException ex)
                         {
-                            LogEnvironment.LogDebugEvent($"Connection has gone... {ex.Message}, {ex.GetType().FullName}", LogSeverity.Warning);
-                            if (!disposing)
-                            {
-                                LostConnection();
-                            }
+                            LogEnvironment.LogDebugEvent(
+                                $"Connection has gone... {ex.Message}, {ex.GetType().FullName}", LogSeverity.Warning);
                         }
                         catch (CommunicationException ex)
                         {
                             LogEnvironment.LogDebugEvent($"Connection has gone... {ex.Message}", LogSeverity.Warning);
-                            if (!disposing)
-                            {
-                                LostConnection();
-                            }
                         }
-                        catch(Exception ex)
+                        catch (Exception ex)
                         {
                             LogEnvironment.LogEvent($"Unexpected Error: {ex.OutlineException()}", LogSeverity.Error);
+                        }
+                        finally
+                        {
                             if (!disposing)
                             {
                                 LostConnection();

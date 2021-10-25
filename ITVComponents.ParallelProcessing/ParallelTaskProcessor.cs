@@ -39,6 +39,8 @@ namespace ITVComponents.ParallelProcessing
 
         private readonly bool useAffineThreads;
 
+        private readonly bool useTasks;
+
         /// <summary>
         /// indicates whether the GetMoreJobs event needs to be triggered
         /// </summary>
@@ -67,7 +69,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Processors that are working for this ParallelTaskProcessor instance
         /// </summary>
-        private List<TaskProcessor> processors;
+        private List<ITaskProcessor> processors;
 
         /// <summary>
         /// ThreadTimer used to moderate the queues 
@@ -153,7 +155,47 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="lowTaskThreshold">the minimum number of Items that should be in a queue for permanent processing</param>
         /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
-        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool runWithoutSchedulers)
+        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority,
+            int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold,
+            bool useAffineThreads, bool runWithoutSchedulers) :
+            this(identifier, worker, highestPriority, lowestPriority, workerCount, workerPollTime, lowTaskThreshold,
+                highTaskThreshold, useAffineThreads, runWithoutSchedulers, false)
+        {
+
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the TaskWorker class
+        /// </summary>
+        /// <param name="identifier">the unique identifier of this taskprocessor</param>
+        /// <param name="worker">the worker that is used by all ThreadWorkers</param>
+        /// <param name="highestPriority">the highest Priority that is supported by this parallelProcessor</param>
+        /// <param name="lowestPriority">the lowest Priority that is supported by this parallelProcessor</param>
+        /// <param name="workerCount">the number of workers that are initialized in this ParallelTaskProcessor</param>
+        /// <param name="workerPollTime">the number of milliseconds a worker waits between single cycles with nothing to do</param>
+        /// <param name="lowTaskThreshold">the minimum number of Items that should be in a queue for permanent processing</param>
+        /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
+        /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
+        /// <param name="watchDog">a watchdog instance that will restart worker-instances when they become unresponsive</param>
+        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool runWithoutSchedulers, bool useTasks, WatchDog watchDog) :
+            this(identifier, worker, highestPriority, lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, runWithoutSchedulers, useTasks)
+        {
+            this.watchDog = watchDog;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the TaskWorker class
+        /// </summary>
+        /// <param name="identifier">the unique identifier of this taskprocessor</param>
+        /// <param name="worker">the worker that is used by all ThreadWorkers</param>
+        /// <param name="highestPriority">the highest Priority that is supported by this parallelProcessor</param>
+        /// <param name="lowestPriority">the lowest Priority that is supported by this parallelProcessor</param>
+        /// <param name="workerCount">the number of workers that are initialized in this ParallelTaskProcessor</param>
+        /// <param name="workerPollTime">the number of milliseconds a worker waits between single cycles with nothing to do</param>
+        /// <param name="lowTaskThreshold">the minimum number of Items that should be in a queue for permanent processing</param>
+        /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
+        /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
+        protected ParallelTaskProcessor(string identifier, Func<ITaskWorker> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool runWithoutSchedulers, bool useTasks)
             : this()
         {
             this.identifier = identifier;
@@ -165,6 +207,7 @@ namespace ITVComponents.ParallelProcessing
             this.lowTaskThreshold = lowTaskThreshold;
             this.highTaskThreshold = highTaskThreshold;
             this.useAffineThreads = useAffineThreads;
+            this.useTasks = useTasks;
             this.workerPollTime = workerPollTime;
             this.runWithoutSchedulers = runWithoutSchedulers;
             if (lowestPriority < highestPriority)
@@ -213,7 +256,7 @@ namespace ITVComponents.ParallelProcessing
             workerPulse = new object();
             stopEvent = new ManualResetEvent(false);
             stoppedEvent = new ManualResetEvent(false);
-            processors = new List<TaskProcessor>();
+            processors = new List<ITaskProcessor>();
             moderatorTimer = new Timer(Moderate,string.Format("::{0}::", GetHashCode()), Timeout.Infinite,
                                          Timeout.Infinite);
         }
@@ -244,7 +287,7 @@ namespace ITVComponents.ParallelProcessing
         public void Suspend()
         {
             moderatorTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            TaskProcessor[] procs;
+            ITaskProcessor[] procs;
             lock (processors)
             {
                 procs = processors.ToArray();
@@ -260,7 +303,7 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         public void Resume()
         {
-            TaskProcessor[] procs;
+            ITaskProcessor[] procs;
             lock (processors)
             {
                 procs = processors.ToArray();
@@ -336,12 +379,12 @@ namespace ITVComponents.ParallelProcessing
                 ParallelTaskProcessor t;
                 initializedProcessors.TryRemove(identifier,out t);
                 disposed = true;
-                TaskProcessor[] procs;
+                ITaskProcessor[] procs;
                 lock (processors)
                 {
                     procs = processors.ToArray();
                 }
-                foreach (TaskProcessor processor in procs)
+                foreach (ITaskProcessor processor in procs)
                 {
                     ((IDisposable)processor).Dispose();
                 }
@@ -358,12 +401,12 @@ namespace ITVComponents.ParallelProcessing
         public void Stop()
         {
             stopEvent.Set();
-            TaskProcessor[] procs;
+            ITaskProcessor[] procs;
             lock (processors)
             {
                 procs = processors.ToArray();
             }
-            foreach (TaskProcessor processor in procs)
+            foreach (ITaskProcessor processor in procs)
             {
                 processor.Join();
             }
@@ -397,7 +440,7 @@ namespace ITVComponents.ParallelProcessing
         /// Removes a processor from the list of active processors
         /// </summary>
         /// <param name="processor">a processor that is being stopped</param>
-        internal void UnRegisterProcessor(TaskProcessor processor)
+        internal void UnRegisterProcessor(ITaskProcessor processor)
         {
             lock (processors)
             {
@@ -414,15 +457,36 @@ namespace ITVComponents.ParallelProcessing
         {
             lock (processors)
             {
-                processors.Add(new TaskProcessor(worker(), workerPulse, stopEvent, workerPollTime, highestPriority, startPriority, this, tasks, useAffineThreads));
+                if (!useTasks)
+                {
+                    processors.Add(new TaskProcessor(worker(), workerPulse, stopEvent, workerPollTime, highestPriority,
+                        startPriority, this, tasks, useAffineThreads));
+                }
+                else
+                {
+                    processors.Add(new AsyncTaskProcessor(worker(), workerPulse, stopEvent, workerPollTime, highestPriority, startPriority, this, tasks));
+                }
             }
+        }
+
+        /// <summary>
+        /// Enqueues a task and when its done returns the fulfilled task object
+        /// </summary>
+        /// <param name="task">the task to process</param>
+        /// <returns>a Task that returns after the provided task was fulfilled</returns>
+        protected async Task<ITask> ProcessAsync(ITask task)
+        {
+            EnqueueTask(task);
+            await task.Processing();
+            return task;
         }
 
         /// <summary>
         /// Enqueues a task into the appropriate queue
         /// </summary>
         /// <param name="task">the task that needs to be queued</param>
-        protected bool EnqueueTask(ITask task)
+        /// <param name="forceRunWithoutScheduler">indicates whether to force the processor to enqueue a non-deferred Task, even though runWithoutSchedulers was initialized as false</param>
+        protected bool EnqueueTask(ITask task, bool forceRunWithoutScheduler = false)
         {
             try
             {
@@ -473,7 +537,7 @@ namespace ITVComponents.ParallelProcessing
 
                 if (!scheduled)
                 {
-                    if (runWithoutSchedulers)
+                    if (runWithoutSchedulers || forceRunWithoutScheduler)
                     {
                         TaskScheduled(new TaskContainer {Task = task});
                     }
@@ -566,7 +630,7 @@ namespace ITVComponents.ParallelProcessing
 
                     if (watchDog != null)
                     {
-                        TaskProcessor[] procs;
+                        ITaskProcessor[] procs;
                         lock (processors)
                         {
                             procs = processors.ToArray();

@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.WebCoreToolkit.Security
 {
-    public interface ISecurityRepository
+    public interface ISecurityRepository:IPlugin
     {
         /// <summary>
         /// Gets a list of users in the current application

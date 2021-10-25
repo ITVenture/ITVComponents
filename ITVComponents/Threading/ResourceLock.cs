@@ -34,7 +34,7 @@ namespace ITVComponents.Threading
             this.resource = resource;
             if (resource != null)
             {
-                Monitor.Enter(resource);
+                AsyncMonitor.Enter(resource);
             }
         }
 
@@ -57,7 +57,7 @@ namespace ITVComponents.Threading
 
             if (resource != null)
             {
-                Monitor.Exit(resource);
+                AsyncMonitor.Exit(resource);
                 resource = null;
             }
         }

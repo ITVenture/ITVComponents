@@ -122,7 +122,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                 {
                     if (operations.IsEmpty && service.OpenTaskWait == null)
                     {
-                        retTask = (service.OpenTaskWait = new TaskCompletionSource<OperationWaitHandle>(TaskCreationOptions.None)).Task;
+                        retTask = (service.OpenTaskWait = new TaskCompletionSource<OperationWaitHandle>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
                     }
                     else if (!operations.IsEmpty && operations.TryDequeue(out var retVal))
                     {

@@ -4,13 +4,14 @@ using System.Linq;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Plugins;
 
 namespace ITVComponents.WebCoreToolkit.Security
 {
     /// <summary>
     /// Maps a physical user to one or multiple labels
     /// </summary>
-    public interface IUserNameMapper
+    public interface IUserNameMapper:IPlugin
     {
         /// <summary>
         /// Gets all labels for the given principaluser

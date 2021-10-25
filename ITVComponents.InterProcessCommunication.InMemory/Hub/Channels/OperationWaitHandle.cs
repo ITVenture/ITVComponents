@@ -10,7 +10,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
     {
         public OperationWaitHandle()
         {
-            ServerResponse = new TaskCompletionSource<object>();
+            ServerResponse = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
         }
         public TaskCompletionSource<object> ServerResponse{get;}
     }

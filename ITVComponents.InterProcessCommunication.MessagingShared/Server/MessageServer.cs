@@ -66,14 +66,24 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 {
                     if (hubClient != null && !hubClient.Operational)
                     {
-                        hubClient.MessageArrived -= ClientInvokation;
-                        if (hubClient is not LocalServiceHubConsumer)
+                        try
                         {
-                            hubClient.OperationalChanged -= ConnectedChanges;
-                        }
+                            hubClient.MessageArrived -= ClientInvokation;
+                            if (hubClient is not LocalServiceHubConsumer)
+                            {
+                                hubClient.OperationalChanged -= ConnectedChanges;
+                            }
 
-                        hubClient.Dispose();
-                        hubClient = null;
+                            hubClient.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            LogEnvironment.LogDebugEvent($"Un-Expected Disconnection Error: {ex.OutlineException()}", LogSeverity.Error);
+                        }
+                        finally
+                        {
+                            hubClient = null;
+                        }
                     }
                     if (hubClient == null)
                     {
@@ -103,14 +113,25 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
             if (hubClient != null && !hubClient.Operational)
             {
                 hubClient.MessageArrived -= ClientInvokation;
-                if (hubClient is not LocalServiceHubConsumer)
+                try
                 {
-                    hubClient.OperationalChanged -= ConnectedChanges;
-                }
+                    hubClient.MessageArrived -= ClientInvokation;
+                    if (hubClient is not LocalServiceHubConsumer)
+                    {
+                        hubClient.OperationalChanged -= ConnectedChanges;
+                    }
 
-                hubClient.Dispose();
-                hubClient = null;
-                reconnector.Change(reconnectTimeout, reconnectTimeout);
+                    hubClient.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogDebugEvent($"Un-Expected Disconnection Error: {ex.OutlineException()}", LogSeverity.Error);
+                }
+                finally
+                {
+                    hubClient = null;
+                    reconnector.Change(reconnectTimeout, reconnectTimeout);
+                }
             }
         }
 

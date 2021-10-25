@@ -102,6 +102,11 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         private int maximumFailsPerItem = 0;
 
         /// <summary>
+        /// indicates whether to use native async support for the task-execution
+        /// </summary>
+        private readonly bool useTasks;
+
+        /// <summary>
         /// the plugin factory that is used for initializing forther plugins
         /// </summary>
         private PluginFactory factory;
@@ -190,7 +195,94 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
         /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
-        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, bool runWithoutSchedulers, PluginFactory factory) : this()
+        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval,
+            int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval,
+            int maximumFailsPerItem, bool runWithoutSchedulers, PluginFactory factory) : this(highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, eventReTriggerInterval, maximumFailsPerItem, runWithoutSchedulers, false, factory)
+        {
+        }
+
+        //---
+        /// <summary>
+        /// Initializes a new instance of the ParallelServer class
+        /// </summary>
+        /// <param name="highestPriority">the highest priority that is processed by this server</param>
+        /// <param name="lowestPriority">the lowest priority that is processed by this server</param>
+        /// <param name="workerCount">the number of workers to use</param>
+        /// <param name="workerPollInterval">the interval after which a worker will poll the working queue if it has not been triggered</param>
+        /// <param name="lowTaskThreshold">the minimum number of tasks that the workerqueue should contain</param>
+        /// <param name="highTaskThreshold">the maximum number of tasks that the workerqueue should contain</param>
+        /// <param name="useAffineThreads">indicates whether to use affine threads</param>
+        /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
+        /// <param name="useTasks">indicates whether to use native tasks for the processing</param>
+        /// <param name="factory">the factory that is used to initialize further plugins</param>
+        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
+                                 int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, bool runWithoutSchedulers, bool useTasks, PluginFactory factory)
+            : this(
+                highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads,
+                eventReTriggerInterval, 0, runWithoutSchedulers, useTasks, factory)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the ParallelServer class
+        /// </summary>
+        /// <param name="highestPriority">the highest priority that is processed by this server</param>
+        /// <param name="lowestPriority">the lowest priority that is processed by this server</param>
+        /// <param name="workerCount">the number of workers to use</param>
+        /// <param name="workerPollInterval">the interval after which a worker will poll the working queue if it has not been triggered</param>
+        /// <param name="lowTaskThreshold">the minimum number of tasks that the workerqueue should contain</param>
+        /// <param name="highTaskThreshold">the maximum number of tasks that the workerqueue should contain</param>
+        /// <param name="useAffineThreads">indicates whether to use affine threads</param>
+        /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
+        /// <param name="useTasks">indicates whether to use native tasks for the processing</param>
+        /// <param name="factory">the factory that is used to initialize further plugins</param>
+        /// <param name="watchDog">a watchdog instance that is used to restart non-responsive processors</param>
+        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
+            int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, bool runWithoutSchedulers, bool useTasks, PluginFactory factory, WatchDog watchDog)
+            : this(
+                highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads,
+                eventReTriggerInterval, 0, runWithoutSchedulers, useTasks, factory, watchDog)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the ParallelServer class
+        /// </summary>
+        /// <param name="highestPriority">the highest priority that is processed by this server</param>
+        /// <param name="lowestPriority">the lowest priority that is processed by this server</param>
+        /// <param name="workerCount">the number of workers to use</param>
+        /// <param name="workerPollInterval">the interval after which a worker will poll the working queue if it has not been triggered</param>
+        /// <param name="lowTaskThreshold">the minimum number of tasks that the workerqueue should contain</param>
+        /// <param name="highTaskThreshold">the maximum number of tasks that the workerqueue should contain</param>
+        /// <param name="useAffineThreads">indicates whether to use affine threads</param>
+        /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
+        /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
+        /// <param name="useTasks">indicates whether to use native tasks for the processing</param>
+        /// <param name="factory">the factory that is used to initialize further plugins</param>
+        /// <param name="watchDog">a watchdog instance that is used to restart non-responsive processors</param>
+        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, bool runWithoutSchedulers, bool useTasks, PluginFactory factory, WatchDog watchDog) :
+            this(highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, eventReTriggerInterval, maximumFailsPerItem, runWithoutSchedulers, useTasks, factory)
+        {
+            this.watchDog = watchDog;
+        }
+
+        //---
+
+        /// <summary>
+        /// Initializes a new instance of the ParallelServer class
+        /// </summary>
+        /// <param name="highestPriority">the highest priority that is processed by this server</param>
+        /// <param name="lowestPriority">the lowest priority that is processed by this server</param>
+        /// <param name="workerCount">the number of workers to use</param>
+        /// <param name="workerPollInterval">the interval after which a worker will poll the working queue if it has not been triggered</param>
+        /// <param name="lowTaskThreshold">the minimum number of tasks that the workerqueue should contain</param>
+        /// <param name="highTaskThreshold">the maximum number of tasks that the workerqueue should contain</param>
+        /// <param name="useAffineThreads">indicates whether to use affine threads</param>
+        /// <param name="eventReTriggerInterval">the timeout in minutes after which an event that has not been commited by a client is re-triggered</param>
+        /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
+        /// <param name="useTasks">indicates whether to use native tasks for the processing</param>
+        /// <param name="factory">the factory that is used to initialize further plugins</param>
+        protected ParallelServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int eventReTriggerInterval, int maximumFailsPerItem, bool runWithoutSchedulers, bool useTasks, PluginFactory factory) : this()
         {
             packages = new Dictionary<int, ConcurrentBag<TPackage>>();
             for (int i = highestPriority; i <= lowestPriority; i++)
@@ -208,6 +300,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             this.eventReTriggerInterval = eventReTriggerInterval;
             this.maximumFailsPerItem = maximumFailsPerItem;
             this.factory = factory;
+            this.useTasks = useTasks;
             this.runWithoutSchedulers = runWithoutSchedulers;
             eventReTriggerer.Change(10000, 10000);
         }
@@ -587,7 +680,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             string workerName = $"{this.UniqueName }TaskProcessor";
             processor = new ParallelTaskProcessor<TTask>(workerName,GetWorker, highestPriority, lowestPriority, workerCount,
                 workerPollInterval, lowTaskThreshold, highTaskThreshold,
-                useAffineThreads, runWithoutSchedulers, watchDog);
+                useAffineThreads, runWithoutSchedulers, useTasks, watchDog);
             processor.GetMoreTasks += FetchMoreTasks;
             processor.IntegratePendingTask += IntegratePendingTasks;
             factory.RegisterObject(workerName, processor);
