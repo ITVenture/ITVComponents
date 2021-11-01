@@ -11,7 +11,7 @@ using ITVComponents.Scripting.CScript.ScriptValues;
 
 namespace ITVComponents.Scripting.CScript.Core.Literals
 {
-    public class FunctionLiteral : DynamicObject
+    public abstract class FunctionLiteral : DynamicObject
     {
         /// <summary>
         /// The Scope of this function
@@ -19,19 +19,9 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         private FunctionScope scope;
 
         /// <summary>
-        /// The Script visitor that is used to interpret this method
-        /// </summary>
-        private ScriptVisitor visitor;
-
-        /// <summary>
         /// The method names that are expected by this method
         /// </summary>
         private string[] arguments;
-
-        /// <summary>
-        /// The functionbody of this method
-        /// </summary>
-        private ITVScriptingParser.FunctionBodyContext body;
 
         /// <summary>
         /// The initialValues that are surrounding this functiondefinition
@@ -45,14 +35,11 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         /// <param name="parent">the parent scope of this method</param>
         /// <param name="arguments">the argument names that are passed to this method</param>
         /// <param name="body">the method body of this method</param>
-        public FunctionLiteral(Dictionary<string, object> values, string[] arguments,
-            ITVScriptingParser.FunctionBodyContext body)
+        protected FunctionLiteral(Dictionary<string, object> values, string[] arguments)
         {
             initialValues = values;
             scope = new FunctionScope(values);
-            visitor = new ScriptVisitor(scope);
             this.arguments = arguments;
-            this.body = body;
         }
 
         public IScope ParentScope { get { return scope.ParentScope; } set { scope.ParentScope = value; } }
@@ -61,6 +48,11 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         /// Gets a value indicating whether autoInvoke for this method is currently active
         /// </summary>
         internal bool AutoInvokeEnabled { get; private set; }
+
+        /// <summary>
+        /// Provides access to the function-scope
+        /// </summary>
+        protected Scope Scope { get; }
 
         /// <summary>
         /// Enables AutoInvokation on this functionliteral
@@ -120,6 +112,11 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
             return scope.GetBaseValue(name, out declared);
         }
 
+        public bool IsInitialScopeValueSet(string name)
+        {
+            return scope.HasBaseValue(name);
+        }
+
         /// <summary>Stellt die Implementierung für Vorgänge bereit, die ein Objekt aufrufen.Von der <see cref="T:System.Dynamic.DynamicObject" />-Klasse abgeleitete Klassen können diese Methode überschreiben, um dynamisches Verhalten für Vorgänge wie das Aufrufen eines Objekts oder Delegaten anzugeben.</summary>
         /// <returns>true, wenn der Vorgang erfolgreich ist, andernfalls false.Wenn die Methode false zurückgibt, wird das Verhalten vom Laufzeitbinder der Sprache bestimmt.(In den meisten Fällen wird eine sprachspezifische Laufzeitausnahme ausgelöst.)</returns>
         /// <param name="binder">Stellt Informationen zum Aufrufvorgang bereit.</param>
@@ -171,7 +168,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
 
                 parameters["parameters"] = arguments;
                 scope.Clear(parameters);
-                return ScriptValueHelper.GetScriptValueResult<object>(visitor.Visit(body), false);
+                return InvokeFunction();
             }
             finally
             {
@@ -185,7 +182,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         /// <returns></returns>
         public FunctionLiteral Copy()
         {
-            return new FunctionLiteral(initialValues, arguments, body);
+            return CopyMethod(initialValues, arguments);
         }
 
         /// <summary>
@@ -225,6 +222,10 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
             Delegate tmp = lambda.Compile();
             return Delegate.CreateDelegate(method, tmp, "Invoke", false);
         }
+
+        protected abstract object InvokeFunction();
+
+        protected abstract FunctionLiteral CopyMethod(Dictionary<string, object> values, string[] arguments); 
 
         /// <summary>
         /// a temporary delegate type that is used as bridge between an eventhandler and the invoke method

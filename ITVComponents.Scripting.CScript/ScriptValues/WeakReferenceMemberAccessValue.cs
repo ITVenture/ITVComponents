@@ -47,7 +47,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// Sets the Value of this ScriptValue object
         /// </summary>
         /// <param name="value">the new Value to assign to this Value</param>
-        internal override void SetValue(object value)
+        public override void SetValue(object value)
         {
             throw new ScriptException("SetValue not supported for Weak-Reference access");
         }

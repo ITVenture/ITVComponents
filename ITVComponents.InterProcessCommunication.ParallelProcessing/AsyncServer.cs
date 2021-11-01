@@ -424,7 +424,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             string workerName = this.UniqueName + "TaskProcessor";
             processor = new ParallelTaskProcessor<TTask>(workerName,GetWorker, highestPriority, lowestPriority, workerCount,
                 workerPollInterval, lowTaskThreshold, highTaskThreshold,
-                useAffineThreads, useTasks, watchDog);
+                useAffineThreads, useTasks, true, watchDog);
             factory.RegisterObject(workerName, processor);
         }
 

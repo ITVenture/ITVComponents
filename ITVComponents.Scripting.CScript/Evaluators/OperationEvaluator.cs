@@ -6,19 +6,20 @@ using System.Threading.Tasks;
 using Antlr4.Runtime;
 using ITVComponents.Scripting.CScript.Evaluators.FlowControl;
 using ITVComponents.Scripting.CScript.Operating;
+using ITVComponents.Scripting.CScript.Optimization;
 using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 
 namespace ITVComponents.Scripting.CScript.Evaluators
 {
-    public class AdditionEvaluator : EvaluatorBase
+    public class OperationEvaluator : EvaluatorBase
     {
         private readonly EvaluatorBase left;
         private readonly EvaluatorBase right;
         private readonly string op;
 
-        private LazyOp operationExecutor;
+        private IExecutor operationExecutor;
 
-        public AdditionEvaluator(EvaluatorBase left, EvaluatorBase right, string op, ParserRuleContext parserElementContext) : base(null, null, new[] {left, right}, parserElementContext, null, null)
+        public OperationEvaluator(EvaluatorBase left, EvaluatorBase right, string op, ParserRuleContext parserElementContext) : base(null, null, new[] {left, right}, parserElementContext, null, null)
         {
             this.left = left;
             this.right = right;
@@ -62,44 +63,18 @@ namespace ITVComponents.Scripting.CScript.Evaluators
 
         protected override object Evaluate(object[] arguments, EvaluationContext context)
         {
-            var lazy = context.LazyEvaluation;
-            if (operationExecutor == null || !lazy)
+            var left = arguments[0];
+            var right = arguments[1];
+            object result;
+            if (context.LazyEvaluation && operationExecutor != null)
+                result = operationExecutor.Invoke(null, new[] { left, right });
+            else
             {
-                switch (op)
-                {
-                    case "+":
-                    {
-                        if (!lazy)
-                        {
-                            return OperationsHelper.Add(arguments[0], arguments[1], context.TypeSafety);
-                        }
-
-                        operationExecutor = new LazyOp(OperationsHelper.Add, context.TypeSafety);
-                        break;
-                    }
-                    case "-":
-                    {
-                        if (!lazy)
-                        {
-                            return OperationsHelper.Subtract(arguments[0], arguments[1], context.TypeSafety);
-                        }
-
-                        operationExecutor = new LazyOp(OperationsHelper.Subtract, context.TypeSafety);
-                        break;
-                    }
-                    default:
-                    {
-                        throw new InvalidOperationException("Unable to perform additive operation.");
-                    }
-                }
+                result = OperationsHelper.PerformAppropriateOperation(op, left, right, context.TypeSafety, context.LazyEvaluation, out var lop);
+                operationExecutor = lop;
             }
 
-            if (operationExecutor != null && operationExecutor.CanExecute(null, arguments))
-            {
-                return operationExecutor.Invoke(null, arguments);
-            }
-
-            throw new InvalidOperationException("Unable to perform additive operation.");
+            return result;
         }
     }
 }

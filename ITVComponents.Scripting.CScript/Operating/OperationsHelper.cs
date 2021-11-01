@@ -2,6 +2,8 @@
 
 using System;
 using ITVComponents.Scripting.CScript.Exceptions;
+using ITVComponents.Scripting.CScript.Optimization;
+using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 
 namespace ITVComponents.Scripting.CScript.Operating
 {
@@ -842,6 +844,7 @@ namespace ITVComponents.Scripting.CScript.Operating
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
+
             return v1.CompareTo(v2);
         }
 
@@ -1112,6 +1115,236 @@ namespace ITVComponents.Scripting.CScript.Operating
             UnsignedLongInt,
             String,
             Error
+        }
+
+        /// <summary>
+        /// Performs the appropriate operation and creates a lazy-evalutor if required
+        /// </summary>
+        /// <param name="op">the operator of the requested operation</param>
+        /// <param name="left">the left operand</param>
+        /// <param name="right">the right operand</param>
+        /// <param name="useTypeSafety">indicates whether to use type safety</param>
+        /// <param name="createLazyEvaluator">indicates whether to crate a lazy evaluator</param>
+        /// <param name="executor">the created lazy-evaluator instance</param>
+        /// <returns>the result of the requested operation</returns>
+        public static object PerformAppropriateOperation(string op, object left, object right, bool useTypeSafety, bool createLazyEvaluator, out IExecutor executor)
+        {
+            executor = null;
+            object retVal;
+            switch (op)
+            {
+                case "*":
+                    {
+                        retVal = Multiply(left, right, useTypeSafety);
+                        if (createLazyEvaluator)
+                        {
+                            executor = new LazyOp(Multiply, useTypeSafety);
+                        }
+
+                        break;
+                    }
+                case "/":
+                    {
+                        retVal = Divide(left, right, useTypeSafety);
+                        if (createLazyEvaluator)
+                        {
+                            executor = new LazyOp(Divide, useTypeSafety);
+                        }
+
+                        break;
+                    }
+                case "%":
+                    {
+                        retVal = Modulus(left, right, useTypeSafety);
+                        if (createLazyEvaluator)
+                        {
+                            executor = new LazyOp(Modulus, useTypeSafety);
+                        }
+
+                        break;
+                    }
+                case "+":
+                    {
+                        retVal = Add(left, right, useTypeSafety);
+                        if (createLazyEvaluator)
+                        {
+                            executor = new LazyOp(Add, useTypeSafety);
+                        }
+
+                        break;
+                    }
+                case "-":
+                    {
+                        retVal = Subtract(left, right, useTypeSafety);
+                        if (createLazyEvaluator)
+                        {
+                            executor = new LazyOp(Subtract, useTypeSafety);
+                        }
+
+                        break;
+                    }
+                case "<<":
+                    {
+                        retVal = LShift(left, right);
+                        if (createLazyEvaluator)
+                        {
+                            executor = new LazyOp(LShift, useTypeSafety);
+                        }
+
+                        break;
+                    }
+                case ">>":
+                    {
+                        retVal = RShift(left, right);
+                        if (createLazyEvaluator)
+                        {
+                            executor = new LazyOp(RShift, useTypeSafety);
+                        }
+                        break;
+                    }
+                case "&":
+                    {
+                        if (left is bool && right is bool)
+                        {
+                            retVal = (bool)left & (bool)right;
+                            if (createLazyEvaluator)
+                            {
+                                executor = new LazyOp((a, b, c) => (bool)a & (bool)b, useTypeSafety);
+                            }
+                        }
+                        else
+                        {
+                            retVal = And(left, right, useTypeSafety);
+                            if (createLazyEvaluator)
+                            {
+                                executor = new LazyOp(And, useTypeSafety);
+                            }
+                        }
+
+                        break;
+                    }
+                case "^":
+                    {
+                        if (left is bool && right is bool)
+                        {
+                            retVal = (bool)left ^ (bool)right;
+                            if (createLazyEvaluator)
+                            {
+                                executor = new LazyOp((a, b, c) => (bool)a ^ (bool)b, useTypeSafety);
+                            }
+                        }
+                        else
+                        {
+                            retVal = Xor(left, right, useTypeSafety);
+                            if (createLazyEvaluator)
+                            {
+                                executor = new LazyOp(Xor, useTypeSafety);
+                            }
+                        }
+                        break;
+                    }
+                case "|":
+                    {
+                        if (left is bool && right is bool)
+                        {
+                            retVal = (bool)left | (bool)right;
+                            if (createLazyEvaluator)
+                            {
+                                executor = new LazyOp((a, b, c) => (bool)a | (bool)b, useTypeSafety);
+                            }
+                        }
+                        else
+                        {
+                            retVal = Or(left, right, useTypeSafety);
+                            if (createLazyEvaluator)
+                            {
+                                executor = new LazyOp(Or, useTypeSafety);
+                            }
+                        }
+                        break;
+                    }
+                case ">":
+                case ">=":
+                case "<":
+                case "<=":
+                case "==":
+                case "!=":
+                {
+                    if (op != "==" && op != "!=")
+                    {
+                        int compValue = Compare(left, right, useTypeSafety);
+                        switch (op)
+                        {
+                            case ">":
+                            {
+                                retVal = compValue > 0;
+                                if (createLazyEvaluator)
+                                {
+                                    executor = new LazyOp((a, b, t) => Compare(a, b, t) > 0, useTypeSafety);
+                                }
+
+                                break;
+                            }
+                            case ">=":
+                            {
+                                retVal = compValue >= 0;
+                                if (createLazyEvaluator)
+                                {
+                                    executor = new LazyOp((a, b, t) => Compare(a, b, t) >= 0, useTypeSafety);
+                                }
+
+                                break;
+                            }
+                            case "<":
+                            {
+                                retVal = compValue < 0;
+                                if (createLazyEvaluator)
+                                {
+                                    executor = new LazyOp((a, b, t) => Compare(a, b, t) < 0, useTypeSafety);
+                                }
+
+                                break;
+                            }
+                            case "<=":
+                            {
+                                retVal = compValue <= 0;
+                                if (createLazyEvaluator)
+                                {
+                                    executor = new LazyOp((a, b, t) => Compare(a, b, t) <= 0, useTypeSafety);
+                                }
+
+                                break;
+                            }
+                            default:
+                            {
+                                throw new ScriptException("Invalid operator provided!");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var exec = new Func<object, object, bool, object>((a, b, c) =>
+                        {
+                            var isEqual = (a == null && b == null) || (a != null && left.Equals(b));
+                            return !(isEqual ^ (op == "=="));
+                        });
+
+                        retVal = exec(left, right, useTypeSafety);
+                        if (createLazyEvaluator)
+                        {
+                            executor = new LazyOp(exec, useTypeSafety);
+                        }
+                    }
+
+                    break;
+                }
+                default:
+                {
+                    throw new ScriptException("Invalid operator provided!");
+                }
+            }
+
+            return retVal;
         }
     }
 }

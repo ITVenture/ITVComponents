@@ -92,8 +92,10 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
             {
                 try
                 {
-                    value = current.Evaluate(this);
-                    if (current.PutValueOnStack && current.State == EvaluationState.Evaluation)
+                    var currentState = current.State;
+                    value = current.Evaluate(this, out var forcePutOnStack);
+                    if (current.PutValueOnStack && currentState == EvaluationState.Evaluation ||
+                        forcePutOnStack)
                     {
                         values.Push(value);
                     }

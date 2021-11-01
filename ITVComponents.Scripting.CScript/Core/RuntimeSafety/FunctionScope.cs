@@ -60,6 +60,11 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
             return null;
         }
 
+        public bool HasBaseValue(string name)
+        {
+            return initialScope.ContainsKey(name);
+        }
+
         /// <summary>
         /// Gets a base-value of this scope
         /// </summary>

@@ -25,7 +25,7 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="highTaskThreshold">the maximum number of Items that should be queued in a workerQueue</param>
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
         public ParallelTaskProcessor(string identifier, Func<ITaskWorker<TTask>> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool useTasks, bool runWithoutSchedulers)
-            : base(identifier, worker, highestPriority,lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, useTasks, bool runWithoutSchedulers)
+            : base(identifier, worker, highestPriority,lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, useTasks, runWithoutSchedulers)
         {
         }
 
@@ -43,7 +43,7 @@ namespace ITVComponents.ParallelProcessing
         /// <param name="useAffineThreads">indicates whether to use ThreadAffinity in the workers</param>
         /// <param name="watchDog">a watchdog instance that will restart worker-instances when they become unresponsive</param>
         public ParallelTaskProcessor(string identifier, Func<ITaskWorker<TTask>> worker, int highestPriority, int lowestPriority, int workerCount, int workerPollTime, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, bool useTasks, bool runWithoutSchedulers, WatchDog watchDog)
-            : base(identifier, worker, highestPriority,lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, useTasks, bool runWithoutSchedulers, watchDog)
+            : base(identifier, worker, highestPriority,lowestPriority, workerCount, workerPollTime, lowTaskThreshold, highTaskThreshold, useAffineThreads, useTasks, runWithoutSchedulers, watchDog)
         {
         }
 

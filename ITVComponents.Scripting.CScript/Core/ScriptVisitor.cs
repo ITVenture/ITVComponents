@@ -2692,7 +2692,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 args = (from t in context.formalParameterList().Identifier() select t.GetText()).ToArray();
             }
 
-            FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody());
+            FunctionLiteral function = new DirectFunctionLiteral(initial, args, context.functionBody());
             if (variables is FunctionScope)
             {
                 function.ParentScope = ((FunctionScope)variables).ParentScope;
@@ -2718,7 +2718,7 @@ namespace ITVComponents.Scripting.CScript.Core
                     args = (from t in context.formalParameterList().Identifier() select t.GetText()).ToArray();
                 }
 
-                FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody());
+                FunctionLiteral function = new DirectFunctionLiteral(initial, args, context.functionBody());
                 if (variables is FunctionScope)
                 {
                     function.ParentScope = ((FunctionScope) variables).ParentScope;

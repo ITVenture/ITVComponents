@@ -105,11 +105,11 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
 
             if ((children?.Count ?? 0) != 0)
             {
-                PrepareFor(EvaluationState.EvaluationChildIteration, children);
+                PrepareFor(EvaluationState.EvaluationChildIteration);
             }
             else
             {
-                PrepareFor(EvaluationState.Evaluation, null);
+                PrepareFor(EvaluationState.Evaluation);
             }
         }
 
@@ -118,15 +118,16 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         /// </summary>
         /// <param name="context"></param>
         /// <returns></returns>
-        public object Evaluate(EvaluationContext context)
+        public object Evaluate(EvaluationContext context, out bool forcePutOnStack)
         {
+            forcePutOnStack = false;
             var arguments = context.ReadStack(evaluated);
             evaluated = 0;
             if (State == EvaluationState.PreValuation)
             {
                 try
                 {
-                    return PerformPreValuation(arguments, context);
+                    return PerformPreValuation(arguments, context, out forcePutOnStack);
                 }
                 catch (Exception ex)
                 {
@@ -139,6 +140,11 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
                     if (State == EvaluationState.PreValuation)
                     {
                         throw new InvalidOperationException("PreValuation should handle next state!");
+                    }
+
+                    if (forcePutOnStack)
+                    {
+                        Parent?.IncreaseEvaluatedChildren();
                     }
                 }
             }
@@ -176,7 +182,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
             {
                 try
                 {
-                    return PerformPostValuation(arguments, context);
+                    return PerformPostValuation(arguments, context, out forcePutOnStack);
                 }
                 catch (Exception ex)
                 {
@@ -186,7 +192,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
                 }
                 finally
                 {
-                    if (State == EvaluationState.PreValuation)
+                    if (State == EvaluationState.PostValuation)
                     {
                         throw new InvalidOperationException("PostValuation should handle next state!");
                     }
@@ -218,9 +224,11 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         /// performs the pre-evaluation phase of this evaluator
         /// </summary>
         /// <param name="arguments">the arguments that are required for the pre-evaluation phase</param>
+        /// <param name="putOnStack">indicates whether to put the generated value on stack</param>
         /// <returns>the result of the pre-evaluation phase</returns>
-        protected virtual object PerformPreValuation(object[] arguments, EvaluationContext context)
+        protected virtual object PerformPreValuation(object[] arguments, EvaluationContext context, out bool putOnStack)
         {
+            putOnStack = false;
             throw new InvalidOperationException("Do not call base from this method!");
         }
 
@@ -228,9 +236,11 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         /// performs the post-evaluation phase of this evaluator
         /// </summary>
         /// <param name="arguments">the arguments that are required for the post-evaluation phase</param>
+        /// <param name="putOnStack">indicates whether to put the generated value on stack</param>
         /// <returns>the result of the post-evaluation phase</returns>
-        protected virtual object PerformPostValuation(object[] arguments, EvaluationContext context)
+        protected virtual object PerformPostValuation(object[] arguments, EvaluationContext context, out bool putOnStack)
         {
+            putOnStack = false;
             throw new InvalidOperationException("Do not call base from this method!");
         }
 
@@ -239,8 +249,22 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         /// </summary>
         /// <param name="nextState">the next state that this evaluator will enter</param>
         /// <param name="nextChildren">the children that will be evaluated by the next evaluation iteration</param>
-        protected void PrepareFor(EvaluationState nextState, ICollection<EvaluatorBase> nextChildren)
+        protected void PrepareFor(EvaluationState nextState)
         {
+            ICollection<EvaluatorBase> nextChildren = null;
+            if (nextState == EvaluationState.EvaluationChildIteration)
+            {
+                nextChildren = children;
+            }
+            else if (nextState == EvaluationState.PreValuationChildIteration)
+            {
+                nextChildren = preValuationChildren;
+            }
+            else if (nextState == EvaluationState.PostValuationChildIteration)
+            {
+                nextChildren = postValuationChildren;
+            }
+
             if (nextChildren != null)
             {
                 evaluated = 0;

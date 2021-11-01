@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Scripting.CScript.Evaluators;
 using ITVComponents.Scripting.CScript.Evaluators.FlowControl;
+using ITVComponents.Scripting.CScript.Exceptions;
 
 namespace ITVComponents.Scripting.CScript.Core
 {
@@ -18,7 +19,103 @@ namespace ITVComponents.Scripting.CScript.Core
             var leftChild = Visit(subExpressions[0]);
             var rightChild = Visit(subExpressions[1]);
             string op = context.GetChild(1).GetText();
-            return new AdditionEvaluator(leftChild, rightChild, op, context);
+            return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitMultiplicativeExpression(ITVScriptingParser.MultiplicativeExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitBitXOrExpression(ITVScriptingParser.BitXOrExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitBitOrExpression(ITVScriptingParser.BitOrExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitBitAndExpression(ITVScriptingParser.BitAndExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitBitShiftExpression(ITVScriptingParser.BitShiftExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitRelationalExpression(ITVScriptingParser.RelationalExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitEqualityExpression(ITVScriptingParser.EqualityExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitLogicalAndExpression(ITVScriptingParser.LogicalAndExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new LogicalBooleanEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitLogicalOrExpression(ITVScriptingParser.LogicalOrExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new LogicalBooleanEvaluator(leftChild, rightChild, op, context);
+
+        }
+
+        public override EvaluatorBase VisitTernaryExpression(ITVScriptingParser.TernaryExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var condition = Visit(subExpressions[0]);
+            var leftChild = Visit(subExpressions[1]);
+            var rightChild = Visit(subExpressions[2]);
+            return new TernaryEvaluator(condition, leftChild, rightChild, context);
+        }
+
+        public override EvaluatorBase VisitParenthesizedExpression(ITVScriptingParser.ParenthesizedExpressionContext context)
+        {
+            return Visit(context.singleExpression());
         }
 
         public override EvaluatorBase VisitArgumentList(ITVScriptingParser.ArgumentListContext context)
@@ -71,7 +168,147 @@ namespace ITVComponents.Scripting.CScript.Core
                 explicitTyping = (TypeIdentifierEvaluator)VisitExplicitTypeHint(ext);
             }
 
-            MemberAccessEvaluator 
+            EvaluatorBase parentObj = Visit(context.singleExpression());
+            parentObj.ExpectedResult = ResultType.Method;
+            return new CallMethodEvaluator(parentObj, argumentEvaluator, typeEvaluator, explicitTyping, context);
+        }
+
+        public override EvaluatorBase VisitMemberIndexExpression(ITVScriptingParser.MemberIndexExpressionContext context)
+        {
+            var baseVal = Visit(context.singleExpression());
+            var argumentEvaluator = (SequenceEvaluator)VisitExpressionSequence(context.expressionSequence());
+            EvaluatorBase explicitType = null;
+            var t = context.explicitTypeHint();
+            if (t != null)
+            {
+                explicitType = Visit(t);
+            }
+
+            return new CallIndexerEvaluator(baseVal, argumentEvaluator, explicitType, context);
+        }
+
+        public override EvaluatorBase VisitHasMemberExpression(ITVScriptingParser.HasMemberExpressionContext context)
+        {
+            EvaluatorBase sample = Visit(context.singleExpression());
+            string name = context.identifierName().GetText();
+            TypeIdentifierEvaluator explicitTyping = null;
+            ITVScriptingParser.ExplicitTypeHintContext ext = context.explicitTypeHint();
+            if (ext != null)
+            {
+                explicitTyping = (TypeIdentifierEvaluator)VisitExplicitTypeHint(ext);
+            }
+
+            var prop = new MemberAccessEvaluator(sample, explicitTyping, context);
+            var arg = context.arguments();
+            EvaluatorBase retVal = prop;
+            if (arg != null)
+            {
+                SequenceEvaluator arguments = (SequenceEvaluator)VisitArguments(arg);
+                SequenceEvaluator typeArguments = null;
+                ITVScriptingParser.TypeArgumentsContext targ = context.typeArguments();
+                if (targ != null)
+                {
+                    var genericsContext = targ as ITVScriptingParser.FinalGenericsContext;
+                    if (genericsContext != null)
+                    {
+                        typeArguments = (SequenceEvaluator)VisitFinalGenerics(genericsContext);
+                    }
+                    else
+                    {
+                        throw new ScriptException(string.Format(
+                            "Open Generic Arguments are not supported in Methodcalls! at {0}/{1}",
+                            context.Start.Line, context.Start.Column));
+                    }
+                }
+
+                prop.ExpectedResult = ResultType.Method;
+                retVal = new CallMethodEvaluator(prop, arguments, typeArguments, explicitTyping, context);
+            }
+
+            return retVal;
+        }
+
+        public override EvaluatorBase VisitMemberIsExpression(ITVScriptingParser.MemberIsExpressionContext context)
+        {
+            var left = context.singleExpression(0);
+            var right = context.singleExpression(1);
+            var obj = Visit(left);
+            var typ = Visit(right);
+            return new IsOfTypeEvaluator(obj, typ, context);
+        }
+
+        public override EvaluatorBase VisitAssignmentOperatorExpression(ITVScriptingParser.AssignmentOperatorExpressionContext context)
+        {
+            var left = context.singleExpression(0);
+            var op = context.assignmentOperator().GetText();
+            var right = context.singleExpression(1);
+            EvaluatorBase leftOperand = Visit(left);
+            leftOperand.AccessMode = AccessMode.ReadWrite;
+            EvaluatorBase rightOperand = Visit(right);
+            var opLen = op.IndexOf("=");
+            op = op.Substring(0, opLen);
+            var retVal = new DirectOpAssignmentEvaluator(leftOperand, rightOperand, op, context);
+            return retVal;
+        }
+
+        public override EvaluatorBase VisitUnaryPlusExpression(ITVScriptingParser.UnaryPlusExpressionContext context)
+        {
+            return Visit(context.singleExpression());
+        }
+
+        public override EvaluatorBase VisitNewExpression(ITVScriptingParser.NewExpressionContext context)
+        {
+            var argumentEvaluator = (SequenceEvaluator)VisitArguments(context.arguments());
+            SequenceEvaluator typeEvaluator = null;
+            ITVScriptingParser.TypeArgumentsContext targ = context.typeArguments();
+            if (targ != null)
+            {
+                var genericsContext = targ as ITVScriptingParser.FinalGenericsContext;
+                if (genericsContext != null)
+                {
+                    typeEvaluator = (SequenceEvaluator)VisitFinalGenerics(genericsContext);
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Open Generic Arguments are not supported in Constructors! at {context.Start.Line}/{context.Start.Column}");
+                }
+            }
+
+            EvaluatorBase parentObj = Visit(context.singleExpression());
+            parentObj.ExpectedResult = ResultType.Constructor;
+            return new CallConstructorEvaluator(parentObj, argumentEvaluator, typeEvaluator, context);
+        }
+
+        public override EvaluatorBase VisitIdentifierExpression(ITVScriptingParser.IdentifierExpressionContext context)
+        {
+            return new VariableAccessEvaluator(context)
+                { AccessMode = AccessMode.Read, ExpectedResult = ResultType.PropertyOrField };
+        }
+
+        public override EvaluatorBase VisitMemberDotExpression(ITVScriptingParser.MemberDotExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            var xp = context.explicitTypeHint();
+            EvaluatorBase explicitType = null;
+            if (xp != null)
+            {
+                explicitType = Visit(xp);
+            }
+
+            return new MemberAccessEvaluator(baseValue, explicitType, context);
+        }
+
+        public override EvaluatorBase VisitMemberDotQExpression(ITVScriptingParser.MemberDotQExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            var xp = context.explicitTypeHint();
+            EvaluatorBase explicitType = null;
+            if (xp != null)
+            {
+                explicitType = Visit(xp);
+            }
+             
+            return new MemberAccessEvaluator(baseValue, explicitType, context);
         }
 
         protected override EvaluatorBase AggregateResult(EvaluatorBase aggregate, EvaluatorBase nextResult)
