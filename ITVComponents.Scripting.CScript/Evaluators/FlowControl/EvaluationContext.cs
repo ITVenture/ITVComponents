@@ -56,6 +56,10 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
                 {
                     throw new ScriptException($"Execution failed! Error: {ex.Message}", ex);
                 }
+                else if (v.Type == PassThroughType.Exception && v.Value is string s)
+                {
+                    throw new ScriptException($"Execution failed! Error: {s}");
+                }
                 else
                 {
                     retVal = null;
@@ -104,6 +108,10 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
                 {
                     value = new PassThroughValue(PassThroughType.Exception, ex);
                 }
+                catch (Exception ex)
+                {
+                    value = new PassThroughValue(PassThroughType.Exception, new ScriptException("An unexpected error occurred!", ex));
+                }
             }
 
             if (current.State == EvaluationState.Done)
@@ -133,7 +141,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
                             break;
                         }
 
-                        var stackSize = v.PassThroughOccurred();
+                        var stackSize = v.PassThroughOccurred(this);
                         ReadStack(stackSize - 1);
                         evaluators.Pop();
                     }

@@ -8,16 +8,27 @@ using ITVComponents.Scripting.CScript.Evaluators.FlowControl;
 
 namespace ITVComponents.Scripting.CScript.Evaluators
 {
-    public class TernaryEvaluator:EvaluatorBase
+    public class BlockEvaluator:EvaluatorBase
     {
-        private readonly EvaluatorBase trueEvaluator;
-        private readonly EvaluatorBase falseEvaluator;
-        private readonly List<EvaluatorBase> selectedEvaluator = new List<EvaluatorBase>();
-
-        public TernaryEvaluator(EvaluatorBase condition,  EvaluatorBase trueEvaluator, EvaluatorBase falseEvaluator, ParserRuleContext context) : base(new[] { condition }, null, null, context, new[]{falseEvaluator}, null)
+        public BlockEvaluator(ICollection<EvaluatorBase> children, ParserRuleContext parserElementContext) : base(null,null, children, parserElementContext, null,null)
         {
-            this.trueEvaluator = trueEvaluator;
-            this.falseEvaluator = falseEvaluator;
+        }
+
+        public override void Initialize()
+        {
+            if (State != EvaluationState.Initial && State != EvaluationState.Done)
+            {
+                throw new InvalidOperationException("Invalid initial state! should be Initial or done");
+            }
+
+            PrepareFor(EvaluationState.PreValuation);
+        }
+
+        public override int PassThroughOccurred(EvaluationContext context)
+        {
+            var retVal = base.PassThroughOccurred(context);
+            context.Scope.CollapseScope();
+            return retVal;
         }
 
         public override AccessMode AccessMode
@@ -35,8 +46,6 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             }
         }
 
-        protected override ICollection<EvaluatorBase> Children => selectedEvaluator;
-
         public override ResultType ExpectedResult
         {
             get
@@ -52,32 +61,27 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             }
         }
 
-        public override bool PutValueOnStack { get; } = true;
-
-        public override void Initialize()
-        {
-            if (State != EvaluationState.Initial && State != EvaluationState.Done)
-            {
-                throw new InvalidOperationException("Invalid initial state! should be Initial or done");
-            }
-
-            PrepareFor(EvaluationState.PreValuationChildIteration);
-        }
-
+        public override bool PutValueOnStack { get; } = false;
         protected override object Evaluate(object[] arguments, EvaluationContext context)
         {
-            return arguments[0];
+            PrepareFor(EvaluationState.PostValuation);
+            return null;
         }
 
         protected override object PerformPreValuation(object[] arguments, EvaluationContext context, out bool putOnStack)
         {
-            var ok = arguments[0] is true;
             putOnStack = false;
-            var selected = ok ? trueEvaluator : falseEvaluator;
-            selectedEvaluator.Clear();
-            selectedEvaluator.Add(selected);
+            context.Scope.OpenInnerScope();
             PrepareFor(EvaluationState.EvaluationChildIteration);
-            return ok;
+            return null;
+        }
+
+        protected override object PerformPostValuation(object[] arguments, EvaluationContext context, out bool putOnStack)
+        {
+            putOnStack = false;
+            context.Scope.CollapseScope();
+            PrepareFor(EvaluationState.Done);
+            return null;
         }
     }
 }

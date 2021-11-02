@@ -54,7 +54,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators
                 throw new InvalidOperationException("Invalid initial state! should be Initial or done");
             }
 
-            PrepareFor(EvaluationState.PreValuation);
+            PrepareFor(EvaluationState.PreValuationChildIteration);
         }
 
         protected override object PerformPreValuation(object[] arguments, EvaluationContext context, out bool forcePutOnStack)
@@ -62,7 +62,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             var baseVal = arguments[0];
             var ok = baseVal is true;
             forcePutOnStack = false;
-            State = EvaluationState.Evaluation;
+            PrepareFor(EvaluationState.EvaluationChildIteration);
             if (op == "&&" && !ok)
             {
                 forcePutOnStack = true;

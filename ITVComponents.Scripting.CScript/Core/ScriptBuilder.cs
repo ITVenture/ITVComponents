@@ -13,6 +13,33 @@ namespace ITVComponents.Scripting.CScript.Core
     {
         protected override EvaluatorBase DefaultResult => new RootEvaluator();
 
+        public override EvaluatorBase VisitBlock(ITVScriptingParser.BlockContext context)
+        {
+            return new BlockEvaluator(new[]{Visit(context.statementList())}, context);
+        }
+
+        public override EvaluatorBase VisitStatementList(ITVScriptingParser.StatementListContext context)
+        {
+            var children = (from t in context.statement() select Visit(t)).ToArray();
+            return new SequenceEvaluator(children, SequenceType.StatementSequence, context);
+        }
+
+        public override EvaluatorBase VisitEmptyStatement(ITVScriptingParser.EmptyStatementContext context)
+        {
+            return new SequenceEvaluator(new EvaluatorBase[0], SequenceType.StatementSequence, context);
+        }
+
+        public override EvaluatorBase VisitExpressionStatement(ITVScriptingParser.ExpressionStatementContext context)
+        {
+            return VisitExpressionSequence(context.expressionSequence());
+        }
+
+        public override EvaluatorBase VisitExpressionSequence(ITVScriptingParser.ExpressionSequenceContext context)
+        {
+            var children = (from t in context.singleExpression() select Visit(t)).ToArray();
+            return new SequenceEvaluator(children, SequenceType.ExpressionSequence, context);
+        }
+
         public override EvaluatorBase VisitAdditiveExpression(ITVScriptingParser.AdditiveExpressionContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
@@ -38,6 +65,57 @@ namespace ITVComponents.Scripting.CScript.Core
             var rightChild = Visit(subExpressions[1]);
             string op = context.GetChild(1).GetText();
             return new OperationEvaluator(leftChild, rightChild, op, context);
+        }
+
+        public override EvaluatorBase VisitSwitchStatement(ITVScriptingParser.SwitchStatementContext context)
+        {
+            var switchExpression = Visit(context.singleExpression());
+            var caseClauses = ( from t in context.caseBlock().caseClauses().caseClause() select (CaseClauseEvaluator)Visit(t)).ToArray();
+            var defaultClause = (CaseClauseEvaluator)VisitDefaultClause(context.caseBlock().defaultClause());
+            return new SwitchEvaluator(switchExpression, caseClauses, defaultClause, context);
+        }
+
+        public override EvaluatorBase VisitCaseClause(ITVScriptingParser.CaseClauseContext context)
+        {
+            return new CaseClauseEvaluator(Visit(context.singleExpression()), false,
+                (SequenceEvaluator)Visit(context.statementList()), context);
+        }
+
+        public override EvaluatorBase VisitDefaultClause(ITVScriptingParser.DefaultClauseContext context)
+        {
+            return new CaseClauseEvaluator(null, true, (SequenceEvaluator)Visit(context.statementList()), context);
+        }
+
+        public override EvaluatorBase VisitContinueStatement(ITVScriptingParser.ContinueStatementContext context)
+        {
+            return new PassThroughValueEvaluator(context);
+        }
+
+        public override EvaluatorBase VisitBreakStatement(ITVScriptingParser.BreakStatementContext context)
+        {
+            return new PassThroughValueEvaluator(context);
+        }
+
+        public override EvaluatorBase VisitReturnStatement(ITVScriptingParser.ReturnStatementContext context)
+        {
+            var value = context.singleExpression();
+            if (value != null)
+            {
+                return new PassThroughValueEvaluator(context, Visit(value));
+            }
+
+            return new PassThroughValueEvaluator(context);
+        }
+
+        public override EvaluatorBase VisitThrowStatement(ITVScriptingParser.ThrowStatementContext context)
+        {
+            var value = context.singleExpression();
+            if (value != null)
+            {
+                return new PassThroughValueEvaluator(context, Visit(value));
+            }
+
+            return new PassThroughValueEvaluator(context);
         }
 
         public override EvaluatorBase VisitBitOrExpression(ITVScriptingParser.BitOrExpressionContext context)
@@ -134,7 +212,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 }
             }
 
-            SequenceEvaluator rv = new SequenceEvaluator(elements, context);
+            SequenceEvaluator rv = new SequenceEvaluator(elements, SequenceType.ExpressionSequence, context);
             return rv;
         }
 
@@ -171,6 +249,32 @@ namespace ITVComponents.Scripting.CScript.Core
             EvaluatorBase parentObj = Visit(context.singleExpression());
             parentObj.ExpectedResult = ResultType.Method;
             return new CallMethodEvaluator(parentObj, argumentEvaluator, typeEvaluator, explicitTyping, context);
+        }
+
+        public override EvaluatorBase VisitExplicitTypeHint(ITVScriptingParser.ExplicitTypeHintContext context)
+        {
+            return VisitTypeIdentifier(context.typeIdentifier());
+        }
+
+        public override EvaluatorBase VisitTypeIdentifier(ITVScriptingParser.TypeIdentifierContext context)
+        {
+            return new TypeIdentifierEvaluator(context);
+        }
+
+        public override EvaluatorBase VisitTypedArguments(ITVScriptingParser.TypedArgumentsContext context)
+        {
+            var typeContexts = new List<TypeIdentifierEvaluator>();
+            foreach (var i in context.typeIdentifier())
+            {
+                typeContexts.Add((TypeIdentifierEvaluator)Visit(i));
+            }
+
+            return new SequenceEvaluator(typeContexts.ToList<EvaluatorBase>(), SequenceType.ExpressionSequence, context);
+        }
+
+        public override EvaluatorBase VisitFinalGenerics(ITVScriptingParser.FinalGenericsContext context)
+        {
+            return Visit(context.typedArguments());
         }
 
         public override EvaluatorBase VisitMemberIndexExpression(ITVScriptingParser.MemberIndexExpressionContext context)
@@ -309,12 +413,6 @@ namespace ITVComponents.Scripting.CScript.Core
             }
              
             return new MemberAccessEvaluator(baseValue, explicitType, context);
-        }
-
-        protected override EvaluatorBase AggregateResult(EvaluatorBase aggregate, EvaluatorBase nextResult)
-        {
-            aggregate.Next = nextResult;
-            return nextResult;
         }
     }
 }

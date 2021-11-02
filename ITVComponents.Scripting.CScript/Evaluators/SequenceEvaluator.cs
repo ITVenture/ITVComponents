@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
 using Antlr4.Runtime;
@@ -8,10 +9,16 @@ using ITVComponents.Scripting.CScript.Evaluators.FlowControl;
 
 namespace ITVComponents.Scripting.CScript.Evaluators
 {
-    public class SequenceEvaluator:EvaluatorBase
+    public class SequenceEvaluator : EvaluatorBase
     {
-        public SequenceEvaluator(ICollection<EvaluatorBase> children, ParserRuleContext parserElementContext) : base(null, null, children, parserElementContext, null,null)
+        private readonly ICollection<EvaluatorBase> children;
+        private readonly SequenceType type;
+
+        public SequenceEvaluator(ICollection<EvaluatorBase> children, SequenceType type,
+            ParserRuleContext parserElementContext) : base(null, null, children, parserElementContext, null, null)
         {
+            this.children = children;
+            this.type = type;
         }
 
         public override AccessMode AccessMode
@@ -46,9 +53,29 @@ namespace ITVComponents.Scripting.CScript.Evaluators
 
         public override bool PutValueOnStack { get; } = true;
 
+        public EvaluatorBase OneAndOnly
+        {
+            get
+            {
+                EvaluatorBase retVal = null;
+                if (children.Count == 1)
+                {
+                    retVal = children.First();
+                }
+
+                return retVal;
+            }
+        }
+
         protected override object Evaluate(object[] arguments, EvaluationContext context)
         {
-            return arguments;
+            return type == SequenceType.ExpressionSequence ? arguments : null;
         }
+    }
+
+    public enum SequenceType
+    {
+        StatementSequence,
+        ExpressionSequence
     }
 }

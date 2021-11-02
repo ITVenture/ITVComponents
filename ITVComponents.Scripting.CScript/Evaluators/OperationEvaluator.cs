@@ -24,8 +24,8 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             this.left = left;
             this.right = right;
             left.Next = right;
-            left.Parent = this;
-            right.Parent = this;
+            /*left.Parent = this;
+            right.Parent = this;*/
             this.op = op;
         }
 

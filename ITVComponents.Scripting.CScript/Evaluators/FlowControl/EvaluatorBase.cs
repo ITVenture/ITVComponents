@@ -9,29 +9,14 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
     public abstract class EvaluatorBase
     {
         /// <summary>
-        /// a list of pre-evaluation chlidren of this evaluator item
-        /// </summary>
-        private readonly ICollection<EvaluatorBase> preValuationChildren;
-        
-        /// <summary>
         /// The parser element which this evaluator instance is based on for pre-evaluation
         /// </summary>
         private readonly ParserRuleContext preValuationParserElementContext;
 
         /// <summary>
-        /// a list of chlidren of this evaluator item
-        /// </summary>
-        private readonly ICollection<EvaluatorBase> children;
-
-        /// <summary>
         /// The parser element which this evaluator instance is based on
         /// </summary>
         private readonly ParserRuleContext parserElementContext;
-
-        /// <summary>
-        /// a list of post-evaluation chlidren of this evaluator item
-        /// </summary>
-        private readonly ICollection<EvaluatorBase> postValuationChildren;
 
         /// <summary>
         /// The parser element which this evaluator instance is based on for post-evaluation
@@ -42,6 +27,10 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         /// the number of evaluated chlidren
         /// </summary>
         private int evaluated = 0;
+
+        private readonly ICollection<EvaluatorBase> preValuationChildren;
+        private readonly ICollection<EvaluatorBase> children;
+        private readonly ICollection<EvaluatorBase> postValuationChildren;
 
         /// <summary>
         /// Initializes a new instance of the EvaluatorBase class
@@ -94,6 +83,21 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         public abstract bool PutValueOnStack{get;}
 
         /// <summary>
+        /// a list of pre-evaluation chlidren of this evaluator item
+        /// </summary>
+        protected virtual ICollection<EvaluatorBase> PreValuationChildren => preValuationChildren;
+
+        /// <summary>
+        /// a list of chlidren of this evaluator item
+        /// </summary>
+        protected virtual ICollection<EvaluatorBase> Children => children;
+
+        /// <summary>
+        /// a list of post-evaluation chlidren of this evaluator item
+        /// </summary>
+        protected virtual ICollection<EvaluatorBase> PostValuationChildren => postValuationChildren;
+
+        /// <summary>
         /// Prepares this item for initialization
         /// </summary>
         public virtual void Initialize()
@@ -103,7 +107,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
                 throw new InvalidOperationException("Invalid initial state! should be Initial or done");
             }
 
-            if ((children?.Count ?? 0) != 0)
+            if ((Children?.Count ?? 0) != 0)
             {
                 PrepareFor(EvaluationState.EvaluationChildIteration);
             }
@@ -205,8 +209,9 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         /// <summary>
         /// is called when a passthrough occurrs on any child object. the state will be set to done
         /// </summary>
+        /// <param name="context">the evaluationcontext in which this evaluator was invoked</param>>
         /// <returns>the number of children that have been evaluated and that have values put on the value-stack</returns>
-        public virtual int PassThroughOccurred()
+        public virtual int PassThroughOccurred(EvaluationContext context)
         {
             State = EvaluationState.Done;
             return evaluated;
@@ -254,23 +259,27 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
             ICollection<EvaluatorBase> nextChildren = null;
             if (nextState == EvaluationState.EvaluationChildIteration)
             {
-                nextChildren = children;
+                nextChildren = Children;
             }
             else if (nextState == EvaluationState.PreValuationChildIteration)
             {
-                nextChildren = preValuationChildren;
+                nextChildren = PreValuationChildren;
             }
             else if (nextState == EvaluationState.PostValuationChildIteration)
             {
-                nextChildren = postValuationChildren;
+                nextChildren = PostValuationChildren;
             }
 
             if (nextChildren != null)
             {
                 evaluated = 0;
+                EvaluatorBase next = null;
                 foreach (var child in nextChildren)
                 {
+                    child.Parent = this;
+                    child.Next = next;
                     child.Initialize();
+                    next = child;
                 }
             }
 
@@ -285,21 +294,21 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         {
             if (State == EvaluationState.PreValuationChildIteration)
             {
-                var retVal = preValuationChildren.FirstOrDefault();
+                var retVal = PreValuationChildren.FirstOrDefault();
                 State = EvaluationState.PreValuation;
                 return retVal;
             }
 
             if (State == EvaluationState.EvaluationChildIteration)
             {
-                var retVal = children.FirstOrDefault();
+                var retVal = Children.FirstOrDefault();
                 State = EvaluationState.Evaluation;
                 return retVal;
             }
 
             if (State == EvaluationState.PostValuationChildIteration)
             {
-                var retVal = postValuationChildren.FirstOrDefault();
+                var retVal = PostValuationChildren.FirstOrDefault();
                 State = EvaluationState.PostValuation;
                 return retVal;
             }
@@ -314,7 +323,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         private void IncreaseEvaluatedChildren()
         {
             evaluated++;
-            if (evaluated > children.Count)
+            if (evaluated > Children.Count)
             {
                 throw new InvalidOperationException("Too many child-executions detected!");
             }
