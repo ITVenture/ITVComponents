@@ -73,6 +73,12 @@ namespace ITVComponents.Scripting.CScript.Evaluators
                 forcePutOnStack = true;
                 State = EvaluationState.Done;
             }
+            else if (op == "??" && baseVal != null)
+            {
+                forcePutOnStack = true;
+                State = EvaluationState.Done;
+                return baseVal;
+            }
 
             return ok;
         }

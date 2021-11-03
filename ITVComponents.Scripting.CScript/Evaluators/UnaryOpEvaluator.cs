@@ -23,8 +23,35 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             assigner = baseValue as IAssignableEvaluator;
         }
 
-        public override ResultType ExpectedResult { get; internal set; }
-        public override AccessMode AccessMode { get; internal set; }
+        public override AccessMode AccessMode
+        {
+            get
+            {
+                return AccessMode.Read;
+            }
+            internal set
+            {
+                if ((value & AccessMode.Write) == AccessMode.Write)
+                {
+                    throw new InvalidOperationException("This is a read-only evaluator!");
+                }
+            }
+        }
+
+        public override ResultType ExpectedResult
+        {
+            get
+            {
+                return ResultType.Literal;
+            }
+            internal set
+            {
+                if (value != ResultType.Literal)
+                {
+                    throw new InvalidOperationException("This is a literal-only evaluator!");
+                }
+            }
+        }
         public override bool PutValueOnStack { get; } = true;
         protected override object Evaluate(object[] arguments, EvaluationContext context)
         {

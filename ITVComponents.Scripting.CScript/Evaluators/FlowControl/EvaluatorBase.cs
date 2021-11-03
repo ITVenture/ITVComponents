@@ -83,6 +83,23 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
         public abstract bool PutValueOnStack{get;}
 
         /// <summary>
+        /// The number of child-evaluators
+        /// </summary>
+        public int EvaluationChildCount
+        {
+            get
+            {
+                var retVal = 0;
+                if (Children != null)
+                {
+                    retVal = children.Count;
+                }
+
+                return retVal;
+            }
+        }
+
+        /// <summary>
         /// a list of pre-evaluation chlidren of this evaluator item
         /// </summary>
         protected virtual ICollection<EvaluatorBase> PreValuationChildren => preValuationChildren;

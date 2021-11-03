@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Antlr4.Runtime.Tree;
 using ITVComponents.Scripting.CScript.Evaluators;
 using ITVComponents.Scripting.CScript.Evaluators.FlowControl;
 using ITVComponents.Scripting.CScript.Exceptions;
+using ITVComponents.Scripting.CScript.Operating;
 
 namespace ITVComponents.Scripting.CScript.Core
 {
@@ -180,6 +182,15 @@ namespace ITVComponents.Scripting.CScript.Core
             string op = context.GetChild(1).GetText();
             return new LogicalBooleanEvaluator(leftChild, rightChild, op, context);
 
+        }
+
+        public override EvaluatorBase VisitInstanceIsNullExpression(ITVScriptingParser.InstanceIsNullExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftChild = Visit(subExpressions[0]);
+            var rightChild = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            return new LogicalBooleanEvaluator(leftChild, rightChild, op, context);
         }
 
         public override EvaluatorBase VisitTernaryExpression(ITVScriptingParser.TernaryExpressionContext context)
@@ -470,6 +481,131 @@ namespace ITVComponents.Scripting.CScript.Core
             }
              
             return new MemberAccessEvaluator(baseValue, explicitType, context);
+        }
+
+        public override EvaluatorBase VisitLiteral(ITVScriptingParser.LiteralContext context)
+        {
+            var child = context.GetChild(0);
+            if (child is ITVScriptingParser.NumericLiteralContext)
+            {
+                return VisitNumericLiteral((ITVScriptingParser.NumericLiteralContext)child);
+            }
+
+            if (child is ITVScriptingParser.TypeLiteralContext)
+            {
+                return VisitTypeLiteral((ITVScriptingParser.TypeLiteralContext)child);
+            }
+
+            if (child is ITVScriptingParser.NullLiteralContext)
+            {
+                return VisitNullLiteral((ITVScriptingParser.NullLiteralContext)child);
+            }
+
+            if (child is ITVScriptingParser.RefLiteralContext)
+            {
+                return VisitRefLiteral((ITVScriptingParser.RefLiteralContext)child);
+            }
+
+            if (child is ITVScriptingParser.BooleanLiteralContext)
+            {
+                return new LiteralEvaluator(child.GetText(), LiteralType.Boolean, context);
+            }
+
+            return new LiteralEvaluator(child.GetText(), LiteralType.String, context);
+        }
+
+        public override EvaluatorBase VisitNumericLiteral(ITVScriptingParser.NumericLiteralContext context)
+        {
+            ITerminalNode decimalChild = context.DecimalLiteral();
+            ITerminalNode octalChild = context.OctalIntegerLiteral();
+            ITerminalNode hexalChild = context.HexIntegerLiteral();
+            if (decimalChild != null)
+            {
+                return new LiteralEvaluator(decimalChild.GetText(), LiteralType.Decimal, context);
+            }
+
+            if (octalChild != null)
+            {
+                return new LiteralEvaluator(octalChild.GetText(), LiteralType.OctalInt, context);
+            }
+
+            if (hexalChild != null)
+            {
+                return new LiteralEvaluator(hexalChild.GetText().Substring(2), LiteralType.HexalInt, context);
+            }
+
+            throw new ScriptException(string.Format("Unable to create a numeric literal at {0}/{1}", context.Start.Line,
+                    context.Start.Column));
+        }
+
+        public override EvaluatorBase VisitTypeLiteral(ITVScriptingParser.TypeLiteralContext context)
+        {
+            string type = context.typeLiteralIdentifier().GetText();
+            var targs = context.typeArguments();
+            SequenceEvaluator typeArgs = null;
+            if (targs != null)
+            {
+                ITVScriptingParser.FinalGenericsContext finalGenerics = targs as ITVScriptingParser.FinalGenericsContext;
+                if (finalGenerics != null)
+                {
+                    var tmp = VisitFinalGenerics(finalGenerics);
+                    typeArgs = (SequenceEvaluator)tmp;
+                    type += string.Format("`{0}", typeArgs.EvaluationChildCount);
+                }
+                else
+                {
+                    type += targs.GetText();
+                }
+            }
+
+            string assembly = null;
+            ITerminalNode path = context.StringLiteral();
+            if (path != null)
+            {
+                assembly = StringHelper.Parse(path.GetText());
+            }
+
+            return new LiteralEvaluator(type, LiteralType.Type, typeArgs, assembly, context);
+        }
+
+        public override EvaluatorBase VisitNullLiteral(ITVScriptingParser.NullLiteralContext context)
+        {
+            LiteralEvaluator baseVal = null;
+            var tl = context.typeLiteral();
+            if (tl != null)
+            {
+                baseVal = (LiteralEvaluator)VisitTypeLiteral(tl);
+            }
+
+            return new LiteralExtensionEvaluator(baseVal, ExtensionType.Null, context);
+        }
+
+        public override EvaluatorBase VisitRefLiteral(ITVScriptingParser.RefLiteralContext context)
+        {
+            LiteralEvaluator baseVal = (LiteralEvaluator)VisitTypeLiteral(context.typeLiteral());
+            return new LiteralExtensionEvaluator(baseVal, ExtensionType.Ref, context);
+        }
+
+        public override EvaluatorBase VisitElementList(ITVScriptingParser.ElementListContext context)
+        {
+            List<EvaluatorBase> elements = new List<EvaluatorBase>();
+            foreach (ITVScriptingParser.SingleExpressionContext se in context.singleExpression())
+            {
+#if UseVisitSingleExpression
+            ScriptValue tmp= VisitSingleExpression(se);
+#else
+                EvaluatorBase tmp = Visit(se);
+#endif
+                elements.Add(tmp);
+            }
+
+
+            return new SequenceEvaluator(elements, SequenceType.ExpressionSequence, context);
+        }
+
+        public override EvaluatorBase VisitArrayLiteral(ITVScriptingParser.ArrayLiteralContext context)
+        {
+            return Visit(context.elementList());
         }
     }
 }
