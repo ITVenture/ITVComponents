@@ -30,7 +30,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             }
             internal set
             {
-                if (ExpectedResult != ResultType.PropertyOrField)
+                if (value != ResultType.PropertyOrField)
                 {
                     throw new InvalidOperationException("This is a PropertyOrField-only evaluator!");
                 }

@@ -49,7 +49,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             }
             internal set
             {
-                if (ExpectedResult != ResultType.Literal)
+                if (value != ResultType.Literal)
                 {
                     throw new InvalidOperationException("This is a literal-only evaluator!");
                 }

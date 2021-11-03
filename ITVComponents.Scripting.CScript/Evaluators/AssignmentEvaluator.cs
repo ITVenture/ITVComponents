@@ -4,32 +4,28 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Antlr4.Runtime;
+using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Evaluators.FlowControl;
+using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Operating;
 using ITVComponents.Scripting.CScript.Optimization;
-using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 
 namespace ITVComponents.Scripting.CScript.Evaluators
 {
-    public class OperationEvaluator : EvaluatorBase
+    public class AssignmentEvaluator:EvaluatorBase
     {
-        private readonly EvaluatorBase left;
-        private readonly EvaluatorBase right;
-        private readonly string op;
-
-        private IExecutor operationExecutor;
-
-        public OperationEvaluator(EvaluatorBase left, EvaluatorBase right, string op, ParserRuleContext parserElementContext) : base(null, null, new[] {left, right}, parserElementContext, null, null)
+        private IAssignableEvaluator writeBack;
+        public AssignmentEvaluator(EvaluatorBase left, EvaluatorBase right, ITVScriptingParser.AssignmentExpressionContext context) : base(null, null, new[] { left, right }, context, null, null)
         {
-            this.left = left;
-            this.right = right;
-            left.Next = right;
-            /*left.Parent = this;
-            right.Parent = this;*/
-            this.op = op;
+            if (left is IAssignableEvaluator wb)
+            {
+                writeBack = wb;
+            }
+            else
+            {
+                throw new ScriptException("A writable evaluator was expected!");
+            }
         }
-
-        public override bool PutValueOnStack { get; } = true;
 
         public override AccessMode AccessMode
         {
@@ -54,27 +50,21 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             }
             internal set
             {
-                if (value != ResultType.Literal)
+                if (value!= ResultType.Literal)
                 {
                     throw new InvalidOperationException("This is a literal-only evaluator!");
                 }
             }
         }
 
+        public override bool PutValueOnStack { get; } = true;
         protected override object Evaluate(object[] arguments, EvaluationContext context)
         {
-            var left = arguments[0];
+            var left = (ActiveCodeAccessDescriptor)arguments[0];
             var right = arguments[1];
-            object result;
-            if (context.LazyEvaluation && operationExecutor != null)
-                result = operationExecutor.Invoke(null, new[] { left, right });
-            else
-            {
-                result = OperationsHelper.PerformAppropriateOperation(op, left, right, context.TypeSafety, context.LazyEvaluation, out var lop);
-                operationExecutor = lop;
-            }
 
-            return result;
+            writeBack.Assign(right, left);
+            return right;
         }
     }
 }

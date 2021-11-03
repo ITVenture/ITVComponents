@@ -341,6 +341,63 @@ namespace ITVComponents.Scripting.CScript.Core
             return new IsOfTypeEvaluator(obj, typ, context);
         }
 
+        public override EvaluatorBase VisitAssignmentExpression(ITVScriptingParser.AssignmentExpressionContext context)
+        {
+            var left = context.singleExpression(0);
+            var right = context.singleExpression(1);
+            EvaluatorBase leftOperand = Visit(left);
+            leftOperand.AccessMode = AccessMode.ReadWrite;
+            EvaluatorBase rightOperand = Visit(right);
+            var retVal = new AssignmentEvaluator(leftOperand, rightOperand, context);
+            return retVal;
+        }
+
+        public override EvaluatorBase VisitUnaryMinusExpression(ITVScriptingParser.UnaryMinusExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            return new UnaryOpEvaluator(baseValue, OpPosition.Pre, "-", context);
+        }
+
+        public override EvaluatorBase VisitPreIncrementExpression(ITVScriptingParser.PreIncrementExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            baseValue.AccessMode = AccessMode.ReadWrite;
+            return new UnaryOpEvaluator(baseValue, OpPosition.Pre, "++", context);
+        }
+
+        public override EvaluatorBase VisitPostIncrementExpression(ITVScriptingParser.PostIncrementExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            baseValue.AccessMode = AccessMode.ReadWrite;
+            return new UnaryOpEvaluator(baseValue, OpPosition.Post, "++", context);
+        }
+
+        public override EvaluatorBase VisitPostDecreaseExpression(ITVScriptingParser.PostDecreaseExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            baseValue.AccessMode = AccessMode.ReadWrite;
+            return new UnaryOpEvaluator(baseValue, OpPosition.Post, "--", context);
+        }
+
+        public override EvaluatorBase VisitPreDecreaseExpression(ITVScriptingParser.PreDecreaseExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            baseValue.AccessMode = AccessMode.ReadWrite;
+            return new UnaryOpEvaluator(baseValue, OpPosition.Pre, "--", context);
+        }
+
+        public override EvaluatorBase VisitNotExpression(ITVScriptingParser.NotExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            return new UnaryOpEvaluator(baseValue, OpPosition.Pre, "!", context);
+        }
+
+        public override EvaluatorBase VisitBitNotExpression(ITVScriptingParser.BitNotExpressionContext context)
+        {
+            var baseValue = Visit(context.singleExpression());
+            return new UnaryOpEvaluator(baseValue, OpPosition.Pre, "~", context);
+        }
+
         public override EvaluatorBase VisitAssignmentOperatorExpression(ITVScriptingParser.AssignmentOperatorExpressionContext context)
         {
             var left = context.singleExpression(0);

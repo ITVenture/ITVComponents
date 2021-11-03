@@ -30,7 +30,7 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             }
             internal set
             {
-                if (ExpectedResult != ResultType.Constructor)
+                if (value != ResultType.Constructor)
                 {
                     throw new InvalidOperationException("This is a constructor-only evaluator!");
                 }
