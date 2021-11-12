@@ -21,6 +21,11 @@ namespace ITVComponents.TypeConversion
         /// <returns>the converted value in the requested type</returns>
         public static object Convert(object value, Type targetType)
         {
+            if ((value == null && targetType.IsClass) || (value != null && value.GetType().IsSubclassOf(targetType)))
+            {
+                return value;
+            }
+
             var converters = Snapshot();
             var converter = converters.FirstOrDefault(n => n.CapableFor(value, targetType));
             object result = null;
@@ -40,6 +45,11 @@ namespace ITVComponents.TypeConversion
         /// <returns>the converted value in the requested type</returns>
         public static object TryConvert(object value, Type targetType)
         {
+            if ((value == null && targetType.IsClass) || (value != null && value.GetType().IsSubclassOf(targetType)))
+            {
+                return value;
+            }
+
             var converters = Snapshot();
             var converter = converters.FirstOrDefault(n => n.CapableFor(value, targetType));
             object result = null;
@@ -71,6 +81,12 @@ namespace ITVComponents.TypeConversion
         /// <returns>the converted value in the requested type</returns>
         public static bool TryConvert(object value, Type targetType, out object result)
         {
+            if ((value == null && targetType.IsClass) || (value != null && value.GetType().IsSubclassOf(targetType)))
+            {
+                result = value;
+                return true;
+            }
+
             var converters = Snapshot();
             var converter = converters.FirstOrDefault(n => n.CapableFor(value, targetType));
             if (value != null)

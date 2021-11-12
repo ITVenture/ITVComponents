@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -150,9 +151,12 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 }
                 catch (Exception ex)
                 {
-                    pi.AutoLoad = false;
-                    pluginProvider.ConfigurePlugin(pi);
-                    logger.LogError("Plugin failed to load", ex, "Plugins");
+                    //pi.AutoLoad = false;
+                    //pluginProvider.ConfigurePlugin(pi);
+                    logger.LogError($@"Plugin failed to load.
+Error:
+{ex.OutlineException()}
+Section: Plugins", ex, "Plugins");
                 }
             }
         }

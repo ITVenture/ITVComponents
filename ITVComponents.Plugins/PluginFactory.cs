@@ -42,6 +42,11 @@ namespace ITVComponents.Plugins
         private ConcurrentDictionary<string, IPlugin> plugins;
 
         /// <summary>
+        /// Used to make sure that plugins are not being tried to load concurrently
+        /// </summary>
+        private ConcurrentDictionary<string, ManualResetEventSlim> pluginInitializationPromises;
+
+        /// <summary>
         /// All objects that can be accessed directly as constructor parameters when an object requests it
         /// </summary>
         private ConcurrentDictionary<string, object> registeredObjects;
@@ -228,6 +233,7 @@ namespace ITVComponents.Plugins
             registeredDirectories.Add(Path.GetDirectoryName(Assembly.GetCallingAssembly().Location));
             registeredAssemblies = new Dictionary<string, Assembly>();
             this.plugins = new ConcurrentDictionary<string, IPlugin>();
+            this.pluginInitializationPromises = new ConcurrentDictionary<string, ManualResetEventSlim>();
             this.roTypeList = new ConcurrentDictionary<string, Type>();
             registeredObjects = new ConcurrentDictionary<string, object>();
             localRegistrations = new AsyncLocal<Dictionary<string, object>>();//() => new Dictionary<string, object>());
@@ -250,9 +256,17 @@ namespace ITVComponents.Plugins
             get
             {
                 IPlugin retVal = null;
-                if (plugins.ContainsKey(pluginName))
+                if (pluginInitializationPromises.TryGetValue(pluginName, out var wh))
                 {
-                    retVal = plugins[pluginName];
+                    if (!wh.IsSet)
+                    {
+                        wh.Wait(5000);
+                    }
+
+                    if (plugins.TryGetValue(pluginName, out var pi))
+                    {
+                        retVal = pi;
+                    }
                 }
 
                 return retVal;
@@ -844,152 +858,197 @@ namespace ITVComponents.Plugins
             Type pluginType;
             object[] constructor;
             plugin = null;
-            if (testOnly || !buffer || !this.plugins.ContainsKey(uniqueName))
+            ManualResetEventSlim trigger = null;
+            if (testOnly || !buffer || this.pluginInitializationPromises.TryAdd(uniqueName, trigger = new ManualResetEventSlim(false)))
             {
-                this.ParsePluginString(pluginConstructor, out pluginType, out constructor, testOnly);
-                if (pluginType == null)
+                try
                 {
-                    if (!testOnly)
+                    this.ParsePluginString(pluginConstructor, out pluginType, out constructor, testOnly);
+                    if (pluginType == null)
                     {
-                        throw new InvalidOperationException(string.Format(Messages.CanNotInitializePluginError,
-                            pluginConstructor));
+                        if (!testOnly)
+                        {
+                            throw new InvalidOperationException(string.Format(Messages.CanNotInitializePluginError,
+                                pluginConstructor));
+                        }
+
+                        LogEnvironment.LogDebugEvent(null, string.Format(Messages.CanNotInitializePluginError,
+                            pluginConstructor), (int)LogSeverity.Warning, "PluginSystem");
+                        return false;
                     }
 
-                    LogEnvironment.LogDebugEvent(null, string.Format(Messages.CanNotInitializePluginError,
-                            pluginConstructor), (int)LogSeverity.Warning, "PluginSystem");
-
-                    //LogEnvironment.LogEvent($"No type found for {pluginConstructor}!",LogSeverity.Error);
-                    return false;
-                }
-
-                bool isSelfRegistered = false;
-                bool isSingleton = false;
-                if (!testOnly)
-                {
-                    isSelfRegistered = CheckSelfRegistered(pluginType);
-                    isSingleton = Attribute.IsDefined(pluginType, typeof(SingletonAttribute), true);
-                }
-                else
-                {
-                    var sra = FindSelfRegisteredRoType();
-                    var sa = AssemblyResolver.FindReflectionOnlyTypeFor(typeof(SingletonAttribute));
-                    var attrData = AllAttributesOf(pluginType);
-                    foreach (CustomAttributeData attr in attrData)
+                    bool isSelfRegistered = false;
+                    bool isSingleton = false;
+                    if (!testOnly)
                     {
-                        if (sra.IsAssignableFrom(attr.AttributeType))
+                        isSelfRegistered = CheckSelfRegistered(pluginType);
+                        isSingleton = Attribute.IsDefined(pluginType, typeof(SingletonAttribute), true);
+                    }
+                    else
+                    {
+                        var sra = FindSelfRegisteredRoType();
+                        var sa = AssemblyResolver.FindReflectionOnlyTypeFor(typeof(SingletonAttribute));
+                        var attrData = AllAttributesOf(pluginType);
+                        foreach (CustomAttributeData attr in attrData)
                         {
-                            LogEnvironment.LogDebugEvent(null, "Found a Self-Registered Plugin...", (int)LogSeverity.Report, "PluginSystem");
+                            if (sra.IsAssignableFrom(attr.AttributeType))
+                            {
+                                LogEnvironment.LogDebugEvent(null, "Found a Self-Registered Plugin...",
+                                    (int)LogSeverity.Report, "PluginSystem");
+                                isSelfRegistered = true;
+                            }
+                            else if (sa.IsAssignableFrom(attr.AttributeType))
+                            {
+                                LogEnvironment.LogDebugEvent(null, "Found a Singleton-Plugin", (int)LogSeverity.Report,
+                                    "PluginSystem");
+                                isSingleton = true;
+                            }
+                        }
+                    }
+
+                    if (isSingleton && !singletonFactory && !testOnly)
+                    {
+                        plugin = SingletonEnvironment.InitializeSingletonPlugin(uniqueName, pluginConstructor, buffer,
+                            OnUnknownConstructorParameter);
+                        return true;
+
+                    }
+
+                    bool doBuffer = buffer;
+                    if (isSelfRegistered)
+                    {
+                        object[] tmpConstructor = new object[constructor.Length + 1];
+                        Array.Copy(constructor, tmpConstructor, constructor.Length);
+                        if (!testOnly)
+                        {
+                            tmpConstructor[tmpConstructor.Length - 1] =
+                                GetSelfRegistrationCallback(uniqueName, doBuffer);
+                        }
+                        else
+                        {
+                            tmpConstructor[tmpConstructor.Length - 1] = GetSelfRegistrationCallbackType();
+                        }
+
+                        constructor = tmpConstructor;
+                    }
+
+                    Type[] constructorTypes = !testOnly
+                        ? Type.GetTypeArray(constructor)
+                        : constructor.Cast<Type>().ToArray();
+                    ConstructorInfo inf = pluginType.GetConstructor(constructorTypes);
+                    if (inf != null && !testOnly)
+                    {
+                        IPlugin tmp = inf.Invoke(constructor) as IPlugin;
+                        if (tmp is SingletonPlugin)
+                        {
+                            SingletonPlugin sip = (SingletonPlugin)tmp;
+                            sip.Initialize();
+                            tmp = sip.Instance;
+                            sip.Dispose();
                             isSelfRegistered = true;
                         }
-                        else if (sa.IsAssignableFrom(attr.AttributeType))
+
+                        if (!(tmp is IRuntimeSerializer))
                         {
-                            LogEnvironment.LogDebugEvent(null, "Found a Singleton-Plugin", (int)LogSeverity.Report, "PluginSystem");
-                            isSingleton = true;
-                        }
-                    }
-                }
-
-                if (isSingleton && !singletonFactory && !testOnly)
-                {
-                    plugin = SingletonEnvironment.InitializeSingletonPlugin(uniqueName, pluginConstructor, buffer, OnUnknownConstructorParameter);
-                    return true;
-                }
-
-                bool doBuffer = buffer;
-                if (isSelfRegistered)
-                {
-                    object[] tmpConstructor = new object[constructor.Length + 1];
-                    Array.Copy(constructor, tmpConstructor, constructor.Length);
-                    if (!testOnly)
-                    {
-                        tmpConstructor[tmpConstructor.Length - 1] = GetSelfRegistrationCallback(uniqueName, doBuffer);
-                    }
-                    else
-                    {
-                        tmpConstructor[tmpConstructor.Length - 1] = GetSelfRegistrationCallbackType();
-                    }
-                    constructor = tmpConstructor;
-                }
-
-                Type[] constructorTypes = !testOnly
-                    ? Type.GetTypeArray(constructor)
-                    : constructor.Cast<Type>().ToArray();
-                ConstructorInfo inf = pluginType.GetConstructor(constructorTypes);
-                if (inf != null && !testOnly)
-                {
-                    IPlugin tmp = inf.Invoke(constructor) as IPlugin;
-                    if (tmp is SingletonPlugin)
-                    {
-                        SingletonPlugin sip = (SingletonPlugin)tmp;
-                        sip.Initialize();
-                        tmp = sip.Instance;
-                        sip.Dispose();
-                        isSelfRegistered = true;
-
-                    }
-
-                    if (!(tmp is IRuntimeSerializer))
-                    {
-                        if (!isSelfRegistered)
-                        {
-                            RegisterPlugin(tmp, uniqueName, doBuffer);
-                        }
-                    }
-
-                    if (tmp is IRuntimeSerializer)
-                    {
-                        if (runtimeSerializer != null)
-                        {
-                            //LogEnvironment.LogEvent(Messages.MultipleRuntimeSerializersNotSupportedError, LogSeverity.Error);
-                            throw new Exception(Messages.MultipleRuntimeSerializersNotSupportedError);
+                            if (!isSelfRegistered)
+                            {
+                                RegisterPlugin(tmp, uniqueName, doBuffer);
+                            }
                         }
 
-                        IRuntimeSerializer serializer = tmp as IRuntimeSerializer;
-                        runtimeSerializer = serializer;
-                        buffer = false;
-                        tmp = null;
-                    }
-
-                    plugin = tmp;
-                    if (buffer)
-                    {
-                        if (plugin is ICriticalComponent crit)
+                        if (tmp is IRuntimeSerializer)
                         {
-                            crit.CriticalError += CriticalOccurred;
+                            if (runtimeSerializer != null)
+                            {
+                                //LogEnvironment.LogEvent(Messages.MultipleRuntimeSerializersNotSupportedError, LogSeverity.Error);
+                                throw new Exception(Messages.MultipleRuntimeSerializersNotSupportedError);
+                            }
+
+                            IRuntimeSerializer serializer = tmp as IRuntimeSerializer;
+                            runtimeSerializer = serializer;
+                            buffer = false;
+                            tmp = null;
                         }
 
-                        if (plugin is IProcessWatchDog wd)
+                        plugin = tmp;
+                        if (buffer)
                         {
-                            wd.RegisterFor(this);
+                            if (plugin is ICriticalComponent crit)
+                            {
+                                crit.CriticalError += CriticalOccurred;
+                            }
+
+                            if (plugin is IProcessWatchDog wd)
+                            {
+                                wd.RegisterFor(this);
+                            }
+
+                            OnPluginInitialized(uniqueName, plugin);
                         }
 
-                        OnPluginInitialized(uniqueName, plugin);
+                        return true;
                     }
 
-                    return true;
-                }
-
-                if (inf != null)
-                {
-                    plugin = null;
-                    if (buffer)
+                    if (inf != null)
                     {
-                        roTypeList[uniqueName] = pluginType;
+                        plugin = null;
+                        if (buffer)
+                        {
+                            roTypeList[uniqueName] = pluginType;
+                        }
                     }
-                }
                 else
-                {
-                    if (!testOnly)
                     {
-                        //LogEnvironment.LogEvent(string.Format(Messages.NoConstructorFoundForTypeError, pluginType), LogSeverity.Error);
-                        throw new Exception(string.Format(Messages.NoConstructorFoundForTypeError, pluginType));
+                        if (!testOnly)
+                        {
+                            //LogEnvironment.LogEvent(string.Format(Messages.NoConstructorFoundForTypeError, pluginType), LogSeverity.Error);
+                            throw new Exception(string.Format(Messages.NoConstructorFoundForTypeError, pluginType));
+                        }
+                        else
+                        {
+                            LogEnvironment.LogDebugEvent(null,
+                                string.Format(Messages.NoConstructorFoundForTypeError, pluginType),
+                                (int)LogSeverity.Warning, "PluginSystem");
+                        }
+
+                        return false;
                     }
-                    else
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(ex.Message, LogSeverity.Error);
+                    if (buffer)
                     {
-                        LogEnvironment.LogDebugEvent(null, string.Format(Messages.NoConstructorFoundForTypeError, pluginType), (int)LogSeverity.Warning, "PluginSystem");
+                        if (!plugins.ContainsKey(uniqueName))
+                        {
+                            if (pluginInitializationPromises.TryRemove(uniqueName, out var wh))
+                            {
+                                if (wh != trigger)
+                                {
+                                    throw new InvalidOperationException("Something went completly wrong!");
+                                }
+
+                                wh.Set();
+                                wh.Dispose();
+                                wh = null;
+                                trigger = null;
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("Something went completly wrong!");
+                            }
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException("Something went completly wrong!");
+                        }
                     }
 
-                    return false;
+                    throw;
+                }
+                finally
+                {
+                    trigger?.Set();
                 }
             }
             else
