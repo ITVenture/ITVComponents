@@ -250,9 +250,9 @@ namespace ITVComponents.Plugins
             get
             {
                 IPlugin retVal = null;
-                if (plugins.ContainsKey(pluginName))
+                if (plugins.TryGetValue(pluginName, out var pi))
                 {
-                    retVal = plugins[pluginName];
+                    retVal = pi;
                 }
 
                 return retVal;

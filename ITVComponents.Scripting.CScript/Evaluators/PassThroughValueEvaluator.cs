@@ -82,12 +82,12 @@ namespace ITVComponents.Scripting.CScript.Evaluators
             }
             else if (type == PassThroughType.Exception)
             {
-                if (!context.Scope.ContainsKey("$$exception"))
+                if (context.CurrentCatch == null)
                 {
                     throw new ScriptException("Re-throw requires an existing exception!");
                 }
 
-                value = context.Scope["$$exception"];
+                value = context.CurrentCatch;
             }
 
             return new PassThroughValue(type, value);

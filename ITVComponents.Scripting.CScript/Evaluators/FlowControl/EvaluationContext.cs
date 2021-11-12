@@ -7,15 +7,48 @@ namespace ITVComponents.Scripting.CScript.Evaluators.FlowControl
 {
     public class EvaluationContext
     {
+        private int currentCatchId = -1;
+        private List<Exception> catches = new List<Exception>();
         public Scope Scope { get; set; }
 
         public bool LazyEvaluation { get; set; } = false;
         public bool TypeSafety { get; set; }
         public object LastResult => values.Count != 0 ? values.Peek() : null;
 
+        public Exception CurrentCatch
+        {
+            get
+            {
+                if (currentCatchId == -1 || catches.Count < currentCatchId)
+                {
+                    return null;
+                }
+
+                return catches[currentCatchId];
+            }
+        }
+
         private Stack<object> values = new Stack<object>();
 
         private Stack<EvaluatorBase> evaluators = new Stack<EvaluatorBase>();
+
+        public void EnterCatch(Exception ex)
+        {
+            currentCatchId++;
+            if (catches.Count <= currentCatchId)
+            {
+                catches.Add(ex);
+            }
+            else
+            {
+                catches[currentCatchId] = ex;
+            }
+        }
+
+        public void LeaveCatch()
+        {
+            currentCatchId--;
+        }
 
         public object[] ReadStack(int childrenCount)
         {

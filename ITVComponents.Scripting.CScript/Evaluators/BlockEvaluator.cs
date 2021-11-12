@@ -27,7 +27,11 @@ namespace ITVComponents.Scripting.CScript.Evaluators
         public override int PassThroughOccurred(EvaluationContext context)
         {
             var retVal = base.PassThroughOccurred(context);
-            context.Scope.CollapseScope();
+            if (Parent is not IImplicitBlock)
+            {
+                context.Scope.CollapseScope();
+            }
+
             return retVal;
         }
 
@@ -71,7 +75,11 @@ namespace ITVComponents.Scripting.CScript.Evaluators
         protected override object PerformPreValuation(object[] arguments, EvaluationContext context, out bool putOnStack)
         {
             putOnStack = false;
-            context.Scope.OpenInnerScope();
+            if (Parent is not IImplicitBlock)
+            {
+                context.Scope.OpenInnerScope();
+            }
+
             PrepareFor(EvaluationState.EvaluationChildIteration);
             return null;
         }
@@ -79,7 +87,11 @@ namespace ITVComponents.Scripting.CScript.Evaluators
         protected override object PerformPostValuation(object[] arguments, EvaluationContext context, out bool putOnStack)
         {
             putOnStack = false;
-            context.Scope.CollapseScope();
+            if (Parent is not IImplicitBlock)
+            {
+                context.Scope.CollapseScope();
+            }
+
             PrepareFor(EvaluationState.Done);
             return null;
         }
