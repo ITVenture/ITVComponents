@@ -483,6 +483,11 @@ namespace ITVComponents.Scripting.CScript.Core
             return new MemberAccessEvaluator(baseValue, explicitType, context);
         }
 
+        public override EvaluatorBase VisitLiteralExpression(ITVScriptingParser.LiteralExpressionContext context)
+        {
+            return VisitLiteral(context.literal());
+        }
+
         public override EvaluatorBase VisitLiteral(ITVScriptingParser.LiteralContext context)
         {
             var child = context.GetChild(0);
@@ -603,9 +608,19 @@ namespace ITVComponents.Scripting.CScript.Core
             return new SequenceEvaluator(elements, SequenceType.ExpressionSequence, context);
         }
 
+        public override EvaluatorBase VisitArrayLiteralExpression(ITVScriptingParser.ArrayLiteralExpressionContext context)
+        {
+            return VisitArrayLiteral(context.arrayLiteral());
+        }
+
         public override EvaluatorBase VisitArrayLiteral(ITVScriptingParser.ArrayLiteralContext context)
         {
             return Visit(context.elementList());
+        }
+
+        public override EvaluatorBase VisitIfStatement(ITVScriptingParser.IfStatementContext context)
+        {
+            return base.VisitIfStatement(context);
         }
     }
 }
