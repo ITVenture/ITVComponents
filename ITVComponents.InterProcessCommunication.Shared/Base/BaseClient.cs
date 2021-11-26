@@ -57,6 +57,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         private object lockHelper;
 
         /// <summary>
+        /// Makes sure, that the test/reconnect routine is not being executed parallel
+        /// </summary>
+        private object testingLock = new object();
+
+        /// <summary>
         /// a dictionary containing all events that are required to subscribe
         /// </summary>
         private ConcurrentDictionary<string, List<Delegate>> eventSubscriptions = new ConcurrentDictionary<string, List<Delegate>>();
@@ -628,32 +633,47 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <returns>a value indicating whether the connection is running correctly</returns>
         private bool TestConnection()
         {
-            if (!disposed)
+            lock (testingLock)
             {
-                var tmpConn = connectionStatus;
-                connectionStatus = Test();
-                if (tmpConn != connectionStatus)
+                if (!disposed)
                 {
-                    OnOperationalChanged();
-                    if (connectionStatus)
+                    var tmpConn = connectionStatus;
+                    try
                     {
-                        OnReconnected();
+                        connectionStatus = Test();
+                        if (tmpConn != connectionStatus)
+                        {
+                            //tmpConn = connectionStatus;
+                            OnOperationalChanged();
+                            if (connectionStatus)
+                            {
+                                OnReconnected();
+                            }
+                        }
                     }
+                    catch (Exception ex)
+                    {
+                        if (!tmpConn && connectionStatus)
+                        {
+                            connectionStatus = false;
+                            OnOperationalChanged();
+                        }
+                    }
+
+                    if (!connectionStatus)
+                    {
+                        if (!reconnectorActive)
+                        {
+                            reconnector.Change(ReconnectLooptime, ReconnectLooptime);
+                            reconnectorActive = true;
+                        }
+                    }
+
+                    return connectionStatus;
                 }
 
-                if (!connectionStatus)
-                {
-                    if (!reconnectorActive)
-                    {
-                        reconnector.Change(ReconnectLooptime, ReconnectLooptime);
-                        reconnectorActive = true;
-                    }
-                }
-
-                return connectionStatus;
+                return false;
             }
-
-            return false;
         }
 
         /// <summary>

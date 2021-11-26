@@ -44,7 +44,7 @@ namespace ITVComponents.ExtendedFormatting
         {
             format = format.Replace("[[", "#!#OP#!#").Replace("]]", "#!#CL#!#");
             string retVal = Regex.Replace(format, FormattingRegex, m => Evaluator(m,data, DefaultFormat),
-                                          RegexOptions.Compiled | RegexOptions.CultureInvariant |
+                                          RegexOptions.CultureInvariant |
                                           RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace |
                                           RegexOptions.Multiline);
             retVal = retVal.Replace("#!#OP#!#", "[").Replace("#!#CL#!#", "]");
@@ -62,7 +62,7 @@ namespace ITVComponents.ExtendedFormatting
         public static string Format(string format, Func<object, string, string> formatCallback, params object[] data)
         {
             string retVal = Regex.Replace(format, FormattingRegex, m => Evaluator(m, data, formatCallback),
-                                          RegexOptions.Compiled | RegexOptions.CultureInvariant |
+                                          RegexOptions.CultureInvariant |
                                           RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace |
                                           RegexOptions.Multiline);
             return retVal;
@@ -301,7 +301,7 @@ namespace ITVComponents.ExtendedFormatting
         private static string[] TokenizePath(string propertyPath)
         {
             List<string> retVal = new List<string>();
-            string currentString = "";
+            StringBuilder currentString = new StringBuilder();
             bool lastDot = true;
             foreach (char c in propertyPath)
             {
@@ -311,20 +311,21 @@ namespace ITVComponents.ExtendedFormatting
                 }
                 else if (c == '.' && !lastDot)
                 {
-                    retVal.Add(currentString);
-                    currentString = "";
+                    retVal.Add(currentString.ToString());
+                    currentString.Clear();
                     lastDot = true;
                 }
                 else
                 {
                     lastDot = false;
-                    currentString += c;
+                    currentString.Append(c);
                 }
             }
 
             if (!lastDot)
             {
-                retVal.Add(currentString);
+                retVal.Add(currentString.ToString());
+                currentString.Clear();
             }
 
             return retVal.ToArray();

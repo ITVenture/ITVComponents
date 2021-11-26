@@ -47,6 +47,17 @@ namespace ITVComponents.Formatting.Test
         }
 
         [TestMethod]
+        public void TestForSO()
+        {
+            var tmp = "Fruit with name '[error]' does not exist.";
+            var tmp2 = "'[error]' has [error.Length] letters, which is an [error.Length%2==0?\"\":\"un\"]-even number.";
+            var error = "Apple";
+            Assert.AreEqual("Fruit with name 'Apple' does not exist.", new { error }.FormatText(tmp));
+            Assert.AreEqual("'Apple' has 5 letters, which is an un-even number.", new { error }.FormatText(tmp2));
+        }
+
+
+        [TestMethod]
         public void TestEntireScript()
         {
             var Target = new
