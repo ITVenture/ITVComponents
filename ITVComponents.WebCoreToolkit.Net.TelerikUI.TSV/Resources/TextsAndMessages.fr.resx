@@ -243,4 +243,28 @@
   <data name="IWCN_Titles_DashboardWidgets" xml:space="preserve">
     <value>Dashboard Widgets</value>
   </data>
+  <data name="IWCN_Titles_TutorialVideos" xml:space="preserve">
+    <value>Tutoriels</value>
+  </data>
+  <data name="IWCN_General_Cancel" xml:space="preserve">
+    <value>Anuller</value>
+  </data>
+  <data name="IWCN_Tutorials_SortableName" xml:space="preserve">
+    <value>Nom de tri</value>
+  </data>
+  <data name="IWCN_Language" xml:space="preserve">
+    <value>Langue</value>
+  </data>
+  <data name="IWCN_TutorialStreamFormat" xml:space="preserve">
+    <value>Format</value>
+  </data>
+  <data name="IWCN_TutorialStreamEncoding" xml:space="preserve">
+    <value>Codage</value>
+  </data>
+  <data name="IWCN_Tutorial_DownloadStream" xml:space="preserve">
+    <value>Télécharger le fichier</value>
+  </data>
+  <data name="IWCN_Dashboard_DisplayTemplate" xml:space="preserve">
+    <value>modèle de titre</value>
+  </data>
 </root>

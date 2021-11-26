@@ -23,8 +23,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries
         /// Finds the demanded Dashboard-Item and returns it
         /// </summary>
         /// <param name="dashboardName">the name of the requested dashboard-item</param>
+        /// <param name="userDashboardId">the id of the user-dashboard that is requested</param>
         /// <returns>the definition of the requested dashboard-item including the permissions required to use it</returns>
-        DashboardWidgetDefinition GetDashboard(string dashboardName);
+        DashboardWidgetDefinition GetDashboard(string dashboardName, int? userDashboardId = null);
 
         /// <summary>
         /// Sets the User-Widgets for the given user
@@ -32,7 +33,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries
         /// <param name="userWidgets">the target widgets to add</param>
         /// <param name="userName">the user for which to register these widgets</param>
         /// <returns>an empty task</returns>
-        Task SetUserWidgets(UserDashboardWidgetDefinition[] userWidgets, string userName);
+        Task<DashboardWidgetDefinition[]> SetUserWidgets(DashboardWidgetDefinition[] userWidgets, string userName);
 
         /// <summary>
         /// Gets an array containing all defined DashboardWidget-Definitions
@@ -44,6 +45,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries
         /// Gets an array containing all User-Widgets
         /// </summary>
         /// <returns>an array that contains all assigned user-widgets.</returns>
-        UserDashboardWidgetDefinition[] GetUserWidgets(string userName);
+        DashboardWidgetDefinition[] GetUserWidgets(string userName);
     }
 }

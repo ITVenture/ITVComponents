@@ -81,6 +81,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<DashboardWidget> Widgets { get; set; }
 
+        public DbSet<DashboardParam> WidgetParams { get; set; }
+
         public DbSet<UserWidget> UserWidgets { get; set; }
 
         public DbSet<CustomUserProperty> UserProperties { get; set; }
@@ -117,6 +119,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<SystemEvent> SystemLog { get; set; }
 
+        public DbSet<VideoTutorial> Tutorials { get; set; }
+
+        public DbSet<TutorialStream> TutorialStreams { get; set; }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             base.OnConfiguring(optionsBuilder);
@@ -152,6 +158,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 modelBuilder.Entity<WebPlugin>().HasQueryFilter(wp => ShowAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantName == tenantProvider.PermissionPrefix || wp.TenantId == null && !HideGlobals);
                 modelBuilder.Entity<WebPluginConstant>().HasQueryFilter(wc => ShowAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName == tenantProvider.PermissionPrefix || wc.TenantId == null && !HideGlobals);
                 modelBuilder.Entity<DashboardWidget>().HasQueryFilter(dw => ShowAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix));
+                modelBuilder.Entity<DashboardParam>().HasQueryFilter(dw => ShowAllTenants || !FilterAvailable || dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix));
                 modelBuilder.Entity<UserWidget>().HasQueryFilter(uw => ShowAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix) && uw.Tenant.TenantName == tenantProvider.PermissionPrefix && uw.UserName == httpContext.HttpContext.User.Identity.Name));
             }
         }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
+using ITVComponents.WebCoreToolkit.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Models
 {
@@ -41,37 +42,7 @@ namespace ITVComponents.WebCoreToolkit.Models
                 Active = Children.Any(c => c.Active);
             }
 
-            if (!string.IsNullOrEmpty(jsonLanguageRecord) && !string.IsNullOrEmpty(DisplayName) && DisplayName.StartsWith("{") && DisplayName.EndsWith("}"))
-            {
-                try
-                {
-                    var ok = false;
-                    var op = JsonHelper.FromJsonString<Dictionary<string, string>>(DisplayName);
-                    if (op.ContainsKey(jsonLanguageRecord))
-                    {
-                        DisplayName = op[jsonLanguageRecord];
-                        ok = true;
-                    }
-
-                    if (!ok && jsonLanguageRecord.Contains("-"))
-                    {
-                        var lg = jsonLanguageRecord.Substring(0, jsonLanguageRecord.IndexOf("-"));
-                        if (op.ContainsKey(lg))
-                        {
-                            DisplayName = op[lg];
-                            ok = true;
-                        }
-                    }
-
-                    if (!ok && op.ContainsKey("Default"))
-                    {
-                        DisplayName = op["Default"];
-                    }
-                }
-                catch
-                {
-                }
-            }
+            DisplayName = DisplayName.Translate(jsonLanguageRecord);
         }
     }
 }

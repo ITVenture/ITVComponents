@@ -19,4 +19,7 @@ ITVenture.Text.setText("de", "Server responded with code", "Der Server hat den f
 ITVenture.Text.setText("de", "Cancel upload", "Upload abbrechen");
 ITVenture.Text.setText("de", "Are you sure you want to cancel this upload?", "Soll der Upload wirklich abgebrochen werden?");
 ITVenture.Text.setText("de", "Remove file", "Datei entfernen");
-ITVenture.Text.setText("de", "You can not upload any more files.","Sie können keine weiteren Dateien hochladen.");
+ITVenture.Text.setText("de", "You can not upload any more files.", "Sie können keine weiteren Dateien hochladen.");
+ITVenture.Text.setText("de", "Dashboard-Parameter name", " Parametername");
+ITVenture.Text.setText("de", "Dashboard-Parameter value", " Parameterwert");
+ITVenture.Text.setText("de", "Save dashboard", " Dashboard speichern")

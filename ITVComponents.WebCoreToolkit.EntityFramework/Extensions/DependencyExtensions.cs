@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
+using ITVComponents.WebCoreToolkit.EntityFramework.Help;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.Diagnostics;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
 using ITVComponents.WebCoreToolkit.Logging;
@@ -38,6 +39,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         public static IServiceCollection ConfigureDiagnosticsQueries<TDiagnosticsStore>(this IServiceCollection services, Action<DiagnosticsSourceOptions> options) where TDiagnosticsStore : class, IDiagnosticsStore
         {
             return services.Configure(options).AddTransient<IDiagnosticsStore, TDiagnosticsStore>();
+        }
+
+        /// <summary>
+        /// Configures the Tutorials - Endpoint
+        /// </summary>
+        /// <typeparam name="TTutorialSource">the source that will provide tutorials to the corresponding viewComponent that presents the tutorials to the user</typeparam>
+        /// <param name="services">the services collection</param>
+        /// <returns>the provided ServiceCollection for method-chaining</returns>
+        public static IServiceCollection EnableTutorialSource<TTutorialSource>(this IServiceCollection services)
+            where TTutorialSource : class, ITutorialSource
+        {
+            return services.AddTransient<ITutorialSource, TTutorialSource>();
         }
     }
 }

@@ -102,7 +102,7 @@ namespace ITVComponents.AssemblyResolving
             {
                 if (!Path.IsPathFullyQualified(path))
                 {
-                    var p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+                    var p = Path.Combine(AppContext.BaseDirectory, path);
                     exists = File.Exists(p);
                     if (exists)
                         path = p;

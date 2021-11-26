@@ -13,6 +13,8 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
     public abstract class ProcessTaskBase<TMe, TParent> : TaskBase, IProcessTask where TParent : ProcessPackageBase<TMe, TParent>
                                                                                 where TMe : ProcessTaskBase<TMe, TParent>
     {
+        private readonly int priority;
+
         /// <summary>
         /// Indicates whether this task is currently executing unsafe code
         /// </summary>
@@ -33,7 +35,12 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             Parent = parent;
         }
 
-        protected ProcessTaskBase()
+        protected ProcessTaskBase(int priority) : this()
+        {
+            this.priority = priority;
+        }
+
+        private ProcessTaskBase()
         {
 
         }
@@ -47,6 +54,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         {
             Done = (bool)info.GetValue("Done", typeof(bool));
             FailCount = (int)info.GetValue("FailCount", typeof(int));
+            priority = (int)info.GetValue("MyPriority", typeof(int));
         }
 
         /// <summary>
@@ -54,7 +62,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// </summary>
         public override int Priority
         {
-            get { return Parent.PackagePriority; }
+            get { return Parent?.PackagePriority??priority; }
         }
 
         /// <summary>
@@ -84,12 +92,12 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="recoverable">indicates whether the error that caused the fail is recoverable.</param>
         public virtual void Fail(SerializedException ex, bool recoverable)
         {
-            if (!Done && (!recoverable || !Parent.DemandRequeue((TMe)this)))
+            if (!Done && (!recoverable || !(Parent?.DemandRequeue((TMe)this) ?? false)))
             {
                 base.Fail(ex);
                 Success = false;
                 Done = true;
-                Parent.DecreaseOpenItems(false, ex);
+                Parent?.DecreaseOpenItems(false, ex);
                 OnException(ex);
             }
             else
@@ -142,7 +150,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             {
                 Success = success;
                 Done = true;
-                Parent.DecreaseOpenItems(success, null);
+                Parent?.DecreaseOpenItems(success, null);
             }
         }
 
@@ -167,7 +175,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         {
             info.AddValue("Done", Done);
             info.AddValue("FailCount", FailCount);
-
+            info.AddValue("MyPriority", Priority);
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
@@ -63,11 +64,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
         /// </summary>
         /// <param name="dashboardName">the name of the requested dashboard-item</param>
         /// <returns>the definition of the requested dashboard-item including the permissions required to use it</returns>
-        public DashboardWidgetDefinition GetDashboard(string dashboardName)
+        public DashboardWidgetDefinition GetDashboard(string dashboardName, int? userDashboardId = null)
         {
             var tmp = dbContext.Widgets.First(n => n.SystemName == dashboardName);
-            var retVal = GetDashboardItem(tmp);
-
+            var userDash = (userDashboardId != null)
+                ? dbContext.UserWidgets.First(n => n.UserWidgetId == userDashboardId)
+                : null;
+            var retVal = GetDashboardItem(tmp, userDash);
+            if (userDashboardId == null)
+            {
+                retVal.SortOrder = dbContext.UserWidgets.Count();
+            }
+            else
+            {
+                retVal.SortOrder = userDash.SortOrder;
+            }
             return retVal;
         }
 
@@ -77,7 +88,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
         /// <param name="userWidgets">the target widgets to add</param>
         /// <param name="userName">the user for which to register these widgets</param>
         /// <returns>an empty task</returns>
-        public async Task SetUserWidgets(UserDashboardWidgetDefinition[] userWidgets, string userName)
+        public async Task<DashboardWidgetDefinition[]> SetUserWidgets(DashboardWidgetDefinition[] widgets, string userName)
         {
             var tmp = dbContext.ShowAllTenants;
             try
@@ -87,25 +98,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
                 {
                     var tenantId = dbContext.CurrentTenantId.Value;
                     var dbwidgets = dbContext.UserWidgets.OrderBy(n => n.SortOrder).ToArray();
-                    var allIds = dbwidgets.Select(n => n.Widget.SystemName)
-                        .Union(userWidgets.Select(n => n.DashboardWidgetName)).Distinct().ToArray();
+                    var allIds = dbwidgets.Select(n => n.UserWidgetId)
+                        .Union(widgets.Select(n => n.UserWidgetId)).Distinct().ToArray();
                     var selection = (from i in allIds
-                                     join d in dbwidgets on i equals d.Widget.SystemName into j1
-                                     from lj1 in j1.DefaultIfEmpty()
-                                     join p in userWidgets on i equals p.DashboardWidgetName into j2
-                                     from lj2 in j2.DefaultIfEmpty()
-                                     join w in dbContext.Widgets on i equals w.SystemName
-                                     select new { Id = w.DashboardWidgetId, Db = lj1, Posted = lj2 }).ToArray();
+                        join d in dbwidgets on i equals d.UserWidgetId into j1
+                        from lj1 in j1.DefaultIfEmpty()
+                        join p in widgets on i equals p.UserWidgetId into j2
+                        from lj2 in j2.DefaultIfEmpty()
+                        select new { Id = i, Db = lj1, Posted = lj2 }).ToArray();
                     foreach (var item in selection)
                     {
                         if (item.Db == null)
                         {
+                            var w = dbContext.Widgets.First(n => n.DashboardWidgetId == item.Posted.DashboardWidgetId);
                             dbContext.UserWidgets.Add(new UserWidget
                             {
-                                DashboardWidgetId = item.Id,
-                                SortOrder = item.Posted.SortOrder,
+                                DashboardWidgetId = item.Posted.DashboardWidgetId,
+                                SortOrder = dbContext.UserWidgets.Count(),
                                 TenantId = tenantId,
-                                UserName = userName
+                                UserName = userName,
+                                CustomQueryString = w.Params.Any() ? item.Posted.CustomQueryString : null,
+                                DisplayName = !string.IsNullOrEmpty(w.TitleTemplate) ? item.Posted.DisplayName : null
                             });
                         }
                         else if (item.Posted == null)
@@ -115,17 +128,41 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
                         else
                         {
                             item.Db.SortOrder = item.Posted.SortOrder;
+                            if (item.Db.Widget.Params.Any())
+                            {
+                                item.Db.CustomQueryString
+                                    = item.Posted.CustomQueryString;
+                            }
                         }
                     }
 
-                    await dbContext.SaveChangesAsync();
-                    //LogEnvironment.LogEvent(Stringify(formsDictionary), LogSeverity.Report);
+                    await dbContext.SaveChangesAsync().ConfigureAwait(false);
+                    var ret = dbContext.UserWidgets.OrderBy(n => n.SortOrder)
+                        .Select(n => new DashboardWidgetDefinition
+                        {
+                            UserWidgetId = n.UserWidgetId,
+                            CustomQueryString = n.Widget.Params.Any()
+                                ? n.CustomQueryString
+                                : n.Widget.CustomQueryString,
+                            SortOrder = n.SortOrder,
+                            DashboardWidgetId = n.DashboardWidgetId,
+                            DisplayName = n.DisplayName ?? n.Widget.DisplayName,
+                            TitleTemplate = n.Widget.TitleTemplate,
+                            DiagnosticsQuery = GetQuery(n.Widget.DiagnosticsQuery.DiagnosticsQueryName),
+                            SystemName = n.Widget.SystemName,
+                            Template = n.Widget.Template,
+                            Area = n.Widget.Area
+
+                        }).ToArray();
+                    return ret;
                 }
             }
             finally
             {
                 dbContext.ShowAllTenants = tmp;
             }
+
+            return null;
         }
 
         /// <summary>
@@ -136,26 +173,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
         {
             return (from t in dbContext.Widgets.ToArray()
                 orderby t.DisplayName
-                select GetDashboardItem(t)).ToArray();
+                select GetDashboardItem(t,null)).ToArray();
         }
 
         /// <summary>
         /// Gets an array containing all User-Widgets
         /// </summary>
         /// <returns>an array that contains all assigned user-widgets.</returns>
-        public UserDashboardWidgetDefinition[] GetUserWidgets(string userName)
+        public DashboardWidgetDefinition[] GetUserWidgets(string userName)
         {
             var tmp = dbContext.ShowAllTenants;
             try
             {
                 var tmpUw = dbContext.UserWidgets.OrderBy(n => n.SortOrder).ToArray();
                 return (from t in tmpUw
-                    select new UserDashboardWidgetDefinition
+                    select new DashboardWidgetDefinition
                     {
-                        DashboardWidgetName = t.Widget.SystemName,
-                        SortOrder = t.SortOrder,
-                        UserName = t.UserName,
-                        Widget = GetDashboardItem(t.Widget)
+                        
                     }).ToArray();
             }
             finally
@@ -169,16 +203,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
         /// </summary>
         /// <param name="tmp">the entity from which to create the definition</param>
         /// <returns>a complete widget-definition</returns>
-        private DashboardWidgetDefinition GetDashboardItem(DashboardWidget tmp)
+        private DashboardWidgetDefinition GetDashboardItem(DashboardWidget tmp, UserWidget userWidget)
         {
-            return new DashboardWidgetDefinition
+            var retVal = new DashboardWidgetDefinition
             {
                 Area = tmp.Area,
-                CustomQueryString = tmp.CustomQueryString,
+                CustomQueryString = userWidget?.CustomQueryString??tmp.CustomQueryString,
                 DiagnosticsQuery = GetQuery(tmp.DiagnosticsQuery.DiagnosticsQueryName),
-                DisplayName = tmp.DisplayName,
+                DisplayName = userWidget?.DisplayName??tmp.DisplayName,
                 SystemName = tmp.SystemName,
-                Template = tmp.Template
+                Template = tmp.Template,
+                TitleTemplate = tmp.TitleTemplate,
+                UserWidgetId = userWidget?.UserWidgetId??0,
+                DashboardWidgetId = tmp.DashboardWidgetId
+            };
+
+            if (userWidget == null)
+            {
+                foreach (var param in tmp.Params)
+                {
+                    retVal.Params.Add(GetDashboardParamItem(param));
+                }
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Creates a basic-definition of a Widget-Param-Definition from a DashbaordParam entity
+        /// </summary>
+        /// <param name="tmp">the entity from which to create the definition</param>
+        /// <returns>a complete param-definition</returns>
+        private DashboardParamDefinition GetDashboardParamItem(DashboardParam param)
+        {
+            return new DashboardParamDefinition
+            {
+                InputConfig = param.InputConfig,
+                InputType = param.InputType,
+                ParameterName = param.ParameterName
             };
         }
     }

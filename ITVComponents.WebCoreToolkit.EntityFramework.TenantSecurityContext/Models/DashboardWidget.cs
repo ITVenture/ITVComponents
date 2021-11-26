@@ -16,6 +16,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mod
         [MaxLength(100)]
         public string DisplayName { get; set; }
 
+        [MaxLength(200)]
+        public string TitleTemplate { get; set; }
+
         [MaxLength(100)]
         public string SystemName { get; set; }
 
@@ -30,5 +33,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mod
 
         [ForeignKey(nameof(DiagnosticsQueryId))]
         public virtual DiagnosticsQuery DiagnosticsQuery { get; set; }
+
+        public virtual ICollection<DashboardParam> Params { get; set; } = new List<DashboardParam>();
     }
 }

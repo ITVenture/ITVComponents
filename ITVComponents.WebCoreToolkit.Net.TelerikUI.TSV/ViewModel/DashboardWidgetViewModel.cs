@@ -9,6 +9,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         [MaxLength(100)]
         public string DisplayName { get; set; }
 
+        [MaxLength(200)]
+        public string TitleTemplate { get; set; }
+
         [MaxLength(100)]
         public string SystemName { get; set; }
 

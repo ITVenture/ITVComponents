@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.Localization;
+using ITVComponents.WebCoreToolkit.Net.Extensions;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -42,24 +43,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Localization
         /// <returns>a html-script representing the requested script-block</returns>
         public IHtmlContent RenderLocalizationScript(IHtmlHelper html)
         {
-            var dic = new Dictionary<string, string>();
-            foreach (var s in resourceProvider.GetAllStrings(true))
-            {
-                dic.Add(s.Name, s.Value);
-            }
-
-            var json = JsonHelper.ToJson(dic);
             StringBuilder bld = new StringBuilder();
             var ext = $"{rnd.Next(10000000)}_{DateTime.Now.Ticks}";
             bld.AppendLine("<script type=\"text/javascript\">");
             try
             {
-                bld.AppendLine($"var __loca{ext}={json};");
-                bld.AppendLine($@"for (var name in __loca{ext}){{
-    if (__loca{ext}.hasOwnProperty(name)){{
-        ITVenture.Text.setText(ITVenture.Lang,name,__loca{ext}[name]);
-    }}
-}}");
+                bld.Append(resourceProvider.DumpLocalizer(ext));
             }
             finally
             {

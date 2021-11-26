@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Text.Encodings.Web;
 using ITVComponents.Helpers;
@@ -48,11 +49,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
             return html.Raw(@"<link href=""/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/css/itvComponentsBS4.min.css"" type=""text/css"" rel=""stylesheet"">");
         }
 
-        public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule,string uploadReason, string callbackMethod, int height = 0, int width = 0)
+        public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule, string uploadReason, string callbackMethod, int height = 0, int width = 0, Dictionary<string, string> customAttributes = null)
         {
             string uniqueDivId;
             uniqueDivId = CustomActionHelper.RandomName("uploadDiv");
-            string template = $@"<div purpose='{mode}' id='{uniqueDivId}' nameTarget='{uniqueDivId}' uploadModule='{uploaderModule}' uploadReason='{uploadReason}' class='dropzone dropzone-flexi' {(height != 0 || width != 0 ? $"style=\"display:table-cell;position:relative;{(height != 0 ? $"height:{height}px;" : "")}{(width != 0 ? $"width:{width}px;" : "")}\"" : "")}></div>
+            string template = $@"<div purpose='{mode}' id='{uniqueDivId}' nameTarget='{uniqueDivId}' uploadModule='{uploaderModule}' uploadReason='{uploadReason}' class='dropzone dropzone-flexi' {(height != 0 || width != 0 ? $"style=\"display:table-cell;position:relative;{(height != 0 ? $"height:{height}px;" : "")}{(width != 0 ? $"width:{width}px;" : "")}\"" : "")} {(customAttributes != null ? string.Join(" ", from t in customAttributes select $"{t.Key}='{t.Value}'") : "")}></div>
 <script>ITVenture.Tools.Uploader.prepareUploadRegion({{
     {uniqueDivId}: {callbackMethod}
 }});

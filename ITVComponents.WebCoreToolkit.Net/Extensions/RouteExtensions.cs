@@ -111,18 +111,42 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             RequestDelegate dg = async context =>
             {
                 var widget = (string)context.Request.RouteValues["widgetName"];
+                int userWidgetId = -1;
+                bool hasId = false;
+                if (context.Request.RouteValues.ContainsKey("userWidgetId") &&
+                    context.Request.RouteValues["userWidgetId"] is int uwiRoute)
+                {
+                    userWidgetId = uwiRoute;
+                    hasId = true;
+                }
+                else if (context.Request.RouteValues.ContainsKey("userWidgetId") &&
+                         int.TryParse(context.Request.RouteValues["userWidgetId"]?.ToString(),
+                             out var uwiConverted))
+                {
+                    userWidgetId = uwiConverted;
+                    hasId = true;
+                }
+
                 RouteData routeData = context.GetRouteData();
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
                 var dbContext = context.RequestServices.GetService<IDiagnosticsStore>();
                 if (dbContext != null)
                 {
-                    var model = dbContext.GetDashboard(widget);
+                    var model = !hasId?dbContext.GetDashboard(widget):dbContext.GetDashboard(widget,userWidgetId);
                     if (context.RequestServices.VerifyUserPermissions(new[]
                         { model.DiagnosticsQuery.Permission }))
                     {
                         JsonResult result = new JsonResult(model.ToViewModel<DashboardWidgetDefinition, DBWidget>(
-                            (e, v) => { v.QueryName = e.DiagnosticsQuery.DiagnosticsQueryName; }));
+                            (e, v) =>
+                            {
+                                v.QueryName = e.DiagnosticsQuery.DiagnosticsQueryName;
+                                if (e.Params.Count != 0)
+                                {
+                                    v.Params = e.Params.Select(n =>
+                                        n.ToViewModel<DashboardParamDefinition, DBWidgetParam>()).ToArray();
+                                }
+                            }));
                         await result.ExecuteResultAsync(actionContext);
                         return;
                     }
@@ -141,30 +165,54 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
 
                 var connection = context.RequestServices.GetService<IDiagnosticsStore>();
 #if NETCOREAPP3_1
-                SortedWidget[] widgets;
+                DBWidget[] widgets;
                 using (var reader = context.Request.Body)
                 {
                     using (var textreader = new StreamReader(reader))
                     {
                         var jtx = new JsonTextReader(textreader);
                         var ser = new JsonSerializer();
-                        widgets = ser.Deserialize<SortedWidget[]>(jtx);
+                        widgets = ser.Deserialize<DBWidget[]>(jtx);
                     }
                 }
 
 #else
-                var widgets = await context.Request.ReadFromJsonAsync<SortedWidget[]>();
+                var widgets = await context.Request.ReadFromJsonAsync<DBWidget[]>();
 #endif
                 if (connection != null && widgets != null)
                 {
-                    await connection.SetUserWidgets(
+                    var tmp = await connection.SetUserWidgets(
                         (from t in widgets
-                            select new UserDashboardWidgetDefinition
+                            select new DashboardWidgetDefinition
                             {
-                                DashboardWidgetName = t.WidgetName, SortOrder = t.SortOrder,
-                                UserName = context.User.Identity.Name
+                                Area = t.Area,
+                                CustomQueryString = t.CustomQueryString,
+                                DisplayName = t.DisplayName,
+                                SortOrder = t.SortOrder,
+                                SystemName = t.SystemName,
+                                Template = t.Template
                             }).ToArray(), context.User.Identity.Name);
-                    var result = new OkResult();
+
+                    var ret = tmp
+                        .Select(n => new DBWidget
+                        {
+                            UserWidgetId = n.UserWidgetId,
+                            CustomQueryString = n.CustomQueryString,
+                            SortOrder = n.SortOrder,
+                            DashboardWidgetId = n.DashboardWidgetId,
+                            DisplayName = n.DisplayName,
+                            TitleTemplate = n.TitleTemplate,
+                            QueryName = n.DiagnosticsQuery.DiagnosticsQueryName,
+                            SystemName = n.SystemName,
+                            Template = n.Template,
+                            Area = n.Area
+                        }).ToArray();
+                    for (int i = 0; i < ret.Length; i++)
+                    {
+                        ret[i].LocalRef = widgets[i].LocalRef;
+                    }
+                    //LogEnvironment.LogEvent(Stringify(formsDictionary), LogSeverity.Report);
+                    var result = new JsonResult(ret);
                     await result.ExecuteResultAsync(actionContext);
                     return;
                 }
@@ -173,7 +221,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 await notFound.ExecuteResultAsync(actionContext);
             };
 
-            getAction = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/DBW/{{widgetName:alpha}}", dg);
+            getAction = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/DBW/{{widgetName:alpha}}/{{userWidgetId:int?}}", dg);
             postAction = builder.MapPost($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/DBW", dgPost);
             if (withAuthorization)
             {
@@ -586,6 +634,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                     string contentType = fileToken.ContentType;
                     bool forceDownload = fileToken.FileDownload;
                     byte[] fileContent = null;
+                    Stream fileStreamContent = null;
                     bool asyncOk = false;
                     if (asyncHandler != null)
                     {
@@ -596,13 +645,23 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                             downloadName = tmp.DownloadName ?? downloadName;
                             contentType = tmp.ContentType ?? contentType;
                             forceDownload = tmp.FileDownload ?? forceDownload;
-                            fileContent = tmp.FileContent;
+                            fileStreamContent = tmp.FileContent;
+                            tmp.DeferredDisposals.ForEach(context.Response.RegisterForDispose);
                         }
                     }
-                    if ((asyncOk && fileContent != null) ||
+                    if ((asyncOk && fileStreamContent != null) ||
                         (syncHandler != null && syncHandler.ReadFile(fileToken.FileIdentifier, context.User?.Identity, ref downloadName, ref contentType, ref forceDownload, out fileContent)))
                     {
-                        var fileResult = new FileContentResult(fileContent, contentType);
+                        FileResult fileResult;
+                        if (fileStreamContent != null)
+                        {
+                            fileResult = new FileStreamResult(fileStreamContent, contentType) { EnableRangeProcessing = true };
+                        }
+                        else
+                        {
+                            fileResult = new FileContentResult(fileContent, contentType);
+                        }
+
                         fileResult.FileDownloadName = "";
                         if (forceDownload)
                         {

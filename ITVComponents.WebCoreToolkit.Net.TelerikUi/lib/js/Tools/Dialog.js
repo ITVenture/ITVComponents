@@ -24,6 +24,33 @@
     Open: function (name, refObj, success, cancel) {
         ITVenture.Tools.Popup.dialogs[name].Open(refObj, success, cancel);
     },
+    OpenAsync: function (name, refObj) {
+        var prom = new Promise(function (resolve, reject) {
+            ITVenture.Tools.Popup.Open(name,
+                refObj,
+                function (window, dialog, ro, args) {
+                    resolve({
+                        accepted: true,
+                        window: window,
+                        dialog: dialog,
+                        refObj: ro,
+                        customArg: args
+                    });
+                },
+                function (window, dialog, ro) {
+                    resolve({
+                        accepted: false,
+                        window: window,
+                        dialog: dialog,
+                        refObj: ro,
+                        customArg: []
+                    });
+                });
+        });
+
+        return prom;
+
+    },
     Close: function (name) {
         ITVenture.Tools.Popup.dialogs[name].Close.apply(this, Array.prototype.slice.call(arguments, 1));
     },
@@ -488,6 +515,11 @@
                                 refObj.contentFailed(window, dialog, err);
                             }
                         });
+                } else if (typeof (refObj.rawContent) === "string") {
+                    $(obj.window).html(refObj.rawContent);
+                    if (typeof (refObj.contentReady) === "function") {
+                        refObj.contentReady(window, dialog);
+                    }
                 } else {
                     throw "property contentUrl expected!";
                 }

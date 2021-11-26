@@ -45,10 +45,6 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling
         /// </summary>
         /// <param name="fileIdentifier">the identifier of the file</param>
         /// <param name="downloadingIdentity">the identity that is downloading the requested file</param>
-        /// <param name="downloadName">the download-name of the file</param>
-        /// <param name="contentType">the content-type that is set in the result-header</param>
-        /// <param name="fileDownload">indicates whether the provided file should be served as file-download or as embeddable file-result</param>
-        /// <param name="fileContent">the content of the file</param>
         /// <returns>a value indicating whether the file was found</returns>
         Task<AsyncReadFileResult> ReadFile(string fileIdentifier, IIdentity downloadingIdentity);
     }

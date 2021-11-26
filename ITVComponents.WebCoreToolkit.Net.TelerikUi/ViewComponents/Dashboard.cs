@@ -34,7 +34,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
                     Label = t.DisplayName,
                     FullRecord = t.ToDictionary(true)
                 }).ToArray();
-            ViewData["DashboardItems"] = context.GetUserWidgets(HttpContext.User.Identity.Name).Where(t => HttpContext.RequestServices.VerifyUserPermissions(new[] { t.Widget.DiagnosticsQuery.Permission })).ToArray();
+            ViewData["DashboardItems"] = context.GetUserWidgets(HttpContext.User.Identity.Name).Where(t => HttpContext.RequestServices.VerifyUserPermissions(new[] { t.DiagnosticsQuery.Permission })).ToArray();
             ViewData["columnCount"] = columnCount;
             return View();
         }

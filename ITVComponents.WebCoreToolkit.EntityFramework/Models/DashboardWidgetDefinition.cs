@@ -8,7 +8,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Models
 {
     public class DashboardWidgetDefinition
     {
+        public int DashboardWidgetId { get; set; }
         public string DisplayName { get; set; }
+
+        public string TitleTemplate { get; set; }
 
         public string SystemName { get; set; }
 
@@ -19,5 +22,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Models
         public string CustomQueryString { get; set; }
 
         public string Template { get; set; }
+
+        public int SortOrder { get; set; }
+
+        public int UserWidgetId { get; set; }
+
+        public ICollection<DashboardParamDefinition> Params { get; set; } = new List<DashboardParamDefinition>();
     }
 }

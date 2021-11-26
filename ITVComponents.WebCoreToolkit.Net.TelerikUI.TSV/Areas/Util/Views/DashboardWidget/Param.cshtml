@@ -1,0 +1,54 @@
+﻿﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@model int
+@(Html.Kendo().Grid<DashboardParamViewModel>().Name($"DParamTab{Model}")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.ParameterName).Title(TextsAndMessagesHelper.IWCN_General_ParameterName);
+        columns.ForeignKey(c => c.InputType,(SelectList)ViewData["ParameterTypes"]);
+        columns.Bound(c => c.InputConfig);
+        if (Context.RequestServices.VerifyUserPermissions(new [] {"DashboardWidgets.Write"}))
+        {
+            columns.Command(ga =>
+            {
+                ga.Edit();
+                ga.PopupConfirmDelete();
+            }).Width(180);
+        }
+
+    })
+    //.Events(c => c.UseForeignKeyFilter())
+    .ToolBar(toolbar =>
+    {
+        toolbar.RefreshTable();
+        if (Context.RequestServices.VerifyUserPermissions(new[] {"DashboardWidgets.Write"}))
+        {
+            toolbar.Create();
+        }
+    })
+    .DataSource(dataSource =>
+    {
+        var src = dataSource
+            .Ajax()
+            .Read(read => read.Action("ReadParameters", "DashboardWidget", new {dashboardWidgetId = Model}))
+            .Sort(s => s.Add(m => m.ParameterName).Ascending());
+        if (Context.RequestServices.VerifyUserPermissions(new[] {"DiagnosticsQueries.Write"}))
+        {
+            src.Create(create => create.Action("CreateParameter", "DashboardWidget", new {dashboardWidgetId= Model}))
+                .Update(update => update.Action("UpdateParameter", "DashboardWidget"))
+                .Destroy(destroy => destroy.Action("DestroyParameter", "DashboardWidget"));
+        }
+        src.Model(m => m.Id(t => t.DashboardParamId));
+    })
+    .Scrollable(s => s.Height("auto"))
+    .Resizable(c => c.Columns(true)))

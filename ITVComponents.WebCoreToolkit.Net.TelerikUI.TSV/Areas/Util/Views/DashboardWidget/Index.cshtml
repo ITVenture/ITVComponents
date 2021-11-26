@@ -23,6 +23,7 @@
         {
             columns.Bound(c => c.DisplayName).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
             columns.Bound(c => c.SystemName).Title(TextsAndMessagesHelper.IWCN_General_SystemName);
+            columns.Bound(c => c.TitleTemplate).Title(TextsAndMessagesHelper.IWCN_Dashboard_DisplayTemplate);
             columns.AjaxFk(c => c.DiagnosticsQueryId, "sys","DiagnosticsQueries","DashboardWidgetId",2,filterable:true);
             columns.Bound(n => n.Area);
             columns.Bound(n => n.CustomQueryString);
@@ -70,4 +71,7 @@
         .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
         .Sortable(c => c.Enabled(true))
     .Resizable(c => c.Columns(true))
-    .Filterable(f => f.Enabled(true)))
+    .Filterable(f => f.Enabled(true))
+    .ClientDetailTemplateId("DashboardParam"))
+
+@Html.DetailViewScript("DashboardParam", "DashboardParam#=DashboardWidgetId#","~/Util/DashboardWidget/Param?dashboardWidgetId=#=DashboardWidgetId#")

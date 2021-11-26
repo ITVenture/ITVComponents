@@ -94,6 +94,23 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string IWCN_Titles_PlugIns => GetString(nameof(IWCN_Titles_PlugIns));
         
         public static string IWCN_General_Is_SystemRole => GetString(nameof(IWCN_General_Is_SystemRole));
+
+        public static string IWCN_Dashboard_DisplayTemplate => GetString(nameof(IWCN_Dashboard_DisplayTemplate));
+
+        public static string IWCN_Titles_TutorialVideos => GetString(nameof(IWCN_Titles_TutorialVideos));
+
+        public static string IWCN_Language => GetString(nameof(IWCN_Language));
+
+        public static string IWCN_TutorialStreamFormat => GetString(nameof(IWCN_TutorialStreamFormat));
+
+        public static string IWCN_TutorialStreamEncoding => GetString(nameof(IWCN_TutorialStreamEncoding));
+
+        public static string IWCN_Tutorials_SortableName
+        {
+            get { return GetString(nameof(IWCN_Tutorials_SortableName)); }
+        }
+
+        public static string IWCN_Tutorial_DownloadStream => GetString(nameof(IWCN_Tutorial_DownloadStream));
         //--
 
         public static string GetIWCN_General_DisplayName(this IRequestCultureFeature requestCulture)
@@ -304,6 +321,41 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string GetIWCN_General_Is_SystemRole(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_General_Is_SystemRole), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_Titles_TutorialVideos(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_Titles_TutorialVideos), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_Tutorials_SortableName(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_Tutorials_SortableName), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_TutorialStreamEncoding(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_TutorialStreamEncoding), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_TutorialStreamFormat(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_TutorialStreamFormat), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_Language(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_Language), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_Tutorial_DownloadStream(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_Tutorial_DownloadStream), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_Dashboard_DisplayTemplate(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_Dashboard_DisplayTemplate), requestCulture.RequestCulture.UICulture);
         }
     }
 }

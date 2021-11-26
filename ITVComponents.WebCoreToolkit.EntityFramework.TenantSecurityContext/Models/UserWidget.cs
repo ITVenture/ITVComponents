@@ -21,6 +21,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mod
 
         public int SortOrder { get; set; }
 
+        public string CustomQueryString { get; set; }
+
+        [MaxLength(100)]
+        public string DisplayName { get; set; }
+
         [ForeignKey(nameof(DashboardWidgetId))]
         public virtual DashboardWidget Widget { get; set; }
 

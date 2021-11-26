@@ -270,7 +270,7 @@
                 string originalNameColumn = null,
                 bool setOriginalOnlyIfNull = false,
                 bool forceDownload = false,
-                string preDownloadHintHandler = null,
+                string uploadHintHandler = null,
                 string customUploadCallback = null) where TModel : class
             {
                 var retVal = target.Bound(expression);
@@ -288,7 +288,7 @@
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_preserveOriginal"] = preserveOriginalName;
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_originalNameColumn"] = originalNameColumn;
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_UpdateNullOriginalOnly"] = setOriginalOnlyIfNull;
-                target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_uploadHint"] = preDownloadHintHandler;
+                target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_uploadHint"] = uploadHintHandler;
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_customCallback"] = customUploadCallback;
                 return retVal;
             }
