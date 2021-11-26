@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net5.0-windows;netcoreapp3.1</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.0.10</Version>
+    <Version>2.1.0-RC1</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <ExtrasEnableWpfProjectSetup>true</ExtrasEnableWpfProjectSetup>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
@@ -30,5 +30,6 @@
     <Compile Update="Editors\CustomTextEditor.xaml.cs" DependentUpon="CustomTextEditor.xaml" />
   </ItemGroup-->
   <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
+    <Exec Command="%userprofile%\.nuget\nuget.exe push &quot;$(OutputPath)$(PackageId).$(PackageVersion).nupkg&quot; -Source github" />
   </Target>
 </Project>
