@@ -20,7 +20,7 @@ ITVComponents is a Set of libraries for the .net framework it consists of the fo
 - InterProcess Communication
   * Communicate with objects located in Service-Processes using GRPC
   * A Proxy-Layer allows you to use objects of the external Process as if they were part of your local application.
-. AspNet Core Extensions in WebCoreToolkit
+- AspNet Core Extensions in WebCoreToolkit
   * Inject configured plugins as services
   * Inject IPC-Proxies as services
   * Multi-Tenant Stub allows you to build a multi-tenant system easily. It supports per-tenant Plugins, Settings, Constants (which can be used as Plugin-parameters)
