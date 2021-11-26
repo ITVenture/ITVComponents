@@ -112,7 +112,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
         {
             if (hubClient != null && !hubClient.Operational)
             {
-                hubClient.MessageArrived -= ClientInvokation;
                 try
                 {
                     hubClient.MessageArrived -= ClientInvokation;

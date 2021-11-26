@@ -109,7 +109,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Communication
                     var ret = new TaskCompletionSource<ServerOperationMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
                     openReadWait = ret;
                     //Monitor.Pulse(messageSync);
-                    retVal = openReadWait.Task;
+                    retVal = ret.Task;
                 }
                 else if (!messageQueue.IsEmpty && messageQueue.TryDequeue(out var item))
                 {
