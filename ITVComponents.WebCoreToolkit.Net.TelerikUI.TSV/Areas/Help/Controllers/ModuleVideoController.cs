@@ -19,18 +19,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.H
     public class ModuleVideoController : Controller
     {
         private readonly SecurityContext db;
-        private readonly IScopedSettings<TutorialOptions> scopeOptions;
-        private readonly IGlobalSettings<TutorialOptions> globalOptions;
+        private readonly IHierarchySettings<TutorialOptions> options;
         private string videoFileHandler;
 
-        public ModuleVideoController(SecurityContext db, IScopedSettings<TutorialOptions> scopeOptions, IGlobalSettings<TutorialOptions> globalOptions)
+        public ModuleVideoController(SecurityContext db, IHierarchySettings<TutorialOptions> options)
         {
             this.db = db;
-            this.scopeOptions = scopeOptions;
-            this.globalOptions = globalOptions;
+            this.options = options;
         }
 
-        private string VideoFileHandler => videoFileHandler ??= scopeOptions?.Value?.VideoFileHandler ?? globalOptions?.Value?.VideoFileHandler;
+        private string VideoFileHandler => videoFileHandler ??= options.Value.VideoFileHandler;
 
         public IActionResult Index()
         {

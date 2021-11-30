@@ -144,7 +144,12 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                 if (e.Params.Count != 0)
                                 {
                                     v.Params = e.Params.Select(n =>
-                                        n.ToViewModel<DashboardParamDefinition, DBWidgetParam>()).ToArray();
+                                        new DBWidgetParam
+                                        {
+                                            InputType = n.InputType.ToString(),
+                                            InputConfig = n.InputConfig,
+                                            ParameterName = n.ParameterName
+                                        }).ToArray();
                                 }
                             }));
                         await result.ExecuteResultAsync(actionContext);
@@ -190,7 +195,9 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                 DisplayName = t.DisplayName,
                                 SortOrder = t.SortOrder,
                                 SystemName = t.SystemName,
-                                Template = t.Template
+                                Template = t.Template,
+                                DashboardWidgetId = t.DashboardWidgetId,
+                                UserWidgetId = t.UserWidgetId,
                             }).ToArray(), context.User.Identity.Name);
 
                     var ret = tmp

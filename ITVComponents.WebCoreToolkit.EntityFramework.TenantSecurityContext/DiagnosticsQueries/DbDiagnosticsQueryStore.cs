@@ -137,7 +137,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
                     }
 
                     await dbContext.SaveChangesAsync().ConfigureAwait(false);
-                    var ret = dbContext.UserWidgets.OrderBy(n => n.SortOrder)
+                    var ret = dbContext.UserWidgets.OrderBy(n => n.SortOrder).ToArray()
                         .Select(n => new DashboardWidgetDefinition
                         {
                             UserWidgetId = n.UserWidgetId,
@@ -187,10 +187,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
             {
                 var tmpUw = dbContext.UserWidgets.OrderBy(n => n.SortOrder).ToArray();
                 return (from t in tmpUw
-                    select new DashboardWidgetDefinition
-                    {
-                        
-                    }).ToArray();
+                    select GetDashboardItem(t.Widget,t)).ToArray();
             }
             finally
             {

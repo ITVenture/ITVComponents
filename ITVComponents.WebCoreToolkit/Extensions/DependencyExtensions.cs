@@ -180,6 +180,16 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         }
 
         /// <summary>
+        /// Activate Hierarchy Settings. This means, that Scoped Settings are provided, if available, and otherwise global
+        /// </summary>
+        /// <param name="services">the Services-collection where to inject the Hierarchy-Settings-builder instance</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseHierarchySettings(this IServiceCollection services)
+        {
+            return services.AddScoped(typeof(IHierarchySettings<>), typeof(HierarchySettingsImpl<>));
+        }
+
+        /// <summary>
         /// Configures Localization bindings for the current application. Use this, if you intend to mapp specific Cultures to a different culture
         /// </summary>
         /// <param name="services">the service-collection where ot inject the settings</param>

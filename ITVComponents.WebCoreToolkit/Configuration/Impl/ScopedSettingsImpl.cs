@@ -15,6 +15,8 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// </summary>
         private TSettings value;
 
+        private TSettings valueOrDefault;
+
         /// <summary>
         /// Injector Constructor for this scoped settings
         /// </summary>
@@ -25,9 +27,14 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         }
 
         /// <summary>
-        /// Gets the deserialized Settings-value
+        /// Gets the deserialized Settings-value. If it is not configured, an object is constructed, using the Default-Constructor.
         /// </summary>
-        public TSettings Value => value ??= GetSettingsValue();
+        public TSettings Value => value ??= ValueOrDefault??new TSettings();
+
+        /// <summary>
+        /// Gets the deserialized Settings-value. If it is not configured, null is returned (-> default(TSettings)).
+        /// </summary>
+        public TSettings ValueOrDefault => valueOrDefault ??= GetSettingsValue();
 
         /// <summary>
         /// Reads the settings-value from the underlaying provider
@@ -49,7 +56,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
                 return retVal;
             }
 
-            return new TSettings();
+            return null;
         }
     }
 }

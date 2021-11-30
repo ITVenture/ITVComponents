@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.Net.ViewModel
     {
         public string ParameterName { get; set; }
 
-        public InputType InputType { get; set; }
+        public string InputType { get; set; }
 
         public string InputConfig { get; set; }
     }

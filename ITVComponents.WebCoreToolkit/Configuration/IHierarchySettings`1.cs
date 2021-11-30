@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 namespace ITVComponents.WebCoreToolkit.Configuration
 {
     /// <summary>
-    /// Injects Scope-driven settings with a specific settings-type
+    /// Injects Scope-driven or global settings with a specific settings-type. This requires scoped and global settings to be activated.
     /// </summary>
     /// <typeparam name="TSettings">the demanded settings-type</typeparam>
-    public interface IGlobalSettings<TSettings> where TSettings : class, new()
+    public interface IHierarchySettings<TSettings>
     {
         /// <summary>
         /// Gets the deserialized Settings-value. If it is not configured, an object is constructed, using the Default-Constructor.

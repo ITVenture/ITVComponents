@@ -46,10 +46,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
             }
         }
 
-        public HelpButton(IScopedSettings<TutorialOptions> localOptions, IGlobalSettings<TutorialOptions> globalOptions,
+        public HelpButton(IHierarchySettings<TutorialOptions> options,
             IUrlFormat formatter, ITutorialSource tutorialSource)
         {
-            videoHandler = localOptions?.Value?.VideoFileHandler ?? globalOptions?.Value?.VideoFileHandler;
+            videoHandler = options.Value.VideoFileHandler;
             this.formatter = formatter;
             this.tutorialSource = tutorialSource;
         }
