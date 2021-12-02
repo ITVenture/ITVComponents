@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "NewGenericService": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Users\\mw\\source\\CleanWorkspace\\zz_deployProto\\CpsService\\CpsService.exe",
+      "commandLineArgs": "/Update"
+    }
+  }
+}

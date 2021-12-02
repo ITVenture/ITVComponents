@@ -4,14 +4,16 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Migrations
 {
     [DbContext(typeof(SecurityContext))]
-    partial class SecurityContextModelSnapshot : ModelSnapshot
+    [Migration("20211202075440_DashboardAndVideoSupport")]
+    partial class DashboardAndVideoSupport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
