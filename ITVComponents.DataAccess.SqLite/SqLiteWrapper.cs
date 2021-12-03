@@ -360,11 +360,18 @@ namespace ITVComponents.DataAccess.SqLite
         {
             List<string> fields = new List<string>(hardcodedValues.Keys);
             List<string> values = new List<string>((from t in fields select hardcodedValues[t]));
-            IDbDataParameter[] parameters = (from t in value.GetDynamicMemberNames() select GetParameter(t, value[t]) as IDbDataParameter).ToArray();
-            (from t in value.GetDynamicMemberNames() select t).ToList().ForEach(fields.Add);
-            (from t in value.GetDynamicMemberNames() select string.Format(SqlCommands.SqlParameterPrefix,t)).ToList().ForEach(values.Add);
+            var parameters = (from t in value.GetDynamicMemberNames()
+                select new { Field = t, Param = GetParameter(t, value[t]) as IDbDataParameter }).ToArray();
+            var par = new List<IDbDataParameter>();
+            parameters.ForEach(p =>
+            {
+                fields.Add(p.Field);
+                values.Add(p.Param.ParameterName);
+                par.Add(p.Param);
+            });
+
             string cmd = string.Format(SqlCommands.InsertWithGetIdentity, tableName, string.Join(",", fields), string.Join(",", values));
-            int id = ExecuteCommandScalar<int>(cmd, parameters);
+            int id = ExecuteCommandScalar<int>(cmd, par.ToArray());
             if (value.Controller != null)
             {
                 value.Controller.SetIndex(value, id);
@@ -519,7 +526,12 @@ namespace ITVComponents.DataAccess.SqLite
         {
             if (!(value is IEnumerable) || (value is string))
             {
-                return new SQLiteParameter(string.Format(SqlCommands.SqlParameterPrefix, name), value ?? DBNull.Value)
+                string paramName = name;
+                if (!paramName.StartsWith("@"))
+                {
+                    paramName = $"@{name}";
+                }
+                return new SQLiteParameter(paramName, value ?? DBNull.Value)
                 {
                     IsNullable = value == null
                 };

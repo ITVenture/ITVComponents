@@ -5,6 +5,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using ITVComponents.Logging;
+
 //using System.Windows.Markup;
 
 namespace ITVComponents.DataAccess.Models
@@ -90,23 +92,18 @@ namespace ITVComponents.DataAccess.Models
         /// <returns>a map-rule indicating how values need to be mapped to a read-only model</returns>
         internal static MapRule[] GetRules(Type targetType)
         {
-            if (!rules.ContainsKey(targetType))
-            {
-                rules.TryAdd(targetType, (from t in
-                                              targetType.GetMembers(BindingFlags.Public | BindingFlags.NonPublic |
-                                                                    BindingFlags.Instance |
-                                                                    BindingFlags.GetField | BindingFlags.SetField |
-                                                                    BindingFlags.GetProperty |
-                                                                    BindingFlags.SetProperty |
-                                                                    BindingFlags.FlattenHierarchy)
-                                          select new {Att = GetDbcAttribute(t), Mbr = t}
-                                          into n
-                                          where n.Att.mapped && (n.Mbr is PropertyInfo || n.Mbr is FieldInfo)
-                                          select new MapRule(n.Mbr, n.Att)).ToArray());
-            }
-
             MapRule[] retVal;
-            rules.TryGetValue(targetType, out retVal);
+            retVal = rules.GetOrAdd(targetType, tt => (from t in
+                    tt.GetMembers(BindingFlags.Public | BindingFlags.NonPublic |
+                                          BindingFlags.Instance |
+                                          BindingFlags.GetField | BindingFlags.SetField |
+                                          BindingFlags.GetProperty |
+                                          BindingFlags.SetProperty |
+                                          BindingFlags.FlattenHierarchy)
+                select new { Att = GetDbcAttribute(t), Mbr = t }
+                into n
+                where n.Att.mapped && (n.Mbr is PropertyInfo || n.Mbr is FieldInfo) && !n.Mbr.Name.Contains("k__BackingField")
+                select new MapRule(n.Mbr, n.Att)).ToArray());
             return retVal;
         }
 
@@ -117,8 +114,8 @@ namespace ITVComponents.DataAccess.Models
         /// <returns></returns>
         private static DbColumnAttribute GetDbcAttribute(MemberInfo info)
         {
-            if ((info is PropertyInfo && !(info as PropertyInfo).CanWrite) ||
-                (info is FieldInfo && (info as FieldInfo).IsInitOnly))
+            if ((info is PropertyInfo pi && !pi.CanWrite) ||
+                (info is FieldInfo fi && fi.IsInitOnly))
             {
                 return new DbColumnAttribute(false);
             }

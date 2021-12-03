@@ -29,7 +29,7 @@ namespace ITVComponents.DataAccess.Extensions
                 string[] names = first.GetDynamicMemberNames().ToArray();
                 foreach (string s in names)
                 {
-                    retVal.Columns.Add(s, first.GetType(s));
+                    retVal.Columns.Add(s, GetTableType(first.GetType(s)));
                 }
  
                 foreach (DynamicResult res in data)
@@ -103,9 +103,9 @@ namespace ITVComponents.DataAccess.Extensions
             propArr.ForEach(
                 n =>
                 retVal.Columns.Add(n.Attribute != null ? (n.Attribute.ColumnName ?? n.Property.Name) : n.Property.Name,
-                                   n.Attribute != null
+                    GetTableType(n.Attribute != null
                                        ? (n.Attribute.ColumnType ?? n.Property.PropertyType)
-                                       : n.Property.PropertyType));
+                                       : n.Property.PropertyType)));
             (from n in arrayObject
              select (from u in propArr
                      select
@@ -121,6 +121,11 @@ namespace ITVComponents.DataAccess.Extensions
                                        retVal.Rows.Add(row);
                                    });
             return retVal;
+        }
+
+        private static Type GetTableType(Type rawType)
+        {
+            return Nullable.GetUnderlyingType(rawType) ?? rawType;
         }
     }
 }

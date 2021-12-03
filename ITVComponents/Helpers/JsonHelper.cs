@@ -23,7 +23,7 @@ namespace ITVComponents.Helpers
             ObjectCreationHandling = ObjectCreationHandling.Auto,
             NullValueHandling = NullValueHandling.Include,
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full,
-            TypeNameHandling = TypeNameHandling.All,
+            TypeNameHandling = TypeNameHandling.All
         };
 
         /// <summary>

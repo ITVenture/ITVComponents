@@ -52,6 +52,7 @@ namespace ITVComponents.DataAccess.Models
                 else if (r != null)
                 {
                     rules[i] = null;
+                    LogEnvironment.LogDebugEvent($"No Value found for MapRule {r.FieldName} ({r.UseExpression};{r.ValueResolveExpression}", LogSeverity.Report);
                 }
             }
 
@@ -86,13 +87,14 @@ namespace ITVComponents.DataAccess.Models
                             r[retVal] = ProcessResolveExpression(r.ValueResolveExpression, val);
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        LogEnvironment.LogEvent($"Error during model bind! {ex.OutlineException()}", LogSeverity.Warning);
                     }
                 }
                 else if (r != null)
                 {
-                    rules[i] = null;
+                    LogEnvironment.LogDebugEvent($"No Value found for MapRule {r.FieldName} ({r.UseExpression};{r.ValueResolveExpression}", LogSeverity.Report);
                 }
             }
 
@@ -192,7 +194,7 @@ namespace ITVComponents.DataAccess.Models
                 }
                 else if (r != null)
                 {
-                    rules[i] = null;
+                    LogEnvironment.LogDebugEvent($"No Value found for MapRule {r.FieldName} ({r.UseExpression};{r.ValueResolveExpression}", LogSeverity.Report);
                 }
             }
         }
@@ -250,7 +252,7 @@ namespace ITVComponents.DataAccess.Models
                 }
                 else if (r != null)
                 {
-                    rules[i] = null;
+                    LogEnvironment.LogDebugEvent($"No Value found for MapRule {r.FieldName} ({r.UseExpression};{r.ValueResolveExpression}", LogSeverity.Report);
                 }
             }
         }
@@ -330,7 +332,8 @@ namespace ITVComponents.DataAccess.Models
         private static object ProcessResolveExpression(string expression, object value)
         {
             Dictionary<string, object> variables = new Dictionary<string, object> {{"value", value}};
-            return ExpressionParser.Parse(expression, variables, a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
+            var retVal = ExpressionParser.Parse(expression, variables, a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
+            return retVal;
         }
 
         private static void CopyToDictionary(DynamicResult item, IDictionary<string, object> target, bool extendWithUppercase)

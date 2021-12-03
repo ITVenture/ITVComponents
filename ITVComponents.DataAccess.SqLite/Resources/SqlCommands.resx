@@ -121,9 +121,6 @@
     <value>insert into {0} ({1}) values ({2});
 select  sqlite3_last_insert_rowid()</value>
   </data>
-  <data name="SqlParameterPrefix" xml:space="preserve">
-    <value>${0}</value>
-  </data>
   <data name="GetScopeIdentity" xml:space="preserve">
     <value>Select  sqlite3_last_insert_rowid()</value>
   </data>

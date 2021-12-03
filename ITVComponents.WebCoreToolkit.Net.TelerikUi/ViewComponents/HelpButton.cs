@@ -68,7 +68,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
                         ContentType = sm.ContentType,
                         DownloadName =
                             $"Video{sm.TutorialStreamId}.{sm.ContentType.Substring(sm.ContentType.IndexOf("/") + 1)}",
-                        DownloadReason = "DownloadTutorial",
+                        DownloadReason = "DownloadTutorialStream",
                         FileIdentifier = $"##VID#{sm.VideoTutorialId}#{sm.TutorialStreamId}",
                         HandlerModuleName = videoHandler
                     }.CompressToken());

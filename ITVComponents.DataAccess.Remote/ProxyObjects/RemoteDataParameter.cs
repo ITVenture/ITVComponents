@@ -67,8 +67,15 @@ namespace ITVComponents.DataAccess.Remote.ProxyObjects
         {
             if (connection != null)
             {
-                connection.DestroyParameter(objectId);
-                connection = null;
+                try
+                {
+                    connection.DestroyParameter(objectId);
+                    connection = null;
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"Unable to destroy parameter: {ex.OutlineException()}", LogSeverity.Error);
+                }
             }
         }
 

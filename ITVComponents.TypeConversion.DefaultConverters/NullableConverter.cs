@@ -13,7 +13,7 @@ namespace ITVComponents.TypeConversion.DefaultConverters
             bool retVal = targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Nullable<>);
             if (!retVal && value != null)
             {
-                var t = retVal.GetType();
+                var t = value.GetType();
                 retVal = CapableFor(null, t);
             }
 

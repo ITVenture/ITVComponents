@@ -504,7 +504,7 @@ namespace ITVComponents.DataAccess.SqlServer
         {
             if (!(value is IEnumerable) || (value is string))
             {
-                return new SqlParameter(string.Format(SqlCommands.SqlParameterPrefix, name), value ?? DBNull.Value)
+                return new SqlParameter(FormatParameter(name), value ?? DBNull.Value)
                 {
                     IsNullable = value == null
                 };
@@ -528,7 +528,7 @@ namespace ITVComponents.DataAccess.SqlServer
                     dtab = val.ToDataTable(out typeName);
                 }
 
-                SqlParameter retVal = new SqlParameter(string.Format(SqlCommands.SqlParameterPrefix, name), dtab);
+                SqlParameter retVal = new SqlParameter(FormatParameter(name), dtab);
                 retVal.SqlDbType = SqlDbType.Structured;
                 retVal.TypeName = typeName;
                 return retVal;
@@ -622,6 +622,16 @@ namespace ITVComponents.DataAccess.SqlServer
             }
 
             throw new Exception(Messages.OpenTransactionFound);
+        }
+
+        private string FormatParameter(string rawName)
+        {
+            if (rawName.StartsWith("@"))
+            {
+                return rawName;
+            }
+
+            return $"@{rawName}";
         }
 
         /// <summary>

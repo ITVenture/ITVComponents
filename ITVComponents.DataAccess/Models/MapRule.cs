@@ -99,45 +99,44 @@ namespace ITVComponents.DataAccess.Models
         private void SetValue(object targetObject, object value)
         {
             MemberInfo targetMember = GetMember(targetObject);
-            if (targetMember is FieldInfo)
+            if (targetMember is FieldInfo fi)
             {
-                FieldInfo info = (targetMember as FieldInfo);
                 try
                 {
-                    if (!info.FieldType.IsAssignableFrom(value.GetType()))
+                    if (!fi.FieldType.IsAssignableFrom(value.GetType()))
                     {
-                        value = ChangeType(value, info.FieldType);
+                        value = ChangeType(value, fi.FieldType);
                     }
+
+                    fi.SetValue(targetObject, value);
                 }
                 catch (Exception ex)
                 {
                     LogEnvironment.LogEvent(ex.Message, LogSeverity.Error, "DataAccess");
                 }
-
-                info.SetValue(targetObject, value);
             }
-            else if (targetMember is PropertyInfo)
+            else if (targetMember is PropertyInfo pi)
             {
-                PropertyInfo info = (targetMember as PropertyInfo);
                 try
                 {
                     if (value != DBNull.Value && value != null)
                     {
-                        if (!info.PropertyType.IsAssignableFrom(value.GetType()))
+                        if (!pi.PropertyType.IsAssignableFrom(value.GetType()))
                         {
-                            value = ChangeType(value, info.PropertyType);
+                            value = ChangeType(value, pi.PropertyType);
                         }
                     }
                     else
                     {
                         value = null;
                     }
+
+                    pi.SetValue(targetObject, value, null);
                 }
                 catch (Exception ex)
                 {
                     LogEnvironment.LogEvent(ex.OutlineException(), LogSeverity.Error, "DataAccess");
                 }
-                info.SetValue(targetObject, value, null);
             }
         }
 
