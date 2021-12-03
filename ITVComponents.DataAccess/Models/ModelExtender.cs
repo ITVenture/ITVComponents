@@ -51,7 +51,6 @@ namespace ITVComponents.DataAccess.Models
                 }
                 else if (r != null)
                 {
-                    rules[i] = null;
                     LogEnvironment.LogDebugEvent($"No Value found for MapRule {r.FieldName} ({r.UseExpression};{r.ValueResolveExpression}", LogSeverity.Report);
                 }
             }
