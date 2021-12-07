@@ -43,6 +43,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
         /// <summary>
         /// Gets or sets the Declarations of variables (including required conversions) that are used to filter the entities when a foreign-key is requested
         /// </summary>
-        public string FilterDeclarations { get; set; }
+        public string[] FilterDeclarations { get; set; }
     }
 }

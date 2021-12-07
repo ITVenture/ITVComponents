@@ -93,13 +93,15 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
                         case "filter":
                         {
                             var tmpFilter = v.Value.FirstOrDefault();
-                            var st = "Label~contains~'";
-                            if (tmpFilter?.StartsWith(st, StringComparison.OrdinalIgnoreCase) ?? false)
+                            var st = "~contains~'";
+                            if (tmpFilter?.Contains(st, StringComparison.OrdinalIgnoreCase) ?? false)
                             {
-                                var ln = tmpFilter.Length - 1 - st.Length;
+                                var id = tmpFilter.IndexOf(st, StringComparison.OrdinalIgnoreCase);
+                                id += st.Length;
+                                var ln = tmpFilter.Length - 1 - id;
                                 if (ln > 0)
                                 {
-                                    tmpFilter = tmpFilter.Substring(st.Length, ln);
+                                    tmpFilter = tmpFilter.Substring(id, ln);
                                     ret.Add("Filter", tmpFilter);
                                 }
                             }
