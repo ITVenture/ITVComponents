@@ -131,7 +131,20 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             string roslynHash = GetFlatString(expression);
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
-                var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" })).WithReferences(new[] { typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp") }.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t)).ToArray()).WithOptimizationLevel(OptimizationLevel.Release);
+                ScriptOptions scriptoptions;
+                lock (cfg)
+                {
+                    scriptoptions = ScriptOptions.Default
+                        .WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" }))
+                        .WithReferences(
+                            new[]
+                            {
+                                typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly,
+                                NamedAssemblyResolve.LoadAssembly("System.Linq"),
+                                NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")
+                            }.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t)).ToArray())
+                        .WithOptimizationLevel(OptimizationLevel.Release);
+                }
                 //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
                 var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
                 retVal.Compile();
@@ -168,7 +181,21 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             string roslynHash = GetFlatString(expression);
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
-                var scriptoptions = ScriptOptions.Default.WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" })).WithReferences(new[] { typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly, NamedAssemblyResolve.LoadAssembly("System.Linq"), NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp") }.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t)).ToArray()).WithOptimizationLevel(OptimizationLevel.Release);
+                ScriptOptions scriptoptions;
+                lock (cfg)
+                {
+                    scriptoptions = ScriptOptions.Default
+                        .WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" }))
+                        .WithReferences(
+                            new[]
+                            {
+                                typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly,
+                                NamedAssemblyResolve.LoadAssembly("System.Linq"),
+                                NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")
+                            }.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t)).ToArray())
+                        .WithOptimizationLevel(OptimizationLevel.Release);
+                }
+
                 //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
                 var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
                 retVal.Compile();
