@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Navigation
     internal class Navigator:INavigator
     {
         private readonly INavigationBuilder builder;
-        private readonly IHttpContextAccessor httpContext;
+        private readonly IContextUserProvider userProvider;
         private NavigationMenu rootObject;
 
         /// <summary>
@@ -21,10 +22,10 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         /// </summary>
         /// <param name="builder">a navigation builder instance that creates the navigation-raw collection</param>
         /// <param name="httpContext">the accessor to retreive the current http-context</param>
-        public Navigator(INavigationBuilder builder, IHttpContextAccessor httpContext)
+        public Navigator(INavigationBuilder builder, IContextUserProvider userProvider)
         {
             this.builder = builder;
-            this.httpContext = httpContext;
+            this.userProvider = userProvider;
         }
 
         /// <summary>
@@ -38,12 +39,12 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         /// <returns>the root of the site-navigation</returns>
         private NavigationMenu BuildRootObject()
         {
-            var currentPath = httpContext.HttpContext.Request.Path;
+            var currentPath = userProvider.RequestPath;
             var retVal = builder.GetNavigationRoot();
             IRequestCultureFeature cult = null;
             try
             {
-                cult = httpContext.HttpContext.Features.Get<IRequestCultureFeature>();
+                cult = userProvider.HttpContext.Features.Get<IRequestCultureFeature>();
             }
             catch
             {

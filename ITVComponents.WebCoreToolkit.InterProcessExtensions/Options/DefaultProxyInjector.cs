@@ -36,8 +36,8 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Options
         /// <returns>the client-instance that is requested</returns>
         protected override IBaseClient GetClient(IServiceProvider services)
         {
-            var httpContext = services.GetService<IHttpContextAccessor>();
-            if (httpContext == null)
+            var userProvider = services.GetService<IContextUserProvider>();
+            if (userProvider == null)
             {
                 throw new InvalidOperationException("HttpContextAccessor is required!");
             }
@@ -50,7 +50,7 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Options
 
             IPermissionScope nameExtender = services.GetService<IPermissionScope>();
             var permissionScope = nameExtender?.PermissionPrefix??"";
-            Dictionary<string, object> formatHints = new Dictionary<string, object>(httpContext.HttpContext.Request.RouteValues);
+            Dictionary<string, object> formatHints = new Dictionary<string, object>(userProvider.RouteData);
             PluginFactory factory = plugins.GetFactory();
             IBaseClient retVal = null;
             formatHints.Add("PermissionScope", permissionScope);

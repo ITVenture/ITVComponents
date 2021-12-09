@@ -11,12 +11,12 @@ namespace ITVComponents.WebCoreToolkit.Routing.Impl
 {
     public class UrlFormatImpl:IUrlFormat
     {
-        private readonly IHttpContextAccessor httpContext;
+        private readonly IContextUserProvider userProvider;
         private readonly IPermissionScope permissionScope;
 
-        public UrlFormatImpl(IHttpContextAccessor httpContext, IPermissionScope permissionScope)
+        public UrlFormatImpl(IContextUserProvider userProvider, IPermissionScope permissionScope)
         {
-            this.httpContext = httpContext;
+            this.userProvider = userProvider;
             this.permissionScope = permissionScope;
         }
 
@@ -28,7 +28,7 @@ namespace ITVComponents.WebCoreToolkit.Routing.Impl
         public string FormatUrl(string url)
         {
             Dictionary<string, object> values = new Dictionary<string, object>();
-            foreach (var arg in httpContext.HttpContext.Request.RouteValues)
+            foreach (var arg in userProvider.RouteData)
             {
                 if (arg.Value != null && (!(arg.Value is string) || !string.IsNullOrEmpty((string) arg.Value)))
                 {

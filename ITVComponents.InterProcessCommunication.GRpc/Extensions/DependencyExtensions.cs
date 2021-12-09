@@ -15,7 +15,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Extensions
         public static IServiceCollection IPCUserFromHttpContext(this IServiceCollection services)
         {
             services.AddHttpContextAccessor();
-            services.AddSingleton<IIdentityProvider, IdentityFromHttpContextProvider>();
+            services.AddScoped<IIdentityProvider, IdentityFromHttpContextProvider>();
             return services;
         } 
     }

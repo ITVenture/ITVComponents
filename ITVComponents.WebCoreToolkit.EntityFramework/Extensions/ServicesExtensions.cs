@@ -18,6 +18,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.Diagnostics;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -166,14 +167,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
         {
             typeAnalysis ??= DiagnoseQueryHelper.AnalyseViewModel<TViewModel>();
-            IHttpContextAccessor httpContext = services.GetService<IHttpContextAccessor>();
+            IContextUserProvider userProvider = services.GetService<IContextUserProvider>();
             string area = null;
-            if (httpContext?.HttpContext != null)
+            if (userProvider?.RouteData != null)
             {
-                var routeData = httpContext.HttpContext.GetRouteData();
-                if (routeData.Values.ContainsKey("area"))
+                var routeData = userProvider.RouteData;
+                if (routeData.ContainsKey("area"))
                 {
-                    area = (string)routeData.Values["area"];
+                    area = (string)routeData["area"];
                 }
             }
 

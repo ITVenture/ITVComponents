@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.BackgroundProcessing;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Configuration.Impl;
 using ITVComponents.WebCoreToolkit.Localization;
@@ -56,7 +57,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 services.ConfigureOptions<NoPluginsInit>();
             }
 
-            return services.AddHttpContextAccessor().AddScoped<IWebPluginHelper, WebPluginHelper>();
+            return services.UseContextUserAccessor().AddScoped<IWebPluginHelper, WebPluginHelper>();
         }
 
         /// <summary>
@@ -77,10 +78,20 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <param name="options">Clonfigures the options for the role-based Authorization handler</param>
         public static IServiceCollection EnableRoleBaseAuthorization(this IServiceCollection services, Action<PermissionPolicyOptions> options)
         {
-            return services.AddHttpContextAccessor()
+            return services.UseContextUserAccessor()
                 .AddSingleton<IAuthorizationPolicyProvider, AssignedPermissionsPolicyProvider>()
                 .AddScoped<IAuthorizationHandler, AssignedPermissionsHandler>()
                 .Configure(options);
+        }
+
+        /// <summary>
+        /// Injects a service that provides the current user and all available http-context information
+        /// </summary>
+        /// <param name="services">the dependency enviornment where the service is injected</param>
+        /// <returns>the same serviceCollection for method-chaining</returns>
+        public static IServiceCollection UseContextUserAccessor(this IServiceCollection services)
+        {
+            return services.AddHttpContextAccessor().AddScoped<IContextUserProvider, DefaultContextUserProvider>();
         }
 
         /// <summary>
@@ -223,11 +234,22 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             return services.AddScoped<IUrlFormat,UrlFormatImpl>();
         }
 
+        /// <summary>
+        /// Uses Data-Annotation Translations with the default settings
+        /// </summary>
+        /// <param name="services">the service-collection where ot inject the Attribute-Translation</param>
+        /// <returns>the generated Translation options for the current application</returns>
         public static AttributeTranslationOptions ConfigureAttributeTranslation(this IServiceCollection services)
         {
             return ConfigureAttributeTranslation(services, o => { });
         }
 
+        /// <summary>
+        /// Uses Data-Annotation Translations with custom settings
+        /// </summary>
+        /// <param name="services">the service-collection where ot inject the Attribute-Translation</param>
+        /// <param name="options">a callback that can be used to modify the default settings</param>
+        /// <returns>the generated Translation options for the current application</returns>
         public static AttributeTranslationOptions ConfigureAttributeTranslation(this IServiceCollection services, Action<AttributeTranslationOptions> options)
         {
             var o = new AttributeTranslationOptions();
@@ -252,6 +274,19 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             options(o);
             services.AddSingleton(o);
             return o;
+        }
+
+        /// <summary>
+        /// Initializes a service that is capable to process long-term actions in the background
+        /// </summary>
+        /// <param name="services">the service-collection where ot inject the background-service</param>
+        /// <param name="queueCapacity">the capacity of the queue that will hold the background-tasks</param>
+        /// <returns>the servicecollection instance that was passed as argument</returns>
+        public static IServiceCollection UseBackgroundTasks(this IServiceCollection services, int queueCapacity = 100)
+        {
+            services.AddHostedService<BackgroundTaskProcessorService>();
+            services.AddSingleton<IBackgroundTaskQueue>(ctx => new BackgroundTaskQueue(queueCapacity));
+            return services;
         }
     }
 }

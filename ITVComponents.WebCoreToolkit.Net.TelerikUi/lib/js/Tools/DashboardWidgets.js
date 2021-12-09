@@ -12,7 +12,7 @@
             var param = {};
             var markup = "<table id='cfg4".concat(localRef)
                 .concat(
-                    "'><colgroup><col style='width:150px;'/><col /></colgroup><thead><tr class='k-grid-header'><td class='k-header'>")
+                    "' style='width:95%'><colgroup><col style='width:150px;'/><col /></colgroup><thead><tr class='k-grid-header'><td class='k-header'>")
                 .concat(ITVenture.Text.getText("Dashboard-Parameter name")).concat("</td><td class='k-header'>")
                 .concat(ITVenture.Text.getText("Dashboard-Parameter value")).concat("</td></tr></thead><tbody>");
             for (var i = 0; i < widget.Params.length; i++) {
@@ -31,6 +31,7 @@
                 dialogOpening:
                     function (obj, dg) {
                         dg.title(ITVenture.Text.getText("Dashboard-Config"));
+                        dg.setOptions({ width: 400 });
                     },
                 contentReady: function (obj, dg) {
                     var robj = obj.data("itvDialog");
@@ -44,7 +45,7 @@
                         param[widget.Params[i].ParameterName] = ITVenture.Tools.DynamicData.RenderControl(p,
                             "EditBox4".concat(widget.Params[i].ParameterName),
                             widget.Params[i].InputType,
-                            widget.Params[i].InputConfig);
+                            JSON.parse(widget.Params[i].InputConfig));
                     }
                 }
             }

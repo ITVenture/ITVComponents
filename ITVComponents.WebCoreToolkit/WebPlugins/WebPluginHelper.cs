@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
+using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
@@ -87,6 +88,16 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             {
                 PluginFactory pi = (PluginFactory) sender;
                 IWebPluginsSelector availablePlugins = pluginProvider;
+                var globalProvider = serviceProvider.GetService<IGlobalSettingsProvider>();
+                var tenantProvider = serviceProvider.GetService<IScopedSettingsProvider>();
+                var preInitializationSequence = tenantProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}")
+                                             ?? globalProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}");
+                var postInitializationSequence = tenantProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}")
+                                                ?? globalProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}");
+                var preInitSequence = Array.Empty<string>();
+                var postInitSequence = Array.Empty<string>();
+                preInitSequence = DeserializeInitArray(preInitializationSequence);
+                postInitSequence = DeserializeInitArray(postInitializationSequence);
 
                 WebPlugin plugin =
                     availablePlugins.GetPlugin(args.RequestedName);
@@ -94,10 +105,26 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 {
                     if (serviceProvider.VerifyUserPermissions(new []{args.RequestedName},true))
                     {
+                        if (preInitSequence.Length != 0)
+                        {
+                            foreach (var s in preInitSequence)
+                            {
+                                var tmp = pi[s, true];
+                            }
+                        }
+
                         if (!string.IsNullOrEmpty(plugin.Constructor))
                         {
                             args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
                             args.Handled = true;
+                        }
+
+                        if (postInitSequence.Length != 0)
+                        {
+                            foreach (var s in postInitSequence)
+                            {
+                                var tmp = pi[s, true];
+                            }
                         }
                     }
                 }
@@ -131,6 +158,26 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             retVal.UnknownConstructorParameter += handler;
             retVal.PluginInitialized += Initializer;
             retVal.Disposed += Finalizer;
+
+            return retVal;
+        }
+
+        private string[] DeserializeInitArray(string jsonSerializedArray)
+        {
+            string[] retVal = Array.Empty<string>();
+            if (!string.IsNullOrEmpty(jsonSerializedArray))
+            {
+                try
+                {
+                    retVal = JsonHelper.FromJsonString<string[]>(jsonSerializedArray);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Failed to deserialize Init-Sequence as string[] for {jsonSerializedArray}",
+                        LogSeverity.Error);
+                }
+            }
 
             return retVal;
         }

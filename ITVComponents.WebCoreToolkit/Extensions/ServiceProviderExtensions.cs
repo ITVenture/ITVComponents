@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,9 +79,9 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         public static string[] GetUserPermissions(this IServiceProvider provider, out ISecurityRepository securityRepository)
         {
             securityRepository = provider.GetService<ISecurityRepository>();
-            var httpContextAccess = provider.GetService<IHttpContextAccessor>();
+            var userProvider = provider.GetService<IContextUserProvider>();
             var userMapper = provider.GetService<IUserNameMapper>();
-            var currentUser = httpContextAccess.HttpContext.User;
+            var currentUser = userProvider.User;
             var labels = userMapper.GetUserLabels(currentUser);
             var permissions = securityRepository.GetPermissions(labels, ((ClaimsIdentity)currentUser.Identity).AuthenticationType).Select(n => n.PermissionName).Distinct().ToArray();
             return permissions;
@@ -94,6 +95,57 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         public static string[] GetUserPermissions(this IServiceProvider provider)
         {
             return provider.GetUserPermissions(out _);
+        }
+
+        /// <summary>
+        /// Stores the relevant data of the current request and puts it into an object. The data can be restored later in a different context.
+        /// </summary>
+        /// <param name="provider">the services that are available in the current context</param>
+        /// <returns>an object that contains relevant data of the current context</returns>
+        public static object ConserveRequestData(this IServiceProvider provider)
+        {
+            var requestData = new ConservedRequestData();
+            var userProvider = provider.GetService<IContextUserProvider>();
+            var permissionScope = provider.GetService<IPermissionScope>();
+            if (userProvider != null)
+            {
+                requestData.User = userProvider.User;
+                requestData.RouteData = new Dictionary<string, object>(userProvider.RouteData);
+                requestData.RequestPath = userProvider.RequestPath;
+            }
+
+            if (permissionScope != null)
+            {
+                requestData.CurrentScope = permissionScope.PermissionPrefix;
+            }
+
+            return requestData;
+        }
+
+        /// <summary>
+        /// Prepares the current scope to values that were conserved before from a different context
+        /// </summary>
+        /// <param name="provider">the service-provider that holds all dependencies</param>
+        /// <param name="conservedRequestData">the previously conserved context data</param>
+        public static void PrepareContext(this IServiceProvider provider, object conservedRequestData)
+        {
+            if (conservedRequestData is not ConservedRequestData crd)
+            {
+                throw new InvalidOperationException(
+                    "An object that was generated using the ConserveRequestData method is required");
+            }
+
+            var userProvider = provider.GetService<IContextUserProvider>();
+            var permissionScope = provider.GetService<IPermissionScope>();
+            if (userProvider is DefaultContextUserProvider dcup)
+            {
+                dcup.SetDefaults(crd.User, crd.RouteData, crd.RequestPath);
+            }
+
+            if (permissionScope is PermissionScopeBase psb)
+            {
+                psb.SetFixedScope(crd.CurrentScope);
+            }
         }
     }
 }

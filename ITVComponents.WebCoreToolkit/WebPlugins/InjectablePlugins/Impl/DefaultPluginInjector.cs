@@ -36,10 +36,10 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
             var scopeProvider = services.GetService<IPermissionScope>();
             if (selector != null)
             {
-                var httpContext = services.GetService<IHttpContextAccessor>();
-                if (httpContext != null)
+                var userProvider = services.GetService<IContextUserProvider>();
+                if (userProvider!= null)
                 {
-                    Dictionary<string, object> formatHints = new Dictionary<string, object>(httpContext.HttpContext.Request.RouteValues);
+                    Dictionary<string, object> formatHints = new Dictionary<string, object>(userProvider.RouteData);
                     formatHints.Add("rawName",rawName);
                     var prefixed = prefixWithArea ? "[area][rawName]" : "[rawName]";
                     prefixed = formatHints.FormatText(prefixed);

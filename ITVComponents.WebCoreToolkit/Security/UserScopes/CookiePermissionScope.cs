@@ -12,13 +12,12 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
     /// <summary>
     /// 
     /// </summary>
-    public class CookiePermissionScope:IPermissionScope
+    public class CookiePermissionScope:PermissionScopeBase
     {
         private readonly IHttpContextAccessor httpContext;
         private readonly IOptions<CookieScopeOptions> options;
         private readonly ILogger<CookiePermissionScope> logger;
         private string currentScope;
-        private bool scopeIsExplicit  = false;
 
         public CookiePermissionScope(IHttpContextAccessor httpContext, IOptions<CookieScopeOptions> options, ILogger<CookiePermissionScope> logger)
         {
@@ -27,37 +26,23 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             this.logger = logger;
         }
 
-
-        /// <summary>
-        /// Gets the permission prefix for the current user in this context
-        /// </summary>
-        public string PermissionPrefix => currentScope??=GetCurrentScope();
-
-        /// <summary>
-        /// Gets a value indicating whether the PermissionScope was set explicitly
-        /// </summary>
-        public bool IsScopeExplicit
-        {
-            get
-            {
-                var tmp = PermissionPrefix;
-                return scopeIsExplicit;
-            }
-        }
-
         /// <summary>
         /// Sets the permissionScope to a new value
         /// </summary>
         /// <param name="newScope">the new scope to apply for the current user</param>
-        public void ChangeScope(string newScope)
+        protected override void SetPermissionScopePrefix(string newScope)
         {
             var opt = options.Value;
-            if (scopeIsExplicit)
-            {
-                throw new InvalidOperationException("Scope explicitly set!");
-            }
-
             httpContext.HttpContext.Response.Cookies.Append(opt.ScopeCookie, CreateScopeToken(newScope));
+        }
+
+        /// <summary>
+        /// Enables a derived class to provide a permissionScopePrefix for the case that it is not being bypassed internally
+        /// </summary>
+        /// <returns>a string representing the current permission scope</returns>
+        protected override string GetPermissionScopePrefix()
+        {
+            return currentScope ??= GetCurrentScope();
         }
 
         /// <summary>
@@ -74,7 +59,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                 logger.LogDebug($"Found: {httpContext.HttpContext.User.Identity.Name} identities");
                 if (!string.IsNullOrEmpty(opt.RouteOverrideParam) && httpContext.HttpContext.Request.RouteValues.ContainsKey(opt.RouteOverrideParam) && !string.IsNullOrEmpty((string) httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam]))
                 {
-                    scopeIsExplicit = true;
+                    IsScopeExplicit = true;
                     return (string) httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam];
                 }
 
