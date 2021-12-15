@@ -41,12 +41,12 @@ namespace ITVComponents.WebCoreToolkit.Localization
             
             foreach (var obj in validators)
             {
-                if (!(obj is ValidationAttribute attribute))
+                if (obj is not  ValidationAttribute)
                 {
                     continue;
                 }
 
-                if (string.IsNullOrEmpty(attribute.ErrorMessage) && string.IsNullOrEmpty(attribute.ErrorMessageResourceName))
+                if (obj is ValidationAttribute attribute && string.IsNullOrEmpty(attribute.ErrorMessage) && string.IsNullOrEmpty(attribute.ErrorMessageResourceName))
                 {
                     var tmp = options.ResourceForAttribute(attribute, "ValidationError");
                     if (!string.IsNullOrEmpty(tmp))

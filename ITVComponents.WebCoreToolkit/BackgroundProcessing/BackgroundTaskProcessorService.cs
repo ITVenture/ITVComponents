@@ -15,11 +15,11 @@ namespace ITVComponents.WebCoreToolkit.BackgroundProcessing
     /// <summary>
     /// Background-Service class that can be injected into a Web-Application to perform background-tasks that will ptentially take a long time
     /// </summary>
-    public class BackgroundTaskProcessorService : BackgroundService
+    public class BackgroundTaskProcessorService<TQueue, TItem> : BackgroundService where TItem:BackgroundTask where TQueue:ITaskQueue<TItem>
     {
         private readonly IServiceProvider services;
-        private readonly IBackgroundTaskQueue queue;
-        private readonly ILogger<BackgroundTaskProcessorService> logger;
+        private readonly TQueue queue;
+        private readonly ILogger<BackgroundTaskProcessorService<TQueue,TItem>> logger;
 
         /// <summary>
         /// Initializes a new instance of the BackgroundTaskProcessorService class
@@ -27,7 +27,7 @@ namespace ITVComponents.WebCoreToolkit.BackgroundProcessing
         /// <param name="services">the service-provider of the global scope</param>
         /// <param name="queue">a Task-Queue that will provide this worker with tasks from frontend requests</param>
         /// <param name="logger">a logger that is used to log errors and warnings</param>
-        public BackgroundTaskProcessorService(IServiceProvider services, IBackgroundTaskQueue queue, ILogger<BackgroundTaskProcessorService> logger)
+        public BackgroundTaskProcessorService(IServiceProvider services, TQueue queue, ILogger<BackgroundTaskProcessorService<TQueue, TItem>> logger)
         {
             this.services = services;
             this.queue = queue;
@@ -55,20 +55,27 @@ namespace ITVComponents.WebCoreToolkit.BackgroundProcessing
             while (!stoppingToken.IsCancellationRequested)
             {
                 var task = await queue.Dequeue(stoppingToken);
-                try
+                if (task != null)
                 {
-                    using (var scope = services.CreateScope())
+                    try
                     {
-                        if (task.ConservedContext != null)
+                        using (var scope = services.CreateScope())
                         {
-                            scope.ServiceProvider.PrepareContext(task.ConservedContext);
+                            if (task.ConservedContext != null)
+                            {
+                                scope.ServiceProvider.PrepareContext(task.ConservedContext);
+                            }
+
+                            await task.Task(
+                                new BackgroundTaskContext(scope.ServiceProvider,
+                                    scope.ServiceProvider.GetService<IContextUserProvider>()),
+                                task.AdditionalArguments);
                         }
-                        await task.Task(new BackgroundTaskContext(scope.ServiceProvider, scope.ServiceProvider.GetService<IContextUserProvider>()), task.AdditionalArguments);
                     }
-                }
-                catch (Exception ex)
-                {
-                    logger?.LogError(ex, "Error occurred during Task execution");
+                    catch (Exception ex)
+                    {
+                        logger?.LogError(ex, "Error occurred during Task execution");
+                    }
                 }
             }
         }

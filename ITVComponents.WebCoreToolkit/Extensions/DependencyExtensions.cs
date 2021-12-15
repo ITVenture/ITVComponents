@@ -284,7 +284,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>the servicecollection instance that was passed as argument</returns>
         public static IServiceCollection UseBackgroundTasks(this IServiceCollection services, int queueCapacity = 100)
         {
-            services.AddHostedService<BackgroundTaskProcessorService>();
+            services.AddHostedService<BackgroundTaskProcessorService<IBackgroundTaskQueue,BackgroundTask>>();
             services.AddSingleton<IBackgroundTaskQueue>(ctx => new BackgroundTaskQueue(queueCapacity));
             return services;
         }
