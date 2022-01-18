@@ -3,6 +3,7 @@
 @using System.Text.Encodings.Web
 @using System.Collections
 @using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Models
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewModel
@@ -17,30 +18,8 @@
     ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_Assemblies;
 }
 
-@(Html.Kendo().Grid<AssemblyDiagnosticsItemViewModel>().Name("AssemblyList")
-        //.HtmlAttributes(new { style = "width:50vw;" })
-        .Columns(columns =>
-        {
-            columns.Bound(n => n.FullName);
-            columns.Bound(n => n.Location);
-            columns.Bound(n => n.RuntimeVersion);
-            columns.Bound(n => n.LoadContext);
-            columns.Bound(n => n.IsDynamic);
-            columns.Bound(n => n.IsCollectible);
-
-        })
-        .ToolBar(toolbar =>
-        {
-            toolbar.RefreshTable();
-        })
-        .DataSource(dataSource =>
-        {
-            var src = dataSource
-                .Ajax()
-                .Read(read => read.Action("Read", "AssemblyDiagnostics"));
-        })
-        .Scrollable(s => s.Height("auto"))
-        .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
-        .Sortable(c => c.Enabled(true))
-    .Resizable(c => c.Columns(true))
-    .Filterable(f => f.Enabled(true)))
+@Html.Kendo().TabStrip().Name("DiagRoot").Items(i =>
+{
+    i.Add().LoadContentFrom("AssemblyList","AssemblyDiagnostics").Text("Assemblies");
+    i.Add().LoadContentFrom("ClaimList", "AssemblyDiagnostics").Text("Claims");
+}).SelectedIndex(0)

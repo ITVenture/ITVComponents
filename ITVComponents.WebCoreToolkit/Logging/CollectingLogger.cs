@@ -12,11 +12,13 @@ namespace ITVComponents.WebCoreToolkit.Logging
     {
         private readonly ILogCollectorService collectorService;
         private readonly string category;
+        private readonly IGlobalLogConfiguration configuration;
 
-        public CollectingLogger(ILogCollectorService collectorService, string category)
+        public CollectingLogger(ILogCollectorService collectorService, string category, IGlobalLogConfiguration configuration)
         {
             this.collectorService = collectorService;
             this.category = category;
+            this.configuration = configuration;
         }
 
         /// <summary>Begins a logical operation scope.</summary>
@@ -25,7 +27,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// <returns>An <see cref="T:System.IDisposable" /> that ends the logical operation scope on dispose.</returns>
         public IDisposable BeginScope<TState>(TState state)
         {
-            return new ScopeLock<TState>(this, state);
+            return new ToolkitLogScope<TState>(this, state);
         }
 
         /// <summary>
@@ -35,7 +37,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// <returns><c>true</c> if enabled.</returns>
         public bool IsEnabled(LogLevel logLevel)
         {
-            return collectorService.IsEnabled(logLevel, category);
+            return configuration.IsEnabled(logLevel, category);
         }
 
         /// <summary>Writes a log entry.</summary>
@@ -48,28 +50,10 @@ namespace ITVComponents.WebCoreToolkit.Logging
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
             if (IsEnabled(logLevel)){
-                var msg = $@"{state}
+                var msg = $@"{formatter(state,exception)}
 {exception?.OutlineException()}";
                 var basic = $"{eventId.Id}: {eventId.Name}";
                 collectorService.AddEvent(logLevel, category, basic, msg);
-            }
-        }
-
-        private class ScopeLock<TState>:IDisposable
-        {
-            private CollectingLogger parent;
-            private readonly TState state;
-
-            public ScopeLock(CollectingLogger parent, TState state)
-            {
-                this.parent = parent;
-                this.state = state;
-                parent.Log(LogLevel.Debug, new EventId(0,$"Begin Scope for: {state}"),state,null,(state1, exception) => "");
-            }
-
-            public void Dispose()
-            {
-                parent.Log(LogLevel.Debug, new EventId(0,$"End Scope for: {state}"),state,null,(state1, exception) => "");
             }
         }
     }

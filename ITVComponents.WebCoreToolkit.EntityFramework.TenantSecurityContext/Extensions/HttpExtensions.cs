@@ -1,6 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.Routing;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         /// <param name="httpContext">the http-context that is used for the current request</param>
         /// <param name="location">the location for which to check, whether a tutorial is available. If this value is null, the Request-path is used.</param>
         /// <returns>a value indicating whether the provided path contains video-tutorials</returns>
-        public static bool HasVideoTutorials(this HttpContext httpContext, string location = null)
+        public static bool HasVideoTutorials(this HttpContext httpContext, ref string location)
         {
             if (string.IsNullOrEmpty(location))
             {
@@ -25,8 +28,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
 
             var cult = httpContext.Features.Get<IRequestCultureFeature>();
             var db = httpContext.RequestServices.GetRequiredService<SecurityContext>();
+            var psc = httpContext.RequestServices.GetService<IPermissionScope>();
             string currentCulture = null;
             string baseLang = null;
+            var ppf = $"/{psc?.PermissionPrefix}";
+            if (psc != null && psc.IsScopeExplicit && location.StartsWith(ppf,StringComparison.OrdinalIgnoreCase))
+            {
+                location = location.Substring(ppf.Length);
+            }
+
             if (cult != null)
             {
                 currentCulture = cult.RequestCulture.UICulture.Name;
@@ -36,11 +46,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                 }
             }
 
-            var exists = db.Tutorials.Any(n => n.ModuleUrl == location && n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang));
+            var loca = location;
+            var exists = db.Tutorials.Any(n => n.ModuleUrl == loca && n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang));
             if (!exists)
             {
                 exists = db.Tutorials.Any(
-                    n => n.ModuleUrl == location && n.Streams.Any(n => n.LanguageTag == "Default"));
+                    n => n.ModuleUrl == loca && n.Streams.Any(n => n.LanguageTag == "Default"));
             }
 
             return exists;

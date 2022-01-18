@@ -1,10 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.Formatting;
+using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
+using CustomUserProperty = ITVComponents.WebCoreToolkit.Models.CustomUserProperty;
+using Permission = ITVComponents.WebCoreToolkit.Models.Permission;
+using Role = ITVComponents.WebCoreToolkit.Models.Role;
+using User = ITVComponents.WebCoreToolkit.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Security
 {
@@ -100,6 +107,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sec
         }
 
         /// <summary>
+        /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
+        /// </summary>
+        /// <param name="originalClaims">the claims that were originally attached to the current identity</param>
+        /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
+        /// <returns>an enumerable of all the custom user-properties for this user</returns>
+        public IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims,
+            string userAuthenticationType)
+        {
+            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            var typeClaims = securityContext.AuthenticationClaimMappings.Where(n =>
+                n.AuthenticationType.AuthenticationTypeName == userAuthenticationType).ToArray();
+            var preMapped = from t in originalClaims
+                join i in typeClaims on t.Type equals i.IncomingClaimName
+                select new { Original = t, Map = i };
+            return (from t in preMapped where string.IsNullOrEmpty(t.Map.Condition) || (ExpressionParser.Parse(t.Map.Condition, t.Original) is bool b && b)
+                   select TryGetClaim(t.Map,t.Original)).Where(n => n != null);
+        }
+
+        /// <summary>
         /// Gets an enumeration of Permissions that are assigned to the given user through its roles
         /// </summary>
         /// <param name="user">the user for which to get the permissions</param>
@@ -190,6 +216,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sec
         protected virtual void OnDisposed()
         {
             Disposed?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Estimats a claimData item from a given mapping and an original claim
+        /// </summary>
+        /// <param name="map">the mapping instruction for estimating a new claim</param>
+        /// <param name="original">the original claim-value</param>
+        /// <returns>a new claim that must be added to the currently logged on user</returns>
+        private ClaimData TryGetClaim(AuthenticationClaimMapping map, ClaimData original)
+        {
+            try
+            {
+                return new ClaimData
+                {
+                    Type = original.FormatText(map.OutgoingClaimName),
+                    ValueType = !string.IsNullOrEmpty(map.OutgoingValueType) ? original.FormatText(map.OutgoingValueType) : "",
+                    Issuer = !string.IsNullOrEmpty(map.OutgoingIssuer) ? original.FormatText(map.OutgoingIssuer) : "",
+                    OriginalIssuer = !string.IsNullOrEmpty(map.OutgoingOriginalIssuer) ? original.FormatText(map.OutgoingOriginalIssuer) : "",
+                    Value = !string.IsNullOrEmpty(map.OutgoingClaimValue) ? original.FormatText(map.OutgoingClaimValue) : ""
+                };
+            }
+            catch
+            {
+            }
+
+            return null;
         }
 
         /// <summary>

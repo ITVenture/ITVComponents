@@ -15,13 +15,18 @@ namespace ITVComponents.WebCoreToolkit.Logging
     {
         private ILogger decorated;
 
+        private readonly IGlobalLogConfiguration configuration;
+        private string myTopic;
+
         /// <summary>
         /// Initializes a new instance of the CollectingLoggerDecorator class
         /// </summary>
         /// <param name="provider"></param>
-        public CollectingLoggerDecorator(ILoggerProvider provider)
+        public CollectingLoggerDecorator(ILoggerProvider provider, IGlobalLogConfiguration configuration)
         {
-            decorated = provider.CreateLogger(typeof(TTopic).FullName);
+            this.configuration = configuration;
+            myTopic = typeof(TTopic).FullName;
+            decorated = provider.CreateLogger(myTopic);
         }
 
         /// <summary>Begins a logical operation scope.</summary>
@@ -40,7 +45,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// <returns><c>true</c> if enabled.</returns>
         public bool IsEnabled(LogLevel logLevel)
         {
-            return decorated.IsEnabled(logLevel);
+            return configuration.IsEnabled(logLevel, null);
         }
 
         /// <summary>Writes a log entry.</summary>
@@ -52,6 +57,16 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// <typeparam name="TState">The type of the object to be written.</typeparam>
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
+            if (decorated is not CollectingLogger)
+            {
+                if (configuration.IsEnabled(logLevel, myTopic))
+                {
+                    decorated.Log(logLevel, eventId, state, exception, formatter);
+                }
+
+                return;
+            }
+
             decorated.Log(logLevel, eventId, state, exception, formatter);
         }
     }

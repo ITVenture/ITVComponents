@@ -14,12 +14,16 @@ namespace ITVComponents.WebCoreToolkit.ScheduledBackgroundProcessing.Extensions
         /// Initializes a service that is capable to process long-term actions in the background
         /// </summary>
         /// <param name="services">the service-collection where ot inject the background-service</param>
-        /// <param name="queueCapacity">the capacity of the queue that will hold the background-tasks</param>
         /// <returns>the servicecollection instance that was passed as argument</returns>
-        public static IServiceCollection UseScheduledBackgroundTasks(this IServiceCollection services, int queueCapacity = 100)
+        public static IServiceCollection UseScheduledBackgroundTasks(this IServiceCollection services, Action<ITimeTableBackgroundTaskQueue> setDefaultTasks = null)
         {
             services.AddHostedService<BackgroundTaskProcessorService<ITimeTableBackgroundTaskQueue,TimeTableBackgroundTask>>();
-            services.AddSingleton<ITimeTableBackgroundTaskQueue>(ctx => new TimeTableBackgroundTaskQueue());
+            services.AddSingleton<ITimeTableBackgroundTaskQueue>(ctx =>
+            {
+                var retVal = new TimeTableBackgroundTaskQueue();
+                setDefaultTasks?.Invoke(retVal);
+                return retVal;
+            });
             return services;
         }
     }

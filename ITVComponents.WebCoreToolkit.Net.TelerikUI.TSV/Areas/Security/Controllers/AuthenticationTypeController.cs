@@ -27,6 +27,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             return View();
         }
 
+        public IActionResult AuthClaims(int authenticationTypeId)
+        {
+            ViewData["authenticationTypeId"] = authenticationTypeId;
+            return View();
+        }
+
         [HttpPost]
         public IActionResult Read([DataSourceRequest] DataSourceRequest request)
         {
@@ -77,6 +83,58 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             }
 
             return Json(await new[] {model.ToViewModel<AuthenticationType, AuthenticationTypeViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        public IActionResult ReadClaims([DataSourceRequest] DataSourceRequest request, [FromQuery]int authenticationTypeId)
+        {
+            return Json(db.AuthenticationClaimMappings.Where(n => n.AuthenticationTypeId == authenticationTypeId).ToDataSourceResult(request, n => n.ToViewModel<AuthenticationClaimMapping, AuthenticationClaimMappingViewModel>()));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(AuthenticationTypes.Write)")]
+        public async Task<IActionResult> CreateClaim([DataSourceRequest] DataSourceRequest request, [FromQuery]int authenticationTypeId)
+        {
+            var model = new AuthenticationClaimMapping();
+            if (ModelState.IsValid)
+            {
+
+                await this.TryUpdateModelAsync<AuthenticationClaimMappingViewModel, AuthenticationClaimMapping>(model);
+                model.AuthenticationTypeId = authenticationTypeId;
+                db.AuthenticationClaimMappings.Add(model);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { model.ToViewModel<AuthenticationClaimMapping, AuthenticationClaimMappingViewModel>() }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(AuthenticationTypes.Write)")]
+        public async Task<IActionResult> DestroyClaim([DataSourceRequest] DataSourceRequest request, AuthenticationClaimMappingViewModel viewModel)
+        {
+            db.ShowAllTenants = true;
+            var model = db.AuthenticationClaimMappings.First(n => n.AuthenticationClaimMappingId == viewModel.AuthenticationClaimMappingId);
+            if (ModelState.IsValid)
+            {
+                db.AuthenticationClaimMappings.Remove(model);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(AuthenticationTypes.Write)")]
+        public async Task<IActionResult> UpdateClaim([DataSourceRequest] DataSourceRequest request, AuthenticationClaimMappingViewModel viewModel)
+        {
+            var model = db.AuthenticationClaimMappings.First(n => n.AuthenticationClaimMappingId == viewModel.AuthenticationClaimMappingId);
+            if (ModelState.IsValid)
+            {
+                await this.TryUpdateModelAsync<AuthenticationClaimMappingViewModel, AuthenticationClaimMapping>(model, "", m => { return m.ElementType == null; });
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { model.ToViewModel<AuthenticationClaimMapping, AuthenticationClaimMappingViewModel>() }.ToDataSourceResultAsync(request, ModelState));
         }
     }
 }

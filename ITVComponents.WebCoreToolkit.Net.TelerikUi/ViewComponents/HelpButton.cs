@@ -56,9 +56,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
 
         public async Task<IViewComponentResult> InvokeAsync(string customStyle = null, string customClass = null)
         {
-            if (tutorialSource.HasVideoTutorials(HttpContext) && HttpContext.RequestServices.VerifyUserPermissions(new string[] { "ModuleHelp.ViewTutorials" }))
+            string path = Request.Path.Value;
+            if (tutorialSource.HasVideoTutorials(HttpContext, ref path) && HttpContext.RequestServices.VerifyUserPermissions(new string[] { "ModuleHelp.ViewTutorials" }))
             {
-                var tutorials = tutorialSource.GetTutorials(Request.Path.Value, CurrentCulture);
+                var tutorials = tutorialSource.GetTutorials(path, CurrentCulture);
                 var model = new List<TutorialDefinition>();
                 foreach (var t in tutorials)
                 {

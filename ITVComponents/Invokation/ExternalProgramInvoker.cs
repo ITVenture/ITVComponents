@@ -14,6 +14,21 @@ namespace ITVComponents.Invokation
     public class ExternalProgramInvoker
     {
         /// <summary>
+        /// Gets or sets a value indicating whether to use console redirection for the executed tasks
+        /// </summary>
+        public bool RedirectConsole { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether ShellExecute is being used to launch the processes
+        /// </summary>
+        public bool UseShellExecute { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the process runs hidden
+        /// </summary>
+        public bool Hidden { get; set; } = true;
+
+        /// <summary>
         /// 
         /// </summary>
         /// <param name="applicationName">the path to the application image</param>
@@ -27,11 +42,11 @@ namespace ITVComponents.Invokation
             ProcessStartInfo pif = new ProcessStartInfo
             {
                 Arguments = arguments,
-                CreateNoWindow = true,
+                CreateNoWindow = Hidden,
                 FileName = applicationName,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false
+                RedirectStandardError = RedirectConsole,
+                RedirectStandardOutput = RedirectConsole,
+                UseShellExecute = UseShellExecute
             };
             return Run(pif, timeout, maxRetryCount);
         }
@@ -51,11 +66,11 @@ namespace ITVComponents.Invokation
             ProcessStartInfo pif = new ProcessStartInfo
             {
                 Arguments = arguments,
-                CreateNoWindow = true,
+                CreateNoWindow = Hidden,
                 FileName = applicationName,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
+                RedirectStandardError = RedirectConsole,
+                RedirectStandardOutput = RedirectConsole,
+                UseShellExecute = UseShellExecute,
                 WorkingDirectory = executionDirectory
             };
 
@@ -72,11 +87,11 @@ namespace ITVComponents.Invokation
             ProcessStartInfo pif = new ProcessStartInfo
             {
                 Arguments = arguments,
-                CreateNoWindow = true,
+                CreateNoWindow = Hidden,
                 FileName = applicationName,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false
+                RedirectStandardError = RedirectConsole,
+                RedirectStandardOutput = RedirectConsole,
+                UseShellExecute = UseShellExecute
             };
             return Run(pif, -1, 0);
         }
@@ -93,11 +108,11 @@ namespace ITVComponents.Invokation
             ProcessStartInfo pif = new ProcessStartInfo
             {
                 Arguments = arguments,
-                CreateNoWindow = true,
+                CreateNoWindow = Hidden,
                 FileName = applicationName,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
+                RedirectStandardError = RedirectConsole,
+                RedirectStandardOutput = RedirectConsole,
+                UseShellExecute = UseShellExecute,
                 WorkingDirectory = executionDirectory
             };
 
@@ -118,11 +133,11 @@ namespace ITVComponents.Invokation
             ProcessStartInfo pif = new ProcessStartInfo
             {
                 Arguments = arguments,
-                CreateNoWindow = true,
+                CreateNoWindow = Hidden,
                 FileName = applicationName,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false
+                RedirectStandardError = RedirectConsole,
+                RedirectStandardOutput = RedirectConsole,
+                UseShellExecute = UseShellExecute
             };
             return await RunAsync(pif, timeout, maxRetryCount);
         }
@@ -142,11 +157,11 @@ namespace ITVComponents.Invokation
             ProcessStartInfo pif = new ProcessStartInfo
             {
                 Arguments = arguments,
-                CreateNoWindow = true,
+                CreateNoWindow = Hidden,
                 FileName = applicationName,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
+                RedirectStandardError = RedirectConsole,
+                RedirectStandardOutput = RedirectConsole,
+                UseShellExecute = UseShellExecute,
                 WorkingDirectory = executionDirectory
             };
 
@@ -163,11 +178,11 @@ namespace ITVComponents.Invokation
             ProcessStartInfo pif = new ProcessStartInfo
             {
                 Arguments = arguments,
-                CreateNoWindow = true,
+                CreateNoWindow = Hidden,
                 FileName = applicationName,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false
+                RedirectStandardError = RedirectConsole,
+                RedirectStandardOutput = RedirectConsole,
+                UseShellExecute = UseShellExecute
             };
             return await RunAsync(pif, -1, 0);
         }
@@ -184,11 +199,11 @@ namespace ITVComponents.Invokation
             ProcessStartInfo pif = new ProcessStartInfo
             {
                 Arguments = arguments,
-                CreateNoWindow = true,
+                CreateNoWindow = Hidden,
                 FileName = applicationName,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
+                RedirectStandardError = RedirectConsole,
+                RedirectStandardOutput = RedirectConsole,
+                UseShellExecute = UseShellExecute,
                 WorkingDirectory = executionDirectory
             };
 
@@ -219,7 +234,19 @@ namespace ITVComponents.Invokation
                 proc.WaitForExit();
             }
 
-            return new ProgramTerminationInformation { ExitCode = proc.ExitCode, ConsoleOutput = proc.StandardOutput.ReadToEnd(), ErrorOutput = proc.StandardError.ReadToEnd() };
+            if (RedirectConsole)
+            {
+                return new ProgramTerminationInformation
+                {
+                    ExitCode = proc.ExitCode, ConsoleOutput = proc.StandardOutput.ReadToEnd(),
+                    ErrorOutput = proc.StandardError.ReadToEnd()
+                };
+            }
+
+            return new ProgramTerminationInformation
+            {
+                ExitCode = proc.ExitCode
+            };
         }
 
         protected async virtual Task<ProgramTerminationInformation> RunAsync(ProcessStartInfo pif, int timeout, int maxRetryCount)
@@ -243,7 +270,19 @@ namespace ITVComponents.Invokation
 #endif
             }
 
-            return new ProgramTerminationInformation { ExitCode = proc.ExitCode, ConsoleOutput = proc.StandardOutput.ReadToEnd(), ErrorOutput = proc.StandardError.ReadToEnd() };
+            if (RedirectConsole)
+            {
+                return new ProgramTerminationInformation
+                {
+                    ExitCode = proc.ExitCode, ConsoleOutput = await proc.StandardOutput.ReadToEndAsync(),
+                    ErrorOutput = await proc.StandardError.ReadToEndAsync()
+                };
+            }
+
+            return new ProgramTerminationInformation
+            {
+                ExitCode = proc.ExitCode
+            };
         }
 
         protected async Task<bool> WaitForExit(Process proc, int timeout)

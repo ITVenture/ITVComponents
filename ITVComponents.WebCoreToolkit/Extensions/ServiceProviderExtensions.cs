@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
@@ -26,7 +27,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         public static bool VerifyUserPermissions(this IServiceProvider provider, string[] requiredPermissions, bool checkOnlyForKnownPermissions, out ISecurityRepository securityRepository)
         {
             var permissionScope = provider.GetService<IPermissionScope>();
-            var logger = provider.GetService<ILoggerFactory>().CreateLogger("ITVComponents.WebCoreToolkit.Extensions.ServiceProviderExtensions");
+            var logger = provider.GetService<ILogger<GenericLogTarget>>();//("ITVComponents.WebCoreToolkit.Extensions.ServiceProviderExtensions");
             var userPerms = provider.GetUserPermissions(out securityRepository);
             var permitter = securityRepository;
             var extendedPerms = (from t in requiredPermissions where permissionScope?.PermissionPrefix != null && !t.StartsWith(permissionScope.PermissionPrefix, StringComparison.OrdinalIgnoreCase) select $"{permissionScope.PermissionPrefix}{t}").Union(requiredPermissions).Distinct(StringComparer.OrdinalIgnoreCase).Where(n => !checkOnlyForKnownPermissions || permitter.Permissions.Any(p => p.PermissionName.Equals(n, StringComparison.OrdinalIgnoreCase) || $"{permissionScope?.PermissionPrefix}{p.PermissionName}".Equals(n, StringComparison.OrdinalIgnoreCase))).ToArray();

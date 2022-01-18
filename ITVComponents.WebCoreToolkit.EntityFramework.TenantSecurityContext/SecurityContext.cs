@@ -77,6 +77,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<AuthenticationType> AuthenticationTypes { get;set; }
 
+        public DbSet<AuthenticationClaimMapping> AuthenticationClaimMappings { get; set; }
+
         public DbSet<User> Users { get; set; }
 
         public DbSet<DashboardWidget> Widgets { get; set; }
@@ -155,6 +157,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 modelBuilder.Entity<TenantSetting>().HasQueryFilter(stt => ShowAllTenants || !FilterAvailable || stt.Tenant.TenantName == tenantProvider.PermissionPrefix);
                 modelBuilder.Entity<TenantUser>().HasQueryFilter(tu => ShowAllTenants || !FilterAvailable || tu.Tenant.TenantName == tenantProvider.PermissionPrefix);
                 modelBuilder.Entity<Role>().HasQueryFilter(ro => ShowAllTenants || !FilterAvailable || ro.Tenant.TenantName == tenantProvider.PermissionPrefix);
+                modelBuilder.Entity<UserRole>().HasQueryFilter(ur => ShowAllTenants || !FilterAvailable || (ur.User.Tenant.TenantName == tenantProvider.PermissionPrefix && ur.Role.Tenant.TenantName == tenantProvider.PermissionPrefix));
                 modelBuilder.Entity<WebPlugin>().HasQueryFilter(wp => ShowAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantName == tenantProvider.PermissionPrefix || wp.TenantId == null && !HideGlobals);
                 modelBuilder.Entity<WebPluginConstant>().HasQueryFilter(wc => ShowAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName == tenantProvider.PermissionPrefix || wc.TenantId == null && !HideGlobals);
                 modelBuilder.Entity<DashboardWidget>().HasQueryFilter(dw => ShowAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix));

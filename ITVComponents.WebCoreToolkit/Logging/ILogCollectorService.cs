@@ -10,14 +10,6 @@ namespace ITVComponents.WebCoreToolkit.Logging
     public interface ILogCollectorService
     {
         /// <summary>
-        /// Checks if the given <paramref name="logLevel" /> is enabled.
-        /// </summary>
-        /// <param name="logLevel">level to be checked.</param>
-        /// <param name="category">the category for which to check whether a message must be logged</param>
-        /// <returns><c>true</c> if enabled.</returns>
-        public bool IsEnabled(LogLevel logLevel, string category);
-
-        /// <summary>
         /// /Adds an event to a queue that is periodically being flushed
         /// </summary>
         /// <param name="logLevel">the logLevel of the event</param>

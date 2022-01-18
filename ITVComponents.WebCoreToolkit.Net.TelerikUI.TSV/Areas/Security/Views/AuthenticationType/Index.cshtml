@@ -55,4 +55,8 @@
         .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
         .Sortable(c => c.Enabled(true))
         .Filterable(f => f.Enabled(true))
-    .Resizable(c => c.Columns(true)))
+    .Resizable(c => c.Columns(true))
+    .ClientDetailTemplateId("TypeClaims"))
+
+
+@Html.DetailViewScript("TypeClaims", "TypeClaimsPh#=AuthenticationTypeId#","~/Security/AuthenticationType/AuthClaims?authenticationTypeId=#=AuthenticationTypeId#")

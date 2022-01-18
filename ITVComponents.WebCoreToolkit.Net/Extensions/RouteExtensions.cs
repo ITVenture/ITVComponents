@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -22,6 +23,7 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
 using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.ViewModel;
+using ITVComponents.WebCoreToolkit.Routing;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Tokens;
 using Microsoft.AspNetCore.Builder;
@@ -62,6 +64,9 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             RequestDelegate dg = async context =>
             {
                 var query = (string) context.Request.RouteValues["diagnosticsQueryName"];
+                var handler = context.Request.RouteValues.ContainsKey("fileHandler")
+                    ? (string)context.Request.RouteValues["fileHandler"]
+                    : null;
                 RouteData routeData = context.GetRouteData();
                 string area = null;
                 if (context.Request.RouteValues.ContainsKey("area"))
@@ -71,22 +76,47 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
 
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
-                var dbContext = context.RequestServices.ContextForDiagnosticsQuery(query, area, out var diagQuery);
-                if (dbContext != null)
+                var contextObj = new
                 {
-                    var contextObj = new
-                    {
-                        HttpContext = context,
-                        User = context.User.Identity,
-                        CurrentClaims = new Dictionary<string, IList<string>>(from c in context.User.Claims
-                            group c by c.Type
-                            into g
-                            select new KeyValuePair<string, IList<string>>(g.Key, g.Select(n => n.Value).ToList())),
-                        ActionContext = actionContext
-                    };
+                    HttpContext = context,
+                    User = context.User.Identity,
+                    CurrentClaims = new Dictionary<string, IList<string>>(from c in context.User.Claims
+                        group c by c.Type
+                        into g
+                        select new KeyValuePair<string, IList<string>>(g.Key, g.Select(n => n.Value).ToList())),
+                    ActionContext = actionContext
+                };
 
-                    JsonResult result = new JsonResult(dbContext.RunDiagnosticsQuery(diagQuery, new Dictionary<string, string>(context.Request.Query.Select(n => new KeyValuePair<string, string>(n.Key, TranslateValue(n.Value.ToString(), contextObj))))));
-                    await result.ExecuteResultAsync(actionContext);
+                var queryArg = new Dictionary<string, string>(context.Request.Query.Select(n =>
+                    new KeyValuePair<string, string>(n.Key, TranslateValue(n.Value.ToString(), contextObj))));
+                if (string.IsNullOrEmpty(handler))
+                {
+                    var dbContext = context.RequestServices.ContextForDiagnosticsQuery(query, area, out var diagQuery);
+                    if (dbContext != null)
+                    {
+
+                        JsonResult result = new JsonResult(dbContext.RunDiagnosticsQuery(diagQuery, queryArg));
+                        await result.ExecuteResultAsync(actionContext);
+                        return;
+                    }
+                }
+                else
+                {
+                    queryArg["$$QUERYNAME"] = query;
+                    queryArg["$$QUERYAREA"] = area;
+                    var token = new DownloadToken
+                    {
+                        ContentType = "application/octet-stream",
+                        DownloadName = "Error-Handler-Should-Set-File-Name.bin",
+                        DownloadReason = query,
+                        FileDownload = true,
+                        FileIdentifier = queryArg.CompressToken(encrypt: false),
+                        HandlerModuleName = handler
+                    }.CompressToken();
+                    var urlFormat = context.RequestServices.GetService<IUrlFormat>();
+                    var url = urlFormat.FormatUrl($"[SlashPermissionScope]/File/{token}");
+                    RedirectResult redir = new RedirectResult(url, false);
+                    await redir.ExecuteResultAsync(actionContext);
                     return;
                 }
 
@@ -94,7 +124,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 await notFound.ExecuteResultAsync(actionContext);
             };
             
-            var tmp = builder.MapGet($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}{(forAreas?"/{area:exists}":"")}/Diagnostics/{{diagnosticsQueryName:alpha}}", dg);
+            var tmp = builder.MapGet($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}{(forAreas?"/{area:exists}":"")}/Diagnostics/{{diagnosticsQueryName:alpha}}/{{fileHandler:alpha?}}", dg);
 
             if (withAuthorization)
             {
@@ -516,11 +546,6 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                     logger.LogDebug(new EventId(0, "Found File-Disposition"), $"Found a File: {contentDisposition.Name.Value} ({contentDisposition.FileName.Value},{contentDisposition.FileNameStar.Value})");
                                     var content = await section.Body.ToArrayAsync();
                                     string name = contentDisposition.FileName.Value ?? contentDisposition.FileNameStar.Value ?? contentDisposition.Name.Value;
-                                    if (!string.IsNullOrEmpty(name))
-                                    {
-                                        name = WebUtility.HtmlEncode(name);
-                                    }
-
                                     if (VerifyFile(name, content, options, out var deniedReason))
                                     {
                                         if (string.IsNullOrEmpty(uploadHint))

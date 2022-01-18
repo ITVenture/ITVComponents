@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.XPath;
+using Castle.Components.DictionaryAdapter;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Help;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
@@ -23,9 +24,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Hel
         }
 
 
+        public bool HasVideoTutorials(HttpContext httpContext, ref string location)
+        {
+            return httpContext.HasVideoTutorials(ref location);
+        }
+
         public bool HasVideoTutorials(HttpContext httpContext, string location = null)
         {
-            return httpContext.HasVideoTutorials(location);
+            string dummy = null;
+            return HasVideoTutorials(httpContext, ref dummy);
         }
 
         public IEnumerable<TutorialDefinition> GetTutorials(string? pathValue, string culture)
@@ -44,8 +51,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Hel
                     DisplayName = n.DisplayName,
                     Description = n.Description,
                     VideoTutorialId = n.VideoTutorialId,
-                    Streams = (from t in n.Streams select t.ToViewModel<TutorialStream,TutorialStreamDefinition>()).ToArray()
+                    Streams = TruncateCultures((from t in n.Streams.Where(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang || n.LanguageTag == "Default") select t.ToViewModel<TutorialStream,TutorialStreamDefinition>()).ToList(), culture, baseLang)
                 }).ToList();
+        }
+
+        private TutorialStreamDefinition[] TruncateCultures(List<TutorialStreamDefinition> orig, string targetCulture, string baseCulture)
+        {
+            List<TutorialStreamDefinition> retVal = new List<TutorialStreamDefinition>();
+            retVal.AddRange(orig.Where(v => v.LanguageTag == targetCulture));
+            if (baseCulture != targetCulture)
+            {
+                retVal.AddRange(orig.Where(n => n.LanguageTag == baseCulture && retVal.All(v => v.ContentType != n.ContentType)));
+            }
+
+            retVal.AddRange(orig.Where(n => n.LanguageTag == "Default" && retVal.All(v => v.ContentType != n.ContentType)));
+            return retVal.ToArray();
         }
     }
 }

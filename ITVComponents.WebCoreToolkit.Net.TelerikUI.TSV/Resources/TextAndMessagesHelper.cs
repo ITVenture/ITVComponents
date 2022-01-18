@@ -111,6 +111,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         }
 
         public static string IWCN_Tutorial_DownloadStream => GetString(nameof(IWCN_Tutorial_DownloadStream));
+
+        public static string IWCN_General_IcomingClaimName => GetString(nameof(IWCN_General_IcomingClaimName));
+        public static string IWCN_General_IcomingClaimCondition => GetString(nameof(IWCN_General_IcomingClaimCondition));
+        public static string IWCN_General_OutgoingClaimName => GetString(nameof(IWCN_General_OutgoingClaimName));
+        public static string IWCN_General_OutgoingClaimValue => GetString(nameof(IWCN_General_OutgoingClaimValue));
+        public static string IWCN_General_OutgoingIssuer => GetString(nameof(IWCN_General_OutgoingIssuer));
+        public static string IWCN_General_OutgoingValueType => GetString(nameof(IWCN_General_OutgoingValueType));
+        public static string IWCN_General_OutgoingOriginalIssuer => GetString(nameof(IWCN_General_OutgoingOriginalIssuer));
         //--
 
         public static string GetIWCN_General_DisplayName(this IRequestCultureFeature requestCulture)
@@ -356,6 +364,35 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string GetIWCN_Dashboard_DisplayTemplate(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_Dashboard_DisplayTemplate), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_General_IcomingClaimName(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_General_IcomingClaimName), requestCulture.RequestCulture.UICulture);
+        }
+        public static string GetIWCN_General_IcomingClaimCondition(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_General_IcomingClaimCondition), requestCulture.RequestCulture.UICulture);
+        }
+        public static string GetIWCN_General_OutgoingClaimName(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_General_OutgoingClaimName), requestCulture.RequestCulture.UICulture);
+        }
+        public static string GetIWCN_General_OutgoingClaimValue(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_General_OutgoingClaimValue), requestCulture.RequestCulture.UICulture);
+        }
+        public static string GetIWCN_General_OutgoingIssuer(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_General_OutgoingIssuer), requestCulture.RequestCulture.UICulture);
+        }
+        public static string GetIWCN_General_OutgoingValueType(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_General_OutgoingValueType), requestCulture.RequestCulture.UICulture);
+        }
+        public static string GetIWCN_General_OutgoingOriginalIssuer(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_General_OutgoingOriginalIssuer), requestCulture.RequestCulture.UICulture);
         }
     }
 }

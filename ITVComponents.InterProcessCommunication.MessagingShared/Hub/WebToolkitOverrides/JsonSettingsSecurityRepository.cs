@@ -82,6 +82,18 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         }
 
         /// <summary>
+        /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
+        /// </summary>
+        /// <param name="originalClaims">the claims that were originally attached to the current identity</param>
+        /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
+        /// <returns>an enumerable of all the custom user-properties for this user</returns>
+        public IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims,
+            string userAuthenticationType)
+        {
+            return Array.Empty<ClaimData>();
+        }
+
+        /// <summary>
         /// Gets an enumeration of Permissions that are assigned to the given user through its roles
         /// </summary>
         /// <param name="user">the user for which to get the permissions</param>

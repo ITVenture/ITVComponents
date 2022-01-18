@@ -78,7 +78,12 @@
                     filter: "startswith",
                 };
                 if (config != null) {
-                    cfg = $.extend(true, cfg, config);
+                    if (!config.hasOwnProperty("zz_itv_Config_Type") || config.zz_itv_Config_Type !== "RAW" || !config.hasOwnProperty("zz_itv_Config_Block")) {
+                        cfg = $.extend(true, cfg, config);
+                    } else {
+                        var tmp = eval(config.zz_itv_Config_Block);
+                        cfg = $.extend(true, cfg, tmp);
+                    }
                 }
                 //return 
                 var refCo = refO.kendoDropDownList(cfg).data("kendoDropDownList");

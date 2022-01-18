@@ -267,4 +267,25 @@
   <data name="IWCN_Dashboard_DisplayTemplate" xml:space="preserve">
     <value>modèle de titre</value>
   </data>
+  <data name="IWCN_General_IcomingClaimCondition" xml:space="preserve">
+    <value>Condition</value>
+  </data>
+  <data name="IWCN_General_IcomingClaimName" xml:space="preserve">
+    <value>Claim entrante</value>
+  </data>
+  <data name="IWCN_General_OutgoingClaimName" xml:space="preserve">
+    <value>Claim Sortante (Template)</value>
+  </data>
+  <data name="IWCN_General_OutgoingClaimValue" xml:space="preserve">
+    <value>Valeur (Template)</value>
+  </data>
+  <data name="IWCN_General_OutgoingIssuer" xml:space="preserve">
+    <value>Émetteur (Template)</value>
+  </data>
+  <data name="IWCN_General_OutgoingOriginalIssuer" xml:space="preserve">
+    <value>Émetteur Originale (Template)</value>
+  </data>
+  <data name="IWCN_General_OutgoingValueType" xml:space="preserve">
+    <value>type de valeur (Template)</value>
+  </data>
 </root>

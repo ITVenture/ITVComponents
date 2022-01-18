@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
@@ -11,5 +12,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mod
 
         [Required, MaxLength(512)]
         public string AuthenticationTypeName { get; set; }
+
+        public virtual ICollection<AuthenticationClaimMapping> ClaimMappings { get; set; } = new List<AuthenticationClaimMapping>();
     }
 }
