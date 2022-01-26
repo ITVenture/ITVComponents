@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Web;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
+using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -27,33 +28,48 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
                 RouteData routeData = context.GetRouteData();
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
-                if (context.Request.RouteValues.ContainsKey("dataResolveHint"))
+                var ok = !withAuthorization || context.RequestServices.VerifyCurrentUser();
+                if (ok)
                 {
-                    var baseHint = ((string)context.Request.RouteValues["dataResolveHint"])?.Split("/")
-                        .Select(n => HttpUtility.UrlDecode(n)).ToArray();
-                    if (baseHint is { Length: 2 })
+                    if (context.Request.RouteValues.ContainsKey("dataResolveHint"))
                     {
-                        var connection = RegexValidate(baseHint[0], "^[\\w_]+$") ? baseHint[0] : null; //(string) context.Request.RouteValues["connection"];
-                        var table = RegexValidate(baseHint[1], "^[\\w_]+$") ? baseHint[1] : null; //(string) context.Request.RouteValues["table"];
-                        string area = null;
-                        if (context.Request.RouteValues.ContainsKey("area"))
+                        var baseHint = ((string)context.Request.RouteValues["dataResolveHint"])?.Split("/")
+                            .Select(n => HttpUtility.UrlDecode(n)).ToArray();
+                        if (baseHint is { Length: 2 })
                         {
-                            area = (string)context.Request.RouteValues["area"];
-                        }
+                            var connection =
+                                RegexValidate(baseHint[0], "^[\\w_]+$")
+                                    ? baseHint[0]
+                                    : null; //(string) context.Request.RouteValues["connection"];
+                            var table = RegexValidate(baseHint[1], "^[\\w_]+$")
+                                ? baseHint[1]
+                                : null; //(string) context.Request.RouteValues["table"];
+                            string area = null;
+                            if (context.Request.RouteValues.ContainsKey("area"))
+                            {
+                                area = (string)context.Request.RouteValues["area"];
+                            }
 
-                        FormReader former = new FormReader(context.Request.Body);
-                        var formsDictionary = await former.ReadFormAsync();
-                        var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
-                        if (dbContext != null)
-                        {
-                            //LogEnvironment.LogEvent(Stringify(formsDictionary), LogSeverity.Report);
-                            var newDic = TranslateForm(formsDictionary, true);
-                            JsonResult result = new JsonResult(dbContext.ReadForeignKey(table, postedFilter: newDic)
-                                .ToDummyDataSourceResult());
-                            await result.ExecuteResultAsync(actionContext);
-                            return;
+                            FormReader former = new FormReader(context.Request.Body);
+                            var formsDictionary = await former.ReadFormAsync();
+                            var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
+                            if (dbContext != null)
+                            {
+                                //LogEnvironment.LogEvent(Stringify(formsDictionary), LogSeverity.Report);
+                                var newDic = TranslateForm(formsDictionary, true);
+                                JsonResult result = new JsonResult(dbContext.ReadForeignKey(table, postedFilter: newDic)
+                                    .ToDummyDataSourceResult());
+                                await result.ExecuteResultAsync(actionContext);
+                                return;
+                            }
                         }
                     }
+                }
+                else
+                {
+                    UnauthorizedResult ill = new UnauthorizedResult();
+                    await ill.ExecuteResultAsync(actionContext);
+                    return;
                 }
 
                 StatusCodeResult notFound = new NotFoundResult();

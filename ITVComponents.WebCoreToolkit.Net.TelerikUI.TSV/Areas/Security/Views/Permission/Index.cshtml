@@ -11,7 +11,7 @@
 @{
 
     ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_Permissions;
-    var isAdmin = Context.RequestServices.VerifyUserPermissions(new[] {ToolkitPermission.Sysadmin});
+    var isAdmin = Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin});
 }
 <script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js"></script>
 

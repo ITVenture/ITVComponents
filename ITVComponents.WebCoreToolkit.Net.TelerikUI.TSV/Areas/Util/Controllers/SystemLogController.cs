@@ -1,6 +1,6 @@
 ﻿using ITVComponents.DataAccess.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
@@ -12,9 +12,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     [Authorize("HasPermission(SystemLog.View)"), Area("Util")]
     public class SystemLogController:Controller
     {
-        private readonly SecurityContext db;
+        private readonly IBaseTenantContext db;
 
-        public SystemLogController(SecurityContext db)
+        public SystemLogController(IBaseTenantContext db)
         {
             this.db = db;
         }

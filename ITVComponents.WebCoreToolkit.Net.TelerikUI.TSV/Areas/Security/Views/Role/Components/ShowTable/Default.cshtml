@@ -26,7 +26,7 @@
             }
             else
             {
-                if (Context.RequestServices.VerifyUserPermissions(new[] {ToolkitPermission.Sysadmin}))
+                if (Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
                 {
                     columns.Bound(e => e.IsSystemRole).Title(TextsAndMessagesHelper.IWCN_General_Is_SystemRole);
                 }

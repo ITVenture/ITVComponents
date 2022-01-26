@@ -3,8 +3,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Security;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
@@ -19,13 +19,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     [Authorize("HasPermission(PlugInConstants.Write,PlugInConstants.View)"), Area("Util")]
     public class PlugInConstController : Controller
     {
-        private readonly SecurityContext db;
+        private readonly IBaseTenantContext db;
         private bool isSysAdmin;
 
-        public PlugInConstController(SecurityContext db, IServiceProvider services)
+        public PlugInConstController(IBaseTenantContext db, IServiceProvider services)
         {
             this.db = db;
-            if (!services.VerifyUserPermissions(new[] {ToolkitPermission.Sysadmin}))
+            if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
             {
                 db.HideGlobals = true;
                 isSysAdmin = false;

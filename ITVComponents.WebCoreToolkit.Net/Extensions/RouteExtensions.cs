@@ -282,52 +282,67 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 RouteData routeData = context.GetRouteData();
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
-                if (context.Request.RouteValues.ContainsKey("dataResolveHint"))
+                bool ok = !withAuthorization || context.RequestServices.VerifyCurrentUser();
+                if (ok)
                 {
-                    var baseHint = ((string)context.Request.RouteValues["dataResolveHint"])?.Split("/")
-                        .Select(n => HttpUtility.UrlDecode(n)).ToArray();
-                    if (baseHint is { Length: >= 2 })
+                    if (context.Request.RouteValues.ContainsKey("dataResolveHint"))
                     {
-                        var connection = RegexValidate(baseHint[0], "^[\\w_]+$") ? baseHint[0] : null; //(string) context.Request.RouteValues["connection"];
-                        var table = RegexValidate(baseHint[1], "^[\\w_]+$") ? baseHint[1] : null; //(string) context.Request.RouteValues["table"];
-                        string id = null;
-                        string area = null;
-                        bool valid = !string.IsNullOrEmpty(connection) && !string.IsNullOrEmpty(table);
-                        if (baseHint.Length > 2)
+                        var baseHint = ((string)context.Request.RouteValues["dataResolveHint"])?.Split("/")
+                            .Select(n => HttpUtility.UrlDecode(n)).ToArray();
+                        if (baseHint is { Length: >= 2 })
                         {
-                            id = RegexValidate(baseHint[2], "^[-@\\w_\\+\\:]+$")
-                                ? baseHint[2]
-                                : null;
-                            valid &= !string.IsNullOrEmpty(id);
-                        }
-
-                        if (context.Request.RouteValues.ContainsKey("area"))
-                        {
-                            area = (string)context.Request.RouteValues["area"];
-                        }
-
-                        if (valid)
-                        {
-                            var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
-                            if (dbContext != null)
+                            var connection =
+                                RegexValidate(baseHint[0], "^[\\w_]+$")
+                                    ? baseHint[0]
+                                    : null; //(string) context.Request.RouteValues["connection"];
+                            var table = RegexValidate(baseHint[1], "^[\\w_]+$")
+                                ? baseHint[1]
+                                : null; //(string) context.Request.RouteValues["table"];
+                            string id = null;
+                            string area = null;
+                            bool valid = !string.IsNullOrEmpty(connection) && !string.IsNullOrEmpty(table);
+                            if (baseHint.Length > 2)
                             {
+                                id = RegexValidate(baseHint[2], "^[-@\\w_\\+\\:]+$")
+                                    ? baseHint[2]
+                                    : null;
+                                valid &= !string.IsNullOrEmpty(id);
+                            }
 
-                                JsonResult result;
-                                if (string.IsNullOrEmpty(id))
-                                {
-                                    result = new JsonResult(dbContext.ReadForeignKey(table));
-                                }
-                                else
-                                {
-                                    result = new JsonResult(dbContext.ReadForeignKey(table, id: id).Cast<object>()
-                                        .FirstOrDefault());
-                                }
+                            if (context.Request.RouteValues.ContainsKey("area"))
+                            {
+                                area = (string)context.Request.RouteValues["area"];
+                            }
 
-                                await result.ExecuteResultAsync(actionContext);
-                                return;
+                            if (valid)
+                            {
+                                var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
+                                if (dbContext != null)
+                                {
+
+                                    JsonResult result;
+                                    if (string.IsNullOrEmpty(id))
+                                    {
+                                        result = new JsonResult(dbContext.ReadForeignKey(table));
+                                    }
+                                    else
+                                    {
+                                        result = new JsonResult(dbContext.ReadForeignKey(table, id: id).Cast<object>()
+                                            .FirstOrDefault());
+                                    }
+
+                                    await result.ExecuteResultAsync(actionContext);
+                                    return;
+                                }
                             }
                         }
                     }
+                }
+                else
+                {
+                    UnauthorizedResult ill = new UnauthorizedResult();
+                    await ill.ExecuteResultAsync(actionContext);
+                    return;
                 }
 
                 StatusCodeResult notFound = new NotFoundResult();
@@ -435,7 +450,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                     var scopeProvider = actionContext.HttpContext.RequestServices.GetRequiredService<IPermissionScope>();
                     var securityRepo = actionContext.HttpContext.RequestServices.GetRequiredService<ISecurityRepository>();
                     var userProvider = actionContext.HttpContext.RequestServices.GetRequiredService<IUserNameMapper>();
-                    var eligibleTenants = securityRepo.GetEligibleScopes(userProvider.GetUserLabels(context.User));
+                    var eligibleTenants = securityRepo.GetEligibleScopes(userProvider.GetUserLabels(context.User), context.User.Identity.AuthenticationType);
                     if (eligibleTenants.Any(n => n.ScopeName == newTenant))
                     {
                         OkResult ok = new OkResult();
@@ -443,7 +458,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                         await ok.ExecuteResultAsync(actionContext);
                         return;
                     }
-
+    
                     UnauthorizedResult no = new UnauthorizedResult();
                     await no.ExecuteResultAsync(actionContext);
                     return;
@@ -470,7 +485,9 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
                 var repo = context.RequestServices.GetService<ISecurityRepository>();
                 var mapper = context.RequestServices.GetService<IUserNameMapper>();
-                var retVal = repo.GetPermissions(mapper.GetUserLabels(context.User), context.User.Identity.AuthenticationType);
+                var userLabels = mapper.GetUserLabels(context.User);
+                var authType = context.User.Identity.AuthenticationType;
+                var retVal = repo.IsAuthenticated(userLabels,authType)?repo.GetPermissions(userLabels, authType):Array.Empty<Models.Permission>();
                 JsonResult result = new JsonResult(retVal);
                 await result.ExecuteResultAsync(actionContext);
             }).RequireAuthorization();
@@ -526,7 +543,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 maxSize.MaxRequestBodySize = options.MaxUploadSize;
                 var requiredPermissions = asyncHandler?.PermissionsForReason(reason) ??
                                           syncHandler.PermissionsForReason(reason);
-                if (!withAuthorization || (requiredPermissions != null && context.RequestServices.VerifyUserPermissions(requiredPermissions)))
+                if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 && context.RequestServices.VerifyUserPermissions(requiredPermissions)))
                 {
                     var boundary = context.Request.GetMultipartBoundary();
                     var partReader = new MultipartReader(boundary, context.Request.Body) {BodyLengthLimit = null};
@@ -660,7 +677,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 var asyncHandler = fileHandler as IAsyncFileHandler;
                 var requiredPermissions = asyncHandler?.PermissionsForReason(fileToken.DownloadReason) ??
                                           syncHandler.PermissionsForReason(fileToken.DownloadReason);
-                if (!withAuthorization || (requiredPermissions != null && context.RequestServices.VerifyUserPermissions(requiredPermissions)))
+                if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 && context.RequestServices.VerifyUserPermissions(requiredPermissions)))
                 {
                     string downloadName = fileToken.DownloadName;
                     string contentType = fileToken.ContentType;

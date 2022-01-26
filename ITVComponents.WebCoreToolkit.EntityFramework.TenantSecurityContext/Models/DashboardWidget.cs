@@ -8,32 +8,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class DashboardWidget
+    public class DashboardWidget: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.DashboardWidget<int,User,Role,Permission,UserRole,RolePermission,TenantUser,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam>
     {
-        [Key]
-        public int DashboardWidgetId { get; set; }
-
-        [MaxLength(100)]
-        public string DisplayName { get; set; }
-
-        [MaxLength(200)]
-        public string TitleTemplate { get; set; }
-
-        [MaxLength(100)]
-        public string SystemName { get; set; }
-
-        public int DiagnosticsQueryId { get; set; }
-
-        public string Area { get; set; }
-
-        public string CustomQueryString { get; set; }
-
-        public string Template { get; set; }
-
-
-        [ForeignKey(nameof(DiagnosticsQueryId))]
-        public virtual DiagnosticsQuery DiagnosticsQuery { get; set; }
-
-        public virtual ICollection<DashboardParam> Params { get; set; } = new List<DashboardParam>();
     }
 }

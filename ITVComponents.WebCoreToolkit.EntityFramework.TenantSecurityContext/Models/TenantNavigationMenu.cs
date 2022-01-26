@@ -1,26 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class TenantNavigationMenu
+    public class TenantNavigationMenu: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.TenantNavigationMenu<int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu>
     {
-        [Key]
-        public int TenantNavigationMenuId { get;set; }
-
-        public int TenantId{get;set;}
-
-        public int NavigationMenuId { get; set; }
-        
-        public int? PermissionId{get;set;}
-
-        [ForeignKey(nameof(TenantId))]
-        public virtual Tenant Tenant { get; set; }
-
-        [ForeignKey(nameof(NavigationMenuId))]
-        public virtual NavigationMenu NavigationMenu { get; set; }
-        
-        [ForeignKey(nameof(PermissionId))]
-        public virtual Permission Permission { get; set; }
     }
 }

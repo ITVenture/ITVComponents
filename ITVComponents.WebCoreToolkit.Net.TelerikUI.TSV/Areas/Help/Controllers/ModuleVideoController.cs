@@ -1,8 +1,8 @@
 ﻿using System.Linq;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.Configuration;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
@@ -12,17 +12,18 @@ using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TutorialStream = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Help.Controllers
 {
     [Authorize("HasPermission(ModuleHelp.View,ModuleHelp.Write)"), Area("Help")]
     public class ModuleVideoController : Controller
     {
-        private readonly SecurityContext db;
+        private readonly IBaseTenantContext db;
         private readonly IHierarchySettings<TutorialOptions> options;
         private string videoFileHandler;
 
-        public ModuleVideoController(SecurityContext db, IHierarchySettings<TutorialOptions> options)
+        public ModuleVideoController(IBaseTenantContext db, IHierarchySettings<TutorialOptions> options)
         {
             this.db = db;
             this.options = options;

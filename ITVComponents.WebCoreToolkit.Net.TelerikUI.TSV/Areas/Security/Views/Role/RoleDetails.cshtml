@@ -8,7 +8,7 @@
     .SelectedIndex(0)
     .Items(item =>
     {
-        if (!Model.IsSystemRole || Context.RequestServices.VerifyUserPermissions(new[] {ToolkitPermission.Sysadmin}))
+        if (!Model.IsSystemRole || Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
         {
             item.Add().Text("Berechtigungen").LoadContentFrom("PermissionTable", "Permission", new {roleId = Model.RoleId, tenantId = Model.TenantId});
         }

@@ -4,26 +4,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class DiagnosticsQueryParameter
+    public class DiagnosticsQueryParameter: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.DiagnosticsQueryParameter<int,User,Role,Permission,UserRole,RolePermission,TenantUser,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery>
     {
-        [Key]
-        public int DiagnosticsQueryParameterId { get; set; }
-
-        public int DiagnosticsQueryId{get;set;}
-
-        [MaxLength(128),Required]
-        public string ParameterName { get;set; }
-
-        public QueryParameterTypes ParameterType { get; set; }
-
-        [MaxLength(64)]
-        public string Format{get;set;}
-
-        public bool Optional { get; set; }
-
-        public string DefaultValue { get; set; }
-
-        [ForeignKey(nameof(DiagnosticsQueryId))]
-        public virtual DiagnosticsQuery DiagnosticsQuery { get; set; }
     }
 }

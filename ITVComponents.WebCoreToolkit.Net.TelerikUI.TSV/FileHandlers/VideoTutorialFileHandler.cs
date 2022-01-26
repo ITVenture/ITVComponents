@@ -5,8 +5,8 @@ using System.Security.Principal;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.Plugins;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -14,9 +14,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHan
 {
     public class VideoTutorialFileHandler : IAsyncFileHandler, IPlugin
     {
-        private readonly SecurityContext db;
+        private readonly IBaseTenantContext db;
 
-        public VideoTutorialFileHandler(SecurityContext db)
+        public VideoTutorialFileHandler(IBaseTenantContext db)
         {
             this.db = db;
         }

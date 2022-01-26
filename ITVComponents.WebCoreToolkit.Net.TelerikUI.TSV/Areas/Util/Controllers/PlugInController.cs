@@ -2,8 +2,8 @@
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.PlugInServices;
@@ -20,15 +20,15 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     [Authorize("HasPermission(PlugIns.Write,PlugIns.View)"), Area("Util")]
     public class PlugInController : Controller
     {
-        private readonly SecurityContext db;
+        private readonly IBaseTenantContext db;
         private readonly IInjectablePlugin<WebPluginAnalyzer> analyzer;
         private readonly bool isSysAdmin;
 
-        public PlugInController(SecurityContext db, IInjectablePlugin<WebPluginAnalyzer> analyzer, IServiceProvider services)
+        public PlugInController(IBaseTenantContext db, IInjectablePlugin<WebPluginAnalyzer> analyzer, IServiceProvider services)
         {
             this.db = db;
             this.analyzer = analyzer;
-            if (!services.VerifyUserPermissions(new[] {ToolkitPermission.Sysadmin}))
+            if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
             {
                 db.HideGlobals = true;
                 isSysAdmin = false;

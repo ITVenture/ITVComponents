@@ -4,14 +4,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class CustomUserProperty:WebCoreToolkit.Models.CustomUserProperty
+    public class CustomUserProperty:WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.CustomUserProperty<int, User>
     {
-        [Key]
-        public int CustomUserPropertyId { get; set; }
-
-        public int UserId { get; set; }
-
-        [ForeignKey(nameof(UserId))]
-        public virtual User User { get; set; }
     }
 }

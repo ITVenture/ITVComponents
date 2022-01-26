@@ -1,8 +1,8 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
 using Kendo.Mvc.Extensions;
@@ -15,9 +15,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
     [Authorize("HasPermission(AuthenticationTypes.View,AuthenticationTypes.Write)"), Area("Security")]
     public class AuthenticationTypeController : Controller
     {
-       private readonly SecurityContext db;
+       private readonly IBaseTenantContext db;
 
-        public AuthenticationTypeController(SecurityContext db)
+        public AuthenticationTypeController(IBaseTenantContext db)
         {
             this.db = db;
         }

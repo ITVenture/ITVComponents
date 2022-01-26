@@ -2,8 +2,9 @@
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.AspExtensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
@@ -12,20 +13,37 @@ using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Security.Controllers
 {
-    [Authorize("HasPermission(Roles.Write,Roles.AssignPermission,Roles.User,Roles.View)"), Area("Security")]
-    public class RoleController : Controller
+    [Authorize("HasPermission(Roles.Write,Roles.AssignPermission,Roles.User,Roles.View)"), Area("Security"), ConstructedGenericControllerConvention]
+    public class RoleController<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : Controller
+        where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new()
+        where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
+        where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new()
+        where TRolePermission : RolePermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new()
+        where TTenantUser : TenantUser<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
+        where TNavigationMenu : NavigationMenu<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation>
+        where TTenantNavigation : TenantNavigationMenu<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation>
+        where TQuery : DiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
+        where TTenantQuery : TenantDiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
+        where TQueryParameter : DiagnosticsQueryParameter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
+        where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
+        where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
+        where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
+        where TUserProperty : CustomUserProperty<TUserId, TUser>
+        where TUser : class
+        where TContext : DbContext, ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty>
     {
-       private readonly SecurityContext db;
+       private readonly TContext db;
        private bool isSysAdmin;
 
-        public RoleController(SecurityContext db, IServiceProvider services)
+        public RoleController(TContext db, IServiceProvider services)
         {
             this.db = db;
-            if (!services.VerifyUserPermissions(new[] {ToolkitPermission.Sysadmin}))
+            if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
             {
                 db.HideGlobals = true;
                 isSysAdmin = false;
@@ -58,7 +76,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         public IActionResult RoleDetails(int tenantId, int roleId)
         {
             var tmp = db.Roles.First(n => n.RoleId == roleId && n.TenantId == tenantId);
-            return View(tmp.ToViewModel<Role, RoleViewModel>());
+            return View(tmp.ToViewModel<TRole, RoleViewModel>());
         }
 
         [HttpPost]
@@ -71,7 +89,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             
             if (tenantUserId == null && permissionId == null)
             {
-                return Json(db.Roles.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, n => n.ToViewModel<Role, RoleViewModel>((m,v) => v.Editable = !m.IsSystemRole || isSysAdmin)));
+                return Json(db.Roles.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, n => n.ToViewModel<TRole, RoleViewModel>((m,v) => v.Editable = !m.IsSystemRole || isSysAdmin)));
             }
             else if (permissionId != null)
             {
@@ -115,10 +133,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             {
                 tenantId = db.CurrentTenantId.Value;
             }
-            var model = new Role();
+            var model = new TRole();
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<RoleViewModel,Role>(model);
+                await this.TryUpdateModelAsync<RoleViewModel,TRole>(model);
                 if (model.IsSystemRole && !isSysAdmin)
                 {
                     return BadRequest(TextsAndMessagesHelper.IWCN_RC_Must_Be_Sysadmin_To_Edit_Or_Create_SysRole);
@@ -129,7 +147,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<Role, RoleViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TRole, RoleViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
@@ -165,11 +183,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 
                 if (ModelState.IsValid)
                 {
-                    await this.TryUpdateModelAsync<RoleViewModel,Role>(model, "", m => { return m.ElementType == null; });
+                    await this.TryUpdateModelAsync<RoleViewModel,TRole>(model, "", m => { return m.ElementType == null; });
                     await db.SaveChangesAsync();
                 }
 
-                return Json(await new[] {model.ToViewModel<Role, RoleViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+                return Json(await new[] {model.ToViewModel<TRole, RoleViewModel>()}.ToDataSourceResultAsync(request, ModelState));
             }
             else if (viewModel.PermissionId != null && HttpContext.RequestServices.VerifyUserPermissions(new []{"Roles.AssignPermission"}))
             {
@@ -184,7 +202,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 {
                     if (model == null)
                     {
-                        db.RolePermissions.Add(new RolePermission
+                        db.RolePermissions.Add(new TRolePermission
                         {
                             PermissionId = viewModel.PermissionId.Value,
                             RoleId = viewModel.RoleId,
@@ -209,7 +227,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 {
                     if (model == null)
                     {
-                        db.UserRoles.Add(new UserRole
+                        db.UserRoles.Add(new TUserRole
                         {
                             TenantUserId = viewModel.UserId.Value,
                             RoleId = viewModel.RoleId

@@ -165,9 +165,17 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Hubs
         private bool VerifyUserPermissions(string[] requiredPermissions, DataTransferContext context)
         {
             var labels = userMapper.GetUserLabels(context.Identity);
-            var permissions = securityRepo.GetPermissions(labels, ((ClaimsIdentity)context.Identity).AuthenticationType).Select(n => n.PermissionName).Distinct().ToArray();
-            return requiredPermissions.Length == 0 || requiredPermissions.Any(t => permissions.Contains(t, StringComparer.OrdinalIgnoreCase));
+            var authType = ((ClaimsIdentity)context.Identity).AuthenticationType;
+            if (securityRepo.IsAuthenticated(labels, authType))
+            {
+                var permissions = securityRepo
+                    .GetPermissions(labels, authType)
+                    .Select(n => n.PermissionName).Distinct().ToArray();
+                return requiredPermissions.Length == 0 ||
+                       requiredPermissions.Any(t => permissions.Contains(t, StringComparer.OrdinalIgnoreCase));
+            }
 
+            return false;
         }
     }
 }

@@ -117,9 +117,7 @@ namespace ITVComponents.EFRepo.Expressions
                         rootEx = Expression.OrElse(rootEx, tp);
                     }
                 }
-                /*var expressionParameter = Expression.Property(parameter, GetParameterName(selector));
-
-                var body = Expression.GreaterThan(expressionParameter, Expression.Constant(valueToCompare, typeof(TKey)));*/
+                
                 return rootEx;
             }
 

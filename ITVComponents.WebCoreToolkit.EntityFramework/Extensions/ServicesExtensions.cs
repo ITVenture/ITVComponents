@@ -63,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                         var retVal = factory(services, connection, area);
                         if (retVal is DbContext dbc)
                         {
-                            return new WrappedDbContext(dbc);
+                            return new WrappedDbContext(dbc, services);
                         }
                         else if (retVal is DynamicDataAdapter dynda)
                         {
@@ -105,7 +105,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 var retVal = factory(services, contextName, area);
                 if (retVal is DbContext dbc)
                 {
-                    return new WrappedDbContext(dbc);
+                    return new WrappedDbContext(dbc, services);
                 }
                 else if (retVal is DynamicDataAdapter dynda)
                 {

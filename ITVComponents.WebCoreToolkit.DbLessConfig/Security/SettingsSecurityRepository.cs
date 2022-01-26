@@ -88,6 +88,18 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         }
 
         /// <summary>
+        /// Get a value indicating, if the resulting userlables result to a user that is authenticated for the current user-scope
+        /// </summary>
+        /// <param name="userLabels">the user-labels that represent the currently logged on user</param>
+        /// <param name="userAuthenticationType">the authentication-type of the current user</param>
+        /// <returns>a value indicating whether this user is valid in the current scope</returns>
+        public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
+        {
+            return options.Users.Any(n =>
+                n.AuthenticationType == userAuthenticationType && userLabels.Contains(n.UserName));
+        }
+
+        /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
         /// <param name="userLabels">the labels that describe the current user</param>
@@ -172,7 +184,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         /// </summary>
         /// <param name="userLabels">the extracted user-labels for the user that is logged on the system</param>
         /// <returns>an enumerable containing all eligible Permission-Scopes that this user has access to</returns>
-        public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels)
+        public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType)
         {
             return new ScopeInfo[0];
         }

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Security;
 using System.Text;
 using System.Threading.Tasks;
 using Dynamitey.DynamicObjects;
@@ -14,6 +15,7 @@ using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
+using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
 using Microsoft.VisualBasic;
@@ -50,7 +52,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         {
         }
 
-        public static IEnumerable ReadForeignKey(this DbContext context, string tableName, string id = null, Dictionary<string, object> postedFilter = null)
+        public static IEnumerable ReadForeignKey(this DbContext context, string tableName, IServiceProvider services, string id = null, Dictionary<string, object> postedFilter = null)
         {
             if (context is IForeignKeyProvider provider)
             {
@@ -76,7 +78,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
             if (id == null)
             {
-                var query = CreateRawQuery(context, tableName, postedFilter, out var filterDecl);
+                var query = CreateRawQuery(context, tableName, postedFilter, services, out var filterDecl);
                 var typeName = context.GetType().Name;
                 query = $@"{typeName} db = Global.Db;
 {filterDecl}
@@ -87,7 +89,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             }
             else
             {
-                var query = CreateRawResolveQuery(context, tableName);
+                var query = CreateRawResolveQuery(context, tableName, services);
                 var typeName = context.GetType().Name;
                 query = $@"{typeName} db = Global.Db;
             {query}";
@@ -135,12 +137,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             return fullQuery.ToString();
         }
 
-        private static string CreateRawQuery(DbContext context, string tableName, IDictionary<string, object> postedFilter, out string filterDecl)
+        private static string CreateRawQuery(DbContext context, string tableName, IDictionary<string, object> postedFilter, IServiceProvider services, out string filterDecl)
         {
             filterDecl = null;
-            var keyPropertyType = GetKeyType(context, tableName, out var keyColumn, out var tableType, out var isKeyless);
+            var keyPropertyType = GetKeyType(context, tableName, services, out var keyColumn, out var tableType, out var isKeyless, out var accessible);
             if (tableType != null)
             {
+                if (!accessible)
+                {
+                    throw new SecurityException($"Access denied for Table {tableName}!");
+                }
+
                 StringBuilder where = new StringBuilder();
                 var selAttr = tableType.GetCustomAttributes(typeof(ForeignKeySelectionAttribute), true);
                 if (selAttr.Length == 0)
@@ -291,13 +298,19 @@ bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
             return retVal.ToString();
         }
 
-        private static string CreateRawResolveQuery(DbContext context, string tableName)
+        private static string CreateRawResolveQuery(DbContext context, string tableName, IServiceProvider services)
         {
-            var keyPropertyType = GetKeyType(context, tableName, out var keyColumn, out var tableType, out var isKeyless);
+            var keyPropertyType = GetKeyType(context, tableName, services, out var keyColumn, out var tableType, out var isKeyless, out var accessible);
             if (isKeyless)
             {
                 throw new InvalidOperationException("Not supported for Keyless entities!");
             }
+
+            if (!accessible)
+            {
+                throw new SecurityException($"Access denied for Table {tableName}!");
+            }
+
             if (tableType != null)
             {
                 var selAttr = tableType.GetCustomAttributes(typeof(ForeignKeySelectionAttribute), true);
@@ -322,24 +335,40 @@ return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSe
             throw new InvalidOperationException("Table-Type was not found!");
         }
 
-        private static string GetKeyType(DbContext context, string tableName, out string keyName, out Type tableType, out bool isKeyless)
+        private static string GetKeyType(DbContext context, string tableName, IServiceProvider services, out string keyName, out Type tableType, out bool isKeyless, out bool isAccessible)
         {
             ConfigureLinqForContext(context, RosFkConfig, out var contextType);
-            tableType = contextType.GetProperty(tableName)?.PropertyType.GetGenericArguments()[0];
-            isKeyless = Attribute.IsDefined(tableType, typeof(KeylessAttribute));
-            if (!isKeyless)
+            var prop = contextType.GetProperty(tableName);
+            tableType = null;
+            isAccessible = true;
+            if (prop != null)
             {
-                var keys = context.GetKeyProperties(tableType);
-                if (keys.Length != 1)
+                ForeignKeySecurityAttribute accessAttr = null;
+                if (Attribute.IsDefined(prop, typeof(ForeignKeySecurityAttribute)))
                 {
-                    throw new InvalidOperationException("Unable to process entities that have a composite Primary-Key!");
+                    accessAttr = (ForeignKeySecurityAttribute)Attribute.GetCustomAttribute(prop,typeof(ForeignKeySecurityAttribute));
                 }
 
-                var keyProperty = tableType.GetProperty(keys[0]);
-                keyName = keyProperty.Name;
-                return GetTypeForKey(keyProperty.PropertyType);
+                isAccessible = accessAttr == null || services.VerifyUserPermissions(accessAttr.RequiredPermissions);
+                Console.WriteLine($"Holdrio: IsAccessible = {isAccessible}");
+                tableType = prop.PropertyType.GetGenericArguments()[0];
+                isKeyless = Attribute.IsDefined(tableType, typeof(KeylessAttribute));
+                if (!isKeyless)
+                {
+                    var keys = context.GetKeyProperties(tableType);
+                    if (keys.Length != 1)
+                    {
+                        throw new InvalidOperationException(
+                            "Unable to process entities that have a composite Primary-Key!");
+                    }
+
+                    var keyProperty = tableType.GetProperty(keys[0]);
+                    keyName = keyProperty.Name;
+                    return GetTypeForKey(keyProperty.PropertyType);
+                }
             }
 
+            isKeyless = true;
             keyName = "--";
             return "string";
         }

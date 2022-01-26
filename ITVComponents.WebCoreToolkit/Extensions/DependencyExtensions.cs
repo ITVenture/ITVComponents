@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.BackgroundProcessing;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Configuration.Impl;
+using ITVComponents.WebCoreToolkit.DependencyInjection;
 using ITVComponents.WebCoreToolkit.Localization;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Options;
@@ -287,6 +288,97 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             services.AddHostedService<BackgroundTaskProcessorService<IBackgroundTaskQueue,BackgroundTask>>();
             services.AddSingleton<IBackgroundTaskQueue>(ctx => new BackgroundTaskQueue(queueCapacity));
             return services;
+        }
+
+        /// <summary>
+        /// Registers all interfaces implemented by the TImpl and return the service injected with TService
+        /// </summary>
+        /// <typeparam name="TService">the service that was originally injected</typeparam>
+        /// <typeparam name="TImpl">the implemented type</typeparam>
+        /// <param name="services">the services collection</param>
+        /// <param name="lifetimeCallback">a callback that will be applied for registration on each interface</param>
+        /// <returns>the provided ServiceCollection for method chaining</returns>
+        public static IServiceCollection RegisterExplicityInterfaces<TService, TImpl>(this IServiceCollection services,
+            Func<IServiceCollection, Type, Func<IServiceProvider, object>, IServiceCollection> lifetimeCallback)
+        {
+            var impl = typeof(TImpl);
+            var svc = typeof(TService);
+            foreach (var ifs in impl.GetInterfaces().Union(impl.GetBaseTypes()).Where(it =>
+                         Attribute.IsDefined(impl, typeof(ExplicitlyExposeAttribute)) && it != svc && it != impl && !it.IsGenericTypeDefinition))
+            {
+                lifetimeCallback(services, ifs, services => services.GetService(svc));
+            }
+
+            return services;
+        }
+
+        /// <summary>
+        /// Registers all interfaces transient implemented by the TImpl and return the service injected with TService
+        /// </summary>
+        /// <typeparam name="TService">the service that was originally injected</typeparam>
+        /// <typeparam name="TImpl">the implemented type</typeparam>
+        /// <param name="services">the services collection</param>
+        /// <returns>the provided ServiceCollection for method chaining</returns>
+        public static IServiceCollection RegisterExplicityInterfacesTransient<TService, TImpl>(this IServiceCollection services)
+        {
+            return RegisterExplicityInterfaces<TService, TImpl>(services, ServiceCollectionServiceExtensions.AddTransient);
+        }
+
+        /// <summary>
+        /// Registers all interfaces transient implemented by the TImpl and return the service injected with TService
+        /// </summary>
+        /// <typeparam name="TService">the service that was originally injected</typeparam>
+        /// <param name="services">the services collection</param>
+        /// <returns>the provided ServiceCollection for method chaining</returns>
+        public static IServiceCollection RegisterExplicityInterfacesTransient<TService>(this IServiceCollection services)
+        {
+            return RegisterExplicityInterfacesScoped<TService, TService>(services);
+        }
+
+        /// <summary>
+        /// Registers all interfaces singleton implemented by the TImpl and return the service injected with TService
+        /// </summary>
+        /// <typeparam name="TService">the service that was originally injected</typeparam>
+        /// <typeparam name="TImpl">the implemented type</typeparam>
+        /// <param name="services">the services collection</param>
+        /// <returns>the provided ServiceCollection for method chaining</returns>
+        public static IServiceCollection RegisterExplicityInterfacesSingleton<TService, TImpl>(this IServiceCollection services)
+        {
+            return RegisterExplicityInterfaces<TService, TImpl>(services, ServiceCollectionServiceExtensions.AddSingleton);
+        }
+
+        /// <summary>
+        /// Registers all interfaces singleton implemented by the TImpl and return the service injected with TService
+        /// </summary>
+        /// <typeparam name="TService">the service that was originally injected</typeparam>
+        /// <param name="services">the services collection</param>
+        /// <returns>the provided ServiceCollection for method chaining</returns>
+        public static IServiceCollection RegisterExplicityInterfacesSingleton<TService>(this IServiceCollection services)
+        {
+            return RegisterExplicityInterfacesScoped<TService, TService>(services);
+        }
+
+        /// <summary>
+        /// Registers all interfaces scoped implemented by the TImpl and return the service injected with TService
+        /// </summary>
+        /// <typeparam name="TService">the service that was originally injected</typeparam>
+        /// <typeparam name="TImpl">the implemented type</typeparam>
+        /// <param name="services">the services collection</param>
+        /// <returns>the provided ServiceCollection for method chaining</returns>
+        public static IServiceCollection RegisterExplicityInterfacesScoped<TService, TImpl>(this IServiceCollection services)
+        {
+            return RegisterExplicityInterfaces<TService, TImpl>(services, ServiceCollectionServiceExtensions.AddScoped);
+        }
+
+        /// <summary>
+        /// Registers all interfaces scoped implemented by the TImpl and return the service injected with TService
+        /// </summary>
+        /// <typeparam name="TService">the service that was originally injected</typeparam>
+        /// <param name="services">the services collection</param>
+        /// <returns>the provided ServiceCollection for method chaining</returns>
+        public static IServiceCollection RegisterExplicityInterfacesScoped<TService>(this IServiceCollection services)
+        {
+            return RegisterExplicityInterfacesScoped<TService, TService>(services);
         }
     }
 }

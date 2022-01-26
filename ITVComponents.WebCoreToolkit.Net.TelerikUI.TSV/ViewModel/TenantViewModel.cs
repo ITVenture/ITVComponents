@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         [MaxLength(1024)]
         public string DisplayName { get; set; }
         
-        public int? UserId { get; set; }
+        public dynamic UserId { get; set; }
 
         public string UniQUID{get; set; }
         

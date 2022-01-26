@@ -19,72 +19,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                 .HasAnnotation("ProductVersion", "5.0.10")
                 .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AuthenticationClaimMapping", b =>
-                {
-                    b.Property<int>("AuthenticationClaimMappingId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<int>("AuthenticationTypeId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Condition")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("IncomingClaimName")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<string>("OutgoingClaimName")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<string>("OutgoingClaimValue")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("OutgoingIssuer")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<string>("OutgoingOriginalIssuer")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<string>("OutgoingValueType")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.HasKey("AuthenticationClaimMappingId");
-
-                    b.HasIndex("AuthenticationTypeId");
-
-                    b.ToTable("AuthenticationClaimMappings");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AuthenticationType", b =>
-                {
-                    b.Property<int>("AuthenticationTypeId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<string>("AuthenticationTypeName")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.HasKey("AuthenticationTypeId");
-
-                    b.HasIndex(new[] { "AuthenticationTypeName" }, "IX_UniqueAuthenticationType")
-                        .IsUnique();
-
-                    b.ToTable("AuthenticationTypes");
-                });
-
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty", b =>
                 {
                     b.Property<int>("CustomUserPropertyId")
@@ -249,32 +183,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.ToTable("DiagnosticsQueryParameters");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.GlobalSetting", b =>
-                {
-                    b.Property<int>("GlobalSettingId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<bool>("JsonSetting")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("SettingsKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("SettingsValue")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("GlobalSettingId");
-
-                    b.HasIndex(new[] { "SettingsKey" }, "UQ_GlobalSettingsKey")
-                        .IsUnique();
-
-                    b.ToTable("GlobalSettings");
-                });
-
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.NavigationMenu", b =>
                 {
                     b.Property<int>("NavigationMenuId")
@@ -420,59 +328,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.ToTable("RolePermissions");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.SystemEvent", b =>
-                {
-                    b.Property<int>("SystemEventId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<string>("Category")
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)");
-
-                    b.Property<DateTime>("EventTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("LogLevel")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Message")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)");
-
-                    b.HasKey("SystemEventId");
-
-                    b.ToTable("SystemLog");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", b =>
-                {
-                    b.Property<int>("TenantId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)");
-
-                    b.Property<string>("TenantName")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.HasKey("TenantId");
-
-                    b.HasIndex(new[] { "TenantName" }, "IX_UniqueTenant")
-                        .IsUnique();
-
-                    b.ToTable("Tenants");
-                });
-
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantDiagnosticsQuery", b =>
                 {
                     b.Property<int>("TenantDiagnosticsQueryId")
@@ -523,37 +378,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.ToTable("TenantNavigation");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantSetting", b =>
-                {
-                    b.Property<int>("TenantSettingId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<bool>("JsonSetting")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("SettingsKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("SettingsValue")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("TenantId")
-                        .HasColumnType("int");
-
-                    b.HasKey("TenantSettingId");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex(new[] { "SettingsKey", "TenantId" }, "UQ_SettingsKey")
-                        .IsUnique();
-
-                    b.ToTable("TenantSettings");
-                });
-
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantUser", b =>
                 {
                     b.Property<int>("TenantUserId")
@@ -574,55 +398,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex("UserId");
 
                     b.ToTable("TenantUsers");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TutorialStream", b =>
-                {
-                    b.Property<int>("TutorialStreamId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("LanguageTag")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("VideoTutorialId")
-                        .HasColumnType("int");
-
-                    b.HasKey("TutorialStreamId");
-
-                    b.HasIndex("VideoTutorialId");
-
-                    b.ToTable("TutorialStreams");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TutorialStreamBlob", b =>
-                {
-                    b.Property<int>("TutorialStreamBlobId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<byte[]>("Content")
-                        .IsRequired()
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<int>("TutorialStreamId")
-                        .HasColumnType("int");
-
-                    b.HasKey("TutorialStreamBlobId");
-
-                    b.HasIndex("TutorialStreamId")
-                        .IsUnique();
-
-                    b.ToTable("TutorialStreamBlob");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User", b =>
@@ -708,7 +483,232 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.ToTable("UserWidgets");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.VideoTutorial", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationClaimMapping", b =>
+                {
+                    b.Property<int>("AuthenticationClaimMappingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<int>("AuthenticationTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Condition")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IncomingClaimName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("OutgoingClaimName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("OutgoingClaimValue")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OutgoingIssuer")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("OutgoingOriginalIssuer")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("OutgoingValueType")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("AuthenticationClaimMappingId");
+
+                    b.HasIndex("AuthenticationTypeId");
+
+                    b.ToTable("AuthenticationClaimMappings");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType", b =>
+                {
+                    b.Property<int>("AuthenticationTypeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<string>("AuthenticationTypeName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("AuthenticationTypeId");
+
+                    b.HasIndex(new[] { "AuthenticationTypeName" }, "IX_UniqueAuthenticationType")
+                        .IsUnique();
+
+                    b.ToTable("AuthenticationTypes");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.GlobalSetting", b =>
+                {
+                    b.Property<int>("GlobalSettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<bool>("JsonSetting")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SettingsKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SettingsValue")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("GlobalSettingId");
+
+                    b.HasIndex(new[] { "SettingsKey" }, "UQ_GlobalSettingsKey")
+                        .IsUnique();
+
+                    b.ToTable("GlobalSettings");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.SystemEvent", b =>
+                {
+                    b.Property<int>("SystemEventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<DateTime>("EventTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LogLevel")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Message")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.HasKey("SystemEventId");
+
+                    b.ToTable("SystemLog");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", b =>
+                {
+                    b.Property<int>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("TenantId");
+
+                    b.HasIndex(new[] { "TenantName" }, "IX_UniqueTenant")
+                        .IsUnique();
+
+                    b.ToTable("Tenants");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting", b =>
+                {
+                    b.Property<int>("TenantSettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<bool>("JsonSetting")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SettingsKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SettingsValue")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
+                    b.HasKey("TenantSettingId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex(new[] { "SettingsKey", "TenantId" }, "UQ_SettingsKey")
+                        .IsUnique();
+
+                    b.ToTable("TenantSettings");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream", b =>
+                {
+                    b.Property<int>("TutorialStreamId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LanguageTag")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("VideoTutorialId")
+                        .HasColumnType("int");
+
+                    b.HasKey("TutorialStreamId");
+
+                    b.HasIndex("VideoTutorialId");
+
+                    b.ToTable("TutorialStreams");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStreamBlob", b =>
+                {
+                    b.Property<int>("TutorialStreamBlobId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int>("TutorialStreamId")
+                        .HasColumnType("int");
+
+                    b.HasKey("TutorialStreamBlobId");
+
+                    b.HasIndex("TutorialStreamId")
+                        .IsUnique();
+
+                    b.ToTable("TutorialStreamBlob");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", b =>
                 {
                     b.Property<int>("VideoTutorialId")
                         .ValueGeneratedOnAdd()
@@ -735,7 +735,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.ToTable("Tutorials");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.WebPlugin", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", b =>
                 {
                     b.Property<int>("WebPluginId")
                         .ValueGeneratedOnAdd()
@@ -778,7 +778,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.ToTable("WebPlugins");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.WebPluginConstant", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginConstant", b =>
                 {
                     b.Property<int>("WebPluginConstantId")
                         .ValueGeneratedOnAdd()
@@ -812,17 +812,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .IsUnique();
 
                     b.ToTable("WebPluginConstants");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AuthenticationClaimMapping", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AuthenticationType", "AuthenticationType")
-                        .WithMany("ClaimMappings")
-                        .HasForeignKey("AuthenticationTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("AuthenticationType");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty", b =>
@@ -897,7 +886,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Permission", b =>
                 {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId");
 
@@ -906,7 +895,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Role", b =>
                 {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -929,7 +918,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .OnDelete(DeleteBehavior.ClientCascade)
                         .IsRequired();
 
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -950,7 +939,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -973,7 +962,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .WithMany()
                         .HasForeignKey("PermissionId");
 
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -986,20 +975,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantSetting", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Tenant");
-                });
-
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantUser", b =>
                 {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1016,31 +994,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TutorialStream", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.VideoTutorial", "Parent")
-                        .WithMany("Streams")
-                        .HasForeignKey("VideoTutorialId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Parent");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TutorialStreamBlob", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TutorialStream", "Parent")
-                        .WithOne("Blob")
-                        .HasForeignKey("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TutorialStreamBlob", "TutorialStreamId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Parent");
-                });
-
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User", b =>
                 {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AuthenticationType", "AuthenticationType")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType", "AuthenticationType")
                         .WithMany()
                         .HasForeignKey("AuthenticationTypeId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1076,7 +1032,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1087,27 +1043,66 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.Navigation("Widget");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.WebPlugin", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationClaimMapping", b =>
                 {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType", "AuthenticationType")
+                        .WithMany("ClaimMappings")
+                        .HasForeignKey("AuthenticationTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthenticationType");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", "Parent")
+                        .WithMany("Streams")
+                        .HasForeignKey("VideoTutorialId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStreamBlob", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream", "Parent")
+                        .WithOne("Blob")
+                        .HasForeignKey("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStreamBlob", "TutorialStreamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId");
 
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.WebPluginConstant", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginConstant", b =>
                 {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId");
 
                     b.Navigation("Tenant");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AuthenticationType", b =>
-                {
-                    b.Navigation("ClaimMappings");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DashboardWidget", b =>
@@ -1146,11 +1141,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.Navigation("Roles");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TutorialStream", b =>
-                {
-                    b.Navigation("Blob");
-                });
-
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User", b =>
                 {
                     b.Navigation("TenantUsers");
@@ -1158,7 +1148,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.Navigation("UserProperties");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.VideoTutorial", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType", b =>
+                {
+                    b.Navigation("ClaimMappings");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream", b =>
+                {
+                    b.Navigation("Blob");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", b =>
                 {
                     b.Navigation("Streams");
                 });

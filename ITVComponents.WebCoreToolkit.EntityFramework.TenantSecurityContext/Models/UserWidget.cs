@@ -5,31 +5,11 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class UserWidget
+    public class UserWidget: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.UserWidget<int,User,Role,Permission,UserRole,RolePermission,TenantUser,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam>
     {
-        [Key]
-        public int UserWidgetId { get; set; }
-
-        public int TenantId { get; set; }
-
-        public string UserName { get; set; }
-
-        public int DashboardWidgetId { get; set; }
-
-        public int SortOrder { get; set; }
-
-        public string CustomQueryString { get; set; }
-
-        [MaxLength(100)]
-        public string DisplayName { get; set; }
-
-        [ForeignKey(nameof(DashboardWidgetId))]
-        public virtual DashboardWidget Widget { get; set; }
-
-        [ForeignKey(nameof(TenantId))]
-        public virtual Tenant Tenant { get; set; }
     }
 }

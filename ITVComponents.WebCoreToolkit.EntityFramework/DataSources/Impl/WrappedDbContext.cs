@@ -13,10 +13,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
     internal class WrappedDbContext:IWrappedDataSource
     {
         private readonly DbContext decoratedContext;
+        private readonly IServiceProvider services;
 
-        public WrappedDbContext(DbContext decoratedContext)
+        public WrappedDbContext(DbContext decoratedContext, IServiceProvider services)
         {
             this.decoratedContext = decoratedContext;
+            this.services = services;
         }
         public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition qr, IDictionary<string, string> queryArguments)
         {
@@ -30,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
 
         public IEnumerable ReadForeignKey(string tableName, string id = null, Dictionary<string, object> postedFilter = null)
         {
-            return decoratedContext.ReadForeignKey(tableName, id, postedFilter);
+            return decoratedContext.ReadForeignKey(tableName, services, id, postedFilter);
         }
     }
 }

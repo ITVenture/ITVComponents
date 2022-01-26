@@ -1,0 +1,78 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.ViewModels
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@{
+    var tmp = Html.Kendo().Grid<UserViewModel>().Name($"UsersFor{ViewData["roleId"]}_{ViewData["tenantId"]}")
+        //.HtmlAttributes(new { style = "width:50vw;" })
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.UserName).Title(TextsAndMessagesHelper.IWCN_General_Name);
+            //columns.ForeignKey(c => c.AuthenticationTypeId, c => c.Ajax().Read(r => r.Url("/ForeignKey/sys/AuthenticationTypes")).ServerOperation(true), "Key", "Label").Title("Anmeldungstyp");
+            columns.AjaxFk(c => c.AuthenticationTypeId, "sys", "AuthenticationTypes", "UserId", 2, filterable: true).Filterable(true);
+            if (ViewData["roleId"] != null)
+            {
+                columns.InlineCheckbox(e => e.Assigned, "UniQUID", readOnly: !Context.RequestServices.VerifyUserPermissions(new []{"Users.AssignRole"})).Title(TextsAndMessagesHelper.IWCN_P_STDV_Assigned).Width(150);
+            }
+            else
+            {
+                if (Context.RequestServices.VerifyUserPermissions(new[] {"Users.Write"}))
+                    columns.Command(ga =>
+                    {
+                        if (Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}) && ViewData["tenantId"] == null)
+                        {
+                            ga.Edit();
+                        }
+
+                        ga.PopupConfirmDelete();
+                    }).Width(180);
+            }
+
+        })
+        .ToolBar(toolbar =>
+        {
+            toolbar.RefreshTable();
+            if (ViewData["roleId"] == null && Context.RequestServices.VerifyUserPermissions(new []{"Users.Write"}) && Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }))
+            {
+                toolbar.Create();
+            }
+        })
+        .DataSource(dataSource =>
+        {
+            var src = dataSource
+                        .Ajax()
+                        .Read(read => read.Action("Read", "User", new {roleId = ViewData["roleId"], tenantId=ViewData["tenantId"]}));
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"Users.Write","Users.AssignRole"}))
+            {
+                src.Create(create => create.Action("Create", "User"))
+                    .Update(update => update.Action("Update", "User", new {roleId = ViewData["roleId"], tenantId = ViewData["tenantId"]}))
+                    .Destroy(destroy => destroy.Action("Destroy", "User", new {roleId = ViewData["roleId"], tenantId = ViewData["tenantId"]}));
+            }
+            src.Model(m => m.Id(t => t.UserId));
+        })
+.Scrollable(s => s.Height("auto"))
+.Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
+.Sortable(c => c.Enabled(true))
+.Filterable(f => f.Enabled(true))
+.Resizable(c => c.Columns(true));
+    if (ViewData["tenantId"] == null && Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }))
+    {
+        tmp.ClientDetailTemplateId("UserDetails");
+    }
+    else if (ViewData["roleId"] == null)
+    {
+        tmp.ClientDetailTemplateId("roles2User");
+    }
+}
+
+@tmp

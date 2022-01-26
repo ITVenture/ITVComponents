@@ -28,12 +28,38 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         {
             var permissionScope = provider.GetService<IPermissionScope>();
             var logger = provider.GetService<ILogger<GenericLogTarget>>();//("ITVComponents.WebCoreToolkit.Extensions.ServiceProviderExtensions");
-            var userPerms = provider.GetUserPermissions(out securityRepository);
-            var permitter = securityRepository;
-            var extendedPerms = (from t in requiredPermissions where permissionScope?.PermissionPrefix != null && !t.StartsWith(permissionScope.PermissionPrefix, StringComparison.OrdinalIgnoreCase) select $"{permissionScope.PermissionPrefix}{t}").Union(requiredPermissions).Distinct(StringComparer.OrdinalIgnoreCase).Where(n => !checkOnlyForKnownPermissions || permitter.Permissions.Any(p => p.PermissionName.Equals(n, StringComparison.OrdinalIgnoreCase) || $"{permissionScope?.PermissionPrefix}{p.PermissionName}".Equals(n, StringComparison.OrdinalIgnoreCase))).ToArray();
-            logger.LogDebug($"Found {extendedPerms.Length} permissions to check.");
-            Array.ForEach(extendedPerms, s => logger.LogDebug(s));
-            return extendedPerms.Length == 0 || extendedPerms.Any(t => userPerms.Contains(t, StringComparer.OrdinalIgnoreCase));
+            var userPerms = provider.GetUserPermissions(out securityRepository, out var isAuthenticated);
+            if (isAuthenticated)
+            {
+                var permitter = securityRepository;
+                var extendedPerms =
+                    (from t in requiredPermissions
+                        where permissionScope?.PermissionPrefix != null &&
+                              !t.StartsWith(permissionScope.PermissionPrefix, StringComparison.OrdinalIgnoreCase)
+                        select $"{permissionScope.PermissionPrefix}{t}").Union(requiredPermissions)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Where(n =>
+                        !checkOnlyForKnownPermissions || permitter.Permissions.Any(p =>
+                            p.PermissionName.Equals(n, StringComparison.OrdinalIgnoreCase) ||
+                            $"{permissionScope?.PermissionPrefix}{p.PermissionName}".Equals(n,
+                                StringComparison.OrdinalIgnoreCase))).ToArray();
+                logger.LogDebug($"Found {extendedPerms.Length} permissions to check.");
+                Array.ForEach(extendedPerms, s => logger.LogDebug(s));
+                return extendedPerms.Length == 0 ||
+                       extendedPerms.Any(t => userPerms.Contains(t, StringComparer.OrdinalIgnoreCase));
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Verifies whether the current user is in a legal context 
+        /// </summary>
+        /// <param name="services">the service-provider that holds all services for the current request</param>
+        /// <returns>a value indicating whether the user is valid in the current context</returns>
+        public static bool VerifyCurrentUser(this IServiceProvider services)
+        {
+            services.GetUserPermissions(out _, out var isAuthenticated);
+            return isAuthenticated;
         }
 
         /// <summary>
@@ -77,14 +103,16 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <param name="provider">the service-provider for the current scope</param>
         /// <param name="permissionEstimator">provides the selected permission-estimator back outside</param>
         /// <returns>a list of assigned permissions</returns>
-        public static string[] GetUserPermissions(this IServiceProvider provider, out ISecurityRepository securityRepository)
+        public static string[] GetUserPermissions(this IServiceProvider provider, out ISecurityRepository securityRepository, out bool isAuthenticated)
         {
             securityRepository = provider.GetService<ISecurityRepository>();
             var userProvider = provider.GetService<IContextUserProvider>();
             var userMapper = provider.GetService<IUserNameMapper>();
             var currentUser = userProvider.User;
             var labels = userMapper.GetUserLabels(currentUser);
-            var permissions = securityRepository.GetPermissions(labels, ((ClaimsIdentity)currentUser.Identity).AuthenticationType).Select(n => n.PermissionName).Distinct().ToArray();
+            var authType = ((ClaimsIdentity)currentUser.Identity).AuthenticationType;
+            isAuthenticated = securityRepository.IsAuthenticated(labels, authType);
+            var permissions = isAuthenticated?securityRepository.GetPermissions(labels, authType).Select(n => n.PermissionName).Distinct().ToArray():Array.Empty<string>();
             return permissions;
         }
 
@@ -93,9 +121,9 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// </summary>
         /// <param name="provider">the service-provider for the current scope</param>
         /// <returns>a list of assigned permissions</returns>
-        public static string[] GetUserPermissions(this IServiceProvider provider)
+        public static string[] GetUserPermissions(this IServiceProvider provider, out bool isAuthenticated)
         {
-            return provider.GetUserPermissions(out _);
+            return provider.GetUserPermissions(out _, out isAuthenticated);
         }
 
         /// <summary>

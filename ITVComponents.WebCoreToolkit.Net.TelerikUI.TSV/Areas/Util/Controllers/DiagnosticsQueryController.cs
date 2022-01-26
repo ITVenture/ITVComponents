@@ -2,9 +2,10 @@
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
+using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
 using Kendo.Mvc.Extensions;
@@ -12,15 +13,32 @@ using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(DiagnosticsQueries.View,DiagnosticsQueries.Write)"), Area("Util")]
-    public class DiagnosticsQueryController : Controller
+    [Authorize("HasPermission(DiagnosticsQueries.View,DiagnosticsQueries.Write)"), Area("Util"), ConstructedGenericControllerConvention]
+    public class DiagnosticsQueryController<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : Controller
+        where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
+        where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
+        where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
+        where TRolePermission : RolePermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
+        where TTenantUser : TenantUser<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
+        where TNavigationMenu : NavigationMenu<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation>
+        where TTenantNavigation : TenantNavigationMenu<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation>
+        where TQuery : DiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>, new()
+        where TTenantQuery : TenantDiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>, new()
+        where TQueryParameter : DiagnosticsQueryParameter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>, new()
+        where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
+        where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
+        where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
+        where TUserProperty : CustomUserProperty<TUserId, TUser>
+        where TUser : class
+        where TContext : DbContext, ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty>
     {
-        private readonly SecurityContext db;
+        private readonly TContext db;
 
-        public DiagnosticsQueryController(SecurityContext db)
+        public DiagnosticsQueryController(TContext db)
         {
             this.db = db;
         }
@@ -41,7 +59,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public IActionResult Read([DataSourceRequest] DataSourceRequest request)
         {
             db.ShowAllTenants = true;
-            return Json(db.DiagnosticsQueries.ToDataSourceResult(request, n => n.ToViewModel<DiagnosticsQuery, DiagnosticsQueryViewModel>(ApplyTenants)));
+            return Json(db.DiagnosticsQueries.ToDataSourceResult(request, n => n.ToViewModel<TQuery, DiagnosticsQueryViewModel>(ApplyTenants)));
         }
 
         [HttpPost]
@@ -49,7 +67,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public async Task<IActionResult> Create([DataSourceRequest] DataSourceRequest request, DiagnosticsQueryViewModel viewModel)
         {
             db.ShowAllTenants = true;
-            var model = new DiagnosticsQuery();
+            var model = new TQuery();
             if (ModelState.IsValid)
             {
 
@@ -59,13 +77,13 @@ Vor:
 Nach:
                 await this.TryUpdateModelAsync<DiagnosticsQueryViewModel, DiagnosticsQueryDefinition>(model);
 */
-                await this.TryUpdateModelAsync<DiagnosticsQueryViewModel,DiagnosticsQuery>(model);
+                await this.TryUpdateModelAsync<DiagnosticsQueryViewModel, TQuery>(model);
                 db.DiagnosticsQueries.Add(model);
                 SetTenants(viewModel.Tenants, model);
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<DiagnosticsQuery, DiagnosticsQueryViewModel>(ApplyTenants)}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TQuery, DiagnosticsQueryViewModel>(ApplyTenants)}.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
@@ -93,19 +111,19 @@ Nach:
             var model = db.DiagnosticsQueries.First(n => n.DiagnosticsQueryId == viewModel.DiagnosticsQueryId);
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<DiagnosticsQueryViewModel,DiagnosticsQuery>(model, "", m => { return m.ElementType == null; });
+                await this.TryUpdateModelAsync<DiagnosticsQueryViewModel, TQuery>(model, "", m => { return m.ElementType == null; });
                 SetTenants(viewModel.Tenants, model);
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<DiagnosticsQuery, DiagnosticsQueryViewModel>(ApplyTenants)}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TQuery, DiagnosticsQueryViewModel>(ApplyTenants)}.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
         public IActionResult ReadParameters([DataSourceRequest] DataSourceRequest request, int diagnosticsQueryId)
         {
             db.ShowAllTenants = true;
-            return Json(db.DiagnosticsQueryParameters.Where(n => n.DiagnosticsQueryId == diagnosticsQueryId).ToDataSourceResult(request, n => n.ToViewModel<DiagnosticsQueryParameter, DiagnosticsQueryParameterViewModel>()));
+            return Json(db.DiagnosticsQueryParameters.Where(n => n.DiagnosticsQueryId == diagnosticsQueryId).ToDataSourceResult(request, n => n.ToViewModel<TQueryParameter, DiagnosticsQueryParameterViewModel>()));
         }
 
         [HttpPost]
@@ -113,16 +131,16 @@ Nach:
         public async Task<IActionResult> CreateParameter([DataSourceRequest] DataSourceRequest request, [FromQuery]int diagnosticsQueryId)
         {
             db.ShowAllTenants = true;
-            var model = new DiagnosticsQueryParameter();
+            var model = new TQueryParameter();
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<DiagnosticsQueryParameterViewModel,DiagnosticsQueryParameter>(model);
+                await this.TryUpdateModelAsync<DiagnosticsQueryParameterViewModel, TQueryParameter>(model);
                 model.DiagnosticsQueryId = diagnosticsQueryId;
                 db.DiagnosticsQueryParameters.Add(model);
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<DiagnosticsQueryParameter, DiagnosticsQueryParameterViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TQueryParameter, DiagnosticsQueryParameterViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
@@ -148,19 +166,19 @@ Nach:
             var model = db.DiagnosticsQueryParameters.First(n => n.DiagnosticsQueryParameterId == viewModel.DiagnosticsQueryParameterId);
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<DiagnosticsQueryParameterViewModel,DiagnosticsQueryParameter>(model, "", m => { return m.ElementType == null; });
+                await this.TryUpdateModelAsync<DiagnosticsQueryParameterViewModel, TQueryParameter>(model, "", m => { return m.ElementType == null; });
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<DiagnosticsQueryParameter, DiagnosticsQueryParameterViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TQueryParameter, DiagnosticsQueryParameterViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
 
-        private void ApplyTenants(DiagnosticsQuery original, DiagnosticsQueryViewModel vm)
+        private void ApplyTenants(TQuery original, DiagnosticsQueryViewModel vm)
         {
             vm.Tenants = (from t in original.Tenants select t.TenantId).ToArray();
         }
 
-        private void SetTenants(int[] tenants, DiagnosticsQuery query)
+        private void SetTenants(int[] tenants, TQuery query)
         {
             var tmp = (from t in query.Tenants
                 join nt in tenants on t.TenantId equals nt
@@ -175,7 +193,7 @@ Nach:
                 where n == null
                 select t).ToArray();
             db.TenantDiagnosticsQueries.RemoveRange(tmp);
-            db.TenantDiagnosticsQueries.AddRange(from t in tmp2 select new TenantDiagnosticsQuery(){TenantId = t, DiagnosticsQuery= query});
+            db.TenantDiagnosticsQueries.AddRange(from t in tmp2 select new TTenantQuery(){TenantId = t, DiagnosticsQuery= query});
         }
     }
 }

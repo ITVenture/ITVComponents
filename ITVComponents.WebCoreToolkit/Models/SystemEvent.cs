@@ -10,7 +10,7 @@ namespace ITVComponents.WebCoreToolkit.Models
 {
     public class SystemEvent
     {
-        public int SystemEventId { get; set; }
+        public virtual int SystemEventId { get; set; }
         public LogLevel LogLevel { get; set; }
         [MaxLength(1024)]
         public string Category { get; set; }

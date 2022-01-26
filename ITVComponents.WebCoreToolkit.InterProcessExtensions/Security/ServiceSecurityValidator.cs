@@ -47,12 +47,13 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
         /// <returns>a value whether the access can be granted</returns>
         protected override bool VerifyPermissionLabels(IIdentity userIdentity, string[] requiredPermissions, out string[] effectivePermissions)
         {
-            bool retVal = true;
             effectivePermissions = null;
-            if (requiredPermissions.Length != 0)
+            string[] labels = nameMapper.GetUserLabels(userIdentity);
+            var authType = userIdentity.AuthenticationType;
+            bool retVal = securityRepo.IsAuthenticated(labels, authType);
+            if (requiredPermissions.Length != 0 && retVal)
             {
-                string[] labels = nameMapper.GetUserLabels(userIdentity);
-                effectivePermissions = securityRepo.GetPermissions(labels, userIdentity.AuthenticationType).Select(n => n.PermissionName).Distinct().ToArray();
+                effectivePermissions = securityRepo.GetPermissions(labels, authType).Select(n => n.PermissionName).Distinct().ToArray();
                 retVal = (from t in requiredPermissions join p in effectivePermissions on t equals p select t).Any();
             }
 
