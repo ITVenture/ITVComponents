@@ -44,5 +44,20 @@ namespace ITVComponents.FileWrapping.Helpers
         /// Gets the inner lock of this Resource Lock instance
         /// </summary>
         public IResourceLock InnerLock { get; } = null;
+
+        public void Exclusive(Action action)
+        {
+            action();
+        }
+
+        public T Exclusive<T>(Func<T> action)
+        {
+            return action();
+        }
+
+        public IDisposable PauseExclusive()
+        {
+            return new ExclusivePauseHelper(()=>InnerLock?.PauseExclusive());
+        }
     }
 }

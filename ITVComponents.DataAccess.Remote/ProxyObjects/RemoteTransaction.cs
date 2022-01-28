@@ -45,6 +45,21 @@ namespace ITVComponents.DataAccess.Remote.ProxyObjects
         /// </summary>
         public IResourceLock InnerLock { get { return null; } }
 
+        public void Exclusive(Action action)
+        {
+            action();
+        }
+
+        public T Exclusive<T>(Func<T> action)
+        {
+            return action();
+        }
+
+        public IDisposable PauseExclusive()
+        {
+            return new ExclusivePauseHelper(()=>InnerLock?.PauseExclusive());
+        }
+
         public bool RollbackAtEnd
         {
             get { return proxy.GetTransactionRollbackState(objectId); }

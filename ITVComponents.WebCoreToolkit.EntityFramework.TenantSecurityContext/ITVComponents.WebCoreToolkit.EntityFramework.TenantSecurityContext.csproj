@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.1.0-RC1</Version>
+    <Version>2.1.0</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -25,6 +25,7 @@
     <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
     <ProjectReference Include="..\ITVComponents.Formatting\ITVComponents.Formatting.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />

@@ -29,7 +29,6 @@ namespace ITVComponents.Threading
         public NamedLock(string name)
         {
             lockedObject = AcquireMutex(name);
-            Monitor.Enter(lockedObject);
         }
 
         /// <summary>
@@ -46,6 +45,77 @@ namespace ITVComponents.Threading
         /// Gets the inner lock of this Resource Lock instance
         /// </summary>
         public IResourceLock InnerLock { get; }
+
+        public void Exclusive(Action action)
+        {
+            if (InnerLock != null)
+            {
+                InnerLock.Exclusive(() =>
+                {
+                    if (lockedObject != null)
+                    {
+                        lock (lockedObject)
+                        {
+                            action();
+                        }
+                    }
+                    else
+                    {
+                        action();
+                    }
+                });
+            }
+            else
+            {
+                if (lockedObject != null)
+                {
+                    lock (lockedObject)
+                    {
+                        action();
+                    }
+                }
+                else
+                {
+                    action();
+                }
+            }
+        }
+
+        public T Exclusive<T>(Func<T> action)
+        {
+            if (InnerLock != null)
+            {
+                return InnerLock.Exclusive(() =>
+                {
+                    if (lockedObject != null)
+                    {
+                        lock (lockedObject)
+                        {
+                            return action();
+                        }
+                    }
+
+                    return action();
+                });
+            }
+            else
+            {
+                if (lockedObject != null)
+                {
+                    lock (lockedObject)
+                    {
+                        return action();
+                    }
+                }
+
+                return action();
+            }
+        }
+
+        public IDisposable PauseExclusive()
+        {
+            return new ExclusivePauseHelper(() => InnerLock?.PauseExclusive(), lockedObject);
+        }
 
         /// <summary>
         /// Awaits a Pluse on this mutexes inner lock
@@ -113,7 +183,6 @@ namespace ITVComponents.Threading
         {
             if (lockedObject != null)
             {
-                Monitor.Exit(lockedObject);
                 lockedObject = null;
             }
 

@@ -40,7 +40,6 @@ namespace ITVComponents.DataAccess
         public Transaction(IDbTransaction value, object synchronizedObject)
             : this()
         {
-            AsyncMonitor.Enter(synchronizedObject);
             this.synchronizedObject = synchronizedObject;
             transaction = value;
         }
@@ -66,45 +65,121 @@ namespace ITVComponents.DataAccess
         /// </summary>
         public IResourceLock InnerLock { get; private set; }
 
+        public void Exclusive(Action action)
+        {
+            if (InnerLock != null)
+            {
+                InnerLock.Exclusive(() =>
+                {
+                    if (synchronizedObject != null)
+                    {
+                        lock (synchronizedObject)
+                        {
+                            action();
+                        }
+                    }
+                    else
+                    {
+                        action();
+                    }
+                });
+            }
+            else
+            {
+                if (synchronizedObject != null)
+                {
+                    lock (synchronizedObject)
+                    {
+                        action();
+                    }
+                }
+                else
+                {
+                    action();
+                }
+            }
+        }
+
+        public T Exclusive<T>(Func<T> action)
+        {
+            if (InnerLock != null)
+            {
+                return InnerLock.Exclusive(() =>
+                {
+                    if (synchronizedObject != null)
+                    {
+                        lock (synchronizedObject)
+                        {
+                            return action();
+                        }
+                    }
+
+                    return action();
+                });
+            }
+            else
+            {
+                if (synchronizedObject != null)
+                {
+                    lock (synchronizedObject)
+                    {
+                        return action();
+                    }
+                }
+
+                return action();
+            }
+        }
+
+        public IDisposable PauseExclusive()
+        {
+            return new ExclusivePauseHelper(()=>InnerLock?.PauseExclusive(),synchronizedObject);
+        }
+
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            if (AsyncMonitor.IsEntered(synchronizedObject))
-            try
+            if (synchronizedObject != null)
             {
-                if (transaction != null)
+                try
                 {
-                    try
+                    Exclusive(() =>
                     {
-                        if (!RollbackAtEnd)
-                        {
-                            transaction.Commit();
-                        }
-                        else
-                        {
-                            transaction.Rollback();
-                        }
-                    }
-                    finally
-                    {
-                        transaction = null;
-                    }
 
-                    Disposed?.Invoke(this, EventArgs.Empty);
-                    if (InnerLock != null)
-                    {
-                        InnerLock.Dispose();
-                        InnerLock = null;
-                    }
+                        if (transaction != null)
+                        {
+                            try
+                            {
+                                if (!RollbackAtEnd)
+                                {
+                                    transaction.Commit();
+                                }
+                                else
+                                {
+                                    transaction.Rollback();
+                                }
+                            }
+                            finally
+                            {
+                                transaction = null;
+                            }
+
+                            Disposed?.Invoke(this, EventArgs.Empty);
+                            if (InnerLock != null)
+                            {
+                                InnerLock.Dispose();
+                                InnerLock = null;
+                            }
+                        }
+                    });
                 }
-            }
-            finally
-            {
-                AsyncMonitor.Exit(synchronizedObject);
-                synchronizedObject = null;
+                finally
+                {
+                    synchronizedObject = null;
+                }
             }
         }
 

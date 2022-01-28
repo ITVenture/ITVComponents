@@ -124,6 +124,20 @@ namespace ITVComponents.DataExchange.Import
             #region Implementation of IResourceLock
 
             public IResourceLock InnerLock { get { return null; } }
+            public void Exclusive(Action action)
+            {
+                action();
+            }
+
+            public T Exclusive<T>(Func<T> action)
+            {
+                return action();
+            }
+
+            public IDisposable PauseExclusive()
+            {
+                return new ExclusivePauseHelper(() => InnerLock?.PauseExclusive());
+            }
 
             #endregion
         }

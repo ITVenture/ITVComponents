@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 
 namespace ITVComponents.Threading
 {
@@ -32,16 +33,83 @@ namespace ITVComponents.Threading
         public ResourceLock(object resource)
         {
             this.resource = resource;
-            if (resource != null)
-            {
-                AsyncMonitor.Enter(resource);
-            }
         }
 
         /// <summary>
         /// Gets the inner lock of this Resource Lock instance
         /// </summary>
         public IResourceLock InnerLock { get { return innerLock; } }
+
+        public void Exclusive(Action action)
+        {
+            if (InnerLock != null)
+            {
+                InnerLock.Exclusive(() =>
+                {
+                    if (resource != null)
+                    {
+                        lock (resource)
+                        {
+                            action();
+                        }
+                    }
+                    else
+                    {
+                        action();
+                    }
+                });
+            }
+            else
+            {
+                if (resource != null)
+                {
+                    lock (resource)
+                    {
+                        action();
+                    }
+                }
+                else
+                {
+                    action();
+                }
+            }
+        }
+
+        public T Exclusive<T>(Func<T> action)
+        {
+            if (InnerLock != null)
+            {
+                return InnerLock.Exclusive(() =>
+                {
+                    if (resource != null)
+                    {
+                        lock (resource)
+                        {
+                            return action();
+                        }
+                    }
+
+                    return action();
+                });
+            }
+            else
+            {
+                if (resource != null)
+                {
+                    lock (resource)
+                    {
+                        return action();
+                    }
+                }
+
+                return action();
+            }
+        }
+
+        public IDisposable PauseExclusive()
+        {
+            return new ExclusivePauseHelper(() => InnerLock?.PauseExclusive(),resource);
+        }
 
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
@@ -55,11 +123,7 @@ namespace ITVComponents.Threading
                 innerLock = null;
             }
 
-            if (resource != null)
-            {
-                AsyncMonitor.Exit(resource);
-                resource = null;
-            }
+            resource = null;
         }
     }
 }

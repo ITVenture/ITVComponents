@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Threading
 {
-    public static class AsyncMonitor
+    /*public static class AsyncMonitor
     {
         private static ConcurrentDictionary<object, SemaphoreSlim> locks = new ConcurrentDictionary<object, SemaphoreSlim>();
 
@@ -188,5 +188,5 @@ namespace ITVComponents.Threading
                 return HashCode.Combine(Resource, Context);
             }
         }
-    }
+    }*/
 }

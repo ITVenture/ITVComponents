@@ -3,9 +3,9 @@
     <LangVersion>9</LangVersion>
     <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.1.0-RCA54</Version>
+    <Version>2.1.0</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RepositoryUrl>https://github.com/ITVenture/IT-Venture-Core-Libraries</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
   </PropertyGroup>

@@ -3,11 +3,12 @@
     <LangVersion>8.0</LangVersion>
     <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.1.0-RC1</Version>
+    <Version>2.1.0</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <LangVersion>9</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <Content Remove="package.json" />
@@ -25,7 +26,7 @@
     <Exec Command="gulp min" />
   </Target>
   <ItemGroup>
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.InterProcessExtensions\ITVComponents.WebCoreToolkit.InterProcessExtensions.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi\ITVComponents.WebCoreToolkit.Net.TelerikUi.csproj" />
   </ItemGroup>

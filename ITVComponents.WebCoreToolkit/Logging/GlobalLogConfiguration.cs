@@ -116,6 +116,20 @@ namespace ITVComponents.WebCoreToolkit.Logging
             }
 
             public IResourceLock InnerLock { get; }
+            public void Exclusive(Action action)
+            {
+                action();
+            }
+
+            public T Exclusive<T>(Func<T> action)
+            {
+                return action();
+            }
+
+            public IDisposable PauseExclusive()
+            {
+                return new ExclusivePauseHelper(() => InnerLock?.PauseExclusive());
+            }
         }
     }
 }

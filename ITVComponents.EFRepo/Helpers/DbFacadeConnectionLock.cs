@@ -48,6 +48,21 @@ namespace ITVComponents.EFRepo.Helpers
         /// </summary>
         public IResourceLock InnerLock { get; }
 
+        public void Exclusive(Action action)
+        {
+            action();
+        }
+
+        public T Exclusive<T>(Func<T> action)
+        {
+            return action();
+        }
+
+        public IDisposable PauseExclusive()
+        {
+            return new ExclusivePauseHelper(() => InnerLock?.PauseExclusive());
+        }
+
         /// <summary>
         /// Gets the Connection object of the provided db-facade object
         /// </summary>

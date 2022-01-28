@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.1.0-RC1</Version>
+    <Version>2.1.0</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -13,11 +13,10 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <None Remove="Hub\Protos\ServiceHub.proto" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="grpc" Version="2.40.0" />
-    <PackageReference Include="grpc.aspnetcore" Version="2.39.0" />
+    <PackageReference Include="grpc.net.client" Version="2.42.0" />
+    <PackageReference Include="grpc.aspnetcore.server" Version="2.42.0" />
+    <PackageReference Include="grpc.tools" version="2.43.0" />
+    <PackageReference Include="google.protobuf" version="3.19.3" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="5.0.1" />
     <PackageReference Include="System.Collections.Concurrent" Version="4.3.0" />
     <PackageReference Include="System.ServiceModel.Primitives" Version="4.8.1" />

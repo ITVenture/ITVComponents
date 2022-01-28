@@ -360,7 +360,7 @@ namespace ITVComponents.DataAccess
                 this.lockObject = lockObject;
                 this.triggerObject = triggerObject;
                 this.offline = offline;
-                AsyncMonitor.Enter(lockObject);
+                Monitor.Enter(lockObject);
             }
 
             /// <summary>
@@ -387,7 +387,7 @@ namespace ITVComponents.DataAccess
                 }
                 finally
                 {
-                    AsyncMonitor.Exit(lockObject);
+                    Monitor.Exit(lockObject);
                 }
             }
         }

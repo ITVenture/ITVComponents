@@ -124,8 +124,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 {
                     return null;
                 }
-                
-                return Tenants.First(n => n.TenantName == tenantProvider.PermissionPrefix).TenantId;
+
+                if (string.IsNullOrEmpty(tenantProvider.PermissionPrefix))
+                {
+                    return null;
+                }
+
+                return Tenants.FirstOrDefault(n => n.TenantName == tenantProvider.PermissionPrefix)?.TenantId;
             }
         }
 

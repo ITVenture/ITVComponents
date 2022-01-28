@@ -493,40 +493,47 @@ namespace ITVComponents.ParallelProcessing
                 bool scheduled = false;
                 Dictionary<string, TaskScheduler.ScheduleRequest> requests =
                 new Dictionary<string, TaskScheduler.ScheduleRequest>();
-                using (task.DemandExclusive())
+                using (var lk = task.DemandExclusive())
                 {
-                    foreach (SchedulerPolicy policy in task.Schedules)
+                    lk.Exclusive(() =>
                     {
-                        if (string.IsNullOrEmpty(policy.SchedulerName) || !TaskScheduler.SchedulerExists(policy.SchedulerName))
+                        foreach (SchedulerPolicy policy in task.Schedules)
                         {
-                            if (!string.IsNullOrEmpty(policy.SchedulerName))
+                            if (string.IsNullOrEmpty(policy.SchedulerName) ||
+                                !TaskScheduler.SchedulerExists(policy.SchedulerName))
                             {
-                                LogEnvironment.LogDebugEvent(string.Format("Unable to find Scheduler @ParallelTaskProcessor Line 311: {0}", policy.SchedulerName), LogSeverity.Warning);
-                            }
-                        }
-                        else
-                        {
-                            TaskScheduler scheduler = TaskScheduler.GetScheduler(policy.SchedulerName);
-                            var policyContext = (scheduler as ISchedulerlPolicyContextProvider)?.EnterPolicyContext();
-                            try
-                            {
-                                if (requests.ContainsKey(policy.SchedulerName))
+                                if (!string.IsNullOrEmpty(policy.SchedulerName))
                                 {
-                                    requests[policy.SchedulerName].AddInstruction(policy.SchedulerInstruction);
-                                }
-                                else
-                                {
-                                    var request = scheduler.CreateRequest(this, task);
-                                    requests.Add(policy.SchedulerName,request);
-                                    request.AddInstruction(policy.SchedulerInstruction);
+                                    LogEnvironment.LogDebugEvent(
+                                        string.Format("Unable to find Scheduler @ParallelTaskProcessor Line 311: {0}",
+                                            policy.SchedulerName), LogSeverity.Warning);
                                 }
                             }
-                            finally
+                            else
                             {
-                                policyContext?.Dispose();
+                                TaskScheduler scheduler = TaskScheduler.GetScheduler(policy.SchedulerName);
+                                var policyContext =
+                                    (scheduler as ISchedulerlPolicyContextProvider)?.EnterPolicyContext();
+                                try
+                                {
+                                    if (requests.ContainsKey(policy.SchedulerName))
+                                    {
+                                        requests[policy.SchedulerName].AddInstruction(policy.SchedulerInstruction);
+                                    }
+                                    else
+                                    {
+                                        var request = scheduler.CreateRequest(this, task);
+                                        requests.Add(policy.SchedulerName, request);
+                                        request.AddInstruction(policy.SchedulerInstruction);
+                                    }
+                                }
+                                finally
+                                {
+                                    policyContext?.Dispose();
+                                }
                             }
                         }
-                    }
+                    });
                 }
 
                 foreach (KeyValuePair<string, TaskScheduler.ScheduleRequest> req in requests)

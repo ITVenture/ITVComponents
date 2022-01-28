@@ -1,4 +1,5 @@
-﻿using ITVComponents.Threading;
+﻿using System;
+using ITVComponents.Threading;
 
 namespace ITVComponents.DataAccess.Parallel
 {
@@ -63,5 +64,20 @@ namespace ITVComponents.DataAccess.Parallel
         /// Gets the inner lock of this Resource Lock instance
         /// </summary>
         public IResourceLock InnerLock { get; private set; }
+
+        public void Exclusive(Action action)
+        {
+            action();
+        }
+
+        public T Exclusive<T>(Func<T> action)
+        {
+            return action();
+        }
+
+        public IDisposable PauseExclusive()
+        {
+            return new ExclusivePauseHelper(()=>InnerLock?.PauseExclusive());
+        }
     }
 }
