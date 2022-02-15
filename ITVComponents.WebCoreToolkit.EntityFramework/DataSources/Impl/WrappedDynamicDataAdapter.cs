@@ -8,6 +8,7 @@ using ITVComponents.EFRepo.DynamicData;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
 {
@@ -31,6 +32,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             var arg = DiagnoseQueryHelper.VerifyArguments(query, arguments);
             return src.SqlQuery(query.QueryText, arg);
         }
+
+        public ForeignKeyOptions CustomFkSettings { get; } = null;
 
         public IEnumerable ReadForeignKey(string tableName, string id = null, Dictionary<string, object> postedFilter = null)
         {

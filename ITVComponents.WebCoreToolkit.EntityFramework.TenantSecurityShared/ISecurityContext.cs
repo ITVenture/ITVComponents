@@ -44,11 +44,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 
         public DbSet<TUserProperty> UserProperties { get; set; }
 
-        public DbSet<TRole> Roles { get; set; }
+        public DbSet<TRole> SecurityRoles { get; set; }
 
         public DbSet<TPermission> Permissions { get; set; }
 
-        public DbSet<TUserRole> UserRoles { get; set; }
+        public DbSet<TUserRole> TenantUserRoles { get; set; }
 
         public DbSet<TRolePermission> RolePermissions { get; set; }
 

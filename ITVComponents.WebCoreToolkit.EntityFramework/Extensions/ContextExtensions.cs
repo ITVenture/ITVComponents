@@ -337,20 +337,26 @@ return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSe
 
         private static string GetKeyType(DbContext context, string tableName, IServiceProvider services, out string keyName, out Type tableType, out bool isKeyless, out bool isAccessible)
         {
+            ForeignKeySecurityAttribute accessAttr = null;
             ConfigureLinqForContext(context, RosFkConfig, out var contextType);
+            if (Attribute.IsDefined(contextType, typeof(ForeignKeySecurityAttribute)))
+            {
+                accessAttr = (ForeignKeySecurityAttribute)Attribute.GetCustomAttribute(contextType, typeof(ForeignKeySecurityAttribute));
+            }
+
+            bool denied = Attribute.IsDefined(contextType, typeof(DenyForeignKeySelectionAttribute));
             var prop = contextType.GetProperty(tableName);
             tableType = null;
             isAccessible = true;
             if (prop != null)
             {
-                ForeignKeySecurityAttribute accessAttr = null;
                 if (Attribute.IsDefined(prop, typeof(ForeignKeySecurityAttribute)))
                 {
                     accessAttr = (ForeignKeySecurityAttribute)Attribute.GetCustomAttribute(prop,typeof(ForeignKeySecurityAttribute));
                 }
 
-                isAccessible = accessAttr == null || services.VerifyUserPermissions(accessAttr.RequiredPermissions);
-                Console.WriteLine($"Holdrio: IsAccessible = {isAccessible}");
+                var localDenied = Attribute.IsDefined(prop, typeof(DenyForeignKeySelectionAttribute));
+                isAccessible = !localDenied && ((!denied && accessAttr == null) || (accessAttr != null && services.VerifyUserPermissions(accessAttr.RequiredPermissions)));
                 tableType = prop.PropertyType.GetGenericArguments()[0];
                 isKeyless = Attribute.IsDefined(tableType, typeof(KeylessAttribute));
                 if (!isKeyless)

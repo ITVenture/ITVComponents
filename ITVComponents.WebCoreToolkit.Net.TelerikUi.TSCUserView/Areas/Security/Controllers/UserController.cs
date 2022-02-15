@@ -100,8 +100,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
             {
                 return Json((from p in db.Users
                     join tu in db.TenantUsers on p.UserId equals tu.UserId
-                    join ro in db.Roles on tu.TenantId equals ro.TenantId
-                    join r in db.UserRoles on new {tu.TenantUserId, ro.RoleId} equals new {r.TenantUserId, r.RoleId} into lj
+                    join ro in db.SecurityRoles on tu.TenantId equals ro.TenantId
+                    join r in db.TenantUserRoles on new {tu.TenantUserId, ro.RoleId} equals new {r.TenantUserId, r.RoleId} into lj
                     from s in lj.DefaultIfEmpty()
                     where ro.RoleId == roleId.Value && tu.TenantId == tenantId
                     
@@ -245,12 +245,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 var usr = db.TenantUsers.FirstOrDefault(n => n.TenantUserId == viewModel.UserId && n.TenantId == tenantId);
                 if (usr != null)
                 {
-                    var model = db.UserRoles.FirstOrDefault(n => n.TenantUserId == viewModel.UserId && n.RoleId == viewModel.RoleId);
+                    var model = db.TenantUserRoles.FirstOrDefault(n => n.TenantUserId == viewModel.UserId && n.RoleId == viewModel.RoleId);
                     if ((model == null) == viewModel.Assigned)
                     {
                         if (model == null)
                         {
-                            db.UserRoles.Add(new UserRole
+                            db.TenantUserRoles.Add(new UserRole
                             {
                                 TenantUserId = viewModel.UserId,
                                 RoleId = viewModel.RoleId.Value
@@ -258,7 +258,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                         }
                         else
                         {
-                            db.UserRoles.Remove(model);
+                            db.TenantUserRoles.Remove(model);
                         }
 
                         await db.SaveChangesAsync();

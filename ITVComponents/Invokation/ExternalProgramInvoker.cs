@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
+using ITVComponents.Threading;
 
 namespace ITVComponents.Invokation
 {
@@ -219,94 +223,136 @@ namespace ITVComponents.Invokation
         /// <returns>the TerminationInformation of the called process</returns>
         protected virtual ProgramTerminationInformation Run(ProcessStartInfo pif, int timeout, int maxRetryCount)
         {
-            Process proc = Process.Start(pif);
-            if (timeout > 0)
-            {
-                while (!proc.WaitForExit(timeout * 1000) && maxRetryCount >= 0)
-                {
-                    proc.Kill();
-                    maxRetryCount--;
-                    proc = Process.Start(pif);
-                }
-            }
-            else
-            {
-                proc.WaitForExit();
-            }
-
-            if (RedirectConsole)
-            {
-                return new ProgramTerminationInformation
-                {
-                    ExitCode = proc.ExitCode, ConsoleOutput = proc.StandardOutput.ReadToEnd(),
-                    ErrorOutput = proc.StandardError.ReadToEnd()
-                };
-            }
-
-            return new ProgramTerminationInformation
-            {
-                ExitCode = proc.ExitCode
-            };
+            return AsyncHelpers.RunSync(() => RunAsync(pif, timeout, maxRetryCount));
         }
 
-        protected async virtual Task<ProgramTerminationInformation> RunAsync(ProcessStartInfo pif, int timeout, int maxRetryCount)
+        private async Task<bool> RunProc(Process proc, StringBuilder con, StringBuilder err, int timeout)
         {
-            Process proc = Process.Start(pif);
-            if (timeout > 0)
-            {
-                while (!await WaitForExit(proc, timeout) && maxRetryCount >= 0)
-                {
-                    proc.Kill();
-                    maxRetryCount--;
-                    proc = Process.Start(pif);
-                }
-            }
-            else
-            {
-#if NETCOREAPP3_1
-                proc.WaitForExit();
-#else
-                await proc.WaitForExitAsync();
-#endif
-            }
-
-            if (RedirectConsole)
-            {
-                return new ProgramTerminationInformation
-                {
-                    ExitCode = proc.ExitCode, ConsoleOutput = await proc.StandardOutput.ReadToEndAsync(),
-                    ErrorOutput = await proc.StandardError.ReadToEndAsync()
-                };
-            }
-
-            return new ProgramTerminationInformation
-            {
-                ExitCode = proc.ExitCode
-            };
-        }
-
-        protected async Task<bool> WaitForExit(Process proc, int timeout)
-        {
-#if NETCOREAPP3_1
-            return proc.WaitForExit(timeout * 1000);
-#else
             var token = new CancellationToken();
             var src = CancellationTokenSource.CreateLinkedTokenSource(token);
-            try
+            if (timeout > 0)
             {
-                src.CancelAfter(timeout * 1000);
-                await proc.WaitForExitAsync(src.Token);
-                return true;
+                src.CancelAfter(timeout);
             }
-            catch (TaskCanceledException ex)
+
+            proc.Start();
+            List<Task> waits = new List<Task>();
+            if (proc.StartInfo.RedirectStandardError)
             {
-                return false;
+                waits.Add(ReadStream(proc.StandardError, err, true, proc.StartInfo.FileName, token));
             }
-            finally
+
+            if (proc.StartInfo.RedirectStandardOutput)
             {
-                src.Dispose();
+                waits.Add(ReadStream(proc.StandardOutput, con, false, proc.StartInfo.FileName, token));
             }
+
+#if NETCOREAPP3_1
+                waits.Add(WaitForExit(proc, timeout));
+#else
+            waits.Add(proc.WaitForExitAsync(token));
 #endif
+            waits.ForEach(n => n.ConfigureAwait(false));
+            await Task.WhenAll(waits);
+            return waits.All(n => n.IsCompletedSuccessfully);
+        }
+
+        private Task WaitForExit(Process proc, int timeout)
+        {
+            if (timeout > 0)
+            {
+                if (proc.WaitForExit(timeout))
+                {
+                    return Task.CompletedTask;
+                }
+
+                var token = new CancellationToken(true);
+                return Task.FromCanceled(token);
+            }
+
+            proc.WaitForExit();
+            return Task.CompletedTask;
+        }
+
+        private async Task ReadStream(StreamReader procStandardOutput, StringBuilder con, bool isError, string topic, CancellationToken token)
+        {
+            string s = null;
+            while ((s = await procStandardOutput.ReadLineAsync().WithCancellation(token).ConfigureAwait(false)) != null)
+            {
+                con.AppendLine(s);
+                LogEnvironment.LogDebugEvent(null,s,isError?(int)LogSeverity.Error:(int)LogSeverity.Report, topic);
+            }
+        }
+
+        protected virtual async Task<ProgramTerminationInformation> RunAsync(ProcessStartInfo pif, int timeout, int maxRetryCount)
+        {
+            int exitCode = -1;
+            Process proc = new Process() { StartInfo = pif };
+            var err = new StringBuilder();
+            var con = new StringBuilder();
+            var completed = false;
+            if (timeout > 0)
+            {
+                var ok = false;
+                while (!ok && maxRetryCount >= 0)
+                {
+                    err.Clear();
+                    con.Clear();
+                    completed = await RunProc(proc, con, err, timeout);
+                    try
+                    {
+                        if (!completed)
+                        {
+                            proc.Kill();
+                            maxRetryCount--;
+                        }
+                        else
+                        {
+                            ok = true;
+                        }
+                    }
+                    finally
+                    {
+                        exitCode = proc.ExitCode;
+                        proc.Close();
+                        if (!ok)
+                        {
+                            proc = new Process()
+                            {
+                                StartInfo = pif
+                            };
+                        }
+                    }
+                }
+            }
+            else
+            {
+                try
+                {
+                    completed = await RunProc(proc, con, err, -1);
+                }
+                finally
+                {
+                    exitCode = proc.ExitCode;
+                    proc.Close();
+                }
+            }
+
+            if (RedirectConsole)
+            {
+                return new ProgramTerminationInformation
+                {
+                    ExitCode = exitCode, ConsoleOutput = con.ToString(),
+                    ErrorOutput = err.ToString(),
+                    Completed = completed
+                };
+            }
+
+            return new ProgramTerminationInformation
+            {
+                ExitCode = exitCode,
+                Completed = completed
+            };
         }
     }
 }

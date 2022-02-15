@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.EFRepo.DataAnnotations;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
@@ -12,12 +13,14 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using AuthenticationClaimMapping = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationClaimMapping;
 using AuthenticationType = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType;
+using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty;
 using DashboardParam = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DashboardParam;
 using DashboardWidget = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DashboardWidget;
 using DiagnosticsQuery = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DiagnosticsQuery;
@@ -33,10 +36,12 @@ using TenantDiagnosticsQuery = ITVComponents.WebCoreToolkit.EntityFramework.Tena
 using TenantNavigationMenu = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantNavigationMenu;
 using TenantSetting = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting;
 using TutorialStream = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream;
+using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User;
+using WebPlugin = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
-    [ExplicitlyExpose]
+    [ExplicitlyExpose, DenyForeignKeySelection]
     public class SecurityContext : DbContext, IForeignKeyProvider, ISecurityContext<int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget, CustomUserProperty>
     {
         private readonly ILogger<SecurityContext> logger;
@@ -45,6 +50,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         private readonly bool useFilters = false;
         private bool showAllTenants = false;
         private bool hideGlobals = false;
+        private Stack<FullSecurityAccessHelper> securityStateStack = new Stack<FullSecurityAccessHelper>();
 
         public SecurityContext(DbContextOptions<SecurityContext> options) : base(options)
         {
@@ -71,6 +77,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         }
 
         /// <summary>
+        /// Gets a value indicating whetherthe context is configured to work with query-filters
+        /// </summary>
+        protected bool UseFilters => useFilters;
+
+        /// <summary>
         /// Indicates whether to switch off tenant filtering
         /// </summary>
         public bool ShowAllTenants
@@ -86,6 +97,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                         !userProvider.Services.VerifyUserPermissions(new string[] { ToolkitPermission.Sysadmin }))
                     {
                         showAllTenants = tmp;
+                    }
+                    else
+                    {
+                        showAllTenants = value;
                     }
                 }
             }
@@ -139,6 +154,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         /// </summary>
         public bool FilterAvailable => userProvider?.User != null && (userProvider.User.Identity?.IsAuthenticated??false);
 
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<AuthenticationType> AuthenticationTypes { get;set; }
 
         public DbSet<AuthenticationClaimMapping> AuthenticationClaimMappings { get; set; }
@@ -154,11 +170,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<CustomUserProperty> UserProperties { get; set; }
 
-        public DbSet<Role> Roles { get;set; }
+        [ManualTableName("Roles")]
+        public DbSet<Role> SecurityRoles { get;set; }
 
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View", "DiagnosticsQueries.View", "DiagnosticsQueries.Write")]
         public DbSet<Permission> Permissions { get; set; }
 
-        public DbSet<UserRole> UserRoles { get; set; }
+        [ManualTableName("UserRoles")]
+        public DbSet<UserRole> TenantUserRoles { get; set; }
 
         public DbSet<RolePermission> RolePermissions { get;set; }
 
@@ -176,6 +195,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<WebPluginConstant> WebPluginConstants { get; set; }
 
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DashboardWidgets.Write", "DashboardWidgets.View")]
         public DbSet<DiagnosticsQuery> DiagnosticsQueries { get; set; }
 
         public DbSet<DiagnosticsQueryParameter> DiagnosticsQueryParameters { get; set; }
@@ -189,6 +209,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<VideoTutorial> Tutorials { get; set; }
 
         public DbSet<TutorialStream> TutorialStreams { get; set; }
+
+        void IBaseTenantContext.RegisterSecurityRollback(FullSecurityAccessHelper fullSecurityAccessHelper)
+        {
+            if (!fullSecurityAccessHelper.CreatedWithContext)
+            {
+                throw new InvalidOperationException("Use Constructor with context argument, to use this method.");
+            }
+
+            securityStateStack.Push(new FullSecurityAccessHelper{ForwardHelper=fullSecurityAccessHelper,HideGlobals=hideGlobals,ShowAllTenants = showAllTenants});
+            showAllTenants = fullSecurityAccessHelper.ShowAllTenants;
+            hideGlobals = fullSecurityAccessHelper.HideGlobals;
+        }
+
+        void IBaseTenantContext.RollbackSecurity(FullSecurityAccessHelper fullSecurityAccessHelper)
+        {
+            var tmp = securityStateStack.Pop();
+            if (tmp.ForwardHelper == fullSecurityAccessHelper)
+            {
+                showAllTenants = tmp.ShowAllTenants;
+                hideGlobals = tmp.HideGlobals;
+            }
+            else
+            {
+                throw new InvalidOperationException("Invalid Disposal-order!");
+            }
+        }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

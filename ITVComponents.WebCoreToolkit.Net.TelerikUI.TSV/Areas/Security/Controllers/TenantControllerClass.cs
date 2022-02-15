@@ -121,7 +121,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
 
         [HttpPost]
         [Authorize("HasPermission(Tenants.Write)")]
-        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel)
+        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, TenantViewModelC<TUserId> viewModel)
         {
             db.ShowAllTenants = true;
             var model = db.Tenants.First(n => n.TenantId== viewModel.TenantId);
@@ -136,7 +136,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
 
         [HttpPost]
         [Authorize("HasPermission(Tenants.Write,Tenants.AssignUser)")]
-        public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel)
+        public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request, TenantViewModelC<TUserId> viewModel)
         {
             if (viewModel.UserId == null && HttpContext.RequestServices.VerifyUserPermissions(new[] {"Tenants.Write"}))
             {

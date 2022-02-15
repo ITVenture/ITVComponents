@@ -8,6 +8,8 @@ using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Decisions.Entities;
 using ITVComponents.Decisions.Entities.Results;
 using ITVComponents.EFRepo.DynamicData;
+using ITVComponents.Helpers;
+using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataSources;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl;
@@ -103,22 +105,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             if (factory != null)
             {
                 var retVal = factory(services, contextName, area);
+                IWrappedFkSource ret;
                 if (retVal is DbContext dbc)
                 {
-                    return new WrappedDbContext(dbc, services);
+                    ret = new WrappedDbContext(dbc, services);
                 }
                 else if (retVal is DynamicDataAdapter dynda)
                 {
-                    return new WrappedDynamicDataAdapter(dynda);
+                    ret = new WrappedDynamicDataAdapter(dynda);
                 }
                 else if (retVal is IForeignKeyProvider fkp)
                 {
-                    return new WrappedCustomFkSource(fkp);
+                    ret = new WrappedCustomFkSource(fkp);
                 }
                 else
                 {
                     throw new InvalidOperationException("Unexpected returned value");
                 }
+
+                if (retVal is IForeignKeyProviderWithOptions fkpc)
+                {
+                    var scopeOptions = services.GetService<IScopedSettingsProvider>();
+                    var globalOptions = services.GetService<IGlobalSettingsProvider>();
+                    var contextSettingsName = $"{contextName}ForeignKeySettings";
+                    var contextSettingsRaw = scopeOptions?.GetJsonSetting(contextSettingsName) ??
+                                             globalOptions?.GetJsonSetting(contextSettingsName);
+                    if (!string.IsNullOrEmpty(contextSettingsRaw))
+                    {
+                        fkpc.DefaultFkOptions = JsonHelper.FromJsonString<ForeignKeyOptions>(contextSettingsRaw);
+                    }
+                }
+
+                return ret;
             }
 
             return null;

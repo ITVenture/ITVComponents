@@ -67,7 +67,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             get
             {
                 using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
-                return (from r in securityContext.Roles select r).ToList<Role>();
+                return (from r in securityContext.SecurityRoles select r).ToList<Role>();
             }
         }
 
@@ -178,8 +178,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
             return (from tr in securityContext.Users.Where(UserFilter(userLabels,userAuthenticationType))
                     .Join(securityContext.TenantUsers, UserId, tr => tr.UserId, (tu,tt) => tt)
-                join ur in securityContext.UserRoles on tr.TenantUserId equals ur.TenantUserId
-                    join r in securityContext.Roles on new {ur.RoleId, tr.TenantId} equals new { r.RoleId, r.TenantId }
+                join ur in securityContext.TenantUserRoles on tr.TenantUserId equals ur.TenantUserId
+                    join r in securityContext.SecurityRoles on new {ur.RoleId, tr.TenantId} equals new { r.RoleId, r.TenantId }
                     join rp in securityContext.RolePermissions on new {r.RoleId, r.TenantId} equals new {rp.RoleId, rp.TenantId}
                     join rt in securityContext.Tenants on rp.TenantId equals rt.TenantId
                     join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
@@ -203,7 +203,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                 return from p in dbRole.RolePermissions select p.Permission;
             }
 
-            return (from p in securityContext.Roles.First(r => r.RoleName == role.RoleName).RolePermissions select new Permission
+            return (from p in securityContext.SecurityRoles.First(r => r.RoleName == role.RoleName).RolePermissions select new Permission
             {
                 //PermissionName = $"{(!p.Permission.IsGlobal ? p.Tenant.TenantName : "")}{p.Permission.PermissionName}"
                 PermissionName = p.Permission.PermissionName
@@ -224,11 +224,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string authType)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, true, false);
-            return (from d in (from t in securityContext.Users.Where(UserFilter(userLabels,authType))
-                        .Join(securityContext.TenantUsers,UserId, u => u.UserId, (tu,tt) => tt.Tenant)
+            return (from d in (from t in securityContext.Users.Where(UserFilter(userLabels, authType))
+                        .Join(securityContext.TenantUsers, UserId, u => u.UserId, (tu, tt) => tt.Tenant)
                     select t).Distinct()
                 orderby d.DisplayName
-                select new ScopeInfo {ScopeDisplayName = d.DisplayName, ScopeName = d.TenantName}).ToArray();
+                select new ScopeInfo { ScopeDisplayName = d.DisplayName, ScopeName = d.TenantName }).ToArray();
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

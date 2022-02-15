@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
 {
-    [AttributeUsage(validOn: AttributeTargets.Property, Inherited =true)]
+    [AttributeUsage(validOn: AttributeTargets.Property | AttributeTargets.Class, Inherited =true)]
     public class ForeignKeySecurityAttribute:Attribute
     {
         public string[] RequiredPermissions { get; }

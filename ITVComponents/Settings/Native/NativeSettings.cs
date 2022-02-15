@@ -12,7 +12,22 @@ namespace ITVComponents.Settings.Native
     public static class NativeSettings
     {
         private static IConfigurationBuilder builder;
-        public static IConfiguration Configuration { get; private set; }
+        private static IConfiguration configuration;
+
+        public static IConfiguration Configuration
+        {
+            get
+            {
+                if (configuration == null)
+                {
+                    configuration = Builder.Build();
+                }
+
+                return configuration; 
+
+            }
+            private set => configuration = value;
+        }
 
         public static IConfigurationBuilder Builder
         {
@@ -49,11 +64,6 @@ namespace ITVComponents.Settings.Native
 
         public static T GetSection<T>(string path, Action<T> configureDefaults = null) where T : class, new()
         {
-            if (Configuration == null)
-            {
-                Configuration = Builder.Build();
-            }
-
             var retVal = new T();
             var cfg = Configuration.GetSection(path);
             if (cfg.Exists())

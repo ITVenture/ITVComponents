@@ -137,6 +137,7 @@ namespace ITVComponents.Helpers
         {
             using (FileStream targetStream = File.OpenWrite(fileName))
             {
+                targetStream.SetLength(0);
                 WriteObjectStrongTyped(value, Encoding.UTF8, targetStream, preserveReferences);
             }
         }
@@ -167,6 +168,7 @@ namespace ITVComponents.Helpers
         {
             using (FileStream targetStream = File.OpenWrite(fileName))
             {
+                targetStream.SetLength(0);
                 WriteObjectStrongTyped(value, encoding, targetStream, preserveReferences);
             }
         }
@@ -256,6 +258,7 @@ namespace ITVComponents.Helpers
         {
             using (FileStream targetStream = File.OpenWrite(fileName))
             {
+                targetStream.SetLength(0);
                 WriteObject(value, Encoding.UTF8, targetStream, preserveReferences);
             }
         }
@@ -286,6 +289,7 @@ namespace ITVComponents.Helpers
         {
             using (FileStream targetStream = File.OpenWrite(fileName))
             {
+                targetStream.SetLength(0);
                 WriteObject(value, encoding, targetStream, preserveReferences);
             }
         }

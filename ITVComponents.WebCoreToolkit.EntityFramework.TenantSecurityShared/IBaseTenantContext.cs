@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -62,5 +63,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken));
 
         int SaveChanges();
+        protected internal void RegisterSecurityRollback(FullSecurityAccessHelper fullSecurityAccessHelper);
+        protected internal void RollbackSecurity(FullSecurityAccessHelper fullSecurityAccessHelper);
     }
 }

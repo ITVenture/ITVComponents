@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
 {
@@ -11,11 +12,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
     {
         private readonly IForeignKeyProvider foreignKeyProvider;
 
+        private readonly IForeignKeyProviderWithOptions cfg;
+
         public WrappedCustomFkSource(IForeignKeyProvider foreignKeyProvider)
         {
             this.foreignKeyProvider = foreignKeyProvider;
+            this.cfg = foreignKeyProvider as IForeignKeyProviderWithOptions;
         }
-        
+
+        public ForeignKeyOptions CustomFkSettings => cfg?.DefaultFkOptions;
+
         public IEnumerable ReadForeignKey(string tableName, string id = null, Dictionary<string, object> postedFilter = null)
         {
             if (id == null)

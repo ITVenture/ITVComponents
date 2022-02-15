@@ -2,24 +2,31 @@
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers
 {
-    public class FullSecurityAccessHelper:IDisposable
+    public sealed class FullSecurityAccessHelper:IDisposable
     {
-        private IBaseTenantContext db;
-        private bool hideGlobals;
-        private bool showAllTenants;
+        private readonly IBaseTenantContext db;
+        public FullSecurityAccessHelper ForwardHelper { get; set; }
 
-        public FullSecurityAccessHelper(IBaseTenantContext db, bool allTenants, bool hideGlobals)
+        public bool HideGlobals{ get; set; }
+        public bool ShowAllTenants{ get; set; }
+
+        public bool CreatedWithContext { get; }
+
+        public FullSecurityAccessHelper()
+        {
+        }
+
+        internal FullSecurityAccessHelper(IBaseTenantContext db, bool allTenants, bool hideGlobals)
         {
             this.db = db;
-            this.hideGlobals = db.HideGlobals;
-            this.showAllTenants = db.ShowAllTenants;
-            db.HideGlobals = hideGlobals;
-            db.ShowAllTenants = allTenants;
+            HideGlobals = hideGlobals;
+            ShowAllTenants = allTenants;
+            CreatedWithContext = true;
+            db.RegisterSecurityRollback(this);
         }
         public void Dispose()
         {
-            db.HideGlobals = hideGlobals;
-            db.ShowAllTenants = showAllTenants;
+            db.RollbackSecurity(this);
         }
             
     }

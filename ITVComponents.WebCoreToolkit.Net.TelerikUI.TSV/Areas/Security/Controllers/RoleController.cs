@@ -75,7 +75,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
 
         public IActionResult RoleDetails(int tenantId, int roleId)
         {
-            var tmp = db.Roles.First(n => n.RoleId == roleId && n.TenantId == tenantId);
+            var tmp = db.SecurityRoles.First(n => n.RoleId == roleId && n.TenantId == tenantId);
             return View(tmp.ToViewModel<TRole, RoleViewModel>());
         }
 
@@ -89,11 +89,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             
             if (tenantUserId == null && permissionId == null)
             {
-                return Json(db.Roles.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, n => n.ToViewModel<TRole, RoleViewModel>((m,v) => v.Editable = !m.IsSystemRole || isSysAdmin)));
+                return Json(db.SecurityRoles.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, n => n.ToViewModel<TRole, RoleViewModel>((m,v) => v.Editable = !m.IsSystemRole || isSysAdmin)));
             }
             else if (permissionId != null)
             {
-                return Json((from p in db.Roles
+                return Json((from p in db.SecurityRoles
                     join r in db.RolePermissions on new {p.RoleId, p.TenantId, PermissionId = permissionId.Value} equals new {r.RoleId, r.TenantId, r.PermissionId} into lj
                     from s in lj.DefaultIfEmpty()
                     where p.TenantId == tenantId && (!p.IsSystemRole || isSysAdmin)
@@ -109,8 +109,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             }
             else
             {
-                return Json((from p in db.Roles
-                    join r in db.UserRoles on new {p.RoleId, TenantUserId = tenantUserId.Value} equals new {r.RoleId, r.TenantUserId} into lj
+                return Json((from p in db.SecurityRoles
+                    join r in db.TenantUserRoles on new {p.RoleId, TenantUserId = tenantUserId.Value} equals new {r.RoleId, r.TenantUserId} into lj
                     from s in lj.DefaultIfEmpty()
                     where p.TenantId == tenantId
                     select new RoleViewModel
@@ -143,7 +143,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 }
                 
                 model.TenantId = tenantId;
-                db.Roles.Add(model);
+                db.SecurityRoles.Add(model);
                 await db.SaveChangesAsync();
             }
 
@@ -154,7 +154,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         [Authorize("HasPermission(Roles.Write)")]
         public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, RoleViewModel viewModel)
         {
-            var model = db.Roles.First(n => n.RoleId== viewModel.RoleId);
+            var model = db.SecurityRoles.First(n => n.RoleId== viewModel.RoleId);
             if (model.IsSystemRole && !isSysAdmin)
             {
                 return BadRequest(TextsAndMessagesHelper.IWCN_RC_Must_Be_Sysadmin_To_Edit_Or_Create_SysRole);
@@ -162,7 +162,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             
             if (ModelState.IsValid)
             {
-                db.Roles.Remove(model);
+                db.SecurityRoles.Remove(model);
                 await db.SaveChangesAsync();
             }
 
@@ -175,7 +175,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         {
             if (viewModel.PermissionId == null && viewModel.UserId == null && HttpContext.RequestServices.VerifyUserPermissions(new []{"Roles.Write"}))
             {
-                var model = db.Roles.First(n => n.RoleId== viewModel.RoleId && n.TenantId == viewModel.TenantId);
+                var model = db.SecurityRoles.First(n => n.RoleId== viewModel.RoleId && n.TenantId == viewModel.TenantId);
                 if (model.IsSystemRole && !isSysAdmin)
                 {
                     return BadRequest(TextsAndMessagesHelper.IWCN_RC_Must_Be_Sysadmin_To_Edit_Or_Create_SysRole);
@@ -191,7 +191,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             }
             else if (viewModel.PermissionId != null && HttpContext.RequestServices.VerifyUserPermissions(new []{"Roles.AssignPermission"}))
             {
-                var role = db.Roles.First(n => n.RoleId == viewModel.RoleId && n.TenantId == viewModel.TenantId);
+                var role = db.SecurityRoles.First(n => n.RoleId == viewModel.RoleId && n.TenantId == viewModel.TenantId);
                 if (role.IsSystemRole && !isSysAdmin)
                 {
                     return BadRequest(TextsAndMessagesHelper.IWCN_RC_Must_Be_Sysadmin_To_Edit_Or_Create_SysRole);
@@ -221,13 +221,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             }
             else if (viewModel.UserId != null && HttpContext.RequestServices.VerifyUserPermissions(new[] {"Roles.AssignUser"}))
             {
-                var model = db.UserRoles.FirstOrDefault(n => n.TenantUserId == viewModel.UserId && n.RoleId == viewModel.RoleId && n.User.TenantId == viewModel.TenantId);
-                var role = db.Roles.First(n => n.RoleId == viewModel.RoleId && n.TenantId == viewModel.TenantId);
+                var model = db.TenantUserRoles.FirstOrDefault(n => n.TenantUserId == viewModel.UserId && n.RoleId == viewModel.RoleId && n.User.TenantId == viewModel.TenantId);
+                var role = db.SecurityRoles.First(n => n.RoleId == viewModel.RoleId && n.TenantId == viewModel.TenantId);
                 if ((model == null) == viewModel.Assigned)
                 {
                     if (model == null)
                     {
-                        db.UserRoles.Add(new TUserRole
+                        db.TenantUserRoles.Add(new TUserRole
                         {
                             TenantUserId = viewModel.UserId.Value,
                             RoleId = viewModel.RoleId
@@ -235,7 +235,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                     }
                     else
                     {
-                        db.UserRoles.Remove(model);
+                        db.TenantUserRoles.Remove(model);
                     }
 
                     await db.SaveChangesAsync();

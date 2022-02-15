@@ -19,7 +19,11 @@
         {
             columns.Bound(c => c.UserName).Title(TextsAndMessagesHelper.IWCN_General_Name);
             //columns.ForeignKey(c => c.AuthenticationTypeId, c => c.Ajax().Read(r => r.Url("/ForeignKey/sys/AuthenticationTypes")).ServerOperation(true), "Key", "Label").Title("Anmeldungstyp");
-            columns.AjaxFk(c => c.AuthenticationTypeId, "sys", "AuthenticationTypes", "UserId", 2, filterable: true).Filterable(true);
+            if (Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }))
+            {
+                columns.AjaxFk(c => c.AuthenticationTypeId, "sys", "AuthenticationTypes", "UserId", 2, filterable: true).Filterable(true);
+            }
+
             if (ViewData["roleId"] != null)
             {
                 columns.InlineCheckbox(e => e.Assigned, "UniQUID", readOnly: !Context.RequestServices.VerifyUserPermissions(new []{"Users.AssignRole"})).Title(TextsAndMessagesHelper.IWCN_P_STDV_Assigned).Width(150);

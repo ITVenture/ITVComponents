@@ -5,11 +5,13 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Configuration;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Config;
+using ITVComponents.Settings.Native;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting; //using ITVComponents.Logging;
 
@@ -50,6 +52,8 @@ namespace ITVComponents.GenericService
             var builder = Host.CreateDefaultBuilder().ConfigureServices((hostContext, services) =>
             {
                 services.AddHostedService(s => srv);
+                var cf = NativeSettings.Configuration.GetSection("HostOptions");
+                services.Configure<HostOptions>(cf.GetSection("HostOptions"));
             });
             configureBuilder(builder);
             host = builder.Build();

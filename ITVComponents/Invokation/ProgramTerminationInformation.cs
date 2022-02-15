@@ -19,5 +19,10 @@
         /// Gets or sets the entire error output from the executed program
         /// </summary>
         public string ErrorOutput { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the process execution has completed. If this value is false, the Process has timed out and was killed.
+        /// </summary>
+        public bool Completed { get; set; }
     }
 }

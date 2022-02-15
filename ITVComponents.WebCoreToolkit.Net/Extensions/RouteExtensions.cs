@@ -295,44 +295,49 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                 RegexValidate(baseHint[0], "^[\\w_]+$")
                                     ? baseHint[0]
                                     : null; //(string) context.Request.RouteValues["connection"];
-                            var table = RegexValidate(baseHint[1], "^[\\w_]+$")
-                                ? baseHint[1]
-                                : null; //(string) context.Request.RouteValues["table"];
-                            string id = null;
-                            string area = null;
-                            bool valid = !string.IsNullOrEmpty(connection) && !string.IsNullOrEmpty(table);
-                            if (baseHint.Length > 2)
+                            if (connection != null)
                             {
-                                id = RegexValidate(baseHint[2], "^[-@\\w_\\+\\:]+$")
-                                    ? baseHint[2]
-                                    : null;
-                                valid &= !string.IsNullOrEmpty(id);
-                            }
+                                string area = null;
+                                if (context.Request.RouteValues.ContainsKey("area"))
+                                {
+                                    area = (string)context.Request.RouteValues["area"];
+                                }
 
-                            if (context.Request.RouteValues.ContainsKey("area"))
-                            {
-                                area = (string)context.Request.RouteValues["area"];
-                            }
-
-                            if (valid)
-                            {
                                 var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
                                 if (dbContext != null)
                                 {
-
-                                    JsonResult result;
-                                    if (string.IsNullOrEmpty(id))
+                                    var table = RegexValidate(baseHint[1],
+                                        dbContext.CustomFkSettings?.CustomTableValidation ?? "^[\\w_]+$")
+                                        ? baseHint[1]
+                                        : null; //(string) context.Request.RouteValues["table"];
+                                    string id = null;
+                                    bool valid = !string.IsNullOrEmpty(connection) && !string.IsNullOrEmpty(table);
+                                    if (baseHint.Length > 2)
                                     {
-                                        result = new JsonResult(dbContext.ReadForeignKey(table));
-                                    }
-                                    else
-                                    {
-                                        result = new JsonResult(dbContext.ReadForeignKey(table, id: id).Cast<object>()
-                                            .FirstOrDefault());
+                                        id = RegexValidate(baseHint[2],
+                                            dbContext.CustomFkSettings?.CustomIdValidation ?? "^[-@\\w_\\+\\:]+$")
+                                            ? baseHint[2]
+                                            : null;
+                                        valid &= !string.IsNullOrEmpty(id);
                                     }
 
-                                    await result.ExecuteResultAsync(actionContext);
-                                    return;
+                                    if (valid)
+                                    {
+                                        JsonResult result;
+                                        if (string.IsNullOrEmpty(id))
+                                        {
+                                            result = new JsonResult(dbContext.ReadForeignKey(table));
+                                        }
+                                        else
+                                        {
+                                            result = new JsonResult(dbContext.ReadForeignKey(table, id: id)
+                                                .Cast<object>()
+                                                .FirstOrDefault());
+                                        }
+
+                                        await result.ExecuteResultAsync(actionContext);
+                                        return;
+                                    }
                                 }
                             }
                         }

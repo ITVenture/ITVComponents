@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using ITVComponents.EFRepo.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.EFRepo.Extensions
@@ -35,7 +36,8 @@ namespace ITVComponents.EFRepo.Extensions
 
                     types.Add(tableArg[0]);
                     var entityConfig = builder.Entity(tableArg[0]);
-                    entityConfig.ToTable(pi.Name);
+                    var att = Attribute.GetCustomAttribute(pi, typeof(ManualTableNameAttribute)) as ManualTableNameAttribute;
+                    entityConfig.ToTable(att?.TableName??pi.Name);
                 }
             }
             finally

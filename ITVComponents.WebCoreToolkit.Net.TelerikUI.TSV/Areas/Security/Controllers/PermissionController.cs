@@ -95,7 +95,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             }
             else
             {
-                var role = db.Roles.First(n => n.RoleId == roleId.Value);
+                var role = db.SecurityRoles.First(n => n.RoleId == roleId.Value);
                 if (tenantId == null && !isSysAdmin)
                 {
                     tenantId = db.CurrentTenantId;
@@ -210,7 +210,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                     tenantId = db.CurrentTenantId;
                 }
 
-                var role = db.Roles.First(n => n.RoleId == viewModel.RoleId.Value);
+                var role = db.SecurityRoles.First(n => n.RoleId == viewModel.RoleId.Value);
 
                 if (tenantId != null && !role.IsSystemRole || isSysAdmin)
                 {

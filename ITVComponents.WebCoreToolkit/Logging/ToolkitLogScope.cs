@@ -16,12 +16,12 @@ namespace ITVComponents.WebCoreToolkit.Logging
         {
             this.parent = parent;
             this.state = state;
-            parent.Log(LogLevel.Debug, new EventId(0, $"Begin Scope for: {state}"), state, null, (state1, exception) => "");
+            //parent.Log(LogLevel.Debug, new EventId(0, $"Begin Scope for: {state}"), state, null, (state1, exception) => "");
         }
 
         public void Dispose()
         {
-            parent.Log(LogLevel.Debug, new EventId(0, $"End Scope for: {state}"), state, null, (state1, exception) => "");
+            //parent.Log(LogLevel.Debug, new EventId(0, $"End Scope for: {state}"), state, null, (state1, exception) => "");
         }
     }
 }

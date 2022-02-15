@@ -37,24 +37,25 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
                             .Select(n => HttpUtility.UrlDecode(n)).ToArray();
                         if (baseHint is { Length: 2 })
                         {
-                            var connection =
-                                RegexValidate(baseHint[0], "^[\\w_]+$")
-                                    ? baseHint[0]
-                                    : null; //(string) context.Request.RouteValues["connection"];
-                            var table = RegexValidate(baseHint[1], "^[\\w_]+$")
-                                ? baseHint[1]
-                                : null; //(string) context.Request.RouteValues["table"];
                             string area = null;
                             if (context.Request.RouteValues.ContainsKey("area"))
                             {
                                 area = (string)context.Request.RouteValues["area"];
                             }
 
-                            FormReader former = new FormReader(context.Request.Body);
-                            var formsDictionary = await former.ReadFormAsync();
+                            var connection =
+                                RegexValidate(baseHint[0], "^[\\w_]+$")
+                                    ? baseHint[0]
+                                    : null; //(string) context.Request.RouteValues["connection"];
                             var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
                             if (dbContext != null)
                             {
+                                var table = RegexValidate(baseHint[1], dbContext.CustomFkSettings?.CustomTableValidation??"^[\\w_]+$")
+                                    ? baseHint[1]
+                                    : null; //(string) context.Request.RouteValues["table"];
+
+                                FormReader former = new FormReader(context.Request.Body);
+                                var formsDictionary = await former.ReadFormAsync();
                                 //LogEnvironment.LogEvent(Stringify(formsDictionary), LogSeverity.Report);
                                 var newDic = TranslateForm(formsDictionary, true);
                                 JsonResult result = new JsonResult(dbContext.ReadForeignKey(table, postedFilter: newDic)
