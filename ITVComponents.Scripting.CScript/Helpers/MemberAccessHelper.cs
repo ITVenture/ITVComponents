@@ -34,9 +34,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
             ObjectLiteral ojl = targetObject as ObjectLiteral;
             FunctionLiteral ful = targetObject as FunctionLiteral;
             IDictionary<string, object> odi = targetObject as IDictionary<string, object>;
-#if (!Community)
             IBasicKeyValueProvider iba = targetObject as IBasicKeyValueProvider;
-#endif
             if (mi == null)
             {
                 if (ojl != null)
@@ -58,7 +56,6 @@ namespace ITVComponents.Scripting.CScript.Helpers
                     return null;
                 }
 
-#if(!Community)
                 if (iba != null && iba.ContainsKey(name))
                 {
                     return iba[name];
@@ -67,7 +64,6 @@ namespace ITVComponents.Scripting.CScript.Helpers
                 {
                     return null;
                 }
-#endif
             }
 
             if (
@@ -101,6 +97,85 @@ namespace ITVComponents.Scripting.CScript.Helpers
             if (mi is EventInfo)
             {
                 return null;
+            }
+
+            throw new ScriptException(string.Format("GetValue is not supported for MemberType {0}", mi.MemberType));
+        }
+
+        public static Type GetMemberType(this object target, string name, Type explicitType, ScriptValues.ValueType valueType)
+        {
+            if (valueType == ScriptValues.ValueType.Method || valueType == ScriptValues.ValueType.Constructor)
+            {
+                return null;
+            }
+
+            object targetObject;
+            bool isEnum;
+            MemberInfo mi = FindMember(target, name, explicitType, out targetObject, out isEnum);
+            ObjectLiteral ojl = targetObject as ObjectLiteral;
+            FunctionLiteral ful = targetObject as FunctionLiteral;
+            IDictionary<string, object> odi = targetObject as IDictionary<string, object>;
+            IBasicKeyValueProvider iba = targetObject as IBasicKeyValueProvider;
+            if (mi == null)
+            {
+                if (ojl != null)
+                {
+                    return ojl[name]?.GetType()??typeof(object);
+                }
+
+                if (ful != null)
+                {
+                    return ful.GetInitialScopeValue(name)?.GetType() ?? typeof(object);
+                }
+
+                if (odi != null && odi.ContainsKey(name))
+                {
+                    return odi[name]?.GetType() ?? typeof(object);
+                }
+                else if (odi != null)
+                {
+                    return null;
+                }
+
+                if (iba != null && iba.ContainsKey(name))
+                {
+                    return iba[name]?.GetType() ?? typeof(object);
+                }
+                else if (iba != null)
+                {
+                    return null;
+                }
+            }
+
+            if (isEnum)
+            {
+                return (Type)targetObject;
+            }
+
+            if (mi == null)
+            {
+                throw new ScriptException(string.Format("Member {0} is not declared on {1}", name,
+                                                        targetObject));
+            }
+
+            if (mi is PropertyInfo pi)
+            {
+                if (pi.CanRead)
+                {
+                    return pi.PropertyType;
+                }
+
+                return null;
+            }
+
+            if (mi is FieldInfo fi)
+            {
+                return fi.FieldType;
+            }
+
+            if (mi is EventInfo ev)
+            {
+                return ev.EventHandlerType;
             }
 
             throw new ScriptException(string.Format("GetValue is not supported for MemberType {0}", mi.MemberType));
