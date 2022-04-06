@@ -7,14 +7,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
 {
     public class ShowTable:ViewComponent
     {
-        public async Task<IViewComponentResult> InvokeAsync(IDictionary<string,object> customViewData)
+        public async Task<IViewComponentResult> InvokeAsync(IDictionary<string,object> customViewData, string targetView = "Default")
         {
             foreach (var vd in customViewData)
             {
                 ViewData[vd.Key] = vd.Value;
             }
 
-            return View();
+            return View(targetView);
         }
     }
 }

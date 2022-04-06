@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.1.1-PRE007</Version>
+    <Version>2.1.1-PRE054</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -18,12 +18,14 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="5.0.10" />
+    <PackageReference Include="Portable.BouncyCastle" Version="1.8.6" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />
     <ProjectReference Include="..\ITVComponents.Decisions.Entities\ITVComponents.Decisions.Entities.csproj" />
     <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
     <ProjectReference Include="..\ITVComponents.Formatting\ITVComponents.Formatting.csproj" />
+    <ProjectReference Include="..\ITVComponents.ParallelProcessing.TaskSchedulers\ITVComponents.ParallelProcessing.TaskSchedulers.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />

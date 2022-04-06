@@ -54,5 +54,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         {
             securityContext.SaveChanges();
         }
+
+        /// <summary>
+        /// Gets the generic arguments for the specified plugin
+        /// </summary>
+        /// <param name="uniqueName">the name of the plugin for which to get the generic arguments</param>
+        /// <returns>a list of parametetrs for this plugin</returns>
+        public IEnumerable<WebPluginGenericParam> GetGenericParameters(string uniqueName)
+        {
+            return from p in securityContext.GenericPluginParams where p.Plugin.UniqueName == uniqueName select p;
+        }
     }
 }

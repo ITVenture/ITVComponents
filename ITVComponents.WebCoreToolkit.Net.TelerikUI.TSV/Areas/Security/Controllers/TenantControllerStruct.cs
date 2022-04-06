@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Security.Controllers
 {
-    [Authorize("HasPermission(Tenants.View,Tenants.Write,Tenants.AssignUser,Tenants.WriteSettings)"), Area("Security"), ConstructedGenericControllerConvention(ControllerName = "TenantController")]
+    [Authorize("HasPermission(Tenants.View,Tenants.Write,Tenants.AssignUser,Tenants.WriteSettings,Tenants.AssignNav,Tenants.AssignQuery),HasFeature(ITVAdminViews)"), Area("Security"), ConstructedGenericControllerConvention(ControllerName = "TenantController")]
     public class TenantControllerStruct<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : Controller
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -26,9 +26,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         where TRolePermission : RolePermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TTenantUser : TenantUser<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new()
         where TNavigationMenu : NavigationMenu<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation>
-        where TTenantNavigation : TenantNavigationMenu<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation>
+        where TTenantNavigation : TenantNavigationMenu<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation>, new()
         where TQuery : DiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
-        where TTenantQuery : TenantDiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
+        where TTenantQuery : TenantDiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>, new()
         where TQueryParameter : DiagnosticsQueryParameter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
         where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
         where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
@@ -65,9 +65,25 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         }
 
         [Authorize("HasPermission(Tenants.AssignUser)")]
-        public IActionResult TenantTable(int userId)
+        public IActionResult TenantTable(TUserId userId)
         {
             return View(userId);
+        }
+
+        [Authorize("HasPermission(Tenants.AssignNav)")]
+        public IActionResult TenantTableNav(int parentId)
+        {
+            ViewData["parentId"] = parentId;
+            //ViewData["Permissions"] = db.ReadForeignKey("Permissions").Cast<ForeignKeyData<int>>().ToList();
+            return PartialView();
+        }
+
+        [Authorize("HasPermission(Tenants.AssignQuery)")]
+        public IActionResult TenantTableQry(int diagnosticsQueryId)
+        {
+            ViewData["diagnosticsQueryId"] = diagnosticsQueryId;
+            //ViewData["Permissions"] = db.ReadForeignKey("Permissions").Cast<ForeignKeyData<int>>().ToList();
+            return PartialView();
         }
 
         public IActionResult SettingsTable(int tenantId)
@@ -82,25 +98,67 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         }
 
         [HttpPost]
-        public IActionResult Read([DataSourceRequest] DataSourceRequest request,[FromQuery] TUserId? userId)
+        public IActionResult Read([DataSourceRequest] DataSourceRequest request,[FromQuery] TUserId? userId, [FromQuery] int? navigationMenuId, [FromQuery]int? diagnosticsQueryId)
         {
-            if (userId == null)
+            if (userId == null && navigationMenuId == null && diagnosticsQueryId == null)
             {
                 return Json(db.Tenants.ToDataSourceResult(request, n => n.ToViewModel<Tenant, TenantViewModel>()));
             }
 
-            return Json((from p in db.Tenants
-                join r in db.TenantUsers on new {p.TenantId, UserId = userId.Value} equals new {r.TenantId, r.UserId} into lj
-                from s in lj.DefaultIfEmpty()
-                select new TenantViewModel
-                {
-                    TenantId = p.TenantId,
-                    UserId = userId,
-                    Assigned = s != null,
-                    UniQUID = $"{p.TenantId}_{userId}",
-                    DisplayName = p.DisplayName,
-                    TenantName = p.TenantName
-                }).ToDataSourceResult(request, ModelState));
+            if (userId != null)
+            {
+                return Json((from p in db.Tenants
+                    join r in db.TenantUsers on new { p.TenantId, UserId = userId.Value } equals new
+                        { r.TenantId, r.UserId } into lj
+                    from s in lj.DefaultIfEmpty()
+                    select new TenantViewModel
+                    {
+                        TenantId = p.TenantId,
+                        UserId = userId,
+                        Assigned = s != null,
+                        UniQUID = $"{p.TenantId}_{userId}",
+                        DisplayName = p.DisplayName,
+                        TenantName = p.TenantName
+                    }).ToDataSourceResult(request, ModelState));
+            }
+
+            if (navigationMenuId != null)
+            {
+                return Json((from p in db.Tenants
+                    join n in db.TenantNavigation on new
+                            { p.TenantId, NavigationMenuId = navigationMenuId.Value } equals
+                        new { n.TenantId, n.NavigationMenuId }
+                        into lj
+                    from s in lj.DefaultIfEmpty()
+                    select new TenantViewModel()
+                    {
+                        TenantId = p.TenantId,
+                        Assigned = s != null,
+                        UniQUID = $"N_{p.TenantId}_{navigationMenuId}",
+                        DisplayName = p.DisplayName,
+                        TenantName = p.TenantName
+                    }).ToDataSourceResult(request, ModelState));
+            }
+
+            if (diagnosticsQueryId != null)
+            {
+                return Json((from p in db.Tenants
+                    join n in db.TenantDiagnosticsQueries on new
+                            { p.TenantId, DiagnosticsQueryId = diagnosticsQueryId.Value } equals
+                        new { n.TenantId, n.DiagnosticsQueryId }
+                        into lj
+                    from s in lj.DefaultIfEmpty()
+                    select new TenantViewModel()
+                    {
+                        TenantId = p.TenantId,
+                        Assigned = s != null,
+                        UniQUID = $"N_{p.TenantId}_{diagnosticsQueryId}",
+                        DisplayName = p.DisplayName,
+                        TenantName = p.TenantName
+                    }).ToDataSourceResult(request, ModelState));
+            }
+
+            return NotFound();
         }
 
         [HttpPost]
@@ -121,9 +179,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
 
         [HttpPost]
         [Authorize("HasPermission(Tenants.Write)")]
-        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, TenantViewModelS<TUserId> viewModel)
+        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.Tenants.First(n => n.TenantId== viewModel.TenantId);
             if (ModelState.IsValid)
             {
@@ -135,12 +192,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         }
 
         [HttpPost]
-        [Authorize("HasPermission(Tenants.Write,Tenants.AssignUser)")]
-        public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request, TenantViewModelS<TUserId> viewModel)
+        [Authorize("HasPermission(Tenants.Write)")]
+        public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel)
         {
-            if (viewModel.UserId == null && HttpContext.RequestServices.VerifyUserPermissions(new[] {"Tenants.Write"}))
-            {
-                var model = db.Tenants.First(n => n.TenantId == viewModel.TenantId);
+            var model = db.Tenants.First(n => n.TenantId == viewModel.TenantId);
                 if (ModelState.IsValid)
                 {
                     await this.TryUpdateModelAsync<TenantViewModel, Tenant>(model, "", m => { return m.ElementType == null; });
@@ -148,38 +203,91 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 }
 
                 return Json(await new[] {model.ToViewModel<Tenant, TenantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
-            }
-            else if (viewModel.UserId != null && HttpContext.RequestServices.VerifyUserPermissions(new[] {"Tenants.AssignUser"}))
-            {
-                var user = db.Users.First(expressionHelper.EqualsUserId((TUserId)viewModel.UserId));
-                var model = db.TenantUsers.FirstOrDefault(expressionHelper.EqualsUserTenantId((TUserId)viewModel.UserId,viewModel.TenantId));
-                if ((model == null) == viewModel.Assigned)
-                {
-                    if (model == null)
-                    {
-                        db.TenantUsers.Add(new TTenantUser()
-                        {
-                            TenantId = viewModel.TenantId,
-                            UserId = expressionHelper.UserId(user)
-                        });
-                    }
-                    else
-                    {
-                        db.TenantUsers.Remove(model);
-                    }
+        }
 
-                    await db.SaveChangesAsync();
+        [HttpPost]
+        [Authorize("HasPermission(Tenants.AssignUser)")]
+        public async Task<IActionResult> UpdateTU([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel, TUserId userId)
+        {
+            var user = db.Users.First(expressionHelper.EqualsUserId(userId));
+            var model = db.TenantUsers.FirstOrDefault(expressionHelper.EqualsUserTenantId(userId, viewModel.TenantId));
+            if ((model == null) == viewModel.Assigned)
+            {
+                if (model == null)
+                {
+                    db.TenantUsers.Add(new TTenantUser()
+                    {
+                        TenantId = viewModel.TenantId,
+                        UserId = expressionHelper.UserId(user)
+                    });
+                }
+                else
+                {
+                    db.TenantUsers.Remove(model);
                 }
 
-                return Json(await new[] {viewModel}.ToDataSourceResultAsync(request, ModelState));
+                await db.SaveChangesAsync();
             }
 
-            return Unauthorized();
+            return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(Tenants.AssignNav)")]
+        public async Task<IActionResult> UpdateTN([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel, int navigationMenuId)
+        {
+            var nav = db.Navigation.First(n => n.NavigationMenuId == navigationMenuId);
+            var model = db.TenantNavigation.FirstOrDefault(n => n.NavigationMenuId == nav.NavigationMenuId && n.TenantId == viewModel.TenantId);
+            if ((model == null) == viewModel.Assigned)
+            {
+                if (model == null)
+                {
+                    db.TenantNavigation.Add(new TTenantNavigation()
+                    {
+                        TenantId = viewModel.TenantId,
+                        NavigationMenu = nav
+                    });
+                }
+                else
+                {
+                    db.TenantNavigation.Remove(model);
+                }
+
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(Tenants.AssignQuery)")]
+        public async Task<IActionResult> UpdateTQ([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel, int diagnosticsQueryId)
+        {
+            var qry = db.DiagnosticsQueries.First(n => n.DiagnosticsQueryId == diagnosticsQueryId);
+            var model = db.TenantDiagnosticsQueries.FirstOrDefault(n => n.DiagnosticsQueryId == qry.DiagnosticsQueryId && n.TenantId == viewModel.TenantId);
+            if ((model == null) == viewModel.Assigned)
+            {
+                if (model == null)
+                {
+                    db.TenantDiagnosticsQueries.Add(new TTenantQuery()
+                    {
+                        TenantId = viewModel.TenantId,
+                        DiagnosticsQuery = qry
+                    });
+                }
+                else
+                {
+                    db.TenantDiagnosticsQueries.Remove(model);
+                }
+
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
         }
 
         public IActionResult ReadSettings([DataSourceRequest] DataSourceRequest request, [FromQuery]int tenantId)
         {
-            db.ShowAllTenants = true;
             return Json(db.TenantSettings.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, n => n.ToViewModel<TenantSetting, TenantSettingViewModel>()));
         }
 
@@ -204,7 +312,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         [Authorize("HasPermission(Tenants.WriteSettings)")]
         public async Task<IActionResult> UpdateSetting([DataSourceRequest] DataSourceRequest request, TenantSettingViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.TenantSettings.First(n => n.TenantSettingId == viewModel.TenantSettingId);
             if (ModelState.IsValid)
             {
@@ -219,7 +326,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         [Authorize("HasPermission(Tenants.WriteSettings)")]
         public async Task<IActionResult> DestroySetting([DataSourceRequest] DataSourceRequest request, TenantSettingViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.TenantSettings.First(n => n.TenantSettingId == viewModel.TenantSettingId);
             if (ModelState.IsValid)
             {

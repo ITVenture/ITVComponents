@@ -1,4 +1,6 @@
-﻿using ITVComponents.WebCoreToolkit.DbLessConfig.Models;
+﻿using ITVComponents.WebCoreToolkit.Models;
+using Role = ITVComponents.WebCoreToolkit.DbLessConfig.Models.Role;
+using User = ITVComponents.WebCoreToolkit.DbLessConfig.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.DbLessConfig.Configurations
 {
@@ -9,6 +11,8 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Configurations
         public User[] Users { get; set; }
 
         public Role[] Roles { get; set; }
+
+        public Feature[] Features { get; set; }
 
         public string[] ExplicitPermissions { get; set; }
         

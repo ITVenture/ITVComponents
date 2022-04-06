@@ -52,6 +52,28 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         }
 
         /// <summary>
+        /// Verifies the User-Permissions for the current user
+        /// </summary>
+        /// <param name="provider">the service-provider for the current scope</param>
+        /// <param name="requiredFeatures">a list of permissions that are requested for a specific action</param>
+        /// <param name="securityRepository">the security-repository that can be used to perform further security-checks</param>
+        /// <returns>a value indicating whether the current request is legit</returns>
+        public static bool VerifyActivatedFeatures(this IServiceProvider provider, string[] requiredFeatures, out ISecurityRepository securityRepository)
+        {
+            var permissionScope = provider.GetService<IPermissionScope>();
+            var logger = provider.GetService<ILogger<GenericLogTarget>>();//("ITVComponents.WebCoreToolkit.Extensions.ServiceProviderExtensions");
+            var isAuthenticated = provider.IsUserAuthenticated(out securityRepository, out var userLabels, out var authType);
+            if (isAuthenticated)
+            {
+                string[] features = securityRepository.GetFeatures(permissionScope.PermissionPrefix)
+                    .Where(n => n.Enabled).Select(n => n.FeatureName).ToArray();
+                return requiredFeatures.Any(f => features.Contains(f));
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Verifies whether the current user is in a legal context 
         /// </summary>
         /// <param name="services">the service-provider that holds all services for the current request</param>
@@ -105,15 +127,28 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>a list of assigned permissions</returns>
         public static string[] GetUserPermissions(this IServiceProvider provider, out ISecurityRepository securityRepository, out bool isAuthenticated)
         {
-            securityRepository = provider.GetService<ISecurityRepository>();
+            isAuthenticated = provider.IsUserAuthenticated(out securityRepository, out var labels, out var authType);
+            var permissions = isAuthenticated?securityRepository.GetPermissions(labels, authType).Select(n => n.PermissionName).Distinct().ToArray():Array.Empty<string>();
+            return permissions;
+        }
+
+        /// <summary>
+        /// Indicates whether the current logged-in user is considered authenticated
+        /// </summary>
+        /// <param name="provider">the service-provider for the current http-context</param>
+        /// <param name="securityRepository">the security-context responsible for all authorization-tasks</param>
+        /// <param name="labels">the user-labels of the current user</param>
+        /// <param name="authType">the authentication-type that was used to log this user in</param>
+        /// <returns>a value indicating whether the current user is correlctly authenticated</returns>
+        public static bool IsUserAuthenticated(this IServiceProvider provider, out ISecurityRepository securityRepository, out string[] labels, out string authType)
+        {
             var userProvider = provider.GetService<IContextUserProvider>();
             var userMapper = provider.GetService<IUserNameMapper>();
             var currentUser = userProvider.User;
-            var labels = userMapper.GetUserLabels(currentUser);
-            var authType = ((ClaimsIdentity)currentUser.Identity).AuthenticationType;
-            isAuthenticated = securityRepository.IsAuthenticated(labels, authType);
-            var permissions = isAuthenticated?securityRepository.GetPermissions(labels, authType).Select(n => n.PermissionName).Distinct().ToArray():Array.Empty<string>();
-            return permissions;
+            authType = ((ClaimsIdentity)currentUser.Identity).AuthenticationType;
+            securityRepository = provider.GetService<ISecurityRepository>();
+            labels = userMapper.GetUserLabels(currentUser);
+            return securityRepository.IsAuthenticated(labels, authType);
         }
 
         /// <summary>

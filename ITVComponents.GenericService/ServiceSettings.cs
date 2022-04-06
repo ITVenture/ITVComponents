@@ -14,6 +14,7 @@ namespace ITVComponents.GenericService
         public string ServiceUser { get; set; }
         public string ServicePassword { get; set; }
         public PluginConfigurationCollection PlugIns { get; set; } = new PluginConfigurationCollection();
+        public GenericTypeConstructionCollection GenericTypeInformation { get; set; } = new GenericTypeConstructionCollection();
         public List<string> Dependencies { get; set; } = new List<string>();
 
     }

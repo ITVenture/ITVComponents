@@ -126,4 +126,19 @@
   <data name="IWCN_Titles_Assemblies" xml:space="preserve">
     <value>Used Assemblies</value>
   </data>
+   <data name="IWCN_JCP_Title_Action" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="IWCN_JCP_Title_Details" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="IWCN_JCP_Title_Entity" xml:space="preserve">
+    <value>Table</value>
+  </data>
+  <data name="IWCN_JCP_Title_Execute" xml:space="preserve">
+    <value>Execute</value>
+  </data>
+  <data name="IWCN_JCP_Title_Identifyer" xml:space="preserve">
+    <value>Id</value>
+  </data>
 </root>

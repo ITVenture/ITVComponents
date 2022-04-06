@@ -30,7 +30,8 @@
             {
                 var src = dataSource
                     .Ajax()
-                    .Read(read => read.Action("Read", "AssemblyDiagnostics"));
+                    .Read(read => read.Action("Read", "AssemblyDiagnostics"))
+                    .Sort(n => n.Add(m => m.FullName));
             })
             .Scrollable(s => s.Height("auto"))
             .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))

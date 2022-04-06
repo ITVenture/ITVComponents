@@ -120,6 +120,24 @@
   <data name="CustomValidationAttribute_ValidationError" xml:space="preserve">
     <value>{0} ist ungültig.</value>
   </data>
+  <data name="DataTypeAttribute.CreditCard_ValidationError" xml:space="preserve">
+    <value>Das Feld {0} ist keine gültige Kreditkartennummer.</value>
+  </data>
+  <data name="DataTypeAttribute.DateTime_ValidationError" xml:space="preserve">
+    <value>Das Feld {0} ist kein gültiges Datum/Uhrzeit.</value>
+  </data>
+  <data name="DataTypeAttribute.Date_ValidationError" xml:space="preserve">
+    <value>Das Feld {0} ist kein gültiges Datum.</value>
+  </data>
+  <data name="DataTypeAttribute.EmailAddress_ValidationError" xml:space="preserve">
+    <value>Der Wert für {0} ist keine gültige E-Mail Adresse.</value>
+  </data>
+  <data name="DataTypeAttribute.PhoneNumber_ValidationError" xml:space="preserve">
+    <value>Das Feld {0} ist keine gültige Telefonnummer.</value>
+  </data>
+  <data name="DataTypeAttribute.Time_ValidationError" xml:space="preserve">
+    <value>Das Feld {0} ist keine gültige Uhrzeit.</value>
+  </data>
   <data name="MaxLengthAttribute_ValidationError" xml:space="preserve">
     <value>Das Feld {0} muss eine Zeichenfolge oder ein Binärdaten-Wert mit der maximalen Länge '{1}' sein.</value>
   </data>

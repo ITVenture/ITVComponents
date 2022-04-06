@@ -20,6 +20,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
 
         public int? PermissionId { get; set; }
 
+        public int? FeatureId { get; set; }
+
+        [DataType(DataType.MultilineText)]
         public string SpanClass { get; set; }
 
         public int[] Tenants { get; set; }

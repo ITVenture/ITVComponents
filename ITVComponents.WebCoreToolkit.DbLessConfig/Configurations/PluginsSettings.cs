@@ -12,5 +12,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Configurations
         public const string SettingsKey="ITVenture:WebPlugins";
 
         public WebPlugin[] WebPlugins { get; set; }
+
+        public Dictionary<string, WebPluginGenericParam[]> GenericParameters { get; set; }
     }
 }

@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(PlugInConstants.Write,PlugInConstants.View)"), Area("Util")]
+    [Authorize("HasPermission(PlugInConstants.Write,PlugInConstants.View),HasFeature(ITVAdminViews)"), Area("Util")]
     public class PlugInConstController : Controller
     {
         private readonly IBaseTenantContext db;

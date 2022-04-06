@@ -4,6 +4,7 @@ using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -323,19 +324,34 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
 
                                     if (valid)
                                     {
-                                        JsonResult result;
-                                        if (string.IsNullOrEmpty(id))
+                                        bool authorized = true;
+                                        JsonResult result = null;
+                                        try
                                         {
-                                            result = new JsonResult(dbContext.ReadForeignKey(table));
+                                            if (string.IsNullOrEmpty(id))
+                                            {
+                                                result = new JsonResult(dbContext.ReadForeignKey(table));
+                                            }
+                                            else
+                                            {
+                                                result = new JsonResult(dbContext.ReadForeignKey(table, id: id)
+                                                    .Cast<object>()
+                                                    .FirstOrDefault());
+                                            }
                                         }
-                                        else
+                                        catch (SecurityException)
                                         {
-                                            result = new JsonResult(dbContext.ReadForeignKey(table, id: id)
-                                                .Cast<object>()
-                                                .FirstOrDefault());
+                                            authorized = false;
                                         }
 
-                                        await result.ExecuteResultAsync(actionContext);
+                                        if (authorized)
+                                        {
+                                            await result.ExecuteResultAsync(actionContext);
+                                            return;
+                                        }
+
+                                        UnauthorizedResult ill = new UnauthorizedResult();
+                                        await ill.ExecuteResultAsync(actionContext);
                                         return;
                                     }
                                 }

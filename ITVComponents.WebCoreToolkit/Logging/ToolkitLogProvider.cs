@@ -57,50 +57,53 @@ namespace ITVComponents.WebCoreToolkit.Logging
         {
             try
             {
-                using (globalLogCfg.PauseLogging())
+                using (var lk = globalLogCfg.PauseLogging())
                 {
-                    using (var scope = services.CreateScope())
+                    lk.Exclusive(() =>
                     {
-                        var adapter = scope.ServiceProvider.GetService<ILogOutputAdapter>();
-                        if (adapter != null)
+                        using (var scope = services.CreateScope())
                         {
-                            EnableDebugMessages = globalLogCfg.EnableDebugMessages;
-                            if (EnableDebugMessages)
+                            var adapter = scope.ServiceProvider.GetService<ILogOutputAdapter>();
+                            if (adapter != null)
                             {
-                                LogEnvironment.EnableDebugMessages();
+                                EnableDebugMessages = globalLogCfg.EnableDebugMessages;
+                                if (EnableDebugMessages)
+                                {
+                                    LogEnvironment.EnableDebugMessages();
+                                }
+                                else
+                                {
+                                    LogEnvironment.DisableDebugMessages();
+                                }
+
+                                if (!events.IsEmpty)
+                                {
+                                    try
+                                    {
+                                        while (events.TryDequeue(out var eventData))
+                                        {
+                                            try
+                                            {
+                                                adapter.PopulateEvent(eventData);
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                System.Console.WriteLine(ex.OutlineException());
+                                            }
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        adapter.Flush();
+                                    }
+                                }
                             }
                             else
                             {
-                                LogEnvironment.DisableDebugMessages();
-                            }
-
-                            if (!events.IsEmpty)
-                            {
-                                try
-                                {
-                                    while (events.TryDequeue(out var eventData))
-                                    {
-                                        try
-                                        {
-                                            adapter.PopulateEvent(eventData);
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            System.Console.WriteLine(ex.OutlineException());
-                                        }
-                                    }
-                                }
-                                finally
-                                {
-                                    adapter.Flush();
-                                }
+                                events.Clear();
                             }
                         }
-                        else
-                        {
-                            events.Clear();
-                        }
-                    }
+                    });
                 }
             }
             catch(Exception ex)

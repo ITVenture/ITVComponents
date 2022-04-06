@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Security.Controllers
 {
-    [Authorize("HasPermission(AuthenticationTypes.View,AuthenticationTypes.Write)"), Area("Security")]
+    [Authorize("HasPermission(AuthenticationTypes.View,AuthenticationTypes.Write),HasFeature(ITVAdminViews)"), Area("Security")]
     public class AuthenticationTypeController : Controller
     {
        private readonly IBaseTenantContext db;

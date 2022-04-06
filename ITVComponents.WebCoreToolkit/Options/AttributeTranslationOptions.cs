@@ -83,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.Options
         /// <param name="attribute">the attribute for which to get the full-qualified resource name</param>
         /// <param name="topic">the topic of the desired message</param>
         /// <returns>the full-qualified resource identifier that can be resolved by a resource-resolver</returns>
-        public string ResourceForAttribute(Attribute attribute, string topic)
+        public string ResourceForAttribute(Attribute attribute, string topic, string validationType)
         {
             string retVal = null;
             Type attributeType;
@@ -94,8 +94,16 @@ namespace ITVComponents.WebCoreToolkit.Options
                 {
                     topic = topicMappings[attributeType](attribute,topic);
                 }
-                
-                retVal = $"{prefix}:{attributeType.Name}_{topic}";
+
+
+                if (string.IsNullOrEmpty(validationType))
+                {
+                    retVal = $"{prefix}:{attributeType.Name}_{topic}";
+                }
+                else
+                {
+                    retVal = $"{prefix}:{attributeType.Name}.{validationType}_{topic}";
+                }
             }
             
             return retVal;

@@ -1,0 +1,12 @@
+﻿@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
+@using Kendo.Mvc.UI
+
+@(Html.Kendo().TabStrip().Name($"NavigationDetails{ViewData["parentId"]}")
+    .SelectedIndex(0)
+    .Items(item =>
+    {
+        item.Add().Text("Untermenüs").LoadContentFrom("NavTable", "Navigation", new {parentId = ViewData["parentId"]});
+        item.Add().Text("Mandanten").LoadContentFrom("TenantTableNav", "Tenant", new {parentId = ViewData["parentId"]});
+}))

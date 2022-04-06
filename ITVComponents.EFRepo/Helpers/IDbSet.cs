@@ -136,6 +136,20 @@ namespace ITVComponents.EFRepo.Helpers
         // Rückgabewerte:
         //     The entity found, or null.
         object Find(params object[] keyValues);
+
+        /// <summary>
+        /// Gets the first property of the primary-key for the given entity
+        /// </summary>
+        /// <param name="entity">the object for which to get the primary-key value</param>
+        /// <returns>the primary-key value of the provided entity</returns>
+        object GetIndex(object entity);
+
+        /// <summary>
+        /// Finds an entity with specified values in a dictionary. The dataset creates an expression based on the query and searches the requested object on the db. The operation fails, if the result is not unique
+        /// </summary>
+        /// <param name="query">the query that describes the requested record uniquely</param>
+        /// <returns>the requested value</returns>
+        object FindWithQuery(Dictionary<string, object> query, bool ignoreNotFound);
         //
         // Zusammenfassung:
         //     Begins tracking the given entity in the Microsoft.EntityFrameworkCore.EntityState.Deleted
@@ -283,5 +297,11 @@ namespace ITVComponents.EFRepo.Helpers
         //   entities:
         //     The entities to update.
         void UpdateRange(IEnumerable entities);
+
+        /// <summary>
+        /// Creates a new instance of the given entity-type
+        /// </summary>
+        /// <returns>the created raw-type</returns>
+        public object New();
     }
 }

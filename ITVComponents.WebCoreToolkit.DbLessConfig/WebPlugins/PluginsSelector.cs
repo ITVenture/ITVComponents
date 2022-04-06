@@ -39,6 +39,16 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.WebPlugins
             return from t in (settings.Value.WebPlugins??new WebPlugin[0]) where t.AutoLoad && !string.IsNullOrEmpty(t.Constructor) select t;
         }
 
+        public IEnumerable<WebPluginGenericParam> GetGenericParameters(string uniqueName)
+        {
+            if (settings.Value.GenericParameters != null && settings.Value.GenericParameters.ContainsKey(uniqueName))
+            {
+                return settings.Value.GenericParameters[uniqueName];
+            }
+
+            return Array.Empty<WebPluginGenericParam>();
+        }
+
         public void ConfigurePlugin(WebPlugin pi)
         {
             logger?.Log(LogLevel.Debug, "Call to ConfigurePlugin is ignored for Settings-Plugins");

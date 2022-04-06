@@ -5,12 +5,16 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Config;
+using ITVComponents.Plugins.Helpers;
+using ITVComponents.Plugins.Initialization;
+using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting; //using ITVComponents.Logging;
@@ -77,6 +81,7 @@ namespace ITVComponents.GenericService
         {
             pluginLoader = new PluginFactory(true, false, true, Configure);
             pluginLoader.AllowFactoryParameter = true;
+            pluginLoader.ImplementGenericType += ImplementGenericPlugIn;
         }
 
         /// <summary>
@@ -134,6 +139,25 @@ namespace ITVComponents.GenericService
 
             pluginLoader.LoadRuntimeStatus();
             pluginLoader.InitializeDeferrables(ServiceConfigHelper.PlugIns.Where(n => !n.Disabled).Select(n => n.Name).ToArray());
+        }
+
+        private void ImplementGenericPlugIn(object sender, ImplementGenericTypeEventArgs e)
+        {
+            var dic = new Dictionary<string, object>();
+            if (ServiceConfigHelper.GenericTypeInformation != null &&
+                ServiceConfigHelper.GenericTypeInformation.ContainsKey(e.PluginUniqueName))
+            {
+                var tmp = ServiceConfigHelper.GenericTypeInformation[e.PluginUniqueName];
+                var impl = (from t in e.GenericTypes
+                    join j in tmp on t.GenericTypeName equals j.TypeParameterName
+                    select new { Param = t, Result = ExpressionParser.Parse(j.TypeExpression.ApplyFormat(e), dic) });
+                foreach (var item in impl)
+                {
+                    item.Param.TypeResult = (Type)item.Result;
+                }
+
+                e.Handled = true;
+            }
         }
 
         /// <summary>

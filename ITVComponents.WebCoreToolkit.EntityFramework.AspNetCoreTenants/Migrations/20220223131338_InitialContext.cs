@@ -1,9 +1,10 @@
 ﻿using System;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrations
 {
-    public partial class Initial : Migration
+    public partial class InitialContext : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -127,8 +128,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Discriminator = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    AuthenticationTypeId = table.Column<int>(type: "int", nullable: true),
+                    AuthenticationTypeId = table.Column<int>(type: "int", nullable: false),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -986,6 +986,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                 name: "IX_Widgets_DiagnosticsQueryId",
                 table: "Widgets",
                 column: "DiagnosticsQueryId");
+            migrationBuilder.IncludeToolkitPermissions();
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)

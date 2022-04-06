@@ -9,5 +9,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
     public class ToolkitPermission
     {
         public const string Sysadmin = "Sysadmin";
+
+        public const string TenantAdmin = "TenantAdmin";
     }
 }

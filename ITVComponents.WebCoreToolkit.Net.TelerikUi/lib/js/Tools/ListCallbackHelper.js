@@ -12,14 +12,18 @@
         var prop = await ITVenture.Tools.ListCallbackHelper.currentFks[propName];
         return prop;
     },
-    ShowPkValue: async function(repo, table, id, elementName, emptyLabel, area) {
+    ShowPkValue: async function (repo, table, id, elementName, emptyLabel, area, dataUid) {
+        var elementTarget = "#".concat(elementName);
+        if (typeof(dataUid) !== "undefined" && dataUid != null) {
+            elementTarget = "[data-uid=".concat(dataUid).concat("] ").concat(elementTarget);
+        }
         var content = await ITVenture.Tools.ListCallbackHelper.ResolveFk(repo, table, id, emptyLabel, area);
-        $("#".concat(elementName)).each(function(x) {
+        $(elementTarget).each(function(x) {
             $(this).html(content);
         });
     },
     normalizeFkValue: function(val) {
-        var retVal =  val?.toString()?.replace(/\W/im, "_")??null;
+        var retVal =  val?.toString()?.replaceAll(/\W/gim, "_")??null;
         return retVal;
     },
     getFilterScript: function(filterScriptName) {

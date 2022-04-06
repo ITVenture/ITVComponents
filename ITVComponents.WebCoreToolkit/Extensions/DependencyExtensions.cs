@@ -77,12 +77,24 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <param name="services">the service collection for which to enable authorization</param>
         /// <param name="configuration">the IConfiguration object giving access to the application settings file</param>
         /// <param name="options">Clonfigures the options for the role-based Authorization handler</param>
-        public static IServiceCollection EnableRoleBaseAuthorization(this IServiceCollection services, Action<PermissionPolicyOptions> options)
+        public static IServiceCollection EnableRoleBaseAuthorization(this IServiceCollection services)
         {
             return services.UseContextUserAccessor()
-                .AddSingleton<IAuthorizationPolicyProvider, AssignedPermissionsPolicyProvider>()
+                .AddSingleton<IAuthorizationPolicyProvider, ToolkitPolicyProvider>()
                 .AddScoped<IAuthorizationHandler, AssignedPermissionsHandler>()
-                .Configure(options);
+                .AddScoped<IAuthorizationHandler, FeatureActivatedHandler>();
+        }
+
+        /// <summary>
+        /// Enables RoleBased Authorization for the current Web application
+        /// </summary>
+        /// <param name="services">the service collection for which to enable authorization</param>
+        /// <param name="configuration">the IConfiguration object giving access to the application settings file</param>
+        /// <param name="options">Clonfigures the options for the role-based Authorization handler</param>
+        public static IServiceCollection EnableRoleBaseAuthorization(this IServiceCollection services, Action<ToolkitPolicyOptions> configure)
+        {
+            return services.Configure(configure)
+                .EnableRoleBaseAuthorization();
         }
 
         /// <summary>

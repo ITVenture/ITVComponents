@@ -20,7 +20,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mod
         [Required]
         public string UserName { get; set; }
 
-        public int AuthenticationTypeId { get; set; }
+        public int? AuthenticationTypeId { get; set; }
 
         [ForeignKey(nameof(AuthenticationTypeId))]
         public virtual AuthenticationType AuthenticationType { get;set; }

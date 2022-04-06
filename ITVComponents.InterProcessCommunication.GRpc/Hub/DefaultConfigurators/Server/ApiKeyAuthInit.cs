@@ -30,10 +30,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
             services.AddScoped<ISecurityRepository, JsonSettingsSecurityRepository>();
             services.UseDefaultApiKeyResolver();
             services.UseRepositoryClaimsTransformation();
-            services.EnableRoleBaseAuthorization(options =>
-            {
-                options.SupportedAuthenticationSchemes.Add(ApiKeyAuthenticationOptions.DefaultScheme);
-            });
+            services.EnableRoleBaseAuthorization();
         }
 
         /// <summary>

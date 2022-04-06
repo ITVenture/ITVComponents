@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Security;
+using Castle.Core.Logging;
 using ITVComponents.Formatting;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
@@ -10,7 +11,12 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
+using Microsoft.EntityFrameworkCore.Query.Internal;
+using Microsoft.Extensions.Logging;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.Models.CustomUserProperty;
+using Feature = ITVComponents.WebCoreToolkit.Models.Feature;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 using Permission = ITVComponents.WebCoreToolkit.Models.Permission;
 using Role = ITVComponents.WebCoreToolkit.Models.Role;
 using User = ITVComponents.WebCoreToolkit.Models.User;
@@ -35,10 +41,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         where TUser : class
     {
         private readonly ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> securityContext;
+        private readonly ILogger logger;
 
-        protected DbSecurityRepository(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> securityContext)
+        protected DbSecurityRepository(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> securityContext,
+            ILogger logger)
         {
             this.securityContext = securityContext;
+            this.logger = logger;
         }
 
         /// <summary>
@@ -229,6 +238,48 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                     select t).Distinct()
                 orderby d.DisplayName
                 select new ScopeInfo { ScopeDisplayName = d.DisplayName, ScopeName = d.TenantName }).ToArray();
+        }
+
+        /// <summary>
+        /// Gets a list of activated features for a specific permission-Scope
+        /// </summary>
+        /// <param name="permissionScopeName">the name of the current permission-prefix selected by the current user</param>
+        /// <returns>returns a list of activated features</returns>
+        public IEnumerable<Feature> GetFeatures(string permissionScopeName)
+        {
+            IDisposable tmp = null;
+            try
+            {
+                if (!securityContext.Tenants.Any(n => n.TenantName == permissionScopeName))
+                {
+                    tmp = new FullSecurityAccessHelper(securityContext, true, true);
+                }
+
+                var dt = DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
+                var raw = (from t in securityContext.Features
+                    join a in securityContext.TenantFeatureActivations.Where(ta =>
+                            ta.Tenant.TenantName == permissionScopeName
+                            && (ta.ActivationStart== null || ta.ActivationStart <= dt)
+                            && (ta.ActivationEnd == null || ta.ActivationEnd >= dt))
+                            .GroupBy(g => new {g.FeatureId, g.Tenant.TenantName})
+                            .Select(n => new {n.Key.FeatureId, n.Key.TenantName})
+                        on t.FeatureId equals a.FeatureId into lfaj
+                    from hoj in lfaj.DefaultIfEmpty()
+                    select new {T = t, A = hoj.TenantName}).ToArray();
+
+                /*EntityQueryable<Feature> mmp = (EntityQueryable<Feature>)raw;
+                logger.LogDebug(mmp.DebugView.Query);*/
+                return raw.Select(n => new Feature
+                {
+                    FeatureName = n.T.FeatureName,
+                    FeatureDescription = n.T.FeatureDescription,
+                    Enabled = n.T.Enabled || !string.IsNullOrEmpty(n.A)
+                }).ToArray();
+            }
+            finally
+            {
+                tmp?.Dispose();
+            }
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

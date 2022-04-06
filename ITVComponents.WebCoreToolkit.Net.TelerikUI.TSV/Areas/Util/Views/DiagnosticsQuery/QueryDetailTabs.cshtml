@@ -1,0 +1,18 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@(Html.Kendo().TabStrip().Name($"QueryDetails{ViewData["diagnosticsQueryId"]}")
+    .SelectedIndex(0)
+    .Items(item =>
+    {
+        item.Add().Text("Parameter").LoadContentFrom("ParameterTable", "DiagnosticsQuery", new {diagnosticsQueryId = ViewData["diagnosticsQueryId"]});
+        item.Add().Text("Mandanten").LoadContentFrom("TenantTableQry", "Tenant", new {area="Security", diagnosticsQueryId = ViewData["diagnosticsQueryId"]});
+    }))

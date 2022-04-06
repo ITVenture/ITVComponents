@@ -5,11 +5,14 @@
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using ITVComponents.WebCoreToolkit.Routing
 @using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
 @using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@inject IOptions<SecurityViewsOptions> options
 @{
     Layout = "_Layout";
 }
@@ -25,7 +28,11 @@
             columns.Bound(c => c.DiagnosticsQueryName).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
             columns.Bound(c => c.DbContext).Title(TextsAndMessagesHelper.IWCN_DQ_DbContext);
             columns.Bound(c => c.AutoReturn).Title(TextsAndMessagesHelper.IWCN_DQ_ImplicitReturn);
-            columns.MultiSelect(c => c.Tenants, "sys", "Tenants", "DiagnosticsQueryId", TextsAndMessagesHelper.IWCN_NV_STDV_No_Tenant_Selected);
+            if (options.Value.TenantLinkMode == LinkMode.MultiSelect)
+            {
+                columns.MultiSelect(c => c.Tenants, "sys", "Tenants", "DiagnosticsQueryId", TextsAndMessagesHelper.IWCN_NV_STDV_No_Tenant_Selected);
+            }
+
             columns.Bound(n => n.QueryText).Title("Query").ClientTemplate("<pre>#=QueryText#</pre>");
             columns.AjaxFk(p => p.PermissionId, "sys", "Permissions", "DiagnosticsQueryId", 2, filterable: true).Filterable(true);
             /*columns.ForeignKey(p => p.PermissionId, ds =>
@@ -65,7 +72,8 @@
                     .Update(update => update.Action("Update", "DiagnosticsQuery").Data("ITVenture.Tools.TableHelper.serializeArrays"))
                     .Destroy(destroy => destroy.Action("Destroy", "DiagnosticsQuery"));
             }
-            src.Model(m => m.Id(t => t.DiagnosticsQueryId));
+            src.Model(m => m.Id(t => t.DiagnosticsQueryId))
+                .Sort(n => n.Add(m => m.DiagnosticsQueryName));
         })
         .Scrollable(s => s.Height("auto"))
         .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
@@ -74,5 +82,11 @@
     .Filterable(f => f.Enabled(true))
     .ClientDetailTemplateId("QueryArg"))
 
-
-@Html.DetailViewScript("QueryArg", "QRG#=DiagnosticsQueryId#", "~/Util/DiagnosticsQuery/ParameterTable?diagnosticsQueryId=#=DiagnosticsQueryId#")
+@if (options.Value.TenantLinkMode == LinkMode.MultiSelect)
+{
+    @Html.DetailViewScript("QueryArg", "QRG#=DiagnosticsQueryId#", "~/Util/DiagnosticsQuery/ParameterTable?diagnosticsQueryId=#=DiagnosticsQueryId#")
+}
+else
+{
+    @Html.DetailViewScript("QueryArg", "QRG#=DiagnosticsQueryId#", "~/Util/DiagnosticsQuery/QueryDetailTabs?diagnosticsQueryId=#=DiagnosticsQueryId#")
+}

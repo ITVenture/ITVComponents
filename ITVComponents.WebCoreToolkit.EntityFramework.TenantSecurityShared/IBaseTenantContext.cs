@@ -42,13 +42,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 
         public DbSet<AuthenticationClaimMapping> AuthenticationClaimMappings { get; set; }
 
+        public DbSet<Feature> Features { get; set; }
+
         public DbSet<Tenant> Tenants { get; set; }
 
+        public DbSet<TenantFeatureActivation> TenantFeatureActivations { get; set; }
+
         public DbSet<TenantSetting> TenantSettings { get; set; }
+
+        public DbSet<TenantTemplate> TenantTemplates { get; set; }
 
         public DbSet<WebPlugin> WebPlugins { get; set; }
 
         public DbSet<WebPluginConstant> WebPluginConstants { get; set; }
+
+        public DbSet<WebPluginGenericParameter> GenericPluginParams { get; set; }
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
 

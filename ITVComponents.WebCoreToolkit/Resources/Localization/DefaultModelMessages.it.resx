@@ -120,6 +120,24 @@
   <data name="CustomValidationAttribute_ValidationError" xml:space="preserve">
     <value>{0} non è valido.</value>
   </data>
+  <data name="DataTypeAttribute.CreditCard_ValidationError" xml:space="preserve">
+    <value>Il campo {0} non è un numero di carta di credito valido.</value>
+  </data>
+  <data name="DataTypeAttribute.DateTime_ValidationError" xml:space="preserve">
+    <value>Il campo {0} non è una data/ora valida.</value>
+  </data>
+  <data name="DataTypeAttribute.Date_ValidationError" xml:space="preserve">
+    <value>Il campo {0} non è una data valida.</value>
+  </data>
+  <data name="DataTypeAttribute.EmailAddress_ValidationError" xml:space="preserve">
+    <value>Il campo {0} non contiene un indirizzo e-mail valido.</value>
+  </data>
+  <data name="DataTypeAttribute.PhoneNumber_ValidationError" xml:space="preserve">
+    <value>Il campo {0} non è un numero di telefono valido.</value>
+  </data>
+  <data name="DataTypeAttribute.Time_ValidationError" xml:space="preserve">
+    <value>Il campo del {0} non è un tempo valido.</value>
+  </data>
   <data name="MaxLengthAttribute_ValidationError" xml:space="preserve">
     <value>Il campo {0} deve essere di tipo stringa o array con una lunghezza massima di '{1}'.</value>
   </data>

@@ -1,0 +1,107 @@
+﻿@using System.Collections
+@using System.Text
+@using System.Web
+@using ITVComponents.EFRepo.DynamicData
+@using ITVComponents.Plugins.PluginServices
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Routing
+@using Kendo.Mvc.UI
+@using Kendo.Mvc.UI.Fluent
+@using Microsoft.AspNetCore.Routing
+@using Microsoft.Extensions.Localization
+@inject IUrlFormat urlFormat
+@{
+    string idExtension = ViewData["IdExtension"] as string;
+    if (idExtension == null) {
+        idExtension = "";
+    }
+
+    string resultTab = ViewData["ResultTab"] as string;
+    if (string.IsNullOrEmpty(resultTab)) {
+        resultTab = "compareResultTab";
+    }
+
+    string postTarget = ViewData["PostTarget"] as string;
+    if (string.IsNullOrEmpty(postTarget))
+    {
+        throw new InvalidOperationException("PostTarget must not be null!");
+    }
+
+    string callback = ViewData["ResultC allback"] as string;
+    if (string.IsNullOrEmpty(callback))
+    {
+        callback = "null";
+    }
+
+    string target = ViewData["HandlerTarget"] as string;
+    var targetDecl = target;
+    if (string.IsNullOrEmpty(target))
+    {
+        target = "tmpHandler";
+        targetDecl = "var tmpHandler";
+    }
+
+    string uploaderDivId = ViewData["UploaderDivId"] as string;
+    if (string.IsNullOrEmpty(uploaderDivId))
+    {
+        uploaderDivId = "JsonUploadArea";
+    }
+
+    string uploaderModuleName = ViewData["UploadModuleName"] as string;
+    if (uploaderModuleName == null)
+    {
+        throw new InvalidOperationException("UploadModuleName must not be null!");
+    }
+
+    string reason = ViewData["HandlerReason"] as string;
+    if (string.IsNullOrEmpty(reason))
+    {
+        reason = "JsonCfgUpload";
+    }
+
+    string uploadCallback = ViewData["UploadHintCallback"] as string;
+    if (string.IsNullOrEmpty(uploadCallback))
+    {
+        uploadCallback = "\"CfgUpload\"";
+    }
+}
+
+<script>
+    var postTarget = "@HttpUtility.JavaScriptStringEncode(postTarget)";
+    var idExtension = "@HttpUtility.JavaScriptStringEncode(idExtension)";
+    var resultTab = "@HttpUtility.JavaScriptStringEncode(resultTab)";
+    var resultCallback = @callback;
+    @targetDecl = ITVenture.Tools.JSonCfgExchange(postTarget, idExtension, resultTab, resultCallback);
+</script>
+<div purpose='Upload' id='@uploaderDivId' nameTarget='@uploaderDivId' uploadModule='@uploaderModuleName' uploadReason='@reason' class='dropzone dropzone-flexi' style="position:relative;height:100px;width:70%;" uploadHint="@(target).GetUploadHint(@uploadCallback)"></div>
+
+<table id="@(resultTab)" style="margin-top: 120px; margin-bottom: 20px;">
+    <colgroup>
+        <col style="width: 120px;" />
+        <col style="width: 50px;" />
+        <col style="width: 50px;" />
+        <col style="width: 200px;" />
+        <col style="width: 600px;" />
+    </colgroup>
+    <thead class="k-gird-header">
+    <tr>
+        <th class="k-header">@TextsAndMessagesHelper.IWCN_JCP_Title_Entity</th>
+        <th class="k-header">@TextsAndMessagesHelper.IWCN_JCP_Title_Action</th>
+        <th class="k-header">@TextsAndMessagesHelper.IWCN_JCP_Title_Execute</th>
+        <th class="k-header">@TextsAndMessagesHelper.IWCN_JCP_Title_Identifyer</th>
+        <th class="k-header">@TextsAndMessagesHelper.IWCN_JCP_Title_Details</th>
+    </tr>
+    </thead>
+    <tbody>
+    </tbody>
+</table>
+
+@Html.Kendo().Button().Name("ApplyChanges").Content("Anwenden").Events(c => c.Click("ITVenture.Pages.Ssv.JsonConfigXch.ApplyConfigChanges")).SpriteCssClass("fad fa-share-all")
+
+<script>
+    ITVenture.Tools.Uploader.prepareUploadRegion({
+        "@uploaderDivId": @(target).ProcessDifferences
+    });
+</script>

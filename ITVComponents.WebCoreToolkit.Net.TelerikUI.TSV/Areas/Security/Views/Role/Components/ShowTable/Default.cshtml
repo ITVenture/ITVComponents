@@ -59,7 +59,8 @@
             .Update(update => update.Action("Update", "Role"))
             .Destroy(destroy => destroy.Action("Destroy", "Role"));
             }
-            src.Model(m => m.Id(t => t.RoleId));
+            src.Model(m => m.Id(t => t.RoleId))
+                .Sort(n => n.Add(m => m.RoleName));
         })
 .Scrollable(s => s.Height("auto"))
 .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))

@@ -124,6 +124,21 @@ namespace ITVComponents.Invokation
         }
 
         /// <summary>
+        /// Runs an application fetches the outputs and returns the result back to the caller
+        /// </summary>
+        /// <param name="info">the ProcessStart-Info that defines a process to run. The info may be modified depending on the configuration of this invokator</param>
+        /// <param name="timeout">the timeout to wait before the process is stopped</param>
+        /// <param name="maxRetryCount">the maximum retry-count before the execution is considered a failure</param>
+        public ProgramTerminationInformation RunApplication(ProcessStartInfo info, int timeout = -1, int maxRetryCount = 0)
+        {
+            info.CreateNoWindow = Hidden;
+            info.RedirectStandardError = RedirectConsole;
+            info.RedirectStandardOutput = RedirectConsole;
+            info.UseShellExecute = UseShellExecute;
+            return Run(info, timeout, maxRetryCount);
+        }
+
+        /// <summary>
         /// 
         /// </summary>
         /// <param name="applicationName">the path to the application image</param>
@@ -194,6 +209,21 @@ namespace ITVComponents.Invokation
         /// <summary>
         /// Runs an application fetches the outputs and returns the result back to the caller
         /// </summary>
+        /// <param name="info">the ProcessStart-Info that defines a process to run. The info may be modified depending on the configuration of this invokator</param>
+        /// <param name="timeout">the timeout to wait before the process is stopped</param>
+        /// <param name="maxRetryCount">the maximum retry-count before the execution is considered a failure</param>
+        public async Task<ProgramTerminationInformation> RunApplicationAsync(ProcessStartInfo info, int timeout= -1, int maxRetryCount = 0)
+        {
+            info.CreateNoWindow = Hidden;
+            info.RedirectStandardError = RedirectConsole;
+            info.RedirectStandardOutput = RedirectConsole;
+            info.UseShellExecute = UseShellExecute;
+            return await RunAsync(info, timeout, maxRetryCount);
+        }
+
+        /// <summary>
+        /// Runs an application fetches the outputs and returns the result back to the caller
+        /// </summary>
         /// <param name="applicationName">the path to the application image</param>
         /// <param name="executionDirectory">the working directory of the called process</param>
         /// <param name="arguments">the arguments that must be passed to the program</param>
@@ -239,12 +269,12 @@ namespace ITVComponents.Invokation
             List<Task> waits = new List<Task>();
             if (proc.StartInfo.RedirectStandardError)
             {
-                waits.Add(ReadStream(proc.StandardError, err, true, proc.StartInfo.FileName, token));
+                waits.Add(ReadStream(proc.StandardError, err, true, proc.StartInfo.FileName, OnErrorOutput, token));
             }
 
             if (proc.StartInfo.RedirectStandardOutput)
             {
-                waits.Add(ReadStream(proc.StandardOutput, con, false, proc.StartInfo.FileName, token));
+                waits.Add(ReadStream(proc.StandardOutput, con, false, proc.StartInfo.FileName, OnConsoleOutput, token));
             }
 
 #if NETCOREAPP3_1
@@ -274,13 +304,14 @@ namespace ITVComponents.Invokation
             return Task.CompletedTask;
         }
 
-        private async Task ReadStream(StreamReader procStandardOutput, StringBuilder con, bool isError, string topic, CancellationToken token)
+        private async Task ReadStream(StreamReader procStandardOutput, StringBuilder con, bool isError, string topic, Action<string> raiseEventAction, CancellationToken token)
         {
             string s = null;
             while ((s = await procStandardOutput.ReadLineAsync().WithCancellation(token).ConfigureAwait(false)) != null)
             {
                 con.AppendLine(s);
                 LogEnvironment.LogDebugEvent(null,s,isError?(int)LogSeverity.Error:(int)LogSeverity.Report, topic);
+                raiseEventAction(s);
             }
         }
 
@@ -354,5 +385,33 @@ namespace ITVComponents.Invokation
                 Completed = completed
             };
         }
+
+        /// <summary>
+        /// Raises the ConsoleOutput event
+        /// </summary>
+        /// <param name="e">the string that was read from the console-stream</param>
+        protected virtual void OnConsoleOutput(string e)
+        {
+            ConsoleOutput?.Invoke(this, e);
+        }
+
+        /// <summary>
+        /// Raises the ErrorOutput event
+        /// </summary>
+        /// <param name="e">the string that was read from the error-stream</param>
+        protected virtual void OnErrorOutput(string e)
+        {
+            ErrorOutput?.Invoke(this, e);
+        }
+
+        /// <summary>
+        /// Is fired, when the current process fires a normal console output
+        /// </summary>
+        public event EventHandler<string> ConsoleOutput;
+
+        /// <summary>
+        /// Is fired, when the current process fires an error output
+        /// </summary>
+        public event EventHandler<string> ErrorOutput;
     }
 }

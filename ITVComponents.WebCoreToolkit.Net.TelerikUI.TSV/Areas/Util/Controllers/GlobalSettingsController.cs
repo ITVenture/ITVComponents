@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(GlobalSettings.Read,GlobalSettings.Write)"),Area("Util")]
+    [Authorize("HasPermission(GlobalSettings.View,GlobalSettings.Write),HasFeature(ITVAdminViews)"),Area("Util")]
     public class GlobalSettingsController:Controller
     {
         private readonly IBaseTenantContext db;
@@ -20,6 +20,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public GlobalSettingsController(IBaseTenantContext db)
         {
             this.db = db;
+            db.ShowAllTenants = true;
         }
 
         public IActionResult Index()
@@ -29,7 +30,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
 
         public IActionResult ReadSettings([DataSourceRequest] DataSourceRequest request)
         {
-            db.ShowAllTenants = true;
             return Json(db.GlobalSettings.ToDataSourceResult(request, n => n.ToViewModel<GlobalSetting, GlobalSettingViewModel>()));
         }
 
@@ -53,7 +53,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [Authorize("HasPermission(GlobalSettings.Write)")]
         public async Task<IActionResult> UpdateSetting([DataSourceRequest] DataSourceRequest request, GlobalSettingViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.GlobalSettings.First(n => n.GlobalSettingId == viewModel.GlobalSettingId);
             if (ModelState.IsValid)
             {
@@ -68,7 +67,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [Authorize("HasPermission(GlobalSettings.Write)")]
         public async Task<IActionResult> DestroySetting([DataSourceRequest] DataSourceRequest request, GlobalSettingViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.GlobalSettings.First(n => n.GlobalSettingId == viewModel.GlobalSettingId);
             if (ModelState.IsValid)
             {

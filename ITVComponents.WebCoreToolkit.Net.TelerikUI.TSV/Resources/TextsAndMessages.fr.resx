@@ -288,4 +288,19 @@
   <data name="IWCN_General_OutgoingValueType" xml:space="preserve">
     <value>type de valeur (Template)</value>
   </data>
+  <data name="IWCN_FTAV_NoStartDate" xml:space="preserve">
+    <value>Pas de date de début définie</value>
+  </data>
+  <data name="IWCN_FTAV_NoEndDate" xml:space="preserve">
+    <value>Pas de date de fin définie</value>
+  </data>
+  <data name="IWCN_Titles_TenantTemplates" xml:space="preserve">
+    <value>Modèles de clients</value>
+  </data>
+  <data name="IWCN_TT_Apply" xml:space="preserve">
+    <value>Appliquer</value>
+  </data>
+  <data name="IWCN_TT_Create" xml:space="preserve">
+    <value>Nouveau modèle basé sur ce client</value>
+  </data>
 </root>

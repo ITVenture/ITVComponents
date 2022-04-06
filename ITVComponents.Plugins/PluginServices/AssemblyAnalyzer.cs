@@ -64,6 +64,7 @@ namespace ITVComponents.Plugins.PluginServices
         {
             ConstructorInfo[] constructors = t.GetConstructors();
             List<ConstructorDescriptor> constructorDescriptors = new List<ConstructorDescriptor>();
+            var genericArguments = t.IsGenericTypeDefinition ? t.GetGenericArguments() : Array.Empty<Type>();
             int i = 0;
             foreach (ConstructorInfo info in constructors)
             {
@@ -76,10 +77,69 @@ namespace ITVComponents.Plugins.PluginServices
                                         {
                                             Uid = objectId++,
                                             TypeFullName = t.FullName,
-                                            Constructors =constructorDescriptors.ToArray()
+                                            Constructors =constructorDescriptors.ToArray(),
+                                            GenericParameters= (from g in genericArguments select DescribeGenericParameter(g)).ToArray()
                                         };
             analyzeType?.Invoke(t, retVal);
             return retVal;
+        }
+
+        private static GenericParameterDescriptor DescribeGenericParameter(Type type)
+        {
+            var retVal = new GenericParameterDescriptor { GenericParameterName = type.Name };
+            var constraints = type.GetGenericParameterConstraints();
+            var sbl = new StringBuilder(@"Flags:
+");
+            ListGenericParameterAttributes(type, sbl);
+            if (constraints.Length != 0)
+            {
+                sbl.AppendLine("Type-Constraints:");
+                foreach (var constraint in constraints)
+                {
+                    sbl.AppendLine($"- Inherits {constraint.FullName}");
+                }
+            }
+
+            retVal.Remarks = sbl.ToString(0, sbl.Length - Environment.NewLine.Length);
+            return retVal;
+        }
+
+        private static void ListGenericParameterAttributes(Type t, StringBuilder target)
+        {
+            GenericParameterAttributes gpa = t.GenericParameterAttributes;
+            GenericParameterAttributes variance = gpa &
+                                                  GenericParameterAttributes.VarianceMask;
+
+            // Select the variance flags.
+            if (variance == GenericParameterAttributes.None)
+            {
+                target.AppendLine("- No variance flag");
+            }
+            else
+            {
+                if ((variance & GenericParameterAttributes.Covariant) != 0)
+                    target.AppendLine("- Covariant");
+                else
+                    target.AppendLine("- Contravariant");
+            }
+
+            // Select 
+            GenericParameterAttributes constraints = gpa &
+                                                     GenericParameterAttributes.SpecialConstraintMask;
+
+            if (constraints == GenericParameterAttributes.None)
+            {
+                target.AppendLine("- No special constraints");
+            }
+            else
+            {
+                if ((constraints & GenericParameterAttributes.ReferenceTypeConstraint) != 0)
+                    target.AppendLine("- ReferenceTypeConstraint (class)");
+                if ((constraints & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0)
+                    target.AppendLine("- NotNullableValueTypeConstraint (struct)");
+                if ((constraints & GenericParameterAttributes.DefaultConstructorConstraint) != 0)
+                    target.AppendLine("- DefaultConstructorConstraint (new())");
+            }
         }
 
         /// <summary>

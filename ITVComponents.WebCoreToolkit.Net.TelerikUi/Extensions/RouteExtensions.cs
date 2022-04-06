@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security;
 using System.Text.RegularExpressions;
 using System.Web;
 using ITVComponents.Logging;
@@ -58,9 +59,26 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
                                 var formsDictionary = await former.ReadFormAsync();
                                 //LogEnvironment.LogEvent(Stringify(formsDictionary), LogSeverity.Report);
                                 var newDic = TranslateForm(formsDictionary, true);
-                                JsonResult result = new JsonResult(dbContext.ReadForeignKey(table, postedFilter: newDic)
-                                    .ToDummyDataSourceResult());
-                                await result.ExecuteResultAsync(actionContext);
+                                JsonResult result = null;
+                                bool authorized = true;
+                                try
+                                {
+                                    result = new JsonResult(dbContext.ReadForeignKey(table, postedFilter: newDic)
+                                        .ToDummyDataSourceResult());
+                                }
+                                catch (SecurityException)
+                                {
+                                    authorized = false;
+                                }
+
+                                if (authorized)
+                                {
+                                    await result.ExecuteResultAsync(actionContext);
+                                    return;
+                                }
+
+                                UnauthorizedResult ill = new UnauthorizedResult();
+                                await ill.ExecuteResultAsync(actionContext);
                                 return;
                             }
                         }

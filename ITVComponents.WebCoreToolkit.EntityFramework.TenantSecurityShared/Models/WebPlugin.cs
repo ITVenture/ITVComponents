@@ -1,4 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,5 +19,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         
         [ForeignKey(nameof(TenantId))]
         public virtual Tenant Tenant { get; set; }
+
+        public virtual ICollection<WebPluginGenericParameter> Parameters { get; set; } = new List<WebPluginGenericParameter>();
     }
 }

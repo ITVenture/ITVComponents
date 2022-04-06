@@ -2,6 +2,7 @@
 using ITVComponents.InterProcessCommunication.MessagingShared.Config;
 using ITVComponents.Settings;
 using ITVComponents.Settings.Native;
+using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared
 {
@@ -16,6 +17,8 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared
         public List<HubRole> HubRoles{get;set;} = new List<HubRole>();
 
         public List<string> KnownHubPermissions { get; set; }
+
+        public List<Feature> Features { get; set; } = new List<Feature>();
 
 
         /// <summary>
@@ -35,6 +38,8 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared
             public static List<HubRole> HubRoles => Instance.UseExtConfig ? Instance.HubRoles : native.HubRoles;
 
             public static List<string> KnownHubPermissions => Instance.UseExtConfig ? Instance.KnownHubPermissions : native.KnownHubPermissions;
+
+            public static List<Feature> Features => Instance.UseExtConfig ? Instance.Features : native.Features;
         }
     }
 }

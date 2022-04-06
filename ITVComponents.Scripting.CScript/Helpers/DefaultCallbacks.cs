@@ -7,6 +7,7 @@ using ITVComponents.ExtendedFormatting;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.ExternalMethods;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
+using ITVComponents.TypeConversion;
 
 namespace ITVComponents.Scripting.CScript.Helpers
 {
@@ -127,10 +128,27 @@ namespace ITVComponents.Scripting.CScript.Helpers
             return ExpressionParser.Parse(expression,context);
         }
 
+        /// <summary>
+        /// Wraps the given object in a DictionaryWrapper
+        /// </summary>
+        /// <param name="obj">the object to be wrapped</param>
+        /// <returns>a KeyValue provider that enables the script to handle and object like a dictionary</returns>
         [ExternalMethod(MappedMethodName="WrapKV")]
         public static IBasicKeyValueProvider WrapKV(IScope obj)
         {
             return new DictionaryWrapper(obj);
+        }
+
+        /// <summary>
+        /// Converts an object from one type to an other
+        /// </summary>
+        /// <param name="value">the value to be converted</param>
+        /// <param name="target">the target type</param>
+        /// <returns>the converted value</returns>
+        [ExternalMethod(MappedMethodName = "ChangeType")]
+        public static object Convert(object value, Type target)
+        {
+            return TypeConverter.Convert(value, target);
         }
     }
 }

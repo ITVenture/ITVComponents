@@ -100,5 +100,11 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <returns>an enumerable containing all eligible Permission-Scopes that this user has access to</returns>
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType);
 
+        /// <summary>
+        /// Gets a list of activated features for a specific permission-Scope
+        /// </summary>
+        /// <param name="permissionScopeName">the name of the current permission-prefix selected by the current user</param>
+        /// <returns>returns a list of activated features</returns>
+        IEnumerable<Feature> GetFeatures(string permissionScopeName);
     }
 }

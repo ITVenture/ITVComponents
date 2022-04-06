@@ -33,6 +33,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         where TUserProperty:CustomUserProperty<TUserId,TUser>
         where TUser : class
     {
+        bool HideDisabledUsers { get; set; }
 
         public DbSet<TUser> Users { get; set; }
 

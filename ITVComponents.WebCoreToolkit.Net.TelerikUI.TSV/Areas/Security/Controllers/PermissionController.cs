@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
@@ -19,7 +20,7 @@ using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.Tenant
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Security.Controllers
 {
-    [Authorize("HasPermission(Permissions.Write,Permissions.Assign,Permissions.View)"), Area("Security"), ConstructedGenericControllerConvention]
+    [Authorize("HasPermission(Permissions.Write,Permissions.Assign,Permissions.View),HasFeature(ITVAdminViews)"), Area("Security"), ConstructedGenericControllerConvention]
     public class PermissionController<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : Controller
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new()
@@ -146,7 +147,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             if (ModelState.IsValid)
             {
                 await this.TryUpdateModelAsync<PermissionViewModel,TPermission>(model);
-                if (tenantId == null || UnknownGlobalPermission(model.PermissionName))
+                if (tenantId == null || db.VerifyRoleName(model.PermissionName))
                 {
                     model.TenantId = tenantId;
                     db.Permissions.Add(model);
@@ -190,7 +191,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 if (ModelState.IsValid)
                 {
                     await this.TryUpdateModelAsync<PermissionViewModel,TPermission>(model, "", m => { return m.ElementType == null; });
-                    if (model.TenantId == null || UnknownGlobalPermission(model.PermissionName))
+                    if (model.TenantId == null || db.VerifyRoleName(model.PermissionName))
                     {
                         await db.SaveChangesAsync();
                     }
@@ -239,23 +240,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             }
 
             return Unauthorized();
-        }
-        
-        private bool UnknownGlobalPermission(string name)
-        {
-            var allT = db.ShowAllTenants;
-            var hideG = db.HideGlobals;
-            try
-            {
-                db.ShowAllTenants = true;
-                db.HideGlobals = true;
-                return !db.Permissions.Any(n => n.PermissionName == name && n.TenantId == null);
-            }
-            finally
-            {
-                db.ShowAllTenants = allT;
-                db.HideGlobals = hideG;
-            }
         }
     }
 }

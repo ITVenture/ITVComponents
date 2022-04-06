@@ -11,6 +11,7 @@
     .Columns(columns =>
     {
         columns.Bound(m => m.TenantName).Title(TextsAndMessagesHelper.IWCN_General_TenantTitle);
+        columns.Bound(m => m.DisplayName);
 
     })
     .ToolBar(toolbar =>
@@ -21,10 +22,13 @@
         .Ajax()
         .Read(read => read.Action("Read","Tenant"))
         .Model(m => m.Id(t => t.TenantId))
-
+        .Sort(n => n.Add(m => m.DisplayName))
     )
     .Scrollable(s => s.Height("auto"))
     .ClientDetailTemplateId($"DetailPermissions_{ViewData["permissionId"]}_{ViewData["roleId"]}")
-    .Resizable(c => c.Columns(true)))
+    .Resizable(c => c.Columns(true))
+    .Pageable(c => c.Enabled(true))
+    .Sortable(true)
+    .Filterable(f => f.Enabled(true)))
 
 @Html.DetailViewScript($"DetailPermissions_{ViewData["permissionId"]}_{ViewData["roleId"]}", $"TenantDetails4#=TenantId#_{ViewData["permissionId"]}_{ViewData["roleId"]}", ViewData["permissionId"] != null ? $"~/Security/Role/RoleTable?tenantId=#=TenantId#&permissionId={ViewData["permissionId"]}" : $"~/Security/Permission/PermissionTable?tenantId=#=TenantId#&roleId={ViewData["roleId"]}")

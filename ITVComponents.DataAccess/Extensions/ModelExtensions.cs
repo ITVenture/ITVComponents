@@ -69,10 +69,12 @@ namespace ITVComponents.DataAccess.Extensions
             Type viewType = typeof(T);
             PropertyInfo[] allViewProperties = viewType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             var customValueProps = (from t in allViewProperties
-                                    where t.CanWrite && t.GetIndexParameters().Length == 0 && Attribute.IsDefined(t, typeof(CustomValueSourceAttribute), true)
+                                    where t.CanWrite && 
+                                          t.GetIndexParameters().Length == 0 && 
+                                          Attribute.IsDefined(t, typeof(CustomValueSourceAttribute), true)
                                     select new { Property = t, Attributes = System.Linq.Enumerable.Cast<CustomValueSourceAttribute>(Attribute.GetCustomAttributes(t, typeof(CustomValueSourceAttribute), true)).First() }).ToArray();
             var hashCalc = customValueProps.FirstOrDefault(n => n.Attributes is ModelHashAttribute);
-            var action = GetActionFor<TDbModel, T>(toViewModelActions, SelectToViewModelProps<TDbModel, T>);
+            var action = GetActionFor<TDbModel, T>(toViewModelActions, SelectToViewModelProps<TDbModel, T>, true);
             action(modelObject, retVal);
             foreach (var customValue in customValueProps)
             {
@@ -112,7 +114,7 @@ namespace ITVComponents.DataAccess.Extensions
                 return;
             }
 
-            var action = GetActionFor<TDbModel, T>(modelCopyActions, SelectCopyToVmProps<TDbModel, T>);
+            var action = GetActionFor<TDbModel, T>(modelCopyActions, SelectCopyToVmProps<TDbModel, T>, false);
             action(modelObject, target);
             postProcessAction?.Invoke(modelObject, target);
         }
@@ -150,7 +152,7 @@ namespace ITVComponents.DataAccess.Extensions
                 return;
             }
 
-            var action = GetActionFor<TViewModel, TDbModel>(assignmentDbActions, CreateDbCopyMethod<TViewModel, TDbModel>);
+            var action = GetActionFor<TViewModel, TDbModel>(assignmentDbActions, CreateDbCopyMethod<TViewModel, TDbModel>, false);
             action(modelObject, target);
         }
 
@@ -164,7 +166,16 @@ namespace ITVComponents.DataAccess.Extensions
             return (from t in allViewProperties
                     join a in allModelProperties on t.Name equals a.Name
                     where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(t, typeof(IgnorePropertyAttribute), true) && !Attribute.IsDefined(a, typeof(IgnorePropertyAttribute), true)
-                    select new AssignmentHolder { Destination = t, Source = a, PropType = t.PropertyType });
+                    select new AssignmentHolder { 
+                        Destination = t, 
+                        Source = a, 
+                        PropType = t.PropertyType, 
+                        SpecifyDateTimeAsUtc = Attribute.IsDefined(t, typeof(UtcDateTimeAttribute)) || Attribute.IsDefined(a, typeof(UtcDateTimeAttribute)),
+                        DestinationNullable = t.PropertyType.IsGenericType &&
+                                              t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>),
+                        SourceNullable = a.PropertyType.IsGenericType &&
+                                         a.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)
+                    });
         }
 
         /// <summary>
@@ -180,10 +191,15 @@ namespace ITVComponents.DataAccess.Extensions
             PropertyInfo[] allModelProperties =
                 modelType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
             PropertyInfo[] allViewProperties = viewType.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance);
+            Type dateTime = typeof(DateTime);
             var tmp = (from t in allViewProperties
                        join a in allModelProperties on t.Name equals a.Name
-                       where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(t, typeof(IgnorePropertyAttribute), true) && !Attribute.IsDefined(a, typeof(IgnorePropertyAttribute), true)
-                       select new { Property = t, SourceProperty = a });
+                       where t.CanWrite && t.GetIndexParameters().Length == 0 && 
+                             !Attribute.IsDefined(t, typeof(IgnorePropertyAttribute), true) && 
+                             !Attribute.IsDefined(a, typeof(IgnorePropertyAttribute), true)
+                       select new { Property = t, SourceProperty = a, UseUtcDateTime = 
+                           Attribute.IsDefined(t,typeof(UtcDateTimeAttribute)) ||
+                           Attribute.IsDefined(a,typeof(UtcDateTimeAttribute)) });
             foreach (var item in tmp)
             {
                 if (item.Property.PropertyType.IsAssignableFrom(item.SourceProperty.PropertyType) ||
@@ -196,7 +212,17 @@ namespace ITVComponents.DataAccess.Extensions
                      item.Property.PropertyType.IsAssignableFrom(
                          Nullable.GetUnderlyingType(item.SourceProperty.PropertyType))))
                 {
-                    yield return new AssignmentHolder { PropType = item.Property.PropertyType, Source = item.SourceProperty, Destination = item.Property };
+                    yield return new AssignmentHolder
+                    {
+                        PropType = item.Property.PropertyType, 
+                        Source = item.SourceProperty, 
+                        Destination = item.Property, 
+                        SpecifyDateTimeAsUtc = item.UseUtcDateTime,
+                        DestinationNullable = item.Property.PropertyType.IsGenericType &&
+                                              item.Property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>),
+                        SourceNullable = item.SourceProperty.PropertyType.IsGenericType &&
+                                         item.SourceProperty.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)
+                    };
                 }
                 else if (Attribute.IsDefined(item.Property, typeof(SetterMethodAttribute)))
                 {
@@ -210,12 +236,32 @@ namespace ITVComponents.DataAccess.Extensions
                     {
                         inf.Invoke(retVal, new[] {item.Value});
                     }*/
-                    yield return new AssignmentHolder { Setter = inf, PropType = item.SourceProperty.PropertyType, Source = item.SourceProperty, Destination = null };
+                    yield return new AssignmentHolder { 
+                        Setter = inf, 
+                        PropType = item.SourceProperty.PropertyType, 
+                        Source = item.SourceProperty, 
+                        Destination = null, 
+                        SpecifyDateTimeAsUtc = item.UseUtcDateTime ,
+                        DestinationNullable = item.Property.PropertyType.IsGenericType &&
+                                              item.Property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>),
+                        SourceNullable = item.SourceProperty.PropertyType.IsGenericType &&
+                                         item.SourceProperty.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)
+                    };
                 }
                 else
                 {
                     yield return new AssignmentHolder
-                    { Source = item.SourceProperty, Destination = item.Property, UseConvert = true, PropType = item.Property.PropertyType };
+                    {
+                        Source = item.SourceProperty, 
+                        Destination = item.Property, 
+                        UseConvert = true, 
+                        PropType = item.Property.PropertyType, 
+                        SpecifyDateTimeAsUtc = item.UseUtcDateTime,
+                        DestinationNullable = item.Property.PropertyType.IsGenericType &&
+                                              item.Property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>),
+                        SourceNullable = item.SourceProperty.PropertyType.IsGenericType &&
+                                         item.SourceProperty.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)
+                    };
                 }
             }
         }
@@ -228,10 +274,10 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="methodTargetDic">the Dictionary where the assignment-method is being stored</param>
         /// <param name="selector">the Property-Selector method</param>
         /// <returns></returns>
-        private static Action<TSource, TTarget> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> methodTargetDic, Func<IEnumerable<AssignmentHolder>> selector)
+        private static Action<TSource, TTarget> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> methodTargetDic, Func<IEnumerable<AssignmentHolder>> selector, bool useUtcSpecify)
         {
             var tmp1 = methodTargetDic.GetOrAdd(typeof(TSource), t => new ConcurrentDictionary<Type, Delegate>());
-            Action<TSource, TTarget> copyAction = (Action<TSource, TTarget>)tmp1.GetOrAdd(typeof(TTarget), t => BuildAssignmentLambda<TSource, TTarget>(selector()));
+            Action<TSource, TTarget> copyAction = (Action<TSource, TTarget>)tmp1.GetOrAdd(typeof(TTarget), t => BuildAssignmentLambda<TSource, TTarget>(selector(), useUtcSpecify));
             return copyAction;
         }
 
@@ -252,7 +298,17 @@ namespace ITVComponents.DataAccess.Extensions
                     join a in allVmProperties on t.Name equals a.Name
                     where t.CanWrite && t.GetIndexParameters().Length == 0 && !Attribute.IsDefined(a, typeof(KeyAttribute), true)
                           && t.PropertyType == a.PropertyType
-                    select new AssignmentHolder { PropType = t.PropertyType, Source = a, Destination = t });
+                    select new AssignmentHolder
+                    {
+                        PropType = t.PropertyType, 
+                        Source = a, 
+                        Destination = t, 
+                        SpecifyDateTimeAsUtc = Attribute.IsDefined(t, typeof(UtcDateTimeAttribute)) || Attribute.IsDefined(a, typeof(UtcDateTimeAttribute)),
+                        DestinationNullable = t.PropertyType.IsGenericType &&
+                                              t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>),
+                        SourceNullable = a.PropertyType.IsGenericType &&
+                                         a.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)
+                    });
         }
 
         /// <summary>
@@ -262,7 +318,7 @@ namespace ITVComponents.DataAccess.Extensions
         /// <typeparam name="TTarget">the Destination-type</typeparam>
         /// <param name="assignmentSource">the Getter and Setter methods of the target-properties</param>
         /// <returns></returns>
-        private static Action<TSource, TTarget> BuildAssignmentLambda<TSource, TTarget>(IEnumerable<AssignmentHolder> assignmentSource)
+        private static Action<TSource, TTarget> BuildAssignmentLambda<TSource, TTarget>(IEnumerable<AssignmentHolder> assignmentSource, bool useUtcSpecify)
         {
             var p1 = Expression.Parameter(typeof(TSource));
             var p2 = Expression.Parameter(typeof(TTarget));
@@ -272,6 +328,12 @@ namespace ITVComponents.DataAccess.Extensions
                     typeof(object),
                     typeof(Type)
                 }, null);
+            var specifyKindMethod = typeof(DateTime).GetMethod("SpecifyKind",
+                BindingFlags.Public | BindingFlags.Static, null, new Type[]
+                {
+                    typeof(DateTime),
+                    typeof(DateTimeKind)
+                }, null);
             var assignments = new List<Expression>();
             foreach (var item in assignmentSource)
             {
@@ -280,7 +342,14 @@ namespace ITVComponents.DataAccess.Extensions
                 if (propNullType != null && item.Source.PropertyType == propNullType && !item.UseConvert)
                 {
                     var propX = Expression.Property(p1, item.Source);
-                    var valX = Expression.Condition(Expression.NotEqual(propX, Expression.Constant(null, propNullType)), Expression.Property(propX, propNullValue), Expression.Default(item.PropType));
+                    Expression propXP = Expression.Property(propX, propNullValue);
+                    if (item.SpecifyDateTimeAsUtc && useUtcSpecify)
+                    {
+                        propXP = Expression.Call(null, specifyKindMethod, propXP,
+                            Expression.Constant(DateTimeKind.Utc));
+                    }
+
+                    var valX = Expression.Condition(Expression.NotEqual(propX, Expression.Constant(null, propNullType)), propXP, Expression.Default(item.PropType));
                     if (item.Setter == null)
                     {
                         assignments.Add(Expression.Assign(Expression.Property(p2, item.Destination), valX));
@@ -292,7 +361,24 @@ namespace ITVComponents.DataAccess.Extensions
                 }
                 else if (item.PropType != item.Source.PropertyType && !item.UseConvert)
                 {
-                    var valX = Expression.Convert(Expression.Property(p1, item.Source), item.PropType);
+                    Expression valX = Expression.Property(p1, item.Source);
+                    if (item.SpecifyDateTimeAsUtc && useUtcSpecify)
+                    {
+                        if (!item.SourceNullable)
+                        {
+                            valX = Expression.Call(null, specifyKindMethod, valX,
+                                Expression.Constant(DateTimeKind.Utc));
+                        }
+                        else
+                        {
+                            var nprop = Expression.Convert(Expression.Call(null, specifyKindMethod, Expression.Property(valX, item.Source.PropertyType?.GetProperty("Value")),
+                                    Expression.Constant(DateTimeKind.Utc))
+                                , item.Source.PropertyType);
+                            valX = Expression.Condition(Expression.NotEqual(valX, Expression.Constant(null, item.Source.PropertyType)), nprop, Expression.Constant(null, item.Source.PropertyType));
+                        }
+                    }
+
+                    valX = Expression.Convert(valX, item.PropType);
                     if (item.Setter == null)
                     {
                         assignments.Add(Expression.Assign(Expression.Property(p2, item.Destination), valX));
@@ -304,8 +390,25 @@ namespace ITVComponents.DataAccess.Extensions
                 }
                 else if (item.UseConvert)
                 {
-                    var valX = Expression.Convert(Expression.Call(null, tryConvertMethod, Expression.Convert(Expression.Property(p1, item.Source), typeof(object)),
-                        Expression.Constant(item.PropType)), item.PropType);
+                    Expression valX = Expression.Property(p1, item.Source);
+                    if (item.SpecifyDateTimeAsUtc && useUtcSpecify)
+                    {
+                        if (!item.SourceNullable)
+                        {
+                            valX = Expression.Call(null, specifyKindMethod, valX,
+                                Expression.Constant(DateTimeKind.Utc));
+                        }
+                        else
+                        {
+                            var nprop = Expression.Convert(Expression.Call(null, specifyKindMethod, Expression.Property(valX, item.Source.PropertyType?.GetProperty("Value")),
+                                    Expression.Constant(DateTimeKind.Utc))
+                                , item.Source.PropertyType);
+                            valX = Expression.Condition(Expression.NotEqual(valX, Expression.Constant(null, item.Source.PropertyType)), nprop, Expression.Constant(null, item.Source.PropertyType));
+                        }
+                    }
+                    valX = Expression.Call(null, tryConvertMethod, Expression.Convert(valX, typeof(object)),
+                        Expression.Constant(item.PropType));
+                    valX = Expression.Convert(valX, item.PropType);
                     if (item.Setter == null)
                     {
                         assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Assign(Expression.Property(p2, item.Destination), valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
@@ -317,7 +420,23 @@ namespace ITVComponents.DataAccess.Extensions
                 }
                 else
                 {
-                    var valX = Expression.Property(p1, item.Source);
+                    Expression valX = Expression.Property(p1, item.Source);
+                    if (item.SpecifyDateTimeAsUtc && useUtcSpecify)
+                    {
+                        if (!item.SourceNullable)
+                        {
+                            valX = Expression.Call(null, specifyKindMethod, valX,
+                                Expression.Constant(DateTimeKind.Utc));
+                        }
+                        else
+                        {
+                            var nprop = Expression.Convert(Expression.Call(null, specifyKindMethod, Expression.Property(valX, item.Source.PropertyType?.GetProperty("Value")),
+                                    Expression.Constant(DateTimeKind.Utc))
+                                , item.Source.PropertyType);
+                            valX = Expression.Condition(Expression.NotEqual(valX, Expression.Constant(null, item.Source.PropertyType)), nprop, Expression.Constant(null, item.Source.PropertyType));
+                        }
+                    }
+
                     if (item.Setter == null)
                     {
                         assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Assign(Expression.Property(p2, item.Destination), valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
@@ -340,10 +459,15 @@ namespace ITVComponents.DataAccess.Extensions
         {
             public PropertyInfo Source { get; set; }
             public PropertyInfo Destination { get; set; }
+            public bool SourceNullable { get; set; }
+
+            public bool DestinationNullable { get; set; }
             //public MethodInfo Getter{get;set;}
             public MethodInfo Setter { get; set; }
             public Type PropType { get; set; }
             public bool UseConvert { get; set; }
+
+            public bool SpecifyDateTimeAsUtc { get; set; }
         }
     }
 }

@@ -65,7 +65,8 @@
                     .Update(update => update.Action("Update", "DashboardWidget"))
                     .Destroy(destroy => destroy.Action("Destroy", "DashboardWidget"));
             }
-            src.Model(m => m.Id(t => t.DashboardWidgetId));
+            src.Model(m => m.Id(t => t.DashboardWidgetId))
+                .Sort(n => n.Add(m => m.DisplayName));
         })
         .Scrollable(s => s.Height("auto"))
         .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))

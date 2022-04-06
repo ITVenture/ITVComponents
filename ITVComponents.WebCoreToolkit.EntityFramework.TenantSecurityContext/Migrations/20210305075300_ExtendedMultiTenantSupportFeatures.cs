@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Migrations
 {
@@ -262,6 +263,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                 principalTable: "Tenants",
                 principalColumn: "TenantId",
                 onDelete: ReferentialAction.Restrict);
+            migrationBuilder.IncludeToolkitPermissions();
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)

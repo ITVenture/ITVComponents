@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(SystemLog.View)"), Area("Util")]
+    [Authorize("HasPermission(SystemLog.View),HasFeature(ITVAdminViews)"), Area("Util")]
     public class SystemLogController:Controller
     {
         private readonly IBaseTenantContext db;
@@ -17,6 +17,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public SystemLogController(IBaseTenantContext db)
         {
             this.db = db;
+            db.ShowAllTenants = true;
         }
 
         public IActionResult Index()
@@ -26,7 +27,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
 
         public IActionResult ReadLog ([DataSourceRequest] DataSourceRequest request)
         {
-            db.ShowAllTenants = true;
             return Json(db.SystemLog.ToDataSourceResult(request, n => n.ToViewModel<SystemEvent, SystemEventViewModel>()));
         }
     }

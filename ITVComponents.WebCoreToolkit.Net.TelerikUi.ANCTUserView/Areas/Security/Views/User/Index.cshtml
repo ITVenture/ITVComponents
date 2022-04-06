@@ -1,0 +1,41 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@using LocalTextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.Resources.TextsAndMessagesHelper
+@{
+    Layout = "_Layout";
+}
+@{
+
+    ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_Users;
+}
+
+
+<div class="row">
+    @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "roleId", null }, {"tenantId", ViewData["tenantId"]} } })
+</div>
+
+@if (ViewData["tenantId"] != null)
+{
+    @Html.DetailViewScript("roles2User", "roles2UserRoot#=Id#", $"~/Security/Role/RoleTable?tenantUserId=#=Id#&tenantId={ViewData["tenantId"]}", false)
+}
+else
+{
+    <script id="UserDetails" type="text/kendo-tmpl">
+    @(Html.Kendo().TabStrip().Name("UserAssignment#=Id#")
+        .SelectedIndex(0)
+        .Items(item =>
+        {
+            item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_Properties).LoadContentFrom("PropertyTable", "User", new {userId = "#=Id#"});
+            item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_Tenants).LoadContentFrom("TenantTable", "Tenant", new { userId = "#=Id#" });
+            item.Add().Text(LocalTextsAndMessagesHelper.IWCAU_Titles_LogIns).LoadContentFrom("LoginTable", "User", new { userId = "#=Id#" });
+            item.Add().Text(LocalTextsAndMessagesHelper.IWCAU_Titles_Tokens).LoadContentFrom("TokenTable", "User", new { userId = "#=Id#" });
+            item.Add().Text(LocalTextsAndMessagesHelper.IWCAU_Titles_Claims).LoadContentFrom("ClaimTable", "User", new { userId = "#=Id#" });
+
+        }).ToClientTemplate())
+</script>
+}

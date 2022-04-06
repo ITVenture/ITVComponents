@@ -1,0 +1,50 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@{
+    Layout = "_Layout";
+}
+@{
+
+    ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_TenantTemplates;
+}
+
+@(Html.Kendo().Grid<TenantTemplateViewModel>().Name("TemplateGrid")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+    .Columns(columns =>
+    {
+        columns.Bound(n => n.Name).Title(TextsAndMessagesHelper.IWCN_General_Name);
+        columns.Bound(n => n.Description).ClientTemplate("<div style='white-space:pre-line;'>#=ITVenture.Tools.HtmlHelper.encode(Description!=null?Description:'')#</div>").Title(TextsAndMessagesHelper.IWCN_General_Description);
+        columns.Bound(n => n.Markup).ClientTemplate("<div style='white-space:pre-line;'>#=ITVenture.Tools.HtmlHelper.encode(Markup!=null?Markup:'')#</div>").Title(TextsAndMessagesHelper.IWCN_General_Value);
+        columns.Command(ga =>
+        {
+            ga.Edit();
+            ga.PopupConfirmDelete();
+        }).Width(180);
+    })
+    .ToolBar(toolbar =>
+    {
+        toolbar.RefreshTable();
+        toolbar.Create();
+    })
+    .DataSource(dataSource =>
+    {
+        var src = dataSource
+            .Ajax()
+            .Read(read => read.Action("Read", "TenantTemplate"))
+            .Sort(s => s.Add(m => m.Name).Ascending())
+            .Create(create => create.Action("Create", "TenantTemplate"))
+            .Update(update => update.Action("Update", "TenantTemplate"))
+            .Destroy(destroy => destroy.Action("Destroy", "TenantTemplate"));
+        src.Model(m => m.Id(t => t.TenantTemplateId));
+    })
+    .Scrollable(s => s.Height("auto"))
+    .Resizable(c => c.Columns(true)))

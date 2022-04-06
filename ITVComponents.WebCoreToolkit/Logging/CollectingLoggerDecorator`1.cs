@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.DataAccess.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Logging
@@ -13,7 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
     /// <typeparam name="TTopic">the log-topic that was requested</typeparam>
     internal class CollectingLoggerDecorator<TTopic>:ILogger<TTopic>
     {
-        private ILogger decorated;
+        private ILogger[] decoratedLoggers;
 
         private readonly IGlobalLogConfiguration configuration;
         private string myTopic;
@@ -22,11 +23,11 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// Initializes a new instance of the CollectingLoggerDecorator class
         /// </summary>
         /// <param name="provider"></param>
-        public CollectingLoggerDecorator(ILoggerProvider provider, IGlobalLogConfiguration configuration)
+        public CollectingLoggerDecorator(IEnumerable<ILoggerProvider> providers, IGlobalLogConfiguration configuration)
         {
             this.configuration = configuration;
             myTopic = typeof(TTopic).FullName;
-            decorated = provider.CreateLogger(myTopic);
+            decoratedLoggers = providers.Select(n => n.CreateLogger(myTopic)).ToArray();
         }
 
         /// <summary>Begins a logical operation scope.</summary>
@@ -35,7 +36,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// <returns>An <see cref="T:System.IDisposable" /> that ends the logical operation scope on dispose.</returns>
         public IDisposable BeginScope<TState>(TState state)
         {
-            return decorated.BeginScope(state);
+            return new ToolkitLogScope<TState>(decoratedLoggers.Select(n => n.BeginScope(state)));
         }
 
         /// <summary>
@@ -45,7 +46,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// <returns><c>true</c> if enabled.</returns>
         public bool IsEnabled(LogLevel logLevel)
         {
-            return configuration.IsEnabled(logLevel, null);
+            return configuration.IsEnabled(logLevel, myTopic);
         }
 
         /// <summary>Writes a log entry.</summary>
@@ -57,17 +58,20 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// <typeparam name="TState">The type of the object to be written.</typeparam>
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
-            if (decorated is not CollectingLogger)
+            foreach (var decorated in decoratedLoggers)
             {
-                if (configuration.IsEnabled(logLevel, myTopic))
+                if (decorated is not CollectingLogger)
+                {
+                    if (configuration.IsEnabled(logLevel, myTopic))
+                    {
+                        decorated.Log(logLevel, eventId, state, exception, formatter);
+                    }
+                }
+                else
                 {
                     decorated.Log(logLevel, eventId, state, exception, formatter);
                 }
-
-                return;
             }
-
-            decorated.Log(logLevel, eventId, state, exception, formatter);
         }
     }
 }

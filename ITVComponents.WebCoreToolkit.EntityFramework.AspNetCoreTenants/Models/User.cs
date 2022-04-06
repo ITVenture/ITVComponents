@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models
 {
     public class User: IdentityUser
     {
-        public int AuthenticationTypeId { get; set; }
+        public int? AuthenticationTypeId { get; set; }
 
         [ForeignKey(nameof(AuthenticationTypeId))]
         public virtual AuthenticationType AuthenticationType { get; set; }

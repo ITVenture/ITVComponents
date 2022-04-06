@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
         [Required]
         public string UserName { get; set; }
 
-        public int AuthenticationTypeId { get; set; }
+        public int? AuthenticationTypeId { get; set; }
 
         public bool Assigned { get; set; }
         public int? RoleId { get; set; }
@@ -19,5 +19,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
         public string UniQUID{get; set; }
         
         public int? TenantId{get; set; }
+        public bool Enabled { get; set; }
     }
 }

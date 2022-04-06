@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using ITVComponents.InterProcessCommunication.MessagingShared.Config;
+using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared
 {
@@ -10,5 +11,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared
         public List<HubRole> HubRoles{get;set;} = new List<HubRole>();
 
         public List<string> KnownHubPermissions { get; set; }
+
+        public List<Feature> Features { get; set; } = new List<Feature>();
     }
 }

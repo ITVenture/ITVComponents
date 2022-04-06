@@ -7,7 +7,9 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Navigation;
+using ITVComponents.WebCoreToolkit.Options;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navigation
 {
@@ -31,12 +33,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
         private readonly ISecurityContext<TUserId,TUser,TRole,TPermission,TUserRole,TRolePermission,TTenantUser,TNavigationMenu,TTenantNavigation,TQuery,TQueryParameter,TTenantQuery,TWidget,TWidgetParam,TUserWidget,TUserProperty> securityContext;
         private readonly IServiceProvider services;
         private readonly IPermissionScope permissionScope;
+        private readonly IOptions<ToolkitPolicyOptions> options;
 
-        protected DbNavigationBuilder(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> securityContext, IServiceProvider services, IPermissionScope permissionScope)
+        protected DbNavigationBuilder(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> securityContext, IServiceProvider services, IPermissionScope permissionScope, IOptions<ToolkitPolicyOptions> options)
         {
             this.securityContext = securityContext;
             this.services = services;
             this.permissionScope = permissionScope;
+            this.options = options;
         }
 
         public NavigationMenu GetNavigationRoot()
@@ -62,12 +66,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
                 {
                     DisplayName = item.DisplayName,
                     RequiredPermission = item.EntryPoint?.PermissionName,
+                    RequiredFeature = item.Feature?.FeatureName,
                     SortOrder = item.SortOrder ?? 0,
                     SpanClass = item.SpanClass,
                     Url = !string.IsNullOrEmpty(item.Url) ? $"{(!string.IsNullOrEmpty(explicitTenant) ? $"/{explicitTenant}" : "")}{(!item.Url.StartsWith("/") ? "/" : "")}{item.Url}" : ""
                 };
                 
-                if (string.IsNullOrEmpty(ret.RequiredPermission) || services.VerifyUserPermissions(new[] {ret.RequiredPermission}))
+                if ((!options.Value.CheckPermissions || string.IsNullOrEmpty(ret.RequiredPermission) || services.VerifyUserPermissions(new[] {ret.RequiredPermission})) &&
+                    (!options.Value.CheckFeatures || string.IsNullOrEmpty(ret.RequiredFeature) || services.VerifyActivatedFeatures(new[]{ret.RequiredFeature}, out _)))
                 {
                     if (string.IsNullOrEmpty(item.Url))
                     {

@@ -12,6 +12,7 @@
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using Kendo.Mvc.UI
 @using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission
 @{
     var tmp = Html.Kendo().Grid<UserViewModel>().Name($"UsersFor{ViewData["roleId"]}_{ViewData["tenantId"]}")
         //.HtmlAttributes(new { style = "width:50vw;" })
@@ -30,6 +31,11 @@
             }
             else
             {
+                if (ViewData["tenantId"] != null)
+                {
+                    columns.InlineCheckbox(e => e.Enabled, "Id", readOnly: !Context.RequestServices.VerifyUserPermissions(new []{ToolkitPermission.Sysadmin,ToolkitPermission.TenantAdmin})).Width(150);
+                }
+
                 if (Context.RequestServices.VerifyUserPermissions(new[] {"Users.Write"}))
                     columns.Command(ga =>
                     {
@@ -46,7 +52,7 @@
         .ToolBar(toolbar =>
         {
             toolbar.RefreshTable();
-            if (ViewData["roleId"] == null && Context.RequestServices.VerifyUserPermissions(new []{"Users.Write"}) && Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }))
+            if (ViewData["roleId"] == null && ViewData["tenantId"] == null && Context.RequestServices.VerifyUserPermissions(new []{"Users.Write"}) && Context.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin }))
             {
                 toolbar.Create();
             }
@@ -56,13 +62,14 @@
             var src = dataSource
                         .Ajax()
                         .Read(read => read.Action("Read", "User", new {roleId = ViewData["roleId"], tenantId=ViewData["tenantId"]}));
-            if (Context.RequestServices.VerifyUserPermissions(new[] {"Users.Write","Users.AssignRole"}))
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"Users.Write","Users.AssignRole",ToolkitPermission.Sysadmin,ToolkitPermission.TenantAdmin}))
             {
                 src.Create(create => create.Action("Create", "User"))
                     .Update(update => update.Action("Update", "User", new {roleId = ViewData["roleId"], tenantId = ViewData["tenantId"]}))
                     .Destroy(destroy => destroy.Action("Destroy", "User", new {roleId = ViewData["roleId"], tenantId = ViewData["tenantId"]}));
             }
-            src.Model(m => m.Id(t => t.UserId));
+            src.Model(m => m.Id(t => t.UserId))
+                .Sort(n => n.Add(m => m.UserName));
         })
 .Scrollable(s => s.Height("auto"))
 .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))

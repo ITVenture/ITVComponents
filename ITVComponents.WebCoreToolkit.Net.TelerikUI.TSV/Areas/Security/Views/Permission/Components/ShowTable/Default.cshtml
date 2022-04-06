@@ -57,7 +57,8 @@
                     .Destroy(destroy => destroy.Action("Destroy", "Permission"));
             }
 
-            tmp.Model(m => m.Id(t => t.PermissionId));
+            tmp.Model(m => m.Id(t => t.PermissionId))
+                .Sort(n => n.Add(m => m.PermissionName));
         })
         //.Scrollable(s => s.Height("auto"))
         .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))

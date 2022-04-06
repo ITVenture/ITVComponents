@@ -18,7 +18,7 @@ using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.Tenant
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Security.Controllers
 {
-    [Authorize("HasPermission(Roles.Write,Roles.AssignPermission,Roles.User,Roles.View)"), Area("Security"), ConstructedGenericControllerConvention]
+    [Authorize("HasPermission(Roles.Write,Roles.AssignPermission,Roles.User,Roles.View),HasFeature(ITVAdminViews)"), Area("Security"), ConstructedGenericControllerConvention]
     public class RoleController<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : Controller
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new()
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>

@@ -18,6 +18,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         public int TenantId { get; set; }
 
+        public bool Enabled { get; set; } = true;
+
         [ForeignKey(nameof(UserId))]
         public virtual TUser User{get;set;}
 

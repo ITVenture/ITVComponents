@@ -36,5 +36,12 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// </summary>
         /// <param name="pi">the plugin-member to modify</param>
         void ConfigurePlugin(WebPlugin pi);
+
+        /// <summary>
+        /// Gets the generic arguments for the specified plugin
+        /// </summary>
+        /// <param name="uniqueName">the name of the plugin for which to get the generic arguments</param>
+        /// <returns>a list of parametetrs for this plugin</returns>
+        IEnumerable<WebPluginGenericParam> GetGenericParameters(string uniqueName);
     }
 }

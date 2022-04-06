@@ -119,6 +119,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string IWCN_General_OutgoingIssuer => GetString(nameof(IWCN_General_OutgoingIssuer));
         public static string IWCN_General_OutgoingValueType => GetString(nameof(IWCN_General_OutgoingValueType));
         public static string IWCN_General_OutgoingOriginalIssuer => GetString(nameof(IWCN_General_OutgoingOriginalIssuer));
+
+        public static string IWCN_FTAV_NoStartDate => GetString(nameof(IWCN_FTAV_NoStartDate));
+
+        public static string IWCN_FTAV_NoEndDate => GetString(nameof(IWCN_FTAV_NoEndDate));
+
+        public static string IWCN_Titles_TenantTemplates => GetString(nameof(IWCN_Titles_TenantTemplates));
+
+        public static string IWCN_TT_Apply => GetString(nameof(IWCN_TT_Apply));
+
+        public static string IWCN_TT_Create => GetString(nameof(IWCN_TT_Create));
         //--
 
         public static string GetIWCN_General_DisplayName(this IRequestCultureFeature requestCulture)
@@ -393,6 +403,31 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string GetIWCN_General_OutgoingOriginalIssuer(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_General_OutgoingOriginalIssuer), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_FTAV_NoStartDate(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_FTAV_NoStartDate), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_FTAV_NoEndDate(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_FTAV_NoEndDate), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_Titles_TenantTemplates(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_Titles_TenantTemplates), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_TT_Apply(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_TT_Apply), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_TT_Create(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_TT_Create), requestCulture.RequestCulture.UICulture);
         }
     }
 }

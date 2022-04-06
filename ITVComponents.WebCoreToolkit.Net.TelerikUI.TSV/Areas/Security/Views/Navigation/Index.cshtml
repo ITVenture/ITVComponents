@@ -1,8 +1,11 @@
 ﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@using Microsoft.Extensions.Options
 @using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@inject IOptions<SecurityViewsOptions> options
 @{
     Layout = "_Layout";
 }
@@ -15,4 +18,11 @@
     @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "parentId", null }, { "Permissions", ViewData["Permissions"] } } })
 </div>
 
-@Html.DetailViewScript("NavDetails", "Nav#=NavigationMenuId#", "~/Security/Navigation/NavTable?parentId=#=NavigationMenuId#")
+@if (options.Value.TenantLinkMode == LinkMode.MultiSelect)
+{
+    @Html.DetailViewScript("NavDetails", "Nav#=NavigationMenuId#", "~/Security/Navigation/NavTable?parentId=#=NavigationMenuId#")
+}
+else
+{
+    @Html.DetailViewScript("NavDetails", "Nav#=NavigationMenuId#", "~/Security/Navigation/NavDetailTabs?parentId=#=NavigationMenuId#")
+}

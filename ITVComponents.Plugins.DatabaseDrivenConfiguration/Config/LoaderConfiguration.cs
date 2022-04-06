@@ -19,6 +19,11 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration.Config
         public string PluginTableName { get; set; }
 
         /// <summary>
+        /// Gets or sets the Table-Name that contains generic arguments
+        /// </summary>
+        public string ParamTableName { get; set; }
+
+        /// <summary>
         /// Gets or sets the construction instruction for the plugin instance
         /// </summary>
         public int RefreshCycle { get; set; }

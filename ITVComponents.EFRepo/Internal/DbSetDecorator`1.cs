@@ -4,13 +4,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Expressions;
+using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace ITVComponents.EFRepo.Internal
 {
-    internal class DbSetDecorator<T>:IDbSet where T:class
+    internal class DbSetDecorator<T>:IDbSet where T:class, new()
     {
         private DbSet<T> decorated;
 
@@ -58,6 +60,44 @@ namespace ITVComponents.EFRepo.Internal
             return decorated.Find(keyValues);
         }
 
+        public object FindWithQuery(Dictionary<string, object> query, bool ignoreNotFound)
+        {
+            var filter = new CompositeFilter { Operator = BoolOperator.And };
+            var l = new List<FilterBase>();
+            foreach (var q in query)
+            {
+                l.Add(new CompareFilter
+                {
+                    Operator = CompareOperator.Equal, PropertyName = q.Key, Value = q.Value
+                });
+            }
+
+            filter.Children = l.ToArray();
+            var qr = ExpressionBuilder.BuildExpression<T>(filter);
+            var tmp = decorated.Where(qr).ToArray();
+            if (tmp.Length == 0)
+            {
+                if (!ignoreNotFound)
+                {
+                    throw new InvalidOperationException("The Query does not deliver a result.");
+                }
+
+                return null;
+            }
+
+            if (tmp.Length != 1)
+            {
+                throw new InvalidOperationException("The Query is not unique.");
+            }
+
+            return tmp[0];
+        }
+
+        public object GetIndex(object entity)
+        {
+            return decorated.EntityType.FindPrimaryKey().Properties.First().PropertyInfo.GetValue(entity);
+        }
+
         public EntityEntry Remove(object entity)
         {
             return decorated.Remove((T)entity);
@@ -86,6 +126,11 @@ namespace ITVComponents.EFRepo.Internal
         public void UpdateRange(IEnumerable entities)
         {
             decorated.UpdateRange(entities.Cast<T>());
+        }
+
+        public object New()
+        {
+            return new T();
         }
     }
 }

@@ -285,4 +285,19 @@
   <data name="IWCN_General_OutgoingValueType" xml:space="preserve">
     <value>Value Type (Template)</value>
   </data>
+  <data name="IWCN_FTAV_NoStartDate" xml:space="preserve">
+    <value>No Start-Date defined</value>
+  </data>
+  <data name="IWCN_FTAV_NoEndDate" xml:space="preserve">
+    <value>No End-Date defined</value>
+  </data>
+  <data name="IWCN_Titles_TenantTemplates" xml:space="preserve">
+    <value>Tenant Templates</value>
+  </data>
+  <data name="IWCN_TT_Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="IWCN_TT_Create" xml:space="preserve">
+    <value>Create Template based on current Tenant</value>
+  </data>
 </root>

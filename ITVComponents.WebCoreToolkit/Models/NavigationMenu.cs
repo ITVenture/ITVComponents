@@ -21,6 +21,8 @@ namespace ITVComponents.WebCoreToolkit.Models
 
         public string RequiredPermission { get;set; }
 
+        public string RequiredFeature { get; set; }
+
         public List<NavigationMenu> Children { get;} = new List<NavigationMenu>();
 
         public bool IsValid => !string.IsNullOrEmpty(Url) || Children.Any(n => n.IsValid);

@@ -4,6 +4,7 @@ using System.Numerics;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Tokens;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -56,20 +57,28 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             var identities = httpContext.HttpContext?.User?.Identities?.ToArray();
             if (identities != null)
             {
-                logger.LogDebug($"Found: {httpContext.HttpContext.User.Identity.Name} identities");
+                var secc = httpContext.HttpContext.RequestServices.GetService<ISecurityRepository>();
+                var userProvider = httpContext.HttpContext.RequestServices.GetRequiredService<IUserNameMapper>();
+                var eligibles = secc.GetEligibleScopes(userProvider.GetUserLabels(httpContext.HttpContext.User), httpContext.HttpContext.User.Identity.AuthenticationType).ToArray();
+                logger.LogDebug($"Found: {identities.Length} identities");
+                logger.LogDebug(string.Join("\r\n",identities.Select(n => $"{n.Name}-> authenticated:{n.IsAuthenticated}({n.AuthenticationType})")));
                 if (!string.IsNullOrEmpty(opt.RouteOverrideParam) && httpContext.HttpContext.Request.RouteValues.ContainsKey(opt.RouteOverrideParam) && !string.IsNullOrEmpty((string) httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam]))
                 {
                     IsScopeExplicit = true;
-                    return (string) httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam];
+                    var tmpRet = (string)httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam];
+                    if (eligibles.Any(n => n.ScopeName == tmpRet))
+                    {
+                        return tmpRet;
+                    }
                 }
 
-                if (httpContext.HttpContext.User.Identity?.IsAuthenticated ?? false)
+                if (identities.Any(n => n.IsAuthenticated))
                 {
-                    logger.LogDebug($"Authenticated User: {httpContext.HttpContext.User.Identity.Name}");
+                    logger.LogDebug($"Authenticated User(s): {string.Join(", ",identities.Select(n => n.Name))}");
                     bool decryptFailed = false;
                     if (!httpContext.HttpContext.Request.Cookies.TryGetValue(opt.ScopeCookie, out retVal) || (decryptFailed = !TryReadScopeToken(ref retVal, out var renew)) || renew)
                     {
-                        if (string.IsNullOrEmpty(retVal) || decryptFailed)
+                        if (string.IsNullOrEmpty(retVal) || decryptFailed || eligibles.All(n => n.ScopeDisplayName != retVal))
                         {
                             retVal = opt.DefaultScopeExpression(httpContext.HttpContext);
                             logger.LogDebug($"Default-Value of {opt.ScopeCookie}: {retVal}");

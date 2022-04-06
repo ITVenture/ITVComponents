@@ -1,0 +1,1 @@
+﻿ITVenture.Text.setText("it", "ITVTenantTmpl_InputName", "Inserisci un nome per il modello da creare.");

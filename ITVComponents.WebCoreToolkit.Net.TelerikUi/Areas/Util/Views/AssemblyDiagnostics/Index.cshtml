@@ -22,4 +22,8 @@
 {
     i.Add().LoadContentFrom("AssemblyList","AssemblyDiagnostics").Text("Assemblies");
     i.Add().LoadContentFrom("ClaimList", "AssemblyDiagnostics").Text("Claims");
+    if ((bool)ViewData["UseConfigExchange"])
+    {
+        i.Add().LoadContentFrom("ConfigExchange", "AssemblyDiagnostics").Text("Configuration Exchange");
+    }
 }).SelectedIndex(0)

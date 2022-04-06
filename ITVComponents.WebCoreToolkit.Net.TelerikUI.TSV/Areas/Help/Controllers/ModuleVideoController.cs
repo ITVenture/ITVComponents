@@ -31,6 +31,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.H
 
         private string VideoFileHandler => videoFileHandler ??= options.Value.VideoFileHandler;
 
+        [Authorize("HasFeature(ITVAdminViews)")]
         public IActionResult Index()
         {
             return View();

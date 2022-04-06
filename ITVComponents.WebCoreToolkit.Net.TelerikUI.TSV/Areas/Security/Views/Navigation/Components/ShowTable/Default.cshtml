@@ -5,11 +5,14 @@
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using ITVComponents.WebCoreToolkit.Routing
 @using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
 @using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@inject IOptions<SecurityViewsOptions> options
 @(Html.Kendo().Grid<NavigationMenuViewModel>().Name($"NavigationGrid{ViewData["parentId"]}")
     //.HtmlAttributes(new { style = "width:50vw;" })
     .Columns(columns =>
@@ -17,9 +20,13 @@
         columns.Command(cmd => cmd.Custom("a").HtmlAttributes(new { @class = "sort-dragger" })).Width(50);
         columns.Bound(p => p.DisplayName).Title(TextsAndMessagesHelper.IWCN_General_DisplayName).ClientTemplate("<pre>#=DisplayName#</pre>");
         columns.Bound(p => p.Url);
-        columns.MultiSelect(p => p.Tenants, "sys", "Tenants", "NavigationMenuId", TextsAndMessagesHelper.IWCN_NV_STDV_No_Tenant_Selected).Title(TextsAndMessagesHelper.IWCN_General_TenantTitle).HtmlAttributes(new{data_value_Primitive=true});
+        if (options.Value.TenantLinkMode == LinkMode.MultiSelect)
+        {
+            columns.MultiSelect(p => p.Tenants, "sys", "Tenants", "NavigationMenuId", TextsAndMessagesHelper.IWCN_NV_STDV_No_Tenant_Selected).Title(TextsAndMessagesHelper.IWCN_General_TenantTitle).HtmlAttributes(new { data_value_Primitive = true });
+        }
         //columns.ForeignKey(p => p.PermissionId, (IEnumerable) ViewData["Permissions"], "Key", "Label").Title("Modul-Berechtigung");
         columns.AjaxFk(p => p.PermissionId, "sys", "Permissions", "NavigationMenuId", minSearchLength: 2, filterable: true, customFilterData: new {TenantId = "##NULL##"}).Filterable(true);
+        columns.AjaxFk(p => p.FeatureId, "sys", "Features", "NavigationMenuId", minSearchLength: 2, filterable: true).Filterable(true);
     /*columns.ForeignKey(p => p.PermissionId, ds =>
     {
         ds.Read(cfg =>
@@ -27,7 +34,7 @@
             cfg.Url("/ForeignKey/sys/Permissions");
         });
     }, "Key", "Label");*/
-    columns.Bound(p => p.SpanClass).Title(TextsAndMessagesHelper.IWCN_NV_STDV_IconClass);
+    columns.Bound(p => p.SpanClass).ClientTemplate("<div style='white-space:pre-line;'>#=ITVenture.Tools.HtmlHelper.encode(SpanClass!=null?SpanClass:'')#</div>").Title(TextsAndMessagesHelper.IWCN_NV_STDV_IconClass);
     if (Context.RequestServices.VerifyUserPermissions(new [] {"Navigation.Write"}))
     {
         columns.Command(ga =>

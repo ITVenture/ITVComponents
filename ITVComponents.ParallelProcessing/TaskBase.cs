@@ -139,7 +139,7 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         public virtual void Fulfill()
         {
-            if (asyncHelper != null)
+            if (asyncHelper is { IsCompleted: false })
             {
                 AsyncHelper.Fulfill(asyncHelper);
             }

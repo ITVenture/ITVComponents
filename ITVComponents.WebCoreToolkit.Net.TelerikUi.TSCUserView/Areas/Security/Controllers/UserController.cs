@@ -13,17 +13,19 @@ using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.Areas.Security.Controllers
 {
-    [Authorize("HasPermission(Users.View,Users.Write)"), Area("Security")]
-    public class UserController : Controller
+    [Authorize("HasPermission(Users.View,Users.Write),HasFeature(ITVAdminViews)"), Area("Security")]
+    public class UserController<TContext> : Controller
+    where TContext:SecurityContext<TContext>
     {
-        private readonly SecurityContext db;
+        private readonly TContext db;
 
         private readonly bool isSysAdmin;
 
-        public UserController(SecurityContext db, IServiceProvider services)
+        public UserController(TContext db, IServiceProvider services)
         {
             this.db = db;
             if (!services.VerifyUserPermissions(new[] {EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
@@ -93,7 +95,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                         UserId = t.TenantUserId,
                         UserName = u.UserName,
                         AuthenticationTypeId = u.AuthenticationTypeId,
-                        TenantId = tenantId
+                        TenantId = tenantId,
+                        Enabled = t.Enabled
                     }).ToDataSourceResult(request, ModelState));
             }
             else
@@ -229,7 +232,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 tenantId = db.CurrentTenantId;
             }
             
-            if (viewModel.RoleId == null && HttpContext.RequestServices.VerifyUserPermissions(new []{"Users.Write"}) && isSysAdmin)
+            if (viewModel.TenantId == null && viewModel.RoleId == null && HttpContext.RequestServices.VerifyUserPermissions(new []{"Users.Write"}) && isSysAdmin)
             {
                 var model = db.Users.First(n => n.UserId == viewModel.UserId);
                 if (ModelState.IsValid)
@@ -266,6 +269,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
 
                     return Json(await new[] {viewModel}.ToDataSourceResultAsync(request, ModelState));
                 }
+            }
+            else if (viewModel.RoleId == null && viewModel.TenantId != null &&
+                     HttpContext.RequestServices.VerifyUserPermissions(new[]
+                         { ToolkitPermission.Sysadmin, ToolkitPermission.TenantAdmin }))
+            {
+                db.HideDisabledUsers = false;
+                var model = db.TenantUsers.First(n => n.TenantUserId == viewModel.UserId);
+                model.Enabled = viewModel.Enabled;
+                await db.SaveChangesAsync();
+                return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
             return Unauthorized();

@@ -6,5 +6,5 @@
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
 @using Kendo.Mvc.UI
 @using Kendo.Mvc.UI.Fluent
-@model int
+@model object
 @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "userId", Model } } })

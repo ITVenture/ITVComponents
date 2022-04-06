@@ -309,6 +309,9 @@ namespace ITVComponents.Plugins
         /// </summary>
         public bool AllowFactoryParameter { get { return allowFactoryParameter; } set { allowFactoryParameter = value; } }
 
+        private IDynamicLoader[] DynamicLoaders =>
+            (from t in plugins where t.Value is IDynamicLoader select (IDynamicLoader)t.Value).ToArray();
+
         /// <summary>
         /// Gets a value indicating whether the specified plugin has been initialized 
         /// </summary>
@@ -815,13 +818,23 @@ namespace ITVComponents.Plugins
             Disposed?.Invoke(this, EventArgs.Empty);
         }
 
+
+        /// <summary>
+        /// Raises the ImplementGenericType event
+        /// </summary>
+        /// <param name="e">the requirements for constructing a type</param>
+        protected virtual void OnImplementGenericType(ImplementGenericTypeEventArgs e)
+        {
+            ImplementGenericType?.Invoke(this, e);
+        }
+
         /// <summary>
         /// Loads dynamic assemblies that are required by a dynamicloader for running
         /// </summary>
         private string[] LoadDynamicPlugins()
         {
             List<string> orderedNames = new List<string>();
-            foreach (var tmp in (from t in plugins where t.Value is IDynamicLoader select (IDynamicLoader)t.Value).ToArray())
+            foreach (var tmp in DynamicLoaders)
             {
                 orderedNames.AddRange(tmp.LoadDynamicAssemblies());
             }
@@ -863,7 +876,7 @@ namespace ITVComponents.Plugins
             {
                 try
                 {
-                    this.ParsePluginString(pluginConstructor, out pluginType, out constructor, testOnly);
+                    this.ParsePluginString(uniqueName, pluginConstructor, out pluginType, out constructor, testOnly);
                     if (pluginType == null)
                     {
                         if (!testOnly)
@@ -1185,7 +1198,7 @@ namespace ITVComponents.Plugins
         /// <param name="loggerType">the Type of the logger</param>
         /// <param name="constructor">the parsed result of the construction parameters</param>
         /// <param name="reflectOnly">indicates whether to only validate if the provided constructor string is valid</param>
-        private void ParsePluginString(string loggerString, out Type loggerType, out object[] constructor, bool reflectOnly)
+        private void ParsePluginString(string uniqueName, string loggerString, out Type loggerType, out object[] constructor, bool reflectOnly)
         {
             Assembly a;
             PluginConstructionElement parsed = PluginConstructorParser.ParsePluginString(loggerString, stringLiteralFormatter);
@@ -1216,6 +1229,33 @@ namespace ITVComponents.Plugins
             }
 
             loggerType = a.GetType(parsed.TypeName);
+            if (loggerType.IsGenericTypeDefinition)
+            {
+                var t = new List<GenericTypeArgument>();
+                t.AddRange(from p in loggerType.GetGenericArguments() select new GenericTypeArgument{GenericTypeName = p.Name});
+                var dynLoader = DynamicLoaders.FirstOrDefault(l => l.HasParamsFor(uniqueName));
+                if (dynLoader != null)
+                {
+                    dynLoader.GetGenericParams(uniqueName, t, stringLiteralFormatter);
+                    var c = (from p in t select p.TypeResult).ToArray();
+                    loggerType = loggerType.MakeGenericType(c);
+                }
+                else
+                {
+                    var arg = new ImplementGenericTypeEventArgs { GenericTypes = t, PluginUniqueName = uniqueName, Formatter = stringLiteralFormatter };
+                    OnImplementGenericType(arg);
+                    if (arg.Handled)
+                    {
+                        var c = (from p in arg.GenericTypes select p.TypeResult).ToArray();
+                        loggerType = loggerType.MakeGenericType(c);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Unable to construct generic Type");
+                    }
+                }
+            }
+
             LogEnvironment.LogDebugEvent(null, $"found {loggerType}...", (int)LogSeverity.Report, "PluginSystem");
         }
 
@@ -1333,6 +1373,11 @@ namespace ITVComponents.Plugins
         /// Provides an event informing a caller about the initialization of a new plugin instance
         /// </summary>
         public event PluginInitializedEventHandler PluginInitialized;
+
+        /// <summary>
+        /// Is raised when a Plugin that is implemented as generic type is constructed.
+        /// </summary>
+        public event ImplementGenericTypeEventHandler ImplementGenericType;
     }
 
     /// <summary>
@@ -1378,6 +1423,31 @@ namespace ITVComponents.Plugins
         private UnknownConstructorParameterEventArgs()
         {
         }
+    }
+
+    /// <summary>
+    /// Delegate for the ImplementGenericType event
+    /// </summary>
+    /// <param name="sender">the event-sender</param>
+    /// <param name="e">the event arguments</param>
+    public delegate void ImplementGenericTypeEventHandler(object sender, ImplementGenericTypeEventArgs e);
+
+    public class ImplementGenericTypeEventArgs : EventArgs
+    {
+        public string PluginUniqueName { get; set; }
+
+        public List<GenericTypeArgument> GenericTypes { get; set; }
+
+        internal IStringFormatProvider Formatter { get; set; }
+
+        public bool Handled { get; set; }
+    }
+
+    public class GenericTypeArgument
+    {
+        public string GenericTypeName { get; set; }
+
+        public Type TypeResult { get; set; }
     }
 
     /// <summary>

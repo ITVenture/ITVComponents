@@ -19,5 +19,10 @@ namespace ITVComponents.Scripting.CScript.ReflectionHelpers
         {
             MemberAccessHelper.SetMemberValue(target, memberName, value, null, ValueType.PropertyOrField);
         }
+
+        public static object GetValueType(this object target, string memberName)
+        {
+            return MemberAccessHelper.GetMemberType(target, memberName, null, ValueType.PropertyOrField);
+        }
     }
 }

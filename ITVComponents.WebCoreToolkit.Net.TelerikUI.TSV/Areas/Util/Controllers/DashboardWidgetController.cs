@@ -20,7 +20,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(DashboardWidgets.View,DashboardWidgets.Write)"), Area("Util"), ConstructedGenericControllerConvention]
+    [Authorize("HasPermission(DashboardWidgets.View,DashboardWidgets.Write),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
     public class DashboardWidgetController<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : Controller
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -44,6 +44,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public DashboardWidgetController(TContext db)
         {
             this.db = db;
+            db.ShowAllTenants = true;
         }
 
         public IActionResult Index()
@@ -60,7 +61,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [HttpPost]
         public IActionResult Read([DataSourceRequest] DataSourceRequest request)
         {
-            db.ShowAllTenants = true;
             return Json(db.Widgets.ToDataSourceResult(request,
                 n => n.ToViewModel<TWidget, DashboardWidgetViewModel>()));
         }
@@ -70,7 +70,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public async Task<IActionResult> Create([DataSourceRequest] DataSourceRequest request,
             DashboardWidgetViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = new TWidget();
             if (ModelState.IsValid)
             {
@@ -88,7 +87,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request,
             DashboardWidgetViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.Widgets.First(n => n.DashboardWidgetId == viewModel.DashboardWidgetId);
             if (ModelState.IsValid)
             {
@@ -104,7 +102,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request,
             DashboardWidgetViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.Widgets.First(n => n.DashboardWidgetId == viewModel.DashboardWidgetId);
             if (ModelState.IsValid)
             {
@@ -120,7 +117,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [HttpPost]
         public IActionResult ReadParameters([DataSourceRequest] DataSourceRequest request, int dashboardWidgetId)
         {
-            db.ShowAllTenants = true;
             return Json(db.WidgetParams.Where(n => n.DashboardWidgetId == dashboardWidgetId).ToDataSourceResult(request, n => n.ToViewModel<TWidgetParam, DashboardParamViewModel>()));
         }
 
@@ -128,7 +124,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [Authorize("HasPermission(DashboardWidgets.Write)")]
         public async Task<IActionResult> CreateParameter([DataSourceRequest] DataSourceRequest request, [FromQuery] int dashboardWidgetId)
         {
-            db.ShowAllTenants = true;
             var model = new TWidgetParam();
             if (ModelState.IsValid)
             {
@@ -145,7 +140,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [Authorize("HasPermission(DashboardWidgets.Write)")]
         public async Task<IActionResult> DestroyParameter([DataSourceRequest] DataSourceRequest request, DashboardParamViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.WidgetParams.First(n => n.DashboardParamId == viewModel.DashboardParamId);
             if (ModelState.IsValid)
             {
@@ -160,7 +154,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [Authorize("HasPermission(DashboardWidgets.Write)")]
         public async Task<IActionResult> UpdateParameter([DataSourceRequest] DataSourceRequest request, DashboardParamViewModel viewModel)
         {
-            db.ShowAllTenants = true;
             var model = db.WidgetParams.First(n => n.DashboardParamId == viewModel.DashboardParamId);
             if (ModelState.IsValid)
             {

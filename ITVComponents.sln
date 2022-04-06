@@ -131,6 +131,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants", "ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants\ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.csproj", "{3AF27195-AF0F-4382-AF30-323B83F71D62}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView", "ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCTUserView\ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.csproj", "{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -651,6 +653,14 @@ Global
 		{3AF27195-AF0F-4382-AF30-323B83F71D62}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3AF27195-AF0F-4382-AF30-323B83F71D62}.Release|x86.ActiveCfg = Release|Any CPU
 		{3AF27195-AF0F-4382-AF30-323B83F71D62}.Release|x86.Build.0 = Release|Any CPU
+		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Debug|x86.Build.0 = Debug|Any CPU
+		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Release|x86.ActiveCfg = Release|Any CPU
+		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

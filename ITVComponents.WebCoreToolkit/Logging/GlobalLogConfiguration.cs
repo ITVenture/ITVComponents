@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
 using ITVComponents.Threading;
 using Microsoft.Extensions.Logging;
 
@@ -98,6 +99,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
         private class GlobalDisableLock : IResourceLock
         {
             private readonly GlobalLogConfiguration parent;
+            private bool disposed = false;
 
             public GlobalDisableLock(GlobalLogConfiguration parent)
             {
@@ -111,7 +113,11 @@ namespace ITVComponents.WebCoreToolkit.Logging
             {
                 lock (parent.modLock)
                 {
-                    parent.globalDisable--;
+                    if (!disposed)
+                    {
+                        parent.globalDisable--;
+                        disposed = true;
+                    }
                 }
             }
 
@@ -128,7 +134,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
 
             public IDisposable PauseExclusive()
             {
-                return new ExclusivePauseHelper(() => InnerLock?.PauseExclusive());
+                return new ExclusivePauseHelper(() => null);
             }
         }
     }

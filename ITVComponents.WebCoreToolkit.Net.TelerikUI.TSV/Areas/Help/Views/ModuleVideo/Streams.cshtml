@@ -42,7 +42,8 @@
                 src.Update(update => update.Action("UpdateStream", "ModuleVideo"))
                 .Destroy(destroy => destroy.Action("DeleteStream", "ModuleVideo"));
         }
-        src.Model(m => m.Id(t => t.VideoTutorialId));
+        src.Model(m => m.Id(t => t.VideoTutorialId))
+            .Sort(n => n.Add(m => m.LanguageTag));
     })
     .Scrollable(s => s.Height("auto"))
     .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))

@@ -45,7 +45,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>an enumerable of all the user-roles</returns>
         public IEnumerable<Role> GetRoles(User user)
         {
-            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && n.AuthenticationType == user.AuthenticationType);
+            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return from r in Roles join gr in hu.Roles on r.RoleName equals gr select r;
         }
 
@@ -56,7 +56,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user)
         {
-            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && n.AuthenticationType == user.AuthenticationType);
+            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return hu.CustomInfo.Select(m => new CustomUserProperty
             {
                 PropertyName = m.PropertyName,
@@ -72,7 +72,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>a value indicating whether this user is valid in the current scope</returns>
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
-            return Users.Any(n => n.AuthenticationType == userAuthenticationType && userLabels.Contains(n.UserName));
+            return Users.Any(n => (string.IsNullOrEmpty(n.AuthenticationType) || n.AuthenticationType == userAuthenticationType) && userLabels.Contains(n.UserName));
         }
 
         /// <summary>
@@ -111,11 +111,21 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>an enumerable of permissions for the given user</returns>
         public IEnumerable<Permission> GetPermissions(User user)
         {
-            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && n.AuthenticationType == user.AuthenticationType);
+            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return (from t in hu.Roles
                     join r in HubConfiguration.Helper.HubRoles on t equals r.RoleName
                     select r.Permissions).SelectMany(n => n)
                 .Select(p => new Permission { PermissionName = p });
+        }
+
+        /// <summary>
+        /// Gets a list of activated features for a specific permission-Scope
+        /// </summary>
+        /// <param name="permissionScopeName">the name of the current permission-prefix selected by the current user</param>
+        /// <returns>returns a list of activated features</returns>
+        public IEnumerable<Feature> GetFeatures(string permissionScopeName)
+        {
+            return (IEnumerable<Feature>)HubConfiguration.Helper.Features??Array.Empty<Feature>();
         }
 
         /// <summary>

@@ -1,0 +1,1 @@
+﻿ITVenture.Text.setText("de", "ITVTenantTmpl_InputName", "Bitte geben sie einen Namen für das zu erstellende Template an.");

@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
+using ITVComponents.Plugins.Helpers;
+using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
@@ -94,11 +96,8 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                                              ?? globalProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}");
                 var postInitializationSequence = tenantProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}")
                                                 ?? globalProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}");
-                var preInitSequence = Array.Empty<string>();
-                var postInitSequence = Array.Empty<string>();
-                preInitSequence = DeserializeInitArray(preInitializationSequence);
-                postInitSequence = DeserializeInitArray(postInitializationSequence);
-
+                var preInitSequence = DeserializeInitArray(preInitializationSequence);
+                var postInitSequence = DeserializeInitArray(postInitializationSequence);
                 WebPlugin plugin =
                     availablePlugins.GetPlugin(args.RequestedName);
                 if (plugin != null)
@@ -153,12 +152,33 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 pi.Disposed -= Finalizer;
                 pi.UnknownConstructorParameter -= handler;
                 pi.PluginInitialized -= Initializer;
+                pi.ImplementGenericType -= Implementer;
+            }
+
+            void Implementer(object sender, ImplementGenericTypeEventArgs args)
+            {
+                PluginFactory pi = (PluginFactory)sender;
+                IWebPluginsSelector availablePlugins = pluginProvider;
+                var impl = availablePlugins.GetGenericParameters(args.PluginUniqueName);
+                if (impl != null)
+                {
+                    var dic = new Dictionary<string, object>();
+                    var assignments = (from t in args.GenericTypes
+                        join a in impl on t.GenericTypeName equals a.GenericTypeName
+                        select new { Arg = t, Type = a.TypeExpression });
+                    foreach (var item in assignments)
+                    {
+                        item.Arg.TypeResult = (Type)ExpressionParser.Parse(item.Type.ApplyFormat(args), dic);
+                    }
+
+                    args.Handled = true;
+                }
             }
 
             retVal.UnknownConstructorParameter += handler;
             retVal.PluginInitialized += Initializer;
             retVal.Disposed += Finalizer;
-
+            retVal.ImplementGenericType += Implementer;
             return retVal;
         }
 

@@ -117,6 +117,21 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="IWCN_JCP_Title_Action" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="IWCN_JCP_Title_Details" xml:space="preserve">
+    <value>Détails</value>
+  </data>
+  <data name="IWCN_JCP_Title_Entity" xml:space="preserve">
+    <value>Tableau</value>
+  </data>
+  <data name="IWCN_JCP_Title_Execute" xml:space="preserve">
+    <value>Exécuter</value>
+  </data>
+  <data name="IWCN_JCP_Title_Identifyer" xml:space="preserve">
+    <value>Id</value>
+  </data>
   <data name="IWCN_KX_PCD_Caption" xml:space="preserve">
     <value>Supprimer</value>
   </data>

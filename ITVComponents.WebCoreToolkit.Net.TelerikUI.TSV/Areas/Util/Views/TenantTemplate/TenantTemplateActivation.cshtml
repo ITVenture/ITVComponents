@@ -1,0 +1,33 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using ITVComponents.WebCoreToolkit.Routing
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@inject IUrlFormat urlFormat
+
+<div style="margin-bottom:14px;">
+    @(Html.Kendo().Button().Name("extractTemplate").Content(TextsAndMessagesHelper.IWCN_TT_Create).Events(e => e.Click("ITVenture.Pages.Util.TenantTemplates.createTemplate")).HtmlAttributes(new{tenantId=ViewData["tenantId"]}))
+</div>
+
+<div class="d-inline-flex" style="width: 75%;">
+    @(Html.Kendo().DropDownList().Name($"Templates4{ViewData["tenantId"]}")
+        .DataSource(d => d.Ajax().Read(ra =>
+        {
+            var url = urlFormat.FormatUrl($"~[SlashPermissionScope]/ForeignKey/sys/TenantTemplates");
+            ra.Url(Url.Content(url));
+        }).ServerOperation(true).Events(e => e.Error("ITVenture.Helpers.listErrorHandler")))
+        .DataValueField("Key")
+        .DataTextField("Label")
+        .OptionLabel("--Select Value--")
+        .AutoBind(true)
+        .Filter("contains")
+        .ValuePrimitive(true))
+    @(Html.Kendo().Button().Name("applyTemplate").Content(TextsAndMessagesHelper.IWCN_TT_Apply).Events(e => e.Click("ITVenture.Pages.Util.TenantTemplates.applyTemplate")).HtmlAttributes(new{tenantId=ViewData["tenantId"], dropdownName=$"Templates4{ViewData["tenantId"]}"}))
+</div>

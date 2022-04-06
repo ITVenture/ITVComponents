@@ -2,6 +2,7 @@
   {
     "outputFileName": "wwwroot/js/viewScripts.min.js",
     "inputFiles": [
+      "Lib/**/*.js",
       "Areas/**/*.js"
     ],
     "minify": {

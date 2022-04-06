@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(PlugIns.Write,PlugIns.View)"), Area("Util")]
+    [Authorize("HasPermission(PlugIns.Write,PlugIns.View),HasFeature(ITVAdminViews)"), Area("Util")]
     public class PlugInController : Controller
     {
         private readonly IBaseTenantContext db;
@@ -60,6 +60,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             }
 
             return View(tenantId);
+        }
+
+        public IActionResult ArgumentsTable(int pluginId)
+        {
+            return View(pluginId);
         }
 
         [HttpPost]
@@ -140,6 +145,56 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             }
 
             return Json(await new[] {model.ToViewModel<WebPlugin, WebPluginViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        public IActionResult ReadArgs([DataSourceRequest] DataSourceRequest request, [FromQuery] int pluginId)
+        {
+            return Json(db.GenericPluginParams.Where(n => n.WebPluginId== pluginId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<WebPluginGenericParameter, WebPluginGenericParameterViewModel>()));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(PlugIns.Write)")]
+        public async Task<IActionResult> CreateArg([DataSourceRequest] DataSourceRequest request, [FromQuery] int pluginId)
+        {
+            var model = new WebPluginGenericParameter();
+            if (ModelState.IsValid)
+            {
+                await this.TryUpdateModelAsync<WebPluginGenericParameterViewModel, WebPluginGenericParameter>(model);
+                model.WebPluginId = pluginId;
+                db.GenericPluginParams.Add(model);
+
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { model.ToViewModel<WebPluginGenericParameter, WebPluginGenericParameterViewModel>() }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(PlugIns.Write)")]
+        public async Task<IActionResult> DestroyArg([DataSourceRequest] DataSourceRequest request, WebPluginGenericParameterViewModel viewModel)
+        {
+            var model = db.GenericPluginParams.First(n => n.WebPluginGenericParameterId == viewModel.WebPluginGenericParameterId);
+            if (ModelState.IsValid)
+            {
+                db.GenericPluginParams.Remove(model);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(PlugIns.Write)")]
+        public async Task<IActionResult> UpdateArg([DataSourceRequest] DataSourceRequest request, WebPluginGenericParameterViewModel viewModel)
+        {
+            var model = db.GenericPluginParams.First(n => n.WebPluginGenericParameterId == viewModel.WebPluginGenericParameterId);
+            if (ModelState.IsValid)
+            {
+                await this.TryUpdateModelAsync<WebPluginGenericParameterViewModel, WebPluginGenericParameter>(model, "", m => { return m.ElementType == null; });
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { model.ToViewModel<WebPluginGenericParameter, WebPluginGenericParameterViewModel>() }.ToDataSourceResultAsync(request, ModelState));
         }
     }
 }

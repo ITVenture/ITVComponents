@@ -33,6 +33,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
 
         public static string IWCN_Titles_Assemblies => GetString(nameof(IWCN_Titles_Assemblies));
 
+        public static string IWCN_JCP_Title_Entity => GetString(nameof(IWCN_JCP_Title_Entity));
+
+        public static string IWCN_JCP_Title_Action => GetString(nameof(IWCN_JCP_Title_Action));
+        public static string IWCN_JCP_Title_Execute => GetString(nameof(IWCN_JCP_Title_Execute));
+
+        public static string IWCN_JCP_Title_Identifyer => GetString(nameof(IWCN_JCP_Title_Identifyer));
+
+        public static string IWCN_JCP_Title_Details => GetString(nameof(IWCN_JCP_Title_Details));
+
+
         public static string GetIWCN_KX_PCD_Caption(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_KX_PCD_Caption), requestCulture.RequestCulture.UICulture);
@@ -47,5 +57,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
         {
             return GetString(nameof(IWCN_Titles_Assemblies), requestCulture.RequestCulture.UICulture);
         }
+
+        public static string GetIWCN_JCP_Title_Entity(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_JCP_Title_Entity), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_JCP_Title_Action(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_JCP_Title_Action), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_JCP_Title_Execute(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_JCP_Title_Execute), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_JCP_Title_Identifyer(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_JCP_Title_Identifyer), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_JCP_Title_Details(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_JCP_Title_Details), requestCulture.RequestCulture.UICulture);
     }
 }

@@ -37,7 +37,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         public int? PermissionId { get; set; }
 
+        public int? FeatureId { get; set; }
+
         public string SpanClass { get; set; }
+
+        [MaxLength(1024)]
+        public string RefTag { get; set; }
 
         [ForeignKey(nameof(ParentId))]
         public virtual TNavigationMenu Parent { get; set; }
@@ -48,5 +53,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         [ForeignKey(nameof(PermissionId))]
         public virtual TPermission EntryPoint { get; set; }
+
+        [ForeignKey(nameof(FeatureId))]
+        public virtual Feature Feature { get; set; }
     }
 }

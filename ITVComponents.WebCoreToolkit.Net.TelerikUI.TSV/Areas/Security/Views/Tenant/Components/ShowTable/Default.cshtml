@@ -16,7 +16,7 @@
     var requestLocalizer = Context.Features.Get<IRequestCultureFeature>();
     var showDetailsCaption = requestLocalizer?.GetIWCN_TV_Edit_Details() ?? TextsAndMessagesHelper.IWCN_TV_Edit_Details;
 }
-@(Html.Kendo().Grid<TenantViewModel>().Name($"TenantList{ViewData["userId"]}")
+@(Html.Kendo().Grid<TenantViewModel>().Name($"TenantList{ViewData["userId"]}{ViewData["navigationMenuId"]}{ViewData["diagnosticsQueryId"]}")
         //.HtmlAttributes(new { style = "width:50vw;" })
         .Columns(columns =>
         {
@@ -24,10 +24,18 @@
             {
                 columns.InlineCheckbox(e => e.Assigned, "UniQUID", readOnly: !Context.RequestServices.VerifyUserPermissions(new[] { "Tenants.AssignUser" })).Title(TextsAndMessagesHelper.IWCN_TV_STDV_Assigned).Width(150);
             }
+            else if (ViewData["navigationMenuId"] != null)
+            {
+                columns.InlineCheckbox(e => e.Assigned, "UniQUID", readOnly: !Context.RequestServices.VerifyUserPermissions(new[] { "Tenants.AssignNav" })).Title(TextsAndMessagesHelper.IWCN_TV_STDV_Assigned).Width(150);
+            }
+            else if (ViewData["diagnosticsQueryId"] != null)
+            {
+                columns.InlineCheckbox(e => e.Assigned, "UniQUID", readOnly: !Context.RequestServices.VerifyUserPermissions(new[] { "Tenants.AssignQuery" })).Title(TextsAndMessagesHelper.IWCN_TV_STDV_Assigned).Width(150);
+            }
 
             columns.Bound(c => c.DisplayName).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
             columns.Bound(c => c.TenantName).Title(TextsAndMessagesHelper.IWCN_General_SystemName);
-            if (ViewData["userId"] == null)
+            if (ViewData["userId"] == null && ViewData["navigationMenuId"] == null && ViewData["diagnosticsQueryId"] == null)
             {
                 if (Context.RequestServices.VerifyUserPermissions(new[] {"Tenants.Write"}))
                 {
@@ -44,7 +52,7 @@
         .ToolBar(toolbar =>
         {
             toolbar.RefreshTable();
-            if (Context.RequestServices.VerifyUserPermissions(new []{"Tenants.Write"}) && ViewData["userId"] == null)
+            if (Context.RequestServices.VerifyUserPermissions(new []{"Tenants.Write"}) && ViewData["userId"] == null && ViewData["navigationMenuId"] == null && ViewData["diagnosticsQueryId"] == null)
             {
                 toolbar.Create();
             }
@@ -53,14 +61,34 @@
         {
             var src = dataSource
                 .Ajax()
-                .Read(read => read.Action("Read", "Tenant", new{userId=ViewData["userId"]}));
-            if (Context.RequestServices.VerifyUserPermissions(new[] {"Tenants.Write"}))
+                .Read(read => read.Action("Read", "Tenant", new
+                {
+                    userId=ViewData["userId"],
+                    navigationMenuId = ViewData["navigationMenuId"],
+                    diagnosticsQueryId = ViewData["diagnosticsQueryId"]
+                }));
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"Tenants.Write"})
+            && ViewData["userId"] == null && ViewData["navigationMenuId"] == null && ViewData["diagnosticsQueryId"] == null)
             {
                 src.Create(create => create.Action("Create", "Tenant"))
-                    .Update(update => update.Action("Update", "Tenant", new { userId = ViewData["userId"] }))
+                    .Update(update => update.Action("Update", "Tenant"))
                     .Destroy(destroy => destroy.Action("Destroy", "Tenant"));
             }
-            src.Model(m => m.Id(t => t.TenantId));
+            else if (ViewData["userId"] != null && Context.RequestServices.VerifyUserPermissions(new[] { "Tenants.AssignUser" }))
+            {
+                src.Update(update => update.Action("UpdateTU", "Tenant", new { userId = ViewData["userId"] }));
+            }
+            else if (ViewData["navigationMenuId"] != null && Context.RequestServices.VerifyUserPermissions(new[] { "Tenants.AssignNav" }))
+            {
+                src.Update(update => update.Action("UpdateTN", "Tenant", new { navigationMenuId = ViewData["navigationMenuId"] }));
+            }
+            else if (ViewData["diagnosticsQueryId"] != null && Context.RequestServices.VerifyUserPermissions(new[] { "Tenants.AssignQuery" }))
+            {
+                src.Update(update => update.Action("UpdateTQ", "Tenant", new { diagnosticsQueryId = ViewData["diagnosticsQueryId"] }));
+            }
+
+            src.Model(m => m.Id(t => t.TenantId))
+                .Sort(n => n.Add(m => m.TenantName));
         })
         .Scrollable(s => s.Height("auto"))
         .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
@@ -68,7 +96,9 @@
         .Filterable(f => f.Enabled(true))
     .Resizable(c => c.Columns(true)))
 
-@Html.DetailViewScript("TenantSettings", "TSTT#=TenantId#", "~/Security/Tenant/SettingsTable?tenantId=#=TenantId#")
+
+@*Html.DetailViewScript("TenantSettings", "TSTT#=TenantId#", "~/Security/Tenant/SettingsTable?tenantId=#=TenantId#")
+
 @Html.DetailViewScript("PermissionDetails", "Perm#=PermissionId#_#=TenantId#", "~/Security/Role/RoleTable?permissionId=#=PermissionId#&tenantId=#=TenantId#")
 <script id="RoleDetails" type="text/kendo-tmpl">
     @(Html.Kendo().TabStrip().Name("RolesAssignment#=RoleId#")
@@ -79,4 +109,4 @@
             item.Add().Text("Benutzer").LoadContentFrom("UserTable", "User", new {roleId = "#=RoleId#", tenantId = "#=TenantId#"});
 
         }).ToClientTemplate())
-</script>
+</script>*@

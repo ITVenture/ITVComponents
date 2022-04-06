@@ -47,7 +47,8 @@
                     .Update(update => update.Action("Update", "PlugInConst"))
                     .Destroy(destroy => destroy.Action("Destroy", "PlugInConst"));
             }
-            src.Model(m => m.Id(t => t.WebPluginConstantId));
+            src.Model(m => m.Id(t => t.WebPluginConstantId))
+                .Sort(n => n.Add(m => m.Name));
         })
         .Scrollable(s => s.Height("auto"))
         .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))

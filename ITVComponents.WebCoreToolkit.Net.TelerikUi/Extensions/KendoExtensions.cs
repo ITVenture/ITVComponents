@@ -333,17 +333,21 @@
                 }
 
                 string template =
-                    $@"<span id='fk{repoName}_{tableName}_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({columnName})#_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({pkName})#' ></span>
+                    $@"<span id='fk{repoName}_{tableName}_{columnName}_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({columnName})#_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({pkName})#' ></span>
     #{{
-        var $$tmp = function(colVal,pkVal){{
+        var $$tmp = function(colVal,pkVal,data){{
             var tmpPk = ITVenture.Tools.ListCallbackHelper.normalizeFkValue(pkVal);
             var tmpFk = ITVenture.Tools.ListCallbackHelper.normalizeFkValue(colVal);
-            var st = ""fk{repoName}_{tableName}_"".concat(tmpFk).concat(""_"").concat(tmpPk);
+            var prnt = null;
+            try{{
+                prnt = data.uid;
+            }}catch{{}}
+            var st = ""fk{repoName}_{tableName}_{columnName}_"".concat(tmpFk).concat(""_"").concat(tmpPk);
             var colValue = colVal;
             $(function(){{
-                ITVenture.Tools.ListCallbackHelper.ShowPkValue(""{repoName}"",""{tableName}"",colValue,st, ""{emptyLabel}"", ""{area}"");
+                ITVenture.Tools.ListCallbackHelper.ShowPkValue(""{repoName}"",""{tableName}"",colValue,st, ""{emptyLabel}"", ""{area}"", prnt);
             }});
-        }}({columnName},{pkName});
+        }}({columnName},{pkName},data);
     }}#";
 
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_RepoName"] = repoName;
@@ -413,17 +417,21 @@
                 }
 
                 string template =
-                    $@"<span id='fk{repoName}_{tableName}_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({columnName})#_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({pkName})#' ></span>
+                    $@"<span id='fk{repoName}_{tableName}_{columnName}_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({columnName})#_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({pkName})#' ></span>
     #{{
-        var $$tmp = function(colVal,pkVal){{
+        var $$tmp = function(colVal,pkVal,data){{
             var tmpFk = ITVenture.Tools.ListCallbackHelper.normalizeFkValue(colVal);
             var tmpPk = ITVenture.Tools.ListCallbackHelper.normalizeFkValue(pkVal);
-            var st = ""fk{repoName}_{tableName}_"".concat(tmpFk).concat(""_"").concat(tmpPk);
+            var prnt = null;
+            try{{
+                prnt = data.uid;
+            }}catch{{}}
+            var st = ""fk{repoName}_{tableName}_{columnName}_"".concat(tmpFk).concat(""_"").concat(tmpPk);
             var colValue = colVal;
             $(function(){{
-                ITVenture.Tools.ListCallbackHelper.ShowPkValue(""{repoName}"",""{tableName}"",colValue,st, ""{emptyLabel}"", ""{area}"");
+                ITVenture.Tools.ListCallbackHelper.ShowPkValue(""{repoName}"",""{tableName}"",colValue,st, ""{emptyLabel}"", ""{area}"", prnt);
             }});
-        }}({columnName},{pkName});
+        }}({columnName},{pkName},data);
     }}#";
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_RepoName"] = repoName;
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_TableName"] = tableName;
@@ -487,18 +495,22 @@
                 }
 
                 string template =
-                    $@"<span id='fk{repoName}_{tableName}_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({columnName})#_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({pkName})#' ></span>
+                    $@"<span id='fk{repoName}_{tableName}_{columnName}_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({columnName})#_#=ITVenture.Tools.ListCallbackHelper.normalizeFkValue({pkName})#' ></span>
     #{{
-        var $$tmp = function(colVal,pkVal){{
+        var $$tmp = function(colVal,pkVal,data){{
             var tmpPk = ITVenture.Tools.ListCallbackHelper.normalizeFkValue(pkVal);
             var tmpFk = ITVenture.Tools.ListCallbackHelper.normalizeFkValue(colVal);
-            var st = ""fk{repoName}_{tableName}_"".concat(tmpFk).concat(""_"").concat(tmpPk);
+            var prnt = null;
+            try{{
+                prnt = data.uid;
+            }}catch{{}}
+            var st = ""fk{repoName}_{tableName}_{columnName}_"".concat(tmpFk).concat(""_"").concat(tmpPk);
             var colValue = colVal;
             $(function(){{
-                ITVenture.Tools.ListCallbackHelper.ShowPkValue(""{repoName}"",""{tableName}"",colValue,st, ""{emptyLabel}"", ""{area}"");
+                ITVenture.Tools.ListCallbackHelper.ShowPkValue(""{repoName}"",""{tableName}"",colValue,st, ""{emptyLabel}"", ""{area}"", prnt);
                 {filterScriptBody}
             }});
-        }}({columnName},{pkName});
+        }}({columnName},{pkName},data);
     }}#";
 
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_RepoName"] = repoName;

@@ -194,6 +194,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("FeatureId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("ParentId")
                         .HasColumnType("int");
 
@@ -218,6 +221,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .HasComputedColumnSql("case when isnull(Url,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) else Url end persisted");
 
                     b.HasKey("NavigationMenuId");
+
+                    b.HasIndex("FeatureId");
 
                     b.HasIndex("ParentId");
 
@@ -373,7 +378,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
 
                     b.HasIndex("PermissionId");
 
-                    b.HasIndex("TenantId");
+                    b.HasIndex(new[] { "TenantId", "NavigationMenuId" }, "IX_UniqueTenantMenu")
+                        .IsUnique();
 
                     b.ToTable("TenantNavigation");
                 });
@@ -384,6 +390,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<bool>("Enabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<int>("TenantId")
                         .HasColumnType("int");
@@ -398,6 +409,76 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.HasIndex("UserId");
 
                     b.ToTable("TenantUsers");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("AccessFailedCount")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("AuthenticationTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("LockoutEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("LockoutEnd")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("NormalizedEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("NormalizedUserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("PasswordHash")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("PhoneNumberConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SecurityStamp")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("TwoFactorEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("UserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthenticationTypeId");
+
+                    b.HasIndex("NormalizedEmail")
+                        .HasDatabaseName("EmailIndex");
+
+                    b.HasIndex("NormalizedUserName")
+                        .IsUnique()
+                        .HasDatabaseName("UserNameIndex")
+                        .HasFilter("[NormalizedUserName] IS NOT NULL");
+
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.UserRole", b =>
@@ -524,6 +605,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.ToTable("AuthenticationTypes");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", b =>
+                {
+                    b.Property<int>("FeatureId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("FeatureDescription")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FeatureName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("FeatureId");
+
+                    b.HasIndex(new[] { "FeatureName" }, "IX_FeatureUniqueness")
+                        .IsUnique();
+
+                    b.ToTable("Features");
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.GlobalSetting", b =>
                 {
                     b.Property<int>("GlobalSettingId")
@@ -603,6 +710,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.ToTable("Tenants");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantFeatureActivation", b =>
+                {
+                    b.Property<int>("TenantFeatureActivationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<DateTime?>("ActivationEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ActivationStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeatureId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
+                    b.HasKey("TenantFeatureActivationId");
+
+                    b.HasIndex("FeatureId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("TenantFeatureActivations");
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting", b =>
                 {
                     b.Property<int>("TenantSettingId")
@@ -632,6 +767,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .IsUnique();
 
                     b.ToTable("TenantSettings");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantTemplate", b =>
+                {
+                    b.Property<int>("TenantTemplateId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Markup")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("TenantTemplateId");
+
+                    b.ToTable("TenantTemplates");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream", b =>
@@ -840,77 +998,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.ToTable("RoleClaims");
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUser", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<int>("AccessFailedCount")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ConcurrencyStamp")
-                        .IsConcurrencyToken()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Discriminator")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Email")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<bool>("EmailConfirmed")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("LockoutEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTimeOffset?>("LockoutEnd")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("NormalizedEmail")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("NormalizedUserName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("PasswordHash")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PhoneNumber")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("PhoneNumberConfirmed")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("SecurityStamp")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("TwoFactorEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("UserName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedEmail")
-                        .HasDatabaseName("EmailIndex");
-
-                    b.HasIndex("NormalizedUserName")
-                        .IsUnique()
-                        .HasDatabaseName("UserNameIndex")
-                        .HasFilter("[NormalizedUserName] IS NOT NULL");
-
-                    b.ToTable("Users");
-
-                    b.HasDiscriminator<string>("Discriminator").HasValue("IdentityUser");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<string>", b =>
                 {
                     b.Property<int>("Id")
@@ -991,20 +1078,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.ToTable("UserTokens");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", b =>
-                {
-                    b.HasBaseType("Microsoft.AspNetCore.Identity.IdentityUser");
-
-                    b.Property<int>("AuthenticationTypeId")
-                        .HasColumnType("int");
-
-                    b.HasIndex("AuthenticationTypeId");
-
-                    b.ToTable("Users");
-
-                    b.HasDiscriminator().HasValue("User");
-                });
-
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.CustomUserProperty", b =>
                 {
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", "User")
@@ -1060,6 +1133,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.NavigationMenu", b =>
                 {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", "Feature")
+                        .WithMany()
+                        .HasForeignKey("FeatureId");
+
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.NavigationMenu", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentId");
@@ -1069,6 +1146,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .HasForeignKey("PermissionId");
 
                     b.Navigation("EntryPoint");
+
+                    b.Navigation("Feature");
 
                     b.Navigation("Parent");
                 });
@@ -1181,6 +1260,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType", "AuthenticationType")
+                        .WithMany()
+                        .HasForeignKey("AuthenticationTypeId");
+
+                    b.Navigation("AuthenticationType");
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.UserRole", b =>
                 {
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.Role", "Role")
@@ -1228,6 +1316,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .IsRequired();
 
                     b.Navigation("AuthenticationType");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantFeatureActivation", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", "Feature")
+                        .WithMany("Activations")
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Feature");
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting", b =>
@@ -1292,7 +1399,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<string>", b =>
                 {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", null)
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1301,7 +1408,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<string>", b =>
                 {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", null)
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1316,7 +1423,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", null)
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1325,22 +1432,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<string>", b =>
                 {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", null)
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType", "AuthenticationType")
-                        .WithMany()
-                        .HasForeignKey("AuthenticationTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("AuthenticationType");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidget", b =>
@@ -1379,9 +1475,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.Navigation("Roles");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", b =>
+                {
+                    b.Navigation("TenantUsers");
+
+                    b.Navigation("UserProperties");
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType", b =>
                 {
                     b.Navigation("ClaimMappings");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", b =>
+                {
+                    b.Navigation("Activations");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream", b =>
@@ -1392,13 +1500,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", b =>
                 {
                     b.Navigation("Streams");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User", b =>
-                {
-                    b.Navigation("TenantUsers");
-
-                    b.Navigation("UserProperties");
                 });
 #pragma warning restore 612, 618
         }

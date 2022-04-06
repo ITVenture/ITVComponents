@@ -6,16 +6,16 @@ using ITVComponents.Formatting;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Security
 {
-    internal class DbSecurityRepository:TenantSecurityShared.Security.DbSecurityRepository<int, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty>
+    internal class DbSecurityRepository<TImpl>:TenantSecurityShared.Security.DbSecurityRepository<int, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty>
+    where TImpl:SecurityContext<TImpl>
     {
-        public DbSecurityRepository(SecurityContext securityContext):base(securityContext)
+        public DbSecurityRepository(TImpl securityContext, ILogger<DbSecurityRepository<TImpl>> logger):base(securityContext, logger)
         {
         }
 
@@ -27,13 +27,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sec
         protected override Expression<Func<User, bool>> UserFilter(WebCoreToolkit.Models.User user)
         {
             return (n =>
-                n.UserName == user.UserName && n.AuthenticationType.AuthenticationTypeName == user.AuthenticationType);
+                n.UserName == user.UserName && (n.AuthenticationType == null || user.AuthenticationType == null || n.AuthenticationType.AuthenticationTypeName == user.AuthenticationType));
         }
 
         protected override Expression<Func<User, bool>> UserFilter(string[] userLabels, string authType)
         {
             return n => userLabels.Contains(n.UserName) &&
-                        n.AuthenticationType.AuthenticationTypeName == authType;
+                        (n.AuthenticationType == null || n.AuthenticationType.AuthenticationTypeName == authType);
         }
 
         protected override WebCoreToolkit.Models.User SelectUser(User src)
@@ -41,7 +41,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sec
             return new WebCoreToolkit.Models.User
             {
                 UserName = src.UserName,
-                AuthenticationType = src.AuthenticationType.AuthenticationTypeName
+                AuthenticationType = src.AuthenticationType?.AuthenticationTypeName
             };
         }
 

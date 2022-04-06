@@ -72,7 +72,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         /// <returns>an enumerable of all the user-roles</returns>
         public IEnumerable<Role> GetRoles(User user)
         {
-            var hu = options.Users.First(n => n.UserName == user.UserName && n.AuthenticationType == user.AuthenticationType);
+            var hu = options.Users.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return from r in Roles join gr in hu.Roles on r.RoleName equals gr select r;
         }
 
@@ -83,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user)
         {
-            var hu = options.Users.First(n => n.UserName == user.UserName && n.AuthenticationType == user.AuthenticationType);
+            var hu = options.Users.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return hu.CustomInfo.Select(i => new CustomUserProperty {PropertyName = i.Key, Value = i.Value});
         }
 
@@ -135,7 +135,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         /// <returns>an enumerable of permissions for the given user</returns>
         public IEnumerable<Permission> GetPermissions(User user)
         {
-            var hu = options.Users.First(n => n.UserName == user.UserName && n.AuthenticationType == user.AuthenticationType);
+            var hu = options.Users.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return (from t in hu.Roles
                     join r in options.Roles on t equals r.RoleName
                     select r.Permissions).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
@@ -167,6 +167,16 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         {
             var ro = options.Roles.First(n => n.RoleName == role.RoleName);
             return ro.Permissions.Select(p => new Permission {PermissionName = p});
+        }
+
+        /// <summary>
+        /// Gets a list of activated features for a specific permission-Scope
+        /// </summary>
+        /// <param name="permissionScopeName">the name of the current permission-prefix selected by the current user</param>
+        /// <returns>returns a list of activated features</returns>
+        public IEnumerable<Feature> GetFeatures(string permissionScopeName)
+        {
+            return options.Features??Array.Empty<Feature>();
         }
 
         /// <summary>

@@ -1,0 +1,59 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@(Html.Kendo().Grid<FeatureActivationViewModel>().Name($"FeatureActivationsFor{ViewData["tenantId"]}_{ViewData["featureId"]}")
+        //.HtmlAttributes(new { style = "width:50vw;" })
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.ActivationStart).ClientTemplate($"#=ActivationStart!=null?kendo.toString(ActivationStart,'dd.MM.yyyy HH:mm:ss'):'{JavaScriptEncoder.Default.Encode(TextsAndMessagesHelper.IWCN_FTAV_NoStartDate)}'#");
+            columns.Bound(c => c.ActivationEnd).ClientTemplate($"#=ActivationEnd!=null?kendo.toString(ActivationEnd,'dd.MM.yyyy HH:mm:ss'):'{JavaScriptEncoder.Default.Encode(TextsAndMessagesHelper.IWCN_FTAV_NoEndDate)}'#");
+
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"Sysadmin"}))
+            {
+                columns.Command(ga =>
+                {
+                    ga.Edit();
+                    ga.PopupConfirmDelete();
+                }).Width(180);
+            }
+
+        })
+        .ToolBar(toolbar =>
+        {
+            toolbar.RefreshTable();
+            if (Context.RequestServices.VerifyUserPermissions(new []{"Sysadmin"}))
+            {
+                toolbar.Create();
+            }
+        })
+        .DataSource(dataSource =>
+        {
+            var src = dataSource
+                .Ajax()
+                .Read(read => read.Action("ReadActivations", "Feature", new { tenantId = ViewData["tenantId"], featureId = ViewData["featureId"] })).Sort(
+                    c => c.Add(m => m.ActivationEnd).Ascending());
+        if (Context.RequestServices.VerifyUserPermissions(new[] {"Sysadmin"}))
+        {
+            src.Create(create => create.Action("CreateActivation", "Feature", new { tenantId = ViewData["tenantId"], featureId = ViewData["featureId"] }))
+                .Update(update => update.Action("UpdateActivation", "Feature"))
+                .Destroy(destroy => destroy.Action("DestroyActivation", "Feature"));
+        }
+            src.Model(m =>
+            {
+                m.Id(t => t.TenantFeatureActivationId);
+            })
+                .StringifyDates(true);
+        })
+        .Scrollable(s => s.Height("auto"))
+        .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
+        .Sortable(c => c.Enabled(true))
+        .Filterable(f => f.Enabled(true))
+    .Resizable(c => c.Columns(true)))

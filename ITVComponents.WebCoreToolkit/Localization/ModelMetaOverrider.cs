@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Transactions;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
@@ -46,13 +47,35 @@ namespace ITVComponents.WebCoreToolkit.Localization
                     continue;
                 }
 
-                if (obj is ValidationAttribute attribute && string.IsNullOrEmpty(attribute.ErrorMessage) && string.IsNullOrEmpty(attribute.ErrorMessageResourceName))
+                if (obj is ValidationAttribute vatt && obj is not DataTypeAttribute && string.IsNullOrEmpty(vatt.ErrorMessage) && string.IsNullOrEmpty(vatt.ErrorMessageResourceName))
                 {
-                    var tmp = options.ResourceForAttribute(attribute, "ValidationError");
+                    var tmp = options.ResourceForAttribute(vatt, "ValidationError", null);
                     if (!string.IsNullOrEmpty(tmp))
                     {
-                        attribute.ErrorMessage = tmp;
+                        vatt.ErrorMessage = tmp;
                     }
+                    else
+                    {
+                        Console.WriteLine($"No message found for {vatt}.");
+                    }
+                }
+                else if (obj is DataTypeAttribute datt && string.IsNullOrEmpty(datt.ErrorMessage) &&
+                         string.IsNullOrEmpty(datt.ErrorMessageResourceName))
+                {
+                    var dtyp = datt.DataType != DataType.Custom?datt.DataType.ToString():datt.CustomDataType;
+                    var tmp = options.ResourceForAttribute(datt, "ValidationError", dtyp);
+                    if (!string.IsNullOrEmpty(tmp))
+                    {
+                        datt.ErrorMessage = tmp;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"No message found for {datt} with type {dtyp}.");
+                    }
+                }
+                else if (obj is ValidationAttribute vatt2)
+                {
+                    Console.WriteLine($"{vatt2} has a custom message ({vatt2.ErrorMessage}) or a resourcename ({vatt2.ErrorMessageResourceName}).");
                 }
                 /*attribute.ErrorMessageResourceName = tmp;
                 attribute.ErrorMessageResourceType = theType;*/

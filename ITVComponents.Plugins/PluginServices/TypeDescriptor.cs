@@ -20,6 +20,8 @@ namespace ITVComponents.Plugins.PluginServices
         /// </summary>
         public ConstructorDescriptor[] Constructors { get; set; }
 
+        public GenericParameterDescriptor[] GenericParameters { get; set; }
+
         /// <summary>
         /// The Unique Id of this Description object
         /// </summary>

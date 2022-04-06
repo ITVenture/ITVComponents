@@ -19,6 +19,8 @@
 }
 <script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js"></script>
 @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "userId", null } } })
-@Html.DetailViewScript("roles2User", "roles2UserRoot#=UserId#", $"~/Security/Role/RoleTable?tenantUserId=#=UserId#&tenantId=#=TenantId#", false)
+@await Component.InvokeAsync(typeof(RequiredSection), new {nameOfView="roles2UserScript"})
 @Html.DetailViewScript("RoleDetails", "RasDummy#=RoleId#", $"~/Security/Role/RoleDetails?roleId=#=RoleId#&tenantId=#=TenantId#", false)
 @Html.DetailViewScript("PermissionDetails", "Perm#=PermissionId#_#=TenantId#", "~/Security/Role/RoleTable?permissionId=#=PermissionId#&tenantId=#=TenantId#")
+@Html.DetailViewScript("FeatureActivations", "ActivationsOf#=FeatureId#_#=TenantId#", "~/Util/Feature/ActivationTable?tenantId=#=TenantId#&featureId=#=FeatureId#")
+@Html.DetailViewScript("GenericPluginArguments", "GenArgsOf#=PluginId#_#=TenantId#", "~/Util/PlugIn/ArgumentsTable?pluginId=#=PluginId#")

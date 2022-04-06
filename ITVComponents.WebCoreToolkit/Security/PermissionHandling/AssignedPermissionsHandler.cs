@@ -33,10 +33,6 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionHandling
             {
                 context.Succeed(requirement);
             }
-            else
-            {
-                context.Fail();
-            }
 
             return Task.CompletedTask;
         }
