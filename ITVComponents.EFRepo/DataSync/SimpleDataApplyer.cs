@@ -22,7 +22,35 @@ namespace ITVComponents.EFRepo.DataSync
                 object entity;
                 IDbSet targetSet;
                 var rawEntity = ExpressionParser.Parse(change.EntityName, db);
-                targetSet = db.Set(rawEntity.GetType());
+                var rawType = rawEntity.GetType();
+                var dbsetType = typeof(DbSet<>);
+                var obj = typeof(object);
+                var success = false;
+                if (rawType.IsGenericType)
+                {
+                    while (rawType != obj && rawType != null)
+                    {
+                        if (rawType.IsGenericType)
+                        {
+                            var tmp = rawType.GetGenericTypeDefinition();
+                            if (tmp == dbsetType)
+                            {
+                                rawType = rawType.GetGenericArguments()[0];
+                                success = true;
+                                break;
+                            }
+                        }
+
+                        rawType = rawType.BaseType;
+                    }
+                }
+
+                if (!success)
+                {
+                    throw new InvalidOperationException($"Unable to extract entity-type of {change.EntityName}.");
+                }
+
+                targetSet = db.Set(rawType);
                 switch (change.ChangeType)
                 {
                     case ChangeType.Insert:
@@ -79,6 +107,11 @@ namespace ITVComponents.EFRepo.DataSync
                             });
                         }
 
+                        if (change.ChangeType == ChangeType.Insert)
+                        {
+                            targetSet.Add(entity);
+                        }
+
                         messages.AppendLine(
                             $"Performed {change.ChangeType} on {change.EntityName} with {change.Details.Count} values");
                     }
@@ -90,6 +123,8 @@ namespace ITVComponents.EFRepo.DataSync
                     }
                 }
             }
+
+            db.SaveChanges();
         }
 
         private static Dictionary<string, object> BuildRawKey(DbContext db, Change change)
@@ -105,7 +140,7 @@ namespace ITVComponents.EFRepo.DataSync
 
                 var key = !string.IsNullOrEmpty(keyExpression)
                     ? ExpressionParser.Parse(keyExpression, new {Value = k.Value, Db = db})
-                    : change.Key;
+                    : k.Value;
                 retVal.Add(k.Key, key);
             }
 

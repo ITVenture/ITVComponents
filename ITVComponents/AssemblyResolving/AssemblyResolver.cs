@@ -54,14 +54,14 @@ namespace ITVComponents.AssemblyResolving
         /// <returns>the requested assembly</returns>
         public static Assembly FindAssemblyByFileName(string assemblyName, AssemblyLoadContext targetContext = null)
         {
-            string location = ResolveAssemblyLocation(assemblyName, out bool exists);
+            string location = ResolveAssemblyLocation(assemblyName, out _);
             var context = targetContext ?? AssemblyLoadContext.Default;
             Assembly existingAssembly = (from t in context.Assemblies
                 where
                     !t.IsDynamic &&
                     (t.Location.Equals(location, StringComparison.OrdinalIgnoreCase) || t.FullName.Equals(assemblyName, StringComparison.OrdinalIgnoreCase))
                 select t).FirstOrDefault();
-            if (existingAssembly == null && exists)
+            if (existingAssembly == null)
             {
                 return TryLoadAssembly(location, context);
             }
@@ -165,6 +165,18 @@ namespace ITVComponents.AssemblyResolving
                 {
                     retVal = Assembly.ReflectionOnlyLoadFrom(path);
                 }*/
+            }
+            else
+            {
+                try
+                {
+                    var n = new AssemblyName(assemblyName);
+                    retVal = targetLoadContext.LoadFromAssemblyName(n);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"Error resolving Assembly by name: {ex.Message}", LogSeverity.Error);
+                }
             }
 
             return retVal;

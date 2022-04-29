@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers
 {
-    public class TenantTemplateHelperBase<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : ITenantTemplateHelper
+    public class TenantTemplateHelperBase<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : ITenantTemplateHelper<TContext>
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new ()
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new()
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -136,6 +136,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         public void ApplyTemplate(Tenant tenant, TenantTemplateMarkup template)
         {
+            ApplyTemplate(tenant, template, null);
+        }
+
+        public void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template)
+        {
+            RevokeTemplate(tenant,template,null);
+        }
+
+        public void ApplyTemplate(Tenant tenant, TenantTemplateMarkup template, Action<TContext> afterApply)
+        {
             db.EnsureNavUniqueness();
             using (new FullSecurityAccessHelper(db, true, false))
             {
@@ -236,10 +246,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                 }
 
                 db.SaveChanges();
+                afterApply?.Invoke(db);
             }
         }
 
-        public void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template)
+        public void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template, Action<TContext> afterRevoke)
         {
             db.EnsureNavUniqueness();
             using (new FullSecurityAccessHelper(db, true, false))
@@ -362,6 +373,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                 db.SaveChanges();
                 RemoveUnUsedPermissions(tenant.TenantId, permissionsToCheck);
                 db.SaveChanges();
+                afterRevoke?.Invoke(db);
             }
         }
 

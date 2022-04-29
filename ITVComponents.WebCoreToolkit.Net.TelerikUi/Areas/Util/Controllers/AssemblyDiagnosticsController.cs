@@ -8,6 +8,7 @@ using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewModel;
 using ITVComponents.WebCoreToolkit.Net.ViewModel;
 using ITVComponents.WebCoreToolkit.Tokens;
@@ -93,11 +94,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Areas.Util.Controllers
             }).ToDataSourceResult(request));
         }
 
-        public IActionResult ApplyChanges(Change[] changes)
+        public IActionResult ApplyChanges([FromBody] ApplyConfigBaseViewModel configData)
         {
             var messages = new StringBuilder();
-            configurator.Instance.ApplyChanges(changes, messages);
-            return Json(messages.ToString());
+            configurator.Instance.ApplyChanges(configData.Changes, messages);
+            var msg = messages.Length != 0 ? $"<pre>{messages}</pre>" : "OK";
+            return new ContentResult() { Content = msg, ContentType = "text/plain" };
         }
     }
 }

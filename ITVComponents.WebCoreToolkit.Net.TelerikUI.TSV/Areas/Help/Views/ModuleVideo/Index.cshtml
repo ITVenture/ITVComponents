@@ -1,13 +1,16 @@
 ﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using Kendo.Mvc.Extensions
 @using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@inject IOptions<ViewOptions> viewOptions
 @{
-    Layout = "_Layout";
+    Layout = viewOptions.Value.LayoutPage;
 }
 @{
 

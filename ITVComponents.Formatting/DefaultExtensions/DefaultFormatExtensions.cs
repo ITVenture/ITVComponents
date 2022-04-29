@@ -43,7 +43,7 @@ namespace ITVComponents.Formatting.DefaultExtensions
             if (keys.Length != 0)
             {
                 int mx = keys.Max(n => n.Length);
-                return string.Join("\r\n", from k in keys.Select((s, i) => new {Index = i, Key = s})
+                return string.Join(Environment.NewLine, from k in keys.Select((s, i) => new {Index = i, Key = s})
                     join v in values.Select((v, i) => new {Index = i, Value = v}) on k.Index equals v.Index
                     orderby k.Key
                     select string.Format($"{{0,-{mx}}} = {{1}}", k.Key, v.Value));

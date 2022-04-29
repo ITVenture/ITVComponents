@@ -2,9 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using ITVComponents.DataAccess.Extensions;
 using ITVComponents.EFRepo.DataSync;
 using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using Microsoft.EntityFrameworkCore;
@@ -62,20 +65,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         {
             switch (fileType)
             {
-                case "sysConfig":
-                    var sys = DescribeSystem();
-                    var upSys = JsonHelper.FromJsonStringStrongTyped<SystemTemplateMarkup>(Encoding.UTF8.GetString(content));
-                    ComparePlugIns(sys.PlugIns, upSys.PlugIns);
-                    CompareConstants(sys.Constants, upSys.Constants);
-                    ComparePermissions(sys.Permissions, upSys.Permissions);
-                    CompareAuthenticationTypes(sys.AuthenticationTypes, upSys.AuthenticationTypes);
-                    CompareAuthenticationTypeClaims(sys.AuthenticationTypeClaimTemplates, upSys.AuthenticationTypeClaimTemplates);
-                    CompareGlobalSettings(sys.Settings, upSys.Settings);
-                    CompareFeatures(sys.Features, upSys.Features);
-                    CompareTenantTemplates(sys.TenantTemplates, upSys.TenantTemplates);
-                    CompareDiagnosticsQueries(sys.DiagnosticsQueries, upSys.DiagnosticsQueries);
-                    CompareDashboardWidgets(sys.DashboardWidgets, upSys.DashboardWidgets);
-                    CompareNavigation(sys.Navigation, upSys.Navigation);
+                case "sysCfg":
+                    using (var h = new FullSecurityAccessHelper(DbContext, true, false))
+                    {
+                        var sys = DescribeSystem();
+                        var upSys =
+                            JsonHelper.FromJsonStringStrongTyped<SystemTemplateMarkup>(
+                                Encoding.UTF8.GetString(content));
+                        ComparePlugIns(sys.PlugIns, upSys.PlugIns);
+                        CompareConstants(sys.Constants, upSys.Constants);
+                        ComparePermissions(sys.Permissions, upSys.Permissions);
+                        CompareAuthenticationTypes(sys.AuthenticationTypes, upSys.AuthenticationTypes);
+                        CompareAuthenticationTypeClaims(sys.AuthenticationTypeClaimTemplates,
+                            upSys.AuthenticationTypeClaimTemplates);
+                        CompareGlobalSettings(sys.Settings, upSys.Settings);
+                        CompareFeatures(sys.Features, upSys.Features);
+                        CompareTenantTemplates(sys.TenantTemplates, upSys.TenantTemplates);
+                        CompareDiagnosticsQueries(sys.DiagnosticsQueries, upSys.DiagnosticsQueries);
+                        CompareDashboardWidgets(sys.DashboardWidgets, upSys.DashboardWidgets);
+                        CompareNavigation(sys.Navigation, upSys.Navigation);
+                    }
+
                     break;
                 default:
                     throw new InvalidOperationException($"{fileType} not supported");
@@ -108,9 +118,93 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
         private SystemTemplateMarkup DescribeSystem()
         {
-            SystemTemplateMarkup retVal = new SystemTemplateMarkup();
-            
-            return retVal;
+            using (var h = new FullSecurityAccessHelper(DbContext, true, false))
+            {
+                DbContext.EnsureNavUniqueness();
+                SystemTemplateMarkup retVal = new SystemTemplateMarkup
+                {
+                    Permissions = DbContext.Permissions.Where(n => n.TenantId == null).Select(n =>
+                        new PermissionTemplateMarkup
+                            { Description = n.Description, Global = true, Name = n.PermissionName }).ToArray(),
+                    AuthenticationTypes = DbContext.AuthenticationTypes.Select(n => new AuthenticationTypeTemplateMarkup
+                        { AuthenticationTypeName = n.AuthenticationTypeName }).ToArray(),
+                    AuthenticationTypeClaimTemplates = DbContext.AuthenticationClaimMappings.Select(n =>
+                        new AuthenticationTypeClaimTemplateMarkup
+                        {
+                            AuthenticationTypeName = n.AuthenticationType.AuthenticationTypeName,
+                            Condition = n.Condition, IncomingClaimName = n.IncomingClaimName,
+                            OutgoingClaimName = n.OutgoingClaimName, OutgoingClaimValue = n.OutgoingClaimValue,
+                            OutgoingIssuer = n.OutgoingIssuer, OutgoingOriginalIssuer = n.OutgoingOriginalIssuer,
+                            OutgoingValueType = n.OutgoingValueType
+                        }).ToArray(),
+                    Constants = DbContext.WebPluginConstants.Where(n => n.TenantId == null)
+                        .Select(n => new ConstTemplateMarkup { Name = n.Name, Value = n.Value }).ToArray(),
+                    PlugIns = DbContext.WebPlugins.Where(n => n.TenantId == null).Select(n => new PlugInTemplateMarkup
+                    {
+                        AutoLoad = n.AutoLoad, Constructor = n.Constructor, UniqueName = n.UniqueName,
+                        GenericArguments = DbContext.GenericPluginParams.Where(c => c.WebPluginId == n.WebPluginId)
+                            .Select(c => new PlugInGenericArgumentTemplateMarkup
+                                { GenericTypeName = c.GenericTypeName, TypeExpression = c.TypeExpression }).ToArray()
+                    }).ToArray(),
+                    Settings = DbContext.GlobalSettings.Select(n => new SettingTemplateMarkup
+                            { Value = n.SettingsValue, IsJsonSetting = n.JsonSetting, ParamName = n.SettingsKey })
+                        .ToArray(),
+                    TenantTemplates = DbContext.TenantTemplates.Select(n => new TenantTemplateDefinitionMarkup
+                        { Name = n.Name, Description = n.Description, Markup = n.Markup }).ToArray(),
+                    Features = DbContext.Features.Select(n => new SystemFeatureTemplateMarkup
+                        {
+                            FeatureName = n.FeatureName, Enabled = n.Enabled, FeatureDescription = n.FeatureDescription
+                        })
+                        .ToArray(),
+                    DiagnosticsQueries = DbContext.DiagnosticsQueries.Select(n => new DiagnosticsQueryTemplateMarkup
+                    {
+                        Permission = n.Permission.PermissionName, DbContext = n.DbContext, AutoReturn = n.AutoReturn,
+                        DiagnosticsQueryName = n.DiagnosticsQueryName, QueryText = n.QueryText,
+                        Parameters = n.Parameters.Select(p => new DiagnosticsQueryParameterTemplateMarkup
+                        {
+                            DefaultValue = p.DefaultValue, Format = p.Format, Optional = p.Optional,
+                            ParameterName = p.ParameterName, ParameterType = p.ParameterType
+                        }).ToArray()
+                    }).ToArray(),
+                    DashboardWidgets = DbContext.Widgets.Select(n => new DashboardWidgetTemplateMarkup
+                    {
+                        SystemName = n.SystemName, TitleTemplate = n.TitleTemplate, Template = n.Template,
+                        Area = n.Area, CustomQueryString = n.CustomQueryString, DisplayName = n.DisplayName,
+                        DiagnosticsQueryName = n.DiagnosticsQuery.DiagnosticsQueryName,
+                        Parameters = n.Params.Select(p => new DashboardParamTemplateMarkup
+                            {
+                                InputConfig = p.InputConfig, InputType = p.InputType, ParameterName = p.ParameterName
+                            })
+                            .ToArray()
+                    }).ToArray(),
+                    Navigation = GetSortedNav()
+                };
+
+
+                return retVal;
+            }
+        }
+
+        private NavigationMenuTemplateMarkup[] GetSortedNav()
+        {
+            var allNav = DbContext.Navigation.ToList();
+            var sortedNav = new List<TNavigationMenu>();
+            var lastCt = 0;
+            while (allNav.Count != 0 || lastCt == allNav.Count)
+            {
+                lastCt = allNav.Count;
+                var tmp = allNav.Where(n => n.ParentId == null || sortedNav.Any(p => p.NavigationMenuId == n.ParentId))
+                    .ToArray();
+                sortedNav.AddRange(tmp);
+                tmp.ForEach(n => allNav.Remove(n));
+            }
+
+            return sortedNav.Select(n => new NavigationMenuTemplateMarkup
+            {
+                FeatureName = n.Feature?.FeatureName, PermissionName = n.EntryPoint?.PermissionName, RefTag = n.RefTag,
+                DisplayName = n.DisplayName, ParentRef = n.Parent?.RefTag, SortOrder = n.SortOrder,
+                SpanClass = n.SpanClass, Url = n.Url
+            }).ToArray();
         }
 
         private void CompareNavigation(NavigationMenuTemplateMarkup[] sysNavigation, NavigationMenuTemplateMarkup[] upSysNavigation)
@@ -148,7 +242,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 {
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.RefTag, MakeLinqAssign<TContext>(keyNames[0], "AuthenticationTypes", "AuthenticationTypeName")));
-                    change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName));
+                    change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, multiline:true));
                     change.Details.Add(MakeDetail("SpanClass", c.New.SpanClass));
                     change.Details.Add(MakeDetail("Url", c.New.Url));
                     change.Details.Add(MakeDetail("SortOrder", c.New.SortOrder.ToString()));
@@ -172,7 +266,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     };
                     if (c.New.DisplayName != c.Original.DisplayName)
                     {
-                        change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName));
+                        change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName, multiline: true));
                     }
 
                     if (c.New.SpanClass != c.Original.SpanClass)
@@ -248,11 +342,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 {
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.SystemName));
-                    change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName));
+                    change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, multiline: true));
                     change.Details.Add(MakeDetail("Area", c.New.Area));
                     change.Details.Add(MakeDetail("CustomQueryString", c.New.CustomQueryString));
-                    change.Details.Add(MakeDetail("TitleTemplate", c.New.TitleTemplate));
-                    change.Details.Add(MakeDetail("Template", c.New.Template));
+                    change.Details.Add(MakeDetail("TitleTemplate", c.New.TitleTemplate, multiline: true));
+                    change.Details.Add(MakeDetail("Template", c.New.Template, multiline: true));
                     change.Details.Add(MakeDetail("DiagnosticsQuery", c.New.DiagnosticsQueryName, MakeLinqAssign<TContext>("DiagnosticsQuery", "DiagnosticsQueries", "DiagnosticsQueryName")));
                     RegisterChange(change);
                     RegisterWidgetParameters(c.New.SystemName, c.New.Parameters);
@@ -272,7 +366,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     };
                     if (c.New.DisplayName != c.Original.DisplayName)
                     {
-                        change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName));
+                        change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName, multiline: true));
                     }
 
                     if (c.New.Area != c.Original.Area)
@@ -287,12 +381,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
                     if (c.New.TitleTemplate != c.Original.TitleTemplate)
                     {
-                        change.Details.Add(MakeDetail("TitleTemplate", c.New.TitleTemplate, currentValue: c.Original.TitleTemplate));
+                        change.Details.Add(MakeDetail("TitleTemplate", c.New.TitleTemplate, currentValue: c.Original.TitleTemplate, multiline: true));
                     }
 
                     if (c.New.Template != c.Original.Template)
                     {
-                        change.Details.Add(MakeDetail("Template", c.New.Template, currentValue: c.Original.Template));
+                        change.Details.Add(MakeDetail("Template", c.New.Template, currentValue: c.Original.Template, multiline: true));
                     }
 
                     if (c.New.DiagnosticsQueryName != c.Original.DiagnosticsQueryName)
@@ -320,11 +414,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
             {
                 {keyNames[1], MakeLinqQuery<TContext>("Widgets", "SystemName", filterValueVariable: "Value")}
             };
-            var groups = (from t in parameters select t.ParameterName.ToLower()).Union(from t in originalParameters select t.ParameterName.ToLower()).Distinct().ToArray();
+            var groups = (from t in originalParameters select t.ParameterName.ToLower()).Union(from t in parameters select t.ParameterName.ToLower()).Distinct().ToArray();
             var cmp = (from c in groups
-                       join a1 in parameters on c equals a1.ParameterName.ToLower() into ja1
+                       join a1 in originalParameters on c equals a1.ParameterName.ToLower() into ja1
                        from na1 in ja1.DefaultIfEmpty()
-                       join a2 in originalParameters on c equals a2.ParameterName.ToLower() into ja2
+                       join a2 in parameters on c equals a2.ParameterName.ToLower() into ja2
                        from na2 in ja2.DefaultIfEmpty()
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
@@ -422,9 +516,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.DiagnosticsQueryName ));
                     change.Details.Add(MakeDetail("DbContext", c.New.DbContext));
-                    change.Details.Add(MakeDetail("QueryText", c.New.QueryText));
+                    change.Details.Add(MakeDetail("QueryText", c.New.QueryText, multiline: true));
                     change.Details.Add(MakeDetail("AutoReturn", c.New.AutoReturn.ToString(), "Entity.AutoReturn=(NewValueRaw==\"True\")"));
-                    change.Details.Add(MakeDetail("Permission", c.New.Permission.Name, MakeLinqAssign<TContext>("Permission", "Permissions", "PermissionName", "n.TenantId==null")));
+                    change.Details.Add(MakeDetail("Permission", c.New.Permission, MakeLinqAssign<TContext>("Permission", "Permissions", "PermissionName", "n.TenantId==null")));
                     RegisterChange(change);
                     RegisterQueryParameters(c.New.DiagnosticsQueryName, c.New.Parameters);
                 }
@@ -456,9 +550,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         change.Details.Add(MakeDetail("AutoReturn", c.New.AutoReturn.ToString(), "Entity.AutoReturn=(NewValueRaw==\"True\")", c.Original.AutoReturn.ToString()));
                     }
 
-                    if (c.New.Permission.Name!= c.Original.Permission.Name)
+                    if (c.New.Permission != c.Original.Permission)
                     {
-                        change.Details.Add(MakeDetail("Permission", c.New.Permission.Name, MakeLinqAssign<TContext>("Permission", "Permissions", "PermissionName", "n.TenantId==null"), c.Original.Permission.Name));
+                        change.Details.Add(MakeDetail("Permission", c.New.Permission, MakeLinqAssign<TContext>("Permission", "Permissions", "PermissionName", "n.TenantId==null"), c.Original.Permission));
                     }
 
                     if (change.Details.Count != 0)
@@ -480,11 +574,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
             {
                 {keyNames[1], MakeLinqQuery<TContext>("DiagnosticsQueries", "DiagnosticsQueryName", filterValueVariable: "Value")}
             };
-            var groups = (from t in parameters select t.ParameterName.ToLower()).Union(from t in originalParameters select t.ParameterName.ToLower()).Distinct().ToArray();
+            var groups = (from t in originalParameters select t.ParameterName.ToLower()).Union(from t in parameters select t.ParameterName.ToLower()).Distinct().ToArray();
             var cmp = (from c in groups
-                join a1 in parameters on c equals a1.ParameterName.ToLower() into ja1
+                join a1 in originalParameters on c equals a1.ParameterName.ToLower() into ja1
                 from na1 in ja1.DefaultIfEmpty()
-                join a2 in originalParameters on c equals a2.ParameterName.ToLower() into ja2
+                join a2 in parameters on c equals a2.ParameterName.ToLower() into ja2
                 from na2 in ja2.DefaultIfEmpty()
                 select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
@@ -593,8 +687,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 {
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.Name));
-                    change.Details.Add(MakeDetail("Description", c.New.Description));
-                    change.Details.Add(MakeDetail("Markup", c.New.Markup));
+                    change.Details.Add(MakeDetail("Description", c.New.Description, multiline: true));
+                    change.Details.Add(MakeDetail("Markup", c.New.Markup, multiline: true));
                     RegisterChange(change);
                 }
                 else if (c.Original != null)
@@ -612,12 +706,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     };
                     if (c.New.Description != c.Original.Description)
                     {
-                        change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description));
+                        change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description, multiline: true));
                     }
 
                     if (c.New.Markup != c.Original.Markup)
                     {
-                        change.Details.Add(MakeDetail("Markup", c.New.Markup, currentValue: c.Original.Markup));
+                        change.Details.Add(MakeDetail("Markup", c.New.Markup, currentValue: c.Original.Markup, multiline: true));
                     }
 
                     if (change.Details.Count != 0)
@@ -663,7 +757,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 {
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.FeatureName));
-                    change.Details.Add(MakeDetail("FeatureDescription", c.New.FeatureDescription));
+                    change.Details.Add(MakeDetail("FeatureDescription", c.New.FeatureDescription, multiline: true));
                     change.Details.Add(MakeDetail("Enabled", c.New.Enabled.ToString(), "Entity.Enabled=(NewValueRaw==\"True\")"));
                     RegisterChange(change);
                 }
@@ -682,7 +776,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     };
                     if (c.New.FeatureDescription != c.Original.FeatureDescription)
                     {
-                        change.Details.Add(MakeDetail("FeatureDescription", c.New.FeatureDescription, currentValue: c.Original.FeatureDescription));
+                        change.Details.Add(MakeDetail("FeatureDescription", c.New.FeatureDescription, currentValue: c.Original.FeatureDescription, multiline: true));
                     }
 
                     if (c.New.Enabled != c.Original.Enabled)
@@ -733,7 +827,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 {
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.ParamName));
-                    change.Details.Add(MakeDetail("SettingsValue", c.New.Value));
+                    change.Details.Add(MakeDetail("SettingsValue", c.New.Value, multiline: true));
                     change.Details.Add(MakeDetail("JsonSetting", c.New.IsJsonSetting.ToString(), "Entity.JsonSetting=(NewValueRaw==\"True\")"));
                     RegisterChange(change);
                 }
@@ -752,7 +846,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     };
                     if (c.New.Value!= c.Original.Value)
                     {
-                        change.Details.Add(MakeDetail("SettingsValue", c.New.Value, currentValue:c.Original.Value));
+                        change.Details.Add(MakeDetail("SettingsValue", c.New.Value, currentValue:c.Original.Value, multiline: true));
                     }
 
                     if (c.New.IsJsonSetting!= c.Original.IsJsonSetting)
@@ -905,7 +999,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 {
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyName, c.New.Name));
-                    change.Details.Add(MakeDetail("Description", c.New.Description));
+                    change.Details.Add(MakeDetail("Description", c.New.Description, multiline: true));
                     RegisterChange(change);
                 }
                 else if (c.Original != null)
@@ -913,7 +1007,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     var change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, { "TenantId", null } }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{} };
                     if (c.New.Description != c.Original.Description)
                     {
-                        change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description));
+                        change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description, multiline: true));
                     }
 
                     if (change.Details.Count != 0)
@@ -1036,11 +1130,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
             {
                 {keyNames[1], MakeLinqQuery<TContext>("WebPlugins", "UniqueName", filterValueVariable: "Value", additionalWhere:"n.TenantId == null")}
             };
-            var groups = (from t in parameters select t.GenericTypeName.ToLower()).Union(from t in originalParameters select t.GenericTypeName.ToLower()).Distinct().ToArray();
+            var groups = (from t in originalParameters select t.GenericTypeName.ToLower()).Union(from t in parameters select t.GenericTypeName.ToLower()).Distinct().ToArray();
             var cmp = (from c in groups
-                       join a1 in parameters on c equals a1.GenericTypeName.ToLower() into ja1
+                       join a1 in originalParameters on c equals a1.GenericTypeName.ToLower() into ja1
                        from na1 in ja1.DefaultIfEmpty()
-                       join a2 in originalParameters on c equals a2.GenericTypeName.ToLower() into ja2
+                       join a2 in parameters on c equals a2.GenericTypeName.ToLower() into ja2
                        from na2 in ja2.DefaultIfEmpty()
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)

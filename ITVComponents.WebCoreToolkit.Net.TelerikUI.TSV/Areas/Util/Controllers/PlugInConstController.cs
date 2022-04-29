@@ -8,11 +8,13 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
@@ -20,11 +22,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     public class PlugInConstController : Controller
     {
         private readonly IBaseTenantContext db;
+        private readonly IOptions<SecurityViewsOptions> options;
         private bool isSysAdmin;
 
-        public PlugInConstController(IBaseTenantContext db, IServiceProvider services)
+        public PlugInConstController(IBaseTenantContext db, IServiceProvider services, IOptions<SecurityViewsOptions> options)
         {
             this.db = db;
+            this.options = options;
             if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
             {
                 db.HideGlobals = true;
@@ -86,7 +90,23 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 db.WebPluginConstants.Add(model);
                 if (model.Value.StartsWith("encrypt:"))
                 {
-                    model.Value = PasswordSecurity.Encrypt(model.Value.Substring(8));
+                    if (tenantId == null || !options.Value.UseExplicitTenantPasswords)
+                    {
+                        model.Value = PasswordSecurity.Encrypt(model.Value.Substring(8));
+                    }
+                    else
+                    {
+                        var t = db.Tenants.First(n => n.TenantId == tenantId);
+                        if (!string.IsNullOrEmpty(t.TenantPassword))
+                        {
+                            var pwd = Convert.FromBase64String(t.TenantPassword);
+                            model.Value = AesEncryptor.Encrypt(model.Value.Substring(8), pwd, false);
+                        }
+                        else
+                        {
+                            model.Value = PasswordSecurity.Encrypt(model.Value.Substring(8));
+                        }
+                    }
                 }
 
                 await db.SaveChangesAsync();
@@ -131,7 +151,23 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 await this.TryUpdateModelAsync<WebPluginConstantViewModel,WebPluginConstant>(model, "", m => { return m.ElementType == null; });
                 if (model.Value.StartsWith("encrypt:"))
                 {
-                    model.Value = PasswordSecurity.Encrypt(model.Value.Substring(8));
+                    if (tenantId == null || !options.Value.UseExplicitTenantPasswords)
+                    {
+                        model.Value = PasswordSecurity.Encrypt(model.Value.Substring(8));
+                    }
+                    else
+                    {
+                        var t = db.Tenants.First(n => n.TenantId == tenantId);
+                        if (!string.IsNullOrEmpty(t.TenantPassword))
+                        {
+                            var pwd = Convert.FromBase64String(t.TenantPassword);
+                            model.Value = AesEncryptor.Encrypt(model.Value.Substring(8), pwd, false);
+                        }
+                        else
+                        {
+                            model.Value = PasswordSecurity.Encrypt(model.Value.Substring(8));
+                        }
+                    }
                 }
                 model.TenantId = tenantId;
                 await db.SaveChangesAsync();

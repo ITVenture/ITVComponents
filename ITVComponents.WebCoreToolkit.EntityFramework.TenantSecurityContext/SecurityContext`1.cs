@@ -182,6 +182,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         /// </summary>
         public bool FilterAvailable => userProvider?.User != null && (userProvider.User.Identity?.IsAuthenticated??false);
 
+        private string CurrentTenant
+        {
+            get
+            {
+                string retVal = null;
+                if (!showAllTenants)
+                {
+                    retVal = tenantProvider.PermissionPrefix;
+                }
+
+                return retVal;
+            }
+        }
+
         /// <summary>
         /// Gets the user that currently uses this Context
         /// </summary>
@@ -300,33 +314,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             modelBuilder.Entity<TenantUser>(b => b.Property(n => n.Enabled).HasDefaultValue(true));
             if (useFilters)
             {
-                modelBuilder.Entity<Permission>().HasQueryFilter(pr => showAllTenants || !FilterAvailable || pr.TenantId != null && pr.Tenant.TenantName == tenantProvider.PermissionPrefix || pr.TenantId == null && !hideGlobals);
-                modelBuilder.Entity<TenantNavigationMenu>().HasQueryFilter(nav => showAllTenants || !FilterAvailable || nav.Tenant.TenantName == tenantProvider.PermissionPrefix && (nav.PermissionId == null || nav.Permission.TenantId == null || nav.Permission.Tenant.TenantName==tenantProvider.PermissionPrefix ));
-                modelBuilder.Entity<NavigationMenu>().HasQueryFilter(nav => string.IsNullOrEmpty(nav.Url) || showAllTenants || !FilterAvailable || nav.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix) && ((nav.PermissionId == null || nav.EntryPoint.TenantId == null || nav.EntryPoint.Tenant.TenantName==tenantProvider.PermissionPrefix )));
-                modelBuilder.Entity<RolePermission>().HasQueryFilter(perm => showAllTenants || !FilterAvailable || perm.Tenant.TenantName == tenantProvider.PermissionPrefix && perm.Permission != null);
+                modelBuilder.Entity<Permission>().HasQueryFilter(pr => showAllTenants || !FilterAvailable || pr.TenantId != null && pr.Tenant.TenantName == CurrentTenant || pr.TenantId == null && !hideGlobals);
+                modelBuilder.Entity<TenantNavigationMenu>().HasQueryFilter(nav => showAllTenants || !FilterAvailable || nav.Tenant.TenantName == CurrentTenant && (nav.PermissionId == null || nav.Permission.TenantId == null || nav.Permission.Tenant.TenantName== CurrentTenant));
+                modelBuilder.Entity<NavigationMenu>().HasQueryFilter(nav => string.IsNullOrEmpty(nav.Url) || showAllTenants || !FilterAvailable || nav.Tenants.Any(n => n.Tenant.TenantName == CurrentTenant) && ((nav.PermissionId == null || nav.EntryPoint.TenantId == null || nav.EntryPoint.Tenant.TenantName== CurrentTenant)));
+                modelBuilder.Entity<RolePermission>().HasQueryFilter(perm => showAllTenants || !FilterAvailable || perm.Tenant.TenantName == CurrentTenant && perm.Permission != null);
                 //--unfixed
-                modelBuilder.Entity<DiagnosticsQuery>().HasQueryFilter(qry => showAllTenants || !FilterAvailable || qry.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix));
-                modelBuilder.Entity<DiagnosticsQueryParameter>().HasQueryFilter(param => showAllTenants || !FilterAvailable || param.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix));
-                modelBuilder.Entity<TenantDiagnosticsQuery>().HasQueryFilter(tdq => showAllTenants || !FilterAvailable || tdq.Tenant.TenantName == tenantProvider.PermissionPrefix);
-                modelBuilder.Entity<TenantSetting>().HasQueryFilter(stt => showAllTenants || !FilterAvailable || stt.Tenant.TenantName == tenantProvider.PermissionPrefix);
+                modelBuilder.Entity<DiagnosticsQuery>().HasQueryFilter(qry => showAllTenants || !FilterAvailable || qry.Tenants.Any(n => n.Tenant.TenantName == CurrentTenant));
+                modelBuilder.Entity<DiagnosticsQueryParameter>().HasQueryFilter(param => showAllTenants || !FilterAvailable || param.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == CurrentTenant));
+                modelBuilder.Entity<TenantDiagnosticsQuery>().HasQueryFilter(tdq => showAllTenants || !FilterAvailable || tdq.Tenant.TenantName == CurrentTenant);
+                modelBuilder.Entity<TenantSetting>().HasQueryFilter(stt => showAllTenants || !FilterAvailable || stt.Tenant.TenantName == CurrentTenant);
                 modelBuilder.Entity<TenantUser>().HasQueryFilter(tu => !FilterAvailable || (
-                    (showAllTenants || tu.Tenant.TenantName == tenantProvider.PermissionPrefix)
+                    (showAllTenants || tu.Tenant.TenantName == CurrentTenant)
                     && (showDisabledUsers || tu.Enabled)));
-                modelBuilder.Entity<Role>().HasQueryFilter(ro => showAllTenants || !FilterAvailable || ro.Tenant.TenantName == tenantProvider.PermissionPrefix);
+                modelBuilder.Entity<Role>().HasQueryFilter(ro => showAllTenants || !FilterAvailable || ro.Tenant.TenantName == CurrentTenant);
                 modelBuilder.Entity<UserRole>().HasQueryFilter(ur => !FilterAvailable ||
                                                                      ((showAllTenants ||
                                                                        (ur.User.Tenant.TenantName ==
-                                                                        tenantProvider.PermissionPrefix &&
+                                                                        CurrentTenant &&
                                                                         ur.Role.Tenant.TenantName ==
-                                                                        tenantProvider.PermissionPrefix))
+                                                                        CurrentTenant))
                                                                       && (showDisabledUsers || ur.User.Enabled)));
-                modelBuilder.Entity<WebPlugin>().HasQueryFilter(wp => showAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantName == tenantProvider.PermissionPrefix || wp.TenantId == null && !hideGlobals);
-                modelBuilder.Entity<WebPluginGenericParameter>().HasQueryFilter(wp => showAllTenants || !FilterAvailable || wp.Plugin.TenantId != null && wp.Plugin.Tenant.TenantName == tenantProvider.PermissionPrefix || wp.Plugin.TenantId == null && !hideGlobals);
-                modelBuilder.Entity<WebPluginConstant>().HasQueryFilter(wc => showAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName == tenantProvider.PermissionPrefix || wc.TenantId == null && !hideGlobals);
-                modelBuilder.Entity<DashboardWidget>().HasQueryFilter(dw => showAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix));
-                modelBuilder.Entity<DashboardParam>().HasQueryFilter(dw => showAllTenants || !FilterAvailable || dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix));
-                modelBuilder.Entity<UserWidget>().HasQueryFilter(uw => showAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == tenantProvider.PermissionPrefix) && uw.Tenant.TenantName == tenantProvider.PermissionPrefix && uw.UserName == userProvider.User.Identity.Name));
-                modelBuilder.Entity<TenantFeatureActivation>().HasQueryFilter(fa => showAllTenants || !FilterAvailable || fa.Tenant.TenantName == tenantProvider.PermissionPrefix);
+                modelBuilder.Entity<WebPlugin>().HasQueryFilter(wp => showAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantName == CurrentTenant || wp.TenantId == null && !hideGlobals);
+                modelBuilder.Entity<WebPluginGenericParameter>().HasQueryFilter(wp => showAllTenants || !FilterAvailable || wp.Plugin.TenantId != null && wp.Plugin.Tenant.TenantName == CurrentTenant || wp.Plugin.TenantId == null && !hideGlobals);
+                modelBuilder.Entity<WebPluginConstant>().HasQueryFilter(wc => showAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName == CurrentTenant || wc.TenantId == null && !hideGlobals);
+                modelBuilder.Entity<DashboardWidget>().HasQueryFilter(dw => showAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == CurrentTenant));
+                modelBuilder.Entity<DashboardParam>().HasQueryFilter(dw => showAllTenants || !FilterAvailable || dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == CurrentTenant));
+                modelBuilder.Entity<UserWidget>().HasQueryFilter(uw => showAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == CurrentTenant) && uw.Tenant.TenantName == CurrentTenant && uw.UserName == userProvider.User.Identity.Name));
+                modelBuilder.Entity<TenantFeatureActivation>().HasQueryFilter(fa => showAllTenants || !FilterAvailable || fa.Tenant.TenantName == CurrentTenant);
             }
         }
 

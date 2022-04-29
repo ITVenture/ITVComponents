@@ -109,6 +109,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
 
                     b.HasIndex("DiagnosticsQueryId");
 
+                    b.HasIndex(new[] { "SystemName" }, "IX_UniqueDashboardDef")
+                        .IsUnique()
+                        .HasFilter("[SystemName] IS NOT NULL");
+
                     b.ToTable("Widgets");
                 });
 
@@ -203,6 +207,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.Property<int?>("PermissionId")
                         .HasColumnType("int");
 
+                    b.Property<string>("RefTag")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
                     b.Property<int?>("SortOrder")
                         .HasColumnType("int");
 
@@ -218,7 +226,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)")
-                        .HasComputedColumnSql("case when isnull(Url,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) else Url end persisted");
+                        .HasComputedColumnSql("case when isnull(Url,'')='' and isnull(RefTag,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) when isnull(Url,'')='' then RefTag else Url end persisted");
 
                     b.HasKey("NavigationMenuId");
 
@@ -947,6 +955,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.ToTable("WebPluginConstants");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginGenericParameter", b =>
+                {
+                    b.Property<int>("WebPluginGenericParameterId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+
+                    b.Property<string>("GenericTypeName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TypeExpression")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<int>("WebPluginId")
+                        .HasColumnType("int");
+
+                    b.HasKey("WebPluginGenericParameterId");
+
+                    b.HasIndex(new[] { "WebPluginId", "GenericTypeName" }, "IX_UniqueGenericParamName")
+                        .IsUnique()
+                        .HasFilter("[GenericTypeName] IS NOT NULL");
+
+                    b.ToTable("GenericPluginParams");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -1388,6 +1423,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginGenericParameter", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", "Plugin")
+                        .WithMany("Parameters")
+                        .HasForeignKey("WebPluginId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plugin");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -1500,6 +1546,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", b =>
                 {
                     b.Navigation("Streams");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", b =>
+                {
+                    b.Navigation("Parameters");
                 });
 #pragma warning restore 612, 618
         }

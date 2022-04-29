@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.Extensions
 {
@@ -17,8 +18,25 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
         where TContext:AspNetSecurityContext<TContext>
         {
             var dic = new Dictionary<string, Type>
-            {
+            { 
                 { "TContext", typeof(TContext)}
+            };
+
+            AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic);
+            manager.ApplicationParts.Add(part);
+            return manager;
+        }
+
+        public static ApplicationPartManager EnableItvUserView(this ApplicationPartManager manager, Type contextType)
+        {
+            if (!typeof(DbContext).IsAssignableFrom(contextType))
+            {
+                throw new InvalidOperationException("contextType must implement DbContext");
+            }
+
+            var dic = new Dictionary<string, Type>
+            {
+                { "TContext", contextType}
             };
 
             AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic);

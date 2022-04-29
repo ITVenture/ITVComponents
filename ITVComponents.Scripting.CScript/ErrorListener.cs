@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Text;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
@@ -47,7 +48,7 @@ namespace ITVComponents.Scripting.CScript
                     ems = e.Message;
                 }
 
-                bld.AppendFormat("Error at {0}/{1}: {2} ({3})\r\n", line, charPositionInLine, offendingSymbol.Text, ems);
+                bld.AppendFormat("Error at {0}/{1}: {2} ({3}){4}", line, charPositionInLine, offendingSymbol.Text, ems, Environment.NewLine);
             //}
         }
 

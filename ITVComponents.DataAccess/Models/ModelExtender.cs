@@ -188,7 +188,7 @@ namespace ITVComponents.DataAccess.Models
                     }
                     catch(Exception ex)
                     {
-                        LogEnvironment.LogEvent(string.Format("Failed to set value\r\n{0}", ex.OutlineException()),LogSeverity.Warning, "DataAccess");
+                        LogEnvironment.LogEvent(string.Format("Failed to set value{1}{0}", ex.OutlineException(),Environment.NewLine),LogSeverity.Warning, "DataAccess");
                     }
                 }
                 else if (r != null)
@@ -246,7 +246,7 @@ namespace ITVComponents.DataAccess.Models
                     }
                     catch (Exception ex)
                     {
-                        LogEnvironment.LogEvent(string.Format("Failed to set value\r\n{0}", ex.OutlineException()), LogSeverity.Warning, "DataAccess");
+                        LogEnvironment.LogEvent(string.Format("Failed to set value{1}{0}", ex.OutlineException(), Environment.NewLine), LogSeverity.Warning, "DataAccess");
                     }
                 }
                 else if (r != null)

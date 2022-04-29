@@ -104,12 +104,14 @@ return 'System.Convert'.ToInt64(Val3.Subtract(dt1).TotalDays);,-10:x] Tage verga
             {
                 Hicks = new Dictionary<string, object> { {"v1",1234}, { "abvv2", DateTime.Parse("01.01.2017")}, { "asdfv3", "haha"}, { "v4", 1234 }, { "hohov5", null } }
             };
-            Assert.AreEqual(@"Hicks besteht aus: ""abvv2  = 01.01.2017 00:00:00
+            string s1 = @"Hicks besteht aus: ""abvv2  = 01.01.2017 00:00:00
 asdfv3 = haha
 hohov5 = 
 v1     = 1234
-v4     = 1234""",
-                Target.FormatText(@"£[@""Hicks besteht aus: """"[Hicks:kv]""""""]"));
+v4     = 1234""".Replace("\r\n","\n").Replace("\n",Environment.NewLine);
+            string s2 = Target.FormatText(@"£[@""Hicks besteht aus: """"[Hicks:kv]""""""]");
+            Assert.AreEqual(s1,
+                s2);
         }
 
         [TestMethod]
@@ -128,7 +130,7 @@ v4     = 1234""",
 asdfv3 = haha
 hohov5 = 
 v1     = 1234
-v4     = 12341234",
+v4     = 12341234".Replace("\r\n", "\n").Replace("\n", Environment.NewLine),
                 Hicks.FormatText(@"[.:kv][v4][dasgibtsgarnicht]"));
 
             Assert.AreEqual(@"haha",

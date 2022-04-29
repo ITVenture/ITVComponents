@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
@@ -77,6 +78,26 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
 #else
             return retVal?.MethodInfo;
 #endif
+        }
+
+        /// <summary>
+        /// Given a lambda expression that calls a method, returns the method info.
+        /// </summary>
+        /// <param name="expression">The expression.</param>
+        /// <returns></returns>
+        public static MethodInfo GetMethodInfo(Expression<Action> call)
+        {
+            return GetMethodInfoInt(call);
+        }
+
+        /// <summary>
+        /// Given a lambda expression that calls a method, returns the method info.
+        /// </summary>
+        /// <param name="expression">The expression.</param>
+        /// <returns></returns>
+        public static MethodInfo GetMethodInfo<T>(Expression<Func<T>> call)
+        {
+            return GetMethodInfoInt(call);
         }
 
         internal static WritebackContainer[] GetWritebacks(MethodInfo method, object[] evaluatedArguments, ScriptValue[] sequence)
@@ -454,6 +475,23 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Given a lambda expression that calls a method, returns the method info.
+        /// </summary>
+        /// <param name="expression">The expression.</param>
+        /// <returns></returns>
+        private static MethodInfo GetMethodInfoInt(LambdaExpression expression)
+        {
+            MethodCallExpression outermostExpression = expression.Body as MethodCallExpression;
+
+            if (outermostExpression == null)
+            {
+                throw new ArgumentException("Invalid Expression. Expression should consist of a Method call only.");
+            }
+
+            return outermostExpression.Method;
         }
 
         private static MethodBuffer[] SelectGenerics(IEnumerable<MethodInfo> methods, Type[] typeArguments,

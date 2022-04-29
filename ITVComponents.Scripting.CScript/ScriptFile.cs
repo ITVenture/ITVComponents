@@ -134,7 +134,7 @@ namespace ITVComponents.Scripting.CScript
             {
                 if (!runnable)
                 {
-                    throw new ScriptException(string.Format("Script is not runnable! Suspect Line: {0}\r\nComplete Error-List:\r\n {1}", suspectLine, errors));
+                    throw new ScriptException(string.Format("Script is not runnable! Suspect Line: {0}{2}Complete Error-List:{2} {1}", suspectLine, errors, Environment.NewLine));
                 }
 
                 var visitor = InterpreterBuffer.GetInterpreter(scriptingContext);

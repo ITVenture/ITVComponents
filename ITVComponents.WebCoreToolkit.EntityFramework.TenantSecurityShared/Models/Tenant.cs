@@ -14,5 +14,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         [MaxLength(1024)]
         public string DisplayName { get; set; }
+
+        [MaxLength(125)]
+        public string TenantPassword { get; set; }
     }
 }

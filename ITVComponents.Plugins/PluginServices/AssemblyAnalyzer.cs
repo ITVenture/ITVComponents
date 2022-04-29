@@ -96,7 +96,7 @@ namespace ITVComponents.Plugins.PluginServices
                 sbl.AppendLine("Type-Constraints:");
                 foreach (var constraint in constraints)
                 {
-                    sbl.AppendLine($"- Inherits {constraint.FullName}");
+                    sbl.AppendLine($"- Inherits {constraint.FullName??constraint.AssemblyQualifiedName??constraint.Name}");
                 }
             }
 
@@ -199,7 +199,7 @@ namespace ITVComponents.Plugins.PluginServices
                        {
                            Uid = objectId++,
                            ParameterName = t.Name,
-                           ParameterType = t.ParameterType.FullName,
+                           ParameterType = t.ParameterType.FullName??t.ParameterType.AssemblyQualifiedName??t.ParameterType.Name,
                            TypePrefix = GetPrefix(t.ParameterType),
                            SampleValue = GetSampleValue(t.ParameterType),
                            ParameterDescription = element != null ? element.ToString() : ""

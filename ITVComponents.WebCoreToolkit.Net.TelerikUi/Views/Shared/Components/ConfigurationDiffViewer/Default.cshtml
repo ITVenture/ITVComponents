@@ -29,7 +29,7 @@
         throw new InvalidOperationException("PostTarget must not be null!");
     }
 
-    string callback = ViewData["ResultC allback"] as string;
+    string callback = ViewData["ResultCallback"] as string;
     if (string.IsNullOrEmpty(callback))
     {
         callback = "null";
@@ -98,7 +98,7 @@
     </tbody>
 </table>
 
-@Html.Kendo().Button().Name("ApplyChanges").Content("Anwenden").Events(c => c.Click("ITVenture.Pages.Ssv.JsonConfigXch.ApplyConfigChanges")).SpriteCssClass("fad fa-share-all")
+@Html.Kendo().Button().Name("ApplyChanges").Content("Anwenden").Events(c => c.Click($"{target}.ApplyConfigChanges")).SpriteCssClass("fad fa-share-all")
 
 <script>
     ITVenture.Tools.Uploader.prepareUploadRegion({

@@ -55,14 +55,18 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             var opt = options.Value;
             string retVal = null;
             var identities = httpContext.HttpContext?.User?.Identities?.ToArray();
-            if (identities != null)
+            if (identities != null && identities.Any(n => n.IsAuthenticated))
             {
                 var secc = httpContext.HttpContext.RequestServices.GetService<ISecurityRepository>();
                 var userProvider = httpContext.HttpContext.RequestServices.GetRequiredService<IUserNameMapper>();
-                var eligibles = secc.GetEligibleScopes(userProvider.GetUserLabels(httpContext.HttpContext.User), httpContext.HttpContext.User.Identity.AuthenticationType).ToArray();
+                var eligibles = secc.GetEligibleScopes(userProvider.GetUserLabels(httpContext.HttpContext.User),
+                    httpContext.HttpContext.User.Identity.AuthenticationType).ToArray();
                 logger.LogDebug($"Found: {identities.Length} identities");
-                logger.LogDebug(string.Join("\r\n",identities.Select(n => $"{n.Name}-> authenticated:{n.IsAuthenticated}({n.AuthenticationType})")));
-                if (!string.IsNullOrEmpty(opt.RouteOverrideParam) && httpContext.HttpContext.Request.RouteValues.ContainsKey(opt.RouteOverrideParam) && !string.IsNullOrEmpty((string) httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam]))
+                logger.LogDebug(string.Join(Environment.NewLine,
+                    identities.Select(n => $"{n.Name}-> authenticated:{n.IsAuthenticated}({n.AuthenticationType})")));
+                if (!string.IsNullOrEmpty(opt.RouteOverrideParam) &&
+                    httpContext.HttpContext.Request.RouteValues.ContainsKey(opt.RouteOverrideParam) &&
+                    !string.IsNullOrEmpty((string)httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam]))
                 {
                     IsScopeExplicit = true;
                     var tmpRet = (string)httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam];
@@ -72,26 +76,23 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                     }
                 }
 
-                if (identities.Any(n => n.IsAuthenticated))
+                logger.LogDebug($"Authenticated User(s): {string.Join(", ", identities.Select(n => n.Name))}");
+                bool decryptFailed = false;
+                bool invalidTenant = false;
+                if (!httpContext.HttpContext.Request.Cookies.TryGetValue(opt.ScopeCookie, out retVal) ||
+                    (decryptFailed = !TryReadScopeToken(ref retVal, out var renew)) || (invalidTenant = eligibles.All(n => n.ScopeName != retVal)) || renew)
                 {
-                    logger.LogDebug($"Authenticated User(s): {string.Join(", ",identities.Select(n => n.Name))}");
-                    bool decryptFailed = false;
-                    if (!httpContext.HttpContext.Request.Cookies.TryGetValue(opt.ScopeCookie, out retVal) || (decryptFailed = !TryReadScopeToken(ref retVal, out var renew)) || renew)
+                    if (string.IsNullOrEmpty(retVal) || decryptFailed ||
+                        invalidTenant)
                     {
-                        if (string.IsNullOrEmpty(retVal) || decryptFailed || eligibles.All(n => n.ScopeDisplayName != retVal))
-                        {
-                            retVal = opt.DefaultScopeExpression(httpContext.HttpContext);
-                            logger.LogDebug($"Default-Value of {opt.ScopeCookie}: {retVal}");
-                        }
-
-                        if (!string.IsNullOrEmpty(retVal))
-                        {
-                            ChangeScope(retVal);
-                        }
+                        retVal = opt.DefaultScopeExpression(httpContext.HttpContext, eligibles);
+                        logger.LogDebug($"Default-Value of {opt.ScopeCookie}: {retVal}");
                     }
 
-
-                    logger.LogDebug($"retVal: {retVal}");
+                    if (!string.IsNullOrEmpty(retVal))
+                    {
+                        ChangeScope(retVal);
+                    }
                 }
 
                 logger.LogDebug($"Returning current permission scope: {retVal}");
@@ -99,7 +100,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
 
             return retVal;
         }
-        
+
         private string CreateScopeToken(string currentScope)
         {
             var token = new UserScope {ScopeName = currentScope};

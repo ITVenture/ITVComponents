@@ -96,7 +96,7 @@ namespace ITVComponents.DataAccess.Xml
             settings.ConformanceLevel = ConformanceLevel.Document;
             settings.Indent = true;
             settings.IndentChars = " ";
-            settings.NewLineChars = "\r\n";
+            settings.NewLineChars = Environment.NewLine;
             settings.NewLineOnAttributes = false;
             using (XmlWriter wr = XmlWriter.Create(target, settings))
             {

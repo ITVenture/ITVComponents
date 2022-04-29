@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers
 {
@@ -15,5 +16,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         void ApplyTemplate(Tenant tenant, TenantTemplateMarkup template);
 
         void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template);
+    }
+
+    public interface ITenantTemplateHelper<TContext>:ITenantTemplateHelper
+    where TContext: DbContext, IBaseTenantContext
+    {
+        TenantTemplateMarkup ExtractTemplate(Tenant tenant);
+
+        void ApplyTemplate(Tenant tenant, TenantTemplateMarkup template, Action<TContext> afterApply);
+
+        void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template, Action<TContext> afterRevoke);
     }
 }

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net5.0-windows;netcoreapp3.1</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.1.1-PRE054</Version>
+    <Version>2.1.1-PRE087</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <ExtrasEnableWpfProjectSetup>true</ExtrasEnableWpfProjectSetup>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>

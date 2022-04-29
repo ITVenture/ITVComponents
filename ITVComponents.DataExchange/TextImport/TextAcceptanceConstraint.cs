@@ -24,7 +24,7 @@ namespace ITVComponents.DataExchange.TextImport
         public TextAcceptanceConstraint(int requiredLines)
         {
             RequiredLines = requiredLines;
-            linePattern = string.Format(@"^(.*\r\n){{{0}}}$", requiredLines);
+            linePattern = string.Format(@"^(.*\r?\n){{{0}}}$", requiredLines);
         }
 
         /// <summary>

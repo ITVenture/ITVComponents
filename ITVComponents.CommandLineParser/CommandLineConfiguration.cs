@@ -180,7 +180,8 @@ namespace ITVComponents.CommandLineParser
             StringBuilder bld = new StringBuilder();
             int maxParameterLength = (from t in parameters select t.ArgumentName.Length).Max();
             string indentString = new string(' ',indent);
-            string parameterFormatString = string.Format("{{0}}{{1,-{0}}}   {{2}}\r\n", maxParameterLength);
+            string parameterFormatString =
+                string.Format("{{0}}{{1,-{0}}}   {{2}}{1}", maxParameterLength, Environment.NewLine);
             bld.AppendLine("usage:");
             string app = includeProgram
                              ? string.Format("{0} ", Path.GetFileName(Assembly.GetEntryAssembly().Location))

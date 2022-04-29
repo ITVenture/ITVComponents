@@ -4,18 +4,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Formatting.CustomFormat.Impl;
 using ITVComponents.Formatting.DefaultExtensions;
 using ITVComponents.Formatting.Elements;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Helpers;
-
+using ICustomFormatter = ITVComponents.Formatting.CustomFormat.ICustomFormatter;
 namespace ITVComponents.Formatting
 {
     public static class TextFormat
     {
-        private static ConcurrentDictionary<string, Func<object, string>> customFormatHints =
-            new ConcurrentDictionary<string, Func<object, string>>(StringComparer.Ordinal);
+        private static ConcurrentDictionary<string, ICustomFormatter> customFormatHints =
+            new ConcurrentDictionary<string, ICustomFormatter>(StringComparer.Ordinal);
 
         static TextFormat()
         {
@@ -24,15 +25,25 @@ namespace ITVComponents.Formatting
 
         public static string FormatText(this object target, string format)
         {
+            return FormatText(target, format, default(Func<string, string, string, object>));
+        }
+
+        public static string FormatText(this object target, string format, Func<string, string, string, object> argumentsCallback)
+        {
 
             var tmp = TokenizeString(format);
             using (var context = CreateScriptingSession(target))
             {
-                return string.Concat(from t in tmp select Stringify(t, context));
+                return string.Concat(from t in tmp select Stringify(t, context, argumentsCallback));
             }
         }
 
         public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser)
+        {
+            return FormatText(target, format, customExpressionParser, null);
+        }
+
+        public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser, Func<string, string, string, object> argumentsCallback)
         {
             var tmp = TokenizeString(format);
             for (int i = 0; i < tmp.Length; i++)
@@ -69,11 +80,17 @@ namespace ITVComponents.Formatting
 
             using (var context = CreateScriptingSession(target))
             {
-                return string.Concat(from t in tmp select Stringify(t, context));
+                return string.Concat(from t in tmp select Stringify(t, context, argumentsCallback));
             }
         }
 
-        public static string FormatText(this IDisposable scriptingContext, string format, CustomExpressionParse customExpressionParser)
+        public static string FormatText(this IDisposable scriptingContext, string format,
+            CustomExpressionParse customExpressionParser)
+        {
+            return FormatText(scriptingContext, format, customExpressionParser, null);
+        }
+
+        public static string FormatText(this IDisposable scriptingContext, string format, CustomExpressionParse customExpressionParser, Func<string, string, string, object> argumentsCallback)
         {
             if (ExpressionParser.IsReplSession(scriptingContext))
             {
@@ -110,26 +127,36 @@ namespace ITVComponents.Formatting
                     }
                 }
 
-                return string.Concat(from t in tmp select Stringify(t, scriptingContext));
+                return string.Concat(from t in tmp select Stringify(t, scriptingContext, argumentsCallback));
             }
 
-            return FormatText((object)scriptingContext, format, customExpressionParser);
+            return FormatText((object)scriptingContext, format, customExpressionParser, argumentsCallback);
         }
 
         public static string FormatText(IDisposable scriptingContext, string format)
         {
+            return FormatText(scriptingContext, format, default(Func<string, string, string, object>));
+        }
+
+        public static string FormatText(IDisposable scriptingContext, string format, Func<string, string, string, object> argumentsCallback)
+        {
             if (ExpressionParser.IsReplSession(scriptingContext))
             {
                 var tmp = TokenizeString(format);
-                return string.Concat(from t in tmp select Stringify(t, scriptingContext));
+                return string.Concat(from t in tmp select Stringify(t, scriptingContext, argumentsCallback));
             }
 
-            return FormatText((object)scriptingContext, format);
+            return FormatText((object)scriptingContext, format, argumentsCallback);
         }
 
         public static void AddCustomFormatHint(string hint, Func<object, string> formatFunction)
         {
-            customFormatHints.TryAdd(hint, formatFunction);
+            customFormatHints.TryAdd(hint, new CallbackFormatter(hint, formatFunction));
+        }
+
+        public static void AddCustomFormatHint(ICustomFormatter formatter)
+        {
+            customFormatHints.TryAdd(formatter.Hint, formatter);
         }
 
         private static IDisposable CreateScriptingSession(object target)
@@ -141,7 +168,7 @@ namespace ITVComponents.Formatting
             return context;
         }
 
-        private static string Stringify(IFormatElement element, IDisposable sessionContext)
+        private static string Stringify(IFormatElement element, IDisposable sessionContext, Func<string, string, string, object> argumentsCallback)
         {
             if (element is StringElement)
             {
@@ -179,7 +206,7 @@ namespace ITVComponents.Formatting
 
             if (preFormat)
             {
-                val = customFormatHints[fint](val);
+                val = customFormatHints[fint].ApplyFormat(fe.Content.ToString(), val, (a,b,c) => argumentsCallback?.Invoke(a,b,c));
             }
 
             return

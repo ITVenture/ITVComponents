@@ -9,6 +9,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options
     public class SecurityViewsOptions
     {
         public LinkMode TenantLinkMode { get; set; } = LinkMode.MultiSelect;
+
+        public bool UseExplicitTenantPasswords { get; set; } = false;
     }
 
     public enum LinkMode

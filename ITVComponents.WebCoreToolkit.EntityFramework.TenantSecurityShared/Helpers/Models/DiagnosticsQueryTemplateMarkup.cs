@@ -16,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         public string QueryText { get; set; }
 
-        public PermissionTemplateMarkup Permission { get; set; }
+        public string Permission { get; set; }
 
         public DiagnosticsQueryParameterTemplateMarkup[] Parameters { get; set; }
     }

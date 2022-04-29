@@ -24,8 +24,8 @@ ITVenture.Text.setText("it", "You can not upload any more files.", "Non è possi
 ITVenture.Text.setText("it", "Parametro");
 ITVenture.Text.setText("it", "Dashboard-Parameter value", " Valore");
 ITVenture.Text.setText("it", "Save dashboard", " Salva");
-ITVenture.Text.setText("de", "Json_Cfg_Name", "Nome");
-ITVenture.Text.setText("de", "Json_Cfg_Apply", "Applica");
-ITVenture.Text.setText("de", "Json_Cfg_Original_Value", "Valore originale");
-ITVenture.Text.setText("de", "Json_Cfg_New_Value", "Nuovo valore");
-ITVenture.Text.setText("de", "Json_Cfg_Config_OK", "La configurazione è stata adottata");
+ITVenture.Text.setText("it", "Json_Cfg_Name", "Nome");
+ITVenture.Text.setText("it", "Json_Cfg_Apply", "Applica");
+ITVenture.Text.setText("it", "Json_Cfg_Original_Value", "Valore originale");
+ITVenture.Text.setText("it", "Json_Cfg_New_Value", "Nuovo valore");
+ITVenture.Text.setText("it", "Json_Cfg_Config_OK", "La configurazione è stata adottata");

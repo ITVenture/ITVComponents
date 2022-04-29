@@ -52,7 +52,11 @@ var ITVenture = {
             else if (typeof (messageSource) === "string") {
                 retVal = messageSource;
             }
-            if (typeof messageArguments === "object") {
+            if (typeof messageArguments === "object" || messageArguments == null) {
+                if (messageArguments == null) {
+                    messageArguments = {};
+                }
+
                 retVal = retVal.replaceAll(/\{\{\s*(?<paramName>(-\>|!$|$)?(\\\{|\\\}|[^\}\{])+)\s*\}\}/g,
                     function () {
                         try {

@@ -360,7 +360,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
             this.archiveCount = archiveCount;
             this.maxLogSize = maxLogSize;
             OpenStream();
-            WriteMessage("--Log initialized--\r\n");
+            WriteMessage($"--Log initialized--{Environment.NewLine}");
         }
 
         /// <summary>

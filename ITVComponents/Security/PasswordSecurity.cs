@@ -100,6 +100,11 @@ namespace ITVComponents.Security
         /// <returns>an encrypted string that represents the provided value</returns>
         public static string Encrypt(this string input, string password)
         {
+            if (!useAes)
+            {
+                throw new InvalidOperationException("Only available for AES encryption");
+            }
+
             return AesEncryptor.Encrypt(input, password);
         }
 
@@ -127,6 +132,11 @@ namespace ITVComponents.Security
         /// <returns>the cleartext representation of the provided encrypted string</returns>
         public static string Decrypt(this string input, string password)
         {
+            if (!useAes)
+            {
+                throw new InvalidOperationException("Only available for AES encryption");
+            }
+
             return AesEncryptor.Decrypt(input, password);
         }
         
@@ -154,6 +164,11 @@ namespace ITVComponents.Security
         /// <returns>an encrypted string that represents the provided value</returns>
         public static byte[] Encrypt(this byte[] input, string password)
         {
+            if (!useAes)
+            {
+                throw new InvalidOperationException("Only available for AES encryption");
+            }
+
             return AesEncryptor.Encrypt(input, password);
         }
 
@@ -181,6 +196,11 @@ namespace ITVComponents.Security
         /// <returns>the cleartext representation of the provided encrypted string</returns>
         public static byte[] Decrypt(this byte[] input, string password)
         {
+            if (!useAes)
+            {
+                throw new InvalidOperationException("Only available for AES encryption");
+            }
+
             return AesEncryptor.Decrypt(input, password);
         }
 

@@ -105,7 +105,7 @@ namespace ITVComponents.DataExchange.Import
                 consumers.ForEach(n => n.EndOfFile());
                 if (consumers.Any(n => !n.ConsumedAnyData))
                 {
-                    string s = string.Join("\r\n", consumers.Where(n => !n.ConsumedAnyData).Select(n => n.AcceptanceConstraints.ToString()));
+                    string s = string.Join(Environment.NewLine, consumers.Where(n => !n.ConsumedAnyData).Select(n => n.AcceptanceConstraints.ToString()));
                     LogParserEvent(null, $@"Some Consumers did not consume data due to Constraint restrictions:
 {s}", ParserEventSeverity.Warning, null);
                 }

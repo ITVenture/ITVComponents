@@ -32,16 +32,16 @@
         .DataSource("ITVenture.Tools.AssemblyAnalyzerDataSource.GetConstructors(#=Uid#)")
         .Resizable(c => c.Columns(true))
         .ClientDetailTemplateId("ConstructorDetails").ToClientTemplate())
-                                                  </text>);
+                                                  </text>).Selected(true);
             i.Add().Text("Generic Type Information").Content(@<text>
     @(Html.Kendo()
         .Grid<GenericParameterDescriptor>()
         .Columns(g =>
         {
             g.Bound(h => h.GenericParameterName);
-            g.Bound(h => h.Remarks).ClientTemplate("<pre>#=Remarks#</pre>");
+            g.Bound(h => h.Remarks).ClientTemplate("<div style='white-space:pre-line;'>\\#=ITVenture.Tools.HtmlHelper.encode(Remarks!=null?Remarks:'')\\#</div>");
         })
-        .Name("ConstructorTable#=Uid#")
+        .Name("GenericsTable#=Uid#")
         .DataSource("ITVenture.Tools.AssemblyAnalyzerDataSource.GetGenericParameters(#=Uid#)")
         .Resizable(c => c.Columns(true))
         .ToClientTemplate())

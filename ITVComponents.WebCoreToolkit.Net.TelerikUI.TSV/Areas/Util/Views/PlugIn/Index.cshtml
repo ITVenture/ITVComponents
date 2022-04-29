@@ -4,11 +4,14 @@
 @using System.Collections
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@inject IOptions<ViewOptions> viewOptions
 @{
-    Layout = "_Layout";
+    Layout = viewOptions.Value.LayoutPage;
 }
 @{
 
@@ -18,4 +21,4 @@
 @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", ViewData["tenantId"] } } })
 
 
-@Html.DetailViewScript("GenericPluginArguments", "GenArgsOf#=PluginId#", "~/Util/PlugIn/ArgumentsTable?pluginId=#=PluginId#")
+@Html.DetailViewScript("GenericPluginArguments", "GenArgsOf#=WebPluginId#", "~/Util/PlugIn/ArgumentsTable?pluginId=#=WebPluginId#")

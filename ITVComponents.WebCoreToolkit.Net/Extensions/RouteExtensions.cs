@@ -614,7 +614,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                                         }
                                         if (!ms.IsValid)
                                         {
-                                            ContentResult br = new ContentResult {Content = string.Join("\r\n",(from t in ms where t.Key== "File" select t.Value.Errors).SelectMany(m => m).Select(i => i.ErrorMessage)), ContentType = "text/plain", StatusCode = (int) HttpStatusCode.BadRequest};
+                                            ContentResult br = new ContentResult {Content = string.Join(Environment.NewLine,(from t in ms where t.Key== "File" select t.Value.Errors).SelectMany(m => m).Select(i => i.ErrorMessage)), ContentType = "text/plain", StatusCode = (int) HttpStatusCode.BadRequest};
                                             await br.ExecuteResultAsync(actionContext);
                                             return;
                                         }

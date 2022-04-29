@@ -3,13 +3,16 @@
 @using System.Text.Encodings.Web
 @using System.Collections
 @using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
 @using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@inject IOptions<ViewOptions> viewOptions
 @{
-    Layout = "_Layout";
+    Layout = viewOptions.Value.LayoutPage;
 }
 @{
 

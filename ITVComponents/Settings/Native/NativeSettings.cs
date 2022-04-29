@@ -64,18 +64,7 @@ namespace ITVComponents.Settings.Native
 
         public static T GetSection<T>(string path, Action<T> configureDefaults = null) where T : class, new()
         {
-            var retVal = new T();
-            var cfg = Configuration.GetSection(path);
-            if (cfg.Exists())
-            {
-                cfg.Bind(retVal);
-            }
-            else
-            {
-                configureDefaults?.Invoke(retVal);
-            }
-
-            return retVal;
+            return Configuration.GetSection(path, configureDefaults);
         }
     }
 }

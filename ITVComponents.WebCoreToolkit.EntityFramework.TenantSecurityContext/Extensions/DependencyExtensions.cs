@@ -31,6 +31,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
             return services.AddDbContext<SecurityContext>(options)
                 .RegisterExplicityInterfacesScoped<SecurityContext>()
                 .AddScoped<ISecurityRepository, DbSecurityRepository<SecurityContext>>()
+                .AddScoped<ITenantTemplateHelper<SecurityContext>, TenantTemplateHelper<SecurityContext>>()
                 .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<SecurityContext>>();
         }
 
@@ -46,6 +47,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository, DbSecurityRepository<TImpl>>()
+                .AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
                 .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<TImpl>>();
         }
 
@@ -63,6 +65,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository, DbSecurityRepository<TImpl>>()
+                .AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()
                 .AddScoped<ITenantTemplateHelper, TTmpHelper>();
         }
 

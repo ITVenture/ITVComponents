@@ -35,14 +35,14 @@ namespace ITVComponents.ExtendedFormatting
             StringBuilder bld = new StringBuilder();
             var tmp = (from t in provider.Keys orderby t select new {t.Length, Key=t, Value = provider[t]}).ToArray();
             int ml = tmp.Max(n => n.Length);
-            string frmt = $"{{2}}{{0,-{ml}}}{{3}}{{1:obj}}\r\n";
+            string frmt = $"{{2}}{{0,-{ml}}}{{3}}{{1:obj}}{Environment.NewLine}";
             int currentIndent = 0;
             if (indent.IsValueCreated && indent.Value != -1)
             {
                 currentIndent = indent.Value;
             }
             string padString = new string(' ', currentIndent);
-            string lineString = currentIndent == 0 ? "" : "\r\n";
+            string lineString = currentIndent == 0 ? "" : Environment.NewLine;
             indent.Value = currentIndent + 3;
             bool ok = false;
             try

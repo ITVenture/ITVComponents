@@ -42,8 +42,8 @@
                         .concat("<td><input type='checkbox' id='").concat(checkSeed).concat("_").concat(i).concat("'")
                         .concat(item.Apply ? " checked" : "").concat(" jccMode='dyn' jccRootId='").concat(i)
                         .concat("' jccType='check' /></td>")
-                        .concat("<td>").concat((typeof (item.Key) !== "undefined" && item.Key != null) ? item.Key : "")
-                        .concat("</td>")
+                        .concat("<td><div style='white-space:pre-line;'>").concat((typeof (item.Key) !== "undefined" && item.Key != null) ? ITVenture.Tools.HtmlHelper.encode(JSON.stringify(item.Key)) : "")
+                        .concat("</div></td>")
                         .concat("<td><table id='").concat(tableSeed).concat("_").concat(i)
                         .concat("'></table></td></tr>");
                     tab.append(row);

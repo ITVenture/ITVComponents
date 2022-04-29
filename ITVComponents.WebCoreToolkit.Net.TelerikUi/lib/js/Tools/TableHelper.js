@@ -7,6 +7,16 @@
         }
         target.data("kendoGrid").dataSource.read();
     },
+    getDataItem: function(e) {
+        var tr = $(e.target).closest("tr"); //get the row for deletion
+        var grid = ITVenture.Tools.TableHelper.getGrid(e);
+        var data = grid.dataItem(tr); //get the row data so it can be referred later
+        return data;
+    },
+    getGrid: function(e) {
+        var target = $(e.currentTarget);
+        return target.closest(".k-grid").data("kendoGrid");
+    },
     confirmDelete: function (e) {
         e.preventDefault(); //prevent page scroll reset
         var tr = $(e.target).closest("tr"); //get the row for deletion

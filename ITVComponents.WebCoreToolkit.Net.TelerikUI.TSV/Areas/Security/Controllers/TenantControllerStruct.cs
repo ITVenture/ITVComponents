@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -9,12 +10,14 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Security.Controllers
 {
@@ -41,11 +44,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         private readonly TContext db;
 
         private readonly IUserExpressionHelper<TUserId, TUser, TTenantUser> expressionHelper;
+        private readonly IOptions<SecurityViewsOptions> options;
 
-        public TenantControllerStruct(TContext db, IUserExpressionHelper<TUserId, TUser, TTenantUser> expressionHelper, IServiceProvider services)
+        public TenantControllerStruct(TContext db, IUserExpressionHelper<TUserId, TUser, TTenantUser> expressionHelper, IServiceProvider services, IOptions<SecurityViewsOptions> options)
         {
             this.db = db;
             this.expressionHelper = expressionHelper;
+            this.options = options;
             if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
             {
                 db.HideGlobals = true;
@@ -169,6 +174,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             if (ModelState.IsValid)
             {
                 await this.TryUpdateModelAsync<TenantViewModel,Tenant>(model);
+                if (options.Value.UseExplicitTenantPasswords)
+                {
+                    model.TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey());
+                }
+
                 db.Tenants.Add(model);
 
                 await db.SaveChangesAsync();

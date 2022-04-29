@@ -154,7 +154,7 @@ namespace ITVComponents.Decisions
         public override string ToString()
         {
             return $@"Constraints:
-{string.Join("\r\n",from t in constraints select t.ToString())}
+{string.Join(Environment.NewLine,from t in constraints select t.ToString())}
 Constraints are evaluated {(!IsContextDriven ? "Context-free " : "Context-driven")}.";
         }
 
