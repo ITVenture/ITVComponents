@@ -1,0 +1,60 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@inject IOptions<ViewOptions> viewOptions
+@{
+    Layout = viewOptions.Value.LayoutPage;
+}
+@{
+
+    ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_AssetTemplates;
+}
+@(Html.Kendo().Grid<AssetTemplateViewModel>().Name("AssetTemplateList")
+        //.HtmlAttributes(new { style = "width:50vw;" })
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.Name).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
+            columns.Bound(c => c.SystemKey).Title(TextsAndMessagesHelper.IWCN_AT_SystemKey);
+            columns.AjaxFk(c => c.FeatureId,"sys", "Features","AssetTemplateId",filterable:true).Title(TextsAndMessagesHelper.IWCN_AT_RequiredFeature);
+            columns.AjaxFk(c => c.PermissionId,"sys", "Permissions","AssetTemplateId",filterable:true).Title(TextsAndMessagesHelper.IWCN_AT_RequiredPermission);
+            columns.Command(ga =>
+            {
+                ga.Edit();
+                ga.PopupConfirmDelete();
+            }).Width(180);
+
+        })
+        .ToolBar(toolbar =>
+        {
+            toolbar.RefreshTable();
+            toolbar.Create();
+        })
+        .DataSource(dataSource =>
+        {
+            var src = dataSource
+                .Ajax()
+                .Read(read => read.Action("Read", "AssetTemplate"));
+            src.Create(create => create.Action("Create", "AssetTemplate"))
+                    .Update(update => update.Action("Update", "AssetTemplate"))
+                    .Destroy(destroy => destroy.Action("Destroy", "AssetTemplate"));
+            src.Model(m => m.Id(t => t.AssetTemplateId))
+                .Sort(n => n.Add(m => m.Name));
+        })
+        .Scrollable(s => s.Height("auto"))
+        .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
+        .Sortable(c => c.Enabled(true))
+        .Filterable(f => f.Enabled(true))
+    .Resizable(c => c.Columns(true))
+    .ClientDetailTemplateId("AssetTemplateDetails"))
+
+
+@Html.DetailViewScript("AssetTemplateDetails", "TemplateDetails#=AssetTemplateId#","~/Security/AssetTemplate/_TemplateDetailTab?assetTemplateId=#=AssetTemplateId#")

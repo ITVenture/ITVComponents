@@ -19,7 +19,7 @@
         return ITVenture.Tools.Popup.dialogs[name];
     },
     FindDialog: function (element) {
-        return $($(element).parents().filter(function (i, a) { return typeof $(a).data("itvDialog") !== "undefined"; })[0]);
+        return $(element).closest(".itv-dialog");
     },
     Open: function (name, refObj, success, cancel) {
         ITVenture.Tools.Popup.dialogs[name].Open(refObj, success, cancel);
@@ -71,6 +71,7 @@
         obj = $.extend(true, tmo, obj);
         obj.dialog = function () { return obj.window.data("kendoWindow"); };
         obj.window.data("itvDialog", obj);
+        obj.window.addClass("itv-dialog");
         obj.window.on("keydown",
             function (event) {
                 if (event.key === "Enter" && obj.handleReturn) {

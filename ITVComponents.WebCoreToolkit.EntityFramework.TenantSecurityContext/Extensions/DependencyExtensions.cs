@@ -7,11 +7,13 @@ using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Navigation;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Security;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,6 +89,39 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         public static IServiceCollection UseDbNavigation<TImpl>(this IServiceCollection services) where TImpl:SecurityContext<TImpl>
         {
             return services.AddScoped<INavigationBuilder, DbNavigationBuilder<TImpl>>();
+        }
+
+        /// <summary>
+        /// Activate Db-Driven Shared Assets 
+        /// </summary>
+        /// <param name="services">the Services-collection where to inject the DB-Asset-handler instance</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseDbSharedAssets(this IServiceCollection services)
+        {
+            return services.AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
+        }
+
+        /// <summary>
+        /// Activate Db-Driven Shared Assets 
+        /// </summary>
+        /// <param name="services">the Services-collection where to inject the DB-Asset-handler instance</param>
+        /// <param name="contextType">the target type of the db-context to use</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseDbSharedAssets(this IServiceCollection services, Type contextType)
+        {
+            var t = typeof(SharedAssetProvider<>).MakeGenericType(contextType);
+            return services.AddScoped(typeof(ISharedAssetAdapter), t);
+        }
+
+        /// <summary>
+        /// Activate Db-Driven Shared Assets 
+        /// </summary>
+        /// <param name="services">the Services-collection where to inject the DB-Asset-handler instance</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseDbSharedAssets<TImpl>(this IServiceCollection services)
+            where TImpl : SecurityContext<TImpl>
+        {
+            return services.AddScoped<ISharedAssetAdapter, SharedAssetProvider<TImpl>>();
         }
     }
 }

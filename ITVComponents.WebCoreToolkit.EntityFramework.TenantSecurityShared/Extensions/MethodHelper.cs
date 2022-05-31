@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         public static TMethod GetMethod<TMethod>(this Type staticClass, Type contextType, string methodName) 
             where TMethod : Delegate
         {
-            var scb = typeof(ISecurityContext<,,,,,,,,,,,,,,,>);
+            var scb = typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,>);
             var ifs = contextType.GetInterfaces().FirstOrDefault(n =>
                 n.IsGenericType && n.GetGenericTypeDefinition() == scb);
             if (ifs != null)

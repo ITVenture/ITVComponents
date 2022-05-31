@@ -1,0 +1,47 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel.AssetTemplateViewModel
+
+@(Html.Kendo().Grid<AssetTemplatePathViewModel>().Name($"TemplateLegalPaths{Model.AssetTemplateId}")
+        //.HtmlAttributes(new { style = "width:50vw;" })
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.PathTemplate);
+            columns.Command(ga =>
+            {
+                ga.Edit();
+                ga.PopupConfirmDelete();
+            }).Width(180);
+
+        })
+        .ToolBar(toolbar =>
+        {
+            toolbar.RefreshTable();
+            toolbar.Create();
+        })
+        .DataSource(dataSource =>
+        {
+            var src = dataSource
+                .Ajax()
+                .Read(read => read.Action("ReadPaths", "AssetTemplate",new { assetTemplateId = Model.AssetTemplateId }))
+                .Create(create => create.Action("CreatePath", "AssetTemplate",new { assetTemplateId = Model.AssetTemplateId }))
+                .Update(update => update.Action("UpdatePath", "AssetTemplate"))
+                .Destroy(destroy => destroy.Action("DestroyPath", "AssetTemplate"))
+                .Model(m => m.Id(t => t.AssetTemplatePathId))
+                .Sort(n => n.Add(m => m.PathTemplate));
+        })
+        .Scrollable(s => s.Height("auto"))
+        .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
+        .Sortable(c => c.Enabled(true))
+        .Filterable(f => f.Enabled(true))
+    .Resizable(c => c.Columns(true)))

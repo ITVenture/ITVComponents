@@ -303,4 +303,25 @@
   <data name="IWCN_TT_Create" xml:space="preserve">
     <value>Neues Template basierend auf diesem Mandanten</value>
   </data>
+  <data name="IWCN_Titles_AssetTemplates" xml:space="preserve">
+    <value>Paket-Vorlagen</value>
+  </data>
+  <data name="IWCN_AT_LegalPaths" xml:space="preserve">
+    <value>Zulässige Pfade</value>
+  </data>
+  <data name="IWCN_AT_RequiredFeature" xml:space="preserve">
+    <value>Benötigtes Feature</value>
+  </data>
+  <data name="IWCN_AT_RequiredPermission" xml:space="preserve">
+    <value>Benötigte Berechtigung</value>
+  </data>
+  <data name="IWCN_AT_ShareFeatures" xml:space="preserve">
+    <value>Gewährte Features</value>
+  </data>
+  <data name="IWCN_AT_SharePermissions" xml:space="preserve">
+    <value>Gewährte Berechtigungen</value>
+  </data>
+  <data name="IWCN_AT_SystemKey" xml:space="preserve">
+    <value>System Kennung</value>
+  </data>
 </root>

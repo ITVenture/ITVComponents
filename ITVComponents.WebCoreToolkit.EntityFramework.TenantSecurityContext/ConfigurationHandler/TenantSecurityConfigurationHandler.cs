@@ -8,7 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Configur
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.ConfigurationHandler
 {
-    public class TenantSecurityConfigurationHandler<TContext>: SysConfigurationHandler<TContext,int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget,CustomUserProperty>
+    public class TenantSecurityConfigurationHandler<TContext>: SysConfigurationHandler<TContext,int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget,CustomUserProperty,AssetTemplate,AssetTemplatePath, AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter>
         where TContext:SecurityContext<TContext>
     {
         public TenantSecurityConfigurationHandler(TContext db) : base(db)

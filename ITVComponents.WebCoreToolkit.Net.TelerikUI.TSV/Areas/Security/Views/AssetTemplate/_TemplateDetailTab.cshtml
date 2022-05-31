@@ -1,0 +1,15 @@
+﻿@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
+@using Kendo.Mvc.UI
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel.AssetTemplateViewModel
+
+@(Html.Kendo().TabStrip().Name($"AssetTemplateDetailTab{Model.AssetTemplateId}")
+    .SelectedIndex(0)
+    .Items(item =>
+    {
+        item.Add().Text(TextsAndMessagesHelper.IWCN_AT_LegalPaths).LoadContentFrom("_PathTable", "AssetTemplate", new {assetTemplateId=Model.AssetTemplateId});
+        item.Add().Text(TextsAndMessagesHelper.IWCN_AT_SharePermissions).LoadContentFrom("_PermissionTable", "AssetTemplate", new {assetTemplateId=Model.AssetTemplateId});
+        item.Add().Text(TextsAndMessagesHelper.IWCN_AT_ShareFeatures).LoadContentFrom("_FeatureTable", "AssetTemplate", new {assetTemplateId=Model.AssetTemplateId});
+}))

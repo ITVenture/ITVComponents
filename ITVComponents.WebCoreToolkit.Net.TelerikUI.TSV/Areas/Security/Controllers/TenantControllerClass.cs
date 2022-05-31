@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.Helpers;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
@@ -12,6 +13,7 @@ using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
+using ITVComponents.WebCoreToolkit.Security;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
@@ -22,7 +24,7 @@ using Microsoft.Extensions.Options;
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Security.Controllers
 {
     [Authorize("HasPermission(Tenants.View,Tenants.Write,Tenants.AssignUser,Tenants.WriteSettings,Tenants.AssignNav,Tenants.AssignQuery),HasFeature(ITVAdminViews)"), Area("Security"), ConstructedGenericControllerConvention(ControllerName = "TenantController")]
-    public class TenantControllerClass<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : Controller
+    public class TenantControllerClass<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TContext> : Controller
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -39,7 +41,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         where TUserProperty : CustomUserProperty<TUserId, TUser>
         where TUser : class
         where TUserId: class
-        where TContext : DbContext, ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty>
+        where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplatePath : AssetTemplatePath<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateGrant : AssetTemplateGrant<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateFeature : AssetTemplateFeature<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TSharedAsset : SharedAsset<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetUserFilter : SharedAssetUserFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TContext : DbContext, ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
     {
         private readonly TContext db;
 
@@ -48,6 +57,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
 
         public TenantControllerClass(TContext db, IUserExpressionHelper<TUserId, TUser, TTenantUser> expressionHelper, IServiceProvider services, IOptions<SecurityViewsOptions> options)
         {
+            
             this.db = db;
             this.expressionHelper = expressionHelper;
             this.options = options;
@@ -312,8 +322,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             var model = new TenantSetting();
             if (ModelState.IsValid)
             {
+                var tenant = db.Tenants.First(n => n.TenantId == tenantId);
                 await this.TryUpdateModelAsync<TenantSettingViewModel,TenantSetting>(model);
                 model.TenantId = tenantId;
+                if (model.JsonSetting)
+                {
+                    model.SettingsValue = model.SettingsValue.EncryptJsonValues(tenant.TenantPassword);
+                }
                 db.TenantSettings.Add(model);
 
                 await db.SaveChangesAsync();
@@ -330,6 +345,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             if (ModelState.IsValid)
             {
                 await this.TryUpdateModelAsync<TenantSettingViewModel,TenantSetting>(model, "", m => { return m.ElementType == null; });
+                if (model.JsonSetting)
+                {
+                    model.SettingsValue = model.SettingsValue.EncryptJsonValues(model.Tenant.TenantPassword);
+                }
+
                 await db.SaveChangesAsync();
             }
 

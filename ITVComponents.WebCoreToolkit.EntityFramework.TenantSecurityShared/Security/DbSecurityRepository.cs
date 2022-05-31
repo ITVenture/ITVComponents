@@ -6,6 +6,7 @@ using System.Security;
 using Castle.Core.Logging;
 using ITVComponents.Formatting;
 using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
@@ -23,7 +24,7 @@ using User = ITVComponents.WebCoreToolkit.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Security
 {
-    public abstract class DbSecurityRepository<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> : ISecurityRepository
+    public abstract class DbSecurityRepository<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter> : ISecurityRepository
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -38,12 +39,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
         where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
         where TUserProperty : CustomUserProperty<TUserId, TUser>
+        where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplatePath : AssetTemplatePath<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateGrant : AssetTemplateGrant<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateFeature : AssetTemplateFeature<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TSharedAsset : SharedAsset<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetUserFilter : SharedAssetUserFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
         where TUser : class
     {
-        private readonly ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> securityContext;
+        private readonly ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter> securityContext;
         private readonly ILogger logger;
 
-        protected DbSecurityRepository(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> securityContext,
+        protected DbSecurityRepository(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter> securityContext,
             ILogger logger)
         {
             this.securityContext = securityContext;
@@ -282,6 +290,102 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             }
         }
 
+        public string Decrypt(string encryptedValue, string permissionScopeName)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.Decrypt(encryptedValue, passwd, false);
+            }
+
+            return encryptedValue.Decrypt();
+        }
+
+        public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.Decrypt(encryptedValue, passwd, false);
+            }
+
+            return encryptedValue.Decrypt();
+        }
+
+        public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.Decrypt(encryptedValue, passwd, initializationVector, salt, false);
+            }
+
+            throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
+        }
+
+        public string Encrypt(string value, string permissionScopeName)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.Encrypt(value, passwd, false);
+            }
+
+            return value.Encrypt();
+        }
+
+        public byte[] Encrypt(byte[] value, string permissionScopeName)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.Encrypt(value, passwd, false);
+            }
+
+            return value.Encrypt();
+        }
+
+        public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.Encrypt(value, passwd, out initializationVector, out salt, false);
+            }
+
+            throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
+        }
+
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
@@ -299,6 +403,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         protected abstract IEnumerable<CustomUserProperty<TUserId, TUser>> UserProps(TUser user);
 
         protected abstract Expression<Func<TUser, TUserId>> UserId { get;}
+
+        private byte[] GetEncryptionKey(string permissionScopeName)
+        {
+            using (var h = new FullSecurityAccessHelper(securityContext, true, true))
+            {
+                var t = securityContext.Tenants.First(n => n.TenantName == permissionScopeName);
+                if (!string.IsNullOrEmpty(t.TenantPassword))
+                {
+                    return Convert.FromBase64String(t.TenantPassword);
+                }
+            }
+
+            return null;
+        }
 
         /// <summary>
         /// raises the Disposed event

@@ -300,4 +300,25 @@
   <data name="IWCN_TT_Create" xml:space="preserve">
     <value>Create Template based on current Tenant</value>
   </data>
+  <data name="IWCN_Titles_AssetTemplates" xml:space="preserve">
+    <value>AssetTemplates</value>
+  </data>
+  <data name="IWCN_AT_LegalPaths" xml:space="preserve">
+    <value>Legal Paths</value>
+  </data>
+  <data name="IWCN_AT_RequiredFeature" xml:space="preserve">
+    <value>Required Feature</value>
+  </data>
+  <data name="IWCN_AT_RequiredPermission" xml:space="preserve">
+    <value>Required Permission</value>
+  </data>
+  <data name="IWCN_AT_ShareFeatures" xml:space="preserve">
+    <value>Feature grants</value>
+  </data>
+  <data name="IWCN_AT_SharePermissions" xml:space="preserve">
+    <value>Permission grants</value>
+  </data>
+  <data name="IWCN_AT_SystemKey" xml:space="preserve">
+    <value>System-Key</value>
+  </data>
 </root>

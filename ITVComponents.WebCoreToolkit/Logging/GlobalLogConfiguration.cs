@@ -28,7 +28,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
             {
                 lock (modLock)
                 {
-                    return enabledLogLevels.Any(n => n == (int)LogLevel.Trace || n == (int)LogLevel.Debug);
+                    return enabledLogLevels.Any(n => n is (int)LogLevel.Trace or (int)LogLevel.Debug);
                 }
             }
         }

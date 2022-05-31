@@ -12,9 +12,14 @@ namespace ITVComponents.Settings
 {
     public class JsonStringEncryptConverter : JsonConverter
     {
-
+        private string targetEntropy = null;
         public JsonStringEncryptConverter()
         {
+        }
+
+        public JsonStringEncryptConverter(string targetEntropy)
+        {
+            this.targetEntropy = targetEntropy;
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
@@ -28,7 +33,14 @@ namespace ITVComponents.Settings
 
             if (stringValue.StartsWith("encrypt:", StringComparison.OrdinalIgnoreCase))
             {
-                stringValue = PasswordSecurity.Encrypt(stringValue.Substring(8));
+                if (string.IsNullOrEmpty(targetEntropy))
+                {
+                    stringValue = PasswordSecurity.Encrypt(stringValue.Substring(8));
+                }
+                else
+                {
+                    stringValue = PasswordSecurity.Encrypt(stringValue.Substring(8), targetEntropy);
+                }
             }
 
             writer.WriteValue(stringValue);

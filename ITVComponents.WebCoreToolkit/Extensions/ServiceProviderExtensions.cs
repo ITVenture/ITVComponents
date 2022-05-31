@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -62,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         {
             var permissionScope = provider.GetService<IPermissionScope>();
             var logger = provider.GetService<ILogger<GenericLogTarget>>();//("ITVComponents.WebCoreToolkit.Extensions.ServiceProviderExtensions");
-            var isAuthenticated = provider.IsUserAuthenticated(out securityRepository, out var userLabels, out var authType);
+            var isAuthenticated = provider.IsLegitSharedAssetPath(out securityRepository, out _, out _) || provider.IsUserAuthenticated(out securityRepository, out _, out _);
             if (isAuthenticated)
             {
                 string[] features = securityRepository.GetFeatures(permissionScope.PermissionPrefix)
@@ -125,11 +126,50 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <param name="provider">the service-provider for the current scope</param>
         /// <param name="permissionEstimator">provides the selected permission-estimator back outside</param>
         /// <returns>a list of assigned permissions</returns>
-        public static string[] GetUserPermissions(this IServiceProvider provider, out ISecurityRepository securityRepository, out bool isAuthenticated)
+        public static string[] GetUserPermissions(this IServiceProvider provider,
+            out ISecurityRepository securityRepository, out bool isAuthenticated)
         {
-            isAuthenticated = provider.IsUserAuthenticated(out securityRepository, out var labels, out var authType);
-            var permissions = isAuthenticated?securityRepository.GetPermissions(labels, authType).Select(n => n.PermissionName).Distinct().ToArray():Array.Empty<string>();
-            return permissions;
+            string[] permissions = null;
+            string[] labels;
+            string authType;
+            isAuthenticated = provider.IsLegitSharedAssetPath(out securityRepository, out labels, out authType) ||
+                              provider.IsUserAuthenticated(out securityRepository, out labels, out authType);
+
+            if (isAuthenticated)
+            {
+                permissions = securityRepository.GetPermissions(labels, authType).Select(n => n.PermissionName)
+                    .Distinct()
+                    .ToArray();
+            }
+
+            return permissions ?? Array.Empty<string>();
+        }
+
+        public static bool IsLegitSharedAssetPath(this IServiceProvider provider,
+            out ISecurityRepository securityRepository, out string[] labels, out string authType)
+        {
+            var assetProvider = provider.GetService<ISharedAssetAdapter>();
+            var userProvider = provider.GetService<IContextUserProvider>();
+            if (userProvider.HttpContext.Request.Query.ContainsKey(Global.FixedAssetRequestQueryParameter) && userProvider.User.HasClaim(n => n.Type == Global.FixedAssetUserScope))
+            {
+                var requestPath = userProvider.HttpContext.Request.Path;
+                var assetKey = userProvider.HttpContext.Request.Query[Global.FixedAssetRequestQueryParameter];
+                var userScope = userProvider.HttpContext.User.Claims.First(n => n.Type == Global.FixedAssetUserScope)
+                    .Value;
+                if (assetProvider != null && assetProvider.VerifyRequestLocation(requestPath,assetKey, userScope, userProvider.User))
+                {
+                    authType = ((ClaimsIdentity)userProvider.User.Identity).AuthenticationType;
+                    labels = new string[] { userProvider.User.Identity.Name };
+                    var deco = provider.GetService<ISecurityRepository>();
+                    securityRepository = new AssetSecurityRepository(userProvider.User, deco, assetProvider.GetAssetInfo(assetKey, userProvider.User));
+                    return true;
+                }
+            }
+
+            securityRepository = null;
+            labels = null;
+            authType = null;
+            return false;
         }
 
         /// <summary>

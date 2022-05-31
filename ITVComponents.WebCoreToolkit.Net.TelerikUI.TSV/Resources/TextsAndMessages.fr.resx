@@ -303,4 +303,25 @@
   <data name="IWCN_TT_Create" xml:space="preserve">
     <value>Nouveau modèle basé sur ce client</value>
   </data>
+  <data name="IWCN_Titles_AssetTemplates" xml:space="preserve">
+    <value>Modèles d' assaut</value>
+  </data>
+  <data name="IWCN_AT_LegalPaths" xml:space="preserve">
+    <value>Voies légales</value>
+  </data>
+  <data name="IWCN_AT_RequiredFeature" xml:space="preserve">
+    <value>Fonction requise</value>
+  </data>
+  <data name="IWCN_AT_RequiredPermission" xml:space="preserve">
+    <value>Permission requise</value>
+  </data>
+  <data name="IWCN_AT_ShareFeatures" xml:space="preserve">
+    <value>Subventions de fonctions</value>
+  </data>
+  <data name="IWCN_AT_SharePermissions" xml:space="preserve">
+    <value>Autorisation subventions</value>
+  </data>
+  <data name="IWCN_AT_SystemKey" xml:space="preserve">
+    <value>Clé système</value>
+  </data>
 </root>

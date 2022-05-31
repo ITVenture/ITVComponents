@@ -16,11 +16,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensi
         public static ApplicationPartManager EnableItvTenantViews<TContext>(this ApplicationPartManager manager) where TContext:DbContext
         {
             var secDefinition = typeof(TContext).GetInterfaces().FirstOrDefault(
-                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,>));
+                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,>));
             var types = secDefinition.GenericTypeArguments;
             var dic = new Dictionary<string, Type>
             {
-                { "TUserId", types[0]},
+                { "TUserId", types[0] },
                 { "TUser", types[1] },
                 { "TRole", types[2] },
                 { "TPermission", types[3] },
@@ -29,14 +29,21 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensi
                 { "TTenantUser", types[6] },
                 { "TNavigationMenu", types[7] },
                 { "TTenantNavigation", types[8] },
-                { "TQuery", types[9]},
-                { "TQueryParameter", types[10]},
-                { "TTenantQuery", types[11]},
-                { "TWidget", types[12]},
-                { "TWidgetParam", types[13]},
-                { "TUserWidget", types[14]},
-                { "TUserProperty", types[15]},
-                { "TContext", typeof(TContext)}
+                { "TQuery", types[9] },
+                { "TQueryParameter", types[10] },
+                { "TTenantQuery", types[11] },
+                { "TWidget", types[12] },
+                { "TWidgetParam", types[13] },
+                { "TUserWidget", types[14] },
+                { "TUserProperty", types[15] },
+                { "TAssetTemplate", types[16] },
+                { "TAssetTemplatePath", types[17] },
+                { "TAssetTemplateGrant", types[18] },
+                { "TAssetTemplateFeature", types[19] },
+                { "TSharedAsset", types[20] },
+                { "TSharedAssetUserFilter", types[21] },
+                { "TSharedAssetTenantFilter", types[22] },
+                { "TContext", typeof(TContext) }
             };
 
             AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic);
@@ -52,7 +59,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensi
             }
 
             var secDefinition = contextType.GetInterfaces().FirstOrDefault(
-                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,>));
+                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,>));
             var types = secDefinition.GenericTypeArguments;
             var dic = new Dictionary<string, Type>
             {
@@ -72,6 +79,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensi
                 { "TWidgetParam", types[13]},
                 { "TUserWidget", types[14]},
                 { "TUserProperty", types[15]},
+                { "TAssetTemplate", types[16] },
+                { "TAssetTemplatePath", types[17] },
+                { "TAssetTemplateGrant", types[18] },
+                { "TAssetTemplateFeature", types[19] },
+                { "TSharedAsset", types[20] },
+                { "TSharedAssetUserFilter", types[21] },
+                { "TSharedAssetTenantFilter", types[22] },
                 { "TContext", contextType}
             };
 

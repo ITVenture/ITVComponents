@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Extensions;
 using ITVComponents.Formatting;
 using ITVComponents.ParallelProcessing.TaskSchedulers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
@@ -16,7 +17,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers
 {
-    public class TenantTemplateHelperBase<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext> : ITenantTemplateHelper<TContext>
+    public class TenantTemplateHelperBase<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TContext> : ITenantTemplateHelper<TContext>
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new ()
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>, new()
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -32,12 +33,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
         where TUserProperty : CustomUserProperty<TUserId, TUser>
         where TUser : class
-        where TContext: DbContext, ISecurityContext<TUserId, TUser,TRole,TPermission,TUserRole,TRolePermission,TTenantUser,TNavigationMenu,TTenantNavigation,TQuery,TQueryParameter,TTenantQuery,TWidget,TWidgetParam,TUserWidget,TUserProperty>
+        where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplatePath : AssetTemplatePath<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateGrant : AssetTemplateGrant<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateFeature : AssetTemplateFeature<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TSharedAsset : SharedAsset<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetUserFilter : SharedAssetUserFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TContext: DbContext, ISecurityContext<TUserId, TUser,TRole,TPermission,TUserRole,TRolePermission,TTenantUser,TNavigationMenu,TTenantNavigation,TQuery,TQueryParameter,TTenantQuery,TWidget,TWidgetParam,TUserWidget,TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
     {
         private readonly TContext db;
-        private readonly ILogger<TenantTemplateHelperBase<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext>> logger;
+        private readonly ILogger<TenantTemplateHelperBase<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TContext>> logger;
 
-        public TenantTemplateHelperBase(TContext db, ILogger<TenantTemplateHelperBase<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TContext>> logger)
+        public TenantTemplateHelperBase(TContext db, ILogger<TenantTemplateHelperBase<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TContext>> logger)
         {
             this.db = db;
             this.logger = logger;
@@ -437,7 +445,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                         permissionsToCheck.Add(tmp.PermissionId);
                     }
 
-                    var lnk = db.RolePermissions.FirstOrDefault(n =>
+                    var lnk = db.RolePermissions.LocalFirstOrDefault(n =>
                         n.TenantId == role.TenantId && n.PermissionId == tmp.PermissionId && n.RoleId == role.RoleId);
                     if (lnk != null)
                     {
@@ -452,7 +460,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         {
             var nowU = DateTime.UtcNow;
             var ftu = db.Features.First(n => n.FeatureName == feature.FeatureName);
-            var retVal = db.TenantFeatureActivations.FirstOrDefault(n =>
+            var retVal = db.TenantFeatureActivations.LocalFirstOrDefault(n =>
                 n.TenantId == tenantId && (n.ActivationStart ?? nowU) <= nowU && (n.ActivationEnd ?? nowU) >= nowU);
             if (retVal == null && addIfMissing)
             {
@@ -471,7 +479,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         protected virtual TTenantQuery GetQuery(int tenantId, QueryTemplateMarkup query, bool addIfMissing)
         {
             var qry = db.DiagnosticsQueries.First(n => n.DiagnosticsQueryName == query.Name);
-            var retVal = db.TenantDiagnosticsQueries.FirstOrDefault(n =>
+            var retVal = db.TenantDiagnosticsQueries.LocalFirstOrDefault(n =>
                 n.DiagnosticsQueryId == qry.DiagnosticsQueryId && n.TenantId == tenantId);
             if (retVal == null && addIfMissing)
             {
@@ -491,7 +499,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             bool addIfMissing)
         {
             var mnu = db.Navigation.First(n => n.UrlUniqueness == menu.UniqueKey);
-            var retVal = db.TenantNavigation.FirstOrDefault(n =>
+            var retVal = db.TenantNavigation.LocalFirstOrDefault(n =>
                 n.TenantId == tenantId && n.NavigationMenuId == mnu.NavigationMenuId);
             if (retVal == null && addIfMissing)
             {
@@ -516,7 +524,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         protected virtual WebPlugin GetPlugIn(int tenantId, PlugInTemplateMarkup plugIn, bool addIfMissing)
         {
-            var retVal = db.WebPlugins.FirstOrDefault(n => n.TenantId == tenantId && n.UniqueName == plugIn.UniqueName);
+            var retVal = db.WebPlugins.LocalFirstOrDefault(n => n.TenantId == tenantId && n.UniqueName == plugIn.UniqueName);
             if (retVal == null && addIfMissing)
             {
                 retVal = new WebPlugin
@@ -535,7 +543,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         protected virtual WebPluginConstant GetConst(int tenantId, ConstTemplateMarkup constant, bool addIfMissing)
         {
-            var retVal = db.WebPluginConstants.FirstOrDefault(n => n.TenantId == tenantId && n.Name == constant.Name);
+            var retVal = db.WebPluginConstants.LocalFirstOrDefault(n => n.TenantId == tenantId && n.Name == constant.Name);
             if (retVal == null && addIfMissing)
             {
                 retVal = new WebPluginConstant
@@ -553,7 +561,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         protected virtual TenantSetting GetSetting(int tenantId, SettingTemplateMarkup setting, bool addIfMissing)
         {
-            var retVal = db.TenantSettings.FirstOrDefault(n =>
+            var retVal = db.TenantSettings.LocalFirstOrDefault(n =>
                 n.TenantId == tenantId && n.SettingsKey == setting.ParamName);
             if (retVal == null && addIfMissing)
             {
@@ -572,7 +580,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         protected virtual TRole GetRole(int tenantId, RoleTemplateMarkup role, bool addIfMissing)
         {
-            var retVal = db.SecurityRoles.FirstOrDefault(n =>
+            var retVal = db.SecurityRoles.LocalFirstOrDefault(n =>
                 n.TenantId == tenantId && n.RoleName == role.Name);
             if (retVal== null && addIfMissing)
             {
@@ -590,7 +598,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         protected virtual TPermission GetPermission(int tenantId, PermissionTemplateMarkup perm, bool addIfMissing)
         {
-            var retVal = db.Permissions.FirstOrDefault(n =>
+            var retVal = db.Permissions.LocalFirstOrDefault(n =>
                 n.PermissionName == perm.Name && (n.TenantId == tenantId || (perm.Global && n.TenantId == null)));
             if (retVal== null && perm.Global)
             {
@@ -621,7 +629,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             var m = mnu.Parent;
             while (m != null)
             {
-                var parentEntry = db.TenantNavigation.FirstOrDefault(n =>
+                var parentEntry = db.TenantNavigation.LocalFirstOrDefault(n =>
                     n.TenantId == tenantId && n.NavigationMenuId == m.NavigationMenuId);
                 if (parentEntry == null)
                 {

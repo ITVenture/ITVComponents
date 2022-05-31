@@ -64,6 +64,12 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionHandling
              if (pol.Success && pol.Groups["permissionBlock"].Captures.Count >= 1)
             {
                 var policy = new AuthorizationPolicyBuilder(await GetDefaultPolicyAsync());
+                var top = toolPolicyOptions.Value;
+                if (top.SignInSchemes.Count != 0)
+                {
+                    top.SignInSchemes.ForEach(policy.AuthenticationSchemes.Add);
+                }
+
                 foreach (var cap in pol.Groups["permissionBlock"].Captures)
                 {
                     if (cap != null)
@@ -76,11 +82,11 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionHandling
                             string requirementRaw = detailMatch.Groups["arguments"].Value;
                             //permissionsRaw = permissionsRaw.Substring(0, permissionsRaw.Length - 1);
                             string[] requirementList = (from t in requirementRaw.Split(',') select t.Trim()).ToArray();
-                            if (tp == "HasPermission" && toolPolicyOptions.Value.CheckPermissions)
+                            if (tp == "HasPermission" && top.CheckPermissions)
                             {
                                 policy.AddRequirements(new AssignedPermissionRequirement(requirementList));
                             }
-                            else if (tp == "HasFeature" && toolPolicyOptions.Value.CheckFeatures)
+                            else if (tp == "HasFeature" && top.CheckFeatures)
                             {
                                 policy.AddRequirements(new FeatureActivatedRequirement(requirementList));
                             }

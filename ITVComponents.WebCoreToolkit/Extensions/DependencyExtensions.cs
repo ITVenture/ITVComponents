@@ -174,6 +174,22 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         }
 
         /// <summary>
+        /// Uses Asset-Information to add required claims to the logged-in identity
+        /// </summary>
+        /// <param name="services">the services where transformation-provider is injected</param>
+        /// <param name="collectable">indicates whether to inject the RepositoryClaims transformer in a way, that enables the usage of multiple transformers</param>
+        public static IServiceCollection UseAssetDrivenClaimsTransformation(this IServiceCollection services,
+            bool collectable = false)
+        {
+            if (!collectable)
+            {
+                return services.AddScoped<IClaimsTransformation, AssetDrivenClaimsTransformation>();
+            }
+
+            return services.AddScoped<ICollectedClaimsProvider, AssetDrivenClaimsTransformation>();
+        }
+
+        /// <summary>
         /// Enables the automatic SiteNavigation builder
         /// </summary>
         /// <param name="services">the services where the navigator is injected to</param>

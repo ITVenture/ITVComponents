@@ -5,6 +5,7 @@ using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
+using ITVComponents.Security;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.DbLessConfig.Configurations;
 using ITVComponents.WebCoreToolkit.Models;
@@ -177,6 +178,36 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {
             return options.Features??Array.Empty<Feature>();
+        }
+
+        public string Decrypt(string encryptedValue, string permissionScopeName)
+        {
+            return encryptedValue.Decrypt();
+        }
+
+        public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName)
+        {
+            return encryptedValue.Decrypt();
+        }
+
+        public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt)
+        {
+            throw new NotImplementedException();
+        }
+
+        public string Encrypt(string value, string permissionScopeName)
+        {
+            return value.Decrypt();
+        }
+
+        public byte[] Encrypt(byte[] value, string permissionScopeName)
+        {
+            return value.Decrypt();
+        }
+
+        public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt)
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>

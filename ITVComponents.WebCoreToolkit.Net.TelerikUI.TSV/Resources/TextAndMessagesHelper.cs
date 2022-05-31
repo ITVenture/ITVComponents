@@ -129,6 +129,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string IWCN_TT_Apply => GetString(nameof(IWCN_TT_Apply));
 
         public static string IWCN_TT_Create => GetString(nameof(IWCN_TT_Create));
+
+        public static string IWCN_Titles_AssetTemplates => GetString(nameof(IWCN_Titles_AssetTemplates));
+
+        public static string IWCN_AT_SystemKey => GetString(nameof(IWCN_AT_SystemKey));
+        public static string IWCN_AT_RequiredFeature => GetString(nameof(IWCN_AT_RequiredFeature));
+        public static string IWCN_AT_RequiredPermission => GetString(nameof(IWCN_AT_RequiredPermission));
+
+        public static string IWCN_AT_LegalPaths => GetString(nameof(IWCN_AT_LegalPaths));
+        public static string IWCN_AT_SharePermissions => GetString(nameof(IWCN_AT_SharePermissions));
+        public static string IWCN_AT_ShareFeatures => GetString(nameof(IWCN_AT_ShareFeatures));
         //--
 
         public static string GetIWCN_General_DisplayName(this IRequestCultureFeature requestCulture)
@@ -429,5 +439,18 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         {
             return GetString(nameof(IWCN_TT_Create), requestCulture.RequestCulture.UICulture);
         }
+
+        public static string GetIWCN_Titles_AssetTemplates(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_Titles_AssetTemplates), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_AT_SystemKey(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_SystemKey), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_AT_RequiredFeature(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_RequiredFeature), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_AT_RequiredPermission(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_RequiredPermission), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_AT_LegalPaths(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_LegalPaths), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_AT_SharePermissions(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_SharePermissions), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_AT_ShareFeatures(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_ShareFeatures), requestCulture.RequestCulture.UICulture);
     }
 }

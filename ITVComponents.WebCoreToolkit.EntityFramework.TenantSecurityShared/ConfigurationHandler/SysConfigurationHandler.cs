@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ConfigurationHandler
 {
-    public abstract class SysConfigurationHandler<TContext, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty> : ConfigurationHandlerBase
+    public abstract class SysConfigurationHandler<TContext, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter> : ConfigurationHandlerBase
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -30,7 +30,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
         where TUserProperty : CustomUserProperty<TUserId, TUser>
         where TUser : class
-        where TContext:DbContext, ISecurityContext<TUserId,TUser,TRole,TPermission,TUserRole,TRolePermission,TTenantUser,TNavigationMenu,TTenantNavigation,TQuery,TQueryParameter,TTenantQuery,TWidget,TWidgetParam,TUserWidget,TUserProperty>
+        where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplatePath : AssetTemplatePath<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateGrant : AssetTemplateGrant<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateFeature : AssetTemplateFeature<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TSharedAsset : SharedAsset<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetUserFilter : SharedAssetUserFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TContext:DbContext, ISecurityContext<TUserId,TUser,TRole,TPermission,TUserRole,TRolePermission,TTenantUser,TNavigationMenu,TTenantNavigation,TQuery,TQueryParameter,TTenantQuery,TWidget,TWidgetParam,TUserWidget,TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
     {
 
         public SysConfigurationHandler(TContext db)
@@ -84,6 +91,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         CompareDiagnosticsQueries(sys.DiagnosticsQueries, upSys.DiagnosticsQueries);
                         CompareDashboardWidgets(sys.DashboardWidgets, upSys.DashboardWidgets);
                         CompareNavigation(sys.Navigation, upSys.Navigation);
+                        CompareTrustedModules(sys.TrustedModules, upSys.TrustedModules);
                     }
 
                     break;
@@ -177,7 +185,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                             })
                             .ToArray()
                     }).ToArray(),
-                    Navigation = GetSortedNav()
+                    Navigation = GetSortedNav(),
+                    TrustedModules = DbContext.TrustedFullAccessComponents.Select(n =>
+                        new TrustedModuleTemplateMarkup
+                        {
+                            FullQualifiedTypeName = n.FullQualifiedTypeName,
+                            Description = n.Description,
+                            TrustedForAllTenants = n.TrustedForAllTenants,
+                            TrustedForGlobals = n.TrustedForGlobals
+                        }
+                    ).ToArray()
                 };
 
 
@@ -712,6 +729,82 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     if (c.New.Markup != c.Original.Markup)
                     {
                         change.Details.Add(MakeDetail("Markup", c.New.Markup, currentValue: c.Original.Markup, multiline: true));
+                    }
+
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+                }
+            }
+        }
+
+        private void CompareTrustedModules(TrustedModuleTemplateMarkup[] sysTrusts, TrustedModuleTemplateMarkup[] upTrusts)
+        {
+            var keyNames = new string[] { "FullQualifiedTypeName" };
+            var entityName = "TrustedFullAccessComponents";
+            var keyExp = new Dictionary<string, string>
+            {
+            };
+            var groups = (from t in sysTrusts select t.FullQualifiedTypeName.ToLower()).Union(from t in upTrusts select t.FullQualifiedTypeName.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                       join a1 in sysTrusts on c equals a1.FullQualifiedTypeName.ToLower() into ja1
+                       from na1 in ja1.DefaultIfEmpty()
+                       join a2 in upTrusts on c equals a2.FullQualifiedTypeName.ToLower() into ja2
+                       from na2 in ja2.DefaultIfEmpty()
+                       select new { Name = c, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                    {
+                        { keyNames[0], $"{c.Original.FullQualifiedTypeName}" }
+                    },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], c.New.FullQualifiedTypeName));
+                    change.Details.Add(MakeDetail("Description", c.New.Description, multiline: true));
+                    change.Details.Add(MakeDetail("TrustedForAllTenants", c.New.TrustedForAllTenants.ToString(), "Entity.TrustedForAllTenants=(NewValueRaw==\"True\")"));
+                    change.Details.Add(MakeDetail("TrustedForGlobals", c.New.TrustedForGlobals.ToString(), "Entity.TrustedForGlobals=(NewValueRaw==\"True\")"));
+                    RegisterChange(change);
+                }
+                else if (c.Original != null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Update,
+                        Key = new Dictionary<string, string>
+                        {
+                            { keyNames[0], $"{c.Original.FullQualifiedTypeName}" }
+                        },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    if (c.New.Description != c.Original.Description)
+                    {
+                        change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description, multiline: true));
+                    }
+
+                    if (c.New.TrustedForAllTenants != c.Original.TrustedForAllTenants)
+                    {
+                        change.Details.Add(MakeDetail("TrustedForAllTenants", c.New.TrustedForAllTenants.ToString(), "Entity.TrustedForAllTenants=(NewValueRaw==\"True\")", c.Original.TrustedForAllTenants.ToString()));
+                    }
+
+                    if (c.New.TrustedForGlobals != c.Original.TrustedForGlobals)
+                    {
+                        change.Details.Add(MakeDetail("TrustedForGlobals", c.New.TrustedForGlobals.ToString(), "Entity.TrustedForGlobals=(NewValueRaw==\"True\")", c.Original.TrustedForGlobals.ToString()));
                     }
 
                     if (change.Details.Count != 0)

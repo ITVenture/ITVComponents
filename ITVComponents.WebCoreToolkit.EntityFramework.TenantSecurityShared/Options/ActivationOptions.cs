@@ -22,5 +22,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
         public bool UseGlobalSettings { get; set; }
 
         public bool UseTenantSettings { get; set; }
+
+        public bool UseSharedAssets { get; set; }
     }
 }

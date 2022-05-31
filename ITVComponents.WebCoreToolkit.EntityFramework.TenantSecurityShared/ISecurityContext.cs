@@ -16,7 +16,7 @@ using WebPlugin = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecuritySha
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
     [ExplicitlyExpose]
-    public interface ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty>:IBaseTenantContext
+    public interface ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter> :IBaseTenantContext
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -32,6 +32,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         where TUserWidget: UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
         where TUserProperty:CustomUserProperty<TUserId,TUser>
         where TUser : class
+        where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplatePath : AssetTemplatePath<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateGrant : AssetTemplateGrant<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateFeature : AssetTemplateFeature<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TSharedAsset : SharedAsset<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetUserFilter : SharedAssetUserFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
     {
         bool HideDisabledUsers { get; set; }
 
@@ -64,5 +71,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         public DbSet<TQueryParameter> DiagnosticsQueryParameters { get; set; }
 
         public DbSet<TTenantQuery> TenantDiagnosticsQueries { get; set; }
+
+        public DbSet<TAssetTemplate> AssetTemplates { get; set; }
+
+        public DbSet<TAssetTemplateFeature> AssetTemplateFeatures { get; set; }
+
+        public DbSet<TAssetTemplateGrant> AssetTemplateGrants { get; set; }
+
+        public DbSet<TAssetTemplatePath> AssetTemplatePathFilters { get; set; }
+
+        public DbSet<TSharedAsset> SharedAssets { get; set; }
+
+        public DbSet<TSharedAssetTenantFilter> SharedAssetTenantFilters { get; set; }
+
+        public DbSet<TSharedAssetUserFilter> SharedAssetUserFilters { get; set; }
     }
 }

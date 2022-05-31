@@ -27,6 +27,7 @@ namespace ITVComponents.WebCoreToolkit.Options
         public bool UseBackgroundTasks { get; set; }
         public int TaskQueueCapacity { get; set; } = 100;
         public bool UseLocalization { get; set; }
+        public bool UseSharedAssets { get; set; }
         public List<LocalizationMappingOption> UiCultureMapping { get; set; } = new();
         public List<LocalizationMappingOption> CultureMapping { get; set; } = new();
     }

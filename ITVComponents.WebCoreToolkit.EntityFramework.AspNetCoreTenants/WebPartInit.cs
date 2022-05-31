@@ -7,6 +7,8 @@ using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.Options;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -61,6 +63,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                     services.UseDbIdentities(options => options.UseSqlServer(partActivation.ConnectionStringName));
                 }
 
+                services.Configure<ToolkitPolicyOptions>(o => o.SignInSchemes.Add(IdentityConstants.ApplicationScheme));
             }
 
             if (partActivation.UseNavigation)
@@ -72,6 +75,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                 else
                 {
                     services.UseDbNavigation();
+                }
+            }
+
+            if (partActivation.UseSharedAssets)
+            {
+                if (t != null)
+                {
+                    services.UseDbSharedAssets(t);
+                }
+                else
+                {
+                    services.UseDbSharedAssets();
                 }
             }
 

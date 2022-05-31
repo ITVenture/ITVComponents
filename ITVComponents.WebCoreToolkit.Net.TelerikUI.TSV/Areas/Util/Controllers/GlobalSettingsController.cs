@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
@@ -41,6 +42,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             if (ModelState.IsValid)
             {
                 await this.TryUpdateModelAsync<GlobalSettingViewModel,GlobalSetting>(model);
+                if (model.JsonSetting)
+                {
+                    model.SettingsValue = model.SettingsValue.EncryptJsonValues();
+                }
                 db.GlobalSettings.Add(model);
 
                 await db.SaveChangesAsync();
@@ -57,6 +62,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             if (ModelState.IsValid)
             {
                 await this.TryUpdateModelAsync<GlobalSettingViewModel,GlobalSetting>(model, "", m => { return m.ElementType == null; });
+                if (model.JsonSetting)
+                {
+                    model.SettingsValue = model.SettingsValue.EncryptJsonValues();
+                }
                 await db.SaveChangesAsync();
             }
 

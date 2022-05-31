@@ -15,7 +15,7 @@ using Role = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Mode
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Security
 {
-    internal class AspNetDbSecurityRepository<TImpl>:TenantSecurityShared.Security.DbSecurityRepository<string, Models.User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty>
+    internal class AspNetDbSecurityRepository<TImpl>:TenantSecurityShared.Security.DbSecurityRepository<string, Models.User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty,AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter>
     where TImpl:AspNetSecurityContext<TImpl>
     {
         private const string default1 = "Identity.Application";

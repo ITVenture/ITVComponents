@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Numerics;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.Tokens;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +58,23 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             var identities = httpContext.HttpContext?.User?.Identities?.ToArray();
             if (identities != null && identities.Any(n => n.IsAuthenticated))
             {
+                if (httpContext.HttpContext.Request.Query.ContainsKey(Global.FixedAssetRequestQueryParameter))
+                {
+                    if (httpContext.HttpContext.User.HasClaim(c => c.Type == Global.FixedAssetUserScope))
+                    {
+                        var asset = httpContext.HttpContext.Request.Query[Global.FixedAssetRequestQueryParameter];
+                        var fixedUserScope = httpContext.HttpContext.User.Claims
+                            .First(n => n.Type == Global.FixedAssetUserScope).Value;
+                        var assetProvider =
+                            httpContext.HttpContext.RequestServices.GetService<ISharedAssetAdapter>();
+                        if (assetProvider != null && assetProvider.VerifyRequestLocation(httpContext.HttpContext.Request.Path, asset, fixedUserScope, httpContext.HttpContext.User))
+                        {
+                            IsScopeExplicit = true;
+                            return fixedUserScope;
+                        }
+                    }
+                }
+
                 var secc = httpContext.HttpContext.RequestServices.GetService<ISecurityRepository>();
                 var userProvider = httpContext.HttpContext.RequestServices.GetRequiredService<IUserNameMapper>();
                 var eligibles = secc.GetEligibleScopes(userProvider.GetUserLabels(httpContext.HttpContext.User),
@@ -68,10 +86,10 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                     httpContext.HttpContext.Request.RouteValues.ContainsKey(opt.RouteOverrideParam) &&
                     !string.IsNullOrEmpty((string)httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam]))
                 {
-                    IsScopeExplicit = true;
                     var tmpRet = (string)httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam];
                     if (eligibles.Any(n => n.ScopeName == tmpRet))
                     {
+                        IsScopeExplicit = true;
                         return tmpRet;
                     }
                 }

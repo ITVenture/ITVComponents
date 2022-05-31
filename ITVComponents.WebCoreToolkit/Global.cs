@@ -11,5 +11,13 @@
         public const string SessionProfilerPluginName = "sessionProfiler";
 
         public const string ServiceProviderName = "serviceProvider";
+
+        public const string FixedAssetPermission = "##FixedPermission";
+
+        public const string FixedAssetFeature = "##FixedFeature";
+
+        public const string FixedAssetUserScope = "##FixedPermissionScope";
+
+        public const string FixedAssetRequestQueryParameter = "SharedAssetKey";
     }
 }

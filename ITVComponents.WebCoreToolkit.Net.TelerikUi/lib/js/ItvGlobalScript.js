@@ -253,7 +253,7 @@ var ITVenture = {
     },
     Ajax: {
         baseUrl: "/",
-        ajaxGet: function (url, expectedType) {
+        ajaxGet: function (url, expectedType, extend) {
             if (typeof expectedType === "undefined" || expectedType === null) {
                 expectedType = "json";
             }
@@ -264,9 +264,13 @@ var ITVenture = {
                 dataType: expectedType
             };
 
+            if (typeof extend === "function") {
+                extend.apply(request);
+            }
+
             return $.ajax(request);
         },
-        ajaxPost: function (url, data, expectedType, contentType) {
+        ajaxPost: function (url, data, expectedType, contentType, extend) {
             if (typeof expectedType === "undefined" || expectedType === null) {
                 expectedType = "json";
             }
@@ -281,9 +285,13 @@ var ITVenture = {
                 request.contentType = contentType;
             }
 
+            if (typeof extend === "function") {
+                extend.apply(request);
+            }
+
             return $.ajax(request);
         },
-        ajaxFormPost: function (url, data, expectedType, contentType) {
+        ajaxFormPost: function (url, data, expectedType, contentType, extend) {
             if (typeof expectedType === "undefined" || expectedType === null) {
                 expectedType = "json";
             }
@@ -296,6 +304,10 @@ var ITVenture = {
 
             if (typeof contentType !== "undefined" && contentType !== null) {
                 request.contentType = contentType;
+            }
+
+            if (typeof extend === "function") {
+                extend.apply(request);
             }
 
             return $.ajax(request);

@@ -11,5 +11,7 @@ namespace ITVComponents.WebCoreToolkit.Options
         public bool CheckPermissions { get; set; } = true;
 
         public bool CheckFeatures { get; set; } = false;
+
+        public List<string> SignInSchemes { get; set; } = new List<string>();
     }
 }

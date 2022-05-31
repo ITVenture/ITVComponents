@@ -59,6 +59,11 @@ namespace ITVComponents.WebCoreToolkit
                 services.UseRepositoryClaimsTransformation(options.UseCollectedClaimsTransformation);
             }
 
+            if (options.UseSharedAssets)
+            {
+                services.UseAssetDrivenClaimsTransformation(options.UseCollectedClaimsTransformation);
+            }
+
             if (options.UseNavigator)
             {
                 services.UseNavigator();

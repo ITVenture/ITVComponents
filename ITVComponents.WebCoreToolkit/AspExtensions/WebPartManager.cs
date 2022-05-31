@@ -12,6 +12,7 @@ using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions.Helpers;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.Options;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.CodeAnalysis.Emit;
@@ -31,6 +32,8 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         private List<MethodRef> endpointRegistrationMethods = new();
 
         private List<MethodRef> serviceRegistrationMethods = new();
+
+        private List<MethodRef> authSchemeRegistrationMethods = new();
 
         /// <summary>
         /// Initializes a new instance of the WebPartManager class
@@ -166,6 +169,43 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         }
 
         /// <summary>
+        /// Sample declaration for a WebPartRegistration method. To not call this method directly, it will throw an exception!
+        /// </summary>
+        /// <param name="auth">the Authentication-builder on which a custom Authentication method is being registered</param>
+        /// <param name="configuration">the configuration that was provided for this web-part</param>
+        public void RegisterAuthenticationSchemes(AuthenticationBuilder auth, object configuration)
+        {
+            throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
+        }
+
+        /// <summary>
+        /// Registers all configured Web-Parts in the provided authentication-builder
+        /// </summary>
+        /// <param name="auth">the authentication builder on which to register the custom authentication types</param>
+        public void RegisterAuthenticationSchemes(AuthenticationBuilder auth)
+        {
+            foreach (var t in authSchemeRegistrationMethods)
+            {
+                Dictionary<string, object> opt = null;
+                if (!string.IsNullOrEmpty(t.ConfigurationName) &&
+                    configurations.TryGetValue(t.ConfigurationName, out var tmo))
+                {
+                    opt = tmo;
+                }
+
+                try
+                {
+                    //t.Method.Invoke(null, new[] { services, opt });
+                    InvokeMethod(t.Method, new object[] { auth }, opt);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}", LogSeverity.Error);
+                }
+            }
+        }
+
+        /// <summary>
         /// Analyzes the given type and extracts all aspect-methods for the web-part-registration
         /// </summary>
         /// <param name="t">the type that is marked as web-part entrypoint</param>
@@ -217,6 +257,11 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                 {
                     serviceRegistrationMethods.Add(new MethodRef { ConfigurationName = configPath, Method = method });
                 }
+                else if (attr is AuthenticationRegistrationMethodAttribute &&
+                         MethodMatches(method, () => RegisterAuthenticationSchemes(default, default)))
+                {
+                    authSchemeRegistrationMethods.Add(new MethodRef { ConfigurationName = configPath, Method = method });
+                }
             }
         }
 
@@ -240,7 +285,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                     name = att.ConfigurationKey;
                 }
 
-                if (options.TryGetValue(name, out var v))
+                if (options != null && options.TryGetValue(name, out var v))
                 {
                     l.Add(v);
                 }

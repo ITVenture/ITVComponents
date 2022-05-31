@@ -41,7 +41,7 @@ using WebPlugin = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecuritySha
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class AspNetSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider, ISecurityContext<string, User, Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget, CustomUserProperty> 
+    public class AspNetSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider, ISecurityContext<string, User, Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter> 
                                                 where TImpl:AspNetSecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -253,6 +253,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         public DbSet<DiagnosticsQueryParameter> DiagnosticsQueryParameters { get; set; }
 
         public DbSet<TenantDiagnosticsQuery> TenantDiagnosticsQueries { get; set; }
+        public DbSet<AssetTemplate> AssetTemplates { get; set; }
+        public DbSet<AssetTemplateFeature> AssetTemplateFeatures { get; set; }
+        public DbSet<AssetTemplateGrant> AssetTemplateGrants { get; set; }
+        public DbSet<AssetTemplatePath> AssetTemplatePathFilters { get; set; }
+        public DbSet<SharedAsset> SharedAssets { get; set; }
+        public DbSet<SharedAssetTenantFilter> SharedAssetTenantFilters { get; set; }
+        public DbSet<SharedAssetUserFilter> SharedAssetUserFilters { get; set; }
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
 
@@ -261,6 +268,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         public DbSet<VideoTutorial> Tutorials { get; set; }
 
         public DbSet<TutorialStream> TutorialStreams { get; set; }
+
+        public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
 
         void IBaseTenantContext.RegisterSecurityRollback(FullSecurityAccessHelper fullSecurityAccessHelper)
         {

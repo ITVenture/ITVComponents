@@ -69,6 +69,24 @@ namespace ITVComponents.Helpers
             PreserveReferencesHandling = PreserveReferencesHandling.Objects
         };
 
+        public static string EncryptJsonValues(this string jsonString, string password = null)
+        {
+            var settings = new JsonSerializerSettings
+            {
+                CheckAdditionalContent = true,
+                ConstructorHandling = ConstructorHandling.Default,
+                Formatting = Formatting.Indented,
+                MissingMemberHandling = MissingMemberHandling.Ignore,
+                ObjectCreationHandling = ObjectCreationHandling.Auto,
+                NullValueHandling = NullValueHandling.Include,
+                PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+            };
+
+            settings.Converters.Add(new JsonStringEncryptConverter(password));
+            var tmp = JsonConvert.DeserializeObject(jsonString, settings);
+            return JsonConvert.SerializeObject(tmp, settings);
+        }
+
         /// <summary>
         /// Writes an object to a stream using strong-typed json settings
         /// </summary>

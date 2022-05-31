@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
+using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 
@@ -126,6 +127,36 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {
             return (IEnumerable<Feature>)HubConfiguration.Helper.Features??Array.Empty<Feature>();
+        }
+
+        public string Decrypt(string encryptedValue, string permissionScopeName)
+        {
+            return encryptedValue.Decrypt();
+        }
+
+        public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName)
+        {
+            return encryptedValue.Decrypt();
+        }
+
+        public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt)
+        {
+            throw new NotImplementedException();
+        }
+
+        public string Encrypt(string value, string permissionScopeName)
+        {
+            return value.Decrypt();
+        }
+
+        public byte[] Encrypt(byte[] value, string permissionScopeName)
+        {
+            return value.Decrypt();
+        }
+
+        public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt)
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>

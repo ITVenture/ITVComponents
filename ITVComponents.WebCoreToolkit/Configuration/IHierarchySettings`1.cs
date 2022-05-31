@@ -21,5 +21,28 @@ namespace ITVComponents.WebCoreToolkit.Configuration
         /// Gets the deserialized Settings-value. If it is not configured, null is returned (-> default(TSettings)).
         /// </summary>
         TSettings ValueOrDefault { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether this setting was loaded from global or from scope
+        /// </summary>
+        HierarchyScope SettingScope { get; }
+    }
+
+    public enum HierarchyScope
+    {
+        /// <summary>
+        /// Setting was loaded from a global settings-provider
+        /// </summary>
+        Global,
+
+        /// <summary>
+        /// Setting was loaded from a local settings provider
+        /// </summary>
+        Scoped,
+
+        /// <summary>
+        /// Setting was not found on any provider
+        /// </summary>
+        None
     }
 }

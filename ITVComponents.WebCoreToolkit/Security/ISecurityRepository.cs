@@ -106,5 +106,57 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <param name="permissionScopeName">the name of the current permission-prefix selected by the current user</param>
         /// <returns>returns a list of activated features</returns>
         IEnumerable<Feature> GetFeatures(string permissionScopeName);
+
+        /// <summary>
+        /// Decrypts a value with the appropriate settings
+        /// </summary>
+        /// <param name="encryptedValue">the encrypted value</param>
+        /// <param name="permissionScopeName">the name of the eliged permission scope</param>
+        /// <returns>the decrypted value</returns>
+        string Decrypt(string encryptedValue, string permissionScopeName);
+
+        /// <summary>
+        /// Decrypts a value with the appropriate settings
+        /// </summary>
+        /// <param name="encryptedValue">the encrypted value</param>
+        /// <param name="permissionScopeName">the name of the eliged permission scope</param>
+        /// <returns>the decrypted value</returns>
+        byte[] Decrypt(byte[] encryptedValue, string permissionScopeName);
+
+        /// <summary>
+        /// Decrypts a value with the appropriate settings
+        /// </summary>
+        /// <param name="encryptedValue">the encrypted value</param>
+        /// <param name="permissionScopeName">the name of the eliged permission scope</param>
+        /// <param name="initializationVector">the initializationVector that was used for encryption</param>
+        /// <param name="salt">the salt that was used for encryption</param>
+        /// <returns>the decrypted value</returns>
+        byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt);
+
+        /// <summary>
+        /// Decrypts a value with the appropriate settings
+        /// </summary>
+        /// <param name="value">the value to encrypt</param>
+        /// <param name="permissionScopeName">the name of the eliged permission scope</param>
+        /// <returns>the encrypted value</returns>
+        string Encrypt(string value, string permissionScopeName);
+
+        /// <summary>
+        /// Decrypts a value with the appropriate settings
+        /// </summary>
+        /// <param name="value">the value to encrypt</param>
+        /// <param name="permissionScopeName">the name of the eliged permission scope</param>
+        /// <returns>the encrypted value</returns>
+        byte[] Encrypt(byte[] value, string permissionScopeName);
+
+        /// <summary>
+        /// Decrypts a value with the appropriate settings
+        /// </summary>
+        /// <param name="value">the value to encrypt</param>
+        /// <param name="permissionScopeName">the name of the eliged permission scope</param>
+        /// <param name="initializationVector">the initializationVector that was used for encryption</param>
+        /// <param name="salt">the salt that was used for encryption</param>
+        /// <returns>the encrypted value</returns>
+        byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt);
     }
 }

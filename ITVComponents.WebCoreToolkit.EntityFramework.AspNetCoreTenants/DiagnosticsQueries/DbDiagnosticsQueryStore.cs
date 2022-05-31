@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Diagnos
     /// <summary>
     /// DiagnosticsQueryStore that is bound to the Security Db-Context
     /// </summary>
-    public class AspNetDbDiagnosticsQueryStore<TImpl>: DbDiagnosticsQueryStore<string, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty>
+    public class AspNetDbDiagnosticsQueryStore<TImpl>: DbDiagnosticsQueryStore<string, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter>
     where TImpl:AspNetSecurityContext<TImpl>
     {
         public AspNetDbDiagnosticsQueryStore(TImpl dbContext):base(dbContext)

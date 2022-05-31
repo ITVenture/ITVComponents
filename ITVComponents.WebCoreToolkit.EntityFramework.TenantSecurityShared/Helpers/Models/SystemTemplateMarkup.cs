@@ -29,5 +29,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public DiagnosticsQueryTemplateMarkup[] DiagnosticsQueries { get; set; }
 
         public NavigationMenuTemplateMarkup[] Navigation { get; set; }
+
+        public TrustedModuleTemplateMarkup[]  TrustedModules{ get; set; }
     }
 }

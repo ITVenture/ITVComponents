@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
 {
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = false, Inherited = false)]
     public class ScopedDependencyAttribute:Attribute
     {
         public string FriendlyName { get; set; }

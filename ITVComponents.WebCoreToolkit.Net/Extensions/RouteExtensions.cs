@@ -504,11 +504,19 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 RouteData routeData = context.GetRouteData();
                 ActionDescriptor actionDescriptor = new ActionDescriptor();
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
-                var repo = context.RequestServices.GetService<ISecurityRepository>();
-                var mapper = context.RequestServices.GetService<IUserNameMapper>();
-                var userLabels = mapper.GetUserLabels(context.User);
-                var authType = context.User.Identity.AuthenticationType;
-                var retVal = repo.IsAuthenticated(userLabels,authType)?repo.GetPermissions(userLabels, authType):Array.Empty<Models.Permission>();
+                var retVal = Array.Empty<Models.Permission>();
+                ISecurityRepository repo;
+                string[] userLabels;
+                string authType;
+                if (context.RequestServices.IsLegitSharedAssetPath(out repo, out userLabels, out authType)||context.RequestServices.IsUserAuthenticated(out repo, out userLabels, out authType))
+                {
+                    //var repo = context.RequestServices.GetService<ISecurityRepository>();
+                    //var mapper = context.RequestServices.GetService<IUserNameMapper>();
+                    //var userLabels = mapper.GetUserLabels(context.User);
+                    //var authType = context.User.Identity.AuthenticationType;
+                    retVal = repo.GetPermissions(userLabels, authType).ToArray();
+                }
+
                 JsonResult result = new JsonResult(retVal);
                 await result.ExecuteResultAsync(actionContext);
             }).RequireAuthorization();

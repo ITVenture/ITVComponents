@@ -28,18 +28,11 @@
             /// <param name="builder">the event-builder of the kendoGrid</param>
             /// <param name="additionalEditHandler">an additional handler that needs to be executed after enabling the textbox</param>
             /// <returns>the provided GridEventBuilder for method-chaining</returns>
-            public static GridEventBuilder UseForeignKeyFilter(this GridEventBuilder builder, bool valuePrimitive = false, string additionalEditHandler = null)
+            public static GridEventBuilder UseForeignKeyFilter(this GridEventBuilder builder,
+                bool valuePrimitive = false, string additionalEditHandler = null)
             {
-            var filter = $@"function(e){{
-        {(!string.IsNullOrEmpty(additionalEditHandler) ? $@"var additionalHandler = {additionalEditHandler};" : "")}var ddl=e.container.find(""[data-role='dropdownlist']"").data(""kendoDropDownList"");
-        if(ddl){{
-            ddl.setOptions({{filter: 'contains'}});
-            {(valuePrimitive ? "ddl.setOptions({valuePrimitive:true});" : "")}
-       }}{(!string.IsNullOrEmpty(additionalEditHandler) ? @"
-    additionalHandler.apply(this,arguments);" : "")}
-    
-}}";
-            return builder.Edit(filter);
+                return builder.Edit(
+                    $"ITVenture.Tools.KendoExtensions.UseForeignKeyFilter({valuePrimitive},{additionalEditHandler}");
             }
 
             /// <summary>
@@ -48,18 +41,10 @@
             /// <param name="builder">the event-builder of the kendoGrid</param>
             /// <param name="additionalEditHandler">an additional handler that needs to be executed after enabling the textbox</param>
             /// <returns>the provided GridEventBuilder for method-chaining</returns>
-            public static GridEventBuilder ForeignKeyValuePrimitive(this GridEventBuilder builder, string additionalEditHandler = null)
+            public static GridEventBuilder ForeignKeyValuePrimitive(this GridEventBuilder builder,
+                string additionalEditHandler = null)
             {
-            var filter = $@"function(e){{
-        {(!string.IsNullOrEmpty(additionalEditHandler) ? $@"var additionalHandler = {additionalEditHandler};" : "")}
-        var ddl=e.container.find(""[data-role='dropdownlist']"").data(""kendoDropDownList"");
-        if(ddl){{
-            ddl.setOptions({{valuePrimitive: true}});
-        }}
-        {(!string.IsNullOrEmpty(additionalEditHandler) ? @"
-    additionalHandler.apply(this,arguments)" : "")}
-}}";
-            return builder.Edit(filter);
+                return builder.Edit($"ITVenture.Tools.KendoExtensions.ForeignKeyPrimitive({additionalEditHandler}");
             }
 
             /// <summary>
@@ -90,18 +75,9 @@
                 string columnName = retVal.Column.Member;
                 string idRaw = CustomActionHelper.RandomName(retVal.Column.Member);
                 string id = $"{idRaw}#={pkName}#";
-                string template = $@"<input id='{id}' class='itv-icb-marker' data-col-name='{columnName}' #if ({columnName}) {{ # checked='checked' # }} # type='checkbox' style='display:none;' {(!string.IsNullOrEmpty(customChangeHandler) ? $"itvCustomChangeHandler='{customChangeHandler}'" : "")} />
+                string template = $@"<input id='{id}' class='itv-icb-marker' data-col-name='{columnName}' #if ({columnName}) {{ # checked='checked' # }} # type='checkbox' style='display:none;' />
     #{{
-        var nameId = {pkName}.toString();
-        var name = ""\#{idRaw}"".concat(nameId);
-        var ids = {columnName};
-        var dataItem = this;
-        $(function(){{
-            $(name).kendoSwitch({{
-                enabled:{(readOnly?"false":"true")},
-                change:{customChangeHandler??"ITVenture.Tools.TableHelper.defaultCheckedCallback"}
-            }});
-        }});
+        ITVenture.Tools.KendoExtensions.InitInlineCheckbox('{pkName}','{idRaw}',{(readOnly ? "false" : "true")},{customChangeHandler}).apply(arguments[0]);
     }}#";
                 /*if (clientTemplateReady)
                 {
@@ -150,19 +126,7 @@
                 string id = $"{idRaw}#={pkName}#";
                 var clientTemplate = @$"<select {(!alwaysActive?@"disabled=""disabled""":"")} id=""{id}"" multiple=""multiple"" style='display:none;' name=""{displayTemplateName}"" data-col-name='{columnName}'></select>
     #{{
-        if (typeof({retVal.Column.Member}) !== ""undefined""){{
-            var nameId = {pkName}.toString();
-            var name = ""\#{idRaw}"".concat(nameId);
-            var ids = {retVal.Column.Member};
-            var dataItem = this;
-            $(function(){{    
-                var item = $(name);
-                var select = item.kendoMultiSelect({{""dataTextField"":""Label"",""dataValueField"":""Key"",""enable"":{(alwaysActive?$"true,\"change\":{changedHandler}":"false")},""placeholder"":""{placeholder}"",""dataSource"":{{""transport"":{{""read"":{{""url"":""{url}""}},""prefix"":""""}},""schema"":{{""errors"":""Errors""}}}}}}).data(""kendoMultiSelect"");
-                if (typeof(select) !== ""undefined""){{
-                    select.value(ids);
-                }}
-            }});
-        }}
+        ITVenture.Tools.KendoExtensions.InitMultiSelect('{retVal.Column.Member}','{pkName}','{idRaw}',{(alwaysActive ? "true" : "false")},'{placeholder}','{url}',{changedHandler}).apply(arguments[0]);
     }}#";
                 retVal.EditorTemplateName("MultiSelect").ClientTemplate(clientTemplate)
                     .EditorViewData(new Dictionary<string, object>

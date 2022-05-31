@@ -12,6 +12,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         private readonly IGlobalSettings<TSettings> global;
         private TSettings valueOrDefault;
         private TSettings value;
+        private HierarchyScope scope = HierarchyScope.None;
 
         public HierarchySettingsImpl(IScopedSettings<TSettings> scoped, IGlobalSettings<TSettings> global)
         {
@@ -20,6 +21,37 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         }
 
         public TSettings Value => value ??= ValueOrDefault ?? new TSettings();
-        public TSettings ValueOrDefault => valueOrDefault??=scoped?.ValueOrDefault ?? global?.ValueOrDefault;
+        public TSettings ValueOrDefault
+        {
+            get
+            {
+                var retVal = valueOrDefault;
+                if (retVal == null)
+                {
+                    retVal = scoped?.ValueOrDefault;
+                    if (retVal != null)
+                    {
+                        scope = HierarchyScope.Scoped;
+                    }
+
+                }
+
+                if (retVal == null)
+                {
+                    retVal = global?.ValueOrDefault;
+                    if (retVal != null)
+                    {
+                        scope = HierarchyScope.Global;
+                    }
+                }
+
+                return valueOrDefault = retVal;
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether this setting was loaded from global or from scope
+        /// </summary>
+        public HierarchyScope SettingScope => scope;
     }
 }

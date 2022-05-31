@@ -66,6 +66,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 
         public DbSet<TutorialStream> TutorialStreams { get; set; }
 
+        public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
+
         DatabaseFacade Database { get; }
 
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken));
