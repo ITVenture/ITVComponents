@@ -5,6 +5,7 @@ using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
 using ITVComponents.InterProcessCommunication.MessagingShared;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Certificate;
+//using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Server

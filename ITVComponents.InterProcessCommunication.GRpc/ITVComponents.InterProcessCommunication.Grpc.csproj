@@ -1,6 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
+    <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>2.1.1-PRE122</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -13,18 +13,16 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="grpc.net.client" Version="2.42.0" />
-    <PackageReference Include="grpc.aspnetcore.server" Version="2.42.0" />
-    <PackageReference Include="grpc.tools" version="2.43.0" />
-    <PackageReference Include="google.protobuf" version="3.19.3" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="5.0.1" />
+    <PackageReference Include="grpc.net.client" Version="2.46.0" />
+    <PackageReference Include="grpc.aspnetcore.server" Version="2.46.0" />
+    <PackageReference Include="grpc.tools" version="2.46.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="google.protobuf" version="3.21.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="6.0.0" />
     <PackageReference Include="System.Collections.Concurrent" Version="4.3.0" />
-    <PackageReference Include="System.ServiceModel.Primitives" Version="4.8.1" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)'=='netcoreapp3.1'">
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="3.1.19" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)'=='net5.0'">
+    <PackageReference Include="System.ServiceModel.Primitives" Version="4.9.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="5.0.10" />
   </ItemGroup>
   <ItemGroup>

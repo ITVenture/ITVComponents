@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net5.0;netcoreapp3.1</TargetFrameworks>
+    <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>2.1.1-PRE122</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -22,15 +22,15 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="microsoft.csharp" Version="4.7.0" />
-    <PackageReference Include="microsoft.extensions.configuration" Version="5.0.0" />
-    <PackageReference Include="microsoft.extensions.configuration.binder" Version="5.0.0" />
-    <PackageReference Include="microsoft.extensions.configuration.Json" Version="5.0.0" />
-    <PackageReference Include="microsoft.extensions.primitives" Version="5.0.1" />
+    <PackageReference Include="microsoft.extensions.configuration" Version="6.0.1" />
+    <PackageReference Include="microsoft.extensions.configuration.binder" Version="6.0.0" />
+    <PackageReference Include="microsoft.extensions.configuration.Json" Version="6.0.0" />
+    <PackageReference Include="microsoft.extensions.primitives" Version="6.0.0" />
     <PackageReference Include="newtonsoft.json" Version="13.0.1" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="5.0.0" />
-    <PackageReference Include="system.directoryservices" Version="5.0.0" />
-    <PackageReference Include="system.directoryservices.accountmanagement" Version="5.0.0" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="5.0.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="6.0.0" />
+    <PackageReference Include="system.directoryservices" Version="6.0.0" />
+    <PackageReference Include="system.directoryservices.accountmanagement" Version="6.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="6.0.0" />
     <PackageReference Include="System.Security.Principal.Windows" Version="5.0.0" />
   </ItemGroup>
   <ItemGroup>

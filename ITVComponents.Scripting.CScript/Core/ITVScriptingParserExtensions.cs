@@ -13,23 +13,23 @@ namespace ITVComponents.Scripting.CScript.Core
 {
     public partial class ITVScriptingParser
     {
-        private static DFA[] decisionToDFA;
-        static ITVScriptingParser()
+        //private static DFA[] decisionToDFA;
+        /*static ITVScriptingParser()
         {
             decisionToDFA = new DFA[_ATN.NumberOfDecisions];
             for (int i = 0; i < _ATN.NumberOfDecisions; i++)
             {
                 decisionToDFA[i] = new DFA(_ATN.GetDecisionState(i), i);
             }
-        }
+        }*/
 
-        public ITVScriptingParser(ITokenStream input, TextWriter output, TextWriter errorOutput)
+        /*public ITVScriptingParser(ITokenStream input, TextWriter output, TextWriter errorOutput)
             : base(input, output, errorOutput)
         {
             Interpreter = new ParserATNSimulator(this, _ATN, decisionToDFA, new PredictionContextCache());
         }
 
-        public ITVScriptingParser(ITokenStream input) : this(input, Console.Out, Console.Error) { }
+        public ITVScriptingParser(ITokenStream input) : this(input, Console.Out, Console.Error) { }*/
 
         public partial class MemberDotExpressionContext:IScriptSymbol
         {
