@@ -3,7 +3,7 @@
     <LangVersion>8.0</LangVersion>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRE1</Version>
+    <Version>3.0.0-PRV001</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
