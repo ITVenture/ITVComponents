@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.Options;
 using ITVComponents.WebCoreToolkit.Routing;
 using ITVComponents.WebCoreToolkit.Routing.Impl;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
 using ITVComponents.WebCoreToolkit.Security.ClaimsTransformation;
 using ITVComponents.WebCoreToolkit.Security.PermissionHandling;
 using ITVComponents.WebCoreToolkit.Security.UserMappers;
@@ -181,6 +182,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         public static IServiceCollection UseAssetDrivenClaimsTransformation(this IServiceCollection services,
             bool collectable = false)
         {
+            services.AddScoped<IImpersonationControl, DefaultAssetImpersonator>();
             if (!collectable)
             {
                 return services.AddScoped<IClaimsTransformation, AssetDrivenClaimsTransformation>();

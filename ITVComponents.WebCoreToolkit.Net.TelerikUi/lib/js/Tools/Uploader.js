@@ -62,18 +62,38 @@ ITVenture.Tools.Uploader = {
             div.removeClass("dropzone");
             div.html("<div class='dropzone'></div>");
             var uploadDiv = $($(f).children("div")[0]);
-            var uploadHint = div[0].attributes.uploadHint.value;
-            if (typeof (uploadHint) === "string") {
+            var uploadHint = "";
+            var uploadAsset = "";
+            if (typeof (div[0].attributes.uploadHint) !== "undefined") {
+                uploadHint = div[0].attributes.uploadHint.value;
+            }
+            if (typeof (div[0].attributes.sharedAsset) !== "undefined") {
+                uploadAsset = div[0].attributes.sharedAsset.value;
+            }
+            var queryArg = [];
+            if (uploadHint !== "") {
                 try {
-                    uploadHint = "/".concat(eval(uploadHint)(div));
+                    uploadHint = eval(uploadHint)(div);
                 } catch (ex) {
                     console.log(ex);
                 }
-            } else {
-                uploadHint = "";
+
+                queryArg.push("UploadHint=".concat(encodeURIComponent(uploadHint)));
             }
+
+            if (uploadAsset !== "") {
+                try {
+                    uploadAsset = eval(uploadAsset)(div);
+                } catch (ex) {
+                    console.log(ex);
+                }
+
+                queryArg.push("AssetKey=".concat(encodeURIComponent(uploadAsset)));
+            }
+
+            var query = ITVenture.Tools.Uploader.buildQuery(queryArg);
             var dz = uploadDiv.dropzone({
-                url: ITVenture.Helpers.ResolveUrl("~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value).concat(uploadHint)),
+                url: ITVenture.Helpers.ResolveUrl("~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value).concat(query)),
                 maxFiles: 1,
                 init: function () {
                     this.on("success", theHandler);
@@ -107,20 +127,37 @@ ITVenture.Tools.Uploader = {
                 div.html("<div class='dropzone'></div>");
                 var uploadDiv = $($(f).children("div")[0]);
                 var uploadHint = "";
+                var uploadAsset = "";
                 if (typeof (div[0].attributes.uploadHint) !== "undefined") {
                     uploadHint = div[0].attributes.uploadHint.value;
                 }
-                if (typeof (uploadHint) === "string") {
+                if (typeof (div[0].attributes.sharedAsset) !== "undefined") {
+                    uploadAsset = div[0].attributes.sharedAsset.value;
+                }
+                var queryArg = [];
+                if (uploadHint !== "") {
                     try {
-                        uploadHint = "/".concat(eval(uploadHint)(div));
+                        uploadHint = eval(uploadHint)(div);
                     } catch (ex) {
                         console.log(ex);
                     }
-                } else {
-                    uploadHint = "";
+
+                    queryArg.push("UploadHint=".concat(encodeURIComponent(uploadHint)));
                 }
+
+                if (uploadAsset !== "") {
+                    try {
+                        uploadAsset = eval(uploadAsset)(div);
+                    } catch (ex) {
+                        console.log(ex);
+                    }
+
+                    queryArg.push("AssetKey=".concat(encodeURIComponent(uploadAsset)));
+                }
+
+                var query = ITVenture.Tools.Uploader.buildQuery(queryArg);
                 var dz = uploadDiv.dropzone({
-                    url: ITVenture.Helpers.ResolveUrl("~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value).concat(uploadHint)),
+                    url: ITVenture.Helpers.ResolveUrl("~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value).concat(query)),
                     maxFiles: 256,
                     init: function () {
                         this.on("success", theHandler);
@@ -138,6 +175,18 @@ ITVenture.Tools.Uploader = {
 
                 div.removeAttr("purpose");
             });
+    },
+    buildQuery: function(queryArray) {
+        var retVal = "";
+        for (var i = 0; i < queryArray.length; i++) {
+            if (i === 0) {
+                retVal = retVal.concat("?").concat(queryArray[i]);
+            } else {
+                retVal = retVal.concat("&").concat(queryArray[i]);
+            }
+        }
+
+        return retVal;
     },
     showFile: function (url) {
         ITVenture.Tools.Popup.Open("pdf", url);

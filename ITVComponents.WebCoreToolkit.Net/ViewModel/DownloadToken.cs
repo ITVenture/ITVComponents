@@ -13,6 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Net.ViewModel
         public string FileIdentifier { get; set; }
         public string DownloadName { get; set; }
         public string ContentType { get; set; }
+        public string AssetKey { get; set; }
         public bool FileDownload { get; set; }
     }
 }

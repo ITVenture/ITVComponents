@@ -11,6 +11,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Http;
@@ -49,6 +50,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         private readonly ISecurityRepository securityRepo;
         private readonly TContext database;
         private readonly IServiceProvider services;
+        private object sync = new();
+        private int impersonationDeactivated = 0;
 
         public SharedAssetInfoProvider(IUserNameMapper userNameMapper, ISecurityRepository securityRepo, TContext database, IServiceProvider services)
         {
@@ -58,49 +61,58 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             this.services = services;
         }
 
+        protected bool ImpersonationDeactivated => impersonationDeactivated != 0;
+
         public AssetInfo GetAssetInfo(string assetKey, ClaimsPrincipal requestor, bool asOwner = false)
         {
-            var labels = userNameMapper.GetUserLabels(requestor);
-            var tenants = securityRepo.GetEligibleScopes(labels, requestor.Identity.AuthenticationType).Select(n => n.ScopeName).ToArray();
-            bool accessible = AssetIsAccessible(assetKey, labels, tenants, out var asset);
-            AssetInfo retVal;
-            bool hasOwnerPrivileges = false;
-            if (asOwner)
+            if (!ImpersonationDeactivated)
             {
-                hasOwnerPrivileges = (asset.Template.RequiredFeature == null ||
-                                      services.VerifyActivatedFeatures(
-                                          new[] { asset.Template.RequiredFeature.FeatureName }, out _)) &&
-                                     (asset.Template.RequiredPermission == null ||
-                                      services.VerifyUserPermissions(
-                                          new[] { asset.Template.RequiredPermission.PermissionName }, out _));
-            }
-
-            if (hasOwnerPrivileges)
-            {
-                var f = new FullAssetInfo
+                var labels = requestor.Identities.Where(n => n.IsAuthenticated).Select(t => new IdentityInfo
+                    { Labels = userNameMapper.GetUserLabels(t), AuthenticationType = t.AuthenticationType }).ToArray();
+                var tenants = labels.SelectMany(i =>
+                        securityRepo.GetEligibleScopes(i.Labels, i.AuthenticationType).Select(n => n.ScopeName))
+                    .Distinct()
+                    .ToArray();
+                bool accessible = AssetIsAccessible(assetKey, labels, tenants, out var asset);
+                AssetInfo retVal;
+                bool hasOwnerPrivileges = false;
+                if (asOwner)
                 {
-                    NotBefore=asset.NotBefore,
-                    NotAfter = asset.NotAfter,
-                    AnonymousAccessTokenRaw = asset.AnonymousAccessTokenRaw
-                };
+                    hasOwnerPrivileges = (asset.Template.RequiredFeature == null ||
+                                          services.VerifyActivatedFeatures(
+                                              new[] { asset.Template.RequiredFeature.FeatureName }, out _)) &&
+                                         (asset.Template.RequiredPermission == null ||
+                                          services.VerifyUserPermissions(
+                                              new[] { asset.Template.RequiredPermission.PermissionName }, out _));
+                }
 
-                retVal = f;
-                f.UserScopeShares.AddRange(asset.TenantFilters.Select(n => n.LabelFilter));
-                f.UserShares.AddRange(asset.UserFilters.Select(n => n.LabelFilter));
-            }
-            else
-            {
-                retVal = new AssetInfo();
-            }
+                if (hasOwnerPrivileges)
+                {
+                    var f = new FullAssetInfo
+                    {
+                        NotBefore = asset.NotBefore,
+                        NotAfter = asset.NotAfter,
+                        AnonymousAccessTokenRaw = asset.AnonymousAccessTokenRaw
+                    };
 
-            if (accessible)
-            {
-                retVal.AssetKey = asset.AssetKey;
-                retVal.AssetTitle = asset.AssetTitle;
-                retVal.Features = asset.Template.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray();
-                retVal.Permissions = asset.Template.Grants.Select(n => n.Permission.PermissionName).ToArray();
-                retVal.UserScopeName = asset.AssetOwner.TenantName;
-                return retVal;
+                    retVal = f;
+                    f.UserScopeShares.AddRange(asset.TenantFilters.Select(n => n.LabelFilter));
+                    f.UserShares.AddRange(asset.UserFilters.Select(n => n.LabelFilter));
+                }
+                else
+                {
+                    retVal = new AssetInfo();
+                }
+
+                if (accessible)
+                {
+                    retVal.AssetKey = asset.AssetKey;
+                    retVal.AssetTitle = asset.AssetTitle;
+                    retVal.Features = asset.Template.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray();
+                    retVal.Permissions = asset.Template.Grants.Select(n => n.Permission.PermissionName).ToArray();
+                    retVal.UserScopeName = asset.AssetOwner.TenantName;
+                    return retVal;
+                }
             }
 
             return null;
@@ -108,38 +120,52 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
         public bool VerifyRequestLocation(string requestPath, string assetKey, string userScope, ClaimsPrincipal requestor)
         {
-            var labels = userNameMapper.GetUserLabels(requestor);
-            var tenants = securityRepo.GetEligibleScopes(labels, requestor.Identity.AuthenticationType).Select(n => n.ScopeName).ToArray();
-            bool retVal = AssetIsAccessible(assetKey, labels, tenants, out var asset);
-            if (retVal)
+            if (!ImpersonationDeactivated)
             {
-                retVal &= IsTemplateValidForPath(asset.Template, requestPath);
+                var labels = requestor.Identities.Where(n => n.IsAuthenticated).Select(t => new IdentityInfo
+                    { Labels = userNameMapper.GetUserLabels(t), AuthenticationType = t.AuthenticationType }).ToArray();
+                var tenants = labels.SelectMany(i =>
+                        securityRepo.GetEligibleScopes(i.Labels, i.AuthenticationType).Select(n => n.ScopeName))
+                    .Distinct()
+                    .ToArray();
+                bool retVal = AssetIsAccessible(assetKey, labels, tenants, out var asset);
+                if (retVal)
+                {
+                    retVal &= IsTemplateValidForPath(asset.Template, requestPath);
+                }
+
+                return retVal;
             }
 
-            return retVal;
+            return false;
         }
 
         public AssetTemplateInfo[] GetEligibleShares(string requestPath)
         {
-            var tmp = database.AssetTemplates.ToArray().Where(n =>
-                (n.RequiredFeature == null ||
-                services.VerifyActivatedFeatures(new[] { n.RequiredFeature.FeatureName }, out _)) &&
-                (n.RequiredPermission == null ||
-                 services.VerifyUserPermissions(new []{n.RequiredPermission.PermissionName}, out _))).ToArray();
-            var retVal = new List<AssetTemplateInfo>();
-            foreach (var template in tmp)
+            if (!ImpersonationDeactivated)
             {
-                if (IsTemplateValidForPath(template, requestPath))
+                var tmp = database.AssetTemplates.ToArray().Where(n =>
+                    (n.RequiredFeature == null ||
+                     services.VerifyActivatedFeatures(new[] { n.RequiredFeature.FeatureName }, out _)) &&
+                    (n.RequiredPermission == null ||
+                     services.VerifyUserPermissions(new[] { n.RequiredPermission.PermissionName }, out _))).ToArray();
+                var retVal = new List<AssetTemplateInfo>();
+                foreach (var template in tmp)
                 {
-                    retVal.Add(new AssetTemplateInfo
+                    if (IsTemplateValidForPath(template, requestPath))
                     {
-                        AssetTemplateTitle = template.Name,
-                        TemplateKey = template.SystemKey
-                    });
+                        retVal.Add(new AssetTemplateInfo
+                        {
+                            AssetTemplateTitle = template.Name,
+                            TemplateKey = template.SystemKey
+                        });
+                    }
                 }
+
+                return retVal.ToArray();
             }
 
-            return retVal.ToArray();
+            return Array.Empty<AssetTemplateInfo>();
         }
 
         public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title)
@@ -286,34 +312,53 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
         public FullAssetInfo FindAnonymousAsset(string assetKey)
         {
-            using var h = FullSecurityAccessHelper.CreateForCaller(database, true, false);
-            var rawAsset = (from t in database.SharedAssets
-                join a in database.SharedAssetUserFilters on t.SharedAssetId equals a.SharedAssetId
-                where a.LabelFilter == AnonymousTag && t.AssetKey == assetKey
-                select t).FirstOrDefault();
-            if (rawAsset != null)
+            if (!ImpersonationDeactivated)
             {
-                var retVal = new FullAssetInfo
+                using var h = FullSecurityAccessHelper.CreateForCaller(database, true, false);
+                var rawAsset = (from t in database.SharedAssets
+                    join a in database.SharedAssetUserFilters on t.SharedAssetId equals a.SharedAssetId
+                    where a.LabelFilter == AnonymousTag && t.AssetKey == assetKey
+                    select t).FirstOrDefault();
+                if (rawAsset != null)
                 {
-                    AnonymousAccessTokenRaw = rawAsset.AnonymousAccessTokenRaw,
-                    AssetKey = rawAsset.AssetKey,
-                    AssetRootPath = rawAsset.RootPath,
-                    AssetTitle = rawAsset.AssetTitle,
-                    NotAfter = rawAsset.NotAfter,
-                    NotBefore = rawAsset.NotBefore,
-                    UserScopeName = rawAsset.AssetOwner.TenantName,
-                    Permissions = rawAsset.Template.Grants.Select(n => n.Permission.PermissionName).ToArray(),
-                    Features = rawAsset.Template.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray()
-                };
-                retVal.UserShares.AddRange(rawAsset.UserFilters.Select(n => n.LabelFilter));
-                retVal.UserScopeShares.AddRange(rawAsset.TenantFilters.Select(n => n.LabelFilter));
-                return retVal;
+                    var retVal = new FullAssetInfo
+                    {
+                        AnonymousAccessTokenRaw = rawAsset.AnonymousAccessTokenRaw,
+                        AssetKey = rawAsset.AssetKey,
+                        AssetRootPath = rawAsset.RootPath,
+                        AssetTitle = rawAsset.AssetTitle,
+                        NotAfter = rawAsset.NotAfter,
+                        NotBefore = rawAsset.NotBefore,
+                        UserScopeName = rawAsset.AssetOwner.TenantName,
+                        Permissions = rawAsset.Template.Grants.Select(n => n.Permission.PermissionName).ToArray(),
+                        Features = rawAsset.Template.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray()
+                    };
+                    retVal.UserShares.AddRange(rawAsset.UserFilters.Select(n => n.LabelFilter));
+                    retVal.UserScopeShares.AddRange(rawAsset.TenantFilters.Select(n => n.LabelFilter));
+                    return retVal;
+                }
             }
 
             return null;
         }
 
-        private bool AssetIsAccessible(string assetKey, string[] userLabels, string[] tenants, out TSharedAsset asset)
+        void ISharedAssetAdapter.SetImpersonationOff()
+        {
+            lock (sync)
+            {
+                impersonationDeactivated++;
+            }
+        }
+
+        void ISharedAssetAdapter.SetImpersonationOn()
+        {
+            lock (sync)
+            {
+                impersonationDeactivated--;
+            }
+        }
+
+        private bool AssetIsAccessible(string assetKey, IdentityInfo[] userLabels, string[] tenants, out TSharedAsset asset)
         {
             asset = database.SharedAssets.First(n => n.AssetKey == assetKey);
             var uf = asset.UserFilters.Select(n => n.LabelFilter).ToArray();
@@ -322,7 +367,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             bool legit = false;
             foreach (var l in userLabels)
             {
-                if (uf.Any(n => n.Equals(l, StringComparison.OrdinalIgnoreCase) || n == AnonymousTag || n == "%"))
+                if (uf.Any(n => l.Labels.Any(ul => n.Equals(ul, StringComparison.OrdinalIgnoreCase)) || n == AnonymousTag || n == "%"))
                 {
                     legit = true;
                     break;

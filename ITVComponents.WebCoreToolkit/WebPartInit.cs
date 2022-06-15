@@ -99,18 +99,24 @@ namespace ITVComponents.WebCoreToolkit
                 services.UseBackgroundTasks(options.TaskQueueCapacity);
             }
 
-            if (options.UseLocalization && (options.CultureMapping.Count != 0 || options.UiCultureMapping.Count != 0))
+            if (options.UseLocalization)
             {
                 services.ConfigureLocalization(o =>
                 {
-                    foreach (var p in options.UiCultureMapping)
+                    if (options.UiCultureMapping.Count != 0)
                     {
-                        o.MapUiCulture(p.IncomingCulture, p.RedirectCulture);
+                        foreach (var p in options.UiCultureMapping)
+                        {
+                            o.MapUiCulture(p.IncomingCulture, p.RedirectCulture);
+                        }
                     }
 
-                    foreach (var p in options.CultureMapping)
+                    if (options.CultureMapping.Count != 0)
                     {
-                        o.MapCulture(p.IncomingCulture, p.RedirectCulture);
+                        foreach (var p in options.CultureMapping)
+                        {
+                            o.MapCulture(p.IncomingCulture, p.RedirectCulture);
+                        }
                     }
                 });
             }

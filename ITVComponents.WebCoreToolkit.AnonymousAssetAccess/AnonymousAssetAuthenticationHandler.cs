@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Web;
 using ITVComponents.WebCoreToolkit.AnonymousAssetAccess.Models;
+using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Headers;
@@ -42,17 +43,12 @@ namespace ITVComponents.WebCoreToolkit.AnonymousAssetAccess
             var existingAsset = getAnonymousAssetQuery.Execute(Request.Query, out bool denied);
             if (existingAsset == null && !denied)
             {
-                var rff = Request.GetTypedHeaders().Referer;
-                if (rff != null && !string.IsNullOrEmpty(rff.LocalPath))
+                var qd = Request.GetRefererQuery();
+                if (qd != null)
                 {
-                    var q = QueryHelpers.ParseNullableQuery(rff.Query);
-                    if (q != null)
-                    {
-                        var qd = new QueryCollection(q);
-                        existingAsset = getAnonymousAssetQuery.Execute(qd, out denied);
-                    }
-
+                    existingAsset = getAnonymousAssetQuery.Execute(qd, out denied);
                 }
+
 
                 if (existingAsset == null && !denied)
                 {

@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Linq;
 using System.Numerics;
+using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.Comparers;
+using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.Tokens;
 using Microsoft.AspNetCore.Http;
@@ -44,6 +47,10 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         /// <returns>a string representing the current permission scope</returns>
         protected override string GetPermissionScopePrefix()
         {
+            if (ImpersonationExplicitDeactivated)
+            {
+                return GetCurrentScope();
+            }
             return currentScope ??= GetCurrentScope();
         }
 
@@ -58,11 +65,13 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             var identities = httpContext.HttpContext?.User?.Identities?.ToArray();
             if (identities != null && identities.Any(n => n.IsAuthenticated))
             {
-                if (httpContext.HttpContext.Request.Query.ContainsKey(Global.FixedAssetRequestQueryParameter))
+                IQueryCollection refQ;
+                if (!ImpersonationExplicitDeactivated && ((refQ=httpContext.HttpContext.Request.Query).ContainsKey(Global.FixedAssetRequestQueryParameter)
+                    || (refQ = httpContext.HttpContext.Request.GetRefererQuery()) != null && refQ.ContainsKey(Global.FixedAssetRequestQueryParameter)))
                 {
                     if (httpContext.HttpContext.User.HasClaim(c => c.Type == Global.FixedAssetUserScope))
                     {
-                        var asset = httpContext.HttpContext.Request.Query[Global.FixedAssetRequestQueryParameter];
+                        var asset = refQ[Global.FixedAssetRequestQueryParameter];
                         var fixedUserScope = httpContext.HttpContext.User.Claims
                             .First(n => n.Type == Global.FixedAssetUserScope).Value;
                         var assetProvider =
@@ -77,8 +86,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
 
                 var secc = httpContext.HttpContext.RequestServices.GetService<ISecurityRepository>();
                 var userProvider = httpContext.HttpContext.RequestServices.GetRequiredService<IUserNameMapper>();
-                var eligibles = secc.GetEligibleScopes(userProvider.GetUserLabels(httpContext.HttpContext.User),
-                    httpContext.HttpContext.User.Identity.AuthenticationType).ToArray();
+                var eligibles= (from t in httpContext.HttpContext.User.Identities where t.IsAuthenticated select secc.GetEligibleScopes(userProvider.GetUserLabels(t), t.AuthenticationType)).SelectMany(n => n).Distinct(new ScopeInfoComparer()).ToArray();
                 logger.LogDebug($"Found: {identities.Length} identities");
                 logger.LogDebug(string.Join(Environment.NewLine,
                     identities.Select(n => $"{n.Name}-> authenticated:{n.IsAuthenticated}({n.AuthenticationType})")));
@@ -94,6 +102,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                     }
                 }
 
+                IsScopeExplicit = false;
                 logger.LogDebug($"Authenticated User(s): {string.Join(", ", identities.Select(n => n.Name))}");
                 bool decryptFailed = false;
                 bool invalidTenant = false;

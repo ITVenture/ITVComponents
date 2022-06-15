@@ -14,6 +14,11 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         private string fixScope = null;
 
+        private int impersonationDeactivated = 0;
+
+        private object sync = new();
+
+        private Stack<string> temporaryScopes = new Stack<string>();
         public string PermissionPrefix
         {
             get
@@ -29,11 +34,18 @@ namespace ITVComponents.WebCoreToolkit.Security
         {
             get
             {
-                var tmp = PermissionPrefix;
-                return scopeIsExplicit || scopeIsFixed;
+                if (!temporaryScopes.TryPeek(out _))
+                {
+                    var tmp = PermissionPrefix;
+                    return scopeIsExplicit || scopeIsFixed;
+                }
+
+                return true;
             }
             protected set => scopeIsExplicit = value;
         }
+
+        protected internal bool ImpersonationExplicitDeactivated => impersonationDeactivated != 0;
 
         /// <summary>
         /// Sets the permissionScope to a new value
@@ -59,6 +71,32 @@ namespace ITVComponents.WebCoreToolkit.Security
             fixScope = fixedScope;
         }
 
+        void IPermissionScope.SetImpersonationOff()
+        {
+            lock (sync)
+            {
+                impersonationDeactivated++;
+            }
+        }
+
+        void IPermissionScope.SetImpersonationOn()
+        {
+            lock (sync)
+            {
+                impersonationDeactivated--;
+            }
+        }
+
+        void IPermissionScope.PushScope(string temporaryScopeName)
+        {
+            temporaryScopes.Push(temporaryScopeName);
+        }
+
+        void IPermissionScope.PopScope()
+        {
+            temporaryScopes.Pop();
+        }
+
         /// <summary>
         /// Enables a derived class to provide a permissionScopePrefix for the case that it is not being bypassed internally
         /// </summary>
@@ -73,12 +111,17 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         private string GetPermissionPrefix()
         {
-            if (!scopeIsFixed)
+            if (!temporaryScopes.TryPeek(out var c))
             {
-                return GetPermissionScopePrefix();
+                if (!scopeIsFixed)
+                {
+                    return GetPermissionScopePrefix();
+                }
+
+                return fixScope;
             }
 
-            return fixScope;
+            return c;
         }
     }
 }

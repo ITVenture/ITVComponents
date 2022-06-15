@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions
 {
@@ -27,7 +28,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         {
             return services.AddDbContext<AspNetSecurityContext>(options)
                 .RegisterExplicityInterfacesScoped<AspNetSecurityContext>()
-                .AddScoped<ISecurityRepository, AspNetDbSecurityRepository<AspNetSecurityContext>>()
+                .AddScoped<ISecurityRepository>(i =>
+                {
+                    var retVal = new AspNetDbSecurityRepository<AspNetSecurityContext>(i.GetService<AspNetSecurityContext>(),
+                        i.GetService<ILogger<AspNetDbSecurityRepository<AspNetSecurityContext>>>());
+                    return i.GetAssetSecurityRepository(retVal);
+
+                })
                 .AddScoped<ITenantTemplateHelper<AspNetSecurityContext>, TenantTemplateHelper<AspNetSecurityContext>>()
                 .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<AspNetSecurityContext>>();
         }
@@ -43,7 +50,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         {
             return services.AddDbContext<TImpl>(options)
                     .RegisterExplicityInterfacesScoped<TImpl>()
-                    .AddScoped<ISecurityRepository, AspNetDbSecurityRepository<TImpl>>()
+                    .AddScoped<ISecurityRepository>(i =>
+                    {
+                        var retVal = new AspNetDbSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                                i.GetService<ILogger<AspNetDbSecurityRepository<TImpl>>>());
+                        return i.GetAssetSecurityRepository(retVal);
+                    })
                     .AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
                     .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<TImpl>>();
         }
@@ -77,7 +89,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         {
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
-                .AddScoped<ISecurityRepository, AspNetDbSecurityRepository<TImpl>>()
+                .AddScoped<ISecurityRepository>(i =>
+                {
+                    var retVal = new AspNetDbSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                            i.GetService<ILogger<AspNetDbSecurityRepository<TImpl>>>());
+                    return i.GetAssetSecurityRepository(retVal);
+                })
                 .AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()
                 .AddScoped<ITenantTemplateHelper, TTmpHelper>();
         }

@@ -14,15 +14,15 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
         /// <summary>
         /// Provices injected services
         /// </summary>
-        private readonly IServiceProvider services;
+        private readonly IServiceScopeFactory serviceFactory;
 
         /// <summary>
         /// Initializes a new instance of the CollectedClaimsTransform class
         /// </summary>
         /// <param name="services">the services that were injected into the DI</param>
-        public CollectedClaimsTransform(IServiceProvider services)
+        public CollectedClaimsTransform(IServiceScopeFactory serviceFactory)
         {
-            this.services = services;
+            this.serviceFactory = serviceFactory;
         }
 
         /// <summary>
@@ -35,7 +35,8 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
         public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
         {
             var retVal = principal;
-            var transforms = services.GetServices<ICollectedClaimsProvider>();
+            using var scp = serviceFactory.CreateScope();
+            var transforms = scp.ServiceProvider.GetServices<ICollectedClaimsProvider>();
             foreach(var trans in transforms)
             {
                 retVal = await trans.TransformAsync(retVal);

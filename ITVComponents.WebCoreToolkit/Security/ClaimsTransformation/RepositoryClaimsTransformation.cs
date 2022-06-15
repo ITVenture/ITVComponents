@@ -38,14 +38,19 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
         {
             using (var context = serviceProvider.CreateScope())
             {
-                var userNameMapper = context.ServiceProvider.GetService<IUserNameMapper>();
-                var userLabels = userNameMapper.GetUserLabels(principal);
-                var id = principal.Identity as ClaimsIdentity;
-                id.AddClaims(from p in securityRepository.GetCustomProperties(userLabels, id.AuthenticationType)
+                foreach (var id in principal.Identities)
+                {
+                    var userNameMapper = context.ServiceProvider.GetService<IUserNameMapper>();
+                    var userLabels = userNameMapper.GetUserLabels(id);
+                    id.AddClaims(from p in securityRepository.GetCustomProperties(userLabels, id.AuthenticationType)
                         select new Claim(p.PropertyName, p.Value, ClaimValueTypes.String, ITVentureIssuerString));
-                id.AddClaims(from p in securityRepository.GetCustomProperties(id.GetClaimData(), id.AuthenticationType)
-                    select new Claim(p.Type, p.Value, p.ValueType??ClaimValueTypes.String, p.Issuer??ITVentureIssuerString,p.OriginalIssuer));
-                    return Task.FromResult(principal);
+                    id.AddClaims(
+                        from p in securityRepository.GetCustomProperties(id.GetClaimData(), id.AuthenticationType)
+                        select new Claim(p.Type, p.Value, p.ValueType ?? ClaimValueTypes.String,
+                            p.Issuer ?? ITVentureIssuerString, p.OriginalIssuer));
+                }
+                
+                return Task.FromResult(principal);
             }
         }
     }

@@ -30,7 +30,7 @@ namespace ITVComponents.WebCoreToolkit.AnonymousAssetAccess
             this.options = options;
             this.logger = logger;
         }
-
+        
         public AnonymousAsset Execute(IQueryCollection providedQuery, out bool denied)
         {
             if (providedQuery.ContainsKey(Global.FixedAssetRequestQueryParameter) &&

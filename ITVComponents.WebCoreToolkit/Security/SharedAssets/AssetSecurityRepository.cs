@@ -12,14 +12,30 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
     {
         private readonly ClaimsPrincipal decoratedUser;
         private readonly ISecurityRepository decoratedRepo;
-        private readonly AssetInfo assetInfo;
+        private readonly string[] assignedPermissions;
+        private readonly string[] assignedFeatures;
+        private readonly string assignedUserScope;
 
-        public AssetSecurityRepository(ClaimsPrincipal decoratedUser, ISecurityRepository decoratedRepo, AssetInfo assetInfo)
+        public AssetSecurityRepository(ClaimsPrincipal taggedUser, ISecurityRepository decoratedRepo, AssetInfo info)
         {
-            this.decoratedUser = decoratedUser;
+            decoratedUser = taggedUser;
             this.decoratedRepo = decoratedRepo;
-            this.assetInfo = assetInfo;
+            assignedPermissions = info.Permissions;
+            assignedFeatures = info.Features;
+            assignedUserScope = info.UserScopeName;
         }
+        public AssetSecurityRepository(ClaimsPrincipal taggedUser, ISecurityRepository decoratedRepo)
+        {
+            decoratedUser = taggedUser;
+            this.decoratedRepo = decoratedRepo;
+            assignedPermissions =
+                (from t in taggedUser.Claims where t.Type == Global.FixedAssetPermission select t.Value).Distinct()
+                .ToArray();
+            assignedUserScope = taggedUser.Claims.First(n => n.Type == Global.FixedAssetUserScope).Value;
+            assignedFeatures = (from t in taggedUser.Claims where t.Type == Global.FixedAssetFeature select t.Value)
+                .Distinct().ToArray();
+        }
+
         public void Dispose()
         {
         }
@@ -69,7 +85,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         {
             if (user.UserName == decoratedUser.Identity.Name)
             {
-                return from t in assetInfo.Permissions
+                return from t in assignedPermissions
                     select new Permission { PermissionName = t };
             }
 
@@ -81,7 +97,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             if (userLabels.Length == 1 && userLabels[0] == decoratedUser.Identity.Name && userAuthenticationType ==
                 ((ClaimsIdentity)decoratedUser.Identity).AuthenticationType)
             {
-                return from t in assetInfo.Permissions
+                return from t in assignedPermissions
                     select new Permission { PermissionName = t };
             }
 
@@ -92,7 +108,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         {
             if (role.RoleName == "Me")
             {
-                return from t in assetInfo.Permissions
+                return from t in assignedPermissions
                     select new Permission { PermissionName = t };
             }
 
@@ -110,15 +126,15 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                 ((ClaimsIdentity)decoratedUser.Identity).AuthenticationType)
             {
                 yield return new ScopeInfo
-                    { ScopeDisplayName = assetInfo.UserScopeName, ScopeName = assetInfo.AssetTitle };
+                    { ScopeDisplayName = assignedUserScope, ScopeName = "Limited Asset Scope" };
             }
         }
 
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {
-            if (permissionScopeName == assetInfo.UserScopeName)
+            if (permissionScopeName == assignedUserScope)
             {
-                return from t in assetInfo.Features
+                return from t in assignedFeatures
                     select new Feature
                     {
                         Enabled = true,

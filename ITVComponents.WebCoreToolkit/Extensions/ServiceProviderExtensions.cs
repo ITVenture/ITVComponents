@@ -63,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         {
             var permissionScope = provider.GetService<IPermissionScope>();
             var logger = provider.GetService<ILogger<GenericLogTarget>>();//("ITVComponents.WebCoreToolkit.Extensions.ServiceProviderExtensions");
-            var isAuthenticated = provider.IsLegitSharedAssetPath(out securityRepository, out _, out _) || provider.IsUserAuthenticated(out securityRepository, out _, out _);
+            var isAuthenticated = (provider.IsLegitSharedAssetPath(out securityRepository, out _, out var denied) || provider.IsUserAuthenticated(out securityRepository, out _)) && !denied;
             if (isAuthenticated)
             {
                 string[] features = securityRepository.GetFeatures(permissionScope.PermissionPrefix)
@@ -130,14 +130,14 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             out ISecurityRepository securityRepository, out bool isAuthenticated)
         {
             string[] permissions = null;
-            string[] labels;
-            string authType;
-            isAuthenticated = provider.IsLegitSharedAssetPath(out securityRepository, out labels, out authType) ||
-                              provider.IsUserAuthenticated(out securityRepository, out labels, out authType);
+            IdentityInfo[] identities;
+            isAuthenticated = (provider.IsLegitSharedAssetPath(out securityRepository, out identities, out var denied) ||
+                              provider.IsUserAuthenticated(out securityRepository, out identities)) && !denied;
 
             if (isAuthenticated)
             {
-                permissions = securityRepository.GetPermissions(labels, authType).Select(n => n.PermissionName)
+                var rp = securityRepository;
+                permissions = identities.SelectMany(i => rp.GetPermissions(i.Labels, i.AuthenticationType)).Select(n => n.PermissionName)
                     .Distinct()
                     .ToArray();
             }
@@ -145,30 +145,60 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             return permissions ?? Array.Empty<string>();
         }
 
-        public static bool IsLegitSharedAssetPath(this IServiceProvider provider,
-            out ISecurityRepository securityRepository, out string[] labels, out string authType)
+        public static ISecurityRepository GetAssetSecurityRepository(this IServiceProvider services, ISecurityRepository decorated)
         {
+            var httpContext = services.GetService<IHttpContextAccessor>();
+            var authUser = httpContext.HttpContext.User.Identities.FirstOrDefault(n => n.IsAuthenticated);
+            var decorator = new SecurityRepository();
+            decorator.PushRepo(decorated);
+            if (authUser != null && 
+                authUser.HasClaim(n => n.Type == Global.FixedAssetUserScope) &&
+                authUser.HasClaim(n => n.Type == Global.FixedAssetFeature) &&
+                authUser.HasClaim(n => n.Type == Global.FixedAssetPermission))
+            {
+                var repo = new AssetSecurityRepository(httpContext.HttpContext.User, decorated);
+                decorator.PushRepo(repo);
+            }
+
+            return decorator;
+        }
+
+        public static bool IsLegitSharedAssetPath(this IServiceProvider provider,
+            out ISecurityRepository securityRepository, out IdentityInfo[] identities, out bool denied)
+        {
+            denied = false;
             var assetProvider = provider.GetService<ISharedAssetAdapter>();
             var userProvider = provider.GetService<IContextUserProvider>();
-            if (userProvider.HttpContext.Request.Query.ContainsKey(Global.FixedAssetRequestQueryParameter) && userProvider.User.HasClaim(n => n.Type == Global.FixedAssetUserScope))
+            IQueryCollection refQ;
+            if (((refQ=userProvider.HttpContext.Request.Query).ContainsKey(Global.FixedAssetRequestQueryParameter)
+                || (refQ = userProvider.HttpContext.Request.GetRefererQuery()) != null && refQ.ContainsKey(Global.FixedAssetRequestQueryParameter)) && 
+                userProvider.User.HasClaim(n => n.Type == Global.FixedAssetUserScope))
             {
                 var requestPath = userProvider.HttpContext.Request.Path;
-                var assetKey = userProvider.HttpContext.Request.Query[Global.FixedAssetRequestQueryParameter];
+                var assetKey = refQ[Global.FixedAssetRequestQueryParameter];
                 var userScope = userProvider.HttpContext.User.Claims.First(n => n.Type == Global.FixedAssetUserScope)
                     .Value;
-                if (assetProvider != null && assetProvider.VerifyRequestLocation(requestPath,assetKey, userScope, userProvider.User))
+                if (assetProvider != null && !(denied = !assetProvider.VerifyRequestLocation(requestPath,assetKey, userScope, userProvider.User)))
                 {
-                    authType = ((ClaimsIdentity)userProvider.User.Identity).AuthenticationType;
-                    labels = new string[] { userProvider.User.Identity.Name };
-                    var deco = provider.GetService<ISecurityRepository>();
-                    securityRepository = new AssetSecurityRepository(userProvider.User, deco, assetProvider.GetAssetInfo(assetKey, userProvider.User));
+                    identities= (from t in userProvider.User.Identities where t.IsAuthenticated select new IdentityInfo{Labels=new []{t.Name}, AuthenticationType=t.AuthenticationType}).ToArray();//new string[] { userProvider.User.Identity.Name };
+                    var tmp = provider.GetService<ISecurityRepository>();
+                    if (tmp is not SecurityRepository seco)
+                    {
+                        throw new InvalidOperationException(
+                            "SecurityRepository is required to make this work! Use GetAssetSecurityRepository in your ISecurityRepository dependency injection call.");
+                    }
+
+                    if (seco.Current is not AssetSecurityRepository)
+                    {
+                        seco.PushRepo(new AssetSecurityRepository(userProvider.User, seco.Current, assetProvider.GetAssetInfo(assetKey, userProvider.User)));
+                    }
+                    securityRepository = seco;
                     return true;
                 }
             }
 
             securityRepository = null;
-            labels = null;
-            authType = null;
+            identities = null;
             return false;
         }
 
@@ -180,15 +210,17 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <param name="labels">the user-labels of the current user</param>
         /// <param name="authType">the authentication-type that was used to log this user in</param>
         /// <returns>a value indicating whether the current user is correlctly authenticated</returns>
-        public static bool IsUserAuthenticated(this IServiceProvider provider, out ISecurityRepository securityRepository, out string[] labels, out string authType)
+        public static bool IsUserAuthenticated(this IServiceProvider provider, out ISecurityRepository securityRepository, out IdentityInfo[] identities)
         {
             var userProvider = provider.GetService<IContextUserProvider>();
             var userMapper = provider.GetService<IUserNameMapper>();
             var currentUser = userProvider.User;
-            authType = ((ClaimsIdentity)currentUser.Identity).AuthenticationType;
-            securityRepository = provider.GetService<ISecurityRepository>();
-            labels = userMapper.GetUserLabels(currentUser);
-            return securityRepository.IsAuthenticated(labels, authType);
+            identities = (from t in currentUser.Identities
+                where t.IsAuthenticated
+                select new IdentityInfo
+                    { AuthenticationType = t.AuthenticationType, Labels = userMapper.GetUserLabels(t) }).ToArray();
+            var rp= securityRepository = provider.GetService<ISecurityRepository>();
+            return identities.Any(a => rp.IsAuthenticated(a.Labels, a.AuthenticationType));
         }
 
         /// <summary>

@@ -32,16 +32,6 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
         public string UniqueName { get; set; }
 
         /// <summary>
-        /// Gets all labels for the given principaluser
-        /// </summary>
-        /// <param name="user">the user for which to get all labels</param>
-        /// <returns>a list of labels that are assigned to the given user</returns>
-        public string[] GetUserLabels(IPrincipal user)
-        {
-            return GetUserLabels(user.Identity);
-        }
-
-        /// <summary>
         /// Gets all labels for the given Identity
         /// </summary>
         /// <param name="user">the user for which to get all labels</param>

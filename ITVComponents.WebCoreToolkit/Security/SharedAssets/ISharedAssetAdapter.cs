@@ -20,5 +20,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         string CreateAnonymousLink(AssetInfo info, HttpContext context);
         string CreateLink(AssetInfo info, HttpContext context);
         FullAssetInfo FindAnonymousAsset(string assetKey);
+        protected internal void SetImpersonationOff();
+        protected internal void SetImpersonationOn();
     }
 }

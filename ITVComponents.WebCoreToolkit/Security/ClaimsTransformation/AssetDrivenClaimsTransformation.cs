@@ -4,7 +4,9 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
@@ -35,10 +37,12 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
         /// <returns>The transformed principal.</returns>
         public Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
         {
+            IQueryCollection refQ;
             if (userProvider.HttpContext != null &&
-                userProvider.HttpContext.Request.Query.ContainsKey(Global.FixedAssetRequestQueryParameter))
+                ((refQ = userProvider.HttpContext.Request.Query).ContainsKey(Global.FixedAssetRequestQueryParameter)
+                || (refQ = userProvider.HttpContext.Request.GetRefererQuery()) != null && refQ.ContainsKey(Global.FixedAssetRequestQueryParameter)))
             {
-                var assetKey = userProvider.HttpContext.Request.Query[Global.FixedAssetRequestQueryParameter];
+                var assetKey = refQ[Global.FixedAssetRequestQueryParameter];
                 using (var context = serviceProvider.CreateScope())
                 {
                     var assetManager = context.ServiceProvider.GetService<ISharedAssetAdapter>();

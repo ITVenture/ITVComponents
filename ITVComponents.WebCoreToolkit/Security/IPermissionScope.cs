@@ -26,5 +26,26 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// </summary>
         /// <param name="newScope">the new scope to apply for the current user</param>
         void ChangeScope(string newScope);
+
+        /// <summary>
+        /// Explicitly turns off impersonation on this permission scope instance
+        /// </summary>
+        protected internal void SetImpersonationOff();
+
+        /// <summary>
+        /// Decreases the explicit dactivation-counter for Impersonation on this permission scope instance
+        /// </summary>
+        protected internal void SetImpersonationOn();
+
+        /// <summary>
+        /// Temporary overrides the current scope with a different scope name
+        /// </summary>
+        /// <param name="temporaryScopeName">the temporary scope name to override the current with</param>
+        protected internal void PushScope(string temporaryScopeName);
+
+        /// <summary>
+        /// Removes the temporary scope that was pushed before using pushscope
+        /// </summary>
+        protected internal void PopScope();
     }
 }

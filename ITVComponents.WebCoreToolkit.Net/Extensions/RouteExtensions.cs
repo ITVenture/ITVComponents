@@ -21,11 +21,14 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.Comparers;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
 using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.ViewModel;
 using ITVComponents.WebCoreToolkit.Routing;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
 using ITVComponents.WebCoreToolkit.Tokens;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections;
@@ -38,6 +41,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -471,7 +475,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                     var scopeProvider = actionContext.HttpContext.RequestServices.GetRequiredService<IPermissionScope>();
                     var securityRepo = actionContext.HttpContext.RequestServices.GetRequiredService<ISecurityRepository>();
                     var userProvider = actionContext.HttpContext.RequestServices.GetRequiredService<IUserNameMapper>();
-                    var eligibleTenants = securityRepo.GetEligibleScopes(userProvider.GetUserLabels(context.User), context.User.Identity.AuthenticationType);
+                    var eligibleTenants = (from t in context.User.Identities where t.IsAuthenticated select securityRepo.GetEligibleScopes(userProvider.GetUserLabels(t), t.AuthenticationType)).SelectMany(n => n).Distinct(new ScopeInfoComparer()).ToArray();
                     if (eligibleTenants.Any(n => n.ScopeName == newTenant))
                     {
                         OkResult ok = new OkResult();
@@ -506,15 +510,14 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 ActionContext actionContext = new ActionContext(context, routeData, actionDescriptor);
                 var retVal = Array.Empty<Models.Permission>();
                 ISecurityRepository repo;
-                string[] userLabels;
-                string authType;
-                if (context.RequestServices.IsLegitSharedAssetPath(out repo, out userLabels, out authType)||context.RequestServices.IsUserAuthenticated(out repo, out userLabels, out authType))
+                IdentityInfo[] identities;
+                if ((context.RequestServices.IsLegitSharedAssetPath(out repo, out identities, out var denied)||context.RequestServices.IsUserAuthenticated(out repo, out identities)) && !denied)
                 {
                     //var repo = context.RequestServices.GetService<ISecurityRepository>();
                     //var mapper = context.RequestServices.GetService<IUserNameMapper>();
                     //var userLabels = mapper.GetUserLabels(context.User);
                     //var authType = context.User.Identity.AuthenticationType;
-                    retVal = repo.GetPermissions(userLabels, authType).ToArray();
+                    retVal = identities.SelectMany(i => repo.GetPermissions(i.Labels,i.AuthenticationType)).Distinct(new PermissionComparer()).ToArray();
                 }
 
                 JsonResult result = new JsonResult(retVal);
@@ -534,7 +537,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
         public static void UseFileServices(this IEndpointRouteBuilder builder, string explicitTenantParam, bool withAuthorization = true, Action<IEndpointConventionBuilder> configureUpload = null, Action<IEndpointConventionBuilder> configureDownload = null)
         {
             var forExplicitTenants = !string.IsNullOrEmpty(explicitTenantParam);
-            var upload = builder.MapPost($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}/File/{{UploadModule:alpha}}/{{UploadReason:alpha}}/{{**UploadHint}}", async context =>
+            var upload = builder.MapPost($"{(forExplicitTenants?$"/{{{explicitTenantParam}:permissionScope}}":"")}/File/{{UploadModule:alpha}}/{{UploadReason:alpha}}", async context =>
             {
                 RouteData routeData = context.GetRouteData();
 
@@ -550,132 +553,195 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
 
                 var handlerName = (string) context.Request.RouteValues["UploadModule"];
                 var reason = (string) context.Request.RouteValues["UploadReason"];
-                var uploadHint = (string) context.Request.RouteValues["UploadHint"];
-                var fileHandler = context.RequestServices.GetFileHandler(handlerName);
-                var syncHandler = fileHandler as IFileHandler;
-                var asyncHandler = fileHandler as IAsyncFileHandler;
-                var handlerOptionsName = $"{handlerName}UploadSettings";
-                var handlerReasonOptionsName = $"{reason}_{handlerOptionsName}";
-                var logger = context.RequestServices.GetService<ILogger<IFileHandler>>();
-                var scopeOptions = context.RequestServices.GetService<IScopedSettingsProvider>();
-                var globalOptions = context.RequestServices.GetService<IGlobalSettingsProvider>();
-                var handlerSettingsRaw = scopeOptions?.GetJsonSetting(handlerOptionsName) ?? globalOptions?.GetJsonSetting(handlerOptionsName);
-                var reasonSettingsRaw = scopeOptions?.GetJsonSetting(handlerReasonOptionsName) ?? globalOptions?.GetJsonSetting(handlerReasonOptionsName);
-                var finalSettingsRaw = reasonSettingsRaw ?? handlerSettingsRaw;
-                var options = new UploadOptions();
-                if (!string.IsNullOrEmpty(finalSettingsRaw))
+                context.Request.Query.TryGetValue("UploadHint", out var uploadHint);
+                var hasAsset = context.Request.Query.TryGetValue("AssetKey", out var assetKey);
+                IImpersonationControl assetImpersonator = null;
+                IDisposable assetAccess = null;
+                if (!string.IsNullOrEmpty(assetKey))
                 {
-                    options = JsonHelper.FromJsonString<UploadOptions>(finalSettingsRaw);
+                    assetImpersonator = context.RequestServices.GetRequiredService<IImpersonationControl>();
+                    assetAccess = assetImpersonator.AsAssetAccessor(assetKey);
                 }
 
-                var maxSize = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
-                maxSize.MaxRequestBodySize = options.MaxUploadSize;
-                var requiredPermissions = asyncHandler?.PermissionsForReason(reason) ??
-                                          syncHandler.PermissionsForReason(reason);
-                if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 && context.RequestServices.VerifyUserPermissions(requiredPermissions)))
+                try
                 {
-                    var boundary = context.Request.GetMultipartBoundary();
-                    var partReader = new MultipartReader(boundary, context.Request.Body) {BodyLengthLimit = null};
-                    MultipartSection section;
-                    var ms = new ModelStateDictionary();
-                    try
+                    var fileHandler = context.RequestServices.GetFileHandler(handlerName);
+                    var syncHandler = fileHandler as IFileHandler;
+                    var asyncHandler = fileHandler as IAsyncFileHandler;
+                    var handlerOptionsName = $"{handlerName}UploadSettings";
+                    var handlerReasonOptionsName = $"{reason}_{handlerOptionsName}";
+                    var logger = context.RequestServices.GetService<ILogger<IFileHandler>>();
+                    var scopeOptions = context.RequestServices.GetService<IScopedSettingsProvider>();
+                    var globalOptions = context.RequestServices.GetService<IGlobalSettingsProvider>();
+                    var handlerSettingsRaw = scopeOptions?.GetJsonSetting(handlerOptionsName) ??
+                                             globalOptions?.GetJsonSetting(handlerOptionsName);
+                    var reasonSettingsRaw = scopeOptions?.GetJsonSetting(handlerReasonOptionsName) ??
+                                            globalOptions?.GetJsonSetting(handlerReasonOptionsName);
+                    var finalSettingsRaw = reasonSettingsRaw ?? handlerSettingsRaw;
+                    var options = new UploadOptions();
+                    if (!string.IsNullOrEmpty(finalSettingsRaw))
                     {
-                        while ((section = await partReader.ReadNextSectionAsync()) != null)
+                        options = JsonHelper.FromJsonString<UploadOptions>(finalSettingsRaw);
+                    }
+
+                    var maxSize = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+                    maxSize.MaxRequestBodySize = options.MaxUploadSize;
+                    var requiredPermissions = asyncHandler?.PermissionsForReason(reason) ??
+                                              syncHandler.PermissionsForReason(reason);
+                    if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 &&
+                                               context.RequestServices.VerifyUserPermissions(requiredPermissions)))
+                    {
+                        var boundary = context.Request.GetMultipartBoundary();
+                        var partReader = new MultipartReader(boundary, context.Request.Body) { BodyLengthLimit = null };
+                        MultipartSection section;
+                        var ms = new ModelStateDictionary();
+                        try
                         {
-                            var hasContentDispositionHeader =
-                                ContentDispositionHeaderValue.TryParse(
-                                    section.ContentDisposition, out var contentDisposition);
-                            if (hasContentDispositionHeader)
+                            while ((section = await partReader.ReadNextSectionAsync()) != null)
                             {
-                                if (contentDisposition.IsFileDisposition())
+                                var hasContentDispositionHeader =
+                                    ContentDispositionHeaderValue.TryParse(
+                                        section.ContentDisposition, out var contentDisposition);
+                                if (hasContentDispositionHeader)
                                 {
-                                    logger.LogDebug(new EventId(0, "Found File-Disposition"), $"Found a File: {contentDisposition.Name.Value} ({contentDisposition.FileName.Value},{contentDisposition.FileNameStar.Value})");
-                                    var content = await section.Body.ToArrayAsync();
-                                    string name = contentDisposition.FileName.Value ?? contentDisposition.FileNameStar.Value ?? contentDisposition.Name.Value;
-                                    if (VerifyFile(name, content, options, out var deniedReason))
+                                    if (contentDisposition.IsFileDisposition())
                                     {
-                                        if (string.IsNullOrEmpty(uploadHint))
+                                        logger.LogDebug(new EventId(0, "Found File-Disposition"),
+                                            $"Found a File: {contentDisposition.Name.Value} ({contentDisposition.FileName.Value},{contentDisposition.FileNameStar.Value})");
+                                        var content = await section.Body.ToArrayAsync();
+                                        string name = contentDisposition.FileName.Value ??
+                                                      contentDisposition.FileNameStar.Value ??
+                                                      contentDisposition.Name.Value;
+                                        if (VerifyFile(name, content, options, out var deniedReason))
                                         {
-                                            if (asyncHandler != null)
+                                            if (string.IsNullOrEmpty(uploadHint))
                                             {
-                                                await asyncHandler.AddFile(name, content, ms, context.User?.Identity,
-                                                    (n, c) => VerifyFile(n, c, options, out _));
+                                                if (asyncHandler != null)
+                                                {
+                                                    await (!hasAsset
+                                                        ? asyncHandler.AddFile(name, content, ms,
+                                                            context.User?.Identity,
+                                                            (n, c) => VerifyFile(n, c, options, out _))
+                                                        : asyncHandler.AddFile(name, content, (string)assetKey, ms,
+                                                            context.User, (n, c) => VerifyFile(n, c, options, out _)));
+                                                }
+                                                else
+                                                {
+                                                    if (!hasAsset)
+                                                    {
+                                                        syncHandler.AddFile(name, content, ms, context.User?.Identity,
+                                                            (n, c) => VerifyFile(n, c, options, out _));
+                                                    }
+                                                    else
+                                                    {
+                                                        syncHandler.AddFile(name, content, (string)assetKey, ms,
+                                                            context.User, (n, c) => VerifyFile(n, c, options, out _));
+                                                    }
+                                                }
                                             }
                                             else
                                             {
-                                                syncHandler.AddFile(name, content, ms, context.User?.Identity,
-                                                    (n, c) => VerifyFile(n, c, options, out _));
+                                                if (asyncHandler != null)
+                                                {
+                                                    await (!hasAsset
+                                                        ? asyncHandler.AddFile(name, content, uploadHint, ms,
+                                                            context.User?.Identity)
+                                                        : asyncHandler.AddFile(name, content, uploadHint,
+                                                            (string)assetKey, ms, context.User));
+                                                }
+                                                else
+                                                {
+                                                    if (!hasAsset)
+                                                    {
+                                                        syncHandler.AddFile(name, content, uploadHint, ms,
+                                                            context.User?.Identity);
+                                                    }
+                                                    else
+                                                    {
+                                                        syncHandler.AddFile(name, content, uploadHint, (string)assetKey,
+                                                            ms,
+                                                            context.User);
+                                                    }
+                                                }
+                                            }
+
+                                            if (!ms.IsValid)
+                                            {
+                                                ContentResult br = new ContentResult
+                                                {
+                                                    Content = string.Join(Environment.NewLine,
+                                                        (from t in ms where t.Key == "File" select t.Value.Errors)
+                                                        .SelectMany(m => m).Select(i => i.ErrorMessage)),
+                                                    ContentType = "text/plain",
+                                                    StatusCode = (int)HttpStatusCode.BadRequest
+                                                };
+                                                await br.ExecuteResultAsync(actionContext);
+                                                return;
                                             }
                                         }
                                         else
                                         {
-                                            if (asyncHandler != null)
+                                            ContentResult br = new ContentResult
                                             {
-                                                await asyncHandler.AddFile(name, content, uploadHint, ms,
-                                                    context.User?.Identity);
-                                            }
-                                            else
-                                            {
-                                                syncHandler.AddFile(name, content, uploadHint, ms,
-                                                    context.User?.Identity);
-                                            }
-                                        }
-                                        if (!ms.IsValid)
-                                        {
-                                            ContentResult br = new ContentResult {Content = string.Join(Environment.NewLine,(from t in ms where t.Key== "File" select t.Value.Errors).SelectMany(m => m).Select(i => i.ErrorMessage)), ContentType = "text/plain", StatusCode = (int) HttpStatusCode.BadRequest};
+                                                Content = deniedReason, ContentType = "text/plain",
+                                                StatusCode = (int)HttpStatusCode.BadRequest
+                                            };
                                             await br.ExecuteResultAsync(actionContext);
                                             return;
                                         }
                                     }
-                                    else
+                                    else if (contentDisposition.IsFormDisposition())
                                     {
-                                        ContentResult br = new ContentResult {Content = deniedReason, ContentType = "text/plain", StatusCode = (int) HttpStatusCode.BadRequest};
-                                        await br.ExecuteResultAsync(actionContext);
-                                        return;
-                                    }
-                                }
-                                else if (contentDisposition.IsFormDisposition())
-                                {
-                                    string formContent = null;
-                                    if (asyncHandler != null && asyncHandler is IAsyncFormProcessor asyncFormer)
-                                    {
-                                        formContent = await asyncFormer.ProcessForm(section.Headers, section.Body);
-                                    }
-                                    else if (syncHandler != null && syncHandler is IFormProcessor syncFormer)
-                                    {
-                                        formContent = syncFormer.ProcessForm(section.Headers, section.Body);
-                                    }
+                                        string formContent = null;
+                                        if (asyncHandler != null && asyncHandler is IAsyncFormProcessor asyncFormer)
+                                        {
+                                            formContent = await asyncFormer.ProcessForm(section.Headers, section.Body);
+                                        }
+                                        else if (syncHandler != null && syncHandler is IFormProcessor syncFormer)
+                                        {
+                                            formContent = syncFormer.ProcessForm(section.Headers, section.Body);
+                                        }
 
-                                    formContent ??= Encoding.Default.GetString(await section.Body.ToArrayAsync());
-                                    logger.LogDebug(new EventId(0, "Found Form-Disposition"), $"Form Content: {formContent})");
+                                        formContent ??= Encoding.Default.GetString(await section.Body.ToArrayAsync());
+                                        logger.LogDebug(new EventId(0, "Found Form-Disposition"),
+                                            $"Form Content: {formContent})");
+                                    }
                                 }
                             }
-                        }
 
-                        var rfh = syncHandler as IRespondingFileHandler;
-                        var arh = asyncHandler as IAsyncRespondingFileHandler;
-                        if (rfh == null && arh == null)
-                        {
-                            await new OkResult().ExecuteResultAsync(actionContext);
-                        }
-                        else if (arh != null)
-                        {
-                            var r = await arh.GetUploadResult();
-                            await r.ExecuteResultAsync(actionContext);
-                        }
-                        else
-                        {
-                            await rfh.GetUploadResult().ExecuteResultAsync(actionContext);
-                        }
+                            var rfh = syncHandler as IRespondingFileHandler;
+                            var arh = asyncHandler as IAsyncRespondingFileHandler;
+                            if (rfh == null && arh == null)
+                            {
+                                await new OkResult().ExecuteResultAsync(actionContext);
+                            }
+                            else if (arh != null)
+                            {
+                                var r = await arh.GetUploadResult();
+                                await r.ExecuteResultAsync(actionContext);
+                            }
+                            else
+                            {
+                                await rfh.GetUploadResult().ExecuteResultAsync(actionContext);
+                            }
 
-                        return;
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            ContentResult br = new ContentResult
+                            {
+                                Content = ex.Message, ContentType = "text/plain",
+                                StatusCode = (int)HttpStatusCode.BadRequest
+                            };
+                            await br.ExecuteResultAsync(actionContext);
+                            return;
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        ContentResult br = new ContentResult {Content = ex.Message, ContentType = "text/plain", StatusCode = (int) HttpStatusCode.BadRequest};
-                        await br.ExecuteResultAsync(actionContext);
-                        return;
-                    }
+                }
+                finally
+                {
+                    assetAccess?.Dispose();
                 }
 
                 await new UnauthorizedResult().ExecuteResultAsync(actionContext);
@@ -701,66 +767,96 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 }
 
                 var fileToken = token.DecompressToken<DownloadToken>();
-                var fileHandler = context.RequestServices.GetFileHandler(fileToken.HandlerModuleName);
-                var syncHandler = fileHandler as IFileHandler;
-                var asyncHandler = fileHandler as IAsyncFileHandler;
-                var requiredPermissions = asyncHandler?.PermissionsForReason(fileToken.DownloadReason) ??
-                                          syncHandler.PermissionsForReason(fileToken.DownloadReason);
-                if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 && context.RequestServices.VerifyUserPermissions(requiredPermissions)))
+                var isAssetAccess = false;
+                //var assetAccessLegal = false;
+                IImpersonationControl assetImpersonator = null;
+                IDisposable assetAccess = null;
+                if (!string.IsNullOrEmpty(fileToken.AssetKey))
                 {
-                    string downloadName = fileToken.DownloadName;
-                    string contentType = fileToken.ContentType;
-                    bool forceDownload = fileToken.FileDownload;
-                    byte[] fileContent = null;
-                    Stream fileStreamContent = null;
-                    bool asyncOk = false;
-                    if (asyncHandler != null)
+                    assetImpersonator = context.RequestServices.GetRequiredService<IImpersonationControl>();
+                    isAssetAccess = true;
+                    assetAccess = assetImpersonator.AsAssetAccessor(fileToken.AssetKey);
+                }
+
+                try
+                {
+                    var fileHandler = context.RequestServices.GetFileHandler(fileToken.HandlerModuleName);
+                    var syncHandler = fileHandler as IFileHandler;
+                    var asyncHandler = fileHandler as IAsyncFileHandler;
+                    var requiredPermissions = asyncHandler?.PermissionsForReason(fileToken.DownloadReason) ??
+                                              syncHandler.PermissionsForReason(fileToken.DownloadReason);
+
+                    if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 &&
+                                               context.RequestServices.VerifyUserPermissions(requiredPermissions)))
                     {
-                        var tmp = await asyncHandler.ReadFile(fileToken.FileIdentifier, context.User?.Identity);
-                        // ReSharper disable once AssignmentInConditionalExpression
-                        if (asyncOk = tmp.Success)
+                        string downloadName = fileToken.DownloadName;
+                        string contentType = fileToken.ContentType;
+                        bool forceDownload = fileToken.FileDownload;
+                        byte[] fileContent = null;
+                        Stream fileStreamContent = null;
+                        bool asyncOk = false;
+                        if (asyncHandler != null)
                         {
-                            downloadName = tmp.DownloadName ?? downloadName;
-                            contentType = tmp.ContentType ?? contentType;
-                            forceDownload = tmp.FileDownload ?? forceDownload;
-                            fileStreamContent = tmp.FileContent;
-                            tmp.DeferredDisposals.ForEach(context.Response.RegisterForDispose);
-                        }
-                    }
-                    if ((asyncOk && fileStreamContent != null) ||
-                        (syncHandler != null && syncHandler.ReadFile(fileToken.FileIdentifier, context.User?.Identity, ref downloadName, ref contentType, ref forceDownload, out fileContent)))
-                    {
-                        FileResult fileResult;
-                        if (fileStreamContent != null)
-                        {
-                            fileResult = new FileStreamResult(fileStreamContent, contentType) { EnableRangeProcessing = true };
-                        }
-                        else
-                        {
-                            fileResult = new FileContentResult(fileContent, contentType);
+                            var tmp = !isAssetAccess?
+                                await asyncHandler.ReadFile(fileToken.FileIdentifier, context.User?.Identity):
+                                await asyncHandler.ReadFile(fileToken.FileIdentifier, context.User, fileToken.AssetKey);
+                            // ReSharper disable once AssignmentInConditionalExpression
+                            if (asyncOk = tmp.Success)
+                            {
+                                downloadName = tmp.DownloadName ?? downloadName;
+                                contentType = tmp.ContentType ?? contentType;
+                                forceDownload = tmp.FileDownload ?? forceDownload;
+                                fileStreamContent = tmp.FileContent;
+                                tmp.DeferredDisposals.ForEach(context.Response.RegisterForDispose);
+                            }
                         }
 
-                        fileResult.FileDownloadName = "";
-                        if (forceDownload)
+                        if ((asyncOk && fileStreamContent != null) ||
+                            (syncHandler != null && 
+                             (!isAssetAccess?syncHandler.ReadFile(fileToken.FileIdentifier,
+                                context.User?.Identity, ref downloadName, ref contentType, ref forceDownload,
+                                out fileContent):
+                                 syncHandler.ReadFile(fileToken.FileIdentifier,
+                                     context.User, fileToken.AssetKey, ref downloadName, ref contentType, ref forceDownload,
+                                     out fileContent))))
                         {
-                            fileResult.FileDownloadName = downloadName;
-                        }
-                        else
-                        {
-                            ContentDispositionHeaderValue hv = new ContentDispositionHeaderValue("inline");
-                            hv.SetHttpFileName(downloadName);
-                            context.Response.Headers["content-disposition"] = hv.ToString();
+                            FileResult fileResult;
+                            if (fileStreamContent != null)
+                            {
+                                fileResult = new FileStreamResult(fileStreamContent, contentType)
+                                    { EnableRangeProcessing = true };
+                            }
+                            else
+                            {
+                                fileResult = new FileContentResult(fileContent, contentType);
+                            }
+
+                            fileResult.FileDownloadName = "";
+                            if (forceDownload)
+                            {
+                                fileResult.FileDownloadName = downloadName;
+                            }
+                            else
+                            {
+                                ContentDispositionHeaderValue hv = new ContentDispositionHeaderValue("inline");
+                                hv.SetHttpFileName(downloadName);
+                                context.Response.Headers["content-disposition"] = hv.ToString();
+                            }
+
+                            await fileResult.ExecuteResultAsync(actionContext);
+                            return;
                         }
 
-                        await fileResult.ExecuteResultAsync(actionContext);
+                        await new NotFoundResult().ExecuteResultAsync(actionContext);
                         return;
                     }
 
-                    await new NotFoundResult().ExecuteResultAsync(actionContext);
-                    return;
+                    await new UnauthorizedResult().ExecuteResultAsync(actionContext);
                 }
-
-                await new UnauthorizedResult().ExecuteResultAsync(actionContext);
+                finally
+                {
+                    assetAccess?.Dispose();
+                }
             });
 
             if (withAuthorization)
