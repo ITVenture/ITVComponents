@@ -25,7 +25,7 @@ namespace ITVComponents.Helpers
                 return (from p in
                             t.GetProperties(BindingFlags.FlattenHierarchy | BindingFlags.GetProperty |
                                             BindingFlags.Instance | BindingFlags.Public)
-                        where !simpleTypesOnly || IsSimpleType(p.PropertyType)
+                        where (!simpleTypesOnly || IsSimpleType(p.PropertyType)) && !Attribute.IsDefined(p.PropertyType, typeof(ExcludeFromDictionaryAttribute))
                         select new {n = p.Name, v = p.GetValue(source, null)}).ToDictionary(p => p.n, p => p.v);
             }
 

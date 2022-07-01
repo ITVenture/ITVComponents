@@ -11,6 +11,7 @@ using ITVComponents.Helpers;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
@@ -107,11 +108,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
         /// Gets the ActionResult for the complete upload process
         /// </summary>
         /// <returns>an action result as a reaction of the given upload request</returns>
-        public ActionResult GetUploadResult()
+        public IResult GetUploadResult()
         {
             var tmp = changes.ToArray();
             changes.Clear();
-            return new ContentResult { Content = JsonHelper.ToJson(tmp), ContentType = "application/json", StatusCode = 200 };
+            return Results.Content(JsonHelper.ToJson(tmp), "application/json");
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

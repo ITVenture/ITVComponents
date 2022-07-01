@@ -25,6 +25,16 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Options
         }
 
         /// <summary>
+        /// Registers an injector to the list of available proxy-injectors
+        /// </summary>
+        /// <typeparam name="T">the interface of which a proxy needs to be created</typeparam>
+        /// <param name="injector">the injector used to create the demanded instance</param>
+        public void AddInjector(Type t, IProxyInjector injector)
+        {
+            injectors.Add(t, injector);
+        }
+
+        /// <summary>
         /// Creates the requested proxy object
         /// </summary>
         /// <typeparam name="T">the proxy-type to return</typeparam>

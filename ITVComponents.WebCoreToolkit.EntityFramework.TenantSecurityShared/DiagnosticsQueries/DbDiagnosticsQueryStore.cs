@@ -83,20 +83,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// <returns>the definition of the requested dashboard-item including the permissions required to use it</returns>
         public DashboardWidgetDefinition GetDashboard(string dashboardName, int? userDashboardId = null)
         {
-            var tmp = dbContext.Widgets.First(n => n.SystemName == dashboardName);
+            var tmp = dbContext.Widgets.FirstOrDefault(n => n.SystemName == dashboardName);
             var userDash = (userDashboardId != null)
-                ? dbContext.UserWidgets.First(n => n.UserWidgetId == userDashboardId)
+                ? dbContext.UserWidgets.FirstOrDefault(n => n.UserWidgetId == userDashboardId)
                 : null;
-            var retVal = GetDashboardItem(tmp, userDash);
-            if (userDashboardId == null)
+            if (tmp != null && (userDashboardId == null || userDash != null))
             {
-                retVal.SortOrder = dbContext.UserWidgets.Count();
+                var retVal = GetDashboardItem(tmp, userDash);
+                if (userDashboardId == null)
+                {
+                    retVal.SortOrder = dbContext.UserWidgets.Count();
+                }
+                else
+                {
+                    retVal.SortOrder = userDash.SortOrder;
+                }
+
+                return retVal;
             }
-            else
-            {
-                retVal.SortOrder = userDash.SortOrder;
-            }
-            return retVal;
+
+            return null;
         }
 
         /// <summary>

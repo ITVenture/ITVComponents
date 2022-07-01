@@ -11,8 +11,10 @@ using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions.Helpers;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.CodeAnalysis.Emit;
@@ -35,6 +37,14 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
 
         private List<MethodRef> authSchemeRegistrationMethods = new();
 
+        private List<MethodRef> metaExposalMethods = new();
+
+        private EndPointTrunk registeredEndPoints = new();
+
+        private bool endPointsRegistrationDone = false;
+
+        private ISharedObjHeap sharedHeap = new SharedObjectHeap();
+
         /// <summary>
         /// Initializes a new instance of the WebPartManager class
         /// </summary>
@@ -43,13 +53,13 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         {
             this.config = config;
             var options = config.GetSection<WebPartOptions>("ITVenture:WebParts");
-            var WebPartTypes = (from t in options.Assemblies
-                select new {Types = AssemblyResolver.FindAssemblyByFileName(t.AssemblyName).GetTypes()
+            var webPartTypes = (from t in options.Assemblies
+                select new {Types = GetAssembly(t.AssemblyName).GetTypes()
                     .Where(n => n.IsPublic && n.IsAbstract && n.IsSealed &&  Attribute.IsDefined(n, typeof(WebPartAttribute))),
                     OptionPath = t.DetailConfigPath,
                     OptionPaths = t.DetailConfigPaths
                 }).SelectMany(n => n.Types.Select(o => new {Type=o, ConfigPath=n.OptionPath, ConfigPaths = n.OptionPaths})).ToArray();
-            foreach (var t in WebPartTypes)
+            foreach (var t in webPartTypes)
             {
                 AnalyzeType(t.Type, t.ConfigPath, t.ConfigPaths);
             }
@@ -61,7 +71,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// </summary>
         /// <param name="manager">the applicationpartmanager that is used to register web-parts</param>
         /// <param name="configuration">the configuration that was provided for this web-part</param>
-        public void RegisterWebPart(ApplicationPartManager manager, object configuration)
+        public void RegisterWebPart(ApplicationPartManager manager)
         {
             throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
         }
@@ -97,8 +107,9 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// Sample declaration for a WebPartRegistration method. To not call this method directly, it will throw an exception!
         /// </summary>
         /// <param name="manager">the applicationpartmanager that is used to register web-parts</param>
+        /// <param name="endPointRegistry">the EndPoint registry that is used for post-processing the generated endpoints</param>
         /// <param name="configuration">the configuration that was provided for this web-part</param>
-        public void RegisterEndpoints(IEndpointRouteBuilder manager, object configuration)
+        public void RegisterPartEndpoints(WebApplication manager, EndPointTrunk  endPointRegistry)
         {
             throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
         }
@@ -107,9 +118,61 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// Registers all configured Web-Parts in the provided manager
         /// </summary>
         /// <param name="builder">the endpointbuilder where custom endpoints can be injected</param>
-        public void RegisterEndpoints(IEndpointRouteBuilder builder)
+        public void RegisterEndpoints(WebApplication builder)
         {
-            foreach (var t in endpointRegistrationMethods)
+            try
+            {
+                foreach (var t in endpointRegistrationMethods)
+                {
+                    Dictionary<string, object> opt = null;
+                    if (!string.IsNullOrEmpty(t.ConfigurationName) &&
+                        configurations.TryGetValue(t.ConfigurationName, out var tmo))
+                    {
+                        opt = tmo;
+                    }
+
+                    try
+                    {
+                        //t.Method.Invoke(null, new[] { builder, opt });
+                        InvokeMethod(t.Method, new object[] { builder, registeredEndPoints }, opt);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}",
+                            LogSeverity.Error);
+                    }
+                }
+            }
+            finally
+            {
+                endPointsRegistrationDone = true;
+            }
+        }
+
+        /// <summary>
+        /// Sample declaration for a WebPartRegistration method. To not call this method directly, it will throw an exception!
+        /// </summary>
+        /// <param name="manager">the applicationpartmanager that is used to register web-parts</param>
+        /// <param name="endPointRegistry">the EndPoint registry that is used for post-processing the generated endpoints</param>
+        /// <param name="configuration">the configuration that was provided for this web-part</param>
+        public void ExposePartsEndpointMetaData(WebApplication manager, EndPointTrunk endPointRegistry)
+        {
+            throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
+        }
+
+        /// <summary>
+        /// Calls registered methods that turn on and configure EndPoint Metadata-Exposal
+        /// </summary>
+        /// <param name="builder">the endpointbuilder where custom endpoints have been injected</param>
+        public void ExposeEndpointMetaData(WebApplication builder)
+        {
+            if (!endPointsRegistrationDone)
+            {
+                throw new InvalidOperationException("Expose End-Points first!");
+            }
+
+            foreach (var t in metaExposalMethods)
             {
                 Dictionary<string, object> opt = null;
                 if (!string.IsNullOrEmpty(t.ConfigurationName) &&
@@ -121,12 +184,13 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                 try
                 {
                     //t.Method.Invoke(null, new[] { builder, opt });
-
-                    InvokeMethod(t.Method, new object[] { builder }, opt);
+                    InvokeMethod(t.Method, new object[] { builder, registeredEndPoints }, opt);
                 }
                 catch (Exception ex)
                 {
-                    LogEnvironment.LogEvent($"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}", LogSeverity.Error);
+                    LogEnvironment.LogEvent(
+                        $"Failed to expose Metadata using {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}",
+                        LogSeverity.Error);
                 }
             }
         }
@@ -135,8 +199,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// Sample declaration for a WebPartRegistration method. To not call this method directly, it will throw an exception!
         /// </summary>
         /// <param name="services">the services collection in which the required services can be injected</param>
-        /// <param name="configuration">the configuration that was provided for this web-part</param>
-        public void RegisterServices(IServiceCollection services, object configuration)
+        public void RegisterPartServices(IServiceCollection services)
         {
             throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
         }
@@ -173,7 +236,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// </summary>
         /// <param name="auth">the Authentication-builder on which a custom Authentication method is being registered</param>
         /// <param name="configuration">the configuration that was provided for this web-part</param>
-        public void RegisterAuthenticationSchemes(AuthenticationBuilder auth, object configuration)
+        public void RegisterPartAuthenticationSchemes(AuthenticationBuilder auth)
         {
             throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
         }
@@ -242,25 +305,30 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
 
                     configurations.TryAdd(configPath, dic);
                 }
-                else if (attr is MvcRegistrationMethodAttribute && MethodMatches(method, ()=> RegisterWebPart(default,default)))
+                else if (attr is MvcRegistrationMethodAttribute && MethodMatches(method, ()=> RegisterWebPart(default)))
 
                 {
                     mvcRegistrationMethods.Add(new MethodRef{ConfigurationName = configPath, Method = method});
                 }
                 else if (attr is EndpointRegistrationMethodAttribute &&
-                         MethodMatches(method, () => RegisterEndpoints(default, default)))
+                         MethodMatches(method, () => RegisterPartEndpoints(default, default)))
                 {
                     endpointRegistrationMethods.Add(new MethodRef { ConfigurationName = configPath, Method = method });
                 }
                 else if (attr is ServiceRegistrationMethodAttribute &&
-                         MethodMatches(method, () => RegisterServices(default, default)))
+                         MethodMatches(method, () => RegisterPartServices(default)))
                 {
                     serviceRegistrationMethods.Add(new MethodRef { ConfigurationName = configPath, Method = method });
                 }
                 else if (attr is AuthenticationRegistrationMethodAttribute &&
-                         MethodMatches(method, () => RegisterAuthenticationSchemes(default, default)))
+                         MethodMatches(method, () => RegisterPartAuthenticationSchemes(default)))
                 {
                     authSchemeRegistrationMethods.Add(new MethodRef { ConfigurationName = configPath, Method = method });
+                }
+                else if (attr is EndpointMetaExposeAttribute &&
+                         MethodMatches(method, () => ExposePartsEndpointMetaData(default, default)))
+                {
+                    metaExposalMethods.Add(new MethodRef { ConfigurationName = configPath, Method = method });
                 }
             }
         }
@@ -279,23 +347,43 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             {
                 var p = args[i];
                 string name = "DEFAULT";
+                bool isGlobalObj = false;
                 if (Attribute.IsDefined(p, typeof(WebPartConfigAttribute)))
                 {
                     var att = (WebPartConfigAttribute)Attribute.GetCustomAttribute(p, typeof(WebPartConfigAttribute));
                     name = att.ConfigurationKey;
+                    isGlobalObj = att is SharedObjectHeapAttribute;
                 }
 
-                if (options != null && options.TryGetValue(name, out var v))
+                if (!isGlobalObj)
                 {
-                    l.Add(v);
+                    if (options != null && options.TryGetValue(name, out var v))
+                    {
+                        l.Add(v);
+                    }
+                    else
+                    {
+                        l.Add(null);
+                    }
                 }
                 else
                 {
-                    l.Add(null);
+                    l.Add(sharedHeap);
                 }
             }
 
             method.Invoke(null, l.ToArray());
+        }
+
+        private Assembly GetAssembly(string name)
+        {
+            var retVal = AssemblyResolver.FindAssemblyByFileName(name);
+            if (retVal == null)
+            {
+                throw new InvalidOperationException($"Assembly {name} not found.");
+            }
+
+            return retVal;
         }
 
         /// <summary>
@@ -309,6 +397,9 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             var targetMethod = MethodHelper.GetMethodInfo(target);
             var srcParams = info.GetParameters();
             var trgParams = targetMethod.GetParameters();
+            var extParams = (from t in srcParams.Select((p, i) => new { p, i })
+                where t.i >= trgParams.Length
+                select t.p).ToArray();
             if (trgParams.Length == srcParams.Length && (from s in srcParams.Select((p, i) => new { p, i })
                     join t in trgParams.Select((p, i) => new { p, i }) on s.i equals t.i
                                                          where s.p.ParameterType == t.p.ParameterType || t.p.ParameterType.IsAssignableFrom(s.p.ParameterType)
@@ -321,9 +412,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                          where s.p.ParameterType == t.p.ParameterType ||
                                t.p.ParameterType.IsAssignableFrom(s.p.ParameterType)
                          select new { s, t }).Count() == trgParams.Length &&
-                     (from t in srcParams.Select((p, i) => new { p, i })
-                         where t.i >= trgParams.Length-1
-                         select t.p).All(p => Attribute.IsDefined(p, typeof(WebPartConfigAttribute))))
+                     (extParams.Length == 1 || extParams.All(p => Attribute.IsDefined(p, typeof(WebPartConfigAttribute)))))
             {
                 return true;
             }

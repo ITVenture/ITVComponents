@@ -1,4 +1,8 @@
-﻿using ITVComponents.Settings.Native;
+﻿using System;
+using System.Collections.Generic;
+using ITVComponents.DataAccess.Extensions;
+using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -28,6 +32,21 @@ namespace ITVComponents.WebCoreToolkit
             if (options.InitializePluginSystem)
             {
                 services.InitializePluginSystem(options.UseInitPlugins);
+                if (options.PlugInDependencies != null && options.PlugInDependencies.Count != 0)
+                {
+                    services.ConfigurePluginFactory(o =>
+                    {
+                        foreach (var opt in options.PlugInDependencies)
+                        {
+                            var dic = new Dictionary<string, object>();
+                            var tp = (Type)ExpressionParser.Parse(opt.TypeExpression, dic);
+                            if (tp != null && !string.IsNullOrEmpty(opt.FriendlyName))
+                            {
+                                o.AddDependency(opt.FriendlyName, p => p.GetService(tp));
+                            }
+                        }
+                    });
+                }
             }
 
             if (options.EnablePermissionBaseAuthorization || options.EnableFeatureBasedAuthorization)
@@ -46,7 +65,17 @@ namespace ITVComponents.WebCoreToolkit
 
             if (options.UseUser2GroupMapper)
             {
-                services.UseUser2GroupMapper();
+                if (options.GroupClaims.Count == 0)
+                {
+                    services.UseUser2GroupMapper();
+                }
+                else
+                {
+                    services.UseUser2GroupMapper(o =>
+                    {
+                        options.GroupClaims.ForEach(n => o.SetGroupClaim(n.Key, n.Value));
+                    });
+                }
             }
 
             if (options.UseCollectedClaimsTransformation)

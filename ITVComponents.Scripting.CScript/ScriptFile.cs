@@ -196,6 +196,19 @@ namespace ITVComponents.Scripting.CScript
         }
 
         /// <summary>
+        /// Loads a Scriptfile from the given script-text
+        /// </summary>
+        /// <param name="scriptText">the script as text-source</param>
+        /// <returns>a script-instance that contains the requested script - definition</returns>
+        public static ScriptFile<TOutput> FromText(string scriptText)
+        {
+            var raw = Encoding.Default.GetBytes(scriptText);
+            var stm = new MemoryStream(raw);
+            stm.Seek(0, SeekOrigin.Begin);
+            return FromStream(stm);
+        }
+
+        /// <summary>
         /// Checks the script file for changes since the last parse
         /// </summary>
         private void CheckDate()

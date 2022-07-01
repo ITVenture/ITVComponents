@@ -72,7 +72,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             ShowAllTenants = true;*/
             try
             {
-                logger.LogDebug($@"SecurityContext initialized. useFilters={useFilters}, CurrentTenant: {tenantProvider?.PermissionPrefix}, ShowAllTenants: {showAllTenants}, HideGlobals: {hideGlobals}");
+                //logger.LogDebug($@"SecurityContext initialized. useFilters={useFilters}, CurrentTenant: {tenantProvider?.PermissionPrefix}, ShowAllTenants: {showAllTenants}, HideGlobals: {hideGlobals}");
             }
             catch
             {
@@ -203,7 +203,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<AuthenticationType> AuthenticationTypes { get;set; }
-
         public DbSet<AuthenticationClaimMapping> AuthenticationClaimMappings { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
@@ -227,6 +226,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<UserRole> TenantUserRoles { get; set; }
 
         public DbSet<RolePermission> RolePermissions { get;set; }
+
+        public DbSet<HealthScript> HealthScripts { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View")]
         public DbSet<Feature> Features { get; set; }

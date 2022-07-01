@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.InterProcessExtensions.Options;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
 namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Extensions
 {
@@ -21,6 +22,16 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Extensions
             var item = new DefaultProxyInjector<T>();
             options.AddInjector(item);
             configure(item);
+            return options;
+        }
+
+        public static ProxyOptions ConfigureProxy(this ProxyOptions options, Type proxyType,
+            Action<IDefaultProxyConfigurator> configure)
+        {
+            var c = (IDefaultProxyConfigurator)typeof(DefaultProxyInjector<>).MakeGenericType(proxyType).GetConstructor(Type.EmptyTypes)
+                .Invoke(null);
+            options.AddInjector(proxyType, c);
+            configure(c);
             return options;
         }
 

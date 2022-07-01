@@ -4,8 +4,10 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Options;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -22,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.Net
         }
 
         [EndpointRegistrationMethod]
-        public static void RegisterTenantViewAssemblyPart(IEndpointRouteBuilder builder, NetPartOptions options)
+        public static void RegisterNetDefaultEndPoints(WebApplication builder, EndPointTrunk endPointRegistry, NetPartOptions options)
         {
             if (!string.IsNullOrEmpty(options.TenantParam) && options.WithTenants)
             {
@@ -31,7 +33,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, options.TenantParam, true, true, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
-                        options.UseTenantSwitch);
+                        options.UseTenantSwitch,
+                        endPointRegistry);
                 }
 
                 if (options.WithAreas && options.WithoutSecurity)
@@ -39,7 +42,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, options.TenantParam, true, false, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
-                        options.UseTenantSwitch);
+                        options.UseTenantSwitch,
+                        endPointRegistry);
                 }
 
                 if (options.WithoutAreas && options.WithSecurity)
@@ -47,7 +51,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, options.TenantParam, false, true, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
-                        options.UseTenantSwitch);
+                        options.UseTenantSwitch,
+                        endPointRegistry);
                 }
 
                 if (options.WithoutAreas && options.WithoutSecurity)
@@ -55,7 +60,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, options.TenantParam, false, false, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
-                        options.UseTenantSwitch);
+                        options.UseTenantSwitch,
+                        endPointRegistry);
                 }
             }
 
@@ -66,7 +72,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, null, true, true, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
-                        options.UseTenantSwitch);
+                        options.UseTenantSwitch,
+                        endPointRegistry);
                 }
 
                 if (options.WithAreas && options.WithoutSecurity)
@@ -74,7 +81,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, null, true, false, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
-                        options.UseTenantSwitch);
+                        options.UseTenantSwitch,
+                        endPointRegistry);
                 }
 
                 if (options.WithoutAreas && options.WithSecurity)
@@ -82,7 +90,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, null, false, true, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
-                        options.UseTenantSwitch);
+                        options.UseTenantSwitch,
+                        endPointRegistry);
                 }
 
                 if (options.WithoutAreas && options.WithoutSecurity)
@@ -90,12 +99,13 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, null, false, false, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
-                        options.UseTenantSwitch);
+                        options.UseTenantSwitch,
+                        endPointRegistry);
                 }
             }
         }
 
-        private static void Register(IEndpointRouteBuilder builder, string tenantParam, bool useAreas, bool useAuth, bool useAutoForeignKeys, bool useDiagnostics, bool useWidgets, bool exposeFileSystem, bool exposeClientSettings, bool useFileServices, bool useTenantSwitch)
+        private static void Register(WebApplication builder, string tenantParam, bool useAreas, bool useAuth, bool useAutoForeignKeys, bool useDiagnostics, bool useWidgets, bool exposeFileSystem, bool exposeClientSettings, bool useFileServices, bool useTenantSwitch, EndPointTrunk endPointRegistry)
         {
             if (useAutoForeignKeys)
             {
@@ -109,7 +119,7 @@ namespace ITVComponents.WebCoreToolkit.Net
 
             if (useWidgets && !useAreas)
             {
-                builder.UseWidgets(tenantParam, out _, out _, useAuth);
+                builder.UseWidgets(tenantParam, out var getAction, out var postAction, useAuth);
             }
 
             if (exposeFileSystem && string.IsNullOrEmpty(tenantParam) && !useAreas)

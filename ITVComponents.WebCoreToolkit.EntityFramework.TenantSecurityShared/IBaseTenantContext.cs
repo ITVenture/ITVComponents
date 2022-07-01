@@ -42,6 +42,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 
         public DbSet<AuthenticationClaimMapping> AuthenticationClaimMappings { get; set; }
 
+        public DbSet<HealthScript> HealthScripts { get; set; }
+
         public DbSet<Feature> Features { get; set; }
 
         public DbSet<Tenant> Tenants { get; set; }

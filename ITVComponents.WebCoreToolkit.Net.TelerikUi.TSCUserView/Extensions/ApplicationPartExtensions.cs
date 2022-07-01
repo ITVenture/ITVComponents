@@ -22,5 +22,35 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
             manager.ApplicationParts.Add(part);
             return manager;
         }
+
+        public static ApplicationPartManager EnableItvUserView<TContext>(this ApplicationPartManager manager)
+            where TContext : SecurityContext<TContext>
+        {
+            var dic = new Dictionary<string, Type>
+            {
+                { "TContext", typeof(TContext)}
+            };
+
+            AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic);
+            manager.ApplicationParts.Add(part);
+            return manager;
+        }
+
+        public static ApplicationPartManager EnableItvUserView(this ApplicationPartManager manager, Type contextType)
+        {
+            if (!typeof(DbContext).IsAssignableFrom(contextType))
+            {
+                throw new InvalidOperationException("contextType must implement DbContext");
+            }
+
+            var dic = new Dictionary<string, Type>
+            {
+                { "TContext", contextType}
+            };
+
+            AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic);
+            manager.ApplicationParts.Add(part);
+            return manager;
+        }
     }
 }

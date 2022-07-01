@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Options
     /// Default-Implementation of a ProxyInjector
     /// </summary>
     /// <typeparam name="T">the expected return type</typeparam>
-    public class DefaultProxyInjector<T>:ProxyInjector<T> where T:class
+    public class DefaultProxyInjector<T>:ProxyInjector<T>, IDefaultProxyConfigurator where T:class
     {
         /// <summary>
         /// Gets or sets the name of the ProxyObject in the remote service

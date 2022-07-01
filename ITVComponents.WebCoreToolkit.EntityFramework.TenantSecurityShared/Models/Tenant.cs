@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using ITVComponents.Helpers;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models
@@ -15,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         [MaxLength(1024)]
         public string DisplayName { get; set; }
 
-        [MaxLength(125)]
+        [MaxLength(125),ExcludeFromDictionary]
         public string TenantPassword { get; set; }
     }
 }

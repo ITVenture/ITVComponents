@@ -172,7 +172,7 @@
                 dashboardName = dashboardId;
             }
 
-            var widget = await ITVenture.Ajax.ajaxGet("~/DBW/".concat(id).concat((typeof userWidgetId !== "undefined") ? "/".concat(userWidgetId) : ""), "json");
+            var widget = await ITVenture.Ajax.ajaxGet("~/DBW/".concat(id).concat((typeof userWidgetId !== "undefined") ? "?userWidgetId=".concat(userWidgetId) : ""), "json");
             var dashboard = $("#".concat(dashboardName)).data("kendoTileLayout");
             var prevItems = dashboard.items;
             if (id !== null && id !== "") {

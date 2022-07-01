@@ -41,7 +41,7 @@
             area = "";
         }
         var fx = new Promise(resolve => {
-            ITVenture.Ajax.ajaxGet("~".concat(area).concat("/ForeignKey/").concat(repo).concat("/").concat(table).concat("/").concat(id),"json")
+            ITVenture.Ajax.ajaxGet("~".concat(area).concat("/ForeignKey/").concat(repo).concat("/").concat(table).concat("?id=").concat(id),"json")
                 .done(
                     function(data) {
                         if (data != null) {

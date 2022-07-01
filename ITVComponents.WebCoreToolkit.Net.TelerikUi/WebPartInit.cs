@@ -1,9 +1,14 @@
 ﻿using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData.Extensions;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.OpenApi;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -49,28 +54,28 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi
         }
 
         [EndpointRegistrationMethod]
-        public static void RegisterTenantViewAssemblyPart(IEndpointRouteBuilder builder, NetUiPartOptions options)
+        public static void RegisterTenantViewAssemblyPart(WebApplication builder, EndPointTrunk endPointRegistry, NetUiPartOptions options)
         {
             if (!string.IsNullOrEmpty(options.TenantParam) && options.WithTenants)
             {
                 if (options.WithAreas && options.WithSecurity)
                 {
-                    Register(builder, options.TenantParam, true, true, options.UseFilteredForeignKeys);
+                    Register(builder, options.TenantParam, true, true, options.UseFilteredForeignKeys, endPointRegistry);
                 }
 
                 if (options.WithAreas && options.WithoutSecurity)
                 {
-                    Register(builder, options.TenantParam, true, false, options.UseFilteredForeignKeys);
+                    Register(builder, options.TenantParam, true, false, options.UseFilteredForeignKeys, endPointRegistry);
                 }
 
                 if (options.WithoutAreas && options.WithSecurity)
                 {
-                    Register(builder, options.TenantParam, false, true, options.UseFilteredForeignKeys);
+                    Register(builder, options.TenantParam, false, true, options.UseFilteredForeignKeys, endPointRegistry);
                 }
 
                 if (options.WithoutAreas && options.WithoutSecurity)
                 {
-                    Register(builder, options.TenantParam, false, false, options.UseFilteredForeignKeys);
+                    Register(builder, options.TenantParam, false, false, options.UseFilteredForeignKeys, endPointRegistry);
                 }
             }
 
@@ -78,31 +83,33 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi
             {
                 if (options.WithAreas && options.WithSecurity)
                 {
-                    Register(builder, null, true, true, options.UseFilteredForeignKeys);
+                    Register(builder, null, true, true, options.UseFilteredForeignKeys, endPointRegistry);
                 }
 
                 if (options.WithAreas && options.WithoutSecurity)
                 {
-                    Register(builder, null, true, false, options.UseFilteredForeignKeys);
+                    Register(builder, null, true, false, options.UseFilteredForeignKeys, endPointRegistry);
                 }
 
                 if (options.WithoutAreas && options.WithSecurity)
                 {
-                    Register(builder, null, false, true, options.UseFilteredForeignKeys);
+                    Register(builder, null, false, true, options.UseFilteredForeignKeys, endPointRegistry);
                 }
 
                 if (options.WithoutAreas && options.WithoutSecurity)
                 {
-                    Register(builder, null, false, false, options.UseFilteredForeignKeys);
+                    Register(builder, null, false, false, options.UseFilteredForeignKeys, endPointRegistry);
                 }
             }
         }
 
-        private static void Register(IEndpointRouteBuilder builder, string tenantParam, bool useAreas, bool useAuth, bool useFilteredForeignKeys)
+        private static void Register(WebApplication builder, string tenantParam, bool useAreas, bool useAuth, bool useFilteredForeignKeys, EndPointTrunk endPointRegistry)
         {
             if (useFilteredForeignKeys)
             {
-                builder.UseFilteredAutoForeignKeys(tenantParam, useAreas, useAuth);
+                endPointRegistry.Register(new OpenApiDescriptor(builder.UseFilteredAutoForeignKeys(tenantParam, useAreas, useAuth),
+                    "FilteredForeignKeys", "Kendo-UI compilant filterable ForeignKey-Api",
+                    produces: r => r.Output<DummyDataSourceResult>(200,"application/json","A Data-Source result containing the select FK-Data"))) ;
             }
         }
     }

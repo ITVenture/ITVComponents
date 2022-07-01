@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
+#nullable disable
+
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Migrations
 {
     [DbContext(typeof(SecurityContext))]
@@ -15,16 +17,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("Relational:MaxIdentifierLength", 128)
                 .HasAnnotation("ProductVersion", "5.0.10")
-                .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder, 1L, 1);
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AssetTemplate", b =>
                 {
                     b.Property<int>("AssetTemplateId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AssetTemplateId"), 1L, 1);
 
                     b.Property<int?>("FeatureId")
                         .HasColumnType("int");
@@ -48,15 +52,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .IsUnique()
                         .HasFilter("[SystemKey] IS NOT NULL");
 
-                    b.ToTable("AssetTemplates");
+                    b.ToTable("AssetTemplates", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AssetTemplateFeature", b =>
                 {
                     b.Property<int>("AssetTemplateFeatureId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AssetTemplateFeatureId"), 1L, 1);
 
                     b.Property<int>("AssetTemplateId")
                         .HasColumnType("int");
@@ -70,15 +75,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("FeatureId");
 
-                    b.ToTable("AssetTemplateFeatures");
+                    b.ToTable("AssetTemplateFeatures", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AssetTemplateGrant", b =>
                 {
                     b.Property<int>("AssetTemplateGrantId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AssetTemplateGrantId"), 1L, 1);
 
                     b.Property<int>("AssetTemplateId")
                         .HasColumnType("int");
@@ -92,15 +98,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("PermissionId");
 
-                    b.ToTable("AssetTemplateGrants");
+                    b.ToTable("AssetTemplateGrants", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AssetTemplatePath", b =>
                 {
                     b.Property<int>("AssetTemplatePathId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AssetTemplatePathId"), 1L, 1);
 
                     b.Property<int>("AssetTemplateId")
                         .HasColumnType("int");
@@ -113,15 +120,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("AssetTemplateId");
 
-                    b.ToTable("AssetTemplatePathFilters");
+                    b.ToTable("AssetTemplatePathFilters", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty", b =>
                 {
                     b.Property<int>("CustomUserPropertyId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CustomUserPropertyId"), 1L, 1);
 
                     b.Property<string>("PropertyName")
                         .IsRequired()
@@ -140,15 +148,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("UserProperties");
+                    b.ToTable("UserProperties", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DashboardParam", b =>
                 {
                     b.Property<int>("DashboardParamId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DashboardParamId"), 1L, 1);
 
                     b.Property<int>("DashboardWidgetId")
                         .HasColumnType("int");
@@ -168,15 +177,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("DashboardWidgetId");
 
-                    b.ToTable("WidgetParams");
+                    b.ToTable("WidgetParams", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DashboardWidget", b =>
                 {
                     b.Property<int>("DashboardWidgetId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DashboardWidgetId"), 1L, 1);
 
                     b.Property<string>("Area")
                         .HasColumnType("nvarchar(max)");
@@ -210,15 +220,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .IsUnique()
                         .HasFilter("[SystemName] IS NOT NULL");
 
-                    b.ToTable("Widgets");
+                    b.ToTable("Widgets", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DiagnosticsQuery", b =>
                 {
                     b.Property<int>("DiagnosticsQueryId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DiagnosticsQueryId"), 1L, 1);
 
                     b.Property<bool>("AutoReturn")
                         .HasColumnType("bit");
@@ -246,15 +257,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "DiagnosticsQueryName" }, "IX_DiagnosticsQueryUniqueness")
                         .IsUnique();
 
-                    b.ToTable("DiagnosticsQueries");
+                    b.ToTable("DiagnosticsQueries", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DiagnosticsQueryParameter", b =>
                 {
                     b.Property<int>("DiagnosticsQueryParameterId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DiagnosticsQueryParameterId"), 1L, 1);
 
                     b.Property<string>("DefaultValue")
                         .HasColumnType("nvarchar(max)");
@@ -281,15 +293,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("DiagnosticsQueryId");
 
-                    b.ToTable("DiagnosticsQueryParameters");
+                    b.ToTable("DiagnosticsQueryParameters", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.NavigationMenu", b =>
                 {
                     b.Property<int>("NavigationMenuId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("NavigationMenuId"), 1L, 1);
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -336,15 +349,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "UrlUniqueness" }, "IX_UniqueUrl")
                         .IsUnique();
 
-                    b.ToTable("Navigation");
+                    b.ToTable("Navigation", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Permission", b =>
                 {
                     b.Property<int>("PermissionId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PermissionId"), 1L, 1);
 
                     b.Property<string>("Description")
                         .HasMaxLength(2048)
@@ -372,15 +386,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "PermissionNameUniqueness" }, "IX_UniquePermissionName")
                         .IsUnique();
 
-                    b.ToTable("Permissions");
+                    b.ToTable("Permissions", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Role", b =>
                 {
                     b.Property<int>("RoleId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RoleId"), 1L, 1);
 
                     b.Property<bool>("IsSystemRole")
                         .HasColumnType("bit");
@@ -407,15 +422,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "RoleNameUniqueness" }, "IX_UniqueRoleName")
                         .IsUnique();
 
-                    b.ToTable("Roles");
+                    b.ToTable("Roles", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.RolePermission", b =>
                 {
                     b.Property<int>("RolePermissionId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RolePermissionId"), 1L, 1);
 
                     b.Property<int>("PermissionId")
                         .HasColumnType("int");
@@ -435,15 +451,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "RoleId", "PermissionId", "TenantId" }, "IX_UniqueRolePermission")
                         .IsUnique();
 
-                    b.ToTable("RolePermissions");
+                    b.ToTable("RolePermissions", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.SharedAsset", b =>
                 {
                     b.Property<int>("SharedAssetId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SharedAssetId"), 1L, 1);
 
                     b.Property<string>("AnonymousAccessTokenRaw")
                         .IsRequired()
@@ -482,15 +499,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("SharedAssets");
+                    b.ToTable("SharedAssets", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.SharedAssetTenantFilter", b =>
                 {
                     b.Property<int>("SharedAssetTenantFilterId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SharedAssetTenantFilterId"), 1L, 1);
 
                     b.Property<string>("LabelFilter")
                         .IsRequired()
@@ -504,15 +522,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("SharedAssetId");
 
-                    b.ToTable("SharedAssetTenantFilters");
+                    b.ToTable("SharedAssetTenantFilters", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.SharedAssetUserFilter", b =>
                 {
                     b.Property<int>("SharedAssetUserFilterId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SharedAssetUserFilterId"), 1L, 1);
 
                     b.Property<string>("LabelFilter")
                         .IsRequired()
@@ -526,15 +545,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("SharedAssetId");
 
-                    b.ToTable("SharedAssetUserFilters");
+                    b.ToTable("SharedAssetUserFilters", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantDiagnosticsQuery", b =>
                 {
                     b.Property<int>("TenantDiagnosticsQueryId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TenantDiagnosticsQueryId"), 1L, 1);
 
                     b.Property<int>("DiagnosticsQueryId")
                         .HasColumnType("int");
@@ -549,15 +569,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "TenantId", "DiagnosticsQueryId" }, "IX_UniqueDiagnosticsTenantLink")
                         .IsUnique();
 
-                    b.ToTable("TenantDiagnosticsQueries");
+                    b.ToTable("TenantDiagnosticsQueries", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantNavigationMenu", b =>
                 {
                     b.Property<int>("TenantNavigationMenuId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TenantNavigationMenuId"), 1L, 1);
 
                     b.Property<int>("NavigationMenuId")
                         .HasColumnType("int");
@@ -577,15 +598,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "TenantId", "NavigationMenuId" }, "IX_UniqueTenantMenu")
                         .IsUnique();
 
-                    b.ToTable("TenantNavigation");
+                    b.ToTable("TenantNavigation", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantUser", b =>
                 {
                     b.Property<int>("TenantUserId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TenantUserId"), 1L, 1);
 
                     b.Property<bool>("Enabled")
                         .ValueGeneratedOnAdd()
@@ -604,15 +626,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("TenantUsers");
+                    b.ToTable("TenantUsers", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User", b =>
                 {
                     b.Property<int>("UserId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserId"), 1L, 1);
 
                     b.Property<int?>("AuthenticationTypeId")
                         .HasColumnType("int");
@@ -629,15 +652,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "UserName" }, "IX_UniqueUserName")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.UserRole", b =>
                 {
                     b.Property<int>("UserRoleId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserRoleId"), 1L, 1);
 
                     b.Property<int>("RoleId")
                         .HasColumnType("int");
@@ -652,15 +676,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "RoleId", "TenantUserId" }, "IX_UniqueUserRole")
                         .IsUnique();
 
-                    b.ToTable("UserRoles");
+                    b.ToTable("UserRoles", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.UserWidget", b =>
                 {
                     b.Property<int>("UserWidgetId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserWidgetId"), 1L, 1);
 
                     b.Property<string>("CustomQueryString")
                         .HasColumnType("nvarchar(max)");
@@ -687,15 +712,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("UserWidgets");
+                    b.ToTable("UserWidgets", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationClaimMapping", b =>
                 {
                     b.Property<int>("AuthenticationClaimMappingId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AuthenticationClaimMappingId"), 1L, 1);
 
                     b.Property<int>("AuthenticationTypeId")
                         .HasColumnType("int");
@@ -733,15 +759,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("AuthenticationTypeId");
 
-                    b.ToTable("AuthenticationClaimMappings");
+                    b.ToTable("AuthenticationClaimMappings", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.AuthenticationType", b =>
                 {
                     b.Property<int>("AuthenticationTypeId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AuthenticationTypeId"), 1L, 1);
 
                     b.Property<string>("AuthenticationTypeName")
                         .IsRequired()
@@ -753,15 +780,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "AuthenticationTypeName" }, "IX_UniqueAuthenticationType")
                         .IsUnique();
 
-                    b.ToTable("AuthenticationTypes");
+                    b.ToTable("AuthenticationTypes", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", b =>
                 {
                     b.Property<int>("FeatureId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FeatureId"), 1L, 1);
 
                     b.Property<bool>("Enabled")
                         .HasColumnType("bit");
@@ -779,15 +807,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "FeatureName" }, "IX_FeatureUniqueness")
                         .IsUnique();
 
-                    b.ToTable("Features");
+                    b.ToTable("Features", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.GlobalSetting", b =>
                 {
                     b.Property<int>("GlobalSettingId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("GlobalSettingId"), 1L, 1);
 
                     b.Property<bool>("JsonSetting")
                         .HasColumnType("bit");
@@ -805,15 +834,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "SettingsKey" }, "UQ_GlobalSettingsKey")
                         .IsUnique();
 
-                    b.ToTable("GlobalSettings");
+                    b.ToTable("GlobalSettings", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.SystemEvent", b =>
                 {
                     b.Property<int>("SystemEventId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SystemEventId"), 1L, 1);
 
                     b.Property<string>("Category")
                         .HasMaxLength(1024)
@@ -834,15 +864,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasKey("SystemEventId");
 
-                    b.ToTable("SystemLog");
+                    b.ToTable("SystemLog", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", b =>
                 {
                     b.Property<int>("TenantId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TenantId"), 1L, 1);
 
                     b.Property<string>("DisplayName")
                         .HasMaxLength(1024)
@@ -862,15 +893,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "TenantName" }, "IX_UniqueTenant")
                         .IsUnique();
 
-                    b.ToTable("Tenants");
+                    b.ToTable("Tenants", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantFeatureActivation", b =>
                 {
                     b.Property<int>("TenantFeatureActivationId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TenantFeatureActivationId"), 1L, 1);
 
                     b.Property<DateTime?>("ActivationEnd")
                         .HasColumnType("datetime2");
@@ -890,15 +922,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("TenantFeatureActivations");
+                    b.ToTable("TenantFeatureActivations", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting", b =>
                 {
                     b.Property<int>("TenantSettingId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TenantSettingId"), 1L, 1);
 
                     b.Property<bool>("JsonSetting")
                         .HasColumnType("bit");
@@ -921,15 +954,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "SettingsKey", "TenantId" }, "UQ_SettingsKey")
                         .IsUnique();
 
-                    b.ToTable("TenantSettings");
+                    b.ToTable("TenantSettings", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantTemplate", b =>
                 {
                     b.Property<int>("TenantTemplateId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TenantTemplateId"), 1L, 1);
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
@@ -944,15 +978,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasKey("TenantTemplateId");
 
-                    b.ToTable("TenantTemplates");
+                    b.ToTable("TenantTemplates", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TrustedFullAccessComponent", b =>
                 {
                     b.Property<int>("TrustedFullAccessComponentId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TrustedFullAccessComponentId"), 1L, 1);
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
@@ -973,15 +1008,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "FullQualifiedTypeName" }, "UQ_TrustedComponentType")
                         .IsUnique();
 
-                    b.ToTable("TrustedFullAccessComponents");
+                    b.ToTable("TrustedFullAccessComponents", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream", b =>
                 {
                     b.Property<int>("TutorialStreamId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TutorialStreamId"), 1L, 1);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -1000,15 +1036,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex("VideoTutorialId");
 
-                    b.ToTable("TutorialStreams");
+                    b.ToTable("TutorialStreams", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStreamBlob", b =>
                 {
                     b.Property<int>("TutorialStreamBlobId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TutorialStreamBlobId"), 1L, 1);
 
                     b.Property<byte[]>("Content")
                         .IsRequired()
@@ -1022,15 +1059,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex("TutorialStreamId")
                         .IsUnique();
 
-                    b.ToTable("TutorialStreamBlob");
+                    b.ToTable("TutorialStreamBlob", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", b =>
                 {
                     b.Property<int>("VideoTutorialId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VideoTutorialId"), 1L, 1);
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
@@ -1049,15 +1087,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasKey("VideoTutorialId");
 
-                    b.ToTable("Tutorials");
+                    b.ToTable("Tutorials", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", b =>
                 {
                     b.Property<int>("WebPluginId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("WebPluginId"), 1L, 1);
 
                     b.Property<bool>("AutoLoad")
                         .HasColumnType("bit");
@@ -1092,15 +1131,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "PluginNameUniqueness" }, "IX_UniquePluginName")
                         .IsUnique();
 
-                    b.ToTable("WebPlugins");
+                    b.ToTable("WebPlugins", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginConstant", b =>
                 {
                     b.Property<int>("WebPluginConstantId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("WebPluginConstantId"), 1L, 1);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1128,15 +1168,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.HasIndex(new[] { "NameUniqueness" }, "IX_UniquePluginConst")
                         .IsUnique();
 
-                    b.ToTable("WebPluginConstants");
+                    b.ToTable("WebPluginConstants", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginGenericParameter", b =>
                 {
                     b.Property<int>("WebPluginGenericParameterId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("WebPluginGenericParameterId"), 1L, 1);
 
                     b.Property<string>("GenericTypeName")
                         .HasMaxLength(200)
@@ -1155,7 +1196,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .IsUnique()
                         .HasFilter("[GenericTypeName] IS NOT NULL");
 
-                    b.ToTable("GenericPluginParams");
+                    b.ToTable("GenericPluginParams", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AssetTemplate", b =>

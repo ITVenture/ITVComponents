@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Navigation;
@@ -41,6 +42,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                 })
                 .AddScoped<ITenantTemplateHelper<SecurityContext>, TenantTemplateHelper<SecurityContext>>()
                 .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<SecurityContext>>();
+        }
+
+        /// <summary>
+        /// Enables DbIdentities with the default SecurityContext db-context
+        /// </summary>
+        /// <param name="contextType">the implementation-type if derived from the base SecurityContext - class</param>
+        /// <param name="services">the services where the SecurityContext is injected</param>
+        /// <param name="options">the options for the context</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseDbIdentities(this IServiceCollection services, Type contextType,
+            Action<DbContextOptionsBuilder> options)
+        {
+            var method = MethodHelper.GetMethodInfo(() => UseDbIdentities<SecurityContext>(services, options))
+                .GetGenericMethodDefinition();
+            method = method.MakeGenericMethod(contextType);
+            return (IServiceCollection)method.Invoke(null, new object[] { services, options });
         }
 
         /// <summary>
@@ -105,6 +122,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         public static IServiceCollection UseDbNavigation<TImpl>(this IServiceCollection services) where TImpl:SecurityContext<TImpl>
         {
             return services.AddScoped<INavigationBuilder, DbNavigationBuilder<TImpl>>();
+        }
+
+        /// <summary>
+        /// Activate DB-Navigation
+        /// </summary>
+        /// <param name="services">the Services-collection where to inject the DB-Navigation builder instance</param>
+        /// <param name="contextType">the target type of the db-context to use</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseDbNavigation(this IServiceCollection services, Type contextType)
+        {
+            var t = typeof(DbNavigationBuilder<>).MakeGenericType(contextType);
+            return services.AddScoped(typeof(INavigationBuilder), t);
         }
 
         /// <summary>

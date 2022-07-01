@@ -30,6 +30,10 @@ namespace ITVComponents.WebCoreToolkit.Options
         public bool UseSharedAssets { get; set; }
         public List<LocalizationMappingOption> UiCultureMapping { get; set; } = new();
         public List<LocalizationMappingOption> CultureMapping { get; set; } = new();
+
+        public List<PlugInDependencyOption> PlugInDependencies { get; set; } = new();
+
+        public Dictionary<string, string> GroupClaims { get; set; } = new();
     }
 
     public class LocalizationMappingOption

@@ -32,7 +32,7 @@
                 bool valuePrimitive = false, string additionalEditHandler = null)
             {
                 return builder.Edit(
-                    $"ITVenture.Tools.KendoExtensions.UseForeignKeyFilter({valuePrimitive},{additionalEditHandler}");
+                    $"ITVenture.Tools.KendoExtensions.UseForeignKeyFilter({(valuePrimitive?"true":"false")},{additionalEditHandler})");
             }
 
             /// <summary>
@@ -44,7 +44,7 @@
             public static GridEventBuilder ForeignKeyValuePrimitive(this GridEventBuilder builder,
                 string additionalEditHandler = null)
             {
-                return builder.Edit($"ITVenture.Tools.KendoExtensions.ForeignKeyPrimitive({additionalEditHandler}");
+                return builder.Edit($"ITVenture.Tools.KendoExtensions.ForeignKeyPrimitive({additionalEditHandler})");
             }
 
             /// <summary>
