@@ -51,7 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         private bool showAllTenants = false;
         private bool hideGlobals = false;
         private Stack<FullSecurityAccessHelper> securityStateStack = new Stack<FullSecurityAccessHelper>();
-        private bool showDisabledUsers = true;
+        private bool hideDisabledUsers = true;
 
         public AspNetSecurityContext(DbContextOptions<TImpl> options) : base(options)
         {
@@ -111,21 +111,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         /// Gets or sets a value indicating whether to select disabled users
         /// </summary>
         public bool HideDisabledUsers {
-            get => showDisabledUsers;
+            get => hideDisabledUsers;
             set
             {
-                if (value != showDisabledUsers)
+                if (value != hideDisabledUsers)
                 {
 
-                    if (value && FilterAvailable &&
-                        !userProvider.Services.VerifyUserPermissions(new string[]
+                    if (FilterAvailable &&
+                        userProvider.Services.VerifyUserPermissions(new string[]
                             { ToolkitPermission.Sysadmin, ToolkitPermission.TenantAdmin }))
                     {
-                        showDisabledUsers = false;
+                        hideDisabledUsers = value;
                     }
                     else
                     {
-                        showDisabledUsers = value;
+                        hideDisabledUsers = true;
                     }
                 }
             }
@@ -176,7 +176,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         /// <summary>
         /// Indicates whether there is a current http context
         /// </summary>
-        public bool FilterAvailable => userProvider?.User != null && (userProvider.User.Identity?.IsAuthenticated??false);
+        public bool FilterAvailable => userProvider?.User != null && (userProvider.User.Identities.Any(i =>i.IsAuthenticated));
 
         private string CurrentTenant
         {
@@ -330,7 +330,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                 modelBuilder.Entity<TenantSetting>().HasQueryFilter(stt => showAllTenants || !FilterAvailable || stt.Tenant.TenantName == CurrentTenant);
                 modelBuilder.Entity<TenantUser>().HasQueryFilter(tu => !FilterAvailable || (
                     (showAllTenants || tu.Tenant.TenantName == CurrentTenant)
-                    && (showDisabledUsers || tu.Enabled)));
+                    && (!hideDisabledUsers || tu.Enabled)));
                 modelBuilder.Entity<Role>().HasQueryFilter(ro => showAllTenants || !FilterAvailable || ro.Tenant.TenantName == CurrentTenant);
                 modelBuilder.Entity<UserRole>().HasQueryFilter(ur => !FilterAvailable ||
                                                                      ((showAllTenants ||
@@ -338,7 +338,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                                                                         CurrentTenant &&
                                                                         ur.Role.Tenant.TenantName ==
                                                                         CurrentTenant))
-                                                                      && (showDisabledUsers || ur.User.Enabled)));
+                                                                      && (!hideDisabledUsers || ur.User.Enabled)));
                 modelBuilder.Entity<WebPlugin>().HasQueryFilter(wp => showAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantName == CurrentTenant || wp.TenantId == null && !hideGlobals);
                 modelBuilder.Entity<WebPluginGenericParameter>().HasQueryFilter(wp => showAllTenants || !FilterAvailable || wp.Plugin.TenantId != null && wp.Plugin.Tenant.TenantName == CurrentTenant || wp.Plugin.TenantId == null && !hideGlobals);
                 modelBuilder.Entity<WebPluginConstant>().HasQueryFilter(wc => showAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName == CurrentTenant || wc.TenantId == null && !hideGlobals);

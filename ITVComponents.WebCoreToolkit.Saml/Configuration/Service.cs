@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Settings.Native;
+using ITVComponents.SettingsExtensions;
 
 namespace ITVComponents.WebCoreToolkit.Saml.Configuration
 {

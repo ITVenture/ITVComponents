@@ -86,7 +86,9 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             bool forExplicitTenants = !string.IsNullOrEmpty(explicitTenantParam);
             ContextExtensions.Init();
             getAction = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/DBW/{{widgetName:alpha}}", WidgetHandler.Get);
-            postAction = builder.MapPost($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/DBW", WidgetHandler.Set);
+            postAction =
+                builder.MapPost($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/DBW",
+                    WidgetHandler.Set);
             if (withAuthorization)
             {
                 getAction.RequireAuthorization();

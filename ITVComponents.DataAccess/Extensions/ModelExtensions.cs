@@ -9,6 +9,8 @@ using System.Linq.Expressions;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
+using ITVComponents.Cloning;
+using ITVComponents.Cloning.Model;
 using ITVComponents.DataAccess.DataAnnotations;
 using ITVComponents.TypeConversion;
 
@@ -277,7 +279,7 @@ namespace ITVComponents.DataAccess.Extensions
         private static Action<TSource, TTarget> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> methodTargetDic, Func<IEnumerable<AssignmentHolder>> selector, bool useUtcSpecify)
         {
             var tmp1 = methodTargetDic.GetOrAdd(typeof(TSource), t => new ConcurrentDictionary<Type, Delegate>());
-            Action<TSource, TTarget> copyAction = (Action<TSource, TTarget>)tmp1.GetOrAdd(typeof(TTarget), t => BuildAssignmentLambda<TSource, TTarget>(selector(), useUtcSpecify));
+            Action<TSource, TTarget> copyAction = (Action<TSource, TTarget>)tmp1.GetOrAdd(typeof(TTarget), t => ObjectCloneExtensions.BuildAssignmentLambda<TSource, TTarget>(selector(), useUtcSpecify));
             return copyAction;
         }
 
@@ -309,165 +311,6 @@ namespace ITVComponents.DataAccess.Extensions
                         SourceNullable = a.PropertyType.IsGenericType &&
                                          a.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)
                     });
-        }
-
-        /// <summary>
-        /// Builds an assignment block for setting all valid properties of the target-object to the values of the source-object
-        /// </summary>
-        /// <typeparam name="TSource">the source-type</typeparam>
-        /// <typeparam name="TTarget">the Destination-type</typeparam>
-        /// <param name="assignmentSource">the Getter and Setter methods of the target-properties</param>
-        /// <returns></returns>
-        private static Action<TSource, TTarget> BuildAssignmentLambda<TSource, TTarget>(IEnumerable<AssignmentHolder> assignmentSource, bool useUtcSpecify)
-        {
-            var p1 = Expression.Parameter(typeof(TSource));
-            var p2 = Expression.Parameter(typeof(TTarget));
-            var tryConvertMethod = typeof(TypeConverter).GetMethod("TryConvert",
-                BindingFlags.Public | BindingFlags.Static, null, new Type[]
-                {
-                    typeof(object),
-                    typeof(Type)
-                }, null);
-            var specifyKindMethod = typeof(DateTime).GetMethod("SpecifyKind",
-                BindingFlags.Public | BindingFlags.Static, null, new Type[]
-                {
-                    typeof(DateTime),
-                    typeof(DateTimeKind)
-                }, null);
-            var assignments = new List<Expression>();
-            foreach (var item in assignmentSource)
-            {
-                var propNullType = item.PropType.IsPrimitive ? typeof(Nullable<>).MakeGenericType(item.PropType) : null;
-                var propNullValue = propNullType?.GetProperty("Value");
-                if (propNullType != null && item.Source.PropertyType == propNullType && !item.UseConvert)
-                {
-                    var propX = Expression.Property(p1, item.Source);
-                    Expression propXP = Expression.Property(propX, propNullValue);
-                    if (item.SpecifyDateTimeAsUtc && useUtcSpecify)
-                    {
-                        propXP = Expression.Call(null, specifyKindMethod, propXP,
-                            Expression.Constant(DateTimeKind.Utc));
-                    }
-
-                    var valX = Expression.Condition(Expression.NotEqual(propX, Expression.Constant(null, propNullType)), propXP, Expression.Default(item.PropType));
-                    if (item.Setter == null)
-                    {
-                        assignments.Add(Expression.Assign(Expression.Property(p2, item.Destination), valX));
-                    }
-                    else
-                    {
-                        assignments.Add(Expression.Call(p2, item.Setter, valX));
-                    }
-                }
-                else if (item.PropType != item.Source.PropertyType && !item.UseConvert)
-                {
-                    Expression valX = Expression.Property(p1, item.Source);
-                    if (item.SpecifyDateTimeAsUtc && useUtcSpecify)
-                    {
-                        if (!item.SourceNullable)
-                        {
-                            valX = Expression.Call(null, specifyKindMethod, valX,
-                                Expression.Constant(DateTimeKind.Utc));
-                        }
-                        else
-                        {
-                            var nprop = Expression.Convert(Expression.Call(null, specifyKindMethod, Expression.Property(valX, item.Source.PropertyType?.GetProperty("Value")),
-                                    Expression.Constant(DateTimeKind.Utc))
-                                , item.Source.PropertyType);
-                            valX = Expression.Condition(Expression.NotEqual(valX, Expression.Constant(null, item.Source.PropertyType)), nprop, Expression.Constant(null, item.Source.PropertyType));
-                        }
-                    }
-
-                    valX = Expression.Convert(valX, item.PropType);
-                    if (item.Setter == null)
-                    {
-                        assignments.Add(Expression.Assign(Expression.Property(p2, item.Destination), valX));
-                    }
-                    else
-                    {
-                        assignments.Add(Expression.Call(p2, item.Setter, valX));
-                    }
-                }
-                else if (item.UseConvert)
-                {
-                    Expression valX = Expression.Property(p1, item.Source);
-                    if (item.SpecifyDateTimeAsUtc && useUtcSpecify)
-                    {
-                        if (!item.SourceNullable)
-                        {
-                            valX = Expression.Call(null, specifyKindMethod, valX,
-                                Expression.Constant(DateTimeKind.Utc));
-                        }
-                        else
-                        {
-                            var nprop = Expression.Convert(Expression.Call(null, specifyKindMethod, Expression.Property(valX, item.Source.PropertyType?.GetProperty("Value")),
-                                    Expression.Constant(DateTimeKind.Utc))
-                                , item.Source.PropertyType);
-                            valX = Expression.Condition(Expression.NotEqual(valX, Expression.Constant(null, item.Source.PropertyType)), nprop, Expression.Constant(null, item.Source.PropertyType));
-                        }
-                    }
-                    valX = Expression.Call(null, tryConvertMethod, Expression.Convert(valX, typeof(object)),
-                        Expression.Constant(item.PropType));
-                    valX = Expression.Convert(valX, item.PropType);
-                    if (item.Setter == null)
-                    {
-                        assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Assign(Expression.Property(p2, item.Destination), valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
-                    }
-                    else
-                    {
-                        assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Call(p2, item.Setter, valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
-                    }
-                }
-                else
-                {
-                    Expression valX = Expression.Property(p1, item.Source);
-                    if (item.SpecifyDateTimeAsUtc && useUtcSpecify)
-                    {
-                        if (!item.SourceNullable)
-                        {
-                            valX = Expression.Call(null, specifyKindMethod, valX,
-                                Expression.Constant(DateTimeKind.Utc));
-                        }
-                        else
-                        {
-                            var nprop = Expression.Convert(Expression.Call(null, specifyKindMethod, Expression.Property(valX, item.Source.PropertyType?.GetProperty("Value")),
-                                    Expression.Constant(DateTimeKind.Utc))
-                                , item.Source.PropertyType);
-                            valX = Expression.Condition(Expression.NotEqual(valX, Expression.Constant(null, item.Source.PropertyType)), nprop, Expression.Constant(null, item.Source.PropertyType));
-                        }
-                    }
-
-                    if (item.Setter == null)
-                    {
-                        assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Assign(Expression.Property(p2, item.Destination), valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
-                    }
-                    else
-                    {
-                        assignments.Add(Expression.TryCatch(Expression.Block(typeof(void), Expression.Call(p2, item.Setter, valX)), Expression.Catch(typeof(Exception), Expression.Empty())));
-                    }
-                }
-            }
-
-            var block = Expression.Block(assignments);
-            return Expression.Lambda<Action<TSource, TTarget>>(block, p1, p2).Compile();
-        }
-
-        /// <summary>
-        /// Declares an assignment-holder that is used to create an Assignment Lambda-expression
-        /// </summary>
-        private class AssignmentHolder
-        {
-            public PropertyInfo Source { get; set; }
-            public PropertyInfo Destination { get; set; }
-            public bool SourceNullable { get; set; }
-
-            public bool DestinationNullable { get; set; }
-            //public MethodInfo Getter{get;set;}
-            public MethodInfo Setter { get; set; }
-            public Type PropType { get; set; }
-            public bool UseConvert { get; set; }
-
-            public bool SpecifyDateTimeAsUtc { get; set; }
         }
     }
 }

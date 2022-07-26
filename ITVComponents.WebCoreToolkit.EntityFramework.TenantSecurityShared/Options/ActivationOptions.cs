@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.SettingsExtensions;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options
 {
@@ -24,5 +25,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
         public bool UseTenantSettings { get; set; }
 
         public bool UseSharedAssets { get; set; }
+
+        public bool UseHealthChecks { get; set; }
+
+        [AutoResolveChildren]
+        public List<HealthCheckDefinition> HealthChecks { get; set; } = new();
     }
 }

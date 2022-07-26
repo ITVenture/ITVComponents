@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -17,7 +18,7 @@ using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSec
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.Areas.Security.Controllers
 {
-    [Authorize("HasPermission(Users.View,Users.Write),HasFeature(ITVAdminViews)"), Area("Security")]
+    [Authorize("HasPermission(Users.View,Users.Write),HasFeature(ITVAdminViews)"), Area("Security"), ConstructedGenericControllerConvention]
     public class UserController<TContext> : Controller
     where TContext:SecurityContext<TContext>
     {
@@ -87,6 +88,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                     return Json(db.Users.ToDataSourceResult(request, ModelState, n => n.ToViewModel<User, UserViewModel>()));
                 }
 
+                db.HideDisabledUsers = false;
                 return Json((from u in db.Users
                     join t in db.TenantUsers on u.UserId equals t.UserId
                     where t.TenantId == tenantId
@@ -101,6 +103,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
             }
             else
             {
+                db.HideDisabledUsers = false;
                 return Json((from p in db.Users
                     join tu in db.TenantUsers on p.UserId equals tu.UserId
                     join ro in db.SecurityRoles on tu.TenantId equals ro.TenantId
@@ -192,6 +195,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 return Json(await new[] {viewModel}.ToDataSourceResultAsync(request, ModelState));
             }
 
+            db.HideDisabledUsers = false;
             var tuModel = db.TenantUsers.First(n => n.TenantUserId == viewModel.UserId && n.TenantId == tenantId);
             if (ModelState.IsValid)
             {
@@ -245,6 +249,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
             }
             else if (viewModel.RoleId != null && HttpContext.RequestServices.VerifyUserPermissions(new []{"Users.AssignRole"}))
             {
+                db.HideDisabledUsers = false;
                 var usr = db.TenantUsers.FirstOrDefault(n => n.TenantUserId == viewModel.UserId && n.TenantId == tenantId);
                 if (usr != null)
                 {

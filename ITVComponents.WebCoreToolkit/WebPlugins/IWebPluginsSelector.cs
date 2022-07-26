@@ -13,6 +13,16 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
     public interface IWebPluginsSelector
     {
         /// <summary>
+        /// Gets or sets the explicit scope in which the plugins must be loaded. When this value is not set, the default is used.
+        /// </summary>
+        string ExplicitPluginPermissionScope { get; protected internal set; }
+
+        /// <summary>
+        /// Indicates whether this PluginSelector is currently able to differ plugins between permission-scopes
+        /// </summary>
+        bool ExplicitScopeSupported { get; }
+
+        /// <summary>
         /// Get all Plugins that have a Startup-constructor
         /// </summary>
         /// <returns></returns>

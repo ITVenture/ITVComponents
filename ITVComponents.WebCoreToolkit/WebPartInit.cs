@@ -23,7 +23,7 @@ namespace ITVComponents.WebCoreToolkit
 
         [ServiceRegistrationMethod]
         public static void RegisterServices(IServiceCollection services, WebPartInitOptions options)
-        {
+        { 
             if (options.UseSimpleUserNameMapping)
             {
                 services.UseSimpleUserNameMapping();

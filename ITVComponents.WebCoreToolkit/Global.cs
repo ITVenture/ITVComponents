@@ -12,6 +12,8 @@
 
         public const string ServiceProviderName = "serviceProvider";
 
+        public const string PlugInSelectorName = "plugInProvider";
+
         public const string FixedAssetPermission = "##FixedPermission";
 
         public const string FixedAssetFeature = "##FixedFeature";

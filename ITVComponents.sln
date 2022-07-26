@@ -139,6 +139,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.OpenIdAuthentication", "ITVComponents.WebCoreToolkit.OpenIdAuthentication\ITVComponents.WebCoreToolkit.OpenIdAuthentication.csproj", "{1D39C7DD-03C3-4430-95A1-D85FB8AD0037}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net.OpenShiftHealth", "ITVComponents.WebCoreToolkit.Net.OpenShiftHealth\ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.csproj", "{A1081ADD-41BF-4222-9015-5FED1325A6F0}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.SettingsExtensions", "ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj", "{61557B4A-915C-4884-9A7E-9C8071CCF9A1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -691,6 +695,22 @@ Global
 		{1D39C7DD-03C3-4430-95A1-D85FB8AD0037}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1D39C7DD-03C3-4430-95A1-D85FB8AD0037}.Release|x86.ActiveCfg = Release|Any CPU
 		{1D39C7DD-03C3-4430-95A1-D85FB8AD0037}.Release|x86.Build.0 = Release|Any CPU
+		{A1081ADD-41BF-4222-9015-5FED1325A6F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1081ADD-41BF-4222-9015-5FED1325A6F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1081ADD-41BF-4222-9015-5FED1325A6F0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A1081ADD-41BF-4222-9015-5FED1325A6F0}.Debug|x86.Build.0 = Debug|Any CPU
+		{A1081ADD-41BF-4222-9015-5FED1325A6F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1081ADD-41BF-4222-9015-5FED1325A6F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1081ADD-41BF-4222-9015-5FED1325A6F0}.Release|x86.ActiveCfg = Release|Any CPU
+		{A1081ADD-41BF-4222-9015-5FED1325A6F0}.Release|x86.Build.0 = Release|Any CPU
+		{61557B4A-915C-4884-9A7E-9C8071CCF9A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61557B4A-915C-4884-9A7E-9C8071CCF9A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61557B4A-915C-4884-9A7E-9C8071CCF9A1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{61557B4A-915C-4884-9A7E-9C8071CCF9A1}.Debug|x86.Build.0 = Debug|Any CPU
+		{61557B4A-915C-4884-9A7E-9C8071CCF9A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61557B4A-915C-4884-9A7E-9C8071CCF9A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61557B4A-915C-4884-9A7E-9C8071CCF9A1}.Release|x86.ActiveCfg = Release|Any CPU
+		{61557B4A-915C-4884-9A7E-9C8071CCF9A1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

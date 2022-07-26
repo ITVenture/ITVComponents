@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "5.0.10")
+                .HasAnnotation("ProductVersion", "6.0.6")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder, 1L, 1);
@@ -881,6 +881,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.ToTable("GlobalSettings", (string)null);
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.HealthScript", b =>
+                {
+                    b.Property<int>("HealthScriptId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HealthScriptId"), 1L, 1);
+
+                    b.Property<string>("HealthScriptName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Script")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("HealthScriptId");
+
+                    b.HasIndex(new[] { "HealthScriptName" }, "UQ_NamedHealthScript")
+                        .IsUnique()
+                        .HasFilter("[HealthScriptName] IS NOT NULL");
+
+                    b.ToTable("HealthScripts", (string)null);
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.SystemEvent", b =>
                 {
                     b.Property<int>("SystemEventId")
@@ -1103,7 +1127,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.HasIndex("TutorialStreamId")
                         .IsUnique();
 
-                    b.ToTable("TutorialStreamBlob", (string)null);
+                    b.ToTable("TutorialStreamBlob");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", b =>

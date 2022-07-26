@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
+using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.InterProcessExtensions.Extensions;

@@ -82,6 +82,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string IWCN_DQ_DbContext => GetString(nameof(IWCN_DQ_DbContext));
         public static string IWCN_DQ_ImplicitReturn => GetString(nameof(IWCN_DQ_ImplicitReturn));
         public static string IWCN_Titles_GlobalSettings => GetString(nameof(IWCN_Titles_GlobalSettings));
+        public static string IWCN_Titles_HealthCheckScripts => GetString(nameof(IWCN_Titles_HealthCheckScripts));
         public static string IWCN_DQP_Type => GetString(nameof(IWCN_DQP_Type));
         public static string IWCN_DQP_DateFormat => GetString(nameof(IWCN_DQP_DateFormat));
         public static string IWCN_DPQ_DefaultValue => GetString(nameof(IWCN_DPQ_DefaultValue));
@@ -305,6 +306,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         {
             return GetString(nameof(IWCN_Titles_GlobalSettings), requestCulture.RequestCulture.UICulture);
         }
+
+        public static string GetIWCN_Titles_HealthCheckScripts(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_Titles_HealthCheckScripts),requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_DQP_Type(this IRequestCultureFeature requestCulture)
         {

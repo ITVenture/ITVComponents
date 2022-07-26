@@ -6,6 +6,7 @@ using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Formatting;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Security;
+using ITVComponents.WebCoreToolkit.WebPlugins;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Formatting
 {
@@ -17,6 +18,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
 
         private string encryptedPassword;
 
+        private int? tenantId;
+
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
@@ -26,22 +29,48 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// Initializes a new instance of the DbPluginFormatter class
         /// </summary>
         /// <param name="context">the database containing formatting-hints</param>
-        public DbPluginFormatter(IBaseTenantContext context)
+        public DbPluginFormatter(IBaseTenantContext context, IWebPluginsSelector plugInSelector)
         {
-            context.WebPluginConstants.ForEach(n =>
+            if (context.FilterAvailable && !context.ShowAllTenants)
             {
-                formatPrototype.Add(n.Name, n.Value);
-                publicPrototypeIndicators.Add(n.Name, n.TenantId == null);
-            });
-
-            int? tenantId;
-            if ((tenantId  = context.CurrentTenantId) != null)
-            {
-                var t = context.Tenants.First(n => n.TenantId == tenantId);
-                if (!string.IsNullOrEmpty(t.TenantPassword))
+                context.WebPluginConstants.ForEach(n =>
                 {
-                    encryptedPassword = t.TenantPassword.Encrypt();
+                    formatPrototype.Add(n.Name, n.Value);
+                    publicPrototypeIndicators.Add(n.Name, n.TenantId == null);
+                });
+
+                if ((tenantId = context.CurrentTenantId) != null)
+                {
+                    var t = context.Tenants.First(n => n.TenantId == tenantId);
+                    if (!string.IsNullOrEmpty(t.TenantPassword))
+                    {
+                        encryptedPassword = t.TenantPassword.Encrypt();
+                    }
                 }
+            }
+            else if (!string.IsNullOrEmpty(plugInSelector.ExplicitPluginPermissionScope))
+            {
+                var tenant = context.Tenants.First(n => n.TenantName == plugInSelector.ExplicitPluginPermissionScope);
+                tenantId = tenant.TenantId;
+                context.WebPluginConstants.Where(n => n.TenantId == null || n.TenantId == tenantId)
+                    .ForEach(n =>
+                    {
+                        formatPrototype.Add(n.Name, n.Value);
+                        publicPrototypeIndicators.Add(n.Name, n.TenantId == null);
+                    });
+                if (!string.IsNullOrEmpty(tenant.TenantPassword))
+                {
+                    encryptedPassword = tenant.TenantPassword.Encrypt();
+                }
+            }
+            else
+            {
+                context.WebPluginConstants.Where(n => n.TenantId == null)
+                    .ForEach(n =>
+                    {
+                        formatPrototype.Add(n.Name, n.Value);
+                        publicPrototypeIndicators.Add(n.Name, n.TenantId == null);
+                    });
             }
         }
 

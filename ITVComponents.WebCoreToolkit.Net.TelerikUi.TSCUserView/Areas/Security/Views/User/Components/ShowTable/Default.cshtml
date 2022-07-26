@@ -33,7 +33,7 @@
             {
                 if (ViewData["tenantId"] != null)
                 {
-                    columns.InlineCheckbox(e => e.Enabled, "Id", readOnly: !Context.RequestServices.VerifyUserPermissions(new []{ToolkitPermission.Sysadmin,ToolkitPermission.TenantAdmin})).Width(150);
+                    columns.InlineCheckbox(e => e.Enabled, "UserId", readOnly: !Context.RequestServices.VerifyUserPermissions(new []{ToolkitPermission.Sysadmin,ToolkitPermission.TenantAdmin})).Width(150);
                 }
 
                 if (Context.RequestServices.VerifyUserPermissions(new[] {"Users.Write"}))

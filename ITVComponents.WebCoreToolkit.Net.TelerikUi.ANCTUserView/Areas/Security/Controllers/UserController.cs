@@ -187,6 +187,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
 
             if (int.TryParse(viewModel.Id, out var tuid))
             {
+                db.HideDisabledUsers = false;
                 var tuModel = db.TenantUsers.First(n => n.TenantUserId == tuid && n.TenantId == tenantId);
                 if (ModelState.IsValid)
                 {

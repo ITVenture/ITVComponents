@@ -22,6 +22,25 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.WebPlugins
             this.logger = logger;
         }
 
+        /// <summary>
+        /// Gets or sets the explicit scope in which the plugins must be loaded. When this value is not set, the default is used.
+        /// </summary>
+        protected internal string ExplicitPluginPermissionScope { get; set; }
+
+        /// <summary>
+        /// Gets or sets the explicit scope in which the plugins must be loaded. When this value is not set, the default is used.
+        /// </summary>
+        string IWebPluginsSelector.ExplicitPluginPermissionScope
+        {
+            get => this.ExplicitPluginPermissionScope;
+            set => this.ExplicitPluginPermissionScope = value;
+        }
+
+        /// <summary>
+        /// Indicates whether this PluginSelector is currently able to differ plugins between permission-scopes
+        /// </summary>
+        public bool ExplicitScopeSupported => false;
+
         public IEnumerable<WebPlugin> GetStartupPlugins()
         {
             logger.Log(LogLevel.Debug, "Reading startup-plugins...");

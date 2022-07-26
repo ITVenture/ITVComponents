@@ -39,6 +39,8 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
 
         private List<MethodRef> metaExposalMethods = new();
 
+        private List<MethodRef> healthCheckMethods = new();
+
         private EndPointTrunk registeredEndPoints = new();
 
         private bool endPointsRegistrationDone = false;
@@ -82,25 +84,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// <param name="manager">the manager on which custom webparts can be registered</param>
         public void RegisterParts(ApplicationPartManager manager)
         {
-            foreach (var t in mvcRegistrationMethods)
-            {
-                Dictionary<string,object> opt = null;
-                if (!string.IsNullOrEmpty(t.ConfigurationName) &&
-                    configurations.TryGetValue(t.ConfigurationName, out var tmo))
-                {
-                    opt = tmo;
-                }
-
-                try
-                {
-                    InvokeMethod(t.Method, new object[] { manager }, opt);
-                    //t.Method.Invoke(null, new object[] { manager, opt });
-                }
-                catch (Exception ex)
-                {
-                    LogEnvironment.LogEvent($"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}", LogSeverity.Error);
-                }
-            }
+            InvokeMethods(mvcRegistrationMethods, new object[] { manager });
         }
 
         /// <summary>
@@ -122,27 +106,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         {
             try
             {
-                foreach (var t in endpointRegistrationMethods)
-                {
-                    Dictionary<string, object> opt = null;
-                    if (!string.IsNullOrEmpty(t.ConfigurationName) &&
-                        configurations.TryGetValue(t.ConfigurationName, out var tmo))
-                    {
-                        opt = tmo;
-                    }
-
-                    try
-                    {
-                        //t.Method.Invoke(null, new[] { builder, opt });
-                        InvokeMethod(t.Method, new object[] { builder, registeredEndPoints }, opt);
-                    }
-                    catch (Exception ex)
-                    {
-                        LogEnvironment.LogEvent(
-                            $"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}",
-                            LogSeverity.Error);
-                    }
-                }
+                InvokeMethods(endpointRegistrationMethods, new object[] { builder, registeredEndPoints });
             }
             finally
             {
@@ -172,27 +136,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                 throw new InvalidOperationException("Expose End-Points first!");
             }
 
-            foreach (var t in metaExposalMethods)
-            {
-                Dictionary<string, object> opt = null;
-                if (!string.IsNullOrEmpty(t.ConfigurationName) &&
-                    configurations.TryGetValue(t.ConfigurationName, out var tmo))
-                {
-                    opt = tmo;
-                }
-
-                try
-                {
-                    //t.Method.Invoke(null, new[] { builder, opt });
-                    InvokeMethod(t.Method, new object[] { builder, registeredEndPoints }, opt);
-                }
-                catch (Exception ex)
-                {
-                    LogEnvironment.LogEvent(
-                        $"Failed to expose Metadata using {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}",
-                        LogSeverity.Error);
-                }
-            }
+            InvokeMethods(metaExposalMethods, new object[] { builder, registeredEndPoints });
         }
 
         /// <summary>
@@ -210,32 +154,13 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// <param name="services">the service-collection where custom services can be injected</param>
         public void RegisterServices(IServiceCollection services)
         {
-            foreach (var t in serviceRegistrationMethods)
-            {
-                Dictionary<string, object> opt = null;
-                if (!string.IsNullOrEmpty(t.ConfigurationName) &&
-                    configurations.TryGetValue(t.ConfigurationName, out var tmo))
-                {
-                    opt = tmo;
-                }
-
-                try
-                {
-                    //t.Method.Invoke(null, new[] { services, opt });
-                    InvokeMethod(t.Method, new object[] { services }, opt);
-                }
-                catch (Exception ex)
-                {
-                    LogEnvironment.LogEvent($"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}", LogSeverity.Error);
-                }
-            }
+            InvokeMethods(serviceRegistrationMethods, new object[] { services });
         }
 
         /// <summary>
         /// Sample declaration for a WebPartRegistration method. To not call this method directly, it will throw an exception!
         /// </summary>
         /// <param name="auth">the Authentication-builder on which a custom Authentication method is being registered</param>
-        /// <param name="configuration">the configuration that was provided for this web-part</param>
         public void RegisterPartAuthenticationSchemes(AuthenticationBuilder auth)
         {
             throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
@@ -247,25 +172,21 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// <param name="auth">the authentication builder on which to register the custom authentication types</param>
         public void RegisterAuthenticationSchemes(AuthenticationBuilder auth)
         {
-            foreach (var t in authSchemeRegistrationMethods)
-            {
-                Dictionary<string, object> opt = null;
-                if (!string.IsNullOrEmpty(t.ConfigurationName) &&
-                    configurations.TryGetValue(t.ConfigurationName, out var tmo))
-                {
-                    opt = tmo;
-                }
+            InvokeMethods(authSchemeRegistrationMethods, new object[] { auth });
+        }
 
-                try
-                {
-                    //t.Method.Invoke(null, new[] { services, opt });
-                    InvokeMethod(t.Method, new object[] { auth }, opt);
-                }
-                catch (Exception ex)
-                {
-                    LogEnvironment.LogEvent($"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}", LogSeverity.Error);
-                }
-            }
+        /// <summary>
+        /// Sample declaration for a WebPartRegistration method. To not call this method directly, it will throw an exception!
+        /// </summary>
+        /// <param name="builder">the HealthChecks-builder on which a custom Health-check object method is being registered</param>
+        public void RegisterPartHealthChecks(IHealthChecksBuilder builder)
+        {
+            throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
+        }
+
+        public void RegisterHealthChecks(IHealthChecksBuilder builder)
+        {
+            InvokeMethods(healthCheckMethods, new object[] { builder });
         }
 
         /// <summary>
@@ -329,6 +250,34 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                          MethodMatches(method, () => ExposePartsEndpointMetaData(default, default)))
                 {
                     metaExposalMethods.Add(new MethodRef { ConfigurationName = configPath, Method = method });
+                }
+                else if (attr is HealthCheckRegistrationAttribute &&
+                         MethodMatches(method, () => RegisterPartHealthChecks(default)))
+                {
+                    healthCheckMethods.Add(new MethodRef { ConfigurationName = configPath, Method = method });
+                }
+            }
+        }
+
+        private void InvokeMethods(List<MethodRef> methods, object[] defaults)
+        {
+            foreach (var t in methods)
+            {
+                Dictionary<string, object> opt = null;
+                if (!string.IsNullOrEmpty(t.ConfigurationName) &&
+                    configurations.TryGetValue(t.ConfigurationName, out var tmo))
+                {
+                    opt = tmo;
+                }
+
+                try
+                {
+                    //t.Method.Invoke(null, new[] { services, opt });
+                    InvokeMethod(t.Method, defaults, opt);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}", LogSeverity.Error);
                 }
             }
         }

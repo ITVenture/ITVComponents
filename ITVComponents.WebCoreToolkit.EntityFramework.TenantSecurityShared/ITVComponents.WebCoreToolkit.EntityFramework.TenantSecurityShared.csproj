@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV023</Version>
+    <Version>3.0.0-PRV039</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <LangVersion>9</LangVersion>
@@ -28,6 +28,7 @@
     <ProjectReference Include="..\ITVComponents.Formatting\ITVComponents.Formatting.csproj" />
     <ProjectReference Include="..\ITVComponents.ParallelProcessing.TaskSchedulers\ITVComponents.ParallelProcessing.TaskSchedulers.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />

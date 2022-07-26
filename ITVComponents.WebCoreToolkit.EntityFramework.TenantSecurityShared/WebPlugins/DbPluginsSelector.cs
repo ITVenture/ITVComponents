@@ -19,12 +19,51 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         }
 
         /// <summary>
+        /// Gets or sets the explicit scope in which the plugins must be loaded. When this value is not set, the default is used.
+        /// </summary>
+        protected internal string ExplicitPluginPermissionScope { get; set; }
+
+        /// <summary>
+        /// Gets or sets the explicit scope in which the plugins must be loaded. When this value is not set, the default is used.
+        /// </summary>
+        string IWebPluginsSelector.ExplicitPluginPermissionScope
+        {
+            get => this.ExplicitPluginPermissionScope;
+            set => this.ExplicitPluginPermissionScope = value;
+        }
+
+        /// <summary>
+        /// Indicates whether this PluginSelector is currently able to differ plugins between permission-scopes
+        /// </summary>
+        public bool ExplicitScopeSupported => !securityContext.FilterAvailable || securityContext.ShowAllTenants;
+
+        /// <summary>
         /// Get all Plugins that have a Startup-constructor
         /// </summary>
         /// <returns></returns>
         public IEnumerable<WebPlugin> GetStartupPlugins()
         {
-            return from p in securityContext.WebPlugins where !string.IsNullOrEmpty(p.StartupRegistrationConstructor) orderby p.UniqueName select p;
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            {
+                return from p in securityContext.WebPlugins
+                    where !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
+                    orderby p.UniqueName
+                    select p;
+            }
+
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
+            {
+                return from p in securityContext.WebPlugins
+                    where p.TenantId == null && !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
+                    orderby p.UniqueName
+                    select p;
+            }
+
+            return from p in securityContext.WebPlugins
+                where (p.TenantId == null || p.Tenant.TenantName == ExplicitPluginPermissionScope) &&
+                      !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
+                orderby p.UniqueName
+                select p;
         }
 
         /// <summary>
@@ -34,7 +73,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// <returns>a WebPlugin definition that can be processed by the underlying factory</returns>
         public WebPlugin GetPlugin(string uniqueName)
         {
-            return securityContext.WebPlugins.FirstOrDefault(n => n.UniqueName == uniqueName);
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            {
+                return securityContext.WebPlugins.FirstOrDefault(n => n.UniqueName == uniqueName);
+            }
+
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
+            {
+                return securityContext.WebPlugins.FirstOrDefault(n => n.TenantId == null && n.UniqueName == uniqueName);
+            }
+
+            return securityContext.WebPlugins.FirstOrDefault(n => (n.TenantId == null || n.Tenant.TenantName == ExplicitPluginPermissionScope) && n.UniqueName == uniqueName);
         }
 
         /// <summary>
@@ -43,7 +92,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// <returns>returns a list with auto-load Plugins</returns>
         public IEnumerable<WebPlugin> GetAutoLoadPlugins()
         {
-            return from p in securityContext.WebPlugins where !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad select p;
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            {
+                return from p in securityContext.WebPlugins
+                    where !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad
+                       orderby p.UniqueName
+                    select p;
+            }
+
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
+            {
+                return from p in securityContext.WebPlugins
+                    where p.TenantId == null && !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad
+                       orderby p.UniqueName
+                    select p;
+            }
+
+            return from p in securityContext.WebPlugins
+                where (p.TenantId == null || p.Tenant.TenantName == ExplicitPluginPermissionScope) &&
+                      !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad
+                   orderby p.UniqueName
+                select p;
         }
 
         /// <summary>
@@ -62,7 +131,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// <returns>a list of parametetrs for this plugin</returns>
         public IEnumerable<WebPluginGenericParam> GetGenericParameters(string uniqueName)
         {
-            return from p in securityContext.GenericPluginParams where p.Plugin.UniqueName == uniqueName select p;
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            {
+                return from p in securityContext.GenericPluginParams
+                    where p.Plugin.UniqueName == uniqueName
+                    select p;
+            }
+
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
+            {
+                return from p in securityContext.GenericPluginParams
+                    where p.Plugin.TenantId == null &&  p.Plugin.UniqueName == uniqueName
+                    select p;
+            }
+
+            return from p in securityContext.GenericPluginParams
+                where (p.Plugin.TenantId == null || p.Plugin.Tenant.TenantName == ExplicitPluginPermissionScope) && p.Plugin.UniqueName == uniqueName
+                select p;
         }
     }
 }

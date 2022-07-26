@@ -1,0 +1,62 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@inject IOptions<ViewOptions> viewOptions
+@{
+    Layout = viewOptions.Value.LayoutPage;
+}
+@{
+
+    ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_HealthCheckScripts;
+}
+
+@(Html.Kendo().Grid<HealthScriptViewModel>().Name("HealthScriptTable")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.HealthScriptName).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
+        if (Context.RequestServices.VerifyUserPermissions(new [] {"HealthChecks.Write","Sysadmin"}))
+        {
+            columns.Command(ga =>
+            {
+                ga.Edit();
+                ga.PopupConfirmDelete ();
+            }).Width(180);
+        }
+
+    })
+    .ToolBar(toolbar =>
+    {
+        toolbar.RefreshTable();
+        if (Context.RequestServices.VerifyUserPermissions(new[] { "HealthChecks.Write","Sysadmin" }))
+        {
+            toolbar.Create();
+        }
+    })
+    .DataSource(dataSource =>
+    {
+        var src = dataSource
+            .Ajax()
+            .Read(read => read.Action("ReadScripts", "ScriptedHealthCheck"))
+            .Sort(s => s.Add(m => m.HealthScriptName).Ascending());
+        if (Context.RequestServices.VerifyUserPermissions(new[] { "HealthChecks.Write","Sysadmin" }))
+        {
+            src.Create(create => create.Action("CreateScript", "ScriptedHealthCheck"))
+                .Update(update => update.Action("UpdateScript", "ScriptedHealthCheck"))
+                .Destroy(destroy => destroy.Action("DestroyScript", "ScriptedHealthCheck"));
+        }
+        src.Model(m => m.Id(t => t.HealthScriptId));
+    })
+    .Editable(be => be.Mode(GridEditMode.PopUp).Window(c => c.Resizable().MinWidth(300).Draggable().Events(ec => ec.Open("function(e){e.sender.maximize();}"))).TemplateName("ScriptEditor"))
+    .Scrollable(s => s.Height("auto"))
+    .Resizable(c => c.Columns(true)))

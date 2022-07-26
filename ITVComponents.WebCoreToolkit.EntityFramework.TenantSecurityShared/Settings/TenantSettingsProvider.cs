@@ -41,5 +41,39 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
         {
             return dbContext.TenantSettings.FirstOrDefault(n => n.SettingsKey == key && !n.JsonSetting)?.SettingsValue;
         }
+
+        /// <summary>
+        /// Gets a Json-formatted setting with the given key
+        /// </summary>
+        /// <param name="key">the demanded key</param>
+        /// <param name="explicitUserScope">the explicit scope under which to get the requested settings</param>
+        /// <returns>the string-representation of the requested setting</returns>
+        public string GetJsonSetting(string key, string explicitUserScope)
+        {
+            if (!string.IsNullOrEmpty(explicitUserScope))
+            {
+                return dbContext.TenantSettings.FirstOrDefault(n =>
+                    n.SettingsKey == key && n.JsonSetting && n.Tenant.TenantName == explicitUserScope)?.SettingsValue;
+            }
+
+            return GetJsonSetting(key);
+        }
+
+        /// <summary>
+        /// Gets an unformatted plain setting with the given key
+        /// </summary>
+        /// <param name="key">the demanded key</param>
+        /// <param name="explicitUserScope">the explicit scope under which to get the requested settings</param>
+        /// <returns>the string representation of the requested setting</returns>
+        public string GetLiteralSetting(string key, string explicitUserScope)
+        {
+            if (!string.IsNullOrEmpty(explicitUserScope))
+            {
+                return dbContext.TenantSettings.FirstOrDefault(n =>
+                    n.SettingsKey == key && !n.JsonSetting && n.Tenant.TenantName == explicitUserScope)?.SettingsValue;
+            }
+
+            return GetLiteralSetting(key);
+        }
     }
 }

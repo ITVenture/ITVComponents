@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
+using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Extensions;
@@ -30,6 +31,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             if (settingsKey == "ActivationSettings")
             {
                 var retVal = config.GetSection<ActivationOptions>(path);
+                config.RefResolve(retVal);
                 if (retVal.ActivateDbContext)
                 {
                     retVal.ConnectionStringName = config.GetConnectionString(retVal.ConnectionStringName);
@@ -128,6 +130,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             {
                 manager.EnableItvUserView();
             }*/
+        }
+
+        [HealthCheckRegistration]
+        public static void RegisterHealthChecks(IHealthChecksBuilder builder,
+            [WebPartConfig("ActivationSettings")] ActivationOptions partActivation)
+        {
+            if (partActivation.UseHealthChecks)
+            {
+                foreach (var item in partActivation.HealthChecks)
+                {
+                    bool apply = true;
+                    if (!string.IsNullOrEmpty(item.UseExpression) && item.ConditionVariables != null)
+                    {
+                        apply = (bool)ExpressionParser.Parse(item.UseExpression, item.ConditionVariables);
+                    }
+
+                    if (apply)
+                    {
+                        builder.AddScriptedCheck(item.Label);
+                    }
+                }
+            }
         }
     }
 }
