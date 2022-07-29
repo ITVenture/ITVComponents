@@ -22,5 +22,6 @@
 
         public bool UseScriptLocalization { get; set; } = false;
         public string? LayoutPage { get; set; }
+        public bool UseHealthView { get; set; } = false;
     }
 }

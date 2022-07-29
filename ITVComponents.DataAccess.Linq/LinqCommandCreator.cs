@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using ITVComponents.AssemblyResolving;
 using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.Scripting.CScript.Helpers;
@@ -84,7 +85,7 @@ namespace ITVComponents.DataAccess.Linq
             var roslynHash = GetHashSha256(command);
             var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<Script<object>>(() =>
             {
-                var scriptoptions = ScriptOptions.Default.WithImports(dynamicUsings.Union(new[] {"System", "System.Linq", "System.Collections.Generic", "ITVComponents", "ITVComponents.DataAccess", "ITVComponents.DataAccess.Extensions", "ITVComponents.DataAccess.Linq"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly}.Union(from t in Extensions.Union(dynamicExtensions).Distinct() select NamedAssemblyResolve.LoadAssembly(t)));
+                var scriptoptions = ScriptOptions.Default.WithImports(dynamicUsings.Union(new[] {"System", "System.Linq", "System.Collections.Generic", "ITVComponents", "ITVComponents.DataAccess", "ITVComponents.DataAccess.Extensions", "ITVComponents.DataAccess.Linq"})).WithReferences(new[] {typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly}.Union(from t in Extensions.Union(dynamicExtensions).Distinct() select AssemblyResolver.FindAssemblyByName(t)));
                 return CSharpScript.Create(command, scriptoptions, typeof(NativeScriptObjectHelper));
             }));
 

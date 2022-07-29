@@ -25,8 +25,18 @@
 {
     i.Add().LoadContentFrom("AssemblyList","AssemblyDiagnostics").Text("Assemblies");
     i.Add().LoadContentFrom("ClaimList", "AssemblyDiagnostics").Text("Claims");
+    if (viewOptions.Value.UseHealthView)
+    {
+        i.Add().LoadContentFrom("HealthList", "AssemblyDiagnostics").Text("Health");
+    }
+
     if ((bool)ViewData["UseConfigExchange"])
     {
         i.Add().LoadContentFrom("ConfigExchange", "AssemblyDiagnostics").Text("Configuration Exchange");
     }
 }).SelectedIndex(0)
+
+
+@if (viewOptions.Value.UseHealthView){
+    @Html.DetailViewScript("HealthCheckDetail","HealthCheckDI#=Name#","~/Util/AssemblyDiagnostics/HealthCheckDetailList?checkName=#=Name#")
+}

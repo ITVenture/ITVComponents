@@ -12,6 +12,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.AssemblyResolving;
 using ITVComponents.Scripting.CScript.Core.Literals;
 #if !Community
 using ITVComponents.Helpers;
@@ -140,9 +141,9 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                             new[]
                             {
                                 typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly,
-                                NamedAssemblyResolve.LoadAssembly("System.Linq"),
-                                NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")
-                            }.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t)).ToArray())
+                                AssemblyResolver.FindAssemblyByName("System.Linq"),
+                                AssemblyResolver.FindAssemblyByName("Microsoft.CSharp")
+                            }.Union(from t in cfg.References select AssemblyResolver.FindAssemblyByName(t)).ToArray())
                         .WithOptimizationLevel(OptimizationLevel.Release);
                 }
                 //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
@@ -190,9 +191,9 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                             new[]
                             {
                                 typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly,
-                                NamedAssemblyResolve.LoadAssembly("System.Linq"),
-                                NamedAssemblyResolve.LoadAssembly("Microsoft.CSharp")
-                            }.Union(from t in cfg.References select NamedAssemblyResolve.LoadAssembly(t)).ToArray())
+                                AssemblyResolver.FindAssemblyByName("System.Linq"),
+                                AssemblyResolver.FindAssemblyByName("Microsoft.CSharp")
+                            }.Union(from t in cfg.References select AssemblyResolver.FindAssemblyByName(t)).ToArray())
                         .WithOptimizationLevel(OptimizationLevel.Release);
                 }
 

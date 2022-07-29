@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.Health;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Model
+namespace ITVComponents.WebCoreToolkit.Health
 {
-    public class HealthScriptResult:IHealthDetailResult
+    public interface IHealthDetailResult
     {
         public string TestName { get; set; }
 

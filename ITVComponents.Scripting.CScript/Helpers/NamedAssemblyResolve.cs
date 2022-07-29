@@ -8,6 +8,7 @@ using System.Text;
 
 namespace ITVComponents.Scripting.CScript.Helpers
 {
+    [Obsolete("Use AssemblyResolver of ITVComponents.AssemblyResolving instead.", true)]
     public static class NamedAssemblyResolve
     {
         /// <summary>

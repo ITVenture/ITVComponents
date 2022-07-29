@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Model;
+using ITVComponents.WebCoreToolkit.Health;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Model;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Options;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -42,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Formatters.Impl
                 retVal.Add(check);
                 foreach (var item in entry.Value.Data)
                 {
-                    if (item.Value is HealthScriptResult hsr)
+                    if (item.Value is IHealthDetailResult hsr)
                     {
                         var ck = new Check
                         {

@@ -8,7 +8,6 @@ using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Handlers;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Options;
 using Microsoft.AspNetCore.Builder;

@@ -50,7 +50,7 @@ namespace ITVComponents.AssemblyResolving
         /// Finds an assembly with the given name
         /// </summary>
         /// <param name="assemblyName">the fileName or part of it</param>
-        /// <param name="reflectOnly">indicates whether to load the assembly only for reflection purposes</param>
+        /// <param name="targetContext">Enables the caller to specify a custom load-context. If none is provided, the current executioncontext is used.</param>
         /// <returns>the requested assembly</returns>
         public static Assembly FindAssemblyByFileName(string assemblyName, AssemblyLoadContext targetContext = null)
         {
@@ -67,6 +67,31 @@ namespace ITVComponents.AssemblyResolving
             }
 
             return existingAssembly;
+        }
+
+        /// <summary>
+        /// Finds an assembly with the given name
+        /// </summary>
+        /// <param name="assemblyName">AssemblyName or a part of it</param>
+        /// <param name="targetContext">Enables the caller to specify a custom load-context. If none is provided, the current executioncontext is used.</param>
+        /// <returns>the requested assembly</returns>
+        public static Assembly FindAssemblyByName(string assemblyName, AssemblyLoadContext targetContext = null)
+        {
+            try
+            {
+                var retVal  = FindAssemblyByFileName(assemblyName, targetContext);
+                if (retVal != null)
+                {
+                    return retVal;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogDebugEvent($"Loading of assembly failed. ({ex.Message}", LogSeverity.Warning);
+            }
+
+            var an = new AssemblyName(assemblyName);
+            return (targetContext??AssemblyLoadContext.Default).LoadFromAssemblyName(an);
         }
 
         /// <summary>

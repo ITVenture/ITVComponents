@@ -15,6 +15,12 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Handlers
 {
+    /// <summary>
+    /// Health-Endpoint-API
+    /// </summary>
+    /// <typeparam name="TAppInfo"></typeparam>
+    /// <typeparam name="TReadynessInfo"></typeparam>
+    /// <typeparam name="TLivenessInfo"></typeparam>
     public static class HealthHandler<TAppInfo, TReadynessInfo, TLivenessInfo>
     {
         /// <summary>

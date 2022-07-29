@@ -1,0 +1,38 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Models
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources.TextsAndMessagesHelper
+
+
+@(Html.Kendo().Grid<HealthTestData>().Name($"HealthDetailList{ViewData["checkName"]}")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+            .Columns(columns =>
+            {
+                columns.InfoBubble(b => b.Bubble, "Name","HealthTest").Width(40).Title(" ");
+                columns.Bound(n => n.Name);
+                columns.Bound(n => n.Result);
+                columns.Bound(n => n.Message);
+
+            })
+            .ToolBar(toolbar =>
+            {
+                toolbar.RefreshTable();
+            })
+            .DataSource(dataSource =>
+            {
+                var src = dataSource
+                    .Ajax()
+                    .Read(read => read.Action("ReadTestDetails", "AssemblyDiagnostics", new{checkName=ViewData["checkName"]}))
+                    .Sort(n => n.Add(m => m.Name));
+            })
+            .Scrollable(s => s.Height("auto"))
+            .Sortable(c => c.Enabled(true))
+            .Resizable(c => c.Columns(true)))

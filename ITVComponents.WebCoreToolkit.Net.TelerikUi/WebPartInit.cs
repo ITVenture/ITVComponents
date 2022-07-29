@@ -40,7 +40,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi
 
             if (!string.IsNullOrEmpty(options.LayoutPage))
             {
-                services.Configure<ViewOptions>(o => o.LayoutPage = options.LayoutPage);
+                services.Configure<ViewOptions>(o =>
+                {
+                    o.LayoutPage = options.LayoutPage;
+                    o.UseHealthView = options.UseHealthView;
+                });
             }
         }
 

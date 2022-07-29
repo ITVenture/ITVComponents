@@ -9,5 +9,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
     public class ViewOptions
     {
         public string LayoutPage { get; set; } = "_Layout";
+
+        public bool UseHealthView { get; set; } = false;
     }
 }

@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using Antlr4.Runtime.Tree;
+using ITVComponents.AssemblyResolving;
 using ITVComponents.Scripting.CScript.Buffering;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Core.Native;
@@ -2808,7 +2809,7 @@ namespace ITVComponents.Scripting.CScript.Core
 
             if (assembly != null)
             {
-                var src = NamedAssemblyResolve.LoadAssembly(assembly);
+                var src = AssemblyResolver.FindAssemblyByName(assembly);
                 retVal = src.GetType(type.ToString());
             }
             else

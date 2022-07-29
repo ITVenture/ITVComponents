@@ -11,6 +11,7 @@ using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Extensions;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Handlers;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Model;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Options;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -34,8 +35,10 @@ namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Helpers
         public static ExposeHealthEndPointsCallback BuildHealthExposer(ActivationSettings settings)
         {
             BuildModelTypes(settings, out var appInfoType, out var readyInfoType, out var liveInfoType);
-            var meth = typeof(RouteExtensions).GetMethod("ExposeHealthEndPoints`3",
-                BindingFlags.Public | BindingFlags.InvokeMethod | BindingFlags.Static);
+            var refEndPoint = typeof(IEndpointConventionBuilder).MakeByRefType();
+            var meth = typeof(RouteExtensions).GetMethod("ExposeHealthEndPoints",
+                BindingFlags.Public | BindingFlags.InvokeMethod | BindingFlags.Static,
+                new []{typeof(WebApplication), typeof(string), refEndPoint, refEndPoint, refEndPoint});
             meth = meth.MakeGenericMethod(appInfoType, readyInfoType, liveInfoType);
             return meth.CreateDelegate<ExposeHealthEndPointsCallback>();
         }

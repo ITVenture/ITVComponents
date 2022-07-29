@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Handlers;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 
 namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Extensions
 {
@@ -23,15 +24,19 @@ namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Extensions
             string appInfoPath = $"{basePath}/app/info";
             string appReadyPath = $"{basePath}/ready";
             string appLivePath = $"{basePath}/live";
-            appInfoPoint = builder.MapGet(appInfoPath, new Func<HttpContext, Task<IResult>>(HealthHandler<TAppInfo,TReadyInfo,TLiveInfo>.AppInfo))
-                .Produces<Dictionary<string, object>>()
-                .Produces<Dictionary<string, object>>(503);
+            appInfoPoint = builder.MapGet(appInfoPath,
+                    new Func<HttpContext, Task<IResult>>(HealthHandler<TAppInfo, TReadyInfo, TLiveInfo>.AppInfo))
+                .Produces<TAppInfo>()
+                .Produces<TAppInfo>(503)
+                .WithTags("AppHealth");
             appReadyPoint = builder.MapGet(appReadyPath, new Func<HttpContext, Task<IResult>>(HealthHandler<TAppInfo, TReadyInfo, TLiveInfo>.Ready))
-                .Produces<Dictionary<string, object>>()
-                .Produces<Dictionary<string, object>>(503);
+                .Produces<TReadyInfo>()
+                .Produces<TReadyInfo>(503)
+                .WithTags("AppHealth");
             appLivePoint = builder.MapGet(appLivePath, new Func<HttpContext, Task<IResult>>(HealthHandler<TAppInfo, TReadyInfo, TLiveInfo>.Live))
-                .Produces<Dictionary<string, object>>()
-                .Produces<Dictionary<string, object>>(503);
+                .Produces<TLiveInfo>()
+                .Produces<TLiveInfo>(503)
+                .WithTags("AppHealth");
         }
     }
 

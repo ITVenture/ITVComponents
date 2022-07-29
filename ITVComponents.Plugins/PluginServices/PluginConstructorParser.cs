@@ -30,7 +30,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// <summary>
         /// Parses constructorstrings for further processing
         /// </summary>
-        private static readonly Regex ConstructorParser = new Regex(@"\[ (?<Path>(\w\:|\.|\.\.)?((\\|/)?[\w \. \s _ \- \! \@ \#]*)*)\] \<(?<Type>[\w \. ` _]*)\>(?<Parameters>.*)", RegexOptions.IgnoreCase | RegexOptions.Multiline| RegexOptions.IgnorePatternWhitespace | RegexOptions.CultureInvariant);
+        private static readonly Regex ConstructorParser = new Regex(@"\[ [^\]]+\]\<(?<Type>[\w \. ` _ \+]*)\>(?<Parameters>.*)", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace | RegexOptions.CultureInvariant);
 
         /// <summary>
         /// Parses a constructor hint for a Plugin

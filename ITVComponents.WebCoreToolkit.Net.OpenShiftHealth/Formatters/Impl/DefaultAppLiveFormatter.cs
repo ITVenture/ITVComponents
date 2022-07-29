@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Model;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Model;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Options;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
