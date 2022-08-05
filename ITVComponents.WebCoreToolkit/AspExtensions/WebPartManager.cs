@@ -326,7 +326,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
 
         private Assembly GetAssembly(string name)
         {
-            var retVal = AssemblyResolver.FindAssemblyByFileName(name);
+            var retVal = AssemblyResolver.FindAssemblyByName(name);
             if (retVal == null)
             {
                 throw new InvalidOperationException($"Assembly {name} not found.");

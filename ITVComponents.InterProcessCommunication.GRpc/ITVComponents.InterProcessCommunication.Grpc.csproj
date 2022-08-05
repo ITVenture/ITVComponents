@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV046</Version>
+    <Version>3.0.0-PRV048</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -13,17 +13,17 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="grpc.net.client" Version="2.46.0" />
-    <PackageReference Include="grpc.aspnetcore.server" Version="2.46.0" />
-    <PackageReference Include="grpc.tools" version="2.46.3">
+    <PackageReference Include="grpc.net.client" Version="2.47.0" />
+    <PackageReference Include="grpc.aspnetcore.server" Version="2.47.0" />
+    <PackageReference Include="grpc.tools" version="2.47.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="google.protobuf" version="3.21.1" />
+    <PackageReference Include="google.protobuf" version="3.21.4" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="6.0.0" />
     <PackageReference Include="System.Collections.Concurrent" Version="4.3.0" />
     <PackageReference Include="System.ServiceModel.Primitives" Version="4.9.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="6.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="6.0.7" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />

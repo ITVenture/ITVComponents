@@ -212,7 +212,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 return builder.MapGet("/FileSys/{Action:regex(^(download|list|search)$)}", FileSystemHandler.FileSystemAccessWithAuth).RequireAuthorization();
             }
 
-            return builder.MapGet("/FileSys/{Action:regex(^(download|list|search)$)}", FileSystemHandler.FileSystemAccessNoAuth);
+            return builder.MapGet("/FileSys/{Action:regex(^(download|list|search)$)}", FileSystemHandler.FileSystemAccessNoAuth).AllowAnonymous();
         }
     }
 }
