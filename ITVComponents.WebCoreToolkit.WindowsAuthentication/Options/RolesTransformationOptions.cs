@@ -12,6 +12,6 @@ namespace ITVComponents.WebCoreToolkit.WindowsAuthentication.Options
         public Func<string,bool> GroupFilter{get; set; }
         public bool NormalizeGroupName { get; set; }
         public string? TargetClaimIssuer { get; set; }
-        public string TargetClaimType { get; set; } = ClaimTypes.Role;
+        public string TargetClaimType { get; set; } = System.Security.Claims.ClaimTypes.Role;
     }
 }

@@ -23,7 +23,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
         {
             if (!string.IsNullOrEmpty(input) && input.StartsWith("$"))
             {
-                return actionContext.FormatText(input.Substring(1));
+                return actionContext.FormatText(input.Substring(1), TextFormat.DefaultFormatPolicyWithPrimitives);
             }
 
             return input;

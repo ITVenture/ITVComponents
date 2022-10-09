@@ -7,6 +7,7 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.ScriptValues;
+using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Buffering
 {
@@ -33,17 +34,32 @@ namespace ITVComponents.Scripting.CScript.Buffering
             InitializeScopeVariables scopeInitializer,
             out ScriptVisitor visitorInstance)
         {
+            return GetReplInstance(baseValues, scopeInitializer, ScriptingPolicy.Default, out visitorInstance);
+        }
+
+        /// <summary>
+            /// Gets an existing free repl session or creates a new one if required
+            /// </summary>
+            /// <param name="baseValues">the base values used to initialize the repl - session</param>
+            /// <param name="scopeInitializer">a callback that is used to prepare the scope variables for the scripting</param>
+            /// <param name="visitorInstance">the visitor instance that is capable to process expressions and scripts</param>
+            /// <returns>a runner item that can be used to control the repl session</returns>
+            public static IDisposable GetReplInstance(IDictionary<string, object> baseValues,
+            InitializeScopeVariables scopeInitializer,
+            ScriptingPolicy policy,
+            out ScriptVisitor visitorInstance)
+        {
             bool simpleInit = (baseValues is Scope);
             lock (runners)
             {
-                RunnerItem retVal = runners.FirstOrDefault(n => !simpleInit && n.Lock());
+                RunnerItem retVal = runners.FirstOrDefault(n => !simpleInit && n.Lock(policy));
                 if (retVal == null)
                 {
                     ScriptVisitor visitor = simpleInit
                         ? new ScriptVisitor((Scope) baseValues)
                         : new ScriptVisitor();
                     retVal = new RunnerItem(visitor, simpleInit);
-                    retVal.Lock();
+                    retVal.Lock(policy);
                     if (visitor.Reactivateable)
                     {
                         runners.Add(retVal);
@@ -53,7 +69,6 @@ namespace ITVComponents.Scripting.CScript.Buffering
                 visitorInstance = (ScriptVisitor) retVal.Visitor;
                 if (!simpleInit)
                 {
-
                     visitorInstance.ClearScope(baseValues);
                 }
 
@@ -78,9 +93,24 @@ namespace ITVComponents.Scripting.CScript.Buffering
             InitializeScopeVariables scopeInitializer,
             out ScriptVisitor visitorInstance)
         {
-            Scope s = new Scope(new Dictionary<string, object> { { "$data", implicitContext } });
+            return GetReplInstance(implicitContext, scopeInitializer, ScriptingPolicy.Default, out visitorInstance);
+        }
+
+        /// <summary>
+        /// Gets an existing free repl session or creates a new one if required
+        /// </summary>
+        /// <param name="baseValues">the base values used to initialize the repl - session</param>
+        /// <param name="scopeInitializer">a callback that is used to prepare the scope variables for the scripting</param>
+        /// <param name="visitorInstance">the visitor instance that is capable to process expressions and scripts</param>
+        /// <returns>a runner item that can be used to control the repl session</returns>
+        public static IDisposable GetReplInstance(object implicitContext,
+            InitializeScopeVariables scopeInitializer,
+            ScriptingPolicy policy,
+            out ScriptVisitor visitorInstance)
+        {
+            Scope s = new Scope(new Dictionary<string, object> { { "$data", implicitContext } }, policy);
             s.ImplicitContext = "$data";
-            return GetReplInstance(s, scopeInitializer, out visitorInstance);
+            return GetReplInstance(s, scopeInitializer, policy, out visitorInstance);
         }
 
         /// <summary>
@@ -115,6 +145,8 @@ namespace ITVComponents.Scripting.CScript.Buffering
 
             private bool isSimpleInit;
 
+            private ScriptingPolicy policy;
+
             /// <summary>
             /// Initializes a new instance of the RunnerItem class
             /// </summary>
@@ -127,16 +159,18 @@ namespace ITVComponents.Scripting.CScript.Buffering
                 this.isSimpleInit = isSimpleInit;
             }
 
+            public ScriptingPolicy Policy => policy;
+
             /// <summary>
             /// The ScriptVisitor that is attached to this runner-session
             /// </summary>
-            public ITVScriptingBaseVisitor<ScriptValue> Visitor { get; private set; }
+            public ScriptVisitor Visitor { get; private set; }
 
             /// <summary>
             /// Acquires a lock for this runner item so that no other repl-session can use the same instance
             /// </summary>
             /// <returns></returns>
-            public bool Lock()
+            public bool Lock(ScriptingPolicy policy)
             {
                 lock (innerLock)
                 {
@@ -144,6 +178,8 @@ namespace ITVComponents.Scripting.CScript.Buffering
                     bool retVal = available;
                     if (retVal)
                     {
+                        this.policy = policy;
+                        (Visitor).ScriptingPolicy = policy;
                         available = false;
                     }
 

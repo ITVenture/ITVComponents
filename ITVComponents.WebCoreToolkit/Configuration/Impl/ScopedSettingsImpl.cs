@@ -1,5 +1,6 @@
 ﻿using System;
 using ITVComponents.Helpers;
+using ITVComponents.WebCoreToolkit.Security;
 
 namespace ITVComponents.WebCoreToolkit.Configuration.Impl
 {
@@ -9,6 +10,14 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// the underlaying settings-provider
         /// </summary>
         private readonly IScopedSettingsProvider settingsProvider;
+
+        private readonly ISecurityRepository securityRepo;
+        private readonly IPermissionScope permissionScope;
+
+        /// <summary>
+        /// the name of the setting represented by this instance
+        /// </summary>
+        private readonly string typeName;
 
         /// <summary>
         /// the configured value
@@ -21,9 +30,17 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// Injector Constructor for this scoped settings
         /// </summary>
         /// <param name="settingsProvider"></param>
-        public ScopedSettingsImpl(IScopedSettingsProvider settingsProvider)
+        public ScopedSettingsImpl(IScopedSettingsProvider settingsProvider, ISecurityRepository securityRepo, IPermissionScope permissionScope)
         {
             this.settingsProvider = settingsProvider;
+            this.securityRepo = securityRepo;
+            this.permissionScope = permissionScope;
+            typeName = typeof(TSettings).Name;
+            var att = (SettingNameAttribute)Attribute.GetCustomAttribute(typeof(TSettings), typeof(SettingNameAttribute), true);
+            if (att != null)
+            {
+                typeName = att.SettingsKeyName;
+            }
         }
 
         /// <summary>
@@ -37,18 +54,37 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         public TSettings ValueOrDefault => valueOrDefault ??= GetSettingsValue();
 
         /// <summary>
+        /// Sets the value of this settings item
+        /// </summary>
+        /// <param name="newValue">the value to write for the setting represented by this object</param>
+        public void Update(TSettings newValue)
+        {
+            value = null;
+            valueOrDefault = null;
+            var tmp = JsonHelper.ToJson(newValue);
+            settingsProvider.UpdateJsonSetting(typeName, permissionScope.PermissionPrefix, tmp);
+        }
+
+        /// <summary>
+        /// Sets the value of this settings item and encrypts string values that are prefixed with "encrypt:"
+        /// </summary>
+        /// <param name="newValue">the value to write for the setting represented by this object</param>
+        /// <param name="useTenantEncryption">indicates whether to use tenant-driven encryption for writing the settings</param>
+        public void Update(TSettings newValue, bool useTenantEncryption)
+        {
+            value = null;
+            valueOrDefault = null;
+            var currentScope = permissionScope.PermissionPrefix;
+            var tmp = securityRepo.EncryptJsonObject(newValue, currentScope);
+            settingsProvider.UpdateJsonSetting(typeName, currentScope, tmp);
+        }
+
+        /// <summary>
         /// Reads the settings-value from the underlaying provider
         /// </summary>
         /// <returns>the configured settings-instance or its default-value</returns>
         private TSettings GetSettingsValue()
         {
-            var typeName = typeof(TSettings).Name;
-            var att = (SettingNameAttribute)Attribute.GetCustomAttribute(typeof(TSettings), typeof(SettingNameAttribute), true);
-            if (att != null)
-            {
-                typeName = att.SettingsKeyName;
-            }
-
             var tmp = settingsProvider.GetJsonSetting(typeName);
             if (!string.IsNullOrEmpty(tmp))
             {

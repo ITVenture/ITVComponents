@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
 {
@@ -10,7 +11,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         [MaxLength(150),Required]
         public string PropertyName{get;set;}
 
-        [MaxLength(1024),Required]
+        [Required]
         public string Value { get; set; }
+
+        public CustomUserPropertyType PropertyType { get; set; }
     }
 }

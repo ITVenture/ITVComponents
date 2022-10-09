@@ -33,7 +33,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         public string PermissionNameUniqueness { get; set; }
 
         public virtual ICollection<TRolePermission> RolePermissions { get; set; } = new List<TRolePermission>();
-        
+
         [ForeignKey(nameof(TenantId))]
         public virtual Tenant Tenant { get; set; }
     }

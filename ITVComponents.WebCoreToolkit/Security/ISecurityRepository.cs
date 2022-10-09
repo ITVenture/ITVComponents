@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
@@ -36,8 +38,47 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// Gets an enumeration of CustomUserProperties for the given user
         /// </summary>
         /// <param name="user">the user for which to get the custom properties</param>
+        /// <param name="propertyType">the expected property type</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
-        IEnumerable<CustomUserProperty> GetCustomProperties(User user);
+        IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType);
+
+        /// <summary>
+        /// Gets the string representation of the given property. This is only supported in 1:1 user environments
+        /// </summary>
+        /// <param name="user">the user for which go get the property</param>
+        /// <param name="propertyName">the name of the desired property</param>
+        /// <param name="propertyType">the expected property-type</param>
+        /// <returns>the string representation of the requested property</returns>
+        string GetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType);
+
+        /// <summary>
+        /// Gets the string representation of the given property. This is only supported in 1:1 user environments
+        /// </summary>
+        /// <param name="user">the user for which go get the property</param>
+        /// <param name="propertyName">the name of the desired property</param>
+        /// <param name="propertyType">the expected property-type</param>
+        /// <returns>the string representation of the requested property</returns>
+        T GetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType);
+
+        /// <summary>
+        /// Sets the specified property for the given user
+        /// </summary>
+        /// <param name="user">the user for which to set a property</param>
+        /// <param name="propertyName">the property-name</param>
+        /// <param name="propertyType">the property type</param>
+        /// <param name="value">the value of the property</param>
+        /// <returns>a value indicating whether the property could be saved</returns>
+        bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value);
+
+        /// <summary>
+        /// Sets the specified property for the given user
+        /// </summary>
+        /// <param name="user">the user for which to set a property</param>
+        /// <param name="propertyName">the property-name</param>
+        /// <param name="propertyType">the property type</param>
+        /// <param name="value">the value of the property</param>
+        /// <returns>a value indicating whether the property could be saved</returns>
+        bool SetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType, T value);
 
         /// <summary>
         /// Get a value indicating, if the resulting userlables result to a user that is authenticated for the current user-scope
@@ -52,14 +93,16 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// </summary>
         /// <param name="userLabels">the labels that describe the current user</param>
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
+        /// <param name="propertyType">the requested property type</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
-        IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType);
+        IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType);
 
         /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
         /// <param name="originalClaims">the claims that were originally attached to the current identity</param>
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
+        /// <param name="propertyType">the requested propertyType</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
         IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims, string userAuthenticationType);
 
@@ -134,6 +177,24 @@ namespace ITVComponents.WebCoreToolkit.Security
         byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt);
 
         /// <summary>
+        /// Wraps the given stream with a Decrypt-Stream for the current permission-scope
+        /// </summary>
+        /// <param name="baseStream">the base-stream that contains encrypted data</param>
+        /// <param name="permissionScopeName">the permission-scope that is permitted to read the given file</param>
+        /// <param name="initializationVector">the initialization vector that is used for decrypting the data</param>
+        /// <param name="salt">the salt that was used for the encryption</param>
+        /// <returns>a decrypt-stream that can be used to read the cleartext-data</returns>
+        Stream GetDecryptStream(Stream baseStream, string permissionScopeName, byte[] initializationVector, byte[] salt);
+
+        /// <summary>
+        /// Wraps the given stream with a Decrypt-Stream for the current permission-scope
+        /// </summary>
+        /// <param name="baseStream">the base-stream that contains encrypted data</param>
+        /// <param name="permissionScopeName">the permission-scope that is permitted to read the given file</param>
+        /// <returns>a decrypt-stream that can be used to read the cleartext-data</returns>
+        Stream GetDecryptStream(Stream baseStream, string permissionScopeName);
+
+        /// <summary>
         /// Decrypts a value with the appropriate settings
         /// </summary>
         /// <param name="value">the value to encrypt</param>
@@ -158,5 +219,31 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <param name="salt">the salt that was used for encryption</param>
         /// <returns>the encrypted value</returns>
         byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt);
+
+        /// <summary>
+        /// Creates a decrypt-stream that is capable to encrypt data for the given permission-scope
+        /// </summary>
+        /// <param name="baseStream">the stream that points to a resource that will save the encrypted data</param>
+        /// <param name="permissionScopeName">the permission-scope that is permitted to access the data</param>
+        /// <param name="initializationVector">the initialization vector that was used to initialize the encryption</param>
+        /// <param name="salt">the salt that was used for encryption</param>
+        /// <returns>a stream that will encrypt any data written and forwards it to the base-stream</returns>
+        Stream GetEncryptStream(Stream baseStream, string permissionScopeName, out byte[] initializationVector, out byte[] salt);
+
+        /// <summary>
+        /// Creates a decrypt-stream that is capable to encrypt data for the given permission-scope
+        /// </summary>
+        /// <param name="baseStream">the stream that points to a resource that will save the encrypted data</param>
+        /// <param name="permissionScopeName">the permission-scope that is permitted to access the data</param>
+        /// <returns>a stream that will encrypt any data written and forwards it to the base-stream</returns>
+        Stream GetEncryptStream(Stream baseStream, string permissionScopeName);
+
+        /// <summary>
+        /// Serializes an object to Json and encrypts string values when prefixed with "encrypt:"
+        /// </summary>
+        /// <param name="value">the object to serialize</param>
+        /// <param name="permissionScopeName">the permission-scope that is permitted to access the data</param>
+        /// <returns>the serialized and when demanded encrypted representation of the provided object</returns>
+        string EncryptJsonObject(object value, string permissionScopeName);
     }
 }

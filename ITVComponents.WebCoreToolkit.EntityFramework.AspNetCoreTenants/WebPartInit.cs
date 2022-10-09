@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
@@ -45,7 +47,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
         [ServiceRegistrationMethod]
         public static void RegisterServices(IServiceCollection services, [WebPartConfig("ContextSettings")]SecurityContextOptions contextOptions,
-            [WebPartConfig("ActivationSettings")]ActivationOptions partActivation)
+            [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
+            [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
             Type t = null;
             if (!string.IsNullOrEmpty(contextOptions.ContextType))
@@ -65,7 +68,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                     services.UseDbIdentities(options => options.UseSqlServer(partActivation.ConnectionStringName));
                 }
 
-                services.Configure<ToolkitPolicyOptions>(o => o.SignInSchemes.Add(IdentityConstants.ApplicationScheme));
+                var l = sharedObjects.Property<List<string>>("SignInSchemes", true);
+                l.Value.AddIfMissing(IdentityConstants.ApplicationScheme, true);
             }
 
             if (partActivation.UseNavigation)
@@ -110,6 +114,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             if (partActivation.UseLogAdapter)
             {
                 services.UseDbLogAdapter();
+            }
+
+            if (partActivation.UseApplicationTokens)
+            {
+                if (t != null)
+                {
+                    services.UseApplicationTokenService(t);
+                }
+                else
+                {
+                    services.UseApplicationTokenService();
+                }
             }
             /*if (!string.IsNullOrEmpty(options?.ContextType))
             {

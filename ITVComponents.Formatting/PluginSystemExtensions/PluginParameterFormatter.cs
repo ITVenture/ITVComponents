@@ -31,7 +31,7 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
         public string ProcessLiteral(string rawString)
         {
             configLock.WaitOne();
-            return formatPrototype.FormatText(rawString);
+            return formatPrototype.FormatText(rawString, TextFormat.DefaultFormatPolicyWithPrimitives);
         }
 
         /// <summary>

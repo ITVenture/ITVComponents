@@ -5,10 +5,13 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Options;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit
 {
@@ -21,9 +24,21 @@ namespace ITVComponents.WebCoreToolkit
             return config.GetSection<WebPartInitOptions>(path);
         }
 
+        [CustomConfigurator(typeof(AuthorizationOptions))]
+        public static void ConfigureAuthenticationTypes(AuthorizationOptions op, [SharedObjectHeap]ISharedObjHeap sharedObjects)
+        {
+            var l = sharedObjects.Property<List<string>>("SignInSchemes", true);
+            if (l.Value.Count != 0)
+            {
+                var policy = new AuthorizationPolicyBuilder(op.DefaultPolicy);
+                l.Value.ForEach(policy.AuthenticationSchemes.Add);
+                op.DefaultPolicy = policy.Build();
+            }
+        }
+
         [ServiceRegistrationMethod]
         public static void RegisterServices(IServiceCollection services, WebPartInitOptions options)
-        { 
+        {
             if (options.UseSimpleUserNameMapping)
             {
                 services.UseSimpleUserNameMapping();

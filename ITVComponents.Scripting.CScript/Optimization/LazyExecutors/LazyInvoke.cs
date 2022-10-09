@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.ScriptValues;
+using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
 {
@@ -13,11 +14,14 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
 
         protected readonly bool lastParams;
 
-        public LazyInvoke(Type[] types, bool lastParams)
+        public LazyInvoke(Type[] types, bool lastParams, ScriptingPolicy policy)
         {
             this.types = types;
             this.lastParams = lastParams;
+            Policy = policy;
         }
+
+        public ScriptingPolicy Policy { get; }
 
         public abstract bool CanExecute(object value, ScriptValue[] arguments);
 

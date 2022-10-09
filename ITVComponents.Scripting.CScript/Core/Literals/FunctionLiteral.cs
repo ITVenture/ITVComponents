@@ -5,9 +5,11 @@ using System.Dynamic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Security.Authentication.ExtendedProtection;
 using System.Text;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.ScriptValues;
+using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Core.Literals
 {
@@ -33,6 +35,8 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         /// </summary>
         private ITVScriptingParser.FunctionBodyContext body;
 
+        private readonly ScriptingPolicy policy;
+
         /// <summary>
         /// The initialValues that are surrounding this functiondefinition
         /// </summary>
@@ -46,13 +50,15 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         /// <param name="arguments">the argument names that are passed to this method</param>
         /// <param name="body">the method body of this method</param>
         public FunctionLiteral(Dictionary<string, object> values, string[] arguments,
-            ITVScriptingParser.FunctionBodyContext body)
+            ITVScriptingParser.FunctionBodyContext body, ScriptingPolicy policy)
         {
             initialValues = values;
-            scope = new FunctionScope(values);
+            scope = new FunctionScope(values, policy);
             visitor = new ScriptVisitor(scope);
+            visitor.ScriptingPolicy = policy;
             this.arguments = arguments;
             this.body = body;
+            this.policy = policy;
         }
 
         public IScope ParentScope { get { return scope.ParentScope; } set { scope.ParentScope = value; } }
@@ -171,7 +177,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
 
                 parameters["parameters"] = arguments;
                 scope.Clear(parameters);
-                return ScriptValueHelper.GetScriptValueResult<object>(visitor.Visit(body), false);
+                return ScriptValueHelper.GetScriptValueResult<object>(visitor.Visit(body), false, policy);
             }
             finally
             {
@@ -185,7 +191,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         /// <returns></returns>
         public FunctionLiteral Copy()
         {
-            return new FunctionLiteral(initialValues, arguments, body);
+            return new FunctionLiteral(initialValues, arguments, body, policy);
         }
 
         /// <summary>

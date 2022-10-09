@@ -13,13 +13,25 @@ namespace ITVComponents.Settings
     public class JsonStringEncryptConverter : JsonConverter
     {
         private string targetEntropy = null;
+        private byte[] encryptionKey = null;
+        private JsonValueEncryptionMode mode;
         public JsonStringEncryptConverter()
         {
+            mode = JsonValueEncryptionMode.defaultKey;
         }
 
         public JsonStringEncryptConverter(string targetEntropy)
         {
             this.targetEntropy = targetEntropy;
+            mode = !string.IsNullOrEmpty(targetEntropy)
+                ? JsonValueEncryptionMode.stringEntropy
+                : JsonValueEncryptionMode.defaultKey;
+        }
+
+        public JsonStringEncryptConverter(byte[] encryptionKey)
+        {
+            this.encryptionKey = encryptionKey;
+            mode = encryptionKey != null ? JsonValueEncryptionMode.binaryKey : JsonValueEncryptionMode.defaultKey;
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
@@ -33,13 +45,17 @@ namespace ITVComponents.Settings
 
             if (stringValue.StartsWith("encrypt:", StringComparison.OrdinalIgnoreCase))
             {
-                if (string.IsNullOrEmpty(targetEntropy))
+                if (mode == JsonValueEncryptionMode.defaultKey)
                 {
                     stringValue = PasswordSecurity.Encrypt(stringValue.Substring(8));
                 }
-                else
+                else if (mode == JsonValueEncryptionMode.stringEntropy)
                 {
                     stringValue = PasswordSecurity.Encrypt(stringValue.Substring(8), targetEntropy);
+                }
+                else if (mode == JsonValueEncryptionMode.binaryKey)
+                {
+                    stringValue = AesEncryptor.Encrypt(stringValue.Substring(8), encryptionKey);
                 }
             }
 
@@ -110,5 +126,12 @@ namespace ITVComponents.Settings
         {
             return objectType == typeof(string);
         }
+    }
+
+    public enum JsonValueEncryptionMode
+    {
+        defaultKey,
+        stringEntropy,
+        binaryKey
     }
 }

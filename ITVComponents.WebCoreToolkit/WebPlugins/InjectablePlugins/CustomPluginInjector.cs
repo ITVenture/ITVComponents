@@ -36,6 +36,30 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         }
 
         /// <summary>
+        /// Gets the demanded plugin instance
+        /// </summary>
+        /// <param name="services">the DI services for the current request</param>
+        /// <param name="explicitRequestedName">the name of the required plugin</param>
+        /// <returns>the demanded plugin instance</returns>
+        IPlugin ICustomPluginInjector.GetPlugin(IServiceProvider services, string explicitRequestedName)
+        {
+            var factoryLoader = services.GetRequiredService<IWebPluginHelper>();
+            var factory = factoryLoader.GetFactory();
+            return factory[explicitRequestedName, true];
+        }
+
+        /// <summary>
+        /// Gets the demanded plugin instance
+        /// </summary>
+        /// <param name="services">the DI services for the current request</param>
+        /// <param name="explicitRequestedName">the name of the required plugin</param>
+        /// <returns>the demanded plugin instance</returns>
+        public virtual T GetPluginInstance(IServiceProvider services, string explicitRequestedName)
+        {
+            return (T)((ICustomPluginInjector)this).GetPlugin(services, explicitRequestedName);
+        }
+
+        /// <summary>
         /// Creates a Plugin
         /// </summary>
         /// <param name="services">the services collection providing required dependencies</param>

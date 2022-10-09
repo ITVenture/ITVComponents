@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using ITVComponents.ExtendedFormatting;
+using ITVComponents.Scripting.CScript.Buffering;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.ExternalMethods;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
@@ -89,7 +90,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
         [ExternalMethod(MappedMethodName = "CopyScope")]
         public static IScope CopyScope([DefaultParameter(FixtureName = "scope")] Scope scope)
         {
-            return new Scope(scope);
+            return new Scope(scope, ((IScope)scope).ScriptingPolicy);
         }
 
         /// <summary>
@@ -123,9 +124,10 @@ namespace ITVComponents.Scripting.CScript.Helpers
         /// <param name="expression">the expression to parse</param>
         /// <returns>the result of the expression</returns>
         [ExternalMethod(MappedMethodName="Eval")]
-        public static object Eval(IScope context, string expression)
+        public static object Eval([DefaultParameter(FixtureName = "session")] IDisposable scriptingSession, IScope context, string expression)
         {
-            return ExpressionParser.Parse(expression,context);
+            var policy = ((InterpreterBuffer.RunnerItem)scriptingSession).Policy;
+            return ExpressionParser.Parse(expression,context, policy:policy);
         }
 
         /// <summary>
@@ -149,6 +151,14 @@ namespace ITVComponents.Scripting.CScript.Helpers
         public static object Convert(object value, Type target)
         {
             return TypeConverter.Convert(value, target);
+        }
+
+        [ExternalMethod(MappedMethodName = "ArrayOfType")]
+        public static object ArrayOfType(object[] value, Type targetType)
+        {
+            var retVal = Array.CreateInstance(targetType, value.Length);
+            Array.Copy(value, retVal, value.Length);
+            return retVal;
         }
     }
 }

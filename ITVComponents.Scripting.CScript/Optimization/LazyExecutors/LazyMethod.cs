@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text;
 using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.ScriptValues;
+using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
 {
@@ -14,7 +15,7 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
         private readonly bool isStatic;
         private readonly bool isExtension;
         private readonly bool hasRef;
-        internal LazyMethod(MethodInfo method, bool isStatic, bool isExtension, bool lastParams) : base((from t in method.GetParameters() select t.ParameterType).ToArray(), lastParams)
+        internal LazyMethod(MethodInfo method, bool isStatic, bool isExtension, bool lastParams, ScriptingPolicy policy) : base((from t in method.GetParameters() select t.ParameterType).ToArray(), lastParams, policy)
         {
             this.method = method;
             this.isStatic = isStatic;
@@ -33,7 +34,7 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
         public override object Invoke(object value, ScriptValue[] arguments)
         {
             ScriptValue[] args = ((SequenceValue) arguments[1]).Sequence;
-            object[] raw = (from t in args select t.GetValue(null)).ToArray();
+            object[] raw = (from t in args select t.GetValue(null, Policy)).ToArray();
             if (isExtension)
             {
                 raw = new[] {value}.Concat(raw).ToArray();

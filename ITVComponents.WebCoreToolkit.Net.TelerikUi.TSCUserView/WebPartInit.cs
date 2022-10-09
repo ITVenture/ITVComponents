@@ -8,6 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.Extensions;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView
 {
@@ -18,6 +19,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
         public static SecurityContextOptions LoadOptions(IConfiguration config, string path)
         {
             return config.GetSection<SecurityContextOptions>(path);
+        }
+
+        [ServiceRegistrationMethod]
+        public static void RegisterServices(IServiceCollection services)
+        {
+            services.UseSecurityContextUserExtensions();
         }
 
         [MvcRegistrationMethod]

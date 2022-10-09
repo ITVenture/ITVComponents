@@ -1,26 +1,27 @@
 ﻿using System;
 using System.Collections.Generic;
+using Google.Protobuf.WellKnownTypes;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
+using ITVComponents.Plugins;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Server
 {
-    public class AuthenticationInit:IAppConfigureProvider, IServicesConfigureProvider, IAuthInit
+    public class AuthenticationInit:IServiceHubConfigurator, IAuthInit, IPlugin
     {
-        private List<IAuthorizationConfigProvider> authorizationProviders = new List<IAuthorizationConfigProvider>();
-
+        private readonly bool useAuthorization;
         private List<IAuthenticationConfigProvider> authenticationProviders = new List<IAuthenticationConfigProvider>();
 
         /// <summary>
         /// Initializes a new instance of the AuthenticationInit class
         /// </summary>
         /// <param name="parent">the object that initializes the web-host</param>
-        public AuthenticationInit(IServiceHubProvider parent)
+        public AuthenticationInit(IServiceHubProvider parent, bool useAuthorization)
         {
-            parent.RegisterAppConfigureProvider(this);
-            parent.RegisterServicesConfigureProvider(this);
+            this.useAuthorization = useAuthorization;
+            parent.RegisterConfigurator(this);
         }
 
         /// <summary>
@@ -29,14 +30,14 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         public string UniqueName { get; set; }
 
         /// <summary>
-        /// Configures the services for a specific use-case
+        /// Configures the WebApplication builder (inject services, set defaults, etc.)
         /// </summary>
-        /// <param name="services">the service-collection that is used to inject dependencies</param>
-        public void ConfigureServices(IServiceCollection services)
+        /// <param name="builder">the web-application builder that is used to setup a grpc service</param>
+        public void ConfigureBuilder(WebApplicationBuilder builder)
         {
             if (authenticationProviders.Count != 0)
             {
-                var authenticationBuilder = services.AddAuthentication(sharedOptions =>
+                var authenticationBuilder = builder.Services.AddAuthentication(sharedOptions =>
                 {
                     authenticationProviders.ForEach(n => n.ConfigureDefaults(sharedOptions));
                 });
@@ -44,40 +45,27 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
                 authenticationProviders.ForEach(n => n.ConfigureAuth(authenticationBuilder));
             }
 
-            if (authorizationProviders.Count != 0)
+            if (useAuthorization)
             {
-                services.AddAuthorization();
-                authorizationProviders.ForEach(n => n.ConfigureServices(services));
+                builder.Services.AddAuthorization();
             }
         }
 
         /// <summary>
-        /// Configures the app-builder / host-environment before the services are configured
+        /// Configures the app after it is built. (e.g. build the service middleware pipeline
         /// </summary>
-        /// <param name="app">the app-builder</param>
-        /// <param name="env">the hosting environment</param>
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        /// <param name="app">the built app</param>
+        public void ConfigureApp(WebApplication app)
         {
-            app.UseAuthentication();
-            app.UseAuthorization();
             if (authenticationProviders.Count != 0)
             {
                 app.UseAuthentication();
             }
 
-            if (authorizationProviders.Count != 0)
+            if (useAuthorization)
             {
                 app.UseAuthorization();
             }
-        }
-
-        /// <summary>
-        /// Registers an authorization service on this init-instance
-        /// </summary>
-        /// <param name="provider">the config-provider that will inject configs at the appropriate point in time</param>
-        public void RegisterAuthorizationService(IAuthorizationConfigProvider provider)
-        {
-            authorizationProviders.Add(provider);
         }
 
         /// <summary>

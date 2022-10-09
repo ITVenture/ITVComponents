@@ -96,7 +96,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         {
             if (e.Value is ConnectionRequest crv)
             {
-                openChannels.GetOrAdd(crv.ProposedGuid, s =>
+                var chan = openChannels.GetOrAdd(crv.ProposedGuid, s =>
                 {
                     var ret = new MemoryServiceChannel(crv.ProposedGuid, true, MscMode.Server, crv.Ttl, new IdentityFromWindowsProvider());
                     ret.ObjectReceived += ClientComm;

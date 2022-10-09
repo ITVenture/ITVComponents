@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
 using ITVComponents.Security;
+using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 
@@ -55,14 +58,73 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// </summary>
         /// <param name="user">the user for which to get the custom properties</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
-        public IEnumerable<CustomUserProperty> GetCustomProperties(User user)
+        public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
             var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
-            return hu.CustomInfo.Select(m => new CustomUserProperty
+            return hu.CustomInfo.Where(n => n.PropertyType==propertyType).Select(m => new CustomUserProperty
             {
                 PropertyName = m.PropertyName,
-                Value = m.Value
+                Value = m.Value,
+                PropertyType = m.PropertyType
             });
+        }
+
+        /// <summary>
+        /// Gets the string representation of the given property. This is only supported in 1:1 user environments
+        /// </summary>
+        /// <param name="user">the user for which go get the property</param>
+        /// <param name="propertyName">the name of the desired property</param>
+        /// <param name="propertyType">the expected property-type</param>
+        /// <returns>the string representation of the requested property</returns>
+        public string GetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType)
+        {
+            string retVal = null;
+            var tmp = GetCustomProperties(user, propertyType).FirstOrDefault(n => n.PropertyName == propertyName);
+            if (tmp != null)
+            {
+                retVal = tmp.Value;
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Gets the string representation of the given property. This is only supported in 1:1 user environments
+        /// </summary>
+        /// <param name="user">the user for which go get the property</param>
+        /// <param name="propertyName">the name of the desired property</param>
+        /// <param name="propertyType">the expected property-type</param>
+        /// <returns>the string representation of the requested property</returns>
+        public T GetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType)
+        {
+            T retVal = default(T);
+            var tmpVal = GetCustomProperty(user, propertyName, propertyType);
+            if (!string.IsNullOrEmpty(tmpVal))
+            {
+                if (propertyType == CustomUserPropertyType.Claim || propertyType == CustomUserPropertyType.Literal)
+                {
+                    if (TypeConverter.TryConvert(tmpVal, typeof(T), out var result))
+                    {
+                        retVal = (T)result;
+                    }
+                }
+                else
+                {
+                    retVal = JsonHelper.FromJsonString<T>(tmpVal);
+                }
+            }
+
+            return retVal;
+        }
+
+        public bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value)
+        {
+            return false;
+        }
+
+        public bool SetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType, T value)
+        {
+            return false;
         }
 
         /// <summary>
@@ -82,14 +144,15 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <param name="userLabels">the labels that describe the current user</param>
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
-        public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType)
+        public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType)
         {
             return (from t in userLabels
                     join u in HubConfiguration.Helper.HubUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
-                    select u.CustomInfo).SelectMany(i => i.Select(m => new CustomUserProperty
+                    select u.CustomInfo).SelectMany(i => i.Where(n => n.PropertyType == propertyType).Select(m => new CustomUserProperty
                     {
                         PropertyName = m.PropertyName,
-                        Value = m.Value
+                        Value = m.Value,
+                        PropertyType = m.PropertyType
                     }));
         }
 
@@ -144,6 +207,16 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
             throw new NotImplementedException();
         }
 
+        public Stream GetDecryptStream(Stream baseStream, string permissionScopeName, byte[] initializationVector, byte[] salt)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Stream GetDecryptStream(Stream baseStream, string permissionScopeName)
+        {
+            throw new NotImplementedException();
+        }
+
         public string Encrypt(string value, string permissionScopeName)
         {
             return value.Decrypt();
@@ -155,6 +228,22 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         }
 
         public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Stream GetEncryptStream(Stream baseStream, string permissionScopeName, out byte[] initializationVector,
+            out byte[] salt)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Stream GetEncryptStream(Stream baseStream, string permissionScopeName)
+        {
+            throw new NotImplementedException();
+        }
+
+        public string EncryptJsonObject(object value, string permissionScopeName)
         {
             throw new NotImplementedException();
         }

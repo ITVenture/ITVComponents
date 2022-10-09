@@ -7,12 +7,15 @@ using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.Optimization;
+using ITVComponents.Scripting.CScript.Security;
 using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
 
 namespace ITVComponents.Scripting.CScript.ScriptValues
 {
     public class MemberAccessValue:ScriptValue
     {
+        private readonly ScriptingPolicy policy;
+
         /// <summary>
         /// the base value on which the defined member should be defined
         /// </summary>
@@ -32,8 +35,9 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// Initializes a new instance of the MemberAccessValue class
         /// </summary>
         /// <param name="handler">the handler that is used to lock/unlock this value</param>
-        public MemberAccessValue(IScriptSymbol creator, bool bypassCompatibilityOnLazyInvokation) :base(creator, bypassCompatibilityOnLazyInvokation) 
+        public MemberAccessValue(IScriptSymbol creator, bool bypassCompatibilityOnLazyInvokation, ScriptingPolicy policy) :base(creator, bypassCompatibilityOnLazyInvokation)
         {
+            this.policy = policy;
         }
 
         /// <summary>
@@ -74,7 +78,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// <summary>
         /// Gets the baseValue of this MemberAccess Value object
         /// </summary>
-        protected object BaseValue { get { return baseValue.GetValue(null); } }
+        protected object BaseValue { get { return baseValue.GetValue(null, policy); } }
 
         /// <summary>
         /// Gets the Value of this ScriptValue
@@ -83,8 +87,8 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         {
             get
             {
-                object baseVal = baseValue.GetValue(null);
-                return baseVal.GetMemberValue(Name, explicitType, ValueType);
+                object baseVal = baseValue.GetValue(null, policy);
+                return baseVal.GetMemberValue(Name, explicitType, ValueType, policy);
             }
         }
 
@@ -124,8 +128,8 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 throw new ScriptException("Unable to set the value of something else than Property or Field");
             }
 
-            object target = baseValue.GetValue(null);
-            target.SetMemberValue(Name, value, explicitType, ValueType);
+            object target = baseValue.GetValue(null, policy);
+            target.SetMemberValue(Name, value, explicitType, ValueType, policy);
         }
     }
 }

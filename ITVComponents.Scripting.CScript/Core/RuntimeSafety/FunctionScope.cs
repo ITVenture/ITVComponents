@@ -5,20 +5,24 @@ using System.Linq;
 using System.Text;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Scripting.CScript.Core.Literals;
+using ITVComponents.Scripting.CScript.Security;
 
 
 namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
 {
     public class FunctionScope:IScope
     {
+        private readonly ScriptingPolicy policy;
         private Scope innerScope;
 
         private IScope parentScope;
 
         private Dictionary<string, object> initialScope;
+        private ScriptingPolicy overridePolicy;
 
-        public FunctionScope(Dictionary<string, object> initialScope)
+        public FunctionScope(Dictionary<string, object> initialScope, ScriptingPolicy policy)
         {
+            this.policy = policy;
             this.initialScope = new Dictionary<string, object>();
             foreach (var keyValuePair in initialScope)
             {
@@ -34,10 +38,12 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
             get { return GetValue(memberName, rootOnly); }
         }
 
+        ScriptingPolicy IScope.ScriptingPolicy => overridePolicy ?? parentScope?.ScriptingPolicy ?? policy;
+
         public Scope PrepareCall()
         {
             Scope retVal = innerScope;
-            innerScope = new Scope(initialScope);
+            innerScope = new Scope(initialScope, ((IScope)this).ScriptingPolicy);
             return retVal;
         }
 #if !Community
@@ -234,6 +240,11 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         internal void ClearInitial()
         {
             initialScope.Clear();
+        }
+
+        void IScope.OverridePolicy(ScriptingPolicy newPolicy)
+        {
+            overridePolicy = newPolicy;
         }
     }
 }

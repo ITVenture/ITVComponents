@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Settings
 {
@@ -74,6 +75,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
             }
 
             return GetLiteralSetting(key);
+        }
+
+        public void UpdateJsonSetting(string key, string explicitUserScope, string value)
+        {
+            var original = dbContext.TenantSettings.FirstOrDefault(n =>
+                n.SettingsKey == key && n.JsonSetting && n.Tenant.TenantName == explicitUserScope);
+            if (original == null)
+            {
+                original = new TenantSetting
+                {
+                    JsonSetting = true,
+                    SettingsKey = key,
+                    TenantId = dbContext.CurrentTenantId.Value
+                };
+                dbContext.TenantSettings.Add(original);
+            }
+
+            original.SettingsValue = value;
+            dbContext.SaveChanges();
+        }
+
+        public void UpdateLiteralSetting(string key, string explicitUserScope, string value)
+        {
+            var original = dbContext.TenantSettings.FirstOrDefault(n =>
+                n.SettingsKey == key && !n.JsonSetting && n.Tenant.TenantName == explicitUserScope);
+            if (original == null)
+            {
+                original = new TenantSetting
+                {
+                    JsonSetting = false,
+                    SettingsKey = key,
+                    TenantId = dbContext.CurrentTenantId.Value
+                };
+                dbContext.TenantSettings.Add(original);
+            }
+
+            original.SettingsValue = value;
+            dbContext.SaveChanges();
         }
     }
 }

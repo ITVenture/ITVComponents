@@ -1,36 +1,46 @@
 ﻿using System;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkitOverrides;
+using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.ApiKeyAuthentication;
 using ITVComponents.WebCoreToolkit.ApiKeyAuthentication.Extensions;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Server
 {
-    public class ApiKeyAuthInit:IAuthenticationConfigProvider, IAuthorizationConfigProvider
+    public class ApiKeyAuthInit:IAuthenticationConfigProvider, IServiceHubConfigurator
     {
-        public ApiKeyAuthInit(IAuthInit hub)
+        public ApiKeyAuthInit(IServiceHubProvider hubProvider,IAuthInit hub)
         {
             hub.RegisterAuthenticationService(this);
-            hub.RegisterAuthorizationService(this);
+            hubProvider.RegisterConfigurator(this);
         }
 
         public string UniqueName { get; set; }
 
         /// <summary>
-        /// Configures the services for a specific use-case
+        /// Configures the WebApplication builder (inject services, set defaults, etc.)
         /// </summary>
-        /// <param name="services">the service-collection that is used to inject dependencies</param>
-        public void ConfigureServices(IServiceCollection services)
+        /// <param name="builder">the web-application builder that is used to setup a grpc service</param>
+        public void ConfigureBuilder(WebApplicationBuilder builder)
         {
-            services.UseSimpleUserNameMapping();
-            services.AddScoped<ISecurityRepository, JsonSettingsSecurityRepository>();
-            services.UseDefaultApiKeyResolver();
-            services.UseRepositoryClaimsTransformation();
-            services.EnableRoleBaseAuthorization();
+            builder.Services.UseSimpleUserNameMapping()
+            .AddScoped<ISecurityRepository, JsonSettingsSecurityRepository>()
+            .UseDefaultApiKeyResolver()
+            .UseRepositoryClaimsTransformation()
+            .EnableRoleBaseAuthorization();
+        }
+
+        /// <summary>
+        /// Configures the app after it is built. (e.g. build the service middleware pipeline
+        /// </summary>
+        /// <param name="app">the built app</param>
+        public void ConfigureApp(WebApplication app)
+        {
         }
 
         /// <summary>

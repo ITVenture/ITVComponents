@@ -98,7 +98,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                         UserName = u.UserName,
                         AuthenticationTypeId = u.AuthenticationTypeId,
                         TenantId = tenantId,
-                        Enabled = t.Enabled
+                        Enabled = t.Enabled??true
                     }).ToDataSourceResult(request, ModelState));
             }
             else

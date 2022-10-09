@@ -46,5 +46,22 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
             var injector = (CustomPluginInjector<T>) injectors[typeof(T)];
             return injector.GetPluginInstance(services, CheckForAreaPrefixedNames);
         }
+
+        /// <summary>
+        /// Creates the requested proxy object
+        /// </summary>
+        /// <typeparam name="T">the proxy-type to return</typeparam>
+        /// <param name="services">a services collection that provides required services</param>
+        /// <returns>the created proxy instance</returns>
+        internal T GetPlugIn<T>(IServiceProvider services, string explicitRequestedName) where T : class, IPlugin
+        {
+            if (!injectors.ContainsKey(typeof(T)))
+            {
+                return null;
+            }
+
+            var injector = (CustomPluginInjector<T>)injectors[typeof(T)];
+            return injector.GetPluginInstance(services, explicitRequestedName);
+        }
     }
 }

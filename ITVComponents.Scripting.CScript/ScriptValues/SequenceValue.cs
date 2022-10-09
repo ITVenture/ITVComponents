@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using ITVComponents.Scripting.CScript.Optimization;
+using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.ScriptValues
 {
@@ -29,12 +30,12 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// </summary>
         /// <param name="arguments">indexer/method/constructor arguments</param>
         /// <returns>an object that represents the value of this ScriptValue</returns>
-        public override object GetValue(ScriptValue[] arguments)
+        public override object GetValue(ScriptValue[] arguments, ScriptingPolicy policy)
         {
             ScriptValue val = Sequence.FirstOrDefault();
             if (val != null)
             {
-                return val.GetValue(arguments);
+                return val.GetValue(arguments, policy);
             }
 
             return null;

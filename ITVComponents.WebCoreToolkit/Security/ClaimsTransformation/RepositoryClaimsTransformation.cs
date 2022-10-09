@@ -3,6 +3,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,11 +39,11 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
         {
             using (var context = serviceProvider.CreateScope())
             {
-                foreach (var id in principal.Identities)
+                foreach (var id in principal.Identities.Where(i => i.IsAuthenticated))
                 {
                     var userNameMapper = context.ServiceProvider.GetService<IUserNameMapper>();
                     var userLabels = userNameMapper.GetUserLabels(id);
-                    id.AddClaims(from p in securityRepository.GetCustomProperties(userLabels, id.AuthenticationType)
+                    id.AddClaims(from p in securityRepository.GetCustomProperties(userLabels, id.AuthenticationType, CustomUserPropertyType.Claim)
                         select new Claim(p.PropertyName, p.Value, ClaimValueTypes.String, ITVentureIssuerString));
                     id.AddClaims(
                         from p in securityRepository.GetCustomProperties(id.GetClaimData(), id.AuthenticationType)

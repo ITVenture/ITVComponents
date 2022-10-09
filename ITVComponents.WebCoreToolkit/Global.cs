@@ -14,12 +14,11 @@
 
         public const string PlugInSelectorName = "plugInProvider";
 
-        public const string FixedAssetPermission = "##FixedPermission";
-
-        public const string FixedAssetFeature = "##FixedFeature";
-
-        public const string FixedAssetUserScope = "##FixedPermissionScope";
-
         public const string FixedAssetRequestQueryParameter = "SharedAssetKey";
+
+
+        public const string AppUserKeyIndicatorFormat = "##APPUSER##{0}#";
+
+        public const string AppUserKeyPattern = "^##APPUSER##(?<appUserKey>[^#]+)#$";
     }
 }

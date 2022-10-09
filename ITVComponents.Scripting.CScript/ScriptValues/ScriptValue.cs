@@ -11,6 +11,8 @@ using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Optimization;
 using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
+using ITVComponents.Scripting.CScript.Security;
+using ITVComponents.Scripting.CScript.Security.Restrictions;
 
 namespace ITVComponents.Scripting.CScript.ScriptValues
 {
@@ -74,7 +76,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// </summary>
         /// <param name="arguments">indexer/method/constructor arguments</param>
         /// <returns>an object that represents the value of this ScriptValue</returns>
-        public virtual object GetValue(ScriptValue[] arguments)
+        public virtual object GetValue(ScriptValue[] arguments, ScriptingPolicy policy)
         {
             if (!Getable)
             {
@@ -101,9 +103,13 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
             {
                 if (arguments == null || arguments.Length == 0)
                 {
-                    var invokationHelper = tmpValue as InvokationHelper;
-                    if (invokationHelper != null)
+                    if (tmpValue is InvokationHelper invokationHelper)
                     {
+                        if (policy.IsDenied(policy.GlobalMethods))
+                        {
+                            throw new ScriptSecurityException("Execution of global methods is denied!");
+                        }
+
                         bool ok;
                         object retVal = invokationHelper.Invoke(null, out ok);
                         if (ok)
@@ -112,10 +118,14 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                         }
                     }
 
-                    FunctionLiteral fx = tmpValue as FunctionLiteral;
-                    if (fx != null && fx.AutoInvokeEnabled)
+                    if (tmpValue is FunctionLiteral { AutoInvokeEnabled: true } fx)
                     {
-                        return ((FunctionLiteral) tmpValue).Invoke(null);
+                        if (policy.IsDenied(policy.ScriptMethods))
+                        {
+                            throw new ScriptSecurityException("Execution of Scripted functions is denied!");
+                        }
+
+                        return fx.Invoke(null);
                     }
 
                     return tmpValue;
@@ -130,7 +140,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                     throw new ScriptException("Indexer call for Types not supported");
                 }
 
-                object[] parameters = (from t in arguments select t.GetValue(null)).ToArray();
+                object[] parameters = (from t in arguments select t.GetValue(null, policy)).ToArray();
                 if (!(tmpValue is Array))
                 {
                     object[] args;
@@ -152,9 +162,14 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                         throw new ScriptException("No capable Indexer found for the provided arguments");
                     }
 
+                    if (policy.IsDenied(pi, tmpValue, PropertyAccessMode.Read, false))
+                    {
+                        throw new ScriptSecurityException($"Access to property '{pi.Name}' is denied!");
+                    }
+
                     if (creator != null)
                     {
-                        creator.SetPreferredExecutor(new LazyIndexer(pi,parameters.Length != args.Length));
+                        creator.SetPreferredExecutor(new LazyIndexer(pi,parameters.Length != args.Length, policy));
                     }
 
                     return pi.GetValue(tmpValue, args);
@@ -170,16 +185,16 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 SequenceValue a = (SequenceValue) arguments[1];
                 ScriptValue et = arguments[2];
                 Type explicitType = null;
-                object[] parameters = (from t in a.Sequence select t.GetValue(null)).ToArray();
+                object[] parameters = (from t in a.Sequence select t.GetValue(null, policy)).ToArray();
                 Type[] typeParameters = Type.EmptyTypes;
                 if (ta != null)
                 {
-                    typeParameters = (from t in ta.Sequence select (Type) t.GetValue(null)).ToArray();
+                    typeParameters = (from t in ta.Sequence select (Type) t.GetValue(null, policy)).ToArray();
                 }
 
                 if (et != null)
                 {
-                    explicitType = et.GetValue(null) as Type;
+                    explicitType = et.GetValue(null, policy) as Type;
                 }
 
                 Type type;
@@ -195,12 +210,22 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                     {
                         if (tmpValue is Delegate)
                         {
+                            if (policy.IsDenied(policy.AllowDelegates))
+                            {
+                                throw new ScriptSecurityException("Execution of Delegates is denied!");
+                            }
+
                             Delegate dlg = (Delegate) tmpValue;
                             return dlg.DynamicInvoke(parameters);
                         }
 
                         if (tmpValue is InvokationHelper)
                         {
+                            if (policy.IsDenied(policy.GlobalMethods))
+                            {
+                                throw new ScriptSecurityException("Execution of global methods is denied!");
+                            }
+
                             InvokationHelper ih = (InvokationHelper) tmpValue;
                             bool ok;
                             var retVal = ih.Invoke(parameters, out ok);
@@ -214,6 +239,11 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
 
                         if (tmpValue is FunctionLiteral)
                         {
+                            if (policy.IsDenied(policy.ScriptMethods))
+                            {
+                                throw new ScriptSecurityException("Execution of Scripted functions is denied!");
+                            }
+
                             FunctionLiteral fl = (FunctionLiteral) tmpValue;
                             return fl.Invoke(parameters);
                         }
@@ -231,19 +261,23 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
 
                 object target = tmpValue;
                 bool isStatic = false;
-                if (tmpValue is Type)
+                if (tmpValue is Type value)
                 {
-                    type = (Type)tmpValue;
+                    type = value;
                     target = null;
                     isStatic = true;
                 }
-                else if (tmpValue is ObjectLiteral)
+                else if (tmpValue is ObjectLiteral ol)
                 {
-                    type = tmpValue.GetType();
-                    ObjectLiteral ol = tmpValue as ObjectLiteral;
+                    type = ol.GetType();
                     FunctionLiteral fl = ol[Name] as FunctionLiteral;
                     if (fl != null)
                     {
+                        if (policy.IsDenied(policy.ScriptMethods))
+                        {
+                            throw new ScriptSecurityException("Execution of Scripted functions is denied!");
+                        }
+
                         return fl.Invoke(parameters);
                     }
                 }
@@ -257,12 +291,15 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 MethodInvoker method = MethodHelper.GetCapableMethod(type, typeParameters, Name, Value is Type, parameters, out args);
 #else
                 bool tmpStatic = isStatic;
+                bool isExtensionMethod = false;
                 MethodInfo method = MethodHelper.GetCapableMethod(type, typeParameters, Name, ref isStatic, parameters,
                                                                   out args);
+
                 if (!tmpStatic && isStatic)
                 {
                     args[0] = target;
                     target = null;
+                    isExtensionMethod = true;
                 }
 #endif
                 if (method == null)
@@ -270,10 +307,15 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                     throw new ScriptException(string.Format("No capable Method found for {0}", Name));
                 }
 
+                if (policy.IsDenied(method, !isExtensionMethod ? target : args[0], isStatic | isExtensionMethod))
+                {
+                    throw new ScriptSecurityException($"Access to method '{method.Name}' is denied!");
+                }
+
                 var writeBacks = MethodHelper.GetWritebacks(method, args, a.Sequence);
                 if (creator != null)
                 {
-                    creator.SetPreferredExecutor(new LazyMethod(method, tmpStatic, !tmpStatic && isStatic, args.Length != a.Sequence.Length));
+                    creator.SetPreferredExecutor(new LazyMethod(method, tmpStatic, !tmpStatic && isStatic, args.Length != a.Sequence.Length, policy));
                 }
 #if UseDelegates
                 if (target != null)
@@ -330,10 +372,10 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 }
 
                 ScriptValue[] a = ((SequenceValue) arguments[1]).Sequence;
-                object[] parameters = (from t in a select t.GetValue(null)).ToArray();
+                object[] parameters = (from t in a select t.GetValue(null, policy)).ToArray();
                 Type[] typeParameters = ta == null
                                             ? Type.EmptyTypes
-                                            : (from t in ta select (Type) t.GetValue(null)).ToArray();
+                                            : (from t in ta select (Type) t.GetValue(null, policy)).ToArray();
                 Type type = (Type)tmpValue;
                 if (typeParameters.Length != 0)
                 {
@@ -349,9 +391,14 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                                                             ((Type)tmpValue).FullName));
                 }
 
+                if (policy.IsDenied(type, TypeAccessMode.Construct, policy.CreateNewInstances))
+                {
+                    throw new ScriptSecurityException($"Creating instances of type '{type.FullName}' is denied!");
+                }
+
                 if (creator != null)
                 {
-                    creator.SetPreferredExecutor(new LazyConstructor(constructor, args.Length != a.Length));
+                    creator.SetPreferredExecutor(new LazyConstructor(constructor, args.Length != a.Length, policy));
                 }
 
                 return constructor.Invoke(args);
@@ -360,7 +407,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
             throw new ScriptException("Unexpected Value-Type");
         }
 
-        public bool CanGetValue(ScriptValue[] arguments)
+        public bool CanGetValue(ScriptValue[] arguments, ScriptingPolicy policy)
         {
             if (!Getable)
             {
@@ -399,7 +446,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                     return false;
                 }
 
-                object[] parameters = (from t in arguments select t.GetValue(null)).ToArray();
+                object[] parameters = (from t in arguments select t.GetValue(null, policy)).ToArray();
                 if (!(tmpValue is Array))
                 {
                     object[] args;
@@ -425,11 +472,11 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 SequenceValue ta = (SequenceValue)arguments[0];
                 SequenceValue a = (SequenceValue)arguments[1];
                 ScriptValue et = arguments[2];
-                object[] parameters = (from t in a.Sequence select t.GetValue(null)).ToArray();
+                object[] parameters = (from t in a.Sequence select t.GetValue(null, policy)).ToArray();
                 Type[] typeParameters = Type.EmptyTypes;
                 if (ta != null)
                 {
-                    typeParameters = (from t in ta.Sequence select (Type)t.GetValue(null)).ToArray();
+                    typeParameters = (from t in ta.Sequence select (Type)t.GetValue(null, policy)).ToArray();
                 }
 
                 Type type;
@@ -489,7 +536,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 }
                 else
                 {
-                    type = et?.GetValue(null) as Type ?? tmpValue.GetType();
+                    type = et?.GetValue(null, policy) as Type ?? tmpValue.GetType();
                 }
 
                 object[] args;
@@ -527,10 +574,10 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 }
 
                 ScriptValue[] a = ((SequenceValue)arguments[1]).Sequence;
-                object[] parameters = (from t in a select t.GetValue(null)).ToArray();
+                object[] parameters = (from t in a select t.GetValue(null, policy)).ToArray();
                 Type[] typeParameters = ta == null
                                             ? Type.EmptyTypes
-                                            : (from t in ta select (Type)t.GetValue(null)).ToArray();
+                                            : (from t in ta select (Type)t.GetValue(null, policy)).ToArray();
                 Type type = (Type)tmpValue;
                 if (typeParameters.Length != 0)
                 {
@@ -556,7 +603,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// </summary>
         /// <param name="value">the Value to assign to this ScriptValue</param>
         /// <param name="arguments">the indexer arguments, if required</param>
-        public virtual void SetValue(object value, ScriptValue[] arguments)
+        public virtual void SetValue(object value, ScriptValue[] arguments, ScriptingPolicy policy)
         {
             if (arguments == null || arguments.Length == 0)
             {
@@ -580,7 +627,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                     throw new ScriptException("Indexer call for Types not supported");
                 }
 
-                object[] parameters = (from t in arguments select t.GetValue(null)).ToArray();
+                object[] parameters = (from t in arguments select t.GetValue(null, policy)).ToArray();
                 if (!(tmpValue is Array))
                 {
                     object[] args;
@@ -595,6 +642,12 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                     if (!pi.CanWrite)
                     {
                         throw new ScriptException("Set is not supported for this Indexer");
+                    }
+
+                    if (policy.IsDenied(pi, tmpValue, PropertyAccessMode.Write, false))
+                    {
+                        throw new ScriptSecurityException(
+                            $"Setting a value on indexer '{pi.Name}' of Type '{pi.DeclaringType.Name}' is denied");
                     }
 
                     pi.SetValue(tmpValue, value, args);

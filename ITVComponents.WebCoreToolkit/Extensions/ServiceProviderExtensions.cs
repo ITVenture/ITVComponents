@@ -152,9 +152,9 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var decorator = new SecurityRepository();
             decorator.PushRepo(decorated);
             if (authUser != null && 
-                authUser.HasClaim(n => n.Type == Global.FixedAssetUserScope) &&
-                authUser.HasClaim(n => n.Type == Global.FixedAssetFeature) &&
-                authUser.HasClaim(n => n.Type == Global.FixedAssetPermission))
+                authUser.HasClaim(n => n.Type == ClaimTypes.FixedUserScope) &&
+                authUser.HasClaim(n => n.Type == ClaimTypes.FixedAssetFeature) &&
+                authUser.HasClaim(n => n.Type == ClaimTypes.FixedAssetPermission))
             {
                 var repo = new AssetSecurityRepository(httpContext.HttpContext.User, decorated);
                 decorator.PushRepo(repo);
@@ -172,11 +172,11 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             IQueryCollection refQ;
             if (((refQ=userProvider.HttpContext.Request.Query).ContainsKey(Global.FixedAssetRequestQueryParameter)
                 || (refQ = userProvider.HttpContext.Request.GetRefererQuery()) != null && refQ.ContainsKey(Global.FixedAssetRequestQueryParameter)) && 
-                userProvider.User.HasClaim(n => n.Type == Global.FixedAssetUserScope))
+                userProvider.User.HasClaim(n => n.Type == ClaimTypes.FixedUserScope))
             {
                 var requestPath = userProvider.HttpContext.Request.Path;
                 var assetKey = refQ[Global.FixedAssetRequestQueryParameter];
-                var userScope = userProvider.HttpContext.User.Claims.First(n => n.Type == Global.FixedAssetUserScope)
+                var userScope = userProvider.HttpContext.User.Claims.First(n => n.Type == ClaimTypes.FixedUserScope)
                     .Value;
                 if (assetProvider != null && !(denied = !assetProvider.VerifyRequestLocation(requestPath,assetKey, userScope, userProvider.User)))
                 {

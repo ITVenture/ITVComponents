@@ -12,9 +12,9 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions.SharedData
     internal class SharedObjectHeap:ISharedObjHeap
     {
         private ConcurrentDictionary<string, object> properties = new();
-        public PropertyRef<T> Property<T>(string name)
+        public PropertyRef<T> Property<T>(string name, bool createDefaultValue = false) where T : class, new()
         {
-            var tmp = properties.GetOrAdd(name, n => new PropertyRef<T>());
+            var tmp = properties.GetOrAdd(name, n => new PropertyRef<T>(createDefaultValue));
             if (tmp is not PropertyRef<T> ret)
             {
                 throw new InvalidOperationException("Property already declared as different type!");

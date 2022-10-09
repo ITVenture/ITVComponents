@@ -46,17 +46,20 @@ var ITVenture = {
         },
         processMessage: function (label, messageSource, messageArguments) {
             var retVal = label;
+            var ok = false;
             if (typeof (messageSource) === "object" && messageSource.hasOwnProperty(label)) {
                 retVal = messageSource[label];
+                ok = true;
             }
             else if (typeof (messageSource) === "string") {
                 retVal = messageSource;
+                ok = true;
             }
             if (typeof messageArguments === "object" || messageArguments == null) {
                 if (messageArguments == null) {
                     messageArguments = {};
                 }
-
+                ok = true;
                 retVal = retVal.replaceAll(/\{\{\s*(?<paramName>(-\>|!$|$)?(\\\{|\\\}|[^\}\{])+)\s*\}\}/g,
                     function () {
                         try {
@@ -84,6 +87,9 @@ var ITVenture = {
                             return "";
                         }
                     });
+            }
+            else if (typeof (messageArguments) === "string" && !ok) {
+                retVal = messageArguments;
             }
 
             return retVal;

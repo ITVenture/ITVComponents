@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.ApiKeyAuthentication.Extensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Configuration;
@@ -25,10 +27,11 @@ namespace ITVComponents.WebCoreToolkit.ApiKeyAuthentication
         }
 
         [ServiceRegistrationMethod]
-        public static void RegisterServices(IServiceCollection services, WebPartOptions webPartCfg)
+        public static void RegisterServices(IServiceCollection services, [WebPartConfig] WebPartOptions webPartCfg, [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
-            services.UseDefaultApiKeyResolver().
-                Configure<ToolkitPolicyOptions>(o => o.SignInSchemes.Add(webPartCfg.AuthenticationType));
+            var l = sharedObjects.Property<List<string>>("SignInSchemes", true);
+            l.Value.AddIfMissing(webPartCfg.AuthenticationType, true);
+            services.UseDefaultApiKeyResolver();
         }
 
         [AuthenticationRegistrationMethod]

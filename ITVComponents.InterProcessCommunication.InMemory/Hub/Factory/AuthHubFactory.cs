@@ -10,9 +10,11 @@ using ITVComponents.InterProcessCommunication.InMemory.Hub.Communication;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Hubs;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.ProtoExtensions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkitOverrides;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security.PrincipalProviders;
+using ITVComponents.Threading;
 using ITVComponents.WebCoreToolkit.Security.UserMappers;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
@@ -56,19 +58,22 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
         {
             MemoryServiceChannel initialChannel = new MemoryServiceChannel(serviceAddr, false, MscMode.Client, 6000, provider);
             var guid = Guid.NewGuid().ToString("N");
+            var ttl = 15;
             if (initialChannel.IsGlobal)
             {
                 guid = $@"Global\{guid}";
             }
 
-            var retVal = new MemoryServiceChannel(guid, true, MscMode.Client, 15, provider);
-            ReConnectChannel(retVal, initialChannel);
+            ReConnectChannel(guid, ttl, initialChannel);
+            var retVal = new MemoryServiceChannel(guid, true, MscMode.Client, ttl, provider);
             return new ServiceClient(retVal, initialChannel, this, backStream);
         }
 
-        public void ReConnectChannel(IMemoryChannel comm, IMemoryChannel initialChannel)
+        public void ReConnectChannel(string name, int ttl, IMemoryChannel initialChannel)
         {
-            initialChannel.Write(new ConnectionRequest { ProposedGuid = comm.Name, Ttl = comm.Ttl, User = JsonHelper.ToJsonStrongTyped(provider.CurrentIdentity) });
+            initialChannel.Write(new ConnectionRequest
+                    { ProposedGuid = name, Ttl = ttl, User = JsonHelper.ToJsonStrongTyped(provider.CurrentIdentity) });
+            Task.Delay(1500).GetAwaiter().GetResult();
         }
 
         /// <summary>

@@ -13,6 +13,7 @@ using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.ScriptValues;
+using static ITVComponents.Scripting.CScript.Buffering.InterpreterBuffer;
 
 namespace ITVComponents.Scripting.CScript
 {
@@ -137,9 +138,14 @@ namespace ITVComponents.Scripting.CScript
                     throw new ScriptException(string.Format("Script is not runnable! Suspect Line: {0}{2}Complete Error-List:{2} {1}", suspectLine, errors, Environment.NewLine));
                 }
 
-                var visitor = InterpreterBuffer.GetInterpreter(scriptingContext);
-                ScriptValue retVal = visitor.VisitProgram(program);
-                return ScriptValueHelper.GetScriptValueResult<TOutput>(retVal,false);
+                if (scriptingContext is RunnerItem rii)
+                {
+                    var visitor = InterpreterBuffer.GetInterpreter(scriptingContext);
+                    ScriptValue retVal = visitor.VisitProgram(program);
+                    return ScriptValueHelper.GetScriptValueResult<TOutput>(retVal, false, rii.Policy);
+                }
+
+                throw new InvalidOperationException("Interpreter session expected!");
             }
             finally
             {

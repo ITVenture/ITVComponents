@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Plugins;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace ITVComponents.WebCoreToolkit.Net.FileHandling
@@ -12,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling
     /// <summary>
     /// Implements an up- and downloader component for the ItvFileUpload endPoint
     /// </summary>
-    public interface IAsyncFileHandler
+    public interface IAsyncFileHandler : IPlugin
     {
         /// <summary>
         /// Provides a list of Permissions that a user must have any of, to perform a specific task

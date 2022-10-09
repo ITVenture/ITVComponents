@@ -15,7 +15,7 @@ using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Navigation
 {
-    internal class DbNavigationBuilder<TImpl>: TenantSecurityShared.Navigation.DbNavigationBuilder<int, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter>
+    internal class DbNavigationBuilder<TImpl>: TenantSecurityShared.Navigation.DbNavigationBuilder<int, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
     where TImpl:SecurityContext<TImpl>
     {
         public DbNavigationBuilder(TImpl securityContext, IServiceProvider services, IPermissionScope permissionScope, IOptions<ToolkitPolicyOptions> options):

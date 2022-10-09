@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Grpc.Core;
 using Grpc.Net.Client;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Client
@@ -46,6 +47,22 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         public void ConfigureChannel(GrpcChannelOptions options)
         {
             innerConfigurators.ForEach(n => n.ConfigureChannel(options));
+        }
+
+        /// <summary>
+        /// Configures the options used for the next call
+        /// </summary>
+        /// <param name="optionsRaw">the current state of call-options value</param>
+        /// <returns>the modified call-options for the next call</returns>
+        public CallOptions ConfigureCallOptions(CallOptions optionsRaw)
+        {
+            var retVal = optionsRaw;
+            foreach (var t in innerConfigurators)
+            {
+                retVal = t.ConfigureCallOptions(retVal);
+            }
+
+            return retVal;
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

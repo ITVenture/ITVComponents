@@ -10,7 +10,7 @@ using Role = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Mode
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Navigation
 {
-    internal class AspNetDbNavigationBuilder<TImpl>: TenantSecurityShared.Navigation.DbNavigationBuilder<string, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter>
+    internal class AspNetDbNavigationBuilder<TImpl>: TenantSecurityShared.Navigation.DbNavigationBuilder<string, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
     where TImpl:AspNetSecurityContext<TImpl>
     {
         public AspNetDbNavigationBuilder(TImpl securityContext, IServiceProvider services, IPermissionScope permissionScope, IOptions<ToolkitPolicyOptions> options):

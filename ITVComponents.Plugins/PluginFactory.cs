@@ -24,10 +24,12 @@ using ITVComponents.Plugins.RuntimeSerialization;
 using ITVComponents.Plugins.SelfRegistration;
 using ITVComponents.Plugins.SingletonPattern;
 using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Serialization;
 using ITVComponents.Settings;
 using ITVComponents.Threading;
+using Newtonsoft.Json.Linq;
 
 namespace ITVComponents.Plugins
 {
@@ -945,16 +947,15 @@ namespace ITVComponents.Plugins
                         constructor = tmpConstructor;
                     }
 
-                    Type[] constructorTypes = !testOnly
+                    /*Type[] constructorTypes = !testOnly
                         ? Type.GetTypeArray(constructor)
-                        : constructor.Cast<Type>().ToArray();
-                    ConstructorInfo inf = pluginType.GetConstructor(constructorTypes);
+                        : constructor.Cast<Type>().ToArray();*/
+                    var inf = MethodHelper.GetCapableConstructor(pluginType, constructor, out var ct, testOnly);
                     if (inf != null && !testOnly)
                     {
-                        IPlugin tmp = inf.Invoke(constructor) as IPlugin;
-                        if (tmp is SingletonPlugin)
+                        IPlugin tmp = inf.Invoke(ct) as IPlugin;
+                        if (tmp is SingletonPlugin sip)
                         {
-                            SingletonPlugin sip = (SingletonPlugin)tmp;
                             sip.Initialize();
                             tmp = sip.Instance;
                             sip.Dispose();
@@ -969,7 +970,7 @@ namespace ITVComponents.Plugins
                             }
                         }
 
-                        if (tmp is IRuntimeSerializer)
+                        if (tmp is IRuntimeSerializer serializer)
                         {
                             if (runtimeSerializer != null)
                             {
@@ -977,7 +978,6 @@ namespace ITVComponents.Plugins
                                 throw new Exception(Messages.MultipleRuntimeSerializersNotSupportedError);
                             }
 
-                            IRuntimeSerializer serializer = tmp as IRuntimeSerializer;
                             runtimeSerializer = serializer;
                             buffer = false;
                             tmp = null;
@@ -1010,7 +1010,7 @@ namespace ITVComponents.Plugins
                             roTypeList[uniqueName] = pluginType;
                         }
                     }
-                else
+                    else
                     {
                         if (!testOnly)
                         {
@@ -1029,7 +1029,7 @@ namespace ITVComponents.Plugins
                 }
                 catch (Exception ex)
                 {
-                    LogEnvironment.LogEvent(ex.Message, LogSeverity.Error);
+                    LogEnvironment.LogEvent(ex.OutlineException(), LogSeverity.Error);
                     if (buffer)
                     {
                         if (!plugins.ContainsKey(uniqueName))
@@ -1285,70 +1285,83 @@ namespace ITVComponents.Plugins
                         retVal = parameter.ParameterValue;
                         if (reflectOnly)
                         {
-                            retVal = retVal.GetType();
+                            retVal = retVal?.GetType();
                         }
                         break;
                     }
                 case ParameterKind.Plugin:
                     {
                         string value = parameter.ParameterValue.ToString();
-                        if (this.plugins.ContainsKey(value) || (reflectOnly
-                             && roTypeList.ContainsKey(value)))
-                        {
-                            if (!reflectOnly)
-                            {
-                                retVal = this.plugins[value];
-                            }
-                            else
-                            {
-                                retVal = roTypeList[value];
-                            }
-                        }
-                        else if (value == "factory" && allowFactoryParameter)
-                        {
-                            retVal = this;
-                            if (reflectOnly)
-                            {
-                                retVal = AssemblyResolver.FindReflectionOnlyTypeFor(retVal.GetType());
-                            }
-                        }
-                        else if (IsObjectRegistered(value))
-                        {
-                            retVal = GetRegisteredObject(value);
-                        }
-                        else if (reflectOnly || !SingletonEnvironment.FindSingletonPlugin(value, out retVal))
-                        {
-                            UnknownConstructorParameterEventArgs e = new UnknownConstructorParameterEventArgs(value);
-                            OnUnknownConstructorParameter(e);
-                            if (e.Handled)
-                            {
-                                if (e.Value != null)
-                                {
-                                    retVal = e.Value;
-                                    if (reflectOnly)
-                                    {
-                                        retVal = AssemblyResolver.FindReflectionOnlyTypeFor(retVal.GetType());
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                throw new ArgumentException(string.Format(Messages.ConstructorValueNotFoundException, value));
-                            }
-                        }
-
+                        retVal= GetObjectByName(value, reflectOnly);
                         break;
                     }
 
                 case ParameterKind.Expression:
                     {
-                        retVal = ExpressionParser.Parse(parameter.ParameterValue.ToString(), null, a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
+                        retVal = ExpressionParser.Parse(parameter.ParameterValue.ToString(), new Dictionary<string, object>
+                        {
+                            {"Get", new Func<string, object>(name => GetObjectByName(name, reflectOnly))}
+                        }, a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
+                        if (reflectOnly)
+                        {
+                            if (retVal != null)
+                            {
+                                retVal = AssemblyResolver.FindReflectionOnlyTypeFor(retVal.GetType());
+                            }
+                        }
+                        break;
+                    }
+            }
+
+            return retVal;
+        }
+
+        private object GetObjectByName(string name, bool reflectOnly)
+        {
+            object retVal = null;
+            if (this.plugins.ContainsKey(name) || (reflectOnly
+                                                   && roTypeList.ContainsKey(name)))
+            {
+                if (!reflectOnly)
+                {
+                    retVal = this.plugins[name];
+                }
+                else
+                {
+                    retVal = roTypeList[name];
+                }
+            }
+            else if (name == "factory" && allowFactoryParameter)
+            {
+                retVal = this;
+                if (reflectOnly)
+                {
+                    retVal = AssemblyResolver.FindReflectionOnlyTypeFor(retVal.GetType());
+                }
+            }
+            else if (IsObjectRegistered(name))
+            {
+                retVal = GetRegisteredObject(name);
+            }
+            else if (reflectOnly || !SingletonEnvironment.FindSingletonPlugin(name, out retVal))
+            {
+                UnknownConstructorParameterEventArgs e = new UnknownConstructorParameterEventArgs(name);
+                OnUnknownConstructorParameter(e);
+                if (e.Handled)
+                {
+                    if (e.Value != null)
+                    {
+                        retVal = e.Value;
                         if (reflectOnly)
                         {
                             retVal = AssemblyResolver.FindReflectionOnlyTypeFor(retVal.GetType());
                         }
-                        break;
                     }
+                }
+                else
+                {
+                    throw new ArgumentException(string.Format(Messages.ConstructorValueNotFoundException, name));
+                }
             }
 
             return retVal;

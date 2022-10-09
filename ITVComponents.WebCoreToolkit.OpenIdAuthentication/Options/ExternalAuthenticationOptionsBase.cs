@@ -14,5 +14,11 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Options
         public string SignInScheme { get; set; }
         public bool SaveTokens { get; set; }
         public string? Name { get; set; }
+
+        public string? AuthSchemeExtension { get; set; }
+
+        public bool? Selectable { get; set; }
+
+        public string LogoFile { get; set; }
     }
 }

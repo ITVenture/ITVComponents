@@ -100,7 +100,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                         if (!string.IsNullOrEmpty(t.TenantPassword))
                         {
                             var pwd = Convert.FromBase64String(t.TenantPassword);
-                            model.Value = AesEncryptor.Encrypt(model.Value.Substring(8), pwd, false);
+                            model.Value = AesEncryptor.Encrypt(model.Value.Substring(8), pwd);
                         }
                         else
                         {
@@ -161,7 +161,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                         if (!string.IsNullOrEmpty(t.TenantPassword))
                         {
                             var pwd = Convert.FromBase64String(t.TenantPassword);
-                            model.Value = AesEncryptor.Encrypt(model.Value.Substring(8), pwd, false);
+                            model.Value = AesEncryptor.Encrypt(model.Value.Substring(8), pwd);
                         }
                         else
                         {

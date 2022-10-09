@@ -1,13 +1,16 @@
 ﻿using System;
 using ITVComponents.Scripting.CScript.Core.Methods;
+using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Navigation;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Security;
+using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Security.ApplicationToken;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.ApplicationToken;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -70,7 +73,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         public static IServiceCollection UseDbIdentities(this IServiceCollection services, Type contextType,
             Action<DbContextOptionsBuilder> options)
         {
-            var method = MethodHelper.GetMethodInfo(() => UseDbIdentities<AspNetSecurityContext>(services,options))
+            var method = LambdaHelper.GetMethodInfo(() => UseDbIdentities<AspNetSecurityContext>(services,options))
                 .GetGenericMethodDefinition();
             method = method.MakeGenericMethod(contextType);
             return (IServiceCollection)method.Invoke(null, new object[] { services, options });
@@ -152,6 +155,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         {
             var t = typeof(SharedAssetProvider<>).MakeGenericType(contextType);
             return services.AddScoped(typeof(ISharedAssetAdapter), t);
+        }
+
+        /// <summary>
+        /// Activate Db-Driven Application Refresh Token services 
+        /// </summary>
+        /// <param name="services">the Services-collection where to inject the DB-AppToken-handler instance</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseApplicationTokenService(this IServiceCollection services)
+        {
+            return services
+                .AddScoped<IApplicationTokenService, ApplicationTokenService>();
+        }
+
+        /// <summary>
+        /// Activate Db-Driven Application Refresh Token services 
+        /// </summary>
+        /// <param name="services">the Services-collection where to inject the DB-AppToken-handler instance</param>
+        /// <param name="contextType">the target type of the db-context to use</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseApplicationTokenService(this IServiceCollection services, Type contextType)
+        {
+            var t = typeof(ApplicationTokenService<>).MakeGenericType(contextType);
+            return services.AddScoped(typeof(IApplicationTokenService), t);
         }
 
         /// <summary>

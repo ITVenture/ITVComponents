@@ -48,9 +48,9 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
                     var assetManager = context.ServiceProvider.GetService<ISharedAssetAdapter>();
                     var assetInfo = assetManager.GetAssetInfo(assetKey, principal);
                     var id = principal.Identity as ClaimsIdentity;
-                    id.AddClaims(from t in assetInfo.Permissions select new Claim(Global.FixedAssetPermission, t));
-                    id.AddClaims(from t in assetInfo.Features select new Claim(Global.FixedAssetFeature, t));
-                    id.AddClaim(new Claim(Global.FixedAssetUserScope, assetInfo.UserScopeName));
+                    id.AddClaims(from t in assetInfo.Permissions select new Claim(ClaimTypes.FixedAssetPermission, t));
+                    id.AddClaims(from t in assetInfo.Features select new Claim(ClaimTypes.FixedAssetFeature, t));
+                    id.AddClaim(new Claim(ClaimTypes.FixedUserScope, assetInfo.UserScopeName));
                 }
             }
 

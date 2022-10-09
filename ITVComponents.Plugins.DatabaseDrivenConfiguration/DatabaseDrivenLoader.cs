@@ -42,6 +42,7 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
         private string tableName;
 
         private readonly string genericParamTableName;
+        private readonly string tenantName;
 
         /// <summary>
         /// Initializes a new instance of the DatabaseDrivenLoader class
@@ -50,7 +51,7 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
         /// <param name="database">the database that is used to access the configured plugins</param>
         /// <param name="configurationName">the name of the used Loader-Configuration</param>
         public DatabaseDrivenLoader(PluginFactory factory, IConnectionBuffer database, string configurationName)
-            : this(factory, database, DatabaseLoaderConfig.Helper.LoaderConfigurations[configurationName].PluginTableName, DatabaseLoaderConfig.Helper.LoaderConfigurations[configurationName].ParamTableName, DatabaseLoaderConfig.Helper.LoaderConfigurations[configurationName].RefreshCycle)
+            : this(factory, database, DatabaseLoaderConfig.Helper.LoaderConfigurations[configurationName].PluginTableName, DatabaseLoaderConfig.Helper.LoaderConfigurations[configurationName].ParamTableName, DatabaseLoaderConfig.Helper.LoaderConfigurations[configurationName].TenantName, DatabaseLoaderConfig.Helper.LoaderConfigurations[configurationName].RefreshCycle)
         {
         }
 
@@ -62,7 +63,7 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
         /// <param name="database">the database that is used to access the configured plugins</param>
         /// <param name="refreshCycle">a timeout whithin the objects must be refreshed</param>
         public DatabaseDrivenLoader(PluginFactory factory, IConnectionBuffer database, int refreshCycle)
-            : this(factory, database, "Plugins", null, refreshCycle)
+            : this(factory, database, "Plugins", null, null, refreshCycle)
         {
         }
 
@@ -71,9 +72,10 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
         /// </summary>
         /// <param name="factory">the factory that is used to initialize plugins</param>
         /// <param name="database">the database that is used to access the configured plugins</param>
+        /// <param name="tenantName">the tenant-name that is used to load plugins in a multi-tenant environment</param>
         /// <param name="refreshCycle">a timeout whithin the objects must be refreshed</param>
         /// <param name="tableName">the name of the used plugin-Table</param>
-        public DatabaseDrivenLoader(PluginFactory factory, IConnectionBuffer database, string tableName, string genericParamTableName, int refreshCycle)
+        public DatabaseDrivenLoader(PluginFactory factory, IConnectionBuffer database, string tableName, string genericParamTableName, string tenantName, int refreshCycle)
             : base(factory)
         {
             refresher = new Timer(CheckPlugins, null, Timeout.Infinite, Timeout.Infinite);
@@ -82,6 +84,7 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
             this.refreshCycle = refreshCycle;
             this.tableName = tableName;
             this.genericParamTableName = genericParamTableName;
+            this.tenantName = tenantName;
         }
 
         /// <summary>
@@ -114,8 +117,11 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
                 using (database.AcquireConnection(false, out var db))
                 {
                     var ct =
-                        db.ExecuteCommandScalar<int>($"Select count(a.*) from {tableName} p inner join {genericParamTableName} a on a.PlugInId = p.PlugInId where p.UniqueName = @uniqueName and isnull(disabled,0)=0",
-                            db.GetParameter("uniqueName", uniqueName));
+                        db.ExecuteCommandScalar<int>($@"Select count(a.*) from {tableName} p inner join {genericParamTableName} a on a.PlugInId = p.PlugInId where p.UniqueName = @uniqueName and isnull(disabled,0)=0 and
+(p.tenantId=@tenantId or (p.tenantId is null and @tenantId is null)) and
+(a.tenantId=@tenantId or (a.tenantId is null and @tenantId is null))",
+                            db.GetParameter("uniqueName", uniqueName),
+                            db.GetParameter("tenantId",tenantName));
                     return ct != 0;
                 }
             }
@@ -135,8 +141,11 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
                 using (database.AcquireConnection(false, out var db))
                 {
                     var data = 
-                        db.GetNativeResults($"Select a.* from {tableName} p inner join {genericParamTableName} a on a.PlugInId = p.PlugInId where p.UniqueName = @uniqueName and isnull(disabled,0)=0"
-                            ,null,db.GetParameter("uniqueName", uniqueName));
+                        db.GetNativeResults($@"Select a.* from {tableName} p inner join {genericParamTableName} a on a.PlugInId = p.PlugInId where p.UniqueName = @uniqueName and isnull(disabled,0)=0 and
+(p.tenantId=@tenantId or (p.tenantId is null and @tenantId is null)) and
+(a.tenantId=@tenantId or (a.tenantId is null and @tenantId is null))"
+                            ,null,db.GetParameter("uniqueName", uniqueName),
+                            db.GetParameter("tenantId",tenantName));
                     var joined = from t in genericTypeArguments
                         join d in data on t.GenericTypeName equals d["GenericTypeName"]
                         select new { Target = t, Type = (string)d["TypeExpression"] };
@@ -179,8 +188,10 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
             using (database.AcquireConnection(false, out var db))
             {
                 DynamicResult[] plugins =
-                    db.GetNativeResults($"Select * from {tableName} where isnull(disabled,0)=0 order by LoadOrder",
-                        null);
+                    db.GetNativeResults($@"Select * from {tableName} where isnull(disabled,0)=0 and 
+(tenantId=@tenantId or (tenantId is null and @tenantId is null)) 
+order by LoadOrder",
+                        null, db.GetParameter("tenantId",tenantName));
                 foreach (DynamicResult plugin in plugins)
                 {
                     if (factory[plugin["UniqueName"]] == null)
@@ -195,9 +206,11 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
                         {
                             LogEnvironment.LogDebugEvent(ex.OutlineException(), LogSeverity.Error);
                             db.ExecuteCommand(
-                                $"Update {tableName} set disabled = 1, disabledreason = @reason where pluginid = @pluginId",
+                                $@"Update {tableName} set disabled = 1, disabledreason = @reason where pluginid = @pluginId and
+(tenantId=@tenantId or (tenantId is null and @tenantId is null))",
                                 db.GetParameter("pluginid", plugin["pluginId"]),
-                                db.GetParameter("reason", ex.Message));
+                                db.GetParameter("reason", ex.Message),
+                                db.GetParameter("tenantId", tenantName));
                         }
 
                         if (ok)

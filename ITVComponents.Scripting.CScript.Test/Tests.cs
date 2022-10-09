@@ -72,6 +72,30 @@ namespace ITVComponents.Scripting.CScript.Test
         }
 
         [TestMethod]
+        public void TestArray()
+        {
+            var dic = new Dictionary<string, object>
+            {
+                {"string", typeof(string)},
+                {"Dictionary", typeof(Dictionary<string,object>)}
+            };
+
+            var tmp1 = ExpressionParser.Parse("ArrayOfType([\"test1\",\"Test2\",\"Test3\",\"Test4\"],string)", dic);
+            var tmp2 = ExpressionParser.ParseBlock(@"
+test1 = new Dictionary();
+test2 = new Dictionary();
+test3 = new Dictionary();
+test4 = new Dictionary();
+test1.MyNameIs=""HUHUHU1"";
+test2.MyNameIs=""HUHUHU2"";
+test3.MyNameIs=""HUHUHU3"";
+test4.MyNameIs=""HUHUHU4"";
+return ArrayOfType([test1,test2,test3,test4],Dictionary)", dic);
+            Assert.IsTrue(tmp1 is string[] sarr && sarr.Length == 4 && sarr[2] == "Test3");
+            Assert.IsTrue(tmp2 is Dictionary<string, object>[] darr && darr.Length == 4 && darr[1]["MyNameIs"] is string s && s == "HUHUHU2");
+        }
+
+        [TestMethod]
         public void TestScopes()
         {
             Assert.AreEqual(1, ExpressionParser.ParseBlock(@"i = 0
@@ -196,6 +220,18 @@ return ret;", new Dictionary<string, object> { { "values", values } }));
             Assert.AreEqual(test.TestString, "The Answer is 42");
             ExpressionParser.Parse("TestString = \"The Answer is 42\"", (object)tmp1, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
             Assert.IsFalse(tmp1.ContainsKey("TestString"));
+        }
+
+        [TestMethod]
+        public void HasTest()
+        {
+            Dictionary<string, object> tmp1 = new Dictionary<string, object>( );
+            var tmp = ExpressionParser.Parse("12 has ToString()", tmp1);
+            Assert.AreEqual(tmp, true);
+            tmp = ExpressionParser.Parse("12 has HornDampf(\"TEST\")", tmp1);
+            Assert.AreEqual(tmp, false);
+            tmp = ExpressionParser.Parse("[] has Length", tmp1);
+            Assert.AreEqual(tmp, true);
         }
         
         [TestMethod]

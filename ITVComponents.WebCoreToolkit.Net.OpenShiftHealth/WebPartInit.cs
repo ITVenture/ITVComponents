@@ -33,8 +33,7 @@ namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth
         }
 
         [EndpointRegistrationMethod]
-        public static void RegisterHealthEndPoints(WebApplication builder, EndPointTrunk endPointRegistry,
-            ActivationSettings options)
+        public static void RegisterHealthEndPoints(WebApplication builder, ActivationSettings options)
         {
             if (options.ExposeHealthEndPoints && options.UseBuiltInMiddleware)
             {

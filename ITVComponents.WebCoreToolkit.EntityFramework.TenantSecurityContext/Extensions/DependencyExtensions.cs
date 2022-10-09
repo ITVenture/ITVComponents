@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Scripting.CScript.Core.Methods;
+using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Navigation;
@@ -54,7 +55,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         public static IServiceCollection UseDbIdentities(this IServiceCollection services, Type contextType,
             Action<DbContextOptionsBuilder> options)
         {
-            var method = MethodHelper.GetMethodInfo(() => UseDbIdentities<SecurityContext>(services, options))
+            var method = LambdaHelper.GetMethodInfo(() => UseDbIdentities<SecurityContext>(services, options))
                 .GetGenericMethodDefinition();
             method = method.MakeGenericMethod(contextType);
             return (IServiceCollection)method.Invoke(null, new object[] { services, options });

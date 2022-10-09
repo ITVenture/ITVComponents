@@ -51,7 +51,7 @@ namespace ITVComponents.GenericService
         internal static void RunService(StartupArguments param, Action<IHostBuilder> configureBuilder)
         {
             ServiceStartup srv = new ServiceStartup();
-            srv.Configure = param.Configure;
+            srv.Configure = param.Action == RunAction.Configure;
             srv.Init();
             var builder = Host.CreateDefaultBuilder().ConfigureServices((hostContext, services) =>
             {
@@ -61,7 +61,7 @@ namespace ITVComponents.GenericService
             });
             configureBuilder(builder);
             host = builder.Build();
-            if (param.Debug)
+            if (param.Action == RunAction.Debug || (srv.Configure && param.Run))
             {
                 host.RunAsync();
                 Console.ReadLine();

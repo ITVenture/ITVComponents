@@ -195,7 +195,7 @@ namespace ITVComponents.CommandLineParser
                                                         : string.Format("[{0}", (!t.ArgumentName.Equals("tail", caseSensitive
                                                               ? StringComparison.Ordinal
                                                               : StringComparison.OrdinalIgnoreCase) ? t.ArgumentName : ""))) + " " +
-                                                   (t.TargetProperty.PropertyType != typeof(bool) ? t.TargetProperty.Name : "") +
+                                                   (t.TargetProperty.PropertyType != typeof(bool) ? t.TargetProperty.Name + (!t.TargetProperty.PropertyType.IsEnum?"":FormatEnum(t.TargetProperty.PropertyType)) : "") +
                                                    (t.IsOptional ? "]" : "")));
             bld.Append(app);
             bld.AppendLine(FormatDescription(maxCharactersPerLine, app.Length, appLine));
@@ -210,6 +210,17 @@ namespace ITVComponents.CommandLineParser
             }
 
             return bld.ToString();
+        }
+
+        /// <summary>
+        /// Formats an Enum to be shown in the info of the usage-string
+        /// </summary>
+        /// <param name="enumType">the enum-type to be lined out</param>
+        /// <returns>a string containing all possible values of the enum</returns>
+        private string FormatEnum(Type enumType)
+        {
+            var tmp = Enum.GetNames(enumType);
+            return $"{{{string.Join("|", tmp)}}}";
         }
 
         /// <summary>

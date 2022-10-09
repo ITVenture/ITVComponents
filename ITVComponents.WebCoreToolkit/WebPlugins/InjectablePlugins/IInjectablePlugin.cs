@@ -17,5 +17,12 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         /// Gets the value of the injected PlugIn
         /// </summary>
         T Instance { get; }
+
+        /// <summary>
+        /// Gets a specific Instance of the initialized PluginType
+        /// </summary>
+        /// <param name="name">the name of the desired PlugIn</param>
+        /// <returns>the Plugin-Instance that was requested by the caller</returns>
+        T GetInstance(string name);
     }
 }

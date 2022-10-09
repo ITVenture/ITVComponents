@@ -1,7 +1,7 @@
 ﻿ITVenture.Tools.KendoExtensions={
     UseForeignKeyFilter: function(valuePrimitive, additionalHandler) {
         var retVal = function(e) {
-            var ddl = e.container.find("[data - role= 'dropdownlist']").data("kendoDropDownList");
+            var ddl = e.container.find("[data-role= 'dropdownlist']").data("kendoDropDownList");
             if (ddl) {
                 var opt = { filter: 'contains' };
                 if (retVal.valuePrimitive) {
@@ -21,7 +21,7 @@
     },
     ForeignKeyPrimitive: function(additionalHandler) {
         var retVal = function(e) {
-            var ddl = e.container.find("[data - role= 'dropdownlist']").data("kendoDropDownList");
+            var ddl = e.container.find("[data-role= 'dropdownlist']").data("kendoDropDownList");
             if (ddl) {
                 var opt = { valuePrimitive: true };
                 ddl.setOptions(opt);

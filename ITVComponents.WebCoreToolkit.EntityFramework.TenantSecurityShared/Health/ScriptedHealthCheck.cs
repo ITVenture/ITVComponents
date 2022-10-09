@@ -135,7 +135,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
                                 }
 
                                 var result = new HealthCheckResult(healthScript.OverAllResult,
-                                    healthScript.OverAllDescription, data: new ReadOnlyDictionary<string, object>(tmp));
+                                    healthScript.OverAllDescription, data: new ReadOnlyDictionary<string, object>(tmp),
+                                    exception: healthScript.OverAllResult == HealthStatus.Healthy
+                                        ? null
+                                        : new Exception("NOK"));
                                 return result;
 
                             }

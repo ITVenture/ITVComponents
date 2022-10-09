@@ -5,11 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ITVComponents.WebCoreToolkit.Security.UserMappers
+namespace ITVComponents.WebCoreToolkit.Options
 {
     public class User2GroupsMappingOptions
     {
-        private Dictionary<string ,string> authTypeRoleClaims = new Dictionary<string, string>();
+        private Dictionary<string, string> authTypeRoleClaims = new Dictionary<string, string>();
         public string DefaultUserGroupMappingClaim { get; set; } = "http://schemas.xmlsoap.org/claims/Group";
 
         public User2GroupsMappingOptions()

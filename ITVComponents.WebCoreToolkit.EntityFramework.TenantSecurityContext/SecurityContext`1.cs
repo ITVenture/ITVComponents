@@ -40,11 +40,18 @@ using TutorialStream = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecuri
 using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User;
 using WebPlugin = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin;
 using Feature = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature;
+using AppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermission;
+using AppPermissionSet = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermissionSet;
+using ClientAppTemplatePermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppTemplatePermission;
+using ClientAppTemplate = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppTemplate;
+using ClientApp = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientApp;
+using ClientAppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppPermission;
+using ClientAppUser = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppUser;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter>
+    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
     where TImpl:SecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -233,6 +240,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View")]
         public DbSet<Feature> Features { get; set; }
 
+        public DbSet<TemplateModule> TemplateModules { get; set; }
+
+        public DbSet<TemplateModuleConfigurator> TemplateModuleConfigurators { get; set; }
+        public DbSet<TemplateModuleConfiguratorParameter> TemplateModuleConfiguratorParameters { get; set; }
+        public DbSet<TemplateModuleScript> templateModuleScripts { get; set; }
+
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View", "DiagnosticsQueries.View", "DiagnosticsQueries.Write", "Tenants.SelectFK")]
         public DbSet<Tenant> Tenants { get; set; }
 
@@ -268,6 +281,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<SharedAsset> SharedAssets { get; set; }
         public DbSet<SharedAssetTenantFilter> SharedAssetTenantFilters { get; set; }
         public DbSet<SharedAssetUserFilter> SharedAssetUserFilters { get; set; }
+        public DbSet<AppPermission> AppPermissions { get; set; }
+        public DbSet<AppPermissionSet> AppPermissionSets { get; set; }
+        public DbSet<ClientAppTemplatePermission> ClientAppTemplatePermissions { get; set; }
+        public DbSet<ClientAppTemplate> ClientAppTemplates { get; set; }
+        public DbSet<ClientAppPermission> ClientAppPermissions { get; set; }
+        public DbSet<ClientApp> ClientApps { get; set; }
+        public DbSet<ClientAppUser> ClientAppUsers { get; set; }
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
 
@@ -336,7 +356,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 modelBuilder.Entity<TenantSetting>().HasQueryFilter(stt => showAllTenants || !FilterAvailable || stt.Tenant.TenantName == CurrentTenant);
                 modelBuilder.Entity<TenantUser>().HasQueryFilter(tu => !FilterAvailable || (
                     (showAllTenants || tu.Tenant.TenantName == CurrentTenant)
-                    && (!hideDisabledUsers || tu.Enabled)));
+                    && (!hideDisabledUsers || (tu.Enabled??true))));
                 modelBuilder.Entity<Role>().HasQueryFilter(ro => showAllTenants || !FilterAvailable || ro.Tenant.TenantName == CurrentTenant);
                 modelBuilder.Entity<UserRole>().HasQueryFilter(ur => !FilterAvailable ||
                                                                      ((showAllTenants ||
@@ -344,7 +364,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                                                                         CurrentTenant &&
                                                                         ur.Role.Tenant.TenantName ==
                                                                         CurrentTenant))
-                                                                      && (!hideDisabledUsers || ur.User.Enabled)));
+                                                                      && (!hideDisabledUsers || (ur.User.Enabled??true))));
                 modelBuilder.Entity<WebPlugin>().HasQueryFilter(wp => showAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantName == CurrentTenant || wp.TenantId == null && !hideGlobals);
                 modelBuilder.Entity<WebPluginGenericParameter>().HasQueryFilter(wp => showAllTenants || !FilterAvailable || wp.Plugin.TenantId != null && wp.Plugin.Tenant.TenantName == CurrentTenant || wp.Plugin.TenantId == null && !hideGlobals);
                 modelBuilder.Entity<WebPluginConstant>().HasQueryFilter(wc => showAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName == CurrentTenant || wc.TenantId == null && !hideGlobals);
@@ -352,6 +372,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 modelBuilder.Entity<DashboardParam>().HasQueryFilter(dw => showAllTenants || !FilterAvailable || dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == CurrentTenant));
                 modelBuilder.Entity<UserWidget>().HasQueryFilter(uw => showAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName == CurrentTenant) && uw.Tenant.TenantName == CurrentTenant && uw.UserName == userProvider.User.Identity.Name));
                 modelBuilder.Entity<TenantFeatureActivation>().HasQueryFilter(fa => showAllTenants || !FilterAvailable || fa.Tenant.TenantName == CurrentTenant);
+                modelBuilder.Entity<ClientAppUser>().HasQueryFilter(ca =>
+                    showAllTenants || !FilterAvailable || ca.TenantUser.Tenant.TenantName == CurrentTenant);
             }
         }
 

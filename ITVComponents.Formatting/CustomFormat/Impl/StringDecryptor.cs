@@ -12,8 +12,6 @@ namespace ITVComponents.Formatting.CustomFormat.Impl
         public string ApplyFormat(string name, object rawValue, Func<string, string, string, object> argumentsCallback)
         {
             var pass = argumentsCallback(name, "decrypt", "password");
-            var useRawKey = argumentsCallback(name, "decrypt", "useRawKey");
-            var keyIsRaw = useRawKey is bool db && db;
             string retVal = rawValue?.ToString();
             if (!string.IsNullOrEmpty(retVal))
             {
@@ -22,7 +20,7 @@ namespace ITVComponents.Formatting.CustomFormat.Impl
                 {
                     try
                     {
-                        retVal = AesEncryptor.Decrypt(retVal, Convert.FromBase64String(pwd), !keyIsRaw);
+                        retVal = AesEncryptor.Decrypt(retVal, Convert.FromBase64String(pwd));
                         success = true;
                     }
                     catch
@@ -33,7 +31,7 @@ namespace ITVComponents.Formatting.CustomFormat.Impl
                 {
                     try
                     {
-                        retVal = AesEncryptor.Decrypt(retVal, pwb, !keyIsRaw);
+                        retVal = AesEncryptor.Decrypt(retVal, pwb);
                         success = true;
                     }
                     catch

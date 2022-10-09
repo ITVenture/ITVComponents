@@ -26,23 +26,18 @@ namespace ITVComponents.Plugins.PluginServices
         /// </summary>
         /// <param name="assemblyName">the assemblyname you want to describe</param>
         /// <returns>descriptors of all plugin types</returns>
-        [HandleProcessCorruptedStateExceptions]
         [SecurityCritical]
         public static TypeDescriptor[] DescribeAssembly(string assemblyName, Action<Type, TypeDescriptor> analyzeType = null, Action<ConstructorInfo, ConstructorDescriptor> analyzeConstructor = null, Action<ParameterInfo, ConstructorParameterDescriptor> analyzeParameter = null)
         {
-            int objectId = 1;
             try
             {
-                var plug = typeof(IPlugin);
                 var location = AssemblyResolver.ResolveAssemblyLocation(assemblyName, out var exists);
                 if (exists)
                 {
                     using (AssemblyResolver.AcquireTemporaryLoadContext(out var isolatedContext))
                     {
                         Assembly analyzed = isolatedContext.LoadFromAssemblyPath(Path.GetFullPath(location)); //Assembly.LoadFrom(assemblyName);
-                        var pluginTypes =
-                            (from t in analyzed.GetTypes() where plug.IsAssignableFrom(t) && !t.IsAbstract select t);
-                        return (from t in pluginTypes select DescribeType(t, ref objectId, analyzeType, analyzeConstructor, analyzeParameter)).ToArray();
+                        return DescribeAssembly(analyzed);
                     }
                 }
             }
@@ -52,6 +47,36 @@ namespace ITVComponents.Plugins.PluginServices
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Describes all plugin-types in an assembly
+        /// </summary>
+        /// <param name="assembly">the assembly you want to describe</param>
+        /// <returns>descriptors of all plugin types</returns>
+        [SecurityCritical]
+        public static TypeDescriptor[] DescribeAssembly(Assembly assembly, Action<Type, TypeDescriptor> analyzeType = null, Action<ConstructorInfo, ConstructorDescriptor> analyzeConstructor = null, Action<ParameterInfo, ConstructorParameterDescriptor> analyzeParameter = null)
+        {
+            int objectId = 1;
+            var plug = typeof(IPlugin);
+            var pluginTypes =
+                (from t in assembly.GetTypes() where plug.IsAssignableFrom(t) && !t.IsAbstract select t);
+            return (from t in pluginTypes select DescribeType(t, ref objectId, analyzeType, analyzeConstructor, analyzeParameter)).ToArray();
+        }
+
+
+        /// <summary>
+        /// Describes a single type
+        /// </summary>
+        /// <param name="t">the type you want to describe</param>
+        /// <returns>a type-descriptor containing all constructors of that type</returns>
+        [SecurityCritical]
+        public static TypeDescriptor DescribeType(Type t, Action<Type, TypeDescriptor> analyzeType = null,
+            Action<ConstructorInfo, ConstructorDescriptor> analyzeConstructor = null,
+            Action<ParameterInfo, ConstructorParameterDescriptor> analyzeParameter = null)
+        {
+            int objectId = 1;
+            return DescribeType(t, ref objectId, analyzeType, analyzeConstructor, analyzeParameter);
         }
 
         /// <summary>

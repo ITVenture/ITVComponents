@@ -3,6 +3,7 @@
 @using System.Text.Encodings.Web
 @using System.Collections
 @using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
@@ -17,3 +18,8 @@
     ViewBag.Title = "Features";
 }
 @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", ViewData["tenantId"] } } })
+    
+    
+@Html.DetailViewScript("FeatureModules", "ModulesOf#=FeatureId#", "~/Util/Feature/ModuleTable?featureId=#=FeatureId#")
+@Html.DetailViewScript("FeatureModulesDetails", "ModuleDetailsOf#=FeatureId#_#=TemplateModuleId#", "~/Util/Feature/ModuleDetails?featureId=#=FeatureId#&templateModuleId=#=TemplateModuleId#")
+@Html.DetailViewScript("ModuleConfiguratorParameters", "ParamsOf#=TemplateModuleId#_#=TemplateModuleConfiguratorId#", "~/Util/Feature/ModuleConfigParamTable?templateModuleId=#=TemplateModuleId#&templateModuleConfiguratorId=#=TemplateModuleConfiguratorId#")

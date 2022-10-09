@@ -8,7 +8,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
 {
     public class SharedObjectHeapAttribute:WebPartConfigAttribute
     {
-        public SharedObjectHeapAttribute() : base("")
+        public SharedObjectHeapAttribute()
         {
         }
     }

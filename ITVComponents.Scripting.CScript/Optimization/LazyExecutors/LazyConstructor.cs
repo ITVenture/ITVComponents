@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using ITVComponents.Scripting.CScript.ScriptValues;
+using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
 {
@@ -11,8 +12,7 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
     {
         private ConstructorInfo constructor;
 
-        public LazyConstructor(ConstructorInfo constructor, bool lastParams) : base((from c in constructor.GetParameters() select c.ParameterType).ToArray(), lastParams)
-        {
+        public LazyConstructor(ConstructorInfo constructor, bool lastParams, ScriptingPolicy policy) : base((from c in constructor.GetParameters() select c.ParameterType).ToArray(), lastParams, policy) {
             this.constructor = constructor;
         }
 
@@ -25,7 +25,7 @@ namespace ITVComponents.Scripting.CScript.Optimization.LazyExecutors
 
         public override object Invoke(object value, ScriptValue[] arguments)
         {
-            object[] args = TranslateParams((from a in arguments select a.GetValue(null)).ToArray());
+            object[] args = TranslateParams((from a in arguments select a.GetValue(null, Policy)).ToArray());
             return constructor.Invoke(args);
         }
 

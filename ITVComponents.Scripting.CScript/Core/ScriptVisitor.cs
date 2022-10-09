@@ -19,6 +19,8 @@ using ITVComponents.Scripting.CScript.Operating;
 using ITVComponents.Scripting.CScript.Optimization;
 using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 using ITVComponents.Scripting.CScript.ScriptValues;
+using ITVComponents.Scripting.CScript.Security;
+using ITVComponents.Scripting.CScript.Security.Restrictions;
 using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
 using Void = ITVComponents.Scripting.CScript.ScriptValues.Void;
 
@@ -52,16 +54,27 @@ namespace ITVComponents.Scripting.CScript.Core
         private bool openBlockScope = true;
 
         private ScriptValue defaultRet;
+        private ScriptingPolicy scriptingPolicy;
 
         public ScriptVisitor()
         {
-            variables = new Scope();
+            variables = new Scope(ScriptingPolicy.Default);
         }
 
         public ScriptVisitor(IScope baseScope)
         {
             variables = baseScope;
             Reactivateable = false;
+        }
+
+        internal ScriptingPolicy ScriptingPolicy    
+        {
+            get => scriptingPolicy;
+            set
+            {
+                scriptingPolicy = value;
+                variables.OverridePolicy(value);
+            }
         }
 
         protected override ScriptValue DefaultResult
@@ -472,7 +485,7 @@ namespace ITVComponents.Scripting.CScript.Core
             openBlockScope = false;
             try
             {
-                object enumerator = en.GetValue(null);
+                object enumerator = en.GetValue(null, ScriptingPolicy);
                 if (!(enumerator is IEnumerable))
                 {
                     Throw t = new Throw();
@@ -490,7 +503,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 {
                     foreach (object current in enumerable)
                     {
-                        targetVal.SetValue(current, null);
+                        targetVal.SetValue(current, null, ScriptingPolicy);
                         ScriptValue tmp = VisitStatement(body);
                         if (tmp is IPassThroughValue && !(tmp is Continue))
                         {
@@ -566,7 +579,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 }
 
                 ReturnValue r = new ReturnValue();
-                r.Initialize(val.GetValue(null));
+                r.Initialize(val.GetValue(null, ScriptingPolicy));
                 return r;
             }
 
@@ -594,7 +607,7 @@ namespace ITVComponents.Scripting.CScript.Core
 
             object lastVal = switchVal;
             bool loopJumps = loopJumpAllowed;
-            switchVal = caseValue.GetValue(null);
+            switchVal = caseValue.GetValue(null, ScriptingPolicy);
             try
             {
                 loopJumpAllowed = true;
@@ -653,7 +666,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 }
                 else
                 {
-                    object obj = ret.GetValue(null);
+                    object obj = ret.GetValue(null, ScriptingPolicy);
                     if (!(obj is bool))
                     {
                         Throw t = new Throw();
@@ -696,7 +709,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return val;
             }
 
-            object foundVal = val.GetValue(null);
+            object foundVal = val.GetValue(null, ScriptingPolicy);
             if (switchVal is Continue || (switchVal == null && foundVal == null) ||
                 (switchVal != null && foundVal != null && switchVal.Equals(foundVal)))
             {
@@ -722,7 +735,7 @@ namespace ITVComponents.Scripting.CScript.Core
 #if UseVisitSingleExpression
                 
 #else
-                t.Initialize(Visit(exception).GetValue(null), true);
+                t.Initialize(Visit(exception).GetValue(null, ScriptingPolicy), true);
 #endif
 
                 return t;
@@ -762,7 +775,7 @@ namespace ITVComponents.Scripting.CScript.Core
                     {
                         if (name != null && ((Throw)value).Catchable)
                         {
-                            variables[name] = value.GetValue(null);
+                            variables[name] = value.GetValue(null, ScriptingPolicy);
                             value = VisitCatchProduction(catchBlock);
                             if (value is ReThrow)
                             {
@@ -857,27 +870,36 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public override ScriptValue VisitArrayLiteral(ITVScriptingParser.ArrayLiteralContext context)
         {
-            ScriptValue value = VisitElementList(context.elementList());
-            if (value is SequenceValue)
+            var list = context.elementList();
+            if (list != null)
             {
-                SequenceValue sv = (SequenceValue)value;
-                object[] tmp = new object[sv.Sequence.Length];
-                for (int i = 0; i < tmp.Length; i++)
+                ScriptValue value = VisitElementList(list);
+                if (value is SequenceValue)
                 {
-                    tmp[i] = sv.Sequence[i].GetValue(null);
+                    SequenceValue sv = (SequenceValue)value;
+                    object[] tmp = new object[sv.Sequence.Length];
+                    for (int i = 0; i < tmp.Length; i++)
+                    {
+                        tmp[i] = sv.Sequence[i].GetValue(null, ScriptingPolicy);
+                    }
+
+                    LiteralScriptValue rv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
+                    rv.Initialize(tmp);
+                    return rv;
                 }
 
-                LiteralScriptValue rv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-                rv.Initialize(tmp);
-                return rv;
+                return value;
             }
 
-            return value;
+            var ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation){ValueType= ValueType.Literal};
+            ret.Initialize(Array.Empty<object>());
+            return ret;
         }
 
         public override ScriptValue VisitElementList(ITVScriptingParser.ElementListContext context)
         {
             List<ScriptValue> elements = new List<ScriptValue>();
+
             foreach (ITVScriptingParser.SingleExpressionContext se in context.singleExpression())
             {
 #if UseVisitSingleExpression
@@ -1107,7 +1129,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return val;
             }
 
-            object value = val.GetValue(null);
+            object value = val.GetValue(null, ScriptingPolicy);
             try
             {
                 value = OperationsHelper.Increment(value);
@@ -1116,7 +1138,7 @@ namespace ITVComponents.Scripting.CScript.Core
             {
                 throw new ScriptException($"Pre-Increment failed at {context.Start.Line}/{context.Start.Column}", ex);
             }
-            val.SetValue(value, null);
+            val.SetValue(value, null, ScriptingPolicy);
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             retVal.Initialize(value);
             return retVal;
@@ -1186,7 +1208,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return val;
             }
 
-            object value = val.GetValue(null);
+            object value = val.GetValue(null, ScriptingPolicy);
             try
             {
                 value = OperationsHelper.Decrement(value);
@@ -1195,7 +1217,7 @@ namespace ITVComponents.Scripting.CScript.Core
             {
                 throw new ScriptException($"Pre-Decrement failed at {context.Start.Line}/{context.Start.Column}", ex);
             }
-            val.SetValue(value, null);
+            val.SetValue(value, null, ScriptingPolicy);
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             retVal.Initialize(value);
             return retVal;
@@ -1252,7 +1274,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 LiteralScriptValue rv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
                 try
                 {
-                    rv.Initialize(baseValue.GetValue(new[] { typeArguments, arguments, explicitTyping }));
+                    rv.Initialize(baseValue.GetValue(new[] { typeArguments, arguments, explicitTyping }, ScriptingPolicy));
                     return rv;
                 }
                 catch (Exception ex)
@@ -1279,7 +1301,7 @@ namespace ITVComponents.Scripting.CScript.Core
             {
                 return val;
             }
-            object value = val.GetValue(null);
+            object value = val.GetValue(null, ScriptingPolicy);
             try
             {
                 value = OperationsHelper.UnaryMinus(value);
@@ -1309,10 +1331,10 @@ namespace ITVComponents.Scripting.CScript.Core
             var eth = context.explicitTypeHint();
             if (eth != null)
             {
-                explicitType = VisitExplicitTypeHint(eth).GetValue(null) as Type;
+                explicitType = VisitExplicitTypeHint(eth).GetValue(null, ScriptingPolicy) as Type;
             }
 
-            WeakReferenceMemberAccessValue retVal = new WeakReferenceMemberAccessValue(lazyInvokation ? context : null, bypassCompatibilityOnLazyInvokation);
+            WeakReferenceMemberAccessValue retVal = new WeakReferenceMemberAccessValue(lazyInvokation ? context : null, bypassCompatibilityOnLazyInvokation, ScriptingPolicy);
             retVal.Initialize(baseVal, context.identifierName().GetText(), explicitType);
             return retVal;
         }
@@ -1329,7 +1351,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return val;
             }
 
-            object value = val.GetValue(null);
+            object value = val.GetValue(null, ScriptingPolicy);
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             retVal.Initialize(value);
             try
@@ -1341,7 +1363,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 throw new ScriptException($"Post-Decrement failed at {context.Start.Line}/{context.Start.Column}", ex);
             }
 
-            val.SetValue(value, null);
+            val.SetValue(value, null, ScriptingPolicy);
             return retVal;
         }
 
@@ -1377,9 +1399,9 @@ namespace ITVComponents.Scripting.CScript.Core
                 return t;
             }
 
-            target.SetValue(value.GetValue(null), null);
+            target.SetValue(value.GetValue(null, ScriptingPolicy), null, ScriptingPolicy);
             LiteralScriptValue ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            ret.Initialize(target.GetValue(null));
+            ret.Initialize(target.GetValue(null, ScriptingPolicy));
             return ret;
         }
 
@@ -1396,7 +1418,7 @@ namespace ITVComponents.Scripting.CScript.Core
             }
 
             LiteralScriptValue ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            ret.Initialize(v1.GetValue(null));
+            ret.Initialize(v1.GetValue(null, ScriptingPolicy));
             return ret;
         }
 
@@ -1422,8 +1444,8 @@ namespace ITVComponents.Scripting.CScript.Core
             {
                 return rightVal;
             }
-            object left = leftVal.GetValue(null);
-            object right = rightVal.GetValue(null);
+            object left = leftVal.GetValue(null, ScriptingPolicy);
+            object right = rightVal.GetValue(null, ScriptingPolicy);
             bool isEqual = (left == null && right == null) || (left != null && left.Equals(right));
             string s = context.GetChild(1).GetText();
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
@@ -1454,8 +1476,8 @@ namespace ITVComponents.Scripting.CScript.Core
                 return rightVal;
             }
 
-            object value1 = leftVal.GetValue(null);
-            object value2 = rightVal.GetValue(null);
+            object value1 = leftVal.GetValue(null, ScriptingPolicy);
+            object value2 = rightVal.GetValue(null, ScriptingPolicy);
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             if (value1 is bool && value2 is bool)
             {
@@ -1510,8 +1532,8 @@ namespace ITVComponents.Scripting.CScript.Core
                 }
             }
 
-            object value1 = leftVal.GetValue(null);
-            object value2 = rightVal.GetValue(null);
+            object value1 = leftVal.GetValue(null, ScriptingPolicy);
+            object value2 = rightVal.GetValue(null, ScriptingPolicy);
             string op = context.GetChild(1).GetText();
             switch (op)
             {
@@ -1522,7 +1544,7 @@ namespace ITVComponents.Scripting.CScript.Core
                             retVal.Initialize(OperationsHelper.Multiply(value1, value2, typeSafety));
                             if (lazyInvokation)
                             {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Multiply, typeSafety));
+                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Multiply, typeSafety, ScriptingPolicy));
                             }
                             break;
                         }
@@ -1539,7 +1561,7 @@ namespace ITVComponents.Scripting.CScript.Core
                             retVal.Initialize(OperationsHelper.Divide(value1, value2, typeSafety));
                             if (lazyInvokation)
                             {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Divide, typeSafety));
+                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Divide, typeSafety, ScriptingPolicy));
                             }
                             break;
                         }
@@ -1556,7 +1578,7 @@ namespace ITVComponents.Scripting.CScript.Core
                             retVal.Initialize(OperationsHelper.Modulus(value1, value2, typeSafety));
                             if (lazyInvokation)
                             {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Modulus, typeSafety));
+                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Modulus, typeSafety, ScriptingPolicy));
                             }
                             break;
                         }
@@ -1602,8 +1624,8 @@ namespace ITVComponents.Scripting.CScript.Core
                 return rightVal;
             }
 
-            object value1 = leftVal.GetValue(null);
-            object value2 = rightVal.GetValue(null);
+            object value1 = leftVal.GetValue(null, ScriptingPolicy);
+            object value2 = rightVal.GetValue(null, ScriptingPolicy);
             string shiftDirection = context.GetChild(1).GetText();
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             switch (shiftDirection)
@@ -1691,8 +1713,8 @@ namespace ITVComponents.Scripting.CScript.Core
                 }
             }
 
-            object value1 = leftVal.GetValue(null);
-            object value2 = rightVal.GetValue(null);
+            object value1 = leftVal.GetValue(null, ScriptingPolicy);
+            object value2 = rightVal.GetValue(null, ScriptingPolicy);
             string op = context.GetChild(1).GetText();
             switch (op)
             {
@@ -1703,7 +1725,7 @@ namespace ITVComponents.Scripting.CScript.Core
                             retVal.Initialize(OperationsHelper.Add(value1, value2, typeSafety));
                             if (lazyInvokation)
                             {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Add, typeSafety));
+                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Add, typeSafety, ScriptingPolicy));
                             }
                             break;
                         }
@@ -1720,7 +1742,7 @@ namespace ITVComponents.Scripting.CScript.Core
                             retVal.Initialize(OperationsHelper.Subtract(value1, value2, typeSafety));
                             if (lazyInvokation)
                             {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Subtract, typeSafety));
+                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Subtract, typeSafety, ScriptingPolicy));
                             }
                             break;
                         }
@@ -1778,8 +1800,8 @@ namespace ITVComponents.Scripting.CScript.Core
                 }
             }
 
-            object value1 = leftVal.GetValue(null);
-            object value2 = rightVal.GetValue(null);
+            object value1 = leftVal.GetValue(null, ScriptingPolicy);
+            object value2 = rightVal.GetValue(null, ScriptingPolicy);
             string op = context.GetChild(1).GetText();
             if (typeSafety)
             {
@@ -1867,7 +1889,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 retVal.Initialize(d(value1, value2));
                 if (lazyInvokation)
                 {
-                    context.SetPreferredExecutor(new LazyOp((a, b, c) => d(a, b), true));
+                    context.SetPreferredExecutor(new LazyOp((a, b, c) => d(a, b), true, ScriptingPolicy));
                 }
             }
 
@@ -1886,7 +1908,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return val;
             }
 
-            object value = val.GetValue(null);
+            object value = val.GetValue(null, ScriptingPolicy);
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             retVal.Initialize(value);
             try
@@ -1897,7 +1919,7 @@ namespace ITVComponents.Scripting.CScript.Core
             {
                 throw new ScriptException($"Post-Increment failed at {context.Start.Line}/{context.Start.Column}", ex);
             }
-            val.SetValue(value, null);
+            val.SetValue(value, null, ScriptingPolicy);
             return retVal;
         }
 
@@ -1913,7 +1935,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return subExpression;
             }
 
-            object d = subExpression.GetValue(null);
+            object d = subExpression.GetValue(null, ScriptingPolicy);
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             try
             {
@@ -1978,7 +2000,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 {
                     val.ValueType = ValueType.Constructor;
                     LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-                    retVal.Initialize(val.GetValue(new[] { typeArguments, arguments }));
+                    retVal.Initialize(val.GetValue(new[] { typeArguments, arguments }, ScriptingPolicy));
                     return retVal;
                 }
                 catch (Exception ex)
@@ -2011,7 +2033,7 @@ namespace ITVComponents.Scripting.CScript.Core
             }
 
             string name = context.identifierName().GetText();
-            MemberAccessValue baseValue = new MemberAccessValue(null, bypassCompatibilityOnLazyInvokation);
+            MemberAccessValue baseValue = new MemberAccessValue(null, bypassCompatibilityOnLazyInvokation, ScriptingPolicy);
             ScriptValue explicitTyping = null;
             ITVScriptingParser.ExplicitTypeHintContext ext = context.explicitTypeHint();
             if (ext != null)
@@ -2019,7 +2041,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 explicitTyping = VisitExplicitTypeHint(ext);
             }
 
-            baseValue.Initialize(sample, name, explicitTyping?.GetValue(null) as Type);
+            baseValue.Initialize(sample, name, explicitTyping?.GetValue(null, ScriptingPolicy) as Type);
             LiteralScriptValue rv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             if (context.arguments() != null)
             {
@@ -2054,7 +2076,7 @@ namespace ITVComponents.Scripting.CScript.Core
                     baseValue.ValueType = ValueType.Method;
                     try
                     {
-                        rv.Initialize(baseValue.CanGetValue(new[] { typeArguments, arguments, explicitTyping }));
+                        rv.Initialize(baseValue.CanGetValue(new[] { typeArguments, arguments, explicitTyping }, ScriptingPolicy));
                         return rv;
                     }
                     catch (Exception ex)
@@ -2068,7 +2090,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return rv;
             }
 
-            rv.Initialize(baseValue.CanGetValue(null));
+            rv.Initialize(baseValue.CanGetValue(null, ScriptingPolicy));
             return rv;
         }
 
@@ -2080,7 +2102,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return sample;
             }
 
-            object sampleObj = sample.GetValue(null);
+            object sampleObj = sample.GetValue(null, ScriptingPolicy);
             bool retVal = sampleObj != null;
             if (retVal)
             {
@@ -2091,7 +2113,7 @@ namespace ITVComponents.Scripting.CScript.Core
                     return expection;
                 }
 
-                Type typ = expection.GetValue(null) as Type;
+                Type typ = expection.GetValue(null, ScriptingPolicy) as Type;
                 if (typ == null)
                 {
                     throw new ScriptException($"Type expected at {typex.Start.Line}/{typex.Start.Column}");
@@ -2120,10 +2142,10 @@ namespace ITVComponents.Scripting.CScript.Core
             var eth = context.explicitTypeHint();
             if (eth != null)
             {
-                explicitType = VisitExplicitTypeHint(eth).GetValue(null) as Type;
+                explicitType = VisitExplicitTypeHint(eth).GetValue(null, ScriptingPolicy) as Type;
             }
 
-            MemberAccessValue retVal = new MemberAccessValue(lazyInvokation ? context : null, bypassCompatibilityOnLazyInvokation);
+            MemberAccessValue retVal = new MemberAccessValue(lazyInvokation ? context : null, bypassCompatibilityOnLazyInvokation, ScriptingPolicy);
             retVal.Initialize(val,
                               context.identifierName().GetText(), explicitType);
             return retVal;
@@ -2155,10 +2177,10 @@ namespace ITVComponents.Scripting.CScript.Core
             var eth = context.explicitTypeHint();
             if (eth != null)
             {
-                explicitType = VisitExplicitTypeHint(eth).GetValue(null) as Type;
+                explicitType = VisitExplicitTypeHint(eth).GetValue(null, ScriptingPolicy) as Type;
             }
 
-            IndexerScriptValue retVal = new IndexerScriptValue(lazyInvokation ? context : null, bypassCompatibilityOnLazyInvokation);
+            IndexerScriptValue retVal = new IndexerScriptValue(lazyInvokation ? context : null, ScriptingPolicy, bypassCompatibilityOnLazyInvokation);
             retVal.Initialize(baseValue, ((SequenceValue)indexArgs).Sequence, explicitType);
             return retVal;
         }
@@ -2187,7 +2209,7 @@ namespace ITVComponents.Scripting.CScript.Core
             }
 
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            retVal.Initialize(left.GetValue(null) ?? right.GetValue(null));
+            retVal.Initialize(left.GetValue(null, ScriptingPolicy) ?? right.GetValue(null, ScriptingPolicy));
             return retVal;
         }
 
@@ -2222,8 +2244,8 @@ namespace ITVComponents.Scripting.CScript.Core
                 return rightVal;
             }
 
-            object value1 = leftVal.GetValue(null);
-            object value2 = rightVal.GetValue(null);
+            object value1 = leftVal.GetValue(null, ScriptingPolicy);
+            object value2 = rightVal.GetValue(null, ScriptingPolicy);
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             if (value1 is bool && value2 is bool)
             {
@@ -2266,8 +2288,8 @@ namespace ITVComponents.Scripting.CScript.Core
                 return rightVal;
             }
 
-            object value1 = leftVal.GetValue(null);
-            object value2 = rightVal.GetValue(null);
+            object value1 = leftVal.GetValue(null, ScriptingPolicy);
+            object value2 = rightVal.GetValue(null, ScriptingPolicy);
             LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             if (value1 is bool && value2 is bool)
             {
@@ -2320,84 +2342,84 @@ namespace ITVComponents.Scripting.CScript.Core
                     retVal = context.InvokeExecutor(null, new[] { left, right }, bypassCompatibilityOnLazyInvokation, out ok);
                     if (ok)
                     {
-                        left.SetValue(retVal, null);
+                        left.SetValue(retVal, null, ScriptingPolicy);
                     }
                 }
 
                 if (!ok)
                 {
                     object v1, v2;
-                    v1 = left.GetValue(null);
+                    v1 = left.GetValue(null, ScriptingPolicy);
                     //left.ReleaseItem();
-                    v2 = right.GetValue(null);
+                    v2 = right.GetValue(null, ScriptingPolicy);
                     switch (op)
                     {
                         case "*=":
                             {
-                                left.SetValue(retVal = OperationsHelper.Multiply(v1, v2, typeSafety), null);
+                                left.SetValue(retVal = OperationsHelper.Multiply(v1, v2, typeSafety), null, ScriptingPolicy);
                                 if (lazyInvokation)
                                 {
-                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Multiply, typeSafety));
+                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Multiply, typeSafety, ScriptingPolicy));
                                 }
 
                                 break;
                             }
                         case "/=":
                             {
-                                left.SetValue(retVal = OperationsHelper.Divide(v1, v2, typeSafety), null);
+                                left.SetValue(retVal = OperationsHelper.Divide(v1, v2, typeSafety), null, ScriptingPolicy);
                                 if (lazyInvokation)
                                 {
-                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Divide, typeSafety));
+                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Divide, typeSafety, ScriptingPolicy));
                                 }
 
                                 break;
                             }
                         case "%=":
                             {
-                                left.SetValue(retVal = OperationsHelper.Modulus(v1, v2, typeSafety), null);
+                                left.SetValue(retVal = OperationsHelper.Modulus(v1, v2, typeSafety), null, ScriptingPolicy);
                                 if (lazyInvokation)
                                 {
-                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Modulus, typeSafety));
+                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Modulus, typeSafety, ScriptingPolicy));
                                 }
 
                                 break;
                             }
                         case "+=":
                             {
-                                left.SetValue(retVal = OperationsHelper.Add(v1, v2, typeSafety), null);
+                                left.SetValue(retVal = OperationsHelper.Add(v1, v2, typeSafety), null, ScriptingPolicy);
                                 if (lazyInvokation)
                                 {
-                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Add, typeSafety));
+                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Add, typeSafety, ScriptingPolicy));
                                 }
 
                                 break;
                             }
                         case "-=":
                             {
-                                left.SetValue(retVal = OperationsHelper.Subtract(v1, v2, typeSafety), null);
+                                left.SetValue(retVal = OperationsHelper.Subtract(v1, v2, typeSafety), null, ScriptingPolicy);
                                 if (lazyInvokation)
                                 {
-                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Subtract, typeSafety));
+                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.Subtract, typeSafety, ScriptingPolicy));
                                 }
 
                                 break;
                             }
                         case "<<=":
                             {
-                                left.SetValue(retVal = OperationsHelper.LShift(v1, v2), null);
+                                left.SetValue(retVal = OperationsHelper.LShift(v1, v2), null, ScriptingPolicy);
                                 if (lazyInvokation)
                                 {
-                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.LShift, typeSafety));
+                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.LShift, typeSafety, ScriptingPolicy));
                                 }
 
                                 break;
                             }
                         case ">>=":
                             {
-                                left.SetValue(retVal = OperationsHelper.RShift(v1, v2), null);
+                                left.SetValue(retVal = OperationsHelper.RShift(v1, v2), null, ScriptingPolicy);
                                 if (lazyInvokation)
                                 {
-                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.RShift, typeSafety));
+                                    context.SetPreferredExecutor(new LazyOp(OperationsHelper.RShift, typeSafety, ScriptingPolicy));
                                 }
                                 break;
                             }
@@ -2405,18 +2427,18 @@ namespace ITVComponents.Scripting.CScript.Core
                             {
                                 if (v1 is bool && v2 is bool)
                                 {
-                                    left.SetValue(retVal = (bool)v1 & (bool)v2, null);
+                                    left.SetValue(retVal = (bool)v1 & (bool)v2, null, ScriptingPolicy);
                                     if (lazyInvokation)
                                     {
-                                        context.SetPreferredExecutor(new LazyOp((a, b, c) => (bool)a & (bool)b, typeSafety));
+                                        context.SetPreferredExecutor(new LazyOp((a, b, c) => (bool)a & (bool)b, typeSafety, ScriptingPolicy));
                                     }
                                 }
                                 else
                                 {
-                                    left.SetValue(retVal = OperationsHelper.And(v1, v2, typeSafety), null);
+                                    left.SetValue(retVal = OperationsHelper.And(v1, v2, typeSafety), null, ScriptingPolicy);
                                     if (lazyInvokation)
                                     {
-                                        context.SetPreferredExecutor(new LazyOp(OperationsHelper.And, typeSafety));
+                                        context.SetPreferredExecutor(new LazyOp(OperationsHelper.And, typeSafety, ScriptingPolicy));
                                     }
                                 }
 
@@ -2426,18 +2448,18 @@ namespace ITVComponents.Scripting.CScript.Core
                             {
                                 if (v1 is bool && v2 is bool)
                                 {
-                                    left.SetValue(retVal = (bool)v1 ^ (bool)v2, null);
+                                    left.SetValue(retVal = (bool)v1 ^ (bool)v2, null, ScriptingPolicy);
                                     if (lazyInvokation)
                                     {
-                                        context.SetPreferredExecutor(new LazyOp((a, b, c) => (bool)a ^ (bool)b, typeSafety));
+                                        context.SetPreferredExecutor(new LazyOp((a, b, c) => (bool)a ^ (bool)b, typeSafety, ScriptingPolicy));
                                     }
                                 }
                                 else
                                 {
-                                    left.SetValue(retVal = OperationsHelper.Xor(v1, v2, typeSafety), null);
+                                    left.SetValue(retVal = OperationsHelper.Xor(v1, v2, typeSafety), null, ScriptingPolicy);
                                     if (lazyInvokation)
                                     {
-                                        context.SetPreferredExecutor(new LazyOp(OperationsHelper.Xor, typeSafety));
+                                        context.SetPreferredExecutor(new LazyOp(OperationsHelper.Xor, typeSafety, ScriptingPolicy));
                                     }
                                 }
                                 break;
@@ -2446,18 +2468,18 @@ namespace ITVComponents.Scripting.CScript.Core
                             {
                                 if (v1 is bool && v2 is bool)
                                 {
-                                    left.SetValue(retVal = (bool)v1 | (bool)v2, null);
+                                    left.SetValue(retVal = (bool)v1 | (bool)v2, null, ScriptingPolicy);
                                     if (lazyInvokation)
                                     {
-                                        context.SetPreferredExecutor(new LazyOp((a, b, c) => (bool)a | (bool)b, typeSafety));
+                                        context.SetPreferredExecutor(new LazyOp((a, b, c) => (bool)a | (bool)b, typeSafety, ScriptingPolicy));
                                     }
                                 }
                                 else
                                 {
-                                    left.SetValue(retVal = OperationsHelper.Or(v1, v2, typeSafety), null);
+                                    left.SetValue(retVal = OperationsHelper.Or(v1, v2, typeSafety), null, ScriptingPolicy);
                                     if (lazyInvokation)
                                     {
-                                        context.SetPreferredExecutor(new LazyOp(OperationsHelper.Or, typeSafety));
+                                        context.SetPreferredExecutor(new LazyOp(OperationsHelper.Or, typeSafety, ScriptingPolicy));
                                     }
                                 }
                                 break;
@@ -2487,6 +2509,13 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public override ScriptValue VisitNativeReference(ITVScriptingParser.NativeReferenceContext context)
         {
+            if (scriptingPolicy.IsDenied(scriptingPolicy.NativeScripting))
+            {
+                var ret = new Throw();
+                ret.Initialize("Native scripting was disabled by policy.", false);
+                return ret;
+            }
+
             string identifier = context.Identifier().GetText();
             string stringLiteral = StringHelper.Parse(context.StringLiteral().GetText());
             NativeScriptHelper.AddReference(identifier, stringLiteral);
@@ -2495,6 +2524,13 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public override ScriptValue VisitNativeUsing(ITVScriptingParser.NativeUsingContext context)
         {
+            if (scriptingPolicy.IsDenied(scriptingPolicy.NativeScripting))
+            {
+                var ret = new Throw();
+                ret.Initialize("Native scripting was disabled by policy.", false);
+                return ret;
+            }
+
             string identifier = context.Identifier().GetText();
             string stringLiteral = StringHelper.Parse(context.StringLiteral().GetText());
             NativeScriptHelper.AddUsing(identifier, stringLiteral);
@@ -2503,6 +2539,13 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public override ScriptValue VisitNativeExpression(ITVScriptingParser.NativeExpressionContext context)
         {
+            if (scriptingPolicy.IsDenied(scriptingPolicy.NativeScripting))
+            {
+                var ret = new Throw();
+                ret.Initialize("Native scripting was disabled by policy.", false);
+                return ret;
+            }
+
             var expression = context.singleExpression();
             ScriptValue v = Visit(expression[0]);
             if (v is IPassThroughValue)
@@ -2522,14 +2565,14 @@ namespace ITVComponents.Scripting.CScript.Core
                 return parameterObj;
             }
 
-            object value = v.GetValue(null);
-            string text = execText.GetValue(null) as string;
+            object value = v.GetValue(null, ScriptingPolicy);
+            string text = execText.GetValue(null, ScriptingPolicy) as string;
             if (text == null)
             {
                 throw new InvalidOperationException("string value expected for linq execution!");
             }
 
-            var parameters = (parameterObj.GetValue(null) as ObjectLiteral)?.Snapshot();
+            var parameters = (parameterObj.GetValue(null, ScriptingPolicy) as ObjectLiteral)?.Snapshot();
             string[] identifier = (from t in context.Identifier() select t.GetText()).ToArray();
             object result = NativeScriptHelper.RunLinqQuery(identifier[1], value, identifier[0], text, parameters);
             LiteralScriptValue lrv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
@@ -2539,6 +2582,13 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public override ScriptValue VisitNativeLiteralExpression(ITVScriptingParser.NativeLiteralExpressionContext context)
         {
+            if (scriptingPolicy.IsDenied(scriptingPolicy.NativeScripting))
+            {
+                var ret = new Throw();
+                ret.Initialize("Native scripting was disabled by policy.", false);
+                return ret;
+            }
+
             var expression = context.singleExpression();
             ScriptValue parameterObj = Visit(expression);
             if (parameterObj is IPassThroughValue)
@@ -2546,7 +2596,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 return parameterObj;
             }
 
-            var parameters = (parameterObj.GetValue(null) as ObjectLiteral)?.Snapshot();
+            var parameters = (parameterObj.GetValue(null, ScriptingPolicy) as ObjectLiteral)?.Snapshot();
             string identifier = context.Identifier().GetText();
             var text = context.NativeCodeLiteral().GetText();
             text = text.Substring(2, text.Length - 3);
@@ -2662,7 +2712,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 {
                     string name = prop.identifierName().GetText();
                     var val = Visit(prop.singleExpression());
-                    objectRaw[name] = val.GetValue(null);
+                    objectRaw[name] = val.GetValue(null, ScriptingPolicy);
                 }
             }
 
@@ -2685,6 +2735,13 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public override ScriptValue VisitFunctionDeclaration(ITVScriptingParser.FunctionDeclarationContext context)
         {
+            if (scriptingPolicy.IsDenied(scriptingPolicy.ScriptMethods))
+            {
+                var ret = new Throw();
+                ret.Initialize("Implementing script-methods was denied by policy.", false);
+                return ret;
+            }
+
             Dictionary<string, object> initial = variables.Snapshot();
             var tmp = context.formalParameterList()?.Identifier();
             string[] args = { };
@@ -2693,7 +2750,7 @@ namespace ITVComponents.Scripting.CScript.Core
                 args = (from t in context.formalParameterList().Identifier() select t.GetText()).ToArray();
             }
 
-            FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody());
+            FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody(), ScriptingPolicy);
             if (variables is FunctionScope)
             {
                 function.ParentScope = ((FunctionScope)variables).ParentScope;
@@ -2709,6 +2766,13 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public override ScriptValue VisitFunctionExpression(ITVScriptingParser.FunctionExpressionContext context)
         {
+            if (scriptingPolicy.IsDenied(scriptingPolicy.ScriptMethods))
+            {
+                var ret = new Throw();
+                ret.Initialize("Implementing script-methods was denied by policy.", false);
+                return ret;
+            }
+
             Dictionary<string, object> initial = variables.Snapshot();
             try
             {
@@ -2719,7 +2783,7 @@ namespace ITVComponents.Scripting.CScript.Core
                     args = (from t in context.formalParameterList().Identifier() select t.GetText()).ToArray();
                 }
 
-                FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody());
+                FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody(), ScriptingPolicy);
                 if (variables is FunctionScope)
                 {
                     function.ParentScope = ((FunctionScope)variables).ParentScope;
@@ -2748,7 +2812,7 @@ namespace ITVComponents.Scripting.CScript.Core
             object retVal = null;
             ITVScriptingParser.TypeLiteralContext type = context.typeLiteral();
             ScriptValue v = VisitTypeLiteral(type);
-            retVal = new ReferenceWrapper() { Type = ((Type)v.GetValue(null)).MakeByRefType() };
+            retVal = new ReferenceWrapper() { Type = ((Type)v.GetValue(null, ScriptingPolicy)).MakeByRefType() };
 
             LiteralScriptValue ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             ret.Initialize(retVal);
@@ -2764,7 +2828,7 @@ namespace ITVComponents.Scripting.CScript.Core
             if (type != null)
             {
                 ScriptValue v = VisitTypeLiteral(type);
-                retVal = new TypedNull { Type = (Type)v.GetValue(null) };
+                retVal = new TypedNull { Type = (Type)v.GetValue(null, ScriptingPolicy) };
             }
 
             LiteralScriptValue ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
@@ -2774,6 +2838,13 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public override ScriptValue VisitTypeLiteral(ITVScriptingParser.TypeLiteralContext context)
         {
+            /*if (scriptingPolicy.IsDenied(scriptingPolicy.TypeLoading))
+            {
+                var retT = new Throw();
+                retT.Initialize("Type-Loading was denied by policy.", false);
+                return retT;
+            }*/
+
             StringBuilder type = new StringBuilder(context.typeLiteralIdentifier().GetText());
             ITVScriptingParser.TypeArgumentsContext targs = context.typeArguments();
             ScriptValue[] typeArgs = null;
@@ -2807,9 +2878,15 @@ namespace ITVComponents.Scripting.CScript.Core
                 //assembly = assembly.Substring(1, assembly.Length - 2);
             }
 
+            PolicyMode startPolicy = scriptingPolicy.TypeLoading!= PolicyMode.Default?scriptingPolicy.TypeLoading:scriptingPolicy.PolicyMode;
             if (assembly != null)
             {
                 var src = AssemblyResolver.FindAssemblyByName(assembly);
+                if (scriptingPolicy.IsDenied(src, startPolicy))
+                {
+                    startPolicy = PolicyMode.Deny;
+                }
+
                 retVal = src.GetType(type.ToString());
             }
             else
@@ -2817,10 +2894,23 @@ namespace ITVComponents.Scripting.CScript.Core
                 retVal = Type.GetType(type.ToString());
             }
 
+            if (scriptingPolicy.IsDenied(retVal, TypeAccessMode.Direct, startPolicy))
+            {
+                var retT = new Throw();
+                retT.Initialize($"Access to the type {retVal.FullName} was denied by policy.", false);
+                return retT;
+            }
+
             LiteralScriptValue ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             if (typeArgs != null && typeArgs.Length != 0)
             {
-                retVal = retVal.MakeGenericType((from t in typeArgs select (Type)t.GetValue(null)).ToArray());
+                retVal = retVal.MakeGenericType((from t in typeArgs select (Type)t.GetValue(null, ScriptingPolicy)).ToArray());
+                if (scriptingPolicy.IsDenied(retVal, TypeAccessMode.Direct, startPolicy))
+                {
+                    var retT = new Throw();
+                    retT.Initialize($"Access to the type {retVal.FullName} was denied by policy.", false);
+                    return retT;
+                }
             }
 
             ret.Initialize(retVal);
@@ -3017,7 +3107,7 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>a boolean indicating whether the inner value is true</returns>
         private bool CheckBooleanTrue(ScriptValue value)
         {
-            object obj = value.GetValue(null);
+            object obj = value.GetValue(null, ScriptingPolicy);
             return obj is bool && (bool)obj;
         }
     }

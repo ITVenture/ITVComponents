@@ -13,7 +13,15 @@ namespace ITVComponents.WebCoreToolkit.Models
         [MaxLength(150),Required]
         public string PropertyName{get;set;}
 
-        [MaxLength(1024),Required]
+        [Required]
         public string Value { get; set; }
+        public CustomUserPropertyType PropertyType { get; set; } = CustomUserPropertyType.Claim;
+    }
+
+    public enum CustomUserPropertyType
+    {
+        Claim,
+        Literal,
+        Json
     }
 }

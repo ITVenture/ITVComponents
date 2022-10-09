@@ -40,15 +40,45 @@ namespace ITVComponents.EFRepo.DynamicData
         /// </summary>
         /// <param name="tableName">the table-name</param>
         /// <param name="columnName">the column-name</param>
+        /// <param name="autoResolveTableName">indicates whether to auto-resolve table-names to their real object names. This is useful, when a dynamic Repository uses system-names for configurable Table-names</param>
         /// <returns>the full-qualified column name for this syntax</returns>
-        string FullQualifyColumn(string tableName, string columnName);
+        string FullQualifyColumn(string tableName, string columnName, bool autoResolveTableName = true);
 
         /// <summary>
         /// Builds the appropriate syntax for an object-name in the syntax of the underlaying database system
         /// </summary>
-        /// <param name="objectName">the object-name to format</param>
+        /// <param name="columnName">the object-name to format</param>
         /// <returns>the formatted object name</returns>
-        string FormatObjectName(string objectName);
+        string FormatColumnName(string columnName);
+
+        /// <summary>
+        /// Builds the appropriate syntax for an object-name in the syntax of the underlaying database system
+        /// </summary>
+        /// <param name="tableName">the object-name to format</param>
+        /// <param name="autoResolve">indicates whether to auto-resolve table-names to their real object names. This is useful, when a dynamic Repository uses system-names for configurable Table-names</param>
+        /// <returns>the formatted object name</returns>
+        string FormatTableName(string tableName, bool autoResolve = true);
+
+        /// <summary>
+        /// Resolves table-names to their real object names
+        /// </summary>
+        /// <param name="tableName">the human-readable table-name</param>
+        /// <returns>when redirected, the system-name for the given table-name</returns>
+        public string ResolveTableName(string tableName);
+
+        /// <summary>
+        /// Builds the appropriate syntax for an object-name in the syntax of the underlaying database system
+        /// </summary>
+        /// <param name="indexName">the object-name to format</param>
+        /// <returns>the formatted object name</returns>
+        string FormatIndexName(string indexName);
+
+        /// <summary>
+        /// Builds the appropriate syntax for an object-name in the syntax of the underlaying database system
+        /// </summary>
+        /// <param name="constraintName">the object-name to format</param>
+        /// <returns>the formatted object name</returns>
+        string FormatConstraintName(string constraintName);
 
         /// <summary>
         /// Gets the appropriate managed type for the given Database-column definition

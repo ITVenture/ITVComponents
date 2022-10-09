@@ -10,6 +10,9 @@ using ITVComponents.Formatting.Elements;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Helpers;
+using ITVComponents.Scripting.CScript.Security;
+using ITVComponents.Scripting.CScript.Security.Extensions;
+using ITVComponents.Scripting.CScript.Security.Restrictions;
 using ICustomFormatter = ITVComponents.Formatting.CustomFormat.ICustomFormatter;
 namespace ITVComponents.Formatting
 {
@@ -18,32 +21,56 @@ namespace ITVComponents.Formatting
         private static ConcurrentDictionary<string, ICustomFormatter> customFormatHints =
             new ConcurrentDictionary<string, ICustomFormatter>(StringComparer.Ordinal);
 
+        public static ScriptingPolicy DefaultFormatPolicy { get; } = ScriptingPolicy.Default.Configure(n =>
+        {
+            n.CreateNewInstances = PolicyMode.Deny;
+            n.NativeScripting = PolicyMode.Deny;
+            n.TypeLoading = PolicyMode.Deny;
+        }).Lock();
+
+        public static ScriptingPolicy DefaultFormatPolicyWithPrimitives { get; } = DefaultFormatPolicy
+            .WithTypeRestriction(typeof(byte), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(sbyte), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(short), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(ushort), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(int), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(uint), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(long), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(ulong), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(float), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(double), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(decimal), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(string), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(char), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(DateTime), TypeAccessMode.Any, PolicyMode.Allow)
+            .WithTypeRestriction(typeof(TimeSpan), TypeAccessMode.Any, PolicyMode.Allow);
+
         static TextFormat()
         {
             DefaultFormatExtensions.RegisterDefaultFormatExtensions();
         }
 
-        public static string FormatText(this object target, string format)
+        public static string FormatText(this object target, string format, ScriptingPolicy policy = null)
         {
-            return FormatText(target, format, default(Func<string, string, string, object>));
+            return FormatText(target, format, default(Func<string, string, string, object>), policy);
         }
 
-        public static string FormatText(this object target, string format, Func<string, string, string, object> argumentsCallback)
+        public static string FormatText(this object target, string format, Func<string, string, string, object> argumentsCallback, ScriptingPolicy policy = null)
         {
 
             var tmp = TokenizeString(format);
-            using (var context = CreateScriptingSession(target))
+            using (var context = CreateScriptingSession(target, policy))
             {
                 return string.Concat(from t in tmp select Stringify(t, context, argumentsCallback));
             }
         }
 
-        public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser)
+        public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser, ScriptingPolicy policy = null)
         {
-            return FormatText(target, format, customExpressionParser, null);
+            return FormatText(target, format, customExpressionParser, null, policy);
         }
 
-        public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser, Func<string, string, string, object> argumentsCallback)
+        public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser, Func<string, string, string, object> argumentsCallback, ScriptingPolicy policy = null)
         {
             var tmp = TokenizeString(format);
             for (int i = 0; i < tmp.Length; i++)
@@ -78,7 +105,7 @@ namespace ITVComponents.Formatting
                 }
             }
 
-            using (var context = CreateScriptingSession(target))
+            using (var context = CreateScriptingSession(target, policy))
             {
                 return string.Concat(from t in tmp select Stringify(t, context, argumentsCallback));
             }
@@ -159,12 +186,13 @@ namespace ITVComponents.Formatting
             customFormatHints.TryAdd(formatter.Hint, formatter);
         }
 
-        private static IDisposable CreateScriptingSession(object target)
+        private static IDisposable CreateScriptingSession(object target, ScriptingPolicy policy = null)
         {
-            Scope s = new Scope(new Dictionary<string, object> { { "$data", target } });
+            var pol = policy ?? DefaultFormatPolicy;
+            Scope s = new Scope(new Dictionary<string, object> { { "$data", target } },pol);
             s.ImplicitContext = "$data";
             var context = ExpressionParser.BeginRepl(s,
-                (i) => DefaultCallbacks.PrepareDefaultCallbacks(i.Scope, i.ReplSession));
+                (i) => DefaultCallbacks.PrepareDefaultCallbacks(i.Scope, i.ReplSession),pol);
             return context;
         }
 

@@ -9,7 +9,7 @@
 @using Kendo.Mvc.UI
 @model int
 
-@Html.Uploader(UploadMode.MultiUpload, (string)ViewData["Handler"], "UploadTutorialStream", "ITVenture.Pages.Help.ModuleVideo.fileCommitted", 200, 500, new Dictionary<string, string>{{"parentTutorial",Model.ToString()},{"uploadHint","ITVenture.Pages.Help.ModuleVideo.BatchFileUpdateHint"}})
+@Html.Uploader(UploadMode.MultiUpload, (string)ViewData["Handler"], "UploadTutorialStream", "ITVenture.Pages.Help.ModuleVideo.fileCommitted", height:200, width:500, customAttributes:new Dictionary<string, string>{{"parentTutorial",Model.ToString()},{"uploadHint","ITVenture.Pages.Help.ModuleVideo.BatchFileUpdateHint"}})
 
 @(Html.Kendo().Grid<TutorialStreamViewModel>().Name($"StreamList{Model}")
     .HtmlAttributes(new { parentTutorial = Model.ToString() })

@@ -44,20 +44,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
                 throw new InvalidOperationException("No Primary-Key was found!");
             }
 
-            var stringColumnCount = desc.Count(n => n.Type.ManagedType == typeof(string));
+            var stringColumnCount = desc.Count(n => n.Type.ManagedType == typeof(string) && !n.IsPrimaryKey);
             if (stringColumnCount == 0)
             {
                 throw new InvalidOperationException("Unable to select a proper foreignkey.");
             }
 
             var idColumn = desc.First(n => n.IsPrimaryKey);
-            var stringCol = desc.First(n => n.Type.ManagedType == typeof(string));
+            var stringCol = desc.First(n => n.Type.ManagedType == typeof(string) && !n.IsPrimaryKey);
             var t = typeof(ForeignKeyData<>).MakeGenericType(idColumn.Type.ManagedType);
-            var keyAlias = src.SyntaxProvider.FormatObjectName("Key");
-            var labelAlias = src.SyntaxProvider.FormatObjectName("Label");
+            var keyAlias = src.SyntaxProvider.FormatColumnName("Key");
+            var labelAlias = src.SyntaxProvider.FormatColumnName("Label");
             if (id != null)
             {
-                return src.SqlQuery($"Select {src.SyntaxProvider.FormatObjectName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatObjectName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatObjectName(tableName)} where {src.SyntaxProvider.FormatObjectName(idColumn.ColumnName)} = [->p0]", t, id);
+                return src.SqlQuery($"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)} where {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} = [->p0]", t, id);
             }
 
             var filterValue = (postedFilter?.ContainsKey("Filter") ?? false) ? postedFilter["Filter"] : null;
@@ -93,7 +93,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
                         values.Add(TypeConverter.TryConvert(cv, col.Type.ManagedType)??DBNull.Value);
                     }
                     
-                    target.Add($"({pn} {pnNull}{linkOp}{src.SyntaxProvider.FormatObjectName(col.ColumnName)} {op} {pn})");
+                    target.Add($"({pn} {pnNull}{linkOp}{src.SyntaxProvider.FormatColumnName(col.ColumnName)} {op} {pn})");
                 }
 
                 List<string> final = new List<string>();
@@ -107,10 +107,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
                     final.Add($"({string.Join(" OR ", orFilters)})");
                 }
 
-                return src.SqlQuery($"Select {src.SyntaxProvider.FormatObjectName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatObjectName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatObjectName(tableName)} {(final.Count != 0 ? $"where {string.Join(" AND ", final)}" : "")}", t, values.ToArray());
+                return src.SqlQuery($"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)} {(final.Count != 0 ? $"where {string.Join(" AND ", final)}" : "")}", t, values.ToArray());
             }
             
-            return src.SqlQuery($"Select {src.SyntaxProvider.FormatObjectName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatObjectName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatObjectName(tableName)}", t);
+            return src.SqlQuery($"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)}", t);
         }
     }
 }

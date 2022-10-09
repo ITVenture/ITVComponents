@@ -71,7 +71,7 @@ namespace ITVComponents.MailMerge
         /// <param name="nameFormat">the format of the target-name</param>
         public IEnumerable<string> Merge(string templateFile, DynamicResult[] data, string outputFolder, string nameFormat, Dictionary<string,object> additionalSettings = null)
         {
-            return Merge(templateFile, data, o => string.Format(@"{0}\{1}", outputFolder, o.FormatText(nameFormat)), additionalSettings);
+            return Merge(templateFile, data, o => string.Format(@"{0}\{1}", outputFolder, o.FormatText(nameFormat, TextFormat.DefaultFormatPolicyWithPrimitives)), additionalSettings);
         }
 
         /// <summary>

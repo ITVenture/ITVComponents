@@ -24,8 +24,9 @@ namespace ITVComponents.WebCoreToolkit.Net
         }
 
         [EndpointRegistrationMethod]
-        public static void RegisterNetDefaultEndPoints(WebApplication builder, EndPointTrunk endPointRegistry, NetPartOptions options)
+        public static void RegisterNetDefaultEndPoints(WebApplication builder, [WebPartConfig]NetPartOptions options, [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
+            var endPointRegistry = sharedObjects.Property<EndPointTrunk>(nameof(EndPointTrunk), true).Value;
             if (!string.IsNullOrEmpty(options.TenantParam) && options.WithTenants)
             {
                 if (options.WithAreas && options.WithSecurity)

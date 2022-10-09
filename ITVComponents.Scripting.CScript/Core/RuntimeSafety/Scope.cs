@@ -12,6 +12,7 @@ using ITVComponents.ExtendedFormatting;
 #endif
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.ScriptValues;
+using ITVComponents.Scripting.CScript.Security;
 using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
 
 //using ITVComponents.DataAccess.Extensions;
@@ -20,6 +21,9 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
 {
     public class Scope : IScope
     {
+        private readonly ScriptingPolicy policy;
+
+        private ScriptingPolicy overridePolicy;
         /// <summary>
         /// holds all scopes that have been initialized
         /// </summary>
@@ -79,16 +83,17 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         /// <summary>
         /// Initializes a new instance of the Scope class
         /// </summary>
-        public Scope()
-            : this(false)
+        public Scope(ScriptingPolicy policy = null)
+            : this(false, policy)
         {
         }
 
         /// <summary>
         /// Initializes a new instance of the Scope class
         /// </summary>
-        public Scope(bool ignoreCase)
+        public Scope(bool ignoreCase, ScriptingPolicy policy = null)
         {
+            this.policy = policy??ScriptingPolicy.Default;
             layerRevisions = new List<int>();
             /*#if UseVarList
             scopes = new List<Dictionary<string, object>>();
@@ -114,8 +119,8 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         /// Initializes a new instance of the Scope class
         /// </summary>
         /// <param name="initialScope">the initial variables representing this scope</param>
-        public Scope(IDictionary<string, object> initialScope)
-            : this(false)
+        public Scope(IDictionary<string, object> initialScope, ScriptingPolicy policy = null)
+            : this(false, policy)
         {
             foreach (KeyValuePair<string, object> var in initialScope)
             {
@@ -247,6 +252,8 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         {
             return GetEnumerator();
         }
+
+        ScriptingPolicy IScope.ScriptingPolicy => overridePolicy ?? policy;
 
         /// <summary>
         /// Fügt der <see cref="T:System.Collections.Generic.ICollection`1"/> ein Element hinzu.
@@ -649,6 +656,11 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         }
 #endif
 
+        void IScope.OverridePolicy(ScriptingPolicy newPolicy)
+        {
+            overridePolicy = newPolicy;
+        }
+
         private object GetValue(string name, bool rootOnly = false)
         {
             if (ContainsKeyInternal(name, rootOnly,true))
@@ -663,7 +675,7 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
             else if (!string.IsNullOrEmpty(ImplicitContext) && name != ImplicitContext)
             {
                 var retVal = GetValue(ImplicitContext);
-                return retVal.GetMemberValue(name, null, ValueType.PropertyOrField);
+                return retVal.GetMemberValue(name, null, ValueType.PropertyOrField, ((IScope)this).ScriptingPolicy);
 
             }
 
@@ -685,7 +697,7 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
                     var tmp = GetValue(ImplicitContext);
                     if (!(tmp is IDictionary<string, object> dc && !dc.ContainsKey(name)) && !(tmp is IBasicKeyValueProvider kv && !kv.ContainsKey(name)))
                     {
-                        tmp.SetMemberValue(name, value, null, ValueType.PropertyOrField);
+                        tmp.SetMemberValue(name, value, null, ValueType.PropertyOrField, policy);
                         return;
                     }
                 }

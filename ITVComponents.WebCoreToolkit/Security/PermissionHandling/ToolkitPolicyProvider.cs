@@ -64,11 +64,8 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionHandling
              if (pol.Success && pol.Groups["permissionBlock"].Captures.Count >= 1)
             {
                 var policy = new AuthorizationPolicyBuilder(await GetDefaultPolicyAsync());
+
                 var top = toolPolicyOptions.Value;
-                if (top.SignInSchemes.Count != 0)
-                {
-                    top.SignInSchemes.ForEach(policy.AuthenticationSchemes.Add);
-                }
 
                 foreach (var cap in pol.Groups["permissionBlock"].Captures)
                 {

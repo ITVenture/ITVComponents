@@ -141,7 +141,7 @@
         {
             foreach (var col in Model)
             {
-                if (col.IsPrimaryKey || col.ReadOnly)
+                if ((col.IsPrimaryKey && col.IsIdentity) || col.ReadOnly)
                 {
                     c.Field(col.ColumnName, col.Type.ManagedType).Editable(false);
                 }

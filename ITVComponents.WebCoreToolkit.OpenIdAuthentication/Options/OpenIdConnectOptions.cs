@@ -17,5 +17,6 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Options
         public bool RequireHttpsMetadata { get; set; }
 
         public bool TokenToClaims { get; set; }
+        public bool ShrinkStatus { get; set; }
     }
 }

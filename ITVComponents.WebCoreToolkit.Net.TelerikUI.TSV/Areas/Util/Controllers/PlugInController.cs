@@ -80,6 +80,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
 
         public IActionResult AnalyzeAssembly(string assemblyName)
         {
+            db.ShowAllTenants = false;
+            db.HideGlobals = false;
             return PartialView("_AnalyzeAssembly", assemblyName);
         }
 

@@ -38,7 +38,7 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
             var typeMethods = info.Methods.GetOrAdd(methodName,
                 n => new ConcurrentDictionary<int, ConcurrentBag<MethodBuffer>>());
             var bag = typeMethods.GetOrAdd(arguments.Length, i => new ConcurrentBag<MethodBuffer>());
-            Type[] types = GetTypeArray(arguments);
+            Type[] types = GetTypeArray(arguments, false);
             ICollection<MethodBuffer> methods =
                     bag.Where(n => (n.IsGeneric ^ isNotGeneric)).ToArray();
 
@@ -80,26 +80,6 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
 #endif
         }
 
-        /// <summary>
-        /// Given a lambda expression that calls a method, returns the method info.
-        /// </summary>
-        /// <param name="expression">The expression.</param>
-        /// <returns></returns>
-        public static MethodInfo GetMethodInfo(Expression<Action> call)
-        {
-            return GetMethodInfoInt(call);
-        }
-
-        /// <summary>
-        /// Given a lambda expression that calls a method, returns the method info.
-        /// </summary>
-        /// <param name="expression">The expression.</param>
-        /// <returns></returns>
-        public static MethodInfo GetMethodInfo<T>(Expression<Func<T>> call)
-        {
-            return GetMethodInfoInt(call);
-        }
-
         internal static WritebackContainer[] GetWritebacks(MethodInfo method, object[] evaluatedArguments, ScriptValue[] sequence)
         {
             bool[] isOut = (from t in method.GetParameters() select t.IsOut || t.ParameterType.IsByRef).ToArray();
@@ -124,7 +104,7 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
             ConcurrentBag<PropertyInfo> bag = info.Indexers.GetOrAdd(arguments.Length,
                 i => new ConcurrentBag<PropertyInfo>());
             PropertyInfo[] indexers = bag.ToArray();
-            Type[] types = GetTypeArray(arguments);
+            Type[] types = GetTypeArray(arguments, false);
             object[] args = (from t in arguments select !(t is TypedNull) ? t : (t as ReferenceWrapper)?.WrappedValue).ToArray();
             var retVal = FindIndexerFromArray(indexers, types, args, out oargs);
             if (retVal == null)
@@ -146,13 +126,14 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
         /// <param name="type">the type for which to get a constructor</param>
         /// <param name="arguments">the provided arguments</param>
         /// <param name="oargs">the accepted arguments for the returned constructor</param>
+        /// <param name="isTypes">indicates whether the provided arguments refer to types rather than effective constructor values</param>
         /// <returns>a ConstructorInfo object that will accept the given parameters</returns>
-        public static ConstructorInfo GetCapableConstructor(Type type, object[] arguments, out object[] oargs)
+        public static ConstructorInfo GetCapableConstructor(Type type, object[] arguments, out object[] oargs, bool isTypes = false)
         {
             TypeInformation info = GetTypeInfo(type);
             ConcurrentBag<ConstructorInfo> bag = info.Constructors.GetOrAdd(arguments.Length, i => new ConcurrentBag<ConstructorInfo>());
             ConstructorInfo[] constructors = bag.ToArray();
-            Type[] types = GetTypeArray(arguments);
+            Type[] types = GetTypeArray(arguments, isTypes);
             object[] args = (from t in arguments select !(t is TypedNull) ? t : (t as ReferenceWrapper)?.WrappedValue).ToArray();
             var retVal = FindConstructorFromArray(constructors, types, args, out oargs);
             if (retVal == null)
@@ -231,8 +212,9 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
         /// Gets a typearray that is also supporting null-values
         /// </summary>
         /// <param name="objects">objects that would be passed to a method call</param>
+        /// <param name="isTypes">indicates whether the provided parameters are already types rather than parameter values</param>
         /// <returns>an array of types capable for the methodcall</returns>
-        internal static Type[] GetTypeArray(object[] objects)
+        internal static Type[] GetTypeArray(object[] objects, bool isTypes)
         {
             Type[] retVal = new Type[objects.Length];
             for (int i = 0; i < objects.Length; i++)
@@ -242,7 +224,7 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
                 {
                     if (!(objects[i] is TypedNull))
                     {
-                        t = objects[i].GetType();
+                        t = !isTypes ? objects[i].GetType() : objects[i] as Type;
                     }
                     else
                     {
@@ -477,23 +459,6 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
             return false;
         }
 
-        /// <summary>
-        /// Given a lambda expression that calls a method, returns the method info.
-        /// </summary>
-        /// <param name="expression">The expression.</param>
-        /// <returns></returns>
-        private static MethodInfo GetMethodInfoInt(LambdaExpression expression)
-        {
-            MethodCallExpression outermostExpression = expression.Body as MethodCallExpression;
-
-            if (outermostExpression == null)
-            {
-                throw new ArgumentException("Invalid Expression. Expression should consist of a Method call only.");
-            }
-
-            return outermostExpression.Method;
-        }
-
         private static MethodBuffer[] SelectGenerics(IEnumerable<MethodInfo> methods, Type[] typeArguments,
             bool extensions)
         {
@@ -597,6 +562,67 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
 #if UseDelegates
             public MethodInvoker Delegate { get; set; }
 #endif
+        }
+
+        public static bool IsDerivedMethodOf(MethodInfo parentMethod, MethodInfo method)
+        {
+            bool retVal = false;
+            var meth = method;
+            if (!parentMethod.DeclaringType?.IsInterface ?? false)
+            {
+                while (true)
+                {
+                    MethodInfo tp;
+                    try
+                    {
+                        tp = method.GetBaseDefinition();
+                    }
+                    catch
+                    {
+                        break;
+                    }
+
+                    if (meth == null || tp == meth)
+                    {
+                        break;
+                    }
+
+                    meth = tp;
+                    if (meth == parentMethod)
+                    {
+                        retVal = true;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                var mapQ = method.DeclaringType?.GetInterfaceMap(parentMethod.DeclaringType);
+                if (mapQ != null)
+                {
+                    var map = mapQ.Value;
+                    var id = Array.IndexOf(map.InterfaceMethods, parentMethod);
+                    retVal = map.TargetMethods[id].Equals(method);
+                }
+            }
+
+            return retVal;
+        }
+
+        public static bool IsDerivedPropertyOf(PropertyInfo parentProperty, PropertyInfo property)
+        {
+            bool retVal = true;
+            if (parentProperty.CanRead == property.CanRead && parentProperty.CanRead)
+            {
+                retVal &= IsDerivedMethodOf(parentProperty.GetMethod, property.GetMethod);
+            }
+
+            if (parentProperty.CanWrite == property.CanWrite && retVal && parentProperty.CanWrite)
+            {
+                retVal &= IsDerivedMethodOf(parentProperty.SetMethod, property.SetMethod);
+            }
+
+            return retVal;
         }
     }
 

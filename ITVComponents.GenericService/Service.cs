@@ -10,6 +10,7 @@ using System.Reflection;
 using System.ServiceProcess;
 using ITVComponents.CommandLineParser;
 using ITVComponents.Helpers;
+using ITVComponents.Invokation;
 using ITVComponents.Settings.Native;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -49,19 +50,33 @@ namespace ITVComponents.GenericService
                 AppDomain.CurrentDomain.UnhandledException += CurrentDomainOnUnhandledException;
                 Console.WriteLine("Current Platform is: {0}",
                     IntPtr.Size == 4 ? "x86" : IntPtr.Size == 8 ? "x64" : "unkonwn");
-                if (arg.Install)
+                var iv = new ExternalProgramInvoker();
+                if (arg.Action == RunAction.Install)
                 {
                     var locationRaw = Assembly.GetEntryAssembly().Location;
-                    var exeLocation = Path.Combine(Path.GetDirectoryName(locationRaw),Path.GetFileNameWithoutExtension(locationRaw));
-                    File.WriteAllText($"{Assembly.GetEntryAssembly().Location}.install.bat",
+                    var dahpath = Path.GetDirectoryName(locationRaw);
+                    var exeLocation = Path.Combine(dahpath,Path.GetFileNameWithoutExtension(locationRaw));
+                    var dahbat = $"{Assembly.GetEntryAssembly().Location}.install.bat";
+                    File.WriteAllText(dahbat,
                         $"sc.exe create \"{ServiceConfigHelper.ServiceName}\" binpath=\"{exeLocation}.exe\" start={ToStartType(ServiceConfigHelper.StartType)} displayname=\"{ServiceConfigHelper.DisplayName ?? ServiceConfigHelper.ServiceName}\" {((ServiceConfigHelper.Dependencies?.Count ?? 0) == 0 ? "" : $"depend=\"{string.Join("/", ServiceConfigHelper.Dependencies)}\"")}");
                     Console.WriteLine($"{Assembly.GetEntryAssembly().Location}.install.bat ausführen.");
+                    if (arg.Run)
+                    {
+                        iv.RunApplication(dahbat, dahpath, null);
+                    }
                 }
-                else if (arg.UnInstall)
+                else if (arg.Action == RunAction.UnInstall)
                 {
-                    File.WriteAllText($"{Assembly.GetEntryAssembly().Location}.uninstall.bat",
+                    var locationRaw = Assembly.GetEntryAssembly().Location;
+                    var dahpath = Path.GetDirectoryName(locationRaw);
+                    var dahbat = $"{Assembly.GetEntryAssembly().Location}.uninstall.bat";
+                    File.WriteAllText(dahbat,
                         $"sc.exe uninstall \"{ServiceConfigHelper.ServiceName}\"");
                     Console.WriteLine($"{Assembly.GetEntryAssembly().Location}.uninstall.bat ausführen.");
+                    if (arg.Run)
+                    {
+                        iv.RunApplication(dahbat, dahpath, null);
+                    }
                 }
                 else if (arg.Help)
                 {

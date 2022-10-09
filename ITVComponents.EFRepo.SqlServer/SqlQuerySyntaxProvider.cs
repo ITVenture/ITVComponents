@@ -189,7 +189,7 @@ namespace ITVComponents.EFRepo.SqlServer
         /// <param name="addQueryParam">a callback that will add a parameter to the query that needs to be executed</param>
         /// <param name="invertEntireFilter">indicates whether to invert this query-part</param>
         /// <returns>a string representing the boolean filter chain represented by the provided params</returns>
-        public string BooleanLogicFilter(DynamicCompositeFilterType type, ICollection<DynamicTableFilter> filterParts, TableColumnResolveCallback tableColumnNameCallback, Func<object, string> addQueryParam, bool invertEntireFilter)
+        public virtual string BooleanLogicFilter(DynamicCompositeFilterType type, ICollection<DynamicTableFilter> filterParts, TableColumnResolveCallback tableColumnNameCallback, Func<object, string> addQueryParam, bool invertEntireFilter)
         {
             if (filterParts.Count != 0)
             {
@@ -213,7 +213,7 @@ namespace ITVComponents.EFRepo.SqlServer
         /// <param name="value2">the value 2 for between operations</param>
         /// <param name="addQueryParam">a callback that will add a parameter to the query-command that needs to be executed</param>
         /// <returns>a string representing the requested binary compare operation</returns>
-        public string BinaryCompareOperation(string columnName, BinaryCompareFilterOperator op, object value, object value2, Func<object, string> addQueryParam)
+        public virtual string BinaryCompareOperation(string columnName, BinaryCompareFilterOperator op, object value, object value2, Func<object, string> addQueryParam)
         {
             var param1 = value != null ? addQueryParam(value) : "null";
             var param2 = op == BinaryCompareFilterOperator.Between && value2 != null ? addQueryParam(value) : "null";
@@ -314,17 +314,43 @@ namespace ITVComponents.EFRepo.SqlServer
             return "1=1";
         }
 
-        public string FullQualifyColumn(string tableName, string columnName)
+        public virtual string FullQualifyColumn(string tableName, string columnName, bool autoResolveTableName = true)
         {
-            return $"{(tableName != null ? $"{FormatObjectName(tableName)}." : "")}{FormatObjectName(columnName)}";
+            return
+                $"{(tableName != null ? $"{FormatObjectName(autoResolveTableName ? ResolveTableName(tableName) : tableName)}." : "")}{FormatObjectName(columnName)}";
         }
 
-        public string FormatObjectName(string objectName)
+        public virtual string FormatTableName(string tableName, bool autoResolve = true)
+        {
+            return FormatObjectName(autoResolve ? ResolveTableName(tableName) : tableName);
+        }
+
+        public virtual string ResolveTableName(string tableName)
+        {
+            return tableName;
+        }
+
+        public virtual string FormatIndexName(string indexName)
+        {
+            return FormatObjectName(indexName);
+        }
+
+        public virtual string FormatConstraintName(string constraintName)
+        {
+            return FormatObjectName(constraintName);
+        }
+
+        public virtual string FormatColumnName(string columnName)
+        {
+            return FormatObjectName(columnName);
+        }
+
+        protected virtual string FormatObjectName(string objectName)
         {
             return $"[{objectName}]";
         }
 
-        public DynamicDataColumnType GetAppropriateType(TableColumnDefinition definition, bool throwOnError)
+        public virtual DynamicDataColumnType GetAppropriateType(TableColumnDefinition definition, bool throwOnError)
         {
             var retVal = EligibleTypes.FirstOrDefault(n => n.DataTypeName.Equals(definition.DataType, StringComparison.OrdinalIgnoreCase));
             if (retVal != null)

@@ -46,6 +46,26 @@ namespace ITVComponents.Plugins.PluginServices
         }
 
         /// <summary>
+        /// Gets a list of declared types in the given assembly
+        /// </summary>
+        /// <param name="assembly">the assembly for which to get declared types</param>
+        /// <returns>a list of Type-Descriptors</returns>
+        public TypeDescriptor[] DescribeAssembly(Assembly assembly)
+        {
+            return AssemblyAnalyzer.DescribeAssembly(assembly, AnalyzeType, AnalyzeConstructor, AnalyzeArgument);
+        }
+
+        /// <summary>
+        /// Describes a single type
+        /// </summary>
+        /// <param name="type">the type to describe</param>
+        /// <returns>a description of the provided type</returns>
+        public TypeDescriptor DescribeType(Type type)
+        {
+            return AssemblyAnalyzer.DescribeType(type, AnalyzeType, AnalyzeConstructor, AnalyzeArgument);
+        }
+
+        /// <summary>
         /// Gets a list of available plugins
         /// </summary>
         /// <returns>an array of string representing all available plugins</returns>

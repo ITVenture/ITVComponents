@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using ITVComponents.Scripting.CScript.Security;
 #if !Community
 using ITVComponents.ExtendedFormatting;
 #endif
@@ -19,7 +20,7 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         object this[string memberName, bool rootOnly] { get; }
 
         //object this[string memberName] { get; set; }
-#if !Community
+
         /// <summary>
         /// Gets the Smart-Property that is bound to the given Variable name if defined
         /// </summary>
@@ -27,7 +28,8 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         /// <param name="rootOnly">indicates whether to check only in the initial scope</param>
         /// <returns>the smart-property or null, that is associated with the given name</returns>
         SmartProperty GetSmartProperty(string name, bool rootOnly = false);
-#endif
+
+        protected internal ScriptingPolicy ScriptingPolicy { get; }
 
 
         /// <summary>
@@ -65,5 +67,11 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         /// </summary>
         /// <param name="rootVariables">the root variables to put on the scope</param>
         void Clear(IDictionary<string, object> rootVariables);
+
+        /// <summary>
+        /// Overrides the security-policy of the inner scope
+        /// </summary>
+        /// <param name="newPolicy">the new execution policy for the scope</param>
+        protected internal void OverridePolicy(ScriptingPolicy newPolicy);
     }
 }

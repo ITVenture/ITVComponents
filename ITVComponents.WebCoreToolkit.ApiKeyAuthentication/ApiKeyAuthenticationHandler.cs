@@ -54,7 +54,7 @@ namespace ITVComponents.WebCoreToolkit.ApiKeyAuthentication
             {
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, existingApiKey.Key)
+                    new Claim(System.Security.Claims.ClaimTypes.Name, existingApiKey.Key)
                 };
 
                 var identity = new ClaimsIdentity(claims, Options.AuthenticationType);

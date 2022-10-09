@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Grpc.Core;
 using Grpc.Net.Client;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Client
@@ -37,7 +38,19 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         /// Configures a channel before a grpc-client is created
         /// </summary>
         /// <param name="options">the channel-options to configure</param>
-        public abstract void ConfigureChannel(GrpcChannelOptions options);
+        public virtual void ConfigureChannel(GrpcChannelOptions options)
+        {
+        }
+
+        /// <summary>
+        /// Configures the options used for the next call
+        /// </summary>
+        /// <param name="optionsRaw">the current state of call-options value</param>
+        /// <returns>the modified call-options for the next call</returns>
+        public virtual CallOptions ConfigureCallOptions(CallOptions optionsRaw)
+        {
+            return optionsRaw;
+        }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()

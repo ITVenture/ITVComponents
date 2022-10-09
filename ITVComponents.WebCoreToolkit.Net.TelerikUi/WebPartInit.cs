@@ -58,8 +58,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi
         }
 
         [EndpointRegistrationMethod]
-        public static void RegisterTenantViewAssemblyPart(WebApplication builder, EndPointTrunk endPointRegistry, NetUiPartOptions options)
+        public static void RegisterTenantViewAssemblyPart(WebApplication builder, [WebPartConfig]NetUiPartOptions options, [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
+            var endPointRegistry = sharedObjects.Property<EndPointTrunk>(nameof(EndPointTrunk), true).Value;
             if (!string.IsNullOrEmpty(options.TenantParam) && options.WithTenants)
             {
                 if (options.WithAreas && options.WithSecurity)

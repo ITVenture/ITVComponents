@@ -16,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensi
         public static ApplicationPartManager EnableItvTenantViews<TContext>(this ApplicationPartManager manager) where TContext:DbContext
         {
             var secDefinition = typeof(TContext).GetInterfaces().FirstOrDefault(
-                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,>));
+                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>));
             var types = secDefinition.GenericTypeArguments;
             var dic = new Dictionary<string, Type>
             {
@@ -43,6 +43,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensi
                 { "TSharedAsset", types[20] },
                 { "TSharedAssetUserFilter", types[21] },
                 { "TSharedAssetTenantFilter", types[22] },
+                {"TClientAppTemplate", types[23] },
+                {"TAppPermission", types[24] },
+                {"TAppPermissionSet", types[25] },
+                {"TClientAppTemplatePermission", types[26] },
+                {"TClientApp", types[27] },
+                {"TClientAppPermission", types[28] },
+                {"TClientAppUser", types[29] },
                 { "TContext", typeof(TContext) }
             };
 
@@ -59,7 +66,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensi
             }
 
             var secDefinition = contextType.GetInterfaces().FirstOrDefault(
-                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,>));
+                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>));
             var types = secDefinition.GenericTypeArguments;
             var dic = new Dictionary<string, Type>
             {
@@ -86,6 +93,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensi
                 { "TSharedAsset", types[20] },
                 { "TSharedAssetUserFilter", types[21] },
                 { "TSharedAssetTenantFilter", types[22] },
+                {"TClientAppTemplate", types[23] },
+                {"TAppPermission", types[24] },
+                {"TAppPermissionSet", types[25] },
+                {"TClientAppTemplatePermission", types[26] },
+                {"TClientApp", types[27] },
+                {"TClientAppPermission", types[28] },
+                {"TClientAppUser", types[29] },
                 { "TContext", contextType}
             };
 

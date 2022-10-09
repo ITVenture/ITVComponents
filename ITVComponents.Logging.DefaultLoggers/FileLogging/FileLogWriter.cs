@@ -421,6 +421,12 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// </summary>
         private void OpenStream()
         {
+            var dir = Path.GetDirectoryName(logName);
+            if (!Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
             this.innerStream = new FileStream(logName, FileMode.OpenOrCreate, FileAccess.ReadWrite,
                                                       FileShare.Read, 10000, FileOptions.WriteThrough);
             this.innerStream.Seek(0, SeekOrigin.End);

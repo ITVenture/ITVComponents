@@ -65,26 +65,16 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             var identities = httpContext.HttpContext?.User?.Identities?.ToArray();
             if (identities != null && identities.Any(n => n.IsAuthenticated))
             {
-                IQueryCollection refQ;
-                if (!ImpersonationExplicitDeactivated && ((refQ=httpContext.HttpContext.Request.Query).ContainsKey(Global.FixedAssetRequestQueryParameter)
-                    || (refQ = httpContext.HttpContext.Request.GetRefererQuery()) != null && refQ.ContainsKey(Global.FixedAssetRequestQueryParameter)))
+                if (httpContext.HttpContext.User.HasClaim(c => c.Type == ClaimTypes.FixedUserScope))
                 {
-                    if (httpContext.HttpContext.User.HasClaim(c => c.Type == Global.FixedAssetUserScope))
-                    {
-                        var asset = refQ[Global.FixedAssetRequestQueryParameter];
-                        var fixedUserScope = httpContext.HttpContext.User.Claims
-                            .First(n => n.Type == Global.FixedAssetUserScope).Value;
-                        var assetProvider =
-                            httpContext.HttpContext.RequestServices.GetService<ISharedAssetAdapter>();
-                        if (assetProvider != null && assetProvider.VerifyRequestLocation(httpContext.HttpContext.Request.Path, asset, fixedUserScope, httpContext.HttpContext.User))
-                        {
-                            IsScopeExplicit = true;
-                            return fixedUserScope;
-                        }
-                    }
+                    var fixedUserScope = httpContext.HttpContext.User.Claims
+                        .First(n => n.Type == ClaimTypes.FixedUserScope).Value;
+                    IsScopeExplicit = true;
+                    return fixedUserScope;
                 }
+            }
 
-                var secc = httpContext.HttpContext.RequestServices.GetService<ISecurityRepository>();
+            var secc = httpContext.HttpContext.RequestServices.GetService<ISecurityRepository>();
                 var userProvider = httpContext.HttpContext.RequestServices.GetRequiredService<IUserNameMapper>();
                 var eligibles= (from t in httpContext.HttpContext.User.Identities where t.IsAuthenticated select secc.GetEligibleScopes(userProvider.GetUserLabels(t), t.AuthenticationType)).SelectMany(n => n).Distinct(new ScopeInfoComparer()).ToArray();
                 logger.LogDebug($"Found: {identities.Length} identities");
@@ -95,7 +85,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                     !string.IsNullOrEmpty((string)httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam]))
                 {
                     var tmpRet = (string)httpContext.HttpContext.Request.RouteValues[opt.RouteOverrideParam];
-                    if (eligibles.Any(n => n.ScopeName == tmpRet))
+                    if (eligibles.Any(n => n.ScopeName.Equals(tmpRet, StringComparison.OrdinalIgnoreCase)))
                     {
                         IsScopeExplicit = true;
                         return tmpRet;
@@ -123,10 +113,9 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                 }
 
                 logger.LogDebug($"Returning current permission scope: {retVal}");
-            }
-
-            return retVal;
+                return retVal;
         }
+
 
         private string CreateScopeToken(string currentScope)
         {

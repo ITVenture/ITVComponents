@@ -1,5 +1,6 @@
 ﻿using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Optimization;
+using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.ScriptValues
 {
@@ -9,17 +10,17 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// Initializes a new instance of the WeakReferenceMemberAccessValue class
         /// </summary>
         /// <param name="handler">the base handler that is used to lock/unlock items</param>
-        public WeakReferenceMemberAccessValue(IScriptSymbol creator, bool bypassCompatibilityOnLazyInvokation) :base(creator, bypassCompatibilityOnLazyInvokation)
+        public WeakReferenceMemberAccessValue(IScriptSymbol creator, bool bypassCompatibilityOnLazyInvokation, ScriptingPolicy policy) :base(creator, bypassCompatibilityOnLazyInvokation, policy)
         {
         }
 
         #region Overrides of ScriptValue
 
-        public override object GetValue(ScriptValue[] arguments)
+        public override object GetValue(ScriptValue[] arguments, ScriptingPolicy policy)
         {
             if (BaseValue != null)
             {
-                return base.GetValue(arguments);
+                return base.GetValue(arguments, policy);
             }
 
             return null;

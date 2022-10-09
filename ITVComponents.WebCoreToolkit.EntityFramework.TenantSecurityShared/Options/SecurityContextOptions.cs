@@ -7,6 +7,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
     {
         public string ContextType { get; set; }
 
-        public List<string> SignInSchemes { get; set; } = new();
+        //public List<string> SignInSchemes { get; set; } = new();
     }
 }

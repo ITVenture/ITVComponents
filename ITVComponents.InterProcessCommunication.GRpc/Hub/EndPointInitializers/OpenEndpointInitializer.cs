@@ -5,12 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs;
+using ITVComponents.Plugins;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
 {
-    public class OpenEndPointInitializer:IEndPointInitializer
+    public class OpenEndPointInitializer:IServiceHubConfigurator, IPlugin
     {
         /// <summary>
         /// Initializes a new instance of the OpenEndpointInitializer class
@@ -18,7 +19,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
         /// <param name="parent"></param>
         public OpenEndPointInitializer(IServiceHubProvider parent)
         {
-            parent.RegisterEndPointInitializer(this);
+            parent.RegisterConfigurator(this);
         }
 
         /// <summary>
@@ -27,12 +28,20 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
         public string UniqueName { get; set; }
 
         /// <summary>
-        /// Maps the gdrp-endpoints to the endpoint route builder that configures the current http host
+        /// Configures the WebApplication builder (inject services, set defaults, etc.)
         /// </summary>
-        /// <param name="endpointRouteBuilder">the current http-endpoint builder</param>
-        public void MapEndPoints(IEndpointRouteBuilder endpointRouteBuilder)
+        /// <param name="builder">the web-application builder that is used to setup a grpc service</param>
+        public void ConfigureBuilder(WebApplicationBuilder builder)
+        {   
+        }
+
+        /// <summary>
+        /// Configures the app after it is built. (e.g. build the service middleware pipeline
+        /// </summary>
+        /// <param name="app">the built app</param>
+        public void ConfigureApp(WebApplication app)
         {
-            endpointRouteBuilder.MapGrpcService<OpenServiceHubRpc>();
+            app.MapGrpcService<OpenServiceHubRpc>();
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

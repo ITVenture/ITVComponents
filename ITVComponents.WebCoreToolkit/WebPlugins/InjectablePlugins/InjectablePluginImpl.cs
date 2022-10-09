@@ -23,6 +23,19 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         }
 
         public T Instance => instance ??= GetInstance();
+        public T GetInstance(string name)
+        {
+            var opt = options.Value;
+            var retVal = opt.GetPlugIn<T>(services, name);
+            if (retVal == null)
+            {
+                var defaultInjector = new DefaultPluginInjector<T>();
+                retVal = defaultInjector.GetPluginInstance(services, name);
+            }
+
+            return retVal;
+        }
+
 
         private T GetInstance()
         {

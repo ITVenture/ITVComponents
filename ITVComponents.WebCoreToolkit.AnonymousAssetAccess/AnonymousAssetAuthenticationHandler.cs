@@ -60,7 +60,7 @@ namespace ITVComponents.WebCoreToolkit.AnonymousAssetAccess
             {
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, existingAsset.Key)
+                    new Claim(System.Security.Claims.ClaimTypes.Name, existingAsset.Key)
                 };
 
                 var identity = new ClaimsIdentity(claims, Options.AuthenticationType);

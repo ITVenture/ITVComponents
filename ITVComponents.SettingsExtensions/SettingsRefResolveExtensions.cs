@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Formatting;
+using ITVComponents.Scripting.CScript.Security;
 using Microsoft.Extensions.Configuration;
 
 namespace ITVComponents.SettingsExtensions
@@ -99,7 +100,7 @@ namespace ITVComponents.SettingsExtensions
             else if (expression.StartsWith("$-->"))
             {
                 expression = expression.Substring(4);
-                expression = new { Me = model, Config = configuration }.FormatText(expression);
+                expression = new { Me = model, Config = configuration }.FormatText(expression, ScriptingPolicy.Default);
                 applyValue = true;
                 return expression;
             }

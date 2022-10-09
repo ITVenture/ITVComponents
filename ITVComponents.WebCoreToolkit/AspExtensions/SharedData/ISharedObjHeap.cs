@@ -10,6 +10,6 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions.SharedData
 {
     public interface ISharedObjHeap
     {
-        public PropertyRef<T> Property<T>(string name);
+        public PropertyRef<T> Property<T>(string name, bool createDefaultValue = false) where T: class, new();
     }
 }

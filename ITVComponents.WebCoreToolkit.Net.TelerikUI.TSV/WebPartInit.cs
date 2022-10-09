@@ -4,13 +4,19 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews
 {
@@ -59,6 +65,54 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews
                     o.UseExplicitTenantPasswords = viewOptions.UseExplicitTenantPasswords;
                 });
             }
+        }
+
+        [EndpointRegistrationMethod]
+        public static void RegisterTenantViewAssemblyPart(WebApplication builder,
+            [WebPartConfig("ViewConfig")] SecurityViewsOptions options, [SharedObjectHeap] ISharedObjHeap sharedObjects)
+        {
+            if (options.UseModuleTemplates)
+            {
+                var endPointRegistry = sharedObjects.Property<EndPointTrunk>(nameof(EndPointTrunk), true).Value;
+                if (!string.IsNullOrEmpty(options.TenantParam) && options.WithTenants)
+                {
+                    if (options.WithAreas)
+                    {
+                        Register(builder, options.TenantParam, true, endPointRegistry);
+                    }
+
+                    if (options.WithoutAreas)
+                    {
+                        Register(builder, options.TenantParam, false, endPointRegistry);
+                    }
+                }
+
+                if (options.WithoutTenants)
+                {
+                    if (options.WithAreas)
+                    {
+                        Register(builder, null, true, endPointRegistry);
+                    }
+
+                    if (options.WithoutAreas)
+                    {
+                        Register(builder, null, false, endPointRegistry);
+                    }
+                }
+            }
+        }
+
+        private static void Register(WebApplication builder, string tenantParam, bool useAreas, EndPointTrunk endPointRegistry)
+        {
+            builder.UseFeatureModules(tenantParam, useAreas, out var getter, out var setter);
+            endPointRegistry.Register(new OpenApiDescriptor(getter, "FeatureModuleTemplates",
+                "Reads the current Tenant configuration for a specific FeatureModule",
+                produces: r => r.Output<Dictionary<string,object>>(200, "application/json",
+                    "An object containing all component specific configurations depending on the given module name")));
+            endPointRegistry.Register(new OpenApiDescriptor(setter, "FeatureModuleTemplates",
+                "Stores the current Tenant configuration for a specific FeatureModule",
+                produces: r => r.Output<DummyDataSourceResult>(200, "plain/text",
+                    "A simple string indicating whether the configuration was saved successfully")));
         }
     }
 }

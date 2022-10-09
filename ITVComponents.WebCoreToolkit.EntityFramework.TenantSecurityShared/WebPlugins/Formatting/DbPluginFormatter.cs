@@ -101,8 +101,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
                         {
                             case "password":
                                 return !isPublic ? encryptedPassword.Decrypt() : null;
-                            case "useRawKey":
-                                return !isPublic;
                             default:
                                 return null;
                         }

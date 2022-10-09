@@ -1,0 +1,18 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.TagHelpers
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@(Html.Kendo().TabStrip().Name($"ModuleDetailsFor{ViewData["featureId"]}_{ViewData["templateModuleId"]}")
+    .Items(ai =>
+    {
+        ai.Add().Text("Configurators").LoadContentFrom("ModuleConfiguratorTable", "Feature", new { featureId = ViewData["featureId"], templateModuleId = ViewData["templateModuleId"] }).Selected(true);
+        ai.Add().Text("Configurators").LoadContentFrom("ModuleScriptTable", "Feature", new { featureId = ViewData["featureId"], templateModuleId = ViewData["templateModuleId"] });
+    }))

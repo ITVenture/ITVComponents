@@ -7,11 +7,17 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Identity;
 
 namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
 {
     public static class TokenValidationContextExtensions
     {
+        public static void SaveExernalClaims<T>(this SignInManager<T> signInManager, ExternalLoginInfo externalUser) where T : class
+        {
+            //externalUser.
+        }
+
         public static void TokenToClaims(this TokenValidatedContext context)
         {
             var tok = new JwtSecurityToken(context.TokenEndpointResponse.AccessToken);
@@ -34,18 +40,11 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
             // align expiration of the cookie with expiration of the
             // access token
             var accessToken = new JwtSecurityToken(context.TokenEndpointResponse.AccessToken);
-            var l = context.Properties.GetTokens().ToList();
-            l.Add(new AuthenticationToken
-            {
-                Name = "access_token",
-                Value = context.TokenEndpointResponse.AccessToken
-            });
-            l.Add(new AuthenticationToken
-            {
-                Name = "refresh_token",
-                Value = context.TokenEndpointResponse.RefreshToken
-            });
-            l.Add(new AuthenticationToken { Name = "ExpiresAt", Value = accessToken.ValidTo.ToString("O") });
+            //var l = context.Properties.GetTokens().ToList();
+            context.Properties.SetString("JWT.access_token", context.TokenEndpointResponse.AccessToken);
+            context.Properties.SetString("JWT.refresh_token", context.TokenEndpointResponse.RefreshToken);
+            context.Properties.SetString("JWT.expires_at", accessToken.ValidTo.ToString("O"));
+            context.Properties.SetString("JWT.authority", accessToken.Issuer);
             context.Options.SaveTokens = true;
             //context.Properties.ExpiresUtc = accessToken.ValidTo;
             context.Properties.ExpiresUtc = DateTime.Now.AddHours(2);

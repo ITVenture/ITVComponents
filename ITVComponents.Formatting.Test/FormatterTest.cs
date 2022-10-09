@@ -2,6 +2,10 @@
 using System.Collections.Generic;
 using ITVComponents.Formatting.ScriptExtensions;
 using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.Scripting.CScript.Exceptions;
+using ITVComponents.Scripting.CScript.Security;
+using ITVComponents.Scripting.CScript.Security.Extensions;
+using ITVComponents.Scripting.CScript.Security.Restrictions;
 using ITVComponents.Security;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -74,7 +78,7 @@ Seit dem 1.1.1900 sind {1,-10} Tage vergangen. HORN ist 4 Zeichen lang und TEST1
                 Target.FormatText(@"Das ist ein [Val1]. Von weitem klingt ein [Val2]. Heute ist der [Val3:dd.MM.yyyy]
 Seit dem 1.1.1900 sind $[dateTime = 'System.DateTime'
 dt1 = dateTime.Parse(""01.01.1900"");
-return Val3.Subtract(dt1).TotalDays;,-10] Tage vergangen. [Val2] ist £[Val2L] Zeichen lang und [Val1] ist $£[return Val1L;] Zeichen lang."));
+return Val3.Subtract(dt1).TotalDays;,-10] Tage vergangen. [Val2] ist £[Val2L] Zeichen lang und [Val1] ist $£[return Val1L;] Zeichen lang.", TextFormat.DefaultFormatPolicyWithPrimitives));
         }
 
         [TestMethod]
@@ -94,7 +98,8 @@ Seit dem 1.1.1900 sind {1,-10:x} Tage vergangen. HORN ist 4 Zeichen lang und TES
                 Target.FormatText(@"Das ist ein [Val1]. Von weitem klingt ein [Val2]. Heute ist der [Val3:dd.MM.yyyy]
 Seit dem 1.1.1900 sind $[dateTime = 'System.DateTime'
 dt1 = dateTime.Parse(""01.01.1900"");
-return 'System.Convert'.ToInt64(Val3.Subtract(dt1).TotalDays);,-10:x] Tage vergangen. [Val2] ist £[Val2L] Zeichen lang und [Val1] ist $£[return Val1L;] Zeichen lang."));
+return 'System.Convert'.ToInt64(Val3.Subtract(dt1).TotalDays);,-10:x] Tage vergangen. [Val2] ist £[Val2L] Zeichen lang und [Val1] ist $£[return Val1L;] Zeichen lang.",TextFormat.DefaultFormatPolicyWithPrimitives
+                    .WithTypeRestriction(typeof(Convert), TypeAccessMode.Direct|TypeAccessMode.StaticMethod, PolicyMode.Allow)));
         }
 
         [TestMethod]
@@ -158,12 +163,16 @@ v4     = 12341234".Replace("\r\n", "\n").Replace("\n", Environment.NewLine),
                 Val3 = DateTime.Today
             };
             var differ = (long)Target.Val3.Subtract(DateTime.Parse("01.01.1900")).TotalDays;
-            Assert.AreEqual(string.Format(@"Das ist ein TEST123. Von weitem klingt ein HORN. Heute ist der {0:dd.MM.yyyy}
-Seit dem 1.1.1900 sind {1,-10:x} Tage vergangen. HORN ist £[Val2.Length] Zeichen lang und TEST123 ist $7 Zeichen lang.", DateTime.Today, differ),
+            Assert.AreEqual(string.Format(
+                    @"Das ist ein TEST123. Von weitem klingt ein HORN. Heute ist der {0:dd.MM.yyyy}
+Seit dem 1.1.1900 sind {1,-10:x} Tage vergangen. HORN ist £[Val2.Length] Zeichen lang und TEST123 ist $7 Zeichen lang.",
+                    DateTime.Today, differ),
                 Target.FormatText(@"Das ist ein [Val1]. Von weitem klingt ein [Val2]. Heute ist der [Val3:dd.MM.yyyy]
 Seit dem 1.1.1900 sind $[dateTime = 'System.DateTime'
 dt1 = dateTime.Parse(""01.01.1900"");
-return 'System.Convert'.ToInt64(Val3.Subtract(dt1).TotalDays);,-10:x] Tage vergangen. [Val2] ist ££[Val2L] Zeichen lang und [Val1] ist $$£[Val1L] Zeichen lang."));
+return 'System.Convert'.ToInt64(Val3.Subtract(dt1).TotalDays);,-10:x] Tage vergangen. [Val2] ist ££[Val2L] Zeichen lang und [Val1] ist $$£[Val1L] Zeichen lang.",
+                    TextFormat.DefaultFormatPolicyWithPrimitives
+                        .WithTypeRestriction(typeof(Convert), TypeAccessMode.Direct|TypeAccessMode.StaticMethod, PolicyMode.Allow)));
         }
 
         [TestMethod]
@@ -174,13 +183,19 @@ return 'System.Convert'.ToInt64(Val3.Subtract(dt1).TotalDays);,-10:x] Tage verga
             var decrypted = new object().FormatText($"[\"{encrypted}\":decrypt]");
             Assert.AreEqual(decrypted,"bladibla");
         }
-        
+
         [TestMethod]
-        public void TestOriginInlineValues()
+        public void TestScriptDenial()
         {
-            //PasswordSecurity.InitializeAes("Weneeee die Russn kommn!");
-            var decrypted = "IBDPdW6+ENeoseBcPa79++s5sFpt3HDsXNDhfFR4JI+sgez1FFWgVct9g6nGYPYvg5dnL+seC3wtDn9ZHCJh4qNa".Decrypt("Isch werd' hier nosch zum Alki! Bald... *hicks*");
-            Assert.AreEqual(decrypted,"gintonic");
+            var t = new
+            {
+                Object = typeof(object),
+                List = new List<string>{"Hü","Ha","Ho"}
+            };
+
+            Assert.ThrowsException<ScriptException>(()=>t.FormatText("[new Object()]"));
+            Assert.ThrowsException<ScriptException>(()=> t.FormatText("[(`E(t as t->DEFAULT)::\"var t = Global.t;return t.List.First();\" with {})]"));
+            Assert.ThrowsException<ScriptException>(()=>t.FormatText("['System.Object']"));
         }
     }
 }

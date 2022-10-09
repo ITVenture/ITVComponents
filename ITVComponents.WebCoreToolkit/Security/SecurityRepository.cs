@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -95,11 +96,19 @@ namespace ITVComponents.WebCoreToolkit.Security
         public ICollection<Permission> Permissions => Current.Permissions;
         public IEnumerable<Role> GetRoles(User user) => Current.GetRoles(user);
 
-        public IEnumerable<CustomUserProperty> GetCustomProperties(User user) => Current.GetCustomProperties(user);
+        public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType) => Current.GetCustomProperties(user, propertyType);
+
+        public string GetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType) => Current.GetCustomProperty(user, propertyName, propertyType);
+
+        public T GetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType) => Current.GetCustomProperty<T>(user, propertyName, propertyType);
+
+        public bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value) => Current.SetCustomProperty(user, propertyName, propertyType, value);
+
+        public bool SetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType, T value) => Current.SetCustomProperty(user, propertyName, propertyType, value);
 
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType) => Current.IsAuthenticated(userLabels,userAuthenticationType);
 
-        public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType) => Current.GetCustomProperties(userLabels,userAuthenticationType);
+        public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType) => Current.GetCustomProperties(userLabels,userAuthenticationType, propertyType);
 
         public IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims, string userAuthenticationType) => Current.GetCustomProperties(originalClaims,userAuthenticationType);
 
@@ -121,11 +130,26 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt) => Current.Decrypt(encryptedValue, permissionScopeName,initializationVector,salt);
 
+        public Stream GetDecryptStream(Stream baseStream, string permissionScopeName, byte[] initializationVector,
+            byte[] salt) => Current.GetDecryptStream(baseStream, permissionScopeName, initializationVector, salt);
+
+        public Stream GetDecryptStream(Stream baseStream, string permissionScopeName) =>
+            Current.GetDecryptStream(baseStream, permissionScopeName);
+
         public string Encrypt(string value, string permissionScopeName) => Current.Encrypt(value, permissionScopeName);
 
         public byte[] Encrypt(byte[] value, string permissionScopeName) => Current.Encrypt(value, permissionScopeName);
 
         public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt) => Current.Encrypt(value, permissionScopeName, out initializationVector, out salt);
+
+        public Stream GetEncryptStream(Stream baseStream, string permissionScopeName, out byte[] initializationVector,
+            out byte[] salt) =>
+            Current.GetEncryptStream(baseStream, permissionScopeName, out initializationVector, out salt);
+
+        public Stream GetEncryptStream(Stream baseStream, string permissionScopeName) =>
+            Current.GetEncryptStream(baseStream, permissionScopeName);
+
+        public string EncryptJsonObject(object value, string permissionScopeName) => Current.EncryptJsonObject(value, permissionScopeName);
 
         private void OnDisposed()
         {

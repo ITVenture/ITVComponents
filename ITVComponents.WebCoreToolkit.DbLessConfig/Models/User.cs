@@ -10,7 +10,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Models
     {
         public string UserName { get; set; }
 
-        public Dictionary<string,string> CustomInfo { get; set; } = new Dictionary<string, string>();
+        public List<CustomUserProperty> CustomInfo { get; set; } = new List<CustomUserProperty>();
 
         public string[] Roles { get; set; }
         

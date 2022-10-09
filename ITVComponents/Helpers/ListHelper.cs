@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace ITVComponents.Helpers
 {
@@ -17,6 +18,25 @@ namespace ITVComponents.Helpers
         public static List<T> CreateDynamicList<T>(T firstItem)
         {
             return new List<T> {firstItem};
+        }
+
+        public static void AddIfMissing<T>(this IList<T> list, T item, bool omitDefault = false)
+        {
+            var eq = EqualityComparer<T>.Default;
+            var isDefault = eq.Equals(item, default(T));
+            if (!isDefault || !omitDefault)
+            {
+                if (list.All(n =>
+                    {
+                        var nIsDefault = eq.Equals(n, default(T));
+                        var isEqual = (isDefault && nIsDefault || n.Equals(item));
+                        var add = !isEqual;
+                        return add;
+                    }))
+                {
+                    list.Add(item);
+                }
+            }
         }
     }
 }

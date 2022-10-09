@@ -31,8 +31,10 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
         /// <summary>
         /// Re-Connects the given channel. A Connection-Registration message is sent.
         /// </summary>
-        /// <param name="comm">the communication channel</param>
+        /// <param name="name">the name of the memory-mapped file</param>
+        /// <param name="ttl">the ttl value for the connection</param>
         /// <param name="initialChannel">the initialization channel</param>
-        void ReConnectChannel(IMemoryChannel comm, IMemoryChannel initialChannel);
+        /// <returns>a value indicating whether the server has accepted the connection request</returns>
+        void ReConnectChannel(string name, int ttl, IMemoryChannel initialChannel);
     }
 }

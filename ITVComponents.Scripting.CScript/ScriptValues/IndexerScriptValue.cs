@@ -1,11 +1,14 @@
 ﻿using System;
 using ITVComponents.Scripting.CScript.Optimization;
+using ITVComponents.Scripting.CScript.Security;
 using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
 
 namespace ITVComponents.Scripting.CScript.ScriptValues
 {
     public class IndexerScriptValue:ScriptValue
     {
+        private readonly ScriptingPolicy policy;
+
         /// <summary>
         /// The ScriptValues that are used to execute an indexer.
         /// </summary>
@@ -23,8 +26,9 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// </summary>
         /// <param name="handler">the handler object that is used to lock/unlock this item</param>
         /// <param name="creator">the creator-symbol that leads to this scriptvalue</param>
-        public IndexerScriptValue(IScriptSymbol creator, bool bypassCompatibilityOnLazyInvokation) :base(creator, bypassCompatibilityOnLazyInvokation) 
+        public IndexerScriptValue(IScriptSymbol creator, ScriptingPolicy policy, bool bypassCompatibilityOnLazyInvokation) :base(creator, bypassCompatibilityOnLazyInvokation)
         {
+            this.policy = policy;
         }
 
         /// <summary>
@@ -81,7 +85,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// </summary>
         protected override object Value
         {
-            get { return baseValue.GetValue(values); }
+            get { return baseValue.GetValue(values, policy); }
         }
 
         /// <summary>
@@ -103,7 +107,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// <param name="value">the new Value to assign to this Value</param>
         internal override void SetValue(object value)
         {
-            baseValue.SetValue(value, values);
+            baseValue.SetValue(value, values, policy);
         }
     }
 }

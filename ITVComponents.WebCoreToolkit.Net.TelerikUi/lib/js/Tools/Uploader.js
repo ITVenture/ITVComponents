@@ -34,6 +34,31 @@ ITVenture.Tools.Uploader = {
             return retVal;
         };
 
+        var getErrorMethod = function (e) {
+            var tmp = e[0].attributes.nameTarget.value;
+            var retVal = function (file, message) {
+                var fx = retVal.config[retVal.target];
+                var remove = false;
+                if (typeof (fx) === "function") {
+                    remove = fx(file, message);
+                    if (typeof (remove) === "undefined" || remove == null) {
+                        remove = false;
+                    }
+                }
+
+                if (!remove) {
+                    $(file.previewElement).children("div[class='dz-error-message']").html("<span>" + message + "</span>");
+                }
+                else {
+                    $(file.previewElement).remove();
+                }
+            };
+
+            retVal.target = tmp.concat("_ERROR");
+            retVal.config = config;
+            return retVal;
+        };
+
         var getMultiUploadedMethod = function (e) {
             var tmp = e[0].attributes.nameTarget.value;
             var retVal = function (file, response) {
@@ -58,6 +83,7 @@ ITVenture.Tools.Uploader = {
 
         sl.each(function (e, f) {
             var theHandler = getUploadedMethod($(f));
+            var errorHandler = getErrorMethod($(f));
             var div = $(f);
             div.removeClass("dropzone");
             div.html("<div class='dropzone'></div>");
@@ -97,14 +123,13 @@ ITVenture.Tools.Uploader = {
                 maxFiles: 1,
                 init: function () {
                     this.on("success", theHandler);
-                    this.on("error", function (file, message) {
-                        $(file.previewElement).children("div[class='dz-error-message']").html("<span>" + message + "</span>");
-                    });
+                    this.on("error", errorHandler);
                 }
             });
             var wrapper = config[theHandler.target + "_wrapper"] = {
                 dropzone: dz,
-                handler: theHandler
+                handler: theHandler,
+                errorHandler: errorHandler
             };
 
             wrapper.reset = function () {
@@ -122,6 +147,7 @@ ITVenture.Tools.Uploader = {
         ml
             .each(function (e, f) {
                 var theHandler = getMultiUploadedMethod($(f));
+                var errorHandler = getErrorMethod($(f));
                 var div = $(f);
                 div.removeClass("dropzone");
                 div.html("<div class='dropzone'></div>");
@@ -161,16 +187,14 @@ ITVenture.Tools.Uploader = {
                     maxFiles: 256,
                     init: function () {
                         this.on("success", theHandler);
-                        this.on("error", function (file, message) {
-                            console.log(message);
-                            $(file.previewElement).children("div[class='dz-error-message']").html("<span>" + message + "</span>");
-                        });
+                        this.on("error", errorHandler);
                     }
                 });
                 uploadDiv.attr("style", "width:100%;height:100%");
                 config[theHandler.target + "_wrapper"] = {
                     dropzone: dz,
-                    handler: theHandler
+                    handler: theHandler,
+                    errorHandler: errorHandler
                 };
 
                 div.removeAttr("purpose");

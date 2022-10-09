@@ -11,6 +11,7 @@ using ITVComponents.ExtendedFormatting;
 #endif
 using ITVComponents.Scripting.CScript.Core.Invokation;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
+using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Core.Literals
 {
@@ -18,6 +19,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
     {
         private IScope parent;
         private ConcurrentDictionary<string, object> values;
+        private ScriptingPolicy overridePolicy;
 
         public ObjectLiteral(Dictionary<string, object> values, IScope parent)
         {
@@ -80,6 +82,8 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         {
             throw new InvalidOperationException("GetSmartProperty is not supported in ObjectLiteral!");
         }
+
+        ScriptingPolicy IScope.ScriptingPolicy => overridePolicy??parent.ScriptingPolicy;
 #endif
         /// <summary>Ruft eine <see cref="T:System.Collections.Generic.ICollection`1" />-Schnittstelle ab, die die Schlüssel von <see cref="T:System.Collections.Generic.IDictionary`2" /> enthält.</summary>
         /// <returns>Eine <see cref="T:System.Collections.Generic.ICollection`1" />, die die Schlüssel des Objekts enthält, das <see cref="T:System.Collections.Generic.IDictionary`2" /> implementiert.</returns>
@@ -208,6 +212,11 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
 
         public void Clear(IDictionary<string, object> rootVariables)
         {
+        }
+
+        void IScope.OverridePolicy(ScriptingPolicy newPolicy)
+        {
+            overridePolicy = newPolicy;
         }
 
 

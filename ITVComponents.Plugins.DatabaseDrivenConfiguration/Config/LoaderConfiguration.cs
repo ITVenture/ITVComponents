@@ -28,6 +28,11 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration.Config
         /// </summary>
         public int RefreshCycle { get; set; }
 
+        /// <summary>
+        /// Gets or sets the TenantName when a multi-tenant environment is used
+        /// </summary>
+        public string TenantName { get; set; }
+
         /// <summary>Returns a string that represents the current object.</summary>
         /// <returns>A string that represents the current object.</returns>
         /// <filterpriority>2</filterpriority>

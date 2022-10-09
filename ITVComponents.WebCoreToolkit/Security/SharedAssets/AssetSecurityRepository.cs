@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Models;
+using Microsoft.AspNetCore.Authentication;
 
 namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 {
@@ -29,10 +32,10 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             decoratedUser = taggedUser;
             this.decoratedRepo = decoratedRepo;
             assignedPermissions =
-                (from t in taggedUser.Claims where t.Type == Global.FixedAssetPermission select t.Value).Distinct()
+                (from t in taggedUser.Claims where t.Type == ClaimTypes.FixedAssetPermission select t.Value).Distinct()
                 .ToArray();
-            assignedUserScope = taggedUser.Claims.First(n => n.Type == Global.FixedAssetUserScope).Value;
-            assignedFeatures = (from t in taggedUser.Claims where t.Type == Global.FixedAssetFeature select t.Value)
+            assignedUserScope = taggedUser.Claims.First(n => n.Type == ClaimTypes.FixedUserScope).Value;
+            assignedFeatures = (from t in taggedUser.Claims where t.Type == ClaimTypes.FixedAssetFeature select t.Value)
                 .Distinct().ToArray();
         }
 
@@ -55,9 +58,43 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             }
         }
 
-        public IEnumerable<CustomUserProperty> GetCustomProperties(User user)
+        public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
             return Array.Empty<CustomUserProperty>();
+        }
+
+        /// <summary>
+        /// Gets the string representation of the given property. This is only supported in 1:1 user environments
+        /// </summary>
+        /// <param name="user">the user for which go get the property</param>
+        /// <param name="propertyName">the name of the desired property</param>
+        /// <param name="propertyType">the expected property-type</param>
+        /// <returns>the string representation of the requested property</returns>
+        public string GetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType)
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Gets the string representation of the given property. This is only supported in 1:1 user environments
+        /// </summary>
+        /// <param name="user">the user for which go get the property</param>
+        /// <param name="propertyName">the name of the desired property</param>
+        /// <param name="propertyType">the expected property-type</param>
+        /// <returns>the string representation of the requested property</returns>
+        public T GetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType)
+        {
+            return default(T);
+        }
+
+        public bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value)
+        {
+            return false;
+        }
+
+        public bool SetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType, T value)
+        {
+            return false;
         }
 
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
@@ -71,7 +108,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             return false;
         }
 
-        public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType)
+        public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType)
         {
             return Array.Empty<CustomUserProperty>();
         }
@@ -117,7 +154,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public bool PermissionScopeExists(string permissionScopeName)
         {
-            return decoratedUser.HasClaim(Global.FixedAssetUserScope, permissionScopeName);
+            return decoratedUser.HasClaim(ClaimTypes.FixedUserScope, permissionScopeName);
         }
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType)
@@ -161,6 +198,16 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             return decoratedRepo.Decrypt(encryptedValue, permissionScopeName, initializationVector, salt);
         }
 
+        public Stream GetDecryptStream(Stream baseStream, string permissionScopeName, byte[] initializationVector, byte[] salt)
+        {
+            return decoratedRepo.GetDecryptStream(baseStream, permissionScopeName, initializationVector, salt);
+        }
+
+        public Stream GetDecryptStream(Stream baseStream, string permissionScopeName)
+        {
+            return decoratedRepo.GetDecryptStream(baseStream, permissionScopeName);
+        }
+
         public string Encrypt(string value, string permissionScopeName)
         {
             return decoratedRepo.Encrypt(value, permissionScopeName);
@@ -174,6 +221,22 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt)
         {
             return decoratedRepo.Encrypt(value, permissionScopeName, out initializationVector, out salt);
+        }
+
+        public Stream GetEncryptStream(Stream baseStream, string permissionScopeName, out byte[] initializationVector,
+            out byte[] salt)
+        {
+            return decoratedRepo.GetEncryptStream(baseStream, permissionScopeName, out initializationVector, out salt);
+        }
+
+        public Stream GetEncryptStream(Stream baseStream, string permissionScopeName)
+        {
+            return decoratedRepo.GetEncryptStream(baseStream, permissionScopeName);
+        }
+
+        public string EncryptJsonObject(object value, string permissionScopeName)
+        {
+            return decoratedRepo.EncryptJsonObject(value, permissionScopeName);
         }
     }
 }

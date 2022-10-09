@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Security;
 using System.Text;
 using System.Threading.Tasks;
 #if (!Community)
@@ -9,18 +10,20 @@ using ITVComponents.ExtendedFormatting;
 #endif
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
+using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
+using ITVComponents.Scripting.CScript.Security;
+using ITVComponents.Scripting.CScript.Security.Restrictions;
 
 namespace ITVComponents.Scripting.CScript.Helpers
 {
     internal static class MemberAccessHelper
     {
-        public static object GetMemberValue(this object target, string name, Type explicitType, ScriptValues.ValueType valueType)
+        public static object GetMemberValue(this object target, string name, Type explicitType, ScriptValues.ValueType valueType, ScriptingPolicy policy)
         {
             if (valueType== ScriptValues.ValueType.Method || valueType == ScriptValues.ValueType.Constructor)
             {
                 var bv = target;
-                var olt = bv as ObjectLiteral;
-                if (valueType == ScriptValues.ValueType.Constructor && olt != null)
+                if (valueType == ScriptValues.ValueType.Constructor && bv is ObjectLiteral olt)
                 {
                     return olt[name];
                 }
@@ -66,9 +69,13 @@ namespace ITVComponents.Scripting.CScript.Helpers
                 }
             }
 
-            if (
-                isEnum)
+            if (isEnum)
             {
+                if (policy.IsDenied((Type)targetObject, TypeAccessMode.Direct, policy.PolicyMode))
+                {
+                    throw new ScriptSecurityException($"Access to enum '{((Type)targetObject).FullName}' is denied");
+                }
+
                 return Enum.Parse((Type)targetObject, name);
             }
 
@@ -78,9 +85,13 @@ namespace ITVComponents.Scripting.CScript.Helpers
                                                         targetObject));
             }
 
-            if (mi is PropertyInfo)
+            if (mi is PropertyInfo pi)
             {
-                PropertyInfo pi = (PropertyInfo)mi;
+                if (policy.IsDenied(pi, targetObject, PropertyAccessMode.Read, targetObject == null))
+                {
+                    throw new ScriptSecurityException($"Access to property '{pi.Name}' is denied");
+                }
+
                 if (pi.CanRead)
                 {
                     return pi.GetValue(targetObject, null);
@@ -89,9 +100,14 @@ namespace ITVComponents.Scripting.CScript.Helpers
                 return null;
             }
 
-            if (mi is FieldInfo)
+            if (mi is FieldInfo fi)
             {
-                return ((FieldInfo)mi).GetValue(targetObject);
+                if (policy.IsDenied(fi, targetObject, FieldAccessMode.Read, targetObject == null))
+                {
+                    throw new ScriptSecurityException($"Access to field '{fi.Name}' is denied");
+                }
+
+                return fi.GetValue(targetObject);
             }
 
             if (mi is EventInfo)
@@ -181,7 +197,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
             throw new ScriptException(string.Format("GetValue is not supported for MemberType {0}", mi.MemberType));
         }
 
-        public static void SetMemberValue(this object target, string name, object value, Type explicitType, ScriptValues.ValueType valueType)
+        public static void SetMemberValue(this object target, string name, object value, Type explicitType, ScriptValues.ValueType valueType, ScriptingPolicy policy)
         {
             object targetObject;
             bool isEnum;
@@ -213,20 +229,36 @@ namespace ITVComponents.Scripting.CScript.Helpers
                     targetObject));
             }
 
-            PropertyInfo pi;
-            FieldInfo fi;
-            if (mi is PropertyInfo && (pi = (PropertyInfo)mi).CanWrite)
+            if (mi is PropertyInfo{CanWrite:true} pi)
             {
+                if (policy.IsDenied(pi, targetObject, PropertyAccessMode.Write, targetObject == null))
+                {
+                    throw new ScriptSecurityException($"Access to property '{pi.Name}' is denied");
+                }
+
                 pi.SetValue(targetObject, value, null);
             }
-            else if (mi is FieldInfo && !(fi = (FieldInfo)mi).IsLiteral)
+            else if (mi is FieldInfo{IsLiteral:false} fi)
             {
+                if (policy.IsDenied(fi, targetObject, FieldAccessMode.Write, targetObject == null))
+                {
+                    throw new ScriptSecurityException($"Access to field '{fi.Name}' is denied");
+                }
+
                 fi.SetValue(targetObject, value);
             }
-            else if (mi is EventInfo && value is FunctionLiteral)
+            else if (mi is EventInfo ev && value is FunctionLiteral fl)
             {
-                FunctionLiteral fl = value as FunctionLiteral;
-                EventInfo ev = mi as EventInfo;
+                if (policy.IsDenied(policy.ScriptMethods))
+                {
+                    throw new ScriptSecurityException("Scriptmethods are not allowed");
+                }
+
+                if (policy.IsDenied(ev, targetObject, targetObject == null))
+                {
+                    throw new ScriptSecurityException($"Access to event '{ev.Name}' is denied");
+                }
+
                 ev.AddEventHandler(targetObject, fl.CreateDelegate(ev.EventHandlerType));
             }
             else

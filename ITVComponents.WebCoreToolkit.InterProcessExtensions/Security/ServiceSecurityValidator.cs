@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Security.PermissionBasedSecurity;
 using ITVComponents.Plugins;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 
 namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
@@ -35,7 +36,7 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
 
         protected override IEnumerable<KeyValuePair<string, string>> SelectCustomProperties(IIdentity identity)
         {
-            return securityRepo.GetCustomProperties(nameMapper.GetUserLabels(identity), identity.AuthenticationType).Select(m => new KeyValuePair<string, string>(m.PropertyName, m.Value));
+            return securityRepo.GetCustomProperties(nameMapper.GetUserLabels(identity), identity.AuthenticationType, CustomUserPropertyType.Claim).Select(m => new KeyValuePair<string, string>(m.PropertyName, m.Value));
         }
 
         /// <summary>

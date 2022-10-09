@@ -1,12 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Security;
+using System.Text.RegularExpressions;
 using Castle.Core.Logging;
 using ITVComponents.Formatting;
+using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Security;
+using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
@@ -24,7 +28,7 @@ using User = ITVComponents.WebCoreToolkit.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Security
 {
-    public abstract class DbSecurityRepository<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter> : ISecurityRepository
+    public abstract class DbSecurityRepository<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> : ISecurityRepository
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -38,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
         where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
         where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
-        where TUserProperty : CustomUserProperty<TUserId, TUser>
+        where TUserProperty : CustomUserProperty<TUserId, TUser>, new()
         where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
         where TAssetTemplatePath : AssetTemplatePath<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
         where TAssetTemplateGrant : AssetTemplateGrant<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
@@ -46,12 +50,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         where TSharedAsset : SharedAsset<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
         where TSharedAssetUserFilter : SharedAssetUserFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
         where TSharedAssetTenantFilter : SharedAssetTenantFilter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TAppPermission : AppPermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet>
+        where TAppPermissionSet : AppPermissionSet<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet>
+        where TClientAppTemplatePermission : ClientAppTemplatePermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
+        where TClientAppTemplate : ClientAppTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
+        where TClientAppPermission : ClientAppPermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
+        where TClientApp : ClientApp<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
+        where TClientAppUser : ClientAppUser<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
         where TUser : class
     {
-        private readonly ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter> securityContext;
+        private readonly ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> securityContext;
         private readonly ILogger logger;
 
-        protected DbSecurityRepository(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter> securityContext,
+        protected DbSecurityRepository(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> securityContext,
             ILogger logger)
         {
             this.securityContext = securityContext;
@@ -66,7 +77,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <summary>
         /// Gets a list of users in the current application
         /// </summary>
-        public ICollection<User> Users
+        public virtual ICollection<User> Users
         {
             get
             {
@@ -79,7 +90,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <summary>
         /// Gets a list of Roles that can be granted to users in the current application
         /// </summary>
-        public ICollection<Role> Roles
+        public virtual ICollection<Role> Roles
         {
             get
             {
@@ -91,7 +102,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <summary>
         /// Gets a collection of defined Permissions in the current application
         /// </summary>
-        public ICollection<Permission> Permissions
+        public virtual ICollection<Permission> Permissions
         {
             get
             {
@@ -105,7 +116,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// </summary>
         /// <param name="user">the user for which to get the roles</param>
         /// <returns>an enumerable of all the user-roles</returns>
-        public IEnumerable<Role> GetRoles(User user)
+        public virtual IEnumerable<Role> GetRoles(User user)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
             return (from r in AllRoles(securityContext.Users.First(UserFilter(user))) select r.Role).ToArray();
@@ -116,20 +127,130 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// </summary>
         /// <param name="user">the user for which to get the custom properties</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
-        public IEnumerable<CustomUserProperty> GetCustomProperties(User user)
+        public virtual IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
-            return (from p in UserProps(securityContext.Users.First(UserFilter(user))) select p).ToArray();
+            return (from p in UserProps(securityContext.Users.First(UserFilter(user))) where p.PropertyType == propertyType select p).ToArray();
 
         }
 
-        public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
+        /// <summary>
+        /// Gets the string representation of the given property. This is only supported in 1:1 user environments
+        /// </summary>
+        /// <param name="user">the user for which go get the property</param>
+        /// <param name="propertyName">the name of the desired property</param>
+        /// <param name="propertyType">the expected property-type</param>
+        /// <returns>the string representation of the requested property</returns>
+        public string GetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType)
+        {
+            string retVal = null;
+            var tmp = GetCustomProperties(user, propertyType).FirstOrDefault(n => n.PropertyName == propertyName);
+            if (tmp != null)
+            {
+                retVal = tmp.Value;
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Gets the string representation of the given property. This is only supported in 1:1 user environments
+        /// </summary>
+        /// <param name="user">the user for which go get the property</param>
+        /// <param name="propertyName">the name of the desired property</param>
+        /// <param name="propertyType">the expected property-type</param>
+        /// <returns>the string representation of the requested property</returns>
+        public T GetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType)
+        {
+            T retVal = default(T);
+            var tmpVal = GetCustomProperty(user, propertyName, propertyType);
+            if (!string.IsNullOrEmpty(tmpVal))
+            {
+                if (propertyType == CustomUserPropertyType.Claim || propertyType == CustomUserPropertyType.Literal)
+                {
+                    if (TypeConverter.TryConvert(tmpVal, typeof(T), out var result))
+                    {
+                        retVal = (T)result;
+                    }
+                }
+                else
+                {
+                    retVal = JsonHelper.FromJsonString<T>(tmpVal);
+                }
+            }
+
+            return retVal;
+        }
+
+        public bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value)
+        {
+            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            var dbuser = securityContext.Users.First(UserFilter(user));
+            var prop = securityContext.UserProperties.FirstOrDefault(n =>
+                n.PropertyName == propertyName && n.User == dbuser && n.PropertyType == propertyType);
+            if (prop == null && !string.IsNullOrEmpty(value))
+            {
+                prop = new TUserProperty
+                {
+                    PropertyType = propertyType,
+                    PropertyName = propertyName,
+                    User = dbuser
+                };
+
+                securityContext.UserProperties.Add(prop);
+            }
+            else if (prop != null && string.IsNullOrEmpty(value))
+            {
+                securityContext.UserProperties.Remove(prop);
+                prop = null;
+            }
+
+            if (prop != null)
+            {
+                prop.Value = value;
+            }
+
+            securityContext.SaveChanges();
+            return true;
+        }
+
+        public bool SetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType, T value)
+        {
+            string stringVal = null;
+            if (propertyType == CustomUserPropertyType.Claim || propertyType == CustomUserPropertyType.Literal)
+            {
+                stringVal = value?.ToString();
+            }
+            else if (value != null)
+            {
+                stringVal = JsonHelper.ToJson(value);
+            }
+
+            return SetCustomProperty(user, propertyName, propertyType, stringVal);
+        }
+
+        public virtual bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
             var t = securityContext.CurrentTenantId;
             if (t != null)
             {
                 var ti = t.Value;
-                var tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
+                IQueryable<TUser> tenantUsers;
+                if (userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern)))
+                {
+                    tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
+                }
+                else
+                {
+                    var filteredLabels = (from ul in userLabels
+                        where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                    var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
+                    tenantUsers = appUsers
+                        .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                        .Select(n => n.TenantUser.User);
+                }
+
                 return tenantUsers.Any(UserFilter(userLabels, userAuthenticationType));
             }
 
@@ -142,11 +263,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <param name="userLabels">the labels that describe the current user</param>
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
-        public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType)
+        public virtual IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
-            return (from u in securityContext.Users.Where(UserFilter(userLabels,userAuthenticationType))
+            IQueryable<TUser> tenantUsers;
+            if (userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern)))
+            {
+                tenantUsers = securityContext.TenantUsers.Select(u => u.User);
+            }
+            else
+            {
+                var filteredLabels = (from ul in userLabels
+                    where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                var appUsers = securityContext.ClientAppUsers;
+                tenantUsers = appUsers
+                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Select(n => n.TenantUser.User);
+            }
+            return (from u in tenantUsers.Where(UserFilter(userLabels,userAuthenticationType))
                     .Join(securityContext.UserProperties, UserId, p => p.UserId, (tu,tp) => tp)
+                    where u.PropertyType == propertyType
                 select u).ToArray();
         }
 
@@ -156,13 +293,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <param name="originalClaims">the claims that were originally attached to the current identity</param>
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
-        public IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims,
+        public virtual IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims,
             string userAuthenticationType)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
             var typeClaims = securityContext.AuthenticationClaimMappings.Where(n =>
                 n.AuthenticationType.AuthenticationTypeName == userAuthenticationType).ToArray();
-            var preMapped = from t in originalClaims
+            var preMapped = from t in originalClaims 
                 join i in typeClaims on t.Type equals i.IncomingClaimName
                 select new { Original = t, Map = i };
             return (from t in preMapped where string.IsNullOrEmpty(t.Map.Condition) || (ExpressionParser.Parse(t.Map.Condition, t.Original) is bool b && b)
@@ -174,7 +311,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// </summary>
         /// <param name="user">the user for which to get the permissions</param>
         /// <returns>an enumerable of permissions for the given user</returns>
-        public IEnumerable<Permission> GetPermissions(User user)
+        public virtual IEnumerable<Permission> GetPermissions(User user)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
             return (from p in (from r in AllRoles(securityContext.Users.First(UserFilter(user))) select r.Role.RolePermissions).SelectMany(rp => rp) select new Permission
@@ -190,10 +327,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <param name="userLabels">the labels that describe the current user</param>
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
         /// <returns>an enumerable of permissions for the given user-labels</returns>
-        public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
+        public virtual IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
-            return (from tr in securityContext.Users.Where(UserFilter(userLabels,userAuthenticationType))
+            IQueryable<TUser> tenantUsers;
+            string[] preFilteredPerms = null;
+            if (userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern)))
+            {
+                tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
+            }
+            else
+            {
+                var filteredLabels = (from ul in userLabels
+                    where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == securityContext.CurrentTenantId.Value);
+                preFilteredPerms = appUsers.SelectMany(n => n.ClientApp.AppPermissions).SelectMany(n => n.PermissionSet.Permissions)
+                    .Select(n => n.Permission.PermissionName).Distinct().ToArray();
+                tenantUsers = appUsers
+                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Select(n => n.TenantUser.User);
+            }
+
+            var permRaw = (from tr in tenantUsers.Where(UserFilter(userLabels,userAuthenticationType))
                     .Join(securityContext.TenantUsers, UserId, tr => tr.UserId, (tu,tt) => tt)
                 join ur in securityContext.TenantUserRoles on tr.TenantUserId equals ur.TenantUserId
                     join r in securityContext.SecurityRoles on new {ur.RoleId, tr.TenantId} equals new { r.RoleId, r.TenantId }
@@ -205,6 +361,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                         //PermissionName = p.PermissionName != rt.TenantName?$"{(!p.IsGlobal?rt.TenantName:"")}{p.PermissionName}":p.PermissionName
                         PermissionName = p.PermissionName
                     }).Distinct().ToArray();
+            if (preFilteredPerms != null)
+            {
+                permRaw = (from t in permRaw join p in preFilteredPerms on t.PermissionName equals p select t)
+                    .ToArray();
+            }
+
+            return permRaw;
         }
 
         /// <summary>
@@ -212,7 +375,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// </summary>
         /// <param name="role">the role for which to get the permissions</param>
         /// <returns>an enumerable of permissions for the given role</returns>
-        public IEnumerable<Permission> GetPermissions(Role role)
+        public virtual IEnumerable<Permission> GetPermissions(Role role)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
             if (role is TRole dbRole)
@@ -232,15 +395,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// </summary>
         /// <param name="permissionScopeName">the permissionScope to check for existence</param>
         /// <returns>a value indicating whether the specified permissionScope is valid</returns>
-        public bool PermissionScopeExists(string permissionScopeName)
+        public virtual bool PermissionScopeExists(string permissionScopeName)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
             return securityContext.Tenants.Any(n => n.TenantName == permissionScopeName);
         }
 
-        public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string authType)
+        public virtual IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string authType)
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, true, false);
+            
+            if(userLabels.Any(n => Regex.IsMatch(n, Global.AppUserKeyPattern)))
+            {
+                IQueryable<TUser> tenantUsers;
+                var filteredLabels = (from ul in userLabels
+                    where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                var appUsers = securityContext.ClientAppUsers;
+                return (from d in appUsers
+                    orderby d.TenantUser.Tenant.DisplayName
+                    select new ScopeInfo { ScopeDisplayName = d.TenantUser.Tenant.DisplayName, ScopeName = d.TenantUser.Tenant.TenantName })
+                    .ToArray();
+            }
+
             return (from d in (from t in securityContext.Users.Where(UserFilter(userLabels, authType))
                         .Join(securityContext.TenantUsers, UserId, u => u.UserId, (tu, tt) => tt.Tenant)
                     select t).Distinct()
@@ -253,7 +430,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// </summary>
         /// <param name="permissionScopeName">the name of the current permission-prefix selected by the current user</param>
         /// <returns>returns a list of activated features</returns>
-        public IEnumerable<Feature> GetFeatures(string permissionScopeName)
+        public virtual IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {
             IDisposable tmp = null;
             try
@@ -290,7 +467,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             }
         }
 
-        public string Decrypt(string encryptedValue, string permissionScopeName)
+        public virtual string Decrypt(string encryptedValue, string permissionScopeName)
         {
             byte[] passwd = null;
             if (!string.IsNullOrEmpty(permissionScopeName))
@@ -300,13 +477,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
             if (passwd != null)
             {
-                return AesEncryptor.Decrypt(encryptedValue, passwd, false);
+                return AesEncryptor.Decrypt(encryptedValue, passwd);
             }
 
             return encryptedValue.Decrypt();
         }
 
-        public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName)
+        public virtual byte[] Decrypt(byte[] encryptedValue, string permissionScopeName)
         {
             byte[] passwd = null;
             if (!string.IsNullOrEmpty(permissionScopeName))
@@ -316,13 +493,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
             if (passwd != null)
             {
-                return AesEncryptor.Decrypt(encryptedValue, passwd, false);
+                return AesEncryptor.Decrypt(encryptedValue, passwd);
             }
 
             return encryptedValue.Decrypt();
         }
 
-        public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt)
+        public virtual byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt)
         {
             byte[] passwd = null;
             if (!string.IsNullOrEmpty(permissionScopeName))
@@ -332,13 +509,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
             if (passwd != null)
             {
-                return AesEncryptor.Decrypt(encryptedValue, passwd, initializationVector, salt, false);
+                return AesEncryptor.Decrypt(encryptedValue, passwd, initializationVector, salt);
             }
 
             throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
         }
 
-        public string Encrypt(string value, string permissionScopeName)
+        public virtual Stream GetDecryptStream(Stream baseStream, string permissionScopeName, byte[] initializationVector, byte[] salt)
         {
             byte[] passwd = null;
             if (!string.IsNullOrEmpty(permissionScopeName))
@@ -348,13 +525,45 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
             if (passwd != null)
             {
-                return AesEncryptor.Encrypt(value, passwd, false);
+                return AesEncryptor.GetDecryptStream(baseStream, passwd, initializationVector, salt);
+            }
+
+            throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
+        }
+
+        public virtual Stream GetDecryptStream(Stream baseStream, string permissionScopeName)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.GetDecryptStream(baseStream, passwd);
+            }
+
+            throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
+        }
+
+        public virtual string Encrypt(string value, string permissionScopeName)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.Encrypt(value, passwd);
             }
 
             return value.Encrypt();
         }
 
-        public byte[] Encrypt(byte[] value, string permissionScopeName)
+        public virtual byte[] Encrypt(byte[] value, string permissionScopeName)
         {
             byte[] passwd = null;
             if (!string.IsNullOrEmpty(permissionScopeName))
@@ -364,13 +573,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
             if (passwd != null)
             {
-                return AesEncryptor.Encrypt(value, passwd, false);
+                return AesEncryptor.Encrypt(value, passwd);
             }
 
             return value.Encrypt();
         }
 
-        public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt)
+        public virtual byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt)
         {
             byte[] passwd = null;
             if (!string.IsNullOrEmpty(permissionScopeName))
@@ -380,7 +589,56 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
             if (passwd != null)
             {
-                return AesEncryptor.Encrypt(value, passwd, out initializationVector, out salt, false);
+                return AesEncryptor.Encrypt(value, passwd, out initializationVector, out salt);
+            }
+
+            throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
+        }
+
+        public virtual Stream GetEncryptStream(Stream baseStream, string permissionScopeName, out byte[] initializationVector,
+            out byte[] salt)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.GetEncryptStream(baseStream, passwd, out initializationVector, out salt);
+            }
+
+            throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
+        }
+
+        public virtual Stream GetEncryptStream(Stream baseStream, string permissionScopeName)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return AesEncryptor.GetEncryptStream(baseStream, passwd);
+            }
+
+            throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
+        }
+
+        public string EncryptJsonObject(object value, string permissionScopeName)
+        {
+            byte[] passwd = null;
+            if (!string.IsNullOrEmpty(permissionScopeName))
+            {
+                passwd = GetEncryptionKey(permissionScopeName);
+            }
+
+            if (passwd != null)
+            {
+                return value.EncryptJsonValues(passwd);
             }
 
             throw new InvalidOperationException("This is only supported for explicit tenant-encryption");

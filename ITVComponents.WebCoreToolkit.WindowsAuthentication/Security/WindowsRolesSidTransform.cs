@@ -35,7 +35,7 @@ namespace ITVComponents.WebCoreToolkit.WindowsAuthentication.Security
         {
             var opt = options.Value;
             var ci = (ClaimsIdentity) principal.Identity;
-            var roles = ci.Claims.Where(q => q.Type == ClaimTypes.GroupSid).Select(q => q.Value).ToArray();
+            var roles = ci.Claims.Where(q => q.Type == System.Security.Claims.ClaimTypes.GroupSid).Select(q => q.Value).ToArray();
             foreach (var role in roles)
             {
                 var name = new System.Security.Principal.SecurityIdentifier(role).Translate(typeof(System.Security.Principal.NTAccount)).ToString();

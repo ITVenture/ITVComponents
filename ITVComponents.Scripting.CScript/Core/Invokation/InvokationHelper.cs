@@ -68,7 +68,7 @@ namespace ITVComponents.Scripting.CScript.Core.Invokation
             }
 
             object[] callArgs;
-            var callMethod = MethodHelper.FindMethodFromArray(true, new[] {dlg}, MethodHelper.GetTypeArray(args), args, out callArgs);
+            var callMethod = MethodHelper.FindMethodFromArray(true, new[] {dlg}, MethodHelper.GetTypeArray(args, false), args, out callArgs);
             if (callMethod != null)
             {
                 success = true;

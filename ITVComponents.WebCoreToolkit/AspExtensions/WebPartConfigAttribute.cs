@@ -15,5 +15,9 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         {
             ConfigurationKey = configurationKey;
         }
+
+        public WebPartConfigAttribute()
+        {
+        }
     }
 }

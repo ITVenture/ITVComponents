@@ -17,10 +17,54 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "6.0.6")
+                .HasAnnotation("ProductVersion", "6.0.7")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder, 1L, 1);
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermission", b =>
+                {
+                    b.Property<int>("AppPermissionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AppPermissionId"), 1L, 1);
+
+                    b.Property<int>("AppPermissionSetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("int");
+
+                    b.HasKey("AppPermissionId");
+
+                    b.HasIndex("AppPermissionSetId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("AppPermissions", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermissionSet", b =>
+                {
+                    b.Property<int>("AppPermissionSetId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AppPermissionSetId"), 1L, 1);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("AppPermissionSetId");
+
+                    b.HasIndex(new[] { "Name" }, "UQ_AppPermissionSetName")
+                        .IsUnique();
+
+                    b.ToTable("AppPermissionSets", (string)null);
+                });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AssetTemplate", b =>
                 {
@@ -123,6 +167,131 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.ToTable("AssetTemplatePathFilters", (string)null);
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientApp", b =>
+                {
+                    b.Property<int>("ClientAppId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClientAppId"), 1L, 1);
+
+                    b.Property<string>("ClientKey")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ClientName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ClientSecret")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("ClientAppId");
+
+                    b.ToTable("ClientApps", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppPermission", b =>
+                {
+                    b.Property<int>("ClientAppPermissionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClientAppPermissionId"), 1L, 1);
+
+                    b.Property<int>("AppPermissionSetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClientAppId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ClientAppPermissionId");
+
+                    b.HasIndex("AppPermissionSetId");
+
+                    b.HasIndex("ClientAppId");
+
+                    b.ToTable("ClientAppPermissions", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppTemplate", b =>
+                {
+                    b.Property<int>("ClientAppTemplateId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClientAppTemplateId"), 1L, 1);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("ClientAppTemplateId");
+
+                    b.HasIndex(new[] { "Name" }, "IX_UniqueTemplateName")
+                        .IsUnique();
+
+                    b.ToTable("ClientAppTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppTemplatePermission", b =>
+                {
+                    b.Property<int>("ClientAppTemplatePermissionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClientAppTemplatePermissionId"), 1L, 1);
+
+                    b.Property<int>("AppPermissionSetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClientAppTemplateId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ClientAppTemplatePermissionId");
+
+                    b.HasIndex("AppPermissionSetId");
+
+                    b.HasIndex("ClientAppTemplateId");
+
+                    b.ToTable("ClientAppTemplatePermissions", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppUser", b =>
+                {
+                    b.Property<int>("ClientAppUserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClientAppUserId"), 1L, 1);
+
+                    b.Property<int>("ClientAppId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("TenantUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ClientAppUserId");
+
+                    b.HasIndex("ClientAppId");
+
+                    b.HasIndex(new[] { "Label" }, "UQ_ClientAppUser")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "TenantUserId", "ClientAppId" }, "UQ_TUserPerApp")
+                        .IsUnique();
+
+                    b.ToTable("ClientAppUsers", (string)null);
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty", b =>
                 {
                     b.Property<int>("CustomUserPropertyId")
@@ -136,17 +305,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<int>("PropertyType")
+                        .HasColumnType("int");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
                     b.Property<string>("Value")
                         .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("CustomUserPropertyId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex(new[] { "UserId", "PropertyType", "PropertyName" }, "UniqueUserProp")
+                        .IsUnique();
 
                     b.ToTable("UserProperties", (string)null);
                 });
@@ -609,7 +781,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TenantUserId"), 1L, 1);
 
-                    b.Property<bool>("Enabled")
+                    b.Property<bool?>("Enabled")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
@@ -1223,6 +1395,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.ToTable("GenericPluginParams", (string)null);
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermission", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermissionSet", "PermissionSet")
+                        .WithMany("Permissions")
+                        .HasForeignKey("AppPermissionSetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Permission", "Permission")
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("PermissionSet");
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AssetTemplate", b =>
                 {
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", "RequiredFeature")
@@ -1285,6 +1476,63 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                         .IsRequired();
 
                     b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppPermission", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermissionSet", "PermissionSet")
+                        .WithMany()
+                        .HasForeignKey("AppPermissionSetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientApp", "ClientApp")
+                        .WithMany("AppPermissions")
+                        .HasForeignKey("ClientAppId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClientApp");
+
+                    b.Navigation("PermissionSet");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppTemplatePermission", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermissionSet", "PermissionSet")
+                        .WithMany()
+                        .HasForeignKey("AppPermissionSetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppTemplate", "ClientAppTemplate")
+                        .WithMany("AppPermissions")
+                        .HasForeignKey("ClientAppTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClientAppTemplate");
+
+                    b.Navigation("PermissionSet");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppUser", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientApp", "ClientApp")
+                        .WithMany("Users")
+                        .HasForeignKey("ClientAppId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantUser", "TenantUser")
+                        .WithMany()
+                        .HasForeignKey("TenantUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClientApp");
+
+                    b.Navigation("TenantUser");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty", b =>
@@ -1653,6 +1901,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.Navigation("Plugin");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermissionSet", b =>
+                {
+                    b.Navigation("Permissions");
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AssetTemplate", b =>
                 {
                     b.Navigation("FeatureGrants");
@@ -1660,6 +1913,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.Navigation("Grants");
 
                     b.Navigation("PathTemplates");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientApp", b =>
+                {
+                    b.Navigation("AppPermissions");
+
+                    b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppTemplate", b =>
+                {
+                    b.Navigation("AppPermissions");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DashboardWidget", b =>

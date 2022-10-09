@@ -49,13 +49,18 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
             return html.Raw(@"<link href=""/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/css/itvComponentsBS4.min.css"" type=""text/css"" rel=""stylesheet"">");
         }
 
-        public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule, string uploadReason, string callbackMethod, int height = 0, int width = 0, Dictionary<string, string> customAttributes = null)
+        public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule, string uploadReason, string callbackMethod, string errorCallbackMethod = null, int height = 0, int width = 0, Dictionary<string, string> customAttributes = null)
         {
             string uniqueDivId;
             uniqueDivId = CustomActionHelper.RandomName("uploadDiv");
-            string template = $@"<div purpose='{mode}' id='{uniqueDivId}' nameTarget='{uniqueDivId}' uploadModule='{uploaderModule}' uploadReason='{uploadReason}' class='dropzone dropzone-flexi' {(height != 0 || width != 0 ? $"style=\"display:table-cell;position:relative;{(height != 0 ? $"height:{height}px;" : "")}{(width != 0 ? $"width:{width}px;" : "")}\"" : "")} {(customAttributes != null ? string.Join(" ", from t in customAttributes select $"{t.Key}='{t.Value}'") : "")}></div>
+            string template = $@"<div purpose='{mode}' id='{uniqueDivId}' nameTarget='{uniqueDivId}' uploadModule='{uploaderModule}' uploadReason='{uploadReason}' class='dropzone dropzone-flexi' {(height != 0 || width != 0 ? $"style=\"display:table-cell;position:relative;overflow-y:scroll;{(height != 0 ? $"height:{height}px;" : "")}{(width != 0 ? $"width:{width}px;" : "")}\"" : "")} {(customAttributes != null ? string.Join(" ", from t in customAttributes select $"{t.Key}='{t.Value}'") : "")}></div>
 <script>ITVenture.Tools.Uploader.prepareUploadRegion({{
-    {uniqueDivId}: {callbackMethod}
+    {uniqueDivId}: {callbackMethod},
+    {uniqueDivId}_ERROR: function(file,message){{
+        var retVal = false;
+        {(!string.IsNullOrEmpty(errorCallbackMethod)?$"retVal={errorCallbackMethod}(file,message);":"")}
+        return retVal;
+    }}
 }});
 </script>";
 
@@ -126,7 +131,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
                 string originalFieldName,
                 string uploadHint,
                 string customUploadCallback,
-                bool setOriginalOnlyIfNull)
+                bool setOriginalOnlyIfNull,
+                string errorHandler)
             {
                 string uniqueDivId, uniqueInputId, uniqueOrigId, uniqueDummyId;
                 uniqueDivId = CustomActionHelper.RandomName("uploadDiv");
@@ -147,9 +153,14 @@ var tmpl = ""\u003Cdiv purpose=\""{mode}\"" nameTarget=\""{uniqueDivId}\"" uploa
 .concat(""\u003Cscript>ITVenture.Tools.Uploader.prepareUploadRegion({{"")
 .concat(    ""{uniqueDivId}: function(value{(preserveOriginal ? ", oriValue" : "")}){{"")
 .concat(        ""$(\""\\#{uniqueInputId}\"").val(value).change();"")
-.concat({(preserveOriginal ? $@"{(setOriginalOnlyIfNull ? notNullOrig : "\"\"")}":"\"\"")})
+.concat({(preserveOriginal ? $@"{(setOriginalOnlyIfNull ? notNullOrig : $@"""$(\""\\#{uniqueOrigId}\"").val(oriValue).change();""")}":"\"\"")})
 .concat({additionalCallback})
-.concat(""}}"")
+.concat(""}},"")
+.concat(    ""{uniqueDivId}_ERROR: function(file, message){{"")
+.concat(    ""var retVal = false;"")
+.concat(    ""{(!string.IsNullOrEmpty(errorHandler)?$"retVal={errorHandler}(file,message);":"")}"")
+.concat(    ""return retVal;"")
+.concat(""}},"")
 .concat(""}});\u003C/script\u003E"");
 var template = kendo.template(tmpl);
 var data = $(""#{uniqueDummyId}"").parent().parent().data(""kendoEditable"").options.model;

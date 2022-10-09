@@ -5,6 +5,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
+using ITVComponents.Plugins;
 using ITVComponents.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -12,10 +13,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Server
 {
-    public class SslHubInit:IAppConfigureProvider, IServicesConfigureProvider,IEndPointDefaultsConfigurator
+    public class SslHubInit:IServiceHubConfigurator, IPlugin
     {
         private readonly IServiceHubProvider parent;
         private readonly bool withHsts;
@@ -37,9 +39,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
             this.httpsRedirectPort = httpsRedirectPort;
             this.pathToCertificate = pathToCertificate;
             this.certificatePassword = certificatePassword;
-            parent.RegisterAppConfigureProvider(this);
-            parent.RegisterServicesConfigureProvider(this);
-            parent.RegisterEndPointDefaultsConfigurator(this);
+            parent.RegisterConfigurator(this);
         }
 
         /// <summary>
@@ -51,10 +51,8 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
             this.parent = parent;
             this.withHsts = withHsts;
             this.httpsRedirectPort = httpsRedirectPort;
-            parent.RegisterAppConfigureProvider(this);
-            parent.RegisterServicesConfigureProvider(this);
-            parent.RegisterEndPointDefaultsConfigurator(this);
             certificateAutoSelect = true;
+            parent.RegisterConfigurator(this);
         }
 
         /// <summary>
@@ -63,12 +61,12 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         public string UniqueName { get; set; }
 
         /// <summary>
-        /// Configures the services for a specific use-case
+        /// Configures the WebApplication builder (inject services, set defaults, etc.)
         /// </summary>
-        /// <param name="services">the service-collection that is used to inject dependencies</param>
-        public void ConfigureServices(IServiceCollection services)
+        /// <param name="builder">the web-application builder that is used to setup a grpc service</param>
+        public void ConfigureBuilder(WebApplicationBuilder builder)
         {
-            services.AddHttpsRedirection(co =>
+            builder.Services.AddHttpsRedirection(co =>
             {
                 if (httpsRedirectPort > 80)
                 {
@@ -76,41 +74,38 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
                     co.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
                 }
             });
+
+            builder.WebHost.ConfigureKestrel(ko =>
+            {
+                ko.ConfigureEndpointDefaults(li => li.UseHttps(ho =>
+                {
+                    if (certificateAutoSelect)
+                    {
+                        ho.ServerCertificateSelector = (context, name) =>
+                        {
+                            return CertificateLoader.LoadFromStoreCert(name, StoreName.My.ToString(),
+                                StoreLocation.LocalMachine, false);
+                        };
+                    }
+                    else
+                    {
+                        ho.ServerCertificate = new X509Certificate2(pathToCertificate,
+                            certificatePassword.Decrypt().Secure(), X509KeyStorageFlags.PersistKeySet);
+                    }
+                }));
+            });
         }
 
         /// <summary>
-        /// Configures the app-builder / host-environment before the services are configured
+        /// Configures the app after it is built. (e.g. build the service middleware pipeline
         /// </summary>
-        /// <param name="app">the app-builder</param>
-        /// <param name="env">the hosting environment</param>
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        /// <param name="app">the built app</param>
+        public void ConfigureApp(WebApplication app)
         {
             if (withHsts)
             {
                 app.UseHsts();
             }
-        }
-
-        /// <summary>
-        /// Configures the ListenOptions for the Kestrel-Server
-        /// </summary>
-        /// <param name="options">the default-endpoint-listener options</param>
-        public void ConfigureEndPointDefaults(ListenOptions options)
-        {
-            options.UseHttps(ho =>
-            {
-                if (certificateAutoSelect)
-                {
-                    ho.ServerCertificateSelector = (context, name) =>
-                    {
-                        return CertificateLoader.LoadFromStoreCert(name, StoreName.My.ToString(), StoreLocation.LocalMachine, false);
-                    };
-                }
-                else
-                {
-                    ho.ServerCertificate = new X509Certificate2(pathToCertificate, certificatePassword.Decrypt().Secure(), X509KeyStorageFlags.PersistKeySet);
-                }
-            });
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

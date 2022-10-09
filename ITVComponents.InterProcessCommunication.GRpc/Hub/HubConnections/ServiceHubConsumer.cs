@@ -151,7 +151,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
                 TickBack = false
-            });
+            }, GetCallOptions());
 
             return cmt.ResponsePayload;
         }
@@ -170,7 +170,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
                 TickBack = false
-            });
+            }, GetCallOptions());
 
             return cmt.ResponsePayload;
         }
@@ -188,7 +188,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 ret = client.DiscoverService(new ServiceDiscoverMessage
                 {
                     TargetService = serviceName
-                });
+                }, GetCallOptions());
             }
             catch (RpcException ex)
             {
@@ -228,7 +228,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         {
             try
             {
-                client.ServiceTick(session);
+                client.ServiceTick(session, GetCallOptions());
             }
             catch (RpcException ex)
             {
@@ -314,7 +314,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                     mySvc.ResponderFor = consumedService;
                 }
 
-                var reg = client.RegisterService(mySvc);
+                var reg = client.RegisterService(mySvc, GetCallOptions());
                 if (reg.Ok)
                 {
                     session = new ServiceSessionOperationMessage { ServiceName = mySvc.ServiceName, SessionTicket = reg.SessionTicket, Ttl = mySvc.Ttl };
@@ -329,7 +329,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                     Task.Run(async () =>
                     {
                         var cancelR = token;
-                        var en = client.ServiceReady(session, new CallOptions(cancellationToken: cancelR));
+                        var en = client.ServiceReady(session, GetCallOptions(new CallOptions(cancellationToken: cancelR)));
                         try
                         {
                             while (await en.ResponseStream.MoveNext())
@@ -389,7 +389,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                                         ret.ResponderFor = consumedService;
                                     }
 
-                                    client.CommitServiceOperation(ret);
+                                    client.CommitServiceOperation(ret, GetCallOptions());
                                 }
                                 else
                                 {
@@ -448,6 +448,17 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
 
                 OperationalChanged?.Invoke(this, EventArgs.Empty);
             }
+        }
+
+        /// <summary>
+        /// Creates call-options to be used for every call to the remote endpoint
+        /// </summary>
+        /// <returns>a call-options object that contains all custom information for the next call</returns>
+        private CallOptions GetCallOptions(CallOptions baseOptions = new CallOptions())
+        {
+            var retVal = baseOptions;
+            retVal = configurator.ConfigureCallOptions(retVal);
+            return retVal;
         }
 
         /// <summary>

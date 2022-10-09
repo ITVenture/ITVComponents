@@ -503,21 +503,26 @@
                 filter = $@"ITVenture.Tools.ListCallbackHelper.filterScripts.{filterFunction} = function(element) {{
                 $(element).kendoDropDownList({{
                     dataSource: {{
+                        type: ""aspnetmvc-ajax"",
                         transport:{{
-                            type: ""aspnetmvc-ajax"",
                             read: {{
                                 url:ITVenture.Helpers.ResolveUrl(""~{(!string.IsNullOrEmpty(area)?$"/{area}":"")}/ForeignKey/{repoName}/{tableName}"")
                             }},
                             prefix:""""{(!string.IsNullOrEmpty(dataCallback)?$@",
                             data: ""{dataCallback}""":"")}
                         }},
-                        serverFiltering: true
+                        serverFiltering: true,
+                        schema:{{
+                            data: ""Data"",
+                            total: ""Total"",
+                            errors: ""Errors""
+                        }}
                     }},
                     dataValueField: ""Key"",
                     dataTextField: ""Label"",
                     optionLabel: ""--Select Value--"",
                     minLength: {minSearchLength},
-                    autoBind: false,
+                    autoBind: true,
                     filter: ""contains"",
                     valuePrimitive: true
                 }});

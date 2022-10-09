@@ -11,6 +11,7 @@ using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserVie
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView
 {
@@ -21,6 +22,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
         public static SecurityContextOptions LoadOptions(IConfiguration config, string path)
         {
             return config.GetSection<SecurityContextOptions>(path);
+        }
+
+        [ServiceRegistrationMethod]
+        public static void RegisterServices(IServiceCollection services)
+        {
+            services.UseSecurityContextUserExtensions();
         }
 
         [MvcRegistrationMethod]
