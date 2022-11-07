@@ -412,6 +412,22 @@ namespace ITVComponents.Helpers
         }
 
         /// <summary>
+        /// Converts the given string into an object of the target type with or without reference perseverance
+        /// </summary>
+        /// <param name="t">the target type to convert the json string into</param>
+        /// <param name="json">the json representing the object</param>
+        /// <param name="preserveReferences">indicates whether the references where preserved in the serialization</param>
+        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
+        /// <returns>the deserialized object</returns>
+        public static object FromJsonString(Type t, string json, bool preserveReferences = false,
+            bool useCamelCase = false)
+        {
+            var basicSettings =
+                (!preserveReferences ? simpleSerializerSettings : simpleSerializerSettingsWithReferences).Copy();
+            return FromJson(t, json, basicSettings, useCamelCase);
+        }
+
+        /// <summary>
         /// Converts the given object to a strong-typed Json-string with or without preserving the references
         /// </summary>
         /// <param name="value">the value to serialize</param>
@@ -474,6 +490,16 @@ namespace ITVComponents.Helpers
             }
 
             return JsonConvert.DeserializeObject<T>(json, basicSettings);
+        }
+
+        private static object FromJson(Type t, string json, JsonSerializerSettings basicSettings, bool useCamelCase)
+        {
+            if (useCamelCase)
+            {
+                basicSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+            }
+
+            return JsonConvert.DeserializeObject(json, t, basicSettings);
         }
     }
 }

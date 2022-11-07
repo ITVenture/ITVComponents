@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
 {
@@ -14,7 +15,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         [Required, MaxLength(1024)]
         public string ParameterName { get; set; }
 
-        [Required, MaxLength(4096),DataType(DataType.MultilineText)]
+        [Required,DataType(DataType.MultilineText)]
         public string ParameterValue { get; set; }
 
         public int TemplateModuleConfiguratorId { get; set; }

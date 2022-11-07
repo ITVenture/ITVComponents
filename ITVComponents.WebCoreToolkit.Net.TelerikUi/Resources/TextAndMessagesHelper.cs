@@ -31,6 +31,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
 
         public static string IWCN_KX_RTB_Caption => GetString(nameof(IWCN_KX_RTB_Caption));
 
+        public static string IWCN_KX_STB_Caption => GetString(nameof(IWCN_KX_STB_Caption));
+
         public static string IWCN_Titles_Assemblies => GetString(nameof(IWCN_Titles_Assemblies));
 
         public static string IWCN_JCP_Title_Entity => GetString(nameof(IWCN_JCP_Title_Entity));
@@ -42,6 +44,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
 
         public static string IWCN_JCP_Title_Details => GetString(nameof(IWCN_JCP_Title_Details));
 
+        public static string IWCN_PA_ParamName => GetString(nameof(IWCN_PA_ParamName));
+
+        public static string IWCN_PA_ParamValue => GetString(nameof(IWCN_PA_ParamValue));
+
 
         public static string GetIWCN_KX_PCD_Caption(this IRequestCultureFeature requestCulture)
         {
@@ -51,6 +57,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
         public static string GetIWCN_KX_RTB_Caption(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_KX_RTB_Caption), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_KX_STB_Caption(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_KX_STB_Caption), requestCulture.RequestCulture.UICulture);
         }
 
         public static string GetIWCN_Titles_Assemblies(this IRequestCultureFeature requestCulture)
@@ -66,5 +77,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
         public static string GetIWCN_JCP_Title_Identifyer(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_JCP_Title_Identifyer), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_JCP_Title_Details(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_JCP_Title_Details), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_PA_ParamName(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_PA_ParamName), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_PA_ParamValue(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_PA_ParamValue), requestCulture.RequestCulture.UICulture);
     }
 }

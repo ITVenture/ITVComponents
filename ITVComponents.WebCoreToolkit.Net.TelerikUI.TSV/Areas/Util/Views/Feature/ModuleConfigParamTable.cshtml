@@ -14,7 +14,7 @@
         .Columns(columns =>
         {
             columns.Bound(n => n.ParameterName);
-            columns.Bound(n => n.ParameterValue).ClientTemplate("<div style='white-space:pre-line;'>\\#=ITVenture.Tools.HtmlHelper.encode(ParameterValue!=null?ParameterValue:'')\\#</div>");
+            columns.Bound(n => n.ParameterValue).ClientTemplate("<div style='white-space:pre-line;'>#=ITVenture.Tools.HtmlHelper.encode(ParameterValue!=null?ParameterValue:'')#</div>");
             if (Context.RequestServices.VerifyUserPermissions(new[] {"Sysadmin"}))
             {
                 columns.Command(ga =>

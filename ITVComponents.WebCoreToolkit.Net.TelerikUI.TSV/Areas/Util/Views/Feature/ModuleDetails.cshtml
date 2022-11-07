@@ -14,5 +14,5 @@
     .Items(ai =>
     {
         ai.Add().Text("Configurators").LoadContentFrom("ModuleConfiguratorTable", "Feature", new { featureId = ViewData["featureId"], templateModuleId = ViewData["templateModuleId"] }).Selected(true);
-        ai.Add().Text("Configurators").LoadContentFrom("ModuleScriptTable", "Feature", new { featureId = ViewData["featureId"], templateModuleId = ViewData["templateModuleId"] });
+        ai.Add().Text("Scripts").LoadContentFrom("ModuleScriptTable", "Feature", new { featureId = ViewData["featureId"], templateModuleId = ViewData["templateModuleId"] });
     }))

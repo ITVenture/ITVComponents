@@ -16,13 +16,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         [Required, MaxLength(100)]
         public string Name { get; set; }
 
-        [Required, MaxLength(2048)]
-        public string ConfiguratorTypeFront { get; set; }
+        [MaxLength(2048)]
+        public string CustomConfiguratorView { get; set; }
 
         [Required, MaxLength(2048)]
         public string ConfiguratorTypeBack { get; set; }
 
         public int TemplateModuleId { get; set; }
+
+        public string DisplayName { get; set; }
 
         [ForeignKey(nameof(TemplateModuleId))]
         public virtual TemplateModule ParentModule { get; set; }

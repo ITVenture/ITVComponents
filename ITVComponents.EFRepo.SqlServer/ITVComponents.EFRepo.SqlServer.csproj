@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV114</Version>
+    <Version>3.0.0-PRV137</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <LangVersion>9.0</LangVersion>
@@ -16,9 +16,9 @@
     <None Remove="Properties\**" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="microsoft.entityframeworkcore" Version="6.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="6.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.9" />
+    <PackageReference Include="microsoft.entityframeworkcore" Version="6.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="6.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.10" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />

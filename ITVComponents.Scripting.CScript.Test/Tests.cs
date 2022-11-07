@@ -223,6 +223,45 @@ return ret;", new Dictionary<string, object> { { "values", values } }));
         }
 
         [TestMethod]
+        public void TestImplicitObjectInit()
+        {
+            Dictionary<string, object> tmp1 = new Dictionary<string, object>
+            {
+                { "TC", typeof(TestClass) },
+                { "TO", typeof(OuterTestClass) },
+                { "DC", typeof(Dictionary<string, object>) }
+            };
+
+            var obj = ExpressionParser.Parse(@"new TC{TestString:""Holladio!""}", tmp1, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
+            Assert.IsTrue(obj is TestClass{TestString:"Holladio!"});
+
+            var obj2 = ExpressionParser.Parse(@"new TO{Items:ArrayOfType([
+new TC{TestString:""Holladio!""},
+new TC{TestString:""FickiWicki""}],TC)}", tmp1, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
+            Assert.IsTrue(obj2 is OuterTestClass { Items.Length: 2 });
+
+
+            var obj3 = ExpressionParser.Parse(@"new TO{Items:ArrayOfType([
+new TC{TestString:""Holladio!""},
+new TC{TestString:""FickiWicki""}],TC),
+BummsFallera: new DC{Hornstau:1L}}", tmp1, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
+            var ocl = obj3 as OuterTestClass;
+            Assert.IsTrue(ocl != null);
+            Assert.IsTrue(ocl.BummsFallera.ContainsKey("Hornstau") && ocl.BummsFallera["Hornstau"].Equals(1L));
+            tmp1["obj3"] = obj3;
+            var obj4 = ExpressionParser.Parse(@"new TO(obj3.BummsFallera){
+Items:ArrayOfType([
+new TC{TestString:""Holladio!""},
+new TC{TestString:""FickiWicki""}],TC)
+}", tmp1, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
+
+            var ocl2 = obj4 as OuterTestClass;
+            Assert.IsTrue(ocl2 != null && ocl2.BummsFallera == ocl.BummsFallera);
+            Assert.IsTrue(ocl2.Items[1].TestString=="FickiWicki");
+
+        }
+
+        [TestMethod]
         public void HasTest()
         {
             Dictionary<string, object> tmp1 = new Dictionary<string, object>( );
@@ -256,6 +295,23 @@ return Global.GoFuckYourself(a);
         public class TestClass
         {
             public string TestString { get; set; }
+        }
+
+        public class OuterTestClass
+        {
+            public OuterTestClass()
+            {
+
+            }
+
+            public OuterTestClass(Dictionary<string, object> bumms)
+            {
+                BummsFallera = bumms;
+            }
+
+            public TestClass[] Items { get; set; }
+
+            public Dictionary<string,object> BummsFallera { get; set; }
         }
     }
 }

@@ -10,23 +10,31 @@
             customCtlAttr = "";
         }
         var ctl = "";
-        switch (type.toLowerCase()) {
+        var tp = type.toLowerCase();
+        switch (tp) {
             case "switch":
                 ctl = ctl.concat("<input id='").concat(id).concat("' type='checkbox' ").concat(customCtlAttr)
                     .concat(" />");
                 break;
             case "number":
-                customCtlAttr = customCtlAttr.concat(" type='number' min='0'");
+            case "password":
+                if (tp === "number") {
+                    customCtlAttr = customCtlAttr.concat(" type='number' min='0'");
+                }
+                else if (tp === "password") {
+                    customCtlAttr = customCtlAttr.concat(" type='password'");
+                }
             default:
                 ctl = ctl.concat("<input id='").concat(id).concat("' style='width: 100%;' ").concat(customCtlAttr)
                     .concat(" />");
                 break;
         }
 
+
         parent.append(ctl);
         var refO = parent.find("#".concat(id));
         var cfg;
-        switch (type.toLowerCase()) {
+        switch (tp) {
             case "switch":
                 cfg = {
                     messages: {

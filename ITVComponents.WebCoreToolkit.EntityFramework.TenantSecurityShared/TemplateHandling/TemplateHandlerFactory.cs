@@ -5,9 +5,12 @@ using System.Dynamic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Transactions;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.AspNetCore.Html;
@@ -18,16 +21,21 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.TemplateHandling
 {
-    internal class TemplateHandlerFactory:ITemplateHandlerFactory, IDisposable
+    internal class TemplateHandlerFactory : ITemplateHandlerFactory, IDisposable
     {
         private readonly IServiceProvider services;
         private readonly IWebPluginHelper pluginProvider;
         private readonly IHttpContextAccessor httpContext;
         private ConcurrentDictionary<Type, object> bufferedServices = new ConcurrentDictionary<Type, object>();
         private ConcurrentDictionary<string, IPlugin> bufferedPlugins = new ConcurrentDictionary<string, IPlugin>();
+
+        private ConcurrentDictionary<Type, object> bufferedHandlers =
+            new ConcurrentDictionary<Type, object>();
         private IRequestCultureFeature cult = null;
         private PluginFactory factory;
-        public TemplateHandlerFactory(IServiceProvider services, IWebPluginHelper pluginProvider, IHttpContextAccessor httpContext)
+
+        public TemplateHandlerFactory(IServiceProvider services, IWebPluginHelper pluginProvider,
+            IHttpContextAccessor httpContext)
         {
             this.services = services;
             this.pluginProvider = pluginProvider;
@@ -36,30 +44,60 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
 
         private PluginFactory Factory => factory ??= pluginProvider.GetFactory();
 
-        public async Task<IHtmlContent> RenderHandlerComponent(IViewComponentHelper viewComponent, string componentTypeExpression,
-            Dictionary<string, string> componentArguments)
+        public object GetBackEndHandler(TemplateModuleConfigurator configurator, out IDictionary<string,object> arguments)
+        {
+            using (var session = SetupScripting(out var sc))
+            {
+                var type = ProcessScript<Type>(session, configurator.ConfiguratorTypeBack);
+                
+                arguments = BuildArguments(session, configurator.ViewComponentParameters, sc);
+
+                return bufferedHandlers.GetOrAdd(type, BuildHandler);
+            }
+        }
+
+        private IDisposable SetupScripting(out IScope sc)
         {
             var dic = new Dictionary<string, object>
             {
                 { "GetService", GetService },
-                {"GetPlugin", GetPlugin},
-                {"Translate", Translate}
+                { "GetPlugin", GetPlugin },
+                { "Translate", Translate },
+                { "CurrentArg", null },
+                { "Types", new Dictionary<string, object>() }
             };
-            using (var session = ExpressionParser.BeginRepl(dic, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession)))
+            IScope scope = null;
+            var retVal = ExpressionParser.BeginRepl(dic, s =>
             {
-                var type = ProcessScript<Type>(session, componentTypeExpression);
-                var paramDic = BuildArguments(session, componentArguments);
+                scope = s.Scope;
+                DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession);
+            });
 
-                return await viewComponent.InvokeAsync(type, paramDic);
-            }
+            sc = scope;
+            return retVal;
         }
 
-        private IDictionary<string,object> BuildArguments(IDisposable session, Dictionary<string, string> componentArguments)
+        private object BuildHandler(Type handlerType)
+        {
+            var constructors = handlerType.GetConstructors();
+            var ct = (from t in constructors
+                orderby t.GetParameters().Length
+                select t
+                into o
+                where o.GetParameters().All(p => bufferedServices.GetOrAdd(p.ParameterType, y => services.GetService(y)) != null)
+                select o).First();
+            var pa = (from t in ct.GetParameters() select bufferedServices[t.ParameterType]).ToArray();
+            return ct.Invoke(pa);
+        }
+
+        private IDictionary<string, object> BuildArguments(IDisposable session,
+            ICollection<TemplateModuleConfiguratorParameter> componentArguments, IScope scope)
         {
             var paramDic = new Dictionary<string, object>();
             foreach (var item in componentArguments)
             {
-                paramDic.Add(item.Key, ProcessScript<object>(session, item.Value));
+                scope["CurrentArg"] = item;
+                paramDic.Add(item.ParameterName, ProcessScript<object>(session, item.ParameterValue));
             }
 
             return paramDic;
@@ -73,6 +111,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
                 {
                     return (T)ExpressionParser.Parse(targetExpression, session);
                 }
+
+                return (T)ExpressionParser.ParseBlock(targetExpression.Substring(2), session);
             }
 
             return default;

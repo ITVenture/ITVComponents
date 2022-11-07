@@ -5,7 +5,19 @@
         while (typeof target.data().kendoGrid === "undefined" || target.data().kendoGrid === null) {
             target = target.parent();
         }
+
+        ITVenture.Tools.KendoExtensions.RefreshSources();
         target.data("kendoGrid").dataSource.read();
+    },
+    syncDataGrid: function (e) {
+        e.preventDefault();
+        var target = $(e.currentTarget);
+        while (typeof target.data().kendoGrid === "undefined" || target.data().kendoGrid === null) {
+            target = target.parent();
+        }
+
+        ITVenture.Tools.KendoExtensions.RefreshSources();
+        target.data("kendoGrid").dataSource.sync();
     },
     getDataItem: function(e) {
         var tr = $(e.target).closest("tr"); //get the row for deletion
@@ -53,18 +65,29 @@
         var grid = row.closest(".k-grid").data("kendoGrid");
         var dataItem = grid.dataItem(row);
         var checked = e.checked;
-        dataItem.set(colName, checked);
-        grid.dataSource.sync();
+        dataItem.dirty = true;
+        dataItem[colName] = checked;
+        //dataItem.set(colName, checked);
+        grid.saveChanges();
     },
-    defaultMultiSelectCallback: function(e) {
-        var elem = e.sender.element;
-        var colName = elem.attr("data-col-name");
-        var row = e.sender.element.closest("tr");
-        var grid = row.closest(".k-grid").data("kendoGrid");
-        var dataItem = grid.dataItem(row);
-        var value = $(elem).data("kendoMultiSelect").value();
-        dataItem.set(colName, value);
-        grid.dataSource.sync();
+    defaultMultiSelectCallback: function (withAutoSave) {
+        var retVal = function (e) {
+            var elem = e.sender.element;
+            var colName = elem.attr("data-col-name");
+            var row = e.sender.element.closest("tr");
+            var grid = row.closest(".k-grid").data("kendoGrid");
+            var dataItem = grid.dataItem(row);
+            var value = $(elem).data("kendoMultiSelect").value();
+            dataItem.dirty = true;
+            dataItem[colName] = value;
+            //dataItem.set(colName, value);
+            if (retVal.withAutoSave) {
+                grid.saveChanges();
+            }
+        };
+
+        retVal.withAutoSave = withAutoSave;
+        return retVal;
     },
     serializeArrays: function(data) {
         for (var a in data) {

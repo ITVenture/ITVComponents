@@ -1,0 +1,41 @@
+﻿@using System.Collections
+@using System.Text
+@using System.Web
+@using ITVComponents.EFRepo.DynamicData
+@using ITVComponents.Plugins.PluginServices
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ModuleConfigHandling
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.TemplateHandling
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Data
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewComponents
+@using ITVComponents.WebCoreToolkit.Routing
+@using Microsoft.AspNetCore.Localization
+@using Microsoft.AspNetCore.Routing
+@using Microsoft.Extensions.Localization
+@inject ITemplateHandlerFactory factory
+@model ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TemplateModule
+@{
+    var cult = Context.Features.Get<IRequestCultureFeature>();
+    string currentCulture = null;
+    if (cult != null)
+    {
+        currentCulture = cult.RequestCulture.UICulture.Name;
+    }
+}
+
+<div>
+    @foreach (var component in Model.Configurators)
+    {
+        <div id="@(component.Name)_CTL">
+            <label>@(component.DisplayName.Translate(currentCulture))</label>
+            <div id="useContainer@(component.Name)"></div>
+            @await Component.InvokeAsync(typeof(ModuleActivation), new { moduleName = component.Name, displayName = component.DisplayName, customRenderPage = component.CustomConfiguratorView, arguments = ModuleConfigHandlerHelper.InvokeHandler<ModuleParameterTemplate[]>(factory.GetBackEndHandler(component, out var arg), HandlerMethodName.GetParameters, arg) })
+        </div>
+        <script type="text/javascript">
+            var container = $("#useContainer@(component.Name)");
+            ITVenture.Tools.ModuleConfiguratorHandler.handlers.@($"{component.Name}_EnableModule") = ITVenture.Tools.DynamicData.RenderControl(container, "checkUsage4@(component.Name)", "switch", {}, "module='@(component.Name)' param='enablePlug' dynType='moduleCfg'");
+        </script>
+    }
+</div>

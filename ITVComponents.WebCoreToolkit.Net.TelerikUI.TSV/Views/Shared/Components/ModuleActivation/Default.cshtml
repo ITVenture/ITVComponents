@@ -1,0 +1,70 @@
+﻿@using ITVComponents.Helpers
+@using ITVComponents.Plugins.PluginServices
+@using ITVComponents.WebCoreToolkit.Extensions
+@using Kendo.Mvc.UI
+@using Microsoft.AspNetCore.Localization
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Data.ModuleTemplateModel
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources.TextsAndMessagesHelper
+@{
+    var cult = Context.Features.Get<IRequestCultureFeature>();
+    string currentCulture = null;
+    string moduleName = Model.DisplayName;
+    if (cult != null)
+    {
+        currentCulture = cult.RequestCulture.UICulture.Name;
+        moduleName = moduleName.Translate(currentCulture);
+    }
+}
+
+@if (Model != null)
+{
+    <table id="plugCfg4@(Model.ModuleName)tab" style="width: 95%">
+        <colgroup>
+            <col style="width: 150px;"/>
+            <col/>
+        </colgroup>
+        <thead>
+        <tr class="k-grid-header">
+            <td class="k-header">@TextsAndMessagesHelper.IWCN_PA_ParamName</td>
+            <td class="k-header">@TextsAndMessagesHelper.IWCN_PA_ParamValue</td>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in Model.Controls)
+        {
+            <tr>
+                <td>@item.DisplayName.Translate(currentCulture)</td>
+                <td>
+                    <div id="edit4@(Model.ModuleName)_@(item.Name)"></div></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+
+    <script type="text/javascript">
+        var container = null;
+        @foreach (var item in Model.Controls)
+        {
+            <text>
+                container = $("#edit4@(Model.ModuleName)_@(item.Name)");
+                @if (item.CustomConfig == null)
+                {
+                    <text>
+                        var customCfg = null;                    
+                    </text>
+                }
+                else
+                {
+                    <text>
+                        var customCfg = @(JsonHelper.ToJson(item.CustomConfig));                    
+                    </text>
+                }
+
+                ITVenture.Tools.ModuleConfiguratorHandler.handlers.@($"{Model.ModuleName}_{item.Name}") = ITVenture.Tools.DynamicData.RenderControl(container, "input4@(Model.ModuleName)_@(item.Name)", "@item.EditorType", customCfg, "module='@(Model.ModuleName)' param='@item.Name' dynType='moduleCfg'");
+            </text>
+        }
+    
+    
+    </script>
+}

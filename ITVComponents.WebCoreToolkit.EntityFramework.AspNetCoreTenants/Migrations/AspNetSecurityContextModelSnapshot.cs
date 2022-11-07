@@ -1300,7 +1300,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.HasIndex("TutorialStreamId")
                         .IsUnique();
 
-                    b.ToTable("TutorialStreamBlob");
+                    b.ToTable("TutorialStreamBlob", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", b =>

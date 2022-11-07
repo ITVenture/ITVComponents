@@ -138,6 +138,15 @@
   <data name="IWCN_KX_RTB_Caption" xml:space="preserve">
     <value>Aktualisieren</value>
   </data>
+  <data name="IWCN_KX_STB_Caption" xml:space="preserve">
+    <value>Änderungen speichern</value>
+  </data>
+  <data name="IWCN_PA_ParamName" xml:space="preserve">
+    <value>Parameter-Name</value>
+  </data>
+  <data name="IWCN_PA_ParamValue" xml:space="preserve">
+    <value>Wert</value>
+  </data>
   <data name="IWCN_Titles_Assemblies" xml:space="preserve">
     <value>Verwendete Assemblies</value>
   </data>

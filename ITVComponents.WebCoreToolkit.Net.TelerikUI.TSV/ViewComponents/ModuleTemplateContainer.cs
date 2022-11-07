@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using Microsoft.AspNetCore.Mvc;
 
-
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ViewComponents
+namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewComponents
 {
     public class ModuleTemplateContainer: ViewComponent
     {

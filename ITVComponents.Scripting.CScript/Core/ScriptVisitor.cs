@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -21,6 +22,7 @@ using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 using ITVComponents.Scripting.CScript.Security.Restrictions;
+using Newtonsoft.Json.Linq;
 using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
 using Void = ITVComponents.Scripting.CScript.ScriptValues.Void;
 
@@ -1949,6 +1951,82 @@ namespace ITVComponents.Scripting.CScript.Core
             return retVal;
         }
 
+        public override ScriptValue VisitNewImplicitInit(ITVScriptingParser.NewImplicitInitContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext subExpression = context.singleExpression();
+            ScriptValue val = Visit(subExpression);
+            if (val is IPassThroughValue)
+            {
+                return val;
+            }
+
+            ScriptValue typeArguments = null;
+            ITVScriptingParser.TypeArgumentsContext targs = context.typeArguments();
+            if (targs != null)
+            {
+                var genericsContext = targs as ITVScriptingParser.FinalGenericsContext;
+                if (genericsContext != null)
+                {
+                    typeArguments = VisitFinalGenerics(genericsContext);
+                }
+                else
+                {
+                    Throw t = new Throw();
+                    t.Initialize(
+                        string.Format(
+                            "Open Generic Arguments are not supported in final Construction calls! at {0}/{1}",
+                            context.Start.Line, context.Start.Column),
+                        false);
+                    return t;
+                }
+            }
+
+            if (typeArguments is IPassThroughValue)
+            {
+                return typeArguments;
+            }
+
+            var arguments = Visit(context.objectLiteral());
+
+            if (arguments is LiteralScriptValue && (typeArguments == null || typeArguments is SequenceValue))
+            {
+                try
+                {
+                    val.ValueType = ValueType.Constructor;
+                    LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
+                    var emptyArgs = new SequenceValue(bypassCompatibilityOnLazyInvokation);
+                    emptyArgs.Initialize(Array.Empty<ScriptValue>());
+                    var raw = val.GetValue(new[] { typeArguments, emptyArgs }, ScriptingPolicy);
+                    var obj = arguments.GetValue(null, scriptingPolicy);
+                    if (obj is ObjectLiteral oli)
+                    {
+                        foreach (var item in oli)
+                        {
+                            raw.SetMemberValue(item.Key, item.Value, null, ValueType.PropertyOrField, scriptingPolicy);
+                        }
+                    }
+                    else
+                    {
+                        Throw t = new Throw();
+                        t.Initialize(
+                            string.Format(
+                                "Unexpected value provided as initializer! at {0}/{1}",
+                                context.Start.Line, context.Start.Column),
+                            false);
+                        return t;
+                    }
+                    retVal.Initialize(raw);
+                    return retVal;
+                }
+                catch (Exception ex)
+                {
+                    throw new ScriptException($"Failed to create new instance at {context.Start.Line}/{context.Start.Column}", ex);
+                }
+            }
+
+            return arguments;
+        }
+
         public override ScriptValue VisitNewExpression(ITVScriptingParser.NewExpressionContext context)
         {
             ITVScriptingParser.SingleExpressionContext subExpression = context.singleExpression();
@@ -2000,7 +2078,36 @@ namespace ITVComponents.Scripting.CScript.Core
                 {
                     val.ValueType = ValueType.Constructor;
                     LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-                    retVal.Initialize(val.GetValue(new[] { typeArguments, arguments }, ScriptingPolicy));
+                    var raw = val.GetValue(new[] { typeArguments, arguments },scriptingPolicy);
+                    retVal.Initialize(raw);
+                    var literalExt = context.objectLiteral();
+                    if (literalExt != null)
+                    {
+                        var lit = Visit(literalExt);
+                        ObjectLiteral oli = null;
+                        if (lit is LiteralScriptValue lsv &&
+                            (oli = lsv.GetValue(null, scriptingPolicy) as ObjectLiteral) != null)
+                        {
+                            foreach (var item in oli)
+                            {
+                                raw.SetMemberValue(item.Key, item.Value, null, ValueType.PropertyOrField, scriptingPolicy);
+                            }
+                        }
+                        else if (lit is not LiteralScriptValue)
+                        {
+                            return lit;
+                        }
+                        else
+                        {
+                            Throw t = new Throw();
+                            t.Initialize(
+                                string.Format(
+                                    "Unexpected value provided as initializer! at {0}/{1}",
+                                    context.Start.Line, context.Start.Column),
+                                false);
+                            return t;
+                        }
+                    }
                     return retVal;
                 }
                 catch (Exception ex)
@@ -2719,8 +2826,7 @@ namespace ITVComponents.Scripting.CScript.Core
             ObjectLiteral retVal = new ObjectLiteral(objectRaw, variables);
             foreach (KeyValuePair<string, object> item in objectRaw.ToArray())
             {
-                FunctionLiteral lit = item.Value as FunctionLiteral;
-                if (lit != null)
+                if (item.Value is FunctionLiteral lit)
                 {
                     lit = lit.Copy();
                     retVal[item.Key] = lit;

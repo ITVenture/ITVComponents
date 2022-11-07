@@ -629,6 +629,17 @@ public partial class ITVScriptingBaseVisitor<Result> : AbstractParseTreeVisitor<
 	/// <return>The visitor result.</return>
 	public virtual Result VisitPostDecreaseExpression([NotNull] ITVScriptingParser.PostDecreaseExpressionContext context) { return VisitChildren(context); }
 	/// <summary>
+	/// Visit a parse tree produced by the <c>NewImplicitInit</c>
+	/// labeled alternative in <see cref="ITVScriptingParser.singleExpression"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitNewImplicitInit([NotNull] ITVScriptingParser.NewImplicitInitContext context) { return VisitChildren(context); }
+	/// <summary>
 	/// Visit a parse tree produced by the <c>UnaryPlusExpression</c>
 	/// labeled alternative in <see cref="ITVScriptingParser.singleExpression"/>.
 	/// <para>

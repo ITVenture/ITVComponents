@@ -398,6 +398,13 @@ public interface IITVScriptingVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitPostDecreaseExpression([NotNull] ITVScriptingParser.PostDecreaseExpressionContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>NewImplicitInit</c>
+	/// labeled alternative in <see cref="ITVScriptingParser.singleExpression"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitNewImplicitInit([NotNull] ITVScriptingParser.NewImplicitInitContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>UnaryPlusExpression</c>
 	/// labeled alternative in <see cref="ITVScriptingParser.singleExpression"/>.
 	/// </summary>

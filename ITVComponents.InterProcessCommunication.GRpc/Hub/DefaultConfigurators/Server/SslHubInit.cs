@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
+using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Security;
 using Microsoft.AspNetCore.Builder;
@@ -56,6 +59,20 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         }
 
         /// <summary>
+        /// Initializes a new instance of the AuthenticationInit class
+        /// </summary>
+        /// <param name="parent">the object that initializes the web-host</param>
+        public SslHubInit(IServiceHubProvider parent, bool withHsts, int httpsRedirectPort, string certificateSerial)
+        {
+            this.parent = parent;
+            this.withHsts = withHsts;
+            this.httpsRedirectPort = httpsRedirectPort;
+            this.certificateSerial = certificateSerial;
+            parent.RegisterConfigurator(this);
+        }
+
+
+        /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
         public string UniqueName { get; set; }
@@ -79,18 +96,56 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
             {
                 ko.ConfigureEndpointDefaults(li => li.UseHttps(ho =>
                 {
-                    if (certificateAutoSelect)
+                    X509Certificate2 serverCert = null;
+                    if (!string.IsNullOrEmpty(pathToCertificate) && File.Exists(pathToCertificate))
                     {
-                        ho.ServerCertificateSelector = (context, name) =>
+                        if (!string.IsNullOrEmpty(certificatePassword))
                         {
-                            return CertificateLoader.LoadFromStoreCert(name, StoreName.My.ToString(),
-                                StoreLocation.LocalMachine, false);
-                        };
+                            serverCert = new X509Certificate2(pathToCertificate,
+                                certificatePassword.Decrypt().Secure(), X509KeyStorageFlags.PersistKeySet);
+                        }
+                        else
+                        {
+                            serverCert = new X509Certificate2(pathToCertificate, (SecureString)null, X509KeyStorageFlags.PersistKeySet);
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(certificateSerial))
+                    {
+                        using (X509Store store = new(StoreName.My, StoreLocation.LocalMachine))
+                        {
+                            store.Open(OpenFlags.ReadOnly);
+                            serverCert = store.Certificates.FirstOrDefault(n =>
+                            {
+                                if (!string.IsNullOrEmpty(n.SerialNumber))
+                                {
+                                    return n.SerialNumber.Equals(certificateSerial, StringComparison.OrdinalIgnoreCase);
+                                }
+
+                                return false;
+                            });
+                        }
+                    }
+
+                    if (serverCert != null)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"Assigned to following certificate for SSL: {serverCert.SerialNumber}.",
+                            LogSeverity.Report);
+                        ho.ServerCertificate = serverCert;
                     }
                     else
                     {
-                        ho.ServerCertificate = new X509Certificate2(pathToCertificate,
-                            certificatePassword.Decrypt().Secure(), X509KeyStorageFlags.PersistKeySet);
+                        if (!certificateAutoSelect)
+                        {
+                            LogEnvironment.LogEvent("Certificate not found, falling back to auto-select.", LogSeverity.Warning);
+                        }
+
+                        ho.ServerCertificateSelector = (context, name) =>
+                        {
+                            var retVal = CertificateLoader.LoadFromStoreCert(name, StoreName.My.ToString(),
+                                StoreLocation.LocalMachine, false);
+                            return retVal;
+                        };
                     }
                 }));
             });

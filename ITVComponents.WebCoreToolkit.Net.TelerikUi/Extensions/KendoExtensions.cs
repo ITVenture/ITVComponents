@@ -59,16 +59,27 @@
             }
 
             /// <summary>
-            /// Displays an inline-checkbox for instant-editing of simple on-off-attributes on a table
+            /// Enables the Refresh-Button in the Command-Toolbar of the table
             /// </summary>
-            /// <typeparam name="TModel">the model of the current table</typeparam>
-            /// <param name="target">the column-factory for the current table</param>
-            /// <param name="expression">the expression that identifies the bound column</param>
-            /// <param name="pkName">the primary-key name of the target-model</param>
-            /// <param name="customChangeHandler">a custom changed-handler</param>
-            /// <param name="readOnly">indicates whether to put this on read-only</param>
-            /// <returns>the column-builder for the bound column</returns>
-            public static GridBoundColumnBuilder<TModel> InlineCheckbox<TModel>(this GridColumnFactory<TModel> target, Expression<Func<TModel, bool>> expression, string pkName, string customChangeHandler = null, bool readOnly = false)
+            /// <typeparam name="TModel">the model of the table</typeparam>
+            /// <param name="target">the command-factory for the given table</param>
+            /// <returns></returns>
+            public static GridToolBarCustomCommandBuilder SyncTable<TModel>(this GridToolBarCommandFactory<TModel> target) where TModel : class
+            {
+                return target.Custom().Name(CustomActionHelper.RandomName("saveChanges")).Text("\u200B").HtmlAttributes(new Dictionary<string, object> { { "onclick", "ITVenture.Tools.TableHelper.syncDataGrid(event)" }, { "class", "itv-tool-button itv-fa-tbx" }, { "title", TextsAndMessagesHelper.IWCN_KX_STB_Caption } }).IconClass("fas fa-floppy-disks");
+            }
+
+        /// <summary>
+        /// Displays an inline-checkbox for instant-editing of simple on-off-attributes on a table
+        /// </summary>
+        /// <typeparam name="TModel">the model of the current table</typeparam>
+        /// <param name="target">the column-factory for the current table</param>
+        /// <param name="expression">the expression that identifies the bound column</param>
+        /// <param name="pkName">the primary-key name of the target-model</param>
+        /// <param name="customChangeHandler">a custom changed-handler</param>
+        /// <param name="readOnly">indicates whether to put this on read-only</param>
+        /// <returns>the column-builder for the bound column</returns>
+        public static GridBoundColumnBuilder<TModel> InlineCheckbox<TModel>(this GridColumnFactory<TModel> target, Expression<Func<TModel, bool>> expression, string pkName, string customChangeHandler = null, bool readOnly = false)
                 where TModel : class
             {
                 var retVal = target.Bound(expression);
@@ -102,13 +113,13 @@
             /// <param name="alwaysActive">Indicates whether to keep the display-template editable, so that this column can be edited without entering edit-mode</param>
             /// <param name="customInlineChangedHandler">defines a custom handler that will be called, when an item was selected or deleted. If no value is provided, the default handler will be used and the grid will be synced on every modification action of the item.</param>
             /// <returns>the ColumnBuilder object for the bound field</returns>
-            public static GridBoundColumnBuilder<TModel> MultiSelect<TModel, TValue>(this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName, string placeholder = "", bool alwaysActive = false, string customInlineChangedHandler = null) where TModel : class
+            public static GridBoundColumnBuilder<TModel> MultiSelect<TModel, TValue>(this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName, string placeholder = "", bool alwaysActive = false, string customInlineChangedHandler = null, bool autoSaveOnChange = true) where TModel : class
                 where TValue : IEnumerable
             {
                 var retVal = target.Bound(expression);
                 var route = target.Container.HtmlHelper.ViewContext.HttpContext.Request.RouteValues;
                 string area = null;
-                string changedHandler = customInlineChangedHandler ?? "ITVenture.Tools.TableHelper.defaultMultiSelectCallback";
+                string changedHandler = customInlineChangedHandler ?? $"ITVenture.Tools.TableHelper.defaultMultiSelectCallback({(autoSaveOnChange?"true":"false")})";
                 if (route.ContainsKey("area"))
                 {
                     area = (string) route["area"];

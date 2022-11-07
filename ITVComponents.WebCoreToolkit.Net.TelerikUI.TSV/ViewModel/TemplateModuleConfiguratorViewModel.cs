@@ -14,11 +14,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         [Required, MaxLength(100)]
         public string Name { get; set; }
 
-        [Required, MaxLength(2048), DataType(DataType.MultilineText)]
-        public string ConfiguratorTypeFront { get; set; }
+        [MaxLength(2048)]
+        public string CustomConfiguratorView { get; set; }
 
         [Required, MaxLength(2048),DataType(DataType.MultilineText)]
         public string ConfiguratorTypeBack { get; set; }
+
+        [DataType(DataType.MultilineText)]
+        public string DisplayName { get; set; }
 
         public int TemplateModuleId { get; set; }
     }

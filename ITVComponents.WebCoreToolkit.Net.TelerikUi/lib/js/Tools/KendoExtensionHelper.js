@@ -1,4 +1,7 @@
-﻿ITVenture.Tools.KendoExtensions={
+﻿ITVenture.Tools.KendoExtensions = {
+    multiSelectSources: {},
+    msData: {},
+    msProm: {},
     UseForeignKeyFilter: function(valuePrimitive, additionalHandler) {
         var retVal = function(e) {
             var ddl = e.container.find("[data-role= 'dropdownlist']").data("kendoDropDownList");
@@ -18,6 +21,16 @@
         retVal.valuePrimitive = valuePrimitive;
         retVal.additionalHandler = additionalHandler;
         return retVal;
+    },
+    RefreshSources: function () {
+        for (var n in ITVenture.Tools.KendoExtensions.multiSelectSources) {
+            if (ITVenture.Tools.KendoExtensions.multiSelectSources.hasOwnProperty(n)) {
+                var src = ITVenture.Tools.KendoExtensions.multiSelectSources[n];
+                delete ITVenture.Tools.KendoExtensions.msData[n];
+                delete ITVenture.Tools.KendoExtensions.msProm[n];
+                src.read();
+            }
+        }
     },
     ForeignKeyPrimitive: function(additionalHandler) {
         var retVal = function(e) {
@@ -60,6 +73,36 @@
         return retVal;
     },
     InitMultiSelect: function (column, pkName, idRaw, enabled, placeHolder, url, changeHandler) {
+        if (!ITVenture.Tools.KendoExtensions.multiSelectSources.hasOwnProperty(url)) {
+            ITVenture.Tools.KendoExtensions.multiSelectSources[url] = new kendo.data.DataSource({
+                transport: {
+                    read: async function (e) {
+                        // On success.
+                        if (!ITVenture.Tools.KendoExtensions.msData.hasOwnProperty(url)) {
+                            if (!ITVenture.Tools.KendoExtensions.msProm.hasOwnProperty(url)) {
+                                ITVenture.Tools.KendoExtensions.msProm[url] = ITVenture.Ajax.ajaxGet(url, "json");
+                                ITVenture.Tools.KendoExtensions.msData[url] = await ITVenture.Tools.KendoExtensions.msProm[url];
+                            }
+                            else {
+                                await ITVenture.Tools.KendoExtensions.msProm[url];
+                            }
+                        }
+
+                        e.success({ data: ITVenture.Tools.KendoExtensions.msData[url], total: ITVenture.Tools.KendoExtensions.msData[url].length });
+                        // On failure.
+                        //e.error("XHR response", "status code", "error message");
+                    }
+                },
+                error: function (e) {
+                    // Handle data operation error.
+                    alert("Status: " + e.status + "; Error message: " + e.errorThrown);
+                },
+                schema: {
+                    data: "data",
+                }
+            });
+        }
+
         var retVal = function () {
             if (typeof this[retVal.column] !== "undefined") {
                 var nameId = this[retVal.pkName].toString();
@@ -71,17 +114,7 @@
                         dataValueField: "Key",
                         enable: retVal.enabled,
                         placeholder: retVal.placeHolder,
-                        dataSource: {
-                            transport: {
-                                read: {
-                                    url: retVal.url
-                                },
-                                prefix: ""
-                            },
-                            schema: {
-                                errors: "Errors"
-                            }
-                        }
+                        dataSource: ITVenture.Tools.KendoExtensions.multiSelectSources[url]
                     };
 
                     if (retVal.enabled) {
@@ -90,6 +123,7 @@
                     var select = $(tmp.query).kendoMultiSelect(cfg).data("kendoMultiSelect");
                     if (typeof select !== "undefined") {
                         select.value(tmp.ids);
+                        select.one("dataBound", function () { select.value(tmp.ids); });
                     }
                 };
 

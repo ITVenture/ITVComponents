@@ -14,8 +14,9 @@
         .Columns(columns =>
         {
             columns.Bound(n => n.Name);
-            columns.Bound(n => n.ConfiguratorTypeFront).ClientTemplate("<div style='white-space:pre-line;'>\\#=ITVenture.Tools.HtmlHelper.encode(ConfiguratorTypeFront!=null?ConfiguratorTypeFront:'')\\#</div>");
-            columns.Bound(n => n.ConfiguratorTypeBack).ClientTemplate("<div style='white-space:pre-line;'>\\#=ITVenture.Tools.HtmlHelper.encode(ConfiguratorTypeBack!=null?ConfiguratorTypeBack:'')\\#</div>");
+            columns.Bound(n => n.CustomConfiguratorView);
+            columns.Bound(n => n.ConfiguratorTypeBack).ClientTemplate("<div style='white-space:pre-line;'>#=ITVenture.Tools.HtmlHelper.encode(ConfiguratorTypeBack!=null?ConfiguratorTypeBack:'')#</div>");
+            columns.Bound(n => n.DisplayName).ClientTemplate("<div style='white-space:pre-line;'>#=ITVenture.Tools.HtmlHelper.encode(DisplayName!=null?DisplayName:'')#</div>");
             if (Context.RequestServices.VerifyUserPermissions(new[] {"Sysadmin"}))
             {
                 columns.Command(ga =>

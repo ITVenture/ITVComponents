@@ -240,7 +240,7 @@ namespace ITVComponents.Security
 
         public static Stream GetEncryptStream(Stream targetStream, byte[] entropy, bool leaveOpen = false)
         {
-            using (AesManaged asm = new AesManaged())
+            using (Aes asm = Aes.Create())
             {
                 var salt = RandomSalt();
                 var decorator = new CryptDecoratorStream(targetStream, (byte[])asm.IV.Clone(), salt, leaveOpen);

@@ -12,7 +12,7 @@ ITVenture.Tools.ModuleConfiguratorHandler = {
         for (var prop in data) {
             var handlerName = name.concat("_").concat(prop);
             if (data.hasOwnProperty(prop) && ITVenture.Tools.ModuleConfiguratorHandler.handlers.hasOwnProperty(handlername)) {
-                ITVenture.Tools.ModuleConfiguratorHandler.handlers[handlerName].SetValue(data[prop]);
+                ITVenture.Tools.ModuleConfiguratorHandler.handlers[handlerName].Value(data[prop]);
                 ITVenture.Tools.ModuleConfiguratorHandler.modules[name].push(prop);
             }
         }
@@ -25,7 +25,7 @@ ITVenture.Tools.ModuleConfiguratorHandler = {
                 var handlerName = name.concat("_").concat(prop);
                 if (ITVenture.Tools.ModuleConfiguratorHandler.handlers.hasOwnProperty(handlername)) {
                     var handler = ITVenture.Tools.ModuleConfiguratorHandler.handlers[handlerName];
-                    postData[prop] = JSON.stringify(handler.GetValue());
+                    postData[prop] = JSON.stringify(handler.Value());
                 }
             }
         }

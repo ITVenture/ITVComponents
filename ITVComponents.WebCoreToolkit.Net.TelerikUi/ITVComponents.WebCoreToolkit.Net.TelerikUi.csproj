@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
+<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV114</Version>
+    <Version>3.0.0-PRV137</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -12,13 +12,7 @@
     <Content Remove="package.json" />
   </ItemGroup>
   <ItemGroup>
-    <None Remove="lib\js\Tools\ModuleConfiguratorHandler.js" />
-  </ItemGroup>
-  <ItemGroup>
     <_ContentIncludedByDefault Remove="package.json" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="lib\js\Tools\ModuleConfiguratorHandler.js" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

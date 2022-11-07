@@ -379,10 +379,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
 
         [HttpPost]
         [Authorize("HasPermission(Sysadmin)")]
-        public async Task<IActionResult> DestroyConfiguratorParam([DataSourceRequest] DataSourceRequest request, TemplateModuleConfiguratorViewModel viewModel)
+        public async Task<IActionResult> DestroyConfiguratorParam([DataSourceRequest] DataSourceRequest request, TemplateModuleConfiguratorParameterViewModel viewModel)
         {
 
-            var model = db.TemplateModuleConfiguratorParameters.First(n => n.TemplateModuleConfiguratorId == viewModel.TemplateModuleConfiguratorId);
+            var model = db.TemplateModuleConfiguratorParameters.First(n => n.TemplateModuleCfgParameterId == viewModel.TemplateModuleCfgParameterId);
             if (ModelState.IsValid)
             {
                 db.TemplateModuleConfiguratorParameters.Remove(model);
@@ -394,9 +394,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
 
         [HttpPost]
         [Authorize("HasPermission(Sysadmin)")]
-        public async Task<IActionResult> UpdateConfiguratorParam([DataSourceRequest] DataSourceRequest request, TemplateModuleConfiguratorViewModel viewModel)
+        public async Task<IActionResult> UpdateConfiguratorParam([DataSourceRequest] DataSourceRequest request, TemplateModuleConfiguratorParameterViewModel viewModel)
         {
-            var model = db.TemplateModuleConfiguratorParameters.First(n => n.TemplateModuleConfiguratorId == viewModel.TemplateModuleConfiguratorId);
+            var model = db.TemplateModuleConfiguratorParameters.First(n => n.TemplateModuleCfgParameterId == viewModel.TemplateModuleCfgParameterId);
             if (ModelState.IsValid)
             {
                 await this.TryUpdateModelAsync<TemplateModuleConfiguratorParameterViewModel, TemplateModuleConfiguratorParameter>(model, "", m => { return m.ElementType == null; });

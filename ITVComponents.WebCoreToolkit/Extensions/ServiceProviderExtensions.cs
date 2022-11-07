@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.RequestConservation;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Http;
@@ -238,9 +239,13 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// </summary>
         /// <param name="provider">the services that are available in the current context</param>
         /// <returns>an object that contains relevant data of the current context</returns>
-        public static object ConserveRequestData(this IServiceProvider provider)
+        public static object ConserveRequestData(this IServiceProvider provider, HttpContext context)
         {
-            var requestData = new ConservedRequestData();
+            var requestData = new ConservedRequestData
+            {
+                HttpContext = new ConservedHttpContext(context)
+            };
+            
             var userProvider = provider.GetService<IContextUserProvider>();
             var permissionScope = provider.GetService<IPermissionScope>();
             if (userProvider != null)
@@ -273,6 +278,8 @@ namespace ITVComponents.WebCoreToolkit.Extensions
 
             var userProvider = provider.GetService<IContextUserProvider>();
             var permissionScope = provider.GetService<IPermissionScope>();
+            var httpBuffer = provider.GetService<IHttpContextAccessor>();
+            httpBuffer.HttpContext = crd.HttpContext;
             if (userProvider is DefaultContextUserProvider dcup)
             {
                 dcup.SetDefaults(crd.User, crd.RouteData, crd.RequestPath);
