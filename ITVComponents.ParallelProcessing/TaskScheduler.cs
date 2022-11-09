@@ -19,7 +19,7 @@ namespace ITVComponents.ParallelProcessing
     /// <summary>
     /// Unspecific implementation for a TaskScheduler. Tasks are being added to the processor immediately
     /// </summary>
-    public class TaskScheduler : IPlugin, IStatusSerializable, IDeferredInit
+    public class TaskScheduler : IPlugin, IDeferredInit
     {
         /// <summary>
         /// Holds a list of available schedulers
@@ -181,70 +181,12 @@ namespace ITVComponents.ParallelProcessing
         }
 
         /// <summary>
-        /// Gets the Runtime information required to restore the status when the application restarts
-        /// </summary>
-        /// <returns>an object serializer containing all required data for object re-construction on application reboot</returns>
-        RuntimeInformation IStatusSerializable.GetPostDisposalSerializableStaus()
-        {
-            return GetRuntimeStatus();
-        }
-
-        /// <summary>
-        /// Applies Runtime information that was loaded from a file
-        /// </summary>
-        /// <param name="runtimeInformation">the runtime information describing the status of this object before the last shutdown</param>
-        void IStatusSerializable.LoadRuntimeStatus(RuntimeInformation runtimeInformation)
-        {
-            Initialize(runtimeInformation);
-        }
-
-        /// <summary>
-        /// Allows this object to do required initializations when no runtime status is provided by the calling object
-        /// </summary>
-        void IStatusSerializable.InitializeWithoutRuntimeInformation()
-        {
-            Initialize(null);
-        }
-
-        /// <summary>
-        /// Is called when the runtime is completly available and ready to run
-        /// </summary>
-        void IStatusSerializable.RuntimeReady()
-        {
-            Ready();
-        }
-
-        /// <summary>
         /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
         /// </summary>
         /// <filterpriority>2</filterpriority>
         public virtual void Dispose()
         {
             OnDisposed();
-        }
-
-        /// <summary>
-        /// Generates a serializable runtime status for this scheduler
-        /// </summary>
-        /// <returns>a runtime information object that can be stored into a file</returns>
-        protected virtual RuntimeInformation GetRuntimeStatus()
-        {
-            return new RuntimeInformation();
-        }
-
-        /// <summary>
-        /// Initializes this scheduler with a runtime status. When the status is null, nothing was provided by the basic engine
-        /// </summary>
-        /// <param name="status">the status (nullable) that was provided by the plugin environment</param>
-        protected virtual void Initialize(RuntimeInformation status)
-        {
-        }
-
-        /// <summary>
-        /// Starts this Scheduler
-        /// </summary>
-        protected virtual void Ready()
-        {
         }
 
         /// <summary>
@@ -278,16 +220,6 @@ namespace ITVComponents.ParallelProcessing
         protected void EnqueueTaskOnTarget(ScheduleRequest task)
         {
             task.Target.TaskScheduled(new TaskContainer {Request = task, Task = task.Task});
-        }
-
-        /// <summary>
-        /// Integrates a task into the runtime environment.
-        /// </summary>
-        /// <param name="task">the Schedule - Request that needs to be re-integrated after deserialization</param>
-        protected void IntegrateTaskOnTarget(ScheduleRequest task)
-        {
-            task.Target.IntegrateTask(task.Task);
-            task.IntegrateRequest(this);
         }
 
         /// <summary>
@@ -442,14 +374,6 @@ namespace ITVComponents.ParallelProcessing
                     Remarks = string.Format("Execution-Condition: {0}",
                         string.Join(" OR ", instructions));
                 }
-            }
-
-            /// <summary>
-            /// Initializes a deserialized schedulerequest
-            /// </summary>
-            /// <param name="parent">the scheduler that will process this request</param>
-            protected internal virtual void IntegrateRequest(TaskScheduler parent)
-            {
             }
         }
     }

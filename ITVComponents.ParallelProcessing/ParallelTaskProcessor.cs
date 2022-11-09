@@ -15,7 +15,7 @@ namespace ITVComponents.ParallelProcessing
     /// <summary>
     /// The Abstract core definition of a Parallel task processing unit
     /// </summary>
-    public abstract class ParallelTaskProcessor: IStatusSerializable, IStoppable
+    public abstract class ParallelTaskProcessor: IStoppable, IDeferredInit
     {
         /// <summary>
         /// Holds a list of all available processors that were initialized in the current process
@@ -261,6 +261,9 @@ namespace ITVComponents.ParallelProcessing
                                          Timeout.Infinite);
         }
 
+        public bool Initialized { get; private set; }
+        public bool ForceImmediateInitialization => false;
+
         /// <summary>
         /// Gets the unique identifier of this TaskQueue
         /// </summary>
@@ -316,56 +319,19 @@ namespace ITVComponents.ParallelProcessing
             moderatorTimer.Change(workerPollTime, workerPollTime);
         }
 
-        /// <summary>
-        /// Gets the Runtime information required to restore the status when the application restarts
-        /// </summary>
-        /// <returns>an object serializer containing all required data for object re-construction on application reboot</returns>
-        public virtual RuntimeInformation GetPostDisposalSerializableStaus()
+        public void Initialize()
         {
-            RuntimeInformation retVal = new RuntimeInformation();
-            foreach (KeyValuePair<int, ConcurrentQueue<TaskContainer>> list in tasks)
+            if (!Initialized)
             {
-                retVal.Add(string.Format("TaskList_{0}", list.Key), list.Value.ToArray());
-            }
-
-            return retVal;
-        }
-
-        /// <summary>
-        /// Applies Runtime information that was loaded from a file
-        /// </summary>
-        /// <param name="runtimeInformation">the runtime information describing the status of this object before the last shutdown</param>
-        public virtual void LoadRuntimeStatus(RuntimeInformation runtimeInformation)
-        {
-            foreach (KeyValuePair<int, ConcurrentQueue<TaskContainer>> list in tasks)
-            {
-                TaskContainer[] taskArray = (TaskContainer[])runtimeInformation[string.Format("TaskList_{0}", list.Key)];
-                foreach (TaskContainer task in taskArray)
+                try
                 {
-                    OnIntegratePendingTask(task.Task);
-                    list.Value.Enqueue(task);
+                    moderatorTimer.Change(workerPollTime, workerPollTime);
+                }
+                finally
+                {
+                    Initialized = true;
                 }
             }
-
-            lock (workerPulse)
-            {
-                Monitor.Pulse(workerPulse);
-            }
-        }
-
-        /// <summary>
-        /// Allows this object to do required initializations when no runtime status is provided by the calling object
-        /// </summary>
-        public virtual void InitializeWithoutRuntimeInformation()
-        {
-        }
-
-        /// <summary>
-        /// Is called when the runtime is completly available and ready to run
-        /// </summary>
-        public void RuntimeReady()
-        {
-            moderatorTimer.Change(workerPollTime, workerPollTime);
         }
 
         /// <summary>
@@ -584,27 +550,6 @@ namespace ITVComponents.ParallelProcessing
         }
 
         /// <summary>
-        /// Raises the IntegratePendingTask - Event in order to prepare pending objects for being processed by a worker
-        /// </summary>
-        /// <param name="task">the Task that has been loaded from the runtime status</param>
-        protected virtual void OnIntegratePendingTask(ITask task)
-        {
-            if (IntegratePendingTask != null)
-            {
-                IntegratePendingTask(this, new IntegrationEventArgs(task));
-            }
-        }
-
-        /// <summary>
-        /// Integrates a Task back into the runtime environment
-        /// </summary>
-        /// <param name="task">the task that was deserialized after restarting the application</param>
-        internal void IntegrateTask(ITask task)
-        {
-            OnIntegratePendingTask(task);
-        }
-
-        /// <summary>
         /// Checks whether more work is required for the worker queues
         /// </summary>
         /// <param name="state">the unused object state</param>
@@ -669,10 +614,5 @@ namespace ITVComponents.ParallelProcessing
         /// Triggers a client object to provide more tasks that need to be executed.
         /// </summary>
         public event EventHandler<GetMoreTasksEventArgs> GetMoreTasks;
-
-        /// <summary>
-        /// Triggers a client object to perform required actions in order to integrate a deserialized task into the current runtime environment
-        /// </summary>
-        public event EventHandler<IntegrationEventArgs> IntegratePendingTask;
     }
 }

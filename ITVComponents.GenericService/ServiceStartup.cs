@@ -137,7 +137,7 @@ namespace ITVComponents.GenericService
                 }
             }
 
-            pluginLoader.LoadRuntimeStatus();
+            pluginLoader.LoadDynamics();
             pluginLoader.InitializeDeferrables(ServiceConfigHelper.PlugIns.Where(n => !n.Disabled).Select(n => n.Name).ToArray());
         }
 
