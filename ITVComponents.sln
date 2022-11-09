@@ -45,8 +45,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.InterProcessC
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.InterProcessCommunication.ParallelProcessing", "ITVComponents.InterProcessCommunication.ParallelProcessing\ITVComponents.InterProcessCommunication.ParallelProcessing.csproj", "{C95C31E4-F1E6-4143-91CA-9B048B8E8A14}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.InterProcessCommunication.ParallelProcessing.Proxying", "ITVComponents.InterProcessCommunication.ParallelProcessing.Proxying\ITVComponents.InterProcessCommunication.ParallelProcessing.Proxying.csproj", "{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.Logging", "ITVComponents.Logging\ITVComponents.Logging.csproj", "{A92ED442-1F9C-474A-9A10-2E9B21E10AF9}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.Logging.DefaultLoggers", "ITVComponents.Logging.DefaultLoggers\ITVComponents.Logging.DefaultLoggers.csproj", "{B392E9C2-F2EA-45EF-A7E0-464E566DD51B}"
@@ -325,14 +323,6 @@ Global
 		{C95C31E4-F1E6-4143-91CA-9B048B8E8A14}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C95C31E4-F1E6-4143-91CA-9B048B8E8A14}.Release|x86.ActiveCfg = Release|Any CPU
 		{C95C31E4-F1E6-4143-91CA-9B048B8E8A14}.Release|x86.Build.0 = Release|Any CPU
-		{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}.Debug|x86.Build.0 = Debug|Any CPU
-		{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}.Release|x86.ActiveCfg = Release|Any CPU
-		{2C2391EA-5E12-4AEB-B1AA-24BA9B48F33A}.Release|x86.Build.0 = Release|Any CPU
 		{A92ED442-1F9C-474A-9A10-2E9B21E10AF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A92ED442-1F9C-474A-9A10-2E9B21E10AF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A92ED442-1F9C-474A-9A10-2E9B21E10AF9}.Debug|x86.ActiveCfg = Debug|Any CPU

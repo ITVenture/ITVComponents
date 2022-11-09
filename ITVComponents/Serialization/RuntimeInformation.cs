@@ -6,7 +6,7 @@ using Newtonsoft.Json.Linq;
 
 namespace ITVComponents.Serialization
 {
-    [Serializable]
+    [Serializable, Obsolete("Not supported anymore", true)]
     public class RuntimeInformation : IEnumerable, ISerializable
     {
         /// <summary>

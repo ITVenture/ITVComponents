@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,7 +25,7 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         /// <summary>
         /// Contains all timetables that are currently active for scheduling events
         /// </summary>
-        private Dictionary<string, TimeTable> timeTables;
+        private static ConcurrentDictionary<string, TimeTable> timeTables = new ConcurrentDictionary<string, TimeTable>();
 
         /// <summary>
         /// Initializes a new instance of the PeriodScheduler
@@ -33,7 +34,6 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
             : base()
         {
             pendingRequests = new List<PeriodScheduleRequest>();
-            timeTables = new Dictionary<string, TimeTable>();
         }
 
         /// <summary>
@@ -147,61 +147,23 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         /// </summary>
         /// <param name="instruction">the instruction set to describe a periodic task</param>
         /// <returns>a timetable representing all upcoming events for a specific task</returns>
-        internal TimeTable GetTimeTable(string instruction)
+        internal static TimeTable GetTimeTable(string instruction)
         {
-            lock (timeTables)
-            {
-                if (timeTables.ContainsKey(instruction))
-                {
-                    return timeTables[instruction];
-                }
-
-                TimeTable retVal = new TimeTable(instruction);
-                timeTables.Add(instruction, retVal);
-                return retVal;
-            }
-        }
-
-        /// <summary>
-        /// Initializes this scheduler with a runtime status. When the status is null, nothing was provided by the basic engine
-        /// </summary>
-        /// <param name="status">the status (nullable) that was provided by the plugin environment</param>
-        protected override void Initialize(RuntimeInformation status)
-        {
-            if (status != null)
-            {
-                PeriodScheduleRequest[] privateRequests = status["Tasks"] as PeriodScheduleRequest[];
-                if (privateRequests != null)
-                {
-                    privateRequests.ForEach(IntegrateTaskOnTarget);
-                    pendingRequests.AddRange(privateRequests);
-                }
-            }
-
-            base.Initialize(status);
+            return timeTables.GetOrAdd(instruction, i => new TimeTable(i));
         }
 
         #region Overrides of TaskScheduler
 
-        protected override void Ready()
+        protected override void Init()
         {
+            base.Init();
             BackgroundRunner.AddPeriodicTask(CheckSchedules, 500);
             LogEnvironment.LogDebugEvent("PeriodScheduler is now online", LogSeverity.Report);
-            base.Ready();
+
         }
 
         #endregion
 
-        /// <summary>
-        /// Generates a serializable runtime status for this scheduler
-        /// </summary>
-        /// <returns>a runtime information object that can be stored into a file</returns>
-        protected override RuntimeInformation GetRuntimeStatus()
-        {
-            RuntimeInformation basicStatus = base.GetRuntimeStatus();
-            basicStatus.Add("Tasks", pendingRequests.ToArray());
-            return basicStatus;
-        }
 
         /// <summary>
         /// Checks schedules

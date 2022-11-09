@@ -1,10 +1,12 @@
-﻿using ITVComponents.Serialization;
+﻿using System;
+using ITVComponents.Serialization;
 
 namespace ITVComponents.Plugins.RuntimeSerialization
 {
     /// <summary>
     /// Enables an application using a PluginFactory to automatically save the runtime status of all plugins after shutting it down
     /// </summary>
+    [Obsolete("Not supported anymore!", true)]
     public interface IRuntimeSerializer : IPlugin
     {
         /// <summary>

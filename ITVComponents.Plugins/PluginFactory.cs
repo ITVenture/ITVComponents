@@ -61,10 +61,10 @@ namespace ITVComponents.Plugins
         /// </summary>
         private ConcurrentDictionary<string, Type> roTypeList;
 
-        /// <summary>
+        /*/// <summary>
         /// a list of all loaded runtime serializers for this factory
         /// </summary>
-        private IRuntimeSerializer runtimeSerializer;
+        private IRuntimeSerializer runtimeSerializer;*/
 
         /// <summary>
         /// indicates whether this instance has been disposed
@@ -106,10 +106,10 @@ namespace ITVComponents.Plugins
         /// </summary>
         private object threadLock = new object();
 
-        /// <summary>
+        /*/// <summary>
         /// Holds the latest runtime status of all plugins providing it
         /// </summary>
-        private RuntimeInformation runtimeStatus = new RuntimeInformation();
+        private RuntimeInformation runtimeStatus = new RuntimeInformation();*/
 
         /// <summary>
         /// Indicates whether this factory is the singleton factory
@@ -473,7 +473,7 @@ namespace ITVComponents.Plugins
                         {
                             InitPlugin(plugin);
                         }
-                        else if (name != runtimeSerializer?.UniqueName)
+                        else
                         {
                             LogEnvironment.LogDebugEvent($"Plugin {name} does not seem to be loaded properly...", LogSeverity.Warning);
                         }
@@ -494,55 +494,6 @@ namespace ITVComponents.Plugins
                 {
                     deferredStartup = false;
                 }
-            }
-        }
-
-        /// <summary>
-        /// For Application that intend to provide runtime status functionality an initialization of all RuntimeSerialized objects after is required after loading all runtime plugins
-        /// </summary>
-        public void
-            LoadRuntimeStatus()
-        {
-            if (testOnlyFactory)
-            {
-                throw new InvalidOperationException("Unable to load Runtime status for reflection-only factory");
-            }
-
-            dynamicPlugIns = LoadDynamicPlugins();
-            if (runtimeSerializer != null)
-            {
-                runtimeStatus = runtimeSerializer.LoadRuntimeStatus() ?? new RuntimeInformation();
-            }
-
-            try
-            {
-                foreach (var plugContainer in plugins)
-                {
-                    var plugin = plugContainer.Value;
-                    RuntimeInformation pluginStatus;
-                    if (plugin is IStatusSerializable && runtimeStatus != null &&
-                        (pluginStatus = runtimeStatus[plugin.UniqueName] as RuntimeInformation) != null)
-                    {
-                        ((IStatusSerializable)plugin).LoadRuntimeStatus(pluginStatus);
-                    }
-                    else
-                    {
-                        IStatusSerializable serializable = plugin as IStatusSerializable;
-                        if (serializable != null)
-                        {
-                            serializable.InitializeWithoutRuntimeInformation();
-                        }
-                    }
-                }
-
-                foreach (var plugContainer in plugins)
-                {
-                    (plugContainer.Value as IStatusSerializable)?.RuntimeReady();
-                }
-            }
-            finally
-            {
-                runtimeStatus = new RuntimeInformation();
             }
         }
 
@@ -743,12 +694,6 @@ namespace ITVComponents.Plugins
 
                     this.plugins.Clear();
                     this.roTypeList.Clear();
-                    if (runtimeSerializer != null && runtimeStatus != null)
-                    {
-                        LogEnvironment.LogDebugEvent("Saving Runtime-status...", LogSeverity.Report);
-                        runtimeSerializer.SaveRuntimeStatus(runtimeStatus);
-                    }
-
                     this.roTypeList = null;
                     this.plugins = null;
                     this.disposed = true;
@@ -962,25 +907,9 @@ namespace ITVComponents.Plugins
                             isSelfRegistered = true;
                         }
 
-                        if (!(tmp is IRuntimeSerializer))
+                        if (!isSelfRegistered)
                         {
-                            if (!isSelfRegistered)
-                            {
-                                RegisterPlugin(tmp, uniqueName, doBuffer);
-                            }
-                        }
-
-                        if (tmp is IRuntimeSerializer serializer)
-                        {
-                            if (runtimeSerializer != null)
-                            {
-                                //LogEnvironment.LogEvent(Messages.MultipleRuntimeSerializersNotSupportedError, LogSeverity.Error);
-                                throw new Exception(Messages.MultipleRuntimeSerializersNotSupportedError);
-                            }
-
-                            runtimeSerializer = serializer;
-                            buffer = false;
-                            tmp = null;
+                            RegisterPlugin(tmp, uniqueName, doBuffer);
                         }
 
                         plugin = tmp;
@@ -1089,13 +1018,6 @@ namespace ITVComponents.Plugins
 
         private void RegisterPlugin(IPlugin pi, string uniqueName, bool doBuffer)
         {
-            if (pi is IRuntimeSerializer)
-            {
-                //LogEnvironment.LogEvent(Messages.RuntimeSerializersMustNotSelfRegisterError, LogSeverity.Error);
-                throw new InvalidOperationException(
-                    Messages.RuntimeSerializersMustNotSelfRegisterError);
-            }
-
             if (doBuffer)
             {
                 bool ok = this.plugins.TryAdd(uniqueName, pi);
@@ -1164,16 +1086,6 @@ namespace ITVComponents.Plugins
                     if (src is ICriticalComponent crit)
                     {
                         crit.CriticalError -= CriticalOccurred;
-                    }
-
-                    if (src is IStatusSerializable statusSerializable)
-                    {
-                        lock (runtimeStatus)
-                        {
-                            LogEnvironment.LogDebugEvent($"Receiving Post-Disposed Status of {src.UniqueName}...",
-                                LogSeverity.Report);
-                            runtimeStatus[src.UniqueName] = statusSerializable.GetPostDisposalSerializableStaus();
-                        }
                     }
 
                     IPlugin tmp;
@@ -1391,6 +1303,11 @@ namespace ITVComponents.Plugins
         /// Is raised when a Plugin that is implemented as generic type is constructed.
         /// </summary>
         public event ImplementGenericTypeEventHandler ImplementGenericType;
+
+        public void LoadDynamics()
+        {
+            dynamicPlugIns = LoadDynamicPlugins();
+        }
     }
 
     /// <summary>

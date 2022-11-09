@@ -5,6 +5,7 @@ namespace ITVComponents.Serialization
     /// <summary>
     /// Represents an interface that supports dumping the runtime status after its disposal
     /// </summary>
+    [Obsolete("Not supported anymore!", true)]
     public interface IStatusSerializable : IDisposable
     {
         /// <summary>

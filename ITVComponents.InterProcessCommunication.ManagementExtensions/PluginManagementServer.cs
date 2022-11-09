@@ -11,7 +11,7 @@ using ITVComponents.Serialization;
 
 namespace ITVComponents.InterProcessCommunication.ManagementExtensions
 {
-    public class PluginManagementServer:IPlugin, IStatusSerializable, IPluginManagementServer
+    public class PluginManagementServer:IPlugin, IPluginManagementServer, IDeferredInit
     {
         /// <summary>
         /// provides a list of all loaded plugins in the current runtime-environment
@@ -114,47 +114,6 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
             OnDisposed();
         }
 
-        /// <summary>
-        /// Gets the Runtime information required to restore the status when the application restarts
-        /// </summary>
-        /// <returns>an object serializer containing all required data for object re-construction on application reboot</returns>
-        public RuntimeInformation GetPostDisposalSerializableStaus()
-        {
-            RuntimeInformation retVal = new RuntimeInformation {{"Jobs", (from t in statisticJobs select t.ToDictionary()).ToArray()}};
-            return retVal;
-        }
-
-        /// <summary>
-        /// Applies Runtime information that was loaded from a file
-        /// </summary>
-        /// <param name="runtimeInformation">the runtime information describing the status of this object before the last shutdown</param>
-        public void LoadRuntimeStatus(RuntimeInformation runtimeInformation)
-        {
-            StatisticJob[] jobs = (from t in ((Dictionary<string,object>[])runtimeInformation["Jobs"]) select new StatisticJob
-            { 
-                EndTime = (DateTime)t["EndTime"],
-                JobRunning = (bool)t["JobRunning"],
-                PluginName = t["PluginName"].ToString(),
-                RefreshTimeout = (int)t["RefreshTimeout"],
-                ResetStatistics = (bool)t["ResetStatistics"],
-                StartTime = (DateTime)t["StartTime"],
-                LastResult = (Dictionary<string,object>)t["LastResult"],
-                LastUpdate = (DateTime)t["LastUpdate"]
-            }).ToArray();
-            statisticJobs.AddRange(jobs);
-        }
-
-        /// <summary>
-        /// Allows this object to do required initializations when no runtime status is provided by the calling object
-        /// </summary>
-        public void InitializeWithoutRuntimeInformation()
-        {
-        }
-
-        public void RuntimeReady()
-        {
-            refreshTimer.Change(jobRefreshTimeout, jobRefreshTimeout);
-        }
 
         /// <summary>
         /// Adds a new job to the list of scheduled statistics jobs
@@ -347,5 +306,22 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
         /// Informs a calling class of a Disposal of this Instance
         /// </summary>
         public event EventHandler Disposed;
+
+        public bool Initialized { get; private set; }
+        public bool ForceImmediateInitialization => false;
+        public void Initialize()
+        {
+            if (!Initialized)
+            {
+                try
+                {
+                    refreshTimer.Change(jobRefreshTimeout, jobRefreshTimeout);
+                }
+                finally
+                {
+                    Initialized = true;
+                }
+            }
+        }
     }
 }

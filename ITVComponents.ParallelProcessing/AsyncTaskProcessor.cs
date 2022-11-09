@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Logging;
+using ITVComponents.Threading;
 
 namespace ITVComponents.ParallelProcessing
 {
@@ -282,18 +283,19 @@ namespace ITVComponents.ParallelProcessing
         private async Task Work()
         {
             startupWait.Set();
-            enterprocessingLoopWait.WaitOne();
+            
+            await enterprocessingLoopWait.WaitOneAsync(CancellationToken.None);
             while (true)
             {
                 lastActivity = DateTime.Now;
                 bool tasksFound = false;
                 bool ending = false;
-                if (!suspendEvent.WaitOne(10000))
+                if (!await suspendEvent.WaitOneAsync(10000, CancellationToken.None))
                 {
                     suspendedEvent.Set();
-                    while (!suspendEvent.WaitOne(1000))
+                    while (!await suspendEvent.WaitOneAsync(1000, CancellationToken.None))
                     {
-                        if (stopEvent.WaitOne(50))
+                        if (await stopEvent.WaitOneAsync(50, CancellationToken.None))
                         {
                             ending = true;
                             break;
@@ -312,7 +314,7 @@ namespace ITVComponents.ParallelProcessing
                     {
                         TaskContainer task;
                         lastActivity = DateTime.Now;
-                        if ((!(ending = stopEvent.WaitOne(50))) && tasks[i].TryDequeue(out task))
+                        if ((!(ending = await stopEvent.WaitOneAsync(50, CancellationToken.None))) && tasks[i].TryDequeue(out task))
                         {
                             try
                             {
@@ -360,7 +362,7 @@ namespace ITVComponents.ParallelProcessing
                 else
                 {
                     LogEnvironment.LogDebugEvent($"CurrentState is {currentState}. Not doing anything...", LogSeverity.Warning);
-                    ending = stopEvent.WaitOne(50);
+                    ending = await stopEvent.WaitOneAsync(50, CancellationToken.None);
                 }
 
                 if (!tasksFound && !ending)

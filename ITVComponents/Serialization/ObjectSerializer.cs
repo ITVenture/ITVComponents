@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Runtime.Serialization;
 
 namespace ITVComponents.Serialization
@@ -6,6 +7,7 @@ namespace ITVComponents.Serialization
     /// <summary>
     /// Provides object serialization capabilities to any object
     /// </summary>
+    [Obsolete("Not supported anymore!", true)]
     public class ObjectSerializer<TFormatterType> where TFormatterType : IFormatter, new()
     {
         /// <summary>

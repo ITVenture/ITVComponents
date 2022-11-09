@@ -13,6 +13,7 @@ namespace ITVComponents.Plugins.RuntimeSerialization
     /// <summary>
     /// Binary serializer class enabling a plugin driven application to save the runtime status of its plugins
     /// </summary>
+    [Obsolete("Not supported anymore!", true)]
     public class JsonSerializationPlugin : IRuntimeSerializer
     {
         /// <summary>

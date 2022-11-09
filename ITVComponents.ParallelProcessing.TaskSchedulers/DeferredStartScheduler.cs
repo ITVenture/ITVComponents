@@ -121,48 +121,15 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
             base.Dispose();
         }
 
-        /// <summary>
-        /// Initializes this scheduler with a runtime status. When the status is null, nothing was provided by the basic engine
-        /// </summary>
-        /// <param name="status">the status (nullable) that was provided by the plugin environment</param>
-        protected override void Initialize(RuntimeInformation status)
-        {
-            if (status != null)
-            {
-                DeferredScheduleRequest[] privateRequests = status["Tasks"] as DeferredScheduleRequest[];
-                if (privateRequests != null)
-                {
-                    privateRequests.ForEach(IntegrateTaskOnTarget);
-                    pendingRequests.AddRange(privateRequests);
-                }
-            }
-
-            base.Initialize(status);
-        }
-
         #region Overrides of TaskScheduler
 
-        /// <summary>
-        /// Starts this Scheduler
-        /// </summary>
-        protected override void Ready()
+        protected override void Init()
         {
             BackgroundRunner.AddPeriodicTask(CheckSchedules, 2000);
-            base.Ready();
+            base.Init();
         }
 
         #endregion
-
-        /// <summary>
-        /// Generates a serializable runtime status for this scheduler
-        /// </summary>
-        /// <returns>a runtime information object that can be stored into a file</returns>
-        protected override RuntimeInformation GetRuntimeStatus()
-        {
-            RuntimeInformation basicStatus = base.GetRuntimeStatus();
-            basicStatus.Add("Tasks", pendingRequests.ToArray());
-            return basicStatus;
-        }
 
         /// <summary>
         /// Checks schedules
