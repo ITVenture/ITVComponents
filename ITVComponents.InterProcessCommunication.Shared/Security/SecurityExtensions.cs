@@ -3,7 +3,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Security
 {
-    internal static class SecurityExtensions
+    public static class SecurityExtensions
     {
         /// <summary>
         /// Checks on an attribute whether it requires a secure channel in order to work properly

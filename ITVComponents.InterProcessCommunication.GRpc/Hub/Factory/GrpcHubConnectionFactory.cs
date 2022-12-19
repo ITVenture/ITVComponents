@@ -39,9 +39,16 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Factory
 
         public IHubConnection CreateConnection()
         {
+            var tailId = targetService.IndexOf("@");
+            string tail = null;
+            if (tailId != -1)
+            {
+                tail = targetService.Substring(tailId);
+            }
+
             if (clientMode)
             {
-                return !useEvents ? new ServiceHubConsumer(hubAddress, configurator, targetService) : new ServiceHubConsumer(hubAddress, $"{Guid.NewGuid()}", configurator, targetService);
+                return !useEvents ? new ServiceHubConsumer(hubAddress, configurator, targetService) : new ServiceHubConsumer(hubAddress, $"{Guid.NewGuid()}{tail}", configurator, targetService);
             }
             else
             {

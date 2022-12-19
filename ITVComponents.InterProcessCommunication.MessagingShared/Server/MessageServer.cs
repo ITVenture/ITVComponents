@@ -58,6 +58,19 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
             ConnectToHub();
         }
 
+        public MessageServer(IHubConnectionFactory hubFactory, IFactoryWrapper factoryWrapper, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security) : base(factoryWrapper, useExtendedProxying, useSecurity, security)
+        {
+            this.hubFactory = hubFactory;
+            reconnector = new Timer(TryReconnect, null, Timeout.Infinite, Timeout.Infinite);
+            ConnectToHub();
+        }
+
+        public MessageServer(IServiceHubProvider serviceHub, IFactoryWrapper factoryWrapper, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security) : base(factoryWrapper, useExtendedProxying, useSecurity, security)
+        {
+            hubClient = new LocalServiceHubConsumer(serviceName, serviceHub, null, security);
+            hubClient.MessageArrived += ClientInvokation;
+        }
+
         private void TryReconnect(object state)
         {
             if (Monitor.TryEnter(reconnLock))
@@ -229,6 +242,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
             var msg = JsonHelper.FromJsonStringStrongTyped<object>(e.Message);
             LogEnvironment.LogDebugEvent($"Message is {msg}", LogSeverity.Report);
             LogEnvironment.LogDebugEvent(e.Message, LogSeverity.Report);
+            IServiceProvider services = e.Services;
             try
             {
                 if (msg is AbandonExtendedProxyRequestMessage aeprm)
@@ -238,8 +252,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is ObjectAvailabilityRequestMessage oarm)
                 {
-
-                    var avail = CheckForAvailableProxy(oarm.UniqueName, oarm.AuthenticatedUser?.ToIdentity()??e.HubUser);
+                    var avail = CheckForAvailableProxy(oarm.UniqueName, oarm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
                     e.Response = JsonHelper.ToJsonStrongTyped(new ObjectAvailabilityResponseMessage
                     {
                         Message = avail.Message,
@@ -249,7 +262,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is SetPropertyRequestMessage sprm)
                 {
-                    SetProperty(sprm.TargetObject, sprm.TargetMethod, sprm.MethodArguments, sprm.Value, sprm.AuthenticatedUser?.ToIdentity()??e.HubUser);
+                    SetProperty(sprm.TargetObject, sprm.TargetMethod, sprm.MethodArguments, sprm.Value, sprm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
                     e.Response = JsonHelper.ToJsonStrongTyped(new SetPropertyResponseMessage
                     {
                         Ok = true
@@ -257,7 +270,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is GetPropertyRequestMessage gprm)
                 {
-                    var retVal = GetProperty(gprm.TargetObject, gprm.TargetMethod, gprm.MethodArguments, gprm.AuthenticatedUser?.ToIdentity()??e.HubUser);
+                    var retVal = GetProperty(gprm.TargetObject, gprm.TargetMethod, gprm.MethodArguments, gprm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
                     e.Response = JsonHelper.ToJsonStrongTyped(new GetPropertyResponseMessage
                     {
                         Result = retVal,
@@ -266,7 +279,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is InvokeMethodRequestMessage imrm)
                 {
-                    var result = ExecuteMethod(imrm.TargetObject, imrm.TargetMethod, imrm.MethodArguments, imrm.AuthenticatedUser?.ToIdentity()??e.HubUser);
+                    var result = ExecuteMethod(imrm.TargetObject, imrm.TargetMethod, imrm.MethodArguments, imrm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
                     e.Response = JsonHelper.ToJsonStrongTyped(new InvokeMethodResponseMessage
                     {
                         Arguments = result.Parameters,
@@ -275,7 +288,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is UnRegisterEventRequestMessage urerm)
                 {
-                    var ok = UnSubscribeEvent(urerm.TargetObject, urerm.EventName, urerm.RespondChannel, urerm.AuthenticatedUser?.ToIdentity()??e.HubUser);
+                    var ok = UnSubscribeEvent(urerm.TargetObject, urerm.EventName, urerm.RespondChannel, urerm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
                     e.Response = JsonHelper.ToJsonStrongTyped(new UnRegisterEventResponseMessage
                     {
                         Ok = ok
@@ -283,7 +296,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is RegisterEventRequestMessage rerm)
                 {
-                    var ok = SubscribeForEvent(rerm.TargetObject, rerm.EventName, rerm.RespondChannel, rerm.AuthenticatedUser?.ToIdentity()??e.HubUser);
+                    var ok = SubscribeForEvent(rerm.TargetObject, rerm.EventName, rerm.RespondChannel, rerm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
                     e.Response = JsonHelper.ToJsonStrongTyped(new RegisterEventResponseMessage
                     {
                         Ok = ok

@@ -27,6 +27,8 @@ namespace ITVComponents.WebCoreToolkit.Models
 
         public bool IsValid => !string.IsNullOrEmpty(Url) || Children.Any(n => n.IsValid);
 
+        public string CounterVal { get; set; }
+
         public bool Active { get; private set; }
 
         public void CleanUp(string currentPath, string jsonLanguageRecord)
@@ -42,6 +44,14 @@ namespace ITVComponents.WebCoreToolkit.Models
             if (!Active)
             {
                 Active = Children.Any(c => c.Active);
+            }
+
+            if (string.IsNullOrEmpty(CounterVal))
+            {
+                if (Children.Any(c => !string.IsNullOrEmpty(c.CounterVal) && !c.Active))
+                {
+                    CounterVal = "...";
+                }
             }
 
             DisplayName = DisplayName.Translate(jsonLanguageRecord);

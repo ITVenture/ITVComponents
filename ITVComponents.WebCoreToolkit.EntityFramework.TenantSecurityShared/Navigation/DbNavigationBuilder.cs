@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
@@ -92,6 +93,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
                     if (string.IsNullOrEmpty(item.Url))
                     {
                         ret.Children.AddRange(SelectNavigation(item.NavigationMenuId,explicitTenant));
+                    }
+                    else
+                    {
+                        var queryName = $"counter4{item.Url.Replace("/","_")}";
+                        var qry = securityContext.TenantDiagnosticsQueries
+                            .FirstOrDefault(n => n.DiagnosticsQuery.DiagnosticsQueryName == queryName)
+                            ?.DiagnosticsQuery;
+                        if (qry != null && services.VerifyUserPermissions(new []{qry.Permission.PermissionName}))
+                        {
+                            var ctx = services.ContextForDiagnosticsQuery(queryName, null, out var def);
+                            var l = ctx.RunDiagnosticsQuery(def, new Dictionary<string, object>()).Cast<object>().FirstOrDefault();
+                            if (l != null)
+                            {
+                                ret.CounterVal = $"{l}";
+                            }
+                        }
                     }
 
                     yield return ret;

@@ -150,7 +150,8 @@ namespace ITVComponents.WebCoreToolkit.ScheduledBackgroundProcessing
                 {
                     NextExecution = next.Value,
                     Task = (a,b)=>task(a),
-                    TimeTable = timeTable
+                    TimeTable = timeTable,
+                    ConservedContext = conservedContext
                 });
             }
         }

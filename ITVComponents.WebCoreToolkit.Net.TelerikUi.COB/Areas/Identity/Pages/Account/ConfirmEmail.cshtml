@@ -1,0 +1,9 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.ConfirmEmailModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Confirm email"];
+}
+
+@Model.StatusMessage

@@ -28,6 +28,12 @@ namespace ITVComponents.WebCoreToolkit.Models.RequestConservation
             Id = original.Id;
         }
 
+        public ConservedSession()
+        {
+            IsAvailable = false;
+        }
+
+
         public Task LoadAsync(CancellationToken cancellationToken = new CancellationToken())
         {
             return Task.CompletedTask;

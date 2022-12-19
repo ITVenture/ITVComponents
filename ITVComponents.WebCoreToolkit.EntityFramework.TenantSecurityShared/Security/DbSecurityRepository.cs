@@ -82,7 +82,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             get
             {
                 using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
-                return (from u in securityContext.Users
+                return (from u in securityContext.Users.ToList()
                     select SelectUser(u)).ToList();
             }
         }
@@ -120,6 +120,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         {
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
             return (from r in AllRoles(securityContext.Users.First(UserFilter(user))) select r.Role).ToArray();
+        }
+
+        public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions,
+            string permissionScope)
+        {
+            using var tmp = new FullSecurityAccessHelper(securityContext, true, false);
+
+            return (from a in (from t in securityContext.SecurityRoles.Where(r =>
+                                r.Tenant.TenantName == permissionScope)
+                            select new
+                            {
+                                PermissionMap = t.RolePermissions.Select(n =>
+                                    new { t.RoleName, Permission = n.Permission.PermissionName })
+                            })
+                        .SelectMany(i => i.PermissionMap).AsEnumerable()
+                    join p in requiredPermissions on a.Permission equals p
+                    select a.RoleName).Distinct().Select(n => new Role{RoleName = n}).ToArray();
         }
 
         /// <summary>

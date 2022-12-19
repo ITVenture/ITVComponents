@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
 namespace ITVComponents.WebCoreToolkit.Models.RequestConservation
 {
@@ -12,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Models.RequestConservation
     {
         public static HttpRequest Conserve(this HttpRequest request, ConservedHttpContext parent)
         {
-            return new ConservedHttpRequest(request, parent);
+            return new ConservedHttpRequest(request, parent){RouteValues = new RouteValueDictionary(request.RouteValues)};
         }
 
         public static HttpResponse Conserve(this HttpResponse response, ConservedHttpContext parent)

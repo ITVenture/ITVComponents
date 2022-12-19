@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.ServiceModel;
@@ -22,7 +23,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// </summary>
         private bool hasSecurity;
 
-        private Dictionary<string, ProxyWrapper> extendedProxies;
+        private IDictionary<string, ProxyWrapper> extendedProxies;
 
         /// <summary>
         /// Holds a dictionary of extended Decorators that are used to save delicate Services from being exposed directly
@@ -35,11 +36,10 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// <param name="factory">the factory that is wrapped by this instance</param>
         /// <param name="extendedProxies">a dictionary containing all extended proxies that are currently used by the consuming remote proxy server</param>
         /// <param name="hasSecurity">indicates whether the underlaying channel supports security</param>
-        internal FactoryWrapper(PluginFactory factory, Dictionary<string,ProxyWrapper> extendedProxies, bool hasSecurity)
+        internal FactoryWrapper(PluginFactory factory, bool hasSecurity)
         {
             wrapped = factory;
             this.hasSecurity = hasSecurity;
-            this.extendedProxies = extendedProxies;
         }
 
         /// <summary>
@@ -47,7 +47,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// </summary>
         /// <param name="pluginName">the name of the desired plugin</param>
         /// <returns>the plugin-instance with the given name</returns>
-        public object this[string pluginName]
+        public object this[string pluginName, IServiceProvider services]
         {
             get
             {
@@ -98,7 +98,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// <param name="uniqueName">the uniquename for which to check in the list of initialized plugins</param>
         /// <param name="securityRequired">indicates whether the requested plugin requires security in order to be accessed</param>
         /// <returns>a value indicating whether the requested plugin is currently reachable</returns>
-        public bool Contains(string uniqueName, out bool securityRequired)
+        public bool Contains(string uniqueName, IServiceProvider services, out bool securityRequired)
         {
 
             bool retVal = wrapped.Contains(uniqueName) || serviceDecorators.ContainsKey(uniqueName);
@@ -136,6 +136,15 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
             }
 
             return retVal;
+        }
+
+        /// <summary>
+        /// Attaches a dictionary containing extended proxy-objects that have been created and contain active elements that require to remain on the server instead of being serialized and sent to the client
+        /// </summary>
+        /// <param name="proxies">the dictionary containing proxy-objects</param>
+        public void AttachProxyDictionary(IDictionary<string, ProxyWrapper> proxies)
+        {
+            extendedProxies = proxies;
         }
     }
 }

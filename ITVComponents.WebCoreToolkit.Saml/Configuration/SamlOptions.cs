@@ -40,5 +40,7 @@ namespace ITVComponents.WebCoreToolkit.Saml.Configuration
 
         [AutoResolveChildren]
         public List<SamlIdentityProvider> IdentityProviders { get; set; } = new();
+
+        public string AuthenticationScheme { get; set; }
     }
 }

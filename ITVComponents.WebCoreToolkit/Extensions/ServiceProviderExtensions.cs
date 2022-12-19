@@ -263,6 +263,18 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             return requestData;
         }
 
+        public static void PrepareEmptyContext(this IServiceProvider provider)
+        {
+            var userProvider = provider.GetService<IContextUserProvider>();
+            var permissionScope = provider.GetService<IPermissionScope>();
+            var httpBuffer = provider.GetService<IHttpContextAccessor>();
+            httpBuffer.HttpContext = new EmptyHttpContext() { RequestServices = provider };
+            if (userProvider is DefaultContextUserProvider dcup)
+            {
+                dcup.SetDefaults(new ClaimsPrincipal(), new Dictionary<string, object>(), "");
+            }
+        }
+
         /// <summary>
         /// Prepares the current scope to values that were conserved before from a different context
         /// </summary>
@@ -280,6 +292,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var permissionScope = provider.GetService<IPermissionScope>();
             var httpBuffer = provider.GetService<IHttpContextAccessor>();
             httpBuffer.HttpContext = crd.HttpContext;
+            crd.HttpContext.RequestServices = provider;
             if (userProvider is DefaultContextUserProvider dcup)
             {
                 dcup.SetDefaults(crd.User, crd.RouteData, crd.RequestPath);

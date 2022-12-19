@@ -1,0 +1,33 @@
+﻿@page
+@inject IStringLocalizer<IdentityMessages> localizer
+@inject IStringLocalizer<MyTenantsModel> pageLocalizer
+@using Microsoft.Extensions.Localization
+@using Kendo.Mvc.UI
+@using System.Web
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage
+@{
+    ViewData["Title"] = localizer["Manage your tenants"];
+    ViewData["ActivePage"] = ManageNavPages.MyTenants;
+}
+@{
+    Layout = "_Layout.cshtml";
+}
+
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage.MyTenantsModel
+<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.COB/js/viewScripts.min.js"></script>
+
+@Html.AntiForgeryToken()
+<a class="btn btn-primary" href="~/Identity/Account/Manage/CreateTenant?returnUrl=@(HttpUtility.UrlEncode(Url.PageLink("./MyTenants"/*,"Manage"*/,values: new {area="Identiy"})))">@pageLocalizer["New_Tenant"]</a>
+
+@(Html.Kendo().Grid<MyTenantsModel.ParticipatingTenantViewModel>().Name("MyTenantsGrid")
+    .Columns(c =>
+    {
+        c.Bound(n => n.Name).Title(pageLocalizer["Name"]);
+        c.Bound(n => n.DefaultEmail).Title(pageLocalizer["DefaultEmail"]);
+        c.Bound(n => n.StatusText).Title(pageLocalizer["TenantStatus"]);
+        c.Command(cmd =>
+        {
+            cmd.Custom("AcceptInv").Text("\u200B").Click("ITVenture.Pages.Identity.MyTenants.AcceptInvitation").Visible("ITVenture.Pages.Identity.MyTenants.AcceptAvailable").HtmlAttributes(new { @class = "itv-grid-button itv-fa-gbx glyphSprite", title = pageLocalizer["AcceptInvitation"] }).IconClass("fad fa-check");
+        });
+    })
+    .BindTo(Model.MyTenants))

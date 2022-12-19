@@ -1,0 +1,81 @@
+﻿@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.Hosting
+@using System.Drawing
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Options
+@using Kendo.Mvc.TagHelpers
+@using Kendo.Mvc.UI
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.DTO.UserInputModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@inject IWebHostEnvironment hostingEnvironment 
+
+<div class="col-sm-11">
+    <div class="row">
+        <div class="col-md-4">
+            <form id="user-register" asp-route-returnUrl="@(ViewData["returnUrl"])" asp-controller="Registration" asp-action="CreateUser" method="post">
+                <h4>@localizer["Create a new account."]</h4>
+                <hr/>
+                <div asp-validation-summary="All" class="text-danger"></div>
+                <div class="form-group">
+                    <label asp-for="Email"></label>
+                    <input asp-for="Email" class="form-control"/>
+                    <span asp-validation-for="Email" class="text-danger"></span>
+                </div>
+                <div class="form-group">
+                    <label asp-for="Password"></label>
+                    <input asp-for="Password" class="form-control"/>
+                    <span asp-validation-for="Password" class="text-danger"></span>
+                </div>
+                <div class="form-group">
+                    <label asp-for="ConfirmPassword"></label>
+                    <input asp-for="ConfirmPassword" class="form-control"/>
+                    <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                </div>
+                <button type="submit" class="btn btn-primary">@localizer["Register_Button"]</button>
+            </form>
+        </div>
+        <div class="col-md-6 offset-md-1">
+            <section>
+                <h4>@localizer["Use another service to register."]</h4>
+                <hr/>
+
+                <form id="external-account" asp-controller="Registration" asp-action="LoginExternal" asp-route-returnUrl="@ViewData["returnUrl"]" method="post" class="form-horizontal">
+                    <div>
+                        <p>
+                            @foreach (var provider in (List<AuthenticationHandlerDefinition>)ViewData["externalLogins"])
+                            {
+                                var tmp = hostingEnvironment.WebRootFileProvider.GetFileInfo(provider.LogoFile);
+                                int w, h;
+                                using (var img = Image.FromFile(tmp.PhysicalPath))
+                                {
+                                    w = img.Width;
+                                    h = img.Height;
+                                }
+                                
+                                if (tmp.Exists)
+                                {
+                                    <button type="submit" class="btn btn-primary" name="provider" value="@provider.AuthenticationSchemeName" title="@localizer["Log in using your {0} account", provider.DisplayName]" style="background-image: url(@(provider.LogoFile)); width: @(w + 5)px; height: @(h + 5)px; background-position: center; background-repeat: no-repeat; background-size: @(w)px auto"></button>
+                                }
+                                else
+                                {
+                                    <button type="submit" class="btn btn-primary" name="provider" value="@provider.AuthenticationSchemeName" title="@localizer["Log in using your {0} account", provider.DisplayName]">@provider.DisplayName</button>
+                                }
+                            }
+                        </p>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(function() {
+        $.validator.unobtrusive.parse("#user-register");
+        $("#user-register").submit(ITVenture.Pages.IdentityShenanigans.OnFormPost);
+    });
+</script>

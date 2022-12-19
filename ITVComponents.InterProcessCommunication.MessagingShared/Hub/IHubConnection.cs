@@ -86,5 +86,10 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
         /// Gets or sets the Identity of the HubConsumer that sent this message
         /// </summary>
         public IIdentity HubUser { get; set; }
+
+        /// <summary>
+        /// Gets or sets the serviceprovider that is capable of creating services in the current request-environment
+        /// </summary>
+        public IServiceProvider Services { get; set; }
     }
 }

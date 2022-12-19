@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.WebCoreToolkit.InterProcessExtensions.Internal;
 using ITVComponents.WebCoreToolkit.InterProcessExtensions.Options;
+using ITVComponents.WebCoreToolkit.InterProcessExtensions.Security;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Extensions
@@ -21,6 +23,16 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Extensions
         {
             return services.AddScoped(typeof(IInjectableProxy<>), typeof(InjectableProxyImpl<>))
                 .Configure(options);
+        }
+
+        /// <summary>
+        /// Initializes injectable security for the local GrpcService of a web application
+        /// </summary>
+        /// <param name="services">a servicecollection that is used to inject services to modules of the current application</param>
+        /// <returns>the services collection that was passed as parameter</returns>
+        public static IServiceCollection UseInjectableSecurity(this IServiceCollection services)
+        {
+            return services.AddScoped<ICustomServerSecurity, ServiceSecurityValidator>();
         }
     }
 }

@@ -56,5 +56,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// <param name="identity">the identity for which to get the custom properties</param>
         /// <returns>an enumerable containing all custom properties for the given identity</returns>
         IEnumerable<KeyValuePair<string,string>> GetCustomProperties(IIdentity identity);
+
+        /// <summary>
+        /// Attaches a Factory-Wrapper that can be used to receive or check for plugins
+        /// </summary>
+        /// <param name="factory">the factory-wrapper to attach</param>
+        void Attach(IFactoryWrapper factory);
     }
 }

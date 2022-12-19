@@ -89,6 +89,11 @@ namespace ITVComponents.Scripting.CScript.Helpers
             return GetPropertyInfoInt(propertyAccess);
         }
 
+        public static MemberExpression GetPropertyExpression<T>(this Expression<Func<T>> propertyAccess)
+        {
+            return GetPropertyExpressionInt(propertyAccess);
+        }
+
         public static PropertyInfo GetPropertyInfo(Expression<Func<object>> propertyAccess)
         {
             return GetPropertyInfoInt(propertyAccess);
@@ -131,14 +136,19 @@ namespace ITVComponents.Scripting.CScript.Helpers
 
         private static PropertyInfo GetPropertyInfoInt(LambdaExpression expression)
         {
-            if (expression.Body is MemberExpression { Member: PropertyInfo pr })
+            return GetPropertyExpressionInt(expression).Member as PropertyInfo;
+        }
+
+        private static MemberExpression GetPropertyExpressionInt(LambdaExpression expression)
+        {
+            if (expression.Body is MemberExpression { Member: PropertyInfo} pr)
             {
                 return pr;
             }
 
             if (expression.Body is UnaryExpression
                 {
-                    NodeType: ExpressionType.Convert, Operand: MemberExpression { Member: PropertyInfo pro }
+                    NodeType: ExpressionType.Convert, Operand: MemberExpression { Member: PropertyInfo} pro
                 })
             {
                 return pro;

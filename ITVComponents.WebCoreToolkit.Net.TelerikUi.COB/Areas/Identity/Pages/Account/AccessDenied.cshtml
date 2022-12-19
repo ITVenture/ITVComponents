@@ -1,0 +1,13 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.AccessDeniedModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Access denied"];
+}
+
+<header>
+    <h1 class="text-danger">@ViewData["Title"]</h1>
+    <p class="text-danger">@localizer["You do not have access to this resource."]</p>
+</header>

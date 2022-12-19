@@ -25,10 +25,21 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
         /// <summary>
         /// Initializes a new instance of the ServiceSecurityValidator class
         /// </summary>
-        /// <param name="factory">the pluginfactory that provides objects that may be accessed by clients</param>
         /// <param name="securityRepo">a WebCoreToolkit-Security Repository holding users and roles</param>
         /// <param name="nameMapper">a User-Mapper that is used to extract the permissions of the provided user</param>
-        public ServiceSecurityValidator(PluginFactory factory, ISecurityRepository securityRepo, IUserNameMapper nameMapper):base(factory)
+        public ServiceSecurityValidator(ISecurityRepository securityRepo, IUserNameMapper nameMapper):base(null)
+        {
+            this.securityRepo = securityRepo;
+            this.nameMapper = nameMapper;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the ServiceSecurityValidator class
+        /// </summary>
+        /// <param name="services"></param>
+        /// <param name="securityRepo">a WebCoreToolkit-Security Repository holding users and roles</param>
+        /// <param name="nameMapper">a User-Mapper that is used to extract the permissions of the provided user</param>
+        public ServiceSecurityValidator(IServiceProvider services, ISecurityRepository securityRepo, IUserNameMapper nameMapper) : base(services)
         {
             this.securityRepo = securityRepo;
             this.nameMapper = nameMapper;

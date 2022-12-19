@@ -16,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.ApiKeyAuthentication.Extensions
         /// <returns>the provided servicecollection</returns>
         public static IServiceCollection UseDefaultApiKeyResolver(this IServiceCollection services)
         {
-            return services.AddScoped<IGetApiKeyQuery, DefaultApiKeyUserResolver>();
+            return services.AddTransient<IGetApiKeyQuery, DefaultApiKeyUserResolver>();
         }
     }
 }

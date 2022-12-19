@@ -68,5 +68,29 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Server
         public GrpcServer(IServiceHubProvider serviceHub, IDictionary<string,object> exposedObjects, string serviceName, bool useExtendedProxying):this(serviceHub, exposedObjects, serviceName, useExtendedProxying,false,null)
         {
         }
+
+        public GrpcServer(string hubAddress, IFactoryWrapper factoryWrapper, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security) : base(new GrpcHubConnectionFactory(hubAddress, serviceName, configurator, security), factoryWrapper, useExtendedProxying, useSecurity, security)
+        {
+        }
+
+        public GrpcServer(IServiceHubProvider serviceHub, IFactoryWrapper factoryWrapper, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security) : base(serviceHub, factoryWrapper, serviceName, useExtendedProxying, useSecurity, security)
+        {
+        }
+
+        public GrpcServer(string hubAddress, IFactoryWrapper factoryWrapper, IHubClientConfigurator configurator, string serviceName) : this(hubAddress, factoryWrapper, configurator, serviceName, false, false, null)
+        {
+        }
+
+        public GrpcServer(IServiceHubProvider serviceHub, IFactoryWrapper factoryWrapper, string serviceName) : this(serviceHub, factoryWrapper, serviceName, false, false, null)
+        {
+        }
+
+        public GrpcServer(string hubAddress, IFactoryWrapper factoryWrapper, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying) : this(hubAddress, factoryWrapper, configurator, serviceName, useExtendedProxying, false, null)
+        {
+        }
+
+        public GrpcServer(IServiceHubProvider serviceHub, IFactoryWrapper factoryWrapper, string serviceName, bool useExtendedProxying) : this(serviceHub, factoryWrapper, serviceName, useExtendedProxying, false, null)
+        {
+        }
     }
 }

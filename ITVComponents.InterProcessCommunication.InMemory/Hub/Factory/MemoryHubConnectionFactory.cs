@@ -39,9 +39,16 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
 
         public IHubConnection CreateConnection()
         {
+            var tailId = targetService.IndexOf("@");
+            string tail = null;
+            if (tailId != -1)
+            {
+                tail = targetService.Substring(tailId);
+            }
+
             if (clientMode)
             {
-                return !useEvents ? new InMemoryServiceHubConsumer(hubAddress, hubFactory, targetService) : new InMemoryServiceHubConsumer(hubAddress, $"{Guid.NewGuid()}", hubFactory, targetService);
+                return !useEvents ? new InMemoryServiceHubConsumer(hubAddress, hubFactory, targetService) : new InMemoryServiceHubConsumer(hubAddress, $"{Guid.NewGuid()}{tail}", hubFactory, targetService);
             }
 
             return new InMemoryServiceHubConsumer(hubAddress, targetService, hubFactory, security);

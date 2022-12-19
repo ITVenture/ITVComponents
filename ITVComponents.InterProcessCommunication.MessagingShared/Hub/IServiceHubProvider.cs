@@ -11,6 +11,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
         /// <summary>
         /// Gets the EndPoint broker instance that manages all traffic between the communication endpoints
         /// </summary>
-        EndPointBroker Broker { get; }
+        IEndPointBroker Broker { get; }
     }
 }

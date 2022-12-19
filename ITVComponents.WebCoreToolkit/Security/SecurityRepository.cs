@@ -95,6 +95,10 @@ namespace ITVComponents.WebCoreToolkit.Security
         public ICollection<Role> Roles => Current.Roles;
         public ICollection<Permission> Permissions => Current.Permissions;
         public IEnumerable<Role> GetRoles(User user) => Current.GetRoles(user);
+        public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions, string permissionScope)
+        {
+            return Current.GetRolesWithPermissions(requiredPermissions, permissionScope);
+        }
 
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType) => Current.GetCustomProperties(user, propertyType);
 

@@ -29,7 +29,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
 
         private readonly string hubAddresses;
         private readonly string basePath;
-        private readonly PluginFactory factory;
+        //private readonly PluginFactory factory;
         /*private List<IAppConfigureProvider> appConfigProviders;
         private List<IServicesConfigureProvider> serviceConfigProviders;
         private List<IWebHostBuilderConfigureProvider> webHostBuilderConfigProviders;
@@ -62,7 +62,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
         /// </summary>
         public string UniqueName { get; set; }
 
-        public EndPointBroker Broker { get; }
+        public IEndPointBroker Broker { get; }
 
         public WebApplicationBuilder WebAppBuilder { get; }
         public void RegisterConfigurator(IServiceHubConfigurator configurator)
@@ -74,9 +74,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
         /// Initializes a new instance of the ServiceHubProvider class
         /// </summary>
         /// <param name="hubAddresses">the hub-addresses for this serviceHub</param>
-        /// <param name="basePath">Configures a base-path that extends the host-url of this hub</param>
-        /// <param name="factory">a factory that provides access to other plugins</param>
-        public ServiceHubProvider(string hubAddresses, PluginFactory factory)
+        public ServiceHubProvider(string hubAddresses)
         {
             if (instance != null)
             {
@@ -85,12 +83,11 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
 
             instance = this;
             this.hubAddresses = hubAddresses;
-            this.factory = factory;
             Broker = new EndPointBroker();
             WebAppBuilder = WebApplication.CreateBuilder();
         }
 
-        public ServiceHubProvider(MessagingShared.Hub.IServiceHubProvider parent, string hubAddresses, PluginFactory factory)
+        public ServiceHubProvider(MessagingShared.Hub.IServiceHubProvider parent, string hubAddresses)
         {
             if (instance != null)
             {
@@ -99,13 +96,12 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
 
             instance = this;
             this.hubAddresses = hubAddresses;
-            this.factory = factory;
             Broker = parent.Broker;
             ownsBroker = false;
             WebAppBuilder = WebApplication.CreateBuilder();
         }
 
-        public ServiceHubProvider(WebApplicationBuilder parentApp, string hubAddresses, PluginFactory factory)
+        public ServiceHubProvider(WebApplicationBuilder parentApp)
         {
             if (instance != null)
             {
@@ -113,14 +109,12 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
             }
 
             instance = this;
-            this.hubAddresses = hubAddresses;
-            this.factory = factory;
             Broker = new EndPointBroker();
             WebAppBuilder = parentApp;
             ownsApp = false;
         }
 
-        public ServiceHubProvider(MessagingShared.Hub.IServiceHubProvider parent, WebApplicationBuilder parentApp, string hubAddresses, PluginFactory factory)
+        public ServiceHubProvider(MessagingShared.Hub.IServiceHubProvider parent, WebApplicationBuilder parentApp)
         {
             if (instance != null)
             {
@@ -128,8 +122,6 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
             }
 
             instance = this;
-            this.hubAddresses = hubAddresses;
-            this.factory = factory;
             Broker = parent.Broker;
             ownsBroker = false;
             WebAppBuilder = parentApp;

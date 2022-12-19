@@ -35,6 +35,14 @@ namespace ITVComponents.WebCoreToolkit.Security
         IEnumerable<Role> GetRoles(User user);
 
         /// <summary>
+        /// Gets all Roles that have the requested permissions
+        /// </summary>
+        /// <param name="requiredPermissions">a list of permissions for which to get the appropriate roles</param>
+        /// <param name="permissionScope">the permissionscope for which to fetch the requested roles</param>
+        /// <returns>a list of roles that have the requested permissions</returns>
+        IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions, string permissionScope);
+
+        /// <summary>
         /// Gets an enumeration of CustomUserProperties for the given user
         /// </summary>
         /// <param name="user">the user for which to get the custom properties</param>

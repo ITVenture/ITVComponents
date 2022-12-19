@@ -58,6 +58,11 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             }
         }
 
+        public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> permissions, string permissionScope)
+        {
+            return decoratedRepo.GetRolesWithPermissions(permissions, permissionScope);
+        }
+
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
             return Array.Empty<CustomUserProperty>();

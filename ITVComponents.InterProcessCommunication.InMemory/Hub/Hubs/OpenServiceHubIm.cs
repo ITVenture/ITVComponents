@@ -33,7 +33,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Hubs
         public virtual async Task<ServiceOperationResponseMessage> ConsumeService(ServerOperationMessage request, DataTransferContext context)
         {
             //context.GetHttpContext().RequestServices.VerifyUserPermissions()
-            var retRaw = await serviceBackend.Broker.SendMessageToServer(request);
+            var retRaw = await serviceBackend.Broker.SendMessageToServer(request, null);
             return retRaw;
         }
 

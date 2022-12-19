@@ -54,6 +54,7 @@ namespace ITVComponents.WebCoreToolkit.Navigation
             if (cult != null)
             {
                 currentCulture = cult.RequestCulture.UICulture.Name;
+                
             }
 
            retVal.CleanUp(currentPath, currentCulture);

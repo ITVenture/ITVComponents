@@ -43,6 +43,11 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnect
         public string ServiceName { get; }
 
         /// <summary>
+        /// Gets the Service that is consumed by this service
+        /// </summary>
+        public string ConsumedService => consumedService;
+
+        /// <summary>
         /// Gets a value indicating whether this hubConnection was initialized
         /// </summary>
         bool IHubConnection.Initialized => initialized;
@@ -52,12 +57,13 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnect
         /// </summary>
         /// <param name="message">the message that was received from the remote host</param>
         /// <returns>a response message that was generated as result of the received message</returns>
-        public ServiceOperationResponseMessage ProcessMessage(ServerOperationMessage message)
+        public ServiceOperationResponseMessage ProcessMessage(ServerOperationMessage message, IServiceProvider services)
         {
             var msg = new MessageArrivedEventArgs
             {
                 TargetService = message.TargetService,
-                Message = message.OperationPayload
+                Message = message.OperationPayload,
+                Services = services
             };
 
             if (!string.IsNullOrEmpty(message.HubUser))
@@ -114,9 +120,9 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnect
         /// </summary>
         void IHubConnection.Initialize()
         {
-            if (!string.IsNullOrEmpty(ServiceName))
+            if (!string.IsNullOrEmpty(ServiceName) && localProvider.Broker is EndPointBroker brok)
             {
-                localProvider.Broker.RegisterService(this);
+                brok.RegisterService(this);
             }
         }
 
@@ -134,7 +140,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnect
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
                 TickBack=false
-            }).ConfigureAwait(false).GetAwaiter();
+            }, null).ConfigureAwait(false).GetAwaiter();
             return awaiter.GetResult().ResponsePayload;
         }
 
@@ -152,7 +158,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnect
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
                 TickBack=false
-            }).ConfigureAwait(false);
+            }, null).ConfigureAwait(false);
             return result.ResponsePayload;
         }
 
@@ -172,9 +178,9 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnect
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
-            if (initialized && !string.IsNullOrEmpty(ServiceName))
+            if (initialized && !string.IsNullOrEmpty(ServiceName) && localProvider.Broker is EndPointBroker brok)
             {
-                localProvider.Broker.UnRegisterService(this);
+                brok.UnRegisterService(this);
                 if (!string.IsNullOrEmpty(consumedService) && !string.IsNullOrEmpty(ServiceName))
                 {
                     TemporaryGrants.RevokeTemporaryPermission(consumedService, ServiceName);

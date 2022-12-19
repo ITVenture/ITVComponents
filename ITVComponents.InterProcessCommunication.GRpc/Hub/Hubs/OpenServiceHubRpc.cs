@@ -36,6 +36,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
         public override async Task<ServiceOperationResponseMessage> ConsumeService(ServerOperationMessage request, ServerCallContext context)
         {
             //context.GetHttpContext().RequestServices.VerifyUserPermissions()
+            
             var retRaw = await serviceBackend.Broker.SendMessageToServer(new MessagingShared.Hub.Protocol.ServerOperationMessage
             {
                 OperationId = request.OperationId,
@@ -43,7 +44,8 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
                 HubUser = request.HubUser,
                 OperationPayload = request.OperationPayload,
                 TickBack = request.TickBack
-            });
+                
+            }, context.GetHttpContext().RequestServices);
             return new ServiceOperationResponseMessage
             {
                 OperationId = retRaw.OperationId ?? "",

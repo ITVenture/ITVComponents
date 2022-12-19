@@ -70,6 +70,11 @@ namespace ITVComponents.CommandLineParser
                 {
                     helpRequested = true;
                 }
+
+                while (pos < commandLine.Length && char.IsWhiteSpace(commandLine, pos))
+                {
+                    pos++;
+                }
             }
 
             foreach (var tmp in (from u in configuration.Parameters

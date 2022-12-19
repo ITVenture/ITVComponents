@@ -45,6 +45,7 @@ namespace ITVComponents.CommandLineParser
         /// <returns>a value indicating whether the provided parameter is known and valid</returns>
         public bool CheckArgument(string command, ref int position, out CommandLineArgument argument, out object value)
         {
+            var tail = false;
             int nextPos = position;
             bool completlyQuoted = false;
             while (nextPos < command.Length && char.IsWhiteSpace(command, nextPos))
@@ -75,6 +76,7 @@ namespace ITVComponents.CommandLineParser
                                                                 ? StringComparison.Ordinal
                                                                 : StringComparison.OrdinalIgnoreCase)
                         select t).ToArray();
+                tail = true;
             }
 
             if (args.Length == 0)
@@ -140,7 +142,7 @@ namespace ITVComponents.CommandLineParser
                          (command.Substring(startPos + nextPos, 1) != "\"" ||
                           (command.Length > startPos + nextPos + 1 && command.Substring(startPos + nextPos, 2) == "\"\"")))))
                 {
-                    if (isQuoted && command.Substring(startPos + nextPos, 2) == "\"\"")
+                    if (isQuoted && (command.Substring(startPos + nextPos, 2) == "\"\"" || command.Substring(startPos + nextPos, 2) == "\\\""))
                     {
                         nextPos++;
                     }
@@ -151,7 +153,7 @@ namespace ITVComponents.CommandLineParser
                 string rawVal = command.Substring(startPos, nextPos);
                 if (isQuoted)
                 {
-                    rawVal = rawVal.Substring(completlyQuoted ? 0 : 1, rawVal.Length - (completlyQuoted ? 0 : 1)).Replace("\"\"","\"");
+                    rawVal = rawVal.Substring((completlyQuoted && ! tail) ? 0 : 1, rawVal.Length - ((completlyQuoted && ! tail) ? 0 : 1)).Replace("\"\"","\"").Replace("\\\"","\"");
                 }
 
                 try

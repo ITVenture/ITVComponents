@@ -1,0 +1,25 @@
+﻿@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.Hosting
+@using System.Drawing
+@using System.Text.Encodings.Web
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@inject IStringLocalizer<IdentityMessages> localizer
+@inject IOptions<ViewOptions> viewOptions
+@{
+    Layout = viewOptions.Value.LayoutPage;
+    ViewData["Title"] = localizer["Register"];
+}
+<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.COB/js/viewScripts.min.js"></script>
+
+<h1>@ViewData["Title"]</h1>
+
+@Html.Kendo().TabStrip().Name("LoginTypeTab").Items(a =>
+{
+    a.Add().Text(localizer["Register as Company"]).LoadContentFrom("_RegisterCompany", "Registration", new {returnUrl=ViewData["returnUrl"]}).Selected(true);
+    a.Add().Text(localizer["Register as User"]).LoadContentFrom("_RegisterUser", "Registration", new {returnUrl=ViewData["returnUrl"]});
+})
+

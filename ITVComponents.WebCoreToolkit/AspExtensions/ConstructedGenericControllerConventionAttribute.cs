@@ -14,6 +14,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
 
         public void Apply(ControllerModel controller)
         {
+            
             if (!controller.ControllerType.IsGenericType)
             {
                 return;

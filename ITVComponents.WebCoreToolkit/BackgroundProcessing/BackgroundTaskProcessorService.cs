@@ -65,6 +65,10 @@ namespace ITVComponents.WebCoreToolkit.BackgroundProcessing
                             {
                                 scope.ServiceProvider.PrepareContext(task.ConservedContext);
                             }
+                            else
+                            {
+                                scope.ServiceProvider.PrepareEmptyContext();
+                            }
 
                             await task.Task(
                                 new BackgroundTaskContext(scope.ServiceProvider,

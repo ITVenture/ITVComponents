@@ -10,14 +10,14 @@
 .sort-ignore {
 }
 
-a.itv-grid-button {
+a.itv-grid-button,
+button.itv-grid-button {
     border: 0;
     width: 30px;
     height: 30px;
     min-width: 0 !important;
     max-width: 30px !important;
     text-align: center !important;
-    /*padding: 7px 1px 0 7px !important;*/
     background: no-repeat center;
     background-size: contain;
     overflow: hidden;
@@ -28,6 +28,7 @@ a.itv-grid-button {
     background-repeat: no-repeat;
     vertical-align: top !important;
     padding: 7px 1px 0 7px !important;
+    box-shadow: none;
 }
 
 .glyphSprite {
@@ -53,11 +54,13 @@ a.itv-grid-button {
     line-height: 0;*/
 }
 
-a.itv-strong-button > span {
+a.itv-strong-button > span,
+button.itv-strong-button > span {
     color: black;
 }
 
-a.itv-weak-button > span {
+a.itv-weak-button > span,
+button.itv-weak-button > span {
     color: lightgray !important;
 }
 
@@ -156,7 +159,7 @@ a.itv-weak-button > span {
 div.k-grid .k-grid-edit,
 div.k-grid .k-grid-delete,
 div.k-grid .k-grid-cancel,
-/*div.k-grid .k-grid-update,*/
+div.k-grid .k-grid-update,
 div.k-grid .k-grid-cover-page,
 div.k-grid .k-grid-document  {
     display:inline-block;
@@ -168,7 +171,6 @@ div.k-grid .k-grid-document  {
     vertical-align: top !important;
     min-width:0 !important;
     max-width: 30px !important;
-    border:0;
     background-size: contain;
     box-shadow:none;
     white-space: nowrap;
@@ -181,7 +183,7 @@ div.k-grid .k-grid-document  {
     div.k-grid .k-grid-edit:not(:hover),
     div.k-grid .k-grid-delete:not(:hover),
     div.k-grid .k-grid-cancel:not(:hover),
-    /*div.k-grid .k-grid-update,*/
+    /*div.k-grid .k-grid-update:not(:hover),*/
     div.k-grid .k-grid-cover-page:not(:hover),
     div.k-grid .k-grid-document:not(:hover) {
         background-repeat:no-repeat;
@@ -250,6 +252,7 @@ div.k-grid .k-grid-document  {
 }
 
 a.itv-grid-button,
+button.itv-grid-button,
 .k-command-cell > .k-button {
     margin-top: calc(-1px + -.1rem) !important;
     margin-bottom: calc(-1px + -.1rem) !important;

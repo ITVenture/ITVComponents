@@ -19,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
     }
 
     public interface ITenantTemplateHelper<TContext>:ITenantTemplateHelper
-    where TContext: DbContext, IBaseTenantContext
+    where TContext: IBaseTenantContext
     {
         TenantTemplateMarkup ExtractTemplate(Tenant tenant);
 

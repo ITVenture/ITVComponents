@@ -1,0 +1,10 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.ConfirmEmailChangeModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Confirm email change"];
+}
+
+<h1>@ViewData["Title"]</h1>
+<partial name="_StatusMessage" model="Model.StatusMessage" />

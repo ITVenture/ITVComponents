@@ -1,0 +1,146 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Localization.Model
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
+@using Kendo.Mvc.TagHelpers
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage.CreateTenantModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Create a new company."];
+    var listOfTerms = localizer.FromJson<List<PrePostValLocalizationBlock>>("ListOfTerms");
+}
+@{
+    Layout = "_Layout.cshtml";
+}
+<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.COB/js/viewScripts.min.js"></script>
+
+<div class="col-sm-11">
+
+            <form asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="RegisterCompany" method="post">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h4>@localizer["Create a new company."]</h4>
+                        <hr/>
+                        <div asp-validation-summary="All" class="text-danger"></div>
+                        <div class="form-group">
+                            <label asp-for="Input.Email"></label>
+                            <input asp-for="Input.Email" class="form-control"/>
+                            <span asp-validation-for="Input.Email" class="text-danger"></span>
+                        </div>
+                        <div class="form-group">
+                            <label asp-for="Input.PhoneNumber"></label>
+                            <input asp-for="Input.PhoneNumber" class="form-control"/>
+                            <span asp-validation-for="Input.PhoneNumber" class="text-danger"></span>
+                        </div>
+                        <div class="form-group">
+                            <label asp-for="Input.Name"></label>
+                            <input asp-for="Input.Name" class="form-control"/>
+                            <span asp-validation-for="Input.Name" class="text-danger"></span>
+                        </div>
+                        <div class="form-group">
+                            <label asp-for="Input.Addition1"></label>
+                            <input asp-for="Input.Addition1" class="form-control"/>
+                            <span asp-validation-for="Input.Addition1" class="text-danger"></span>
+                        </div>
+                        <div class="form-group">
+                            <label asp-for="Input.Addition2"></label>
+                            <input asp-for="Input.Addition2" class="form-control"/>
+                            <span asp-validation-for="Input.Addition2" class="text-danger"></span>
+                        </div>
+                        <div class="row">
+                            <div class="form-group col-6">
+                                <label asp-for="Input.Street"></label>
+                                <input asp-for="Input.Street" class="form-control"/>
+                                <span asp-validation-for="Input.Street" class="text-danger"></span>
+                            </div>
+                            <div class="form-group col-4">
+                                <label asp-for="Input.Number"></label>
+                                <input asp-for="Input.Number" class="form-control"/>
+                                <span asp-validation-for="Input.Number" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="form-group col-3">
+                                <label asp-for="Input.Zip"></label>
+                                <input asp-for="Input.Zip" class="form-control"/>
+                                <span asp-validation-for="Input.Zip" class="text-danger"></span>
+                            </div>
+                            <div class="form-group col-7">
+                                <label asp-for="Input.City"></label>
+                                <input asp-for="Input.City" class="form-control"/>
+                                <span asp-validation-for="Input.City" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 offset-md-1">
+                        <div class="form-group">
+                            <kendo-switch for="Input.UseInvoiceAddr" />
+                            <!--<input asp-for="Input.UseInvoiceAddr"/>-->
+                            <label asp-for="Input.UseInvoiceAddr"></label>
+                        </div>
+                        <div class="form-group">
+                            <label asp-for="Input.InvoiceName"></label>
+                            <input asp-for="Input.InvoiceName" class="form-control"/>
+                            <span asp-validation-for="Input.InvoiceName" class="text-danger"></span>
+                        </div>
+                        <div class="form-group">
+                            <label asp-for="Input.InvoiceAddition1"></label>
+                            <input asp-for="Input.InvoiceAddition1" class="form-control"/>
+                            <span asp-validation-for="Input.InvoiceAddition1" class="text-danger"></span>
+                        </div>
+                        <div class="form-group">
+                            <label asp-for="Input.InvoiceAddition2"></label>
+                            <input asp-for="Input.InvoiceAddition2" class="form-control"/>
+                            <span asp-validation-for="Input.InvoiceAddition2" class="text-danger"></span>
+                        </div>
+                        <div class="row">
+                            <div class="form-group col-6">
+                                <label asp-for="Input.InvoiceStreet"></label>
+                                <input asp-for="Input.InvoiceStreet" class="form-control"/>
+                                <span asp-validation-for="Input.InvoiceStreet" class="text-danger"></span>
+                            </div>
+                            <div class="form-group col-4">
+                                <label asp-for="Input.InvoiceNumber"></label>
+                                <input asp-for="Input.InvoiceNumber" class="form-control"/>
+                                <span asp-validation-for="Input.InvoiceNumber" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="form-group col-3">
+                                <label asp-for="Input.InvoiceZip"></label>
+                                <input asp-for="Input.InvoiceZip" class="form-control"/>
+                                <span asp-validation-for="Input.InvoiceZip" class="text-danger"></span>
+                            </div>
+                            <div class="form-group col-7">
+                                <label asp-for="Input.InvoiceCity"></label>
+                                <input asp-for="Input.InvoiceCity" class="form-control"/>
+                                <span asp-validation-for="Input.InvoiceCity" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <kendo-switch for="Input.AcceptTOS" always-validate="true" />
+                            <!--<input asp-for="Input.UseInvoiceAddr"/>-->
+                            <label asp-for="Input.AcceptTOS"></label>
+                            <span asp-validation-for="Input.AcceptTOS" class="text-danger"></span>
+                            <ul class="list-inline figure-caption">
+                                @foreach (var item in listOfTerms)
+                                {
+                                    <li class="list-inline-item">@item.Title<a href="@item.TagTx">@item.Pre</a></li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <button type="submit" class="btn btn-primary">@localizer["Register_Button"]</button>
+                    </div>
+                </div>
+            </form>
+        </div>

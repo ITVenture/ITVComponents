@@ -1,0 +1,68 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Localization.Model
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage
+@using Kendo.Mvc.TagHelpers
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@model TwoFactorAuthenticationModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Two-factor authentication (2FA)"];
+    ViewData["ActivePage"] = ManageNavPages.TwoFactorAuthentication;
+}
+@{
+    Layout = "_Layout.cshtml";
+}
+
+<partial name="_StatusMessage" for="StatusMessage" />
+<h4>@ViewData["Title"]</h4>
+@if (Model.Is2faEnabled)
+{
+    if (Model.RecoveryCodesLeft == 0)
+    {
+        var alertBlock = localizer.FromJson<PrePostValLocalizationBlock>("NoCodesLeftBlock");
+
+        <div class="alert alert-danger">
+            <strong>@alertBlock.Title</strong>
+            <p>@alertBlock.Pre<a asp-page="./GenerateRecoveryCodes">@alertBlock.TagTx</a>@alertBlock.Post</p>
+        </div>
+    }
+    else if (Model.RecoveryCodesLeft == 1)
+    {
+        var alertBlock = localizer.FromJson<PrePostValLocalizationBlock>("OneCodeLeftBlock");
+        <div class="alert alert-danger">
+            <strong>@alertBlock.Title</strong>
+            <p>@alertBlock.Pre<a asp-page="./GenerateRecoveryCodes">@alertBlock.TagTx</a>@alertBlock.Post</p>
+        </div>
+    }
+    else if (Model.RecoveryCodesLeft <= 3)
+    {
+        var alertBlock = localizer.FromJson<PrePostValLocalizationBlock>("NCodesLeftBlock",Model.RecoveryCodesLeft);
+        <div class="alert alert-warning">
+            <strong>@alertBlock.Title</strong>
+            <p>@alertBlock.Pre<a asp-page="./GenerateRecoveryCodes">@alertBlock.TagTx</a>@alertBlock.Post</p>
+        </div>
+    }
+
+    if (Model.IsMachineRemembered)
+    {
+        <form method="post" style="display: inline-block">
+            <button type="submit" class="btn btn-default">@localizer["Forget this browser"]</button>
+        </form>
+    }
+    <a asp-page="./Disable2fa" class="btn btn-default">Disable 2FA</a>
+    <a asp-page="./GenerateRecoveryCodes" class="btn btn-default">@localizer["Reset recovery codes"]</a>
+}
+
+<h5>Authenticator app</h5>
+@if (!Model.HasAuthenticator)
+{
+    <a id="enable-authenticator" asp-page="./EnableAuthenticator" class="btn btn-default">@localizer["Add authenticator app"]</a>
+}
+else
+{
+    <a id="enable-authenticator" asp-page="./EnableAuthenticator" class="btn btn-default">@localizer["Setup authenticator app"]</a>
+    <a id="reset-authenticator" asp-page="./ResetAuthenticator" class="btn btn-default">@localizer["Reset authenticator app"]</a>
+}

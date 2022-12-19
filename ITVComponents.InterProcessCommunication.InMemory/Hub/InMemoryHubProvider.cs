@@ -21,8 +21,6 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
     {
         private readonly string hubAddresses;
         private readonly IHubFactory hubFactory;
-        private readonly string basePath;
-        private readonly PluginFactory factory;
         private IServiceHub hub;
         private bool ownsBroker = true;
 
@@ -45,7 +43,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         /// </summary>
         public string UniqueName { get; set; }
 
-        public EndPointBroker Broker { get; }
+        public IEndPointBroker Broker { get; }
 
         private IServiceHub Hub => hub ??= hubFactory.CreateHub(this);
 
@@ -53,13 +51,11 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         /// Initializes a new instance of the ServiceHubProvider class
         /// </summary>
         /// <param name="hubAddresses">the hub-addresses for this serviceHub</param>
-        /// <param name="hubFactory">the factory object that is used to create a service hub that handles incoming messages</param>
         /// <param name="factory">a factory that provides access to other plugins</param>
-        public ServiceHubProvider(string hubAddresses, IHubFactory hubFactory, PluginFactory factory)
+        public ServiceHubProvider(string hubAddresses, IHubFactory hubFactory)
         {
             this.hubAddresses = hubAddresses;
             this.hubFactory = hubFactory;
-            this.factory = factory;
             Broker = new EndPointBroker();
         }
 
@@ -70,11 +66,10 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         /// <param name="hubAddresses">the hub-addresses for this serviceHub</param>
         /// <param name="hubFactory">the factory object that is used to create a service hub that handles incoming messages</param>
         /// <param name="factory">a factory that provides access to other plugins</param>
-        public ServiceHubProvider(ITVComponents.InterProcessCommunication.MessagingShared.Hub.IServiceHubProvider parent, string hubAddresses, IHubFactory hubFactory, PluginFactory factory)
+        public ServiceHubProvider(ITVComponents.InterProcessCommunication.MessagingShared.Hub.IServiceHubProvider parent, string hubAddresses, IHubFactory hubFactory)
         {
             this.hubAddresses = hubAddresses;
             this.hubFactory = hubFactory;
-            this.factory = factory;
             Broker = parent.Broker;
             ownsBroker = false;
         }

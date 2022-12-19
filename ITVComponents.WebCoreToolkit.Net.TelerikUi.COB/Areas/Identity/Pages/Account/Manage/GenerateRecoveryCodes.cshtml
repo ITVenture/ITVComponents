@@ -1,0 +1,38 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Localization.Model
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage
+@using Kendo.Mvc.TagHelpers
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage.GenerateRecoveryCodesModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Generate two-factor authentication (2FA) recovery codes"];
+    ViewData["ActivePage"] = ManageNavPages.TwoFactorAuthentication;
+    var resetMsg = localizer.FromJson<PrePostValLocalizationBlock>("GenerateRecoveryCodesMsg");
+}
+@{
+    Layout = "_Layout.cshtml";
+}
+
+<partial name="_StatusMessage" for="StatusMessage" />
+<h4>@ViewData["Title"]</h4>
+<div class="alert alert-warning" role="alert">
+    <p>
+        <span class="fad fa-exclamation-triangle"></span>
+        <strong>@resetMsg.Title</strong>
+    </p>
+    <p>
+        @localizer["If you lose your device and don't have the recovery codes you will lose access to your account."]
+    </p>
+    <p>
+        @resetMsg.Pre<a asp-page="./ResetAuthenticator">@resetMsg.TagTx</a>@resetMsg.Post
+    </p>
+</div>
+<div>
+    <form method="post" class="form-group">
+        <button class="btn btn-danger" type="submit">@localizer["Generate Recovery Codes"]</button>
+    </form>
+</div>

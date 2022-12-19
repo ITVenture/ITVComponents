@@ -4,16 +4,19 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
 using ITVComponents.Settings.Native;
 using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Saml.Configuration;
 using ITVComponents.WebCoreToolkit.Saml.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Sustainsys.Saml2;
+using Sustainsys.Saml2.AspNetCore2;
 using Sustainsys.Saml2.Configuration;
 using Sustainsys.Saml2.Metadata;
 using Sustainsys.Saml2.Saml2P;
@@ -30,6 +33,16 @@ namespace ITVComponents.WebCoreToolkit.Saml
             var retVal=  config.GetSection<SamlOptions>(path);
             config.RefResolve(retVal);
             return retVal;
+        }
+
+        [ServiceRegistrationMethod]
+        public static void RegisterServices(IServiceCollection services, [WebPartConfig] SamlOptions webPartCfg, [SharedObjectHeap] ISharedObjHeap sharedObjects)
+        {
+            if (!string.IsNullOrEmpty(webPartCfg.AuthenticationScheme))
+            {
+                var l = sharedObjects.Property<List<string>>("SignInSchemes", true);
+                l.Value.AddIfMissing(webPartCfg.AuthenticationScheme, true);
+            }
         }
 
         [AuthenticationRegistrationMethod]

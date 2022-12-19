@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
@@ -8,8 +9,11 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewModel;
+using ITVComponents.WebCoreToolkit.Security;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
@@ -55,11 +59,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     {
         private readonly TContext db;
         private readonly IOptions<SecurityViewsOptions> options;
+        private readonly IPermissionScope permissionScope;
 
-        public DiagnosticsQueryController(TContext db, IOptions<SecurityViewsOptions> options)
+        public DiagnosticsQueryController(TContext db, IOptions<SecurityViewsOptions> options, IPermissionScope permissionScope)
         {
             this.db = db;
             this.options = options;
+            this.permissionScope = permissionScope;
             db.ShowAllTenants = true;
         }
 

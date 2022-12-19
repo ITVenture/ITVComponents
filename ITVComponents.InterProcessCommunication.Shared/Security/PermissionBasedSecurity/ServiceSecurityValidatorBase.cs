@@ -12,15 +12,17 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
     /// </summary>
     public abstract class ServiceSecurityValidatorBase:ICustomServerSecurity, IPlugin
     {
-        protected readonly PluginFactory factory;
+        protected IFactoryWrapper factory;
+
+        private IServiceProvider services;
 
         /// <summary>
         /// Initializes a new instance of the ServiceSecurityValidator class
         /// </summary>
-        /// <param name="factory">the pluginfactory that provides objects that may be accessed by clients</param>
-        public ServiceSecurityValidatorBase(PluginFactory factory)
+        /// <param name="services">a services collection that provides services that are available in the current execution scope</param>
+        public ServiceSecurityValidatorBase(IServiceProvider services)
         {
-            this.factory = factory;
+            this.services = services;
         }
 
         /// <summary>
@@ -39,11 +41,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
         {
             bool retVal = false;
             reason = "the object is unknown";
-            if (factory.Contains(objectName) && userIdentity != null)
+            if (factory.Contains(objectName,services, out var securityRequired) && userIdentity != null)
             {
                 retVal = true;
                 reason = string.Empty;
-                var obj = factory[objectName];
+                var obj = factory[objectName, services];
                 var type = obj.GetType();
                 HasPermissionAttribute[] securityAttributes = type.GetCustomAttributes(typeof(HasPermissionAttribute)).Cast<HasPermissionAttribute>().ToArray();
                 if (securityAttributes.Length != 0)
@@ -138,6 +140,16 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
         public IEnumerable<KeyValuePair<string,string>> GetCustomProperties(IIdentity identity)
         {
             return SelectCustomProperties(identity);
+        }
+
+        public void Attach(IFactoryWrapper factory)
+        {
+            if (this.factory != null && this.factory != factory)
+            {
+                throw new InvalidOperationException("Only one service can be attached to this Service-validator");
+            }
+
+            this.factory = factory;
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

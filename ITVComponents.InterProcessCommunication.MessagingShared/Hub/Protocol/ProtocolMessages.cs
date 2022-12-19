@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol
 {
     [Serializable]
-    public class ServiceDiscoverMessage
+    public class ServiceDiscoverMessage: IServiceMessage
     {
         public string TargetService { get; set; }
     }
 
     [Serializable]
-    public class ServiceDiscoverResponseMessage
+    public class ServiceDiscoverResponseMessage: IServiceMessage
     {
         public string TargetService { get; set; }
         public bool Ok { get; set; }
@@ -21,7 +21,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol
     }
 
     [Serializable]
-    public class ServerOperationMessage
+    public class ServerOperationMessage: IServiceMessage
     {
         public string TargetService { get; set; }
         public string OperationId { get; set; }
@@ -31,7 +31,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol
     }
 
     [Serializable]
-    public class ServiceOperationResponseMessage
+    public class ServiceOperationResponseMessage: IServiceMessage, IResponderMessage
     {
         public string TargetService { get; set; }
         public string OperationId { get; set; }
@@ -41,7 +41,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol
     }
 
     [Serializable]
-    public class RegisterServiceMessage
+    public class RegisterServiceMessage: IServerMessage
     {
         public string ServiceName { get; set; }
         public int Ttl { get; set; }
@@ -57,7 +57,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol
     }
 
     [Serializable]
-    public class ServiceSessionOperationMessage
+    public class ServiceSessionOperationMessage: IServerMessage
     {
         public string ServiceName { get; set; }
         public string SessionTicket { get; set; }
@@ -72,5 +72,21 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol
         public bool Ok { get; set; }
         public string Reason { get; set; }
         public int PendingOperationsCount { get; set; }
+    }
+
+    public interface IServiceMessage
+    {
+        string TargetService { get; set; }
+    }
+
+    public interface IServerMessage:IResponderMessage
+    {
+        string ServiceName { get; set; }
+
+    }
+
+    public interface IResponderMessage
+    {
+        string ResponderFor { get; set; }
     }
 }

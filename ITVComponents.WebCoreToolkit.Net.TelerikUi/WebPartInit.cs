@@ -6,6 +6,7 @@ using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.Hubs;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.OpenApi;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options;
 using Microsoft.AspNetCore.Builder;
@@ -82,6 +83,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi
                 {
                     Register(builder, options.TenantParam, false, false, options.UseFilteredForeignKeys, endPointRegistry);
                 }
+
+                if (options.RegisterHub)
+                {
+                    builder.MapHub<GlobalNotificationHub>(
+                        $"/{{{options.TenantParam}:permissionScope}}/Util/GlobalNotificationHub");
+                }
             }
 
             if (options.WithoutTenants)
@@ -104,6 +111,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi
                 if (options.WithoutAreas && options.WithoutSecurity)
                 {
                     Register(builder, null, false, false, options.UseFilteredForeignKeys, endPointRegistry);
+                }
+
+                if (options.RegisterHub)
+                {
+                    builder.MapHub<GlobalNotificationHub>(
+                        "/Util/GlobalNotificationHub");
                 }
             }
         }

@@ -1,0 +1,25 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.ResendEmailConfirmationModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Resend email confirmation"];
+}
+
+<h1>@ViewData["Title"]</h1>
+<h4>Enter your email.</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form method="post">
+            <div asp-validation-summary="All" class="text-danger"></div>
+            <div class="form-group">
+                <label asp-for="Input.Email"></label>
+                <input asp-for="Input.Email" class="form-control" />
+                <span asp-validation-for="Input.Email" class="text-danger"></span>
+            </div>
+            <button type="submit" class="btn btn-primary">@localizer["Resend_Button"]</button>
+        </form>
+    </div>
+</div>
+

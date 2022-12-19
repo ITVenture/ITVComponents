@@ -32,5 +32,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
         public List<HealthCheckDefinition> HealthChecks { get; set; } = new();
 
         public bool UseApplicationTokens { get; set; }
+        public bool UseApplicationIdentitySchema { get; set; } = true;
     }
 }

@@ -1,0 +1,12 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.LockoutModel
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Locked out"];
+}
+
+<header>
+    <h1 class="text-danger">@ViewData["Title"]</h1>
+    <p class="text-danger">@localizer["This account has been locked out, please try again later."]</p>
+</header>

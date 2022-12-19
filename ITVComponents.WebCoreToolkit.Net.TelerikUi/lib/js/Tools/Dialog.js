@@ -127,7 +127,22 @@
             }
         };
 
-        obj.Open = function (refObj) {
+        obj.Open = function (refObj, success, cancel) {
+            if (typeof (success) === "function") {
+                obj.onAccept(success);
+                if (typeof (cancel) === "function") {
+                    obj.onCancel(cancel);
+                }
+
+                obj.closedCallbacks = [
+                    function () {
+                        obj.acceptCallbacks = [];
+                        obj.cancelCallbacks = [];
+                        obj.closedCallbacks = [];
+                    }
+                ];
+            }
+
             obj.refObj = refObj;
             for (var i = 0; i < obj.showCallbacks.length; i++) {
                 obj.showCallbacks[i](obj.window, obj.dialog(), obj.refObj);

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 {
-    internal class ProxyWrapper
+    public class ProxyWrapper
     {
         public object Value { get; set; }
 

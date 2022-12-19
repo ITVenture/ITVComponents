@@ -59,17 +59,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
             if (partActivation.ActivateDbContext)
             {
-                if (t != null)
+                if (partActivation.UseApplicationIdentitySchema)
                 {
-                    services.UseDbIdentities(t, options => options.UseSqlServer(partActivation.ConnectionStringName));
+                    var l = sharedObjects.Property<List<string>>("SignInSchemes", true);
+                    l.Value.AddIfMissing(IdentityConstants.ApplicationScheme, true);
                 }
-                else
-                {
-                    services.UseDbIdentities(options => options.UseSqlServer(partActivation.ConnectionStringName));
-                }
-
-                var l = sharedObjects.Property<List<string>>("SignInSchemes", true);
-                l.Value.AddIfMissing(IdentityConstants.ApplicationScheme, true);
             }
 
             if (partActivation.UseNavigation)

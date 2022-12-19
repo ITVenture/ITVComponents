@@ -80,6 +80,20 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
             return from r in Roles join gr in hu.Roles on r.RoleName equals gr select r;
         }
 
+        public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> permissions, string permissionScope)
+        {
+            return from u in (from a in (from t in options.Roles
+                            select new
+                            {
+                                PermissionMap = t.Permissions.Select(n => new { t.RoleName, Permission = n }).ToArray()
+                            })
+                        .SelectMany(i => i.PermissionMap)
+                    join p in permissions on a.Permission equals p
+                    select a.RoleName).Distinct()
+                join r in Roles on u equals r.RoleName
+                select r;
+        }
+
         /// <summary>
         /// Gets an enumeration of CustomUserProperties for the given user
         /// </summary>

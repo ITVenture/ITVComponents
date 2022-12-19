@@ -74,11 +74,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// Initializes a new instance of the Server class
         /// </summary>
         protected BaseServer(PluginFactory factory, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security)
-            : this()
+            : this(new FactoryWrapper(factory, useSecurity))
         {
             this.useExtendedProxying = useExtendedProxying;
             this.serverSecurity = security;
-            this.plugins = new FactoryWrapper(factory, extendedProxies, useSecurity);
+            serverSecurity?.Attach(this.plugins);
         }
 
         /// <summary>
@@ -89,20 +89,37 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="useSecurity">indicates whether to use security on this service</param>
         /// <param name="security">the custom server security implementation to use</param>
         protected BaseServer(IDictionary<string,object> exposedObjects, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security)
-            : this()
+            : this(new DictionaryWrapper(exposedObjects, useSecurity))
         {
             this.useExtendedProxying = useExtendedProxying;
             this.serverSecurity = security;
-            this.plugins = new DictionaryWrapper(exposedObjects, extendedProxies, useSecurity);
+            serverSecurity?.Attach(this.plugins);
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the Server class
+        /// </summary>
+        /// <param name="factory">A custom implementation of a Factory-Wrapper that will provide custom objects that are requested by the client</param>
+        /// <param name="useExtendedProxying">indicates whether to use extended proxies</param>
+        /// <param name="useSecurity">indicates whether to use security on this service</param>
+        /// <param name="security">the custom server security implementation to use</param>
+        protected BaseServer(IFactoryWrapper factory, bool useExtendedProxying, bool useSecurity,
+            ICustomServerSecurity security) : this(factory)
+        {
+            this.useExtendedProxying = useExtendedProxying;
+            this.serverSecurity = security;
+            serverSecurity?.Attach(this.plugins);
         }
 
         /// <summary>
         /// Prevents a default instance of the Server class from being created
         /// </summary>
-        private BaseServer()
+        private BaseServer(IFactoryWrapper wrapper)
         {
             //plugins = new ConcurrentDictionary<string, IPlugin>();
             extendedProxies = new Dictionary<string, ProxyWrapper>();
+            wrapper.AttachProxyDictionary(extendedProxies);
+            this.plugins = wrapper;
             resourceLock = new object();
             threadsOwner = string.Format("::{0}::", GetHashCode());
             eventSubscriptions = new ConcurrentDictionary<string, List<string>>();
@@ -162,22 +179,22 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="propertyName">the name of the property to read</param>
         /// <param name="index">the index required to read the property</param>
         /// <returns>the value of the requested property</returns>
-        protected object GetProperty(string targetObject, string propertyName, object[] index, IIdentity authenticatedUser)
+        protected object GetProperty(string targetObject, string propertyName, object[] index, IIdentity authenticatedUser, IServiceProvider services = null)
         {
             targetObject.LocalOwner(threadsOwner);
-            index = ResolveBuffers(index);
+            index = ResolveBuffers(index, services);
             try
             {
                 if (propertyName != "")
                 {
-                    PropertyInfo pfo = GetPropertyInfo(targetObject, propertyName, BindingFlags.GetProperty);
+                    PropertyInfo pfo = GetPropertyInfo(targetObject, propertyName, BindingFlags.GetProperty, services);
                     string reason = null;
-                    if (!(serverSecurity?.VerifyAccess(pfo, targetObject, null, authenticatedUser, false, out reason) ?? true))
+                    if (!(GetServerSecurity(services)?.VerifyAccess(pfo, targetObject, null, authenticatedUser, false, out reason) ?? true))
                     {
                         throw new InterProcessException(reason, null);
                     }
 
-                    object retVal = pfo.GetValue(plugins[targetObject], index);
+                    object retVal = pfo.GetValue(plugins[targetObject, services], index);
                     if (pfo.PropertyType.IsInterface && useExtendedProxying)
                     {
                         retVal = GetBufferFor(retVal, pfo.PropertyType, authenticatedUser);
@@ -187,14 +204,14 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 }
                 else
                 {
-                    PropertyInfo pfo = GetPropertyInfo(targetObject, index);
+                    PropertyInfo pfo = GetPropertyInfo(targetObject, index, services);
                     string reason = null;
-                    if (!(serverSecurity?.VerifyAccess(pfo, targetObject, index, authenticatedUser, false, out reason) ?? true))
+                    if (!(GetServerSecurity(services)?.VerifyAccess(pfo, targetObject, index, authenticatedUser, false, out reason) ?? true))
                     {
                         throw new InterProcessException(reason, null);
                     }
 
-                    object retVal = pfo.GetValue(plugins[targetObject], index);
+                    object retVal = pfo.GetValue(plugins[targetObject, services], index);
                     if (pfo.PropertyType.IsInterface && useExtendedProxying)
                     {
                         retVal = GetBufferFor(retVal, pfo.PropertyType, authenticatedUser);
@@ -216,39 +233,39 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="propertyName">the propertyname to set</param>
         /// <param name="index">the index used for indexed properties</param>
         /// <param name="value">the new value for the specified property</param>
-        protected void SetProperty(string targetObject, string propertyName, object[] index, object value, IIdentity authenticatedUser)
+        protected void SetProperty(string targetObject, string propertyName, object[] index, object value, IIdentity authenticatedUser, IServiceProvider services = null)
         {
             targetObject.LocalOwner(threadsOwner);
-            index = ResolveBuffers(index);
+            index = ResolveBuffers(index, services);
             var result = value as ProxyResult;
             if (result != null)
             {
-                value = ResolveBuffer(result.UniqueName);
+                value = ResolveBuffer(result.UniqueName, services);
             }
 
             try
             {
                 if (propertyName != "")
                 {
-                    PropertyInfo pfo = GetPropertyInfo(targetObject, propertyName, BindingFlags.SetProperty);
+                    PropertyInfo pfo = GetPropertyInfo(targetObject, propertyName, BindingFlags.SetProperty, services);
                     string reason = null;
-                    if (!(serverSecurity?.VerifyAccess(pfo, targetObject, null, authenticatedUser, true, out reason) ?? true))
+                    if (!(GetServerSecurity(services)?.VerifyAccess(pfo, targetObject, null, authenticatedUser, true, out reason) ?? true))
                     {
                         throw new InterProcessException(reason, null);
                     }
 
-                    pfo.SetValue(plugins[targetObject], value, index);
+                    pfo.SetValue(plugins[targetObject, services], value, index);
                 }
                 else
                 {
-                    PropertyInfo pfo = GetPropertyInfo(targetObject, index);
+                    PropertyInfo pfo = GetPropertyInfo(targetObject, index, services);
                     string reason = null;
-                    if (!(serverSecurity?.VerifyAccess(pfo, targetObject, index, authenticatedUser, true, out reason) ?? true))
+                    if (!(GetServerSecurity(services)?.VerifyAccess(pfo, targetObject, index, authenticatedUser, true, out reason) ?? true))
                     {
                         throw new InterProcessException(reason, null);
                     }
 
-                    pfo.SetValue(plugins[targetObject], value, index);
+                    pfo.SetValue(plugins[targetObject, services], value, index);
                 }
             }
             finally
@@ -270,12 +287,12 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// </summary>
         /// <param name="uniqueObjectName">the unique name of the requested plugin</param>
         /// <returns>indicates wheter such an object exists in the service scope</returns>
-        protected ObjectAvailabilityResult CheckForAvailableProxy(string uniqueObjectName, IIdentity authenticatedUser)
+        protected ObjectAvailabilityResult CheckForAvailableProxy(string uniqueObjectName, IIdentity authenticatedUser, IServiceProvider services = null)
         {
             bool securityRequired;
-            bool available = plugins.Contains(uniqueObjectName, out securityRequired);
+            bool available = plugins.Contains(uniqueObjectName, services, out securityRequired);
             string reason = null;
-            bool denied = securityRequired && available && !serverSecurity.VerifyAccess(uniqueObjectName, authenticatedUser, out reason);
+            bool denied = securityRequired && available && !GetServerSecurity(services).VerifyAccess(uniqueObjectName, authenticatedUser, out reason);
             available &= !denied;
             return new ObjectAvailabilityResult
             {
@@ -311,7 +328,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="arguments">the arguments for the method call</param>
         /// <param name="authenticatedUser">the user that was provided by the connector</param>
         /// <returns>the result of the method call</returns>
-        protected ExecutionResult ExecuteMethod(string targetObject, string methodName, object[] arguments, IIdentity authenticatedUser)
+        protected ExecutionResult ExecuteMethod(string targetObject, string methodName, object[] arguments, IIdentity authenticatedUser, IServiceProvider services = null)
         {
             lock (resourceLock)
             {
@@ -319,7 +336,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 try
                 {
                     bool securityRequired;
-                    object obj = plugins.Contains(targetObject, out securityRequired) ? plugins[targetObject] : null;
+                    object obj = plugins.Contains(targetObject, services, out securityRequired) ? plugins[targetObject, services] : null;
                     if (obj == null)
                     {
                         if (!securityRequired)
@@ -335,8 +352,8 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                     }
 
                     Type typ = obj.GetType();
-                    Type[] arrNu = GetTypeArray(arguments ?? new object[] { });
-                    Type[] arrWu = GetTypeArray(arguments ?? new object[] { })
+                    Type[] arrNu = GetTypeArray(arguments ?? new object[] { }, services);
+                    Type[] arrWu = GetTypeArray(arguments ?? new object[] { }, services)
                         .Concat(new Type[] {typeof(IIdentity)})
                         .ToArray();
                     Type[] arrTp;
@@ -379,7 +396,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                     }
 
                     string reason = null;
-                    if (!(serverSecurity?.VerifyAccess(targetMethod, targetObject, param, authenticatedUser, out reason) ?? true))
+                    if (!(GetServerSecurity(services)?.VerifyAccess(targetMethod, targetObject, param, authenticatedUser, out reason) ?? true))
                     {
                         throw new InterProcessException(reason, null);
                     }
@@ -448,7 +465,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="targetObject">the name of the target object on which to subscribe for an event</param>
         /// <param name="eventName">the event to subscribe for notifications</param>
         /// <returns>a value indicating whether the event subscription was successful</returns>
-        protected bool SubscribeForEvent(string targetObject, string eventName, string sessionId, IIdentity authenticatedUser)
+        protected bool SubscribeForEvent(string targetObject, string eventName, string sessionId, IIdentity authenticatedUser, IServiceProvider services = null)
         {
             try
             {
@@ -460,7 +477,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 if (status.SessionAlive)
                 {
                     AddEventSubscription(targetObject, eventName,
-                        sessionId, authenticatedUser);
+                        sessionId, services, authenticatedUser);
                     if (!status.SessionFunctional)
                     {
                         LogEnvironment.LogDebugEvent($"Added Event-Subscription for the event {eventName} on the object {targetObject} for the session {sessionId}. However, the Event will not be fired, because the return-channel is currently not functional.", LogSeverity.Warning);
@@ -482,7 +499,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// </summary>
         /// <param name="eventName">the event for which to remove the notification subscription</param>
         /// <returns>a value indicating whether the subscription removal was successful</returns>
-        protected bool UnSubscribeEvent(string objectName, string eventName, string sessionId, IIdentity authenticatedUser)
+        protected bool UnSubscribeEvent(string objectName, string eventName, string sessionId, IIdentity authenticatedUser, IServiceProvider services = null)
         {
             bool retVal = false;
             try
@@ -542,9 +559,9 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="propertyName">the name of the property</param>
         /// <param name="memberFlag">a flag indicating whether the property must be readable or writeable</param>
         /// <returns>the propertyinfo of the demanded property</returns>
-        private PropertyInfo GetPropertyInfo(string targetObject, string propertyName, BindingFlags memberFlag)
+        private PropertyInfo GetPropertyInfo(string targetObject, string propertyName, BindingFlags memberFlag, IServiceProvider services)
         {
-            Type t = plugins[targetObject].GetType();
+            Type t = plugins[targetObject, services].GetType();
             return t.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy | memberFlag);
         }
 
@@ -554,9 +571,9 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="targetObject">the targetobject</param>
         /// <param name="index">the index</param>
         /// <returns>the first propertyInfo, that fits the given conditions</returns>
-        private PropertyInfo GetPropertyInfo(string targetObject, object[] index)
+        private PropertyInfo GetPropertyInfo(string targetObject, object[] index, IServiceProvider services)
         {
-            Type t = plugins[targetObject].GetType();
+            Type t = plugins[targetObject, services].GetType();
             Type[] methodTypes = GetTypes(index);
             return
                 (from p in t.GetProperties() where ParametersAccepted(methodTypes, p.GetIndexParameters()) select p)
@@ -632,20 +649,20 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="objectName">the object for which to add an event subscription</param>
         /// <param name="eventName">the name of the subscribed event</param>
         /// <param name="callbackSession">the remote client that will receive the event notification</param>
-        private void AddEventSubscription(string objectName, string eventName, string callbackSession, IIdentity authenticatedUser)
+        private void AddEventSubscription(string objectName, string eventName, string callbackSession, IServiceProvider services, IIdentity authenticatedUser)
         {
             lock (resourceLock)
             {
                 bool securityRequired;
-                if (plugins.Contains(objectName, out securityRequired))
+                if (plugins.Contains(objectName, services, out securityRequired))
                 {
                     string eventIdentifyer = string.Format("{0}_{1}", objectName, eventName);
                     if (!eventSubscriptions.ContainsKey(eventIdentifyer))
                     {
-                        object o = plugins[objectName];
-                        EventInfo d = GetEvent(objectName, eventName);
+                        object o = plugins[objectName, services];
+                        EventInfo d = GetEvent(objectName, eventName, services);
                         string reason = null;
-                        if (!(serverSecurity?.VerifyAccess(d, objectName, authenticatedUser, out reason) ?? true))
+                        if (!(GetServerSecurity(services)?.VerifyAccess(d, objectName, authenticatedUser, out reason) ?? true))
                         {
                             throw new InterProcessException(reason, null);
                         }
@@ -674,9 +691,9 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <param name="targetObject">the unique name of the target object</param>
         /// <param name="eventName">the name of the event</param>
         /// <returns>an eventinfo of the demanded event</returns>
-        private EventInfo GetEvent(string targetObject, string eventName)
+        private EventInfo GetEvent(string targetObject, string eventName, IServiceProvider services)
         {
-            Type t = plugins[targetObject].GetType();
+            Type t = plugins[targetObject, services].GetType();
             return t.GetEvent(eventName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
         }
 
@@ -766,7 +783,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             }
         }
 
-        private Type[] GetTypeArray(object[] args)
+        private Type[] GetTypeArray(object[] args, IServiceProvider services)
         {
             Type[] retVal = new Type[args.Length];
             for (int i = 0; i < retVal.Length; i++)
@@ -777,7 +794,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                     var result = args[i] as ProxyResult;
                     if (result != null)
                     {
-                        args[i] = ResolveBuffer(result.UniqueName);
+                        args[i] = ResolveBuffer(result.UniqueName, services);
                     }
 
                     retVal[i] = args[i].GetType();
@@ -785,7 +802,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 else if (args[i] is TypedParam)
                 {
                     retVal[i] = ((TypedParam) args[i]).NullType;
-                    args[i] = ((TypedParam) args[i]).GetValue(ResolveBuffer);
+                    args[i] = ((TypedParam)args[i]).GetValue(n => ResolveBuffer(n, services));
                 }
                 else
                 {
@@ -816,7 +833,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             return retVal;
         }
 
-        private object[] ResolveBuffers(object[] values)
+        private object[] ResolveBuffers(object[] values, IServiceProvider services)
         {
             object[] retVal = new object[values.Length];
             for (int i = 0; i < retVal.Length; i++)
@@ -824,16 +841,16 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 var result = values[i] as ProxyResult;
                 if (result != null)
                 {
-                    retVal[i] = ResolveBuffer(result.UniqueName);
+                    retVal[i] = ResolveBuffer(result.UniqueName, services);
                 }
             }
 
             return retVal;
         }
 
-        private object ResolveBuffer(string name)
+        private object ResolveBuffer(string name, IServiceProvider services)
         {
-            return plugins[name];
+            return plugins[name, services];
         }
 
         private ProxyResult GetBufferFor(object value, Type interfaceType, IIdentity owner)
@@ -877,6 +894,23 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             {
                 return await t;
             };
+        }
+
+        private ICustomServerSecurity GetServerSecurity(IServiceProvider services)
+        {
+            if (serverSecurity != null)
+            {
+                return serverSecurity;
+            }
+
+            if (services != null)
+            {
+                var retVal = services.GetService(typeof(ICustomServerSecurity)) as ICustomServerSecurity;
+                retVal.Attach(plugins);
+                return retVal;
+            }
+
+            return null;
         }
 
         /// <summary>

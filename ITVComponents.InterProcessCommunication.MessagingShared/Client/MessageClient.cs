@@ -27,13 +27,19 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
         public MessageClient(IServiceHubProvider serviceHub, string targetService, bool useEvents)
         {
+            var tailId = targetService.IndexOf("@");
+            string tail = null;
+            if (tailId != -1)
+            {
+                tail = targetService.Substring(tailId);
+            }
             if (!useEvents)
             {
                 connection = new LocalServiceHubConsumer(null, serviceHub, targetService, null);
             }
             else
             {
-                connection = new LocalServiceHubConsumer($"{Guid.NewGuid()}", serviceHub, targetService, null);
+                connection = new LocalServiceHubConsumer($"{Guid.NewGuid()}{tail}", serviceHub, targetService, null);
                 isBidirectional = true;
             }
 

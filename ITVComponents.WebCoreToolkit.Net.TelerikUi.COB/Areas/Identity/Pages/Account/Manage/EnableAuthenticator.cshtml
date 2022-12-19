@@ -1,0 +1,74 @@
+﻿@page
+@inject IStringLocalizer<IdentityMessages> localizer
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Localization
+@using Kendo.Mvc.TagHelpers
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage.EnableAuthenticatorModel
+@{
+    ViewData["Title"] = localizer["Configure authenticator app"];
+    ViewData["ActivePage"] = ManageNavPages.TwoFactorAuthentication;
+    var msftAuthenticator = localizer.FromJson<AuthenticatorInfo>("MsftAuthenticator");
+    var googleAuthenticator = localizer.FromJson<AuthenticatorInfo>("GoogleAuthenticator");
+}
+@{
+    Layout = "_Layout.cshtml";
+}
+
+<partial name="_StatusMessage" for="StatusMessage" />
+<h4>@ViewData["Title"]</h4>
+<div>
+    <p>@localizer["To use an authenticator app go through the following steps:"]</p>
+    <ol class="list">
+        <li>
+            <p>
+                @msftAuthenticator.Intro
+                <a href="https://go.microsoft.com/fwlink/?Linkid=825072">@msftAuthenticator.AndroidText</a>@msftAuthenticator.PostAndroidText
+                <a href="https://go.microsoft.com/fwlink/?Linkid=825073">@msftAuthenticator.IOSText</a>@msftAuthenticator.PostIOSText
+                @msftAuthenticator.Outro
+                @googleAuthenticator.Intro
+                <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2&amp;hl=en">@googleAuthenticator.AndroidText</a>@googleAuthenticator.PostAndroidText
+                <a href="https://itunes.apple.com/us/app/google-authenticator/id388497605?mt=8">@googleAuthenticator.IOSText</a>@googleAuthenticator.PostIOSText
+                @googleAuthenticator.Outro
+            </p>
+        </li>
+        <li>
+            <div id="qrCode"></div>
+            <div id="qrCodeData" data-url="@Html.Raw(@Model.AuthenticatorUri)"></div>
+        </li>
+        <li>
+            <p>
+                @(localizer[@"Once you have scanned the QR code or input the key above, your two factor authentication app will provide you
+with a unique code. Enter the code in the confirmation box below."])
+            </p>
+            <div class="row">
+                <div class="col-md-6">
+                    <form id="send-code" method="post">
+                        <div class="form-group">
+                            <label asp-for="Input.Code" class="control-label">@localizer["Verification Code"]</label>
+                            <input asp-for="Input.Code" class="form-control" autocomplete="off" />
+                            <span asp-validation-for="Input.Code" class="text-danger"></span>
+                        </div>
+                        <button type="submit" class="btn btn-primary">@localizer["Activate Authenticator app"]</button>
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    </form>
+                </div>
+            </div>
+        </li>
+    </ol>
+</div>
+
+@section Scripts {
+    <script src="~/lib/qrcodejs/qrcode.min.js"></script>
+    <script type="text/javascript">
+        new QRCode(document.getElementById("qrCode"),
+            {
+                text: "@Html.Raw(Model.AuthenticatorUri)",
+                width: 150,
+                height: 150
+            });
+    </script>
+}

@@ -9,13 +9,14 @@ using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Internal;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.Logging;
 using Exception = System.Exception;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
 {
-    public class EndPointBroker : IDisposable
+    public class EndPointBroker : IDisposable, IEndPointBroker
     {
         private ConcurrentDictionary<string, ConcurrentQueue<OperationWaitHandle>> messages = new ConcurrentDictionary<string, ConcurrentQueue<OperationWaitHandle>>();
         private ConcurrentDictionary<string, ServiceStatus> services = new ConcurrentDictionary<string, ServiceStatus>();
@@ -23,52 +24,60 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
         private Random rnd = new Random();
         private Timer tickOpenWaits;
         private object registrationLock = new object();
-
+        private ConcurrentDictionary<string, IEndPointBroker> children = new ConcurrentDictionary<string, IEndPointBroker>();
         public EndPointBroker()
         {
             tickOpenWaits = new Timer(TickOpenWaits, null, Timeout.Infinite, Timeout.Infinite);
             tickOpenWaits.Change(0, 5000);
         }
 
-        public Task<ServiceOperationResponseMessage> SendMessageToServer(ServerOperationMessage message)
+        public Task<ServiceOperationResponseMessage> SendMessageToServer(ServerOperationMessage message, IServiceProvider services)
         {
             try
             {
-                if (GrabService(message.TargetService, null, true, out var service, out var operations, out var waitingMessages))
+                if (!IsRemoteMessage(message, out var remoteBroker))
                 {
-                    if (service.ServiceKind == ServiceStatus.ServiceType.Local)
+                    if (GrabService(message.TargetService, null, true, out var service, out var operations,
+                            out var waitingMessages))
                     {
-                        return Task.FromResult(service.LocalClient.ProcessMessage(message));
-                    }
-
-                    lock (service)
-                    {
-                        OperationWaitHandle hnd = new OperationWaitHandle(message);
-                        try
+                        if (service.ServiceKind == ServiceStatus.ServiceType.Local)
                         {
-                            if (service.OpenTaskWait != null)
-                            {
-                                var t = service.OpenTaskWait;
-                                service.OpenTaskWait = null;
-                                t.SetResult(hnd);
-                            }
-                            else
-                            {
-                                operations.Enqueue(hnd);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            hnd.ServerResponse.SetException(ex);
+                            return Task.FromResult(service.LocalClient.ProcessMessage(message, services));
                         }
 
+                        lock (service)
+                        {
+                            OperationWaitHandle hnd = new OperationWaitHandle(message);
+                            try
+                            {
+                                if (service.OpenTaskWait != null)
+                                {
+                                    var t = service.OpenTaskWait;
+                                    service.OpenTaskWait = null;
+                                    t.SetResult(hnd);
+                                }
+                                else
+                                {
+                                    operations.Enqueue(hnd);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                hnd.ServerResponse.SetException(ex);
+                            }
 
-                        return hnd.ServerResponse.Task;
+
+                            return hnd.ServerResponse.Task;
+                        }
+
                     }
 
+                    throw new CommunicationException("The requested service is not available");
                 }
-
-                throw new CommunicationException("The requested service is not available");
+                else
+                {
+                    return remoteBroker.SendMessageToServer(message, services);
+                }
             }
             catch (Exception ex)
             {
@@ -90,9 +99,17 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
         /// <param name="value">the tag-value</param>
         public void AddServiceTag(ServiceSessionOperationMessage serviceSession, string tagName, string value)
         {
-            if (GrabService(serviceSession.ServiceName, serviceSession.SessionTicket, true, out var service, out var operations, out var waitingMessages))
+            if (!IsRemoteMessage(serviceSession, out var remoteBroker))
             {
-                service.SetTag(tagName, value);
+                if (GrabService(serviceSession.ServiceName, serviceSession.SessionTicket, true, out var service,
+                        out var operations, out var waitingMessages))
+                {
+                    service.SetTag(tagName, value);
+                }
+            }
+            else
+            {
+                remoteBroker.AddServiceTag(serviceSession, tagName, value);
             }
         }
 
@@ -110,199 +127,248 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
 
         public Task<ServerOperationMessage> NextRequest(ServiceSessionOperationMessage serviceSession)
         {
-            if (GrabService(serviceSession.ServiceName, serviceSession.SessionTicket, true, out var service, out var operations, out var waitingMessages))
+            if (!IsRemoteMessage(serviceSession, out var remoteBroker))
             {
-                if (service.ServiceKind == ServiceStatus.ServiceType.Local)
+                if (GrabService(serviceSession.ServiceName, serviceSession.SessionTicket, true, out var service,
+                        out var operations, out var waitingMessages))
                 {
-                    throw new CommunicationException("Not used for local clients!");
-                }
-
-                Task<OperationWaitHandle> retTask = null;
-                lock (service)
-                {
-                    if (operations.IsEmpty && service.OpenTaskWait == null)
+                    if (service.ServiceKind == ServiceStatus.ServiceType.Local)
                     {
-                        retTask = (service.OpenTaskWait = new TaskCompletionSource<OperationWaitHandle>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+                        throw new CommunicationException("Not used for local clients!");
                     }
-                    else if (!operations.IsEmpty && operations.TryDequeue(out var retVal))
-                    {
-                        retTask = Task.FromResult(retVal);
-                    }
-                }
 
-                if (retTask != null)
-                {
-                    return retTask.ContinueWith((t, s) =>
+                    Task<OperationWaitHandle> retTask = null;
+                    lock (service)
                     {
-                        if (t.Result != null && !t.Result.ClientRequest.TickBack)
+                        if (operations.IsEmpty && service.OpenTaskWait == null)
                         {
-                            waitingMessages.TryAdd(t.Result.ClientRequest.OperationId, t.Result);
+                            retTask = (service.OpenTaskWait =
+                                new TaskCompletionSource<OperationWaitHandle>(TaskCreationOptions
+                                    .RunContinuationsAsynchronously)).Task;
                         }
+                        else if (!operations.IsEmpty && operations.TryDequeue(out var retVal))
+                        {
+                            retTask = Task.FromResult(retVal);
+                        }
+                    }
 
-                        return t.Result?.ClientRequest;
-                    }, null, TaskContinuationOptions.None);
+                    if (retTask != null)
+                    {
+                        return retTask.ContinueWith((t, s) =>
+                        {
+                            if (t.Result != null && !t.Result.ClientRequest.TickBack)
+                            {
+                                waitingMessages.TryAdd(t.Result.ClientRequest.OperationId, t.Result);
+                            }
+
+                            return t.Result?.ClientRequest;
+                        }, null, TaskContinuationOptions.None);
+                    }
+
+                    //return retTask;
                 }
 
-                //return retTask;
+                throw new CommunicationException("Unknown Service-grab - Error");
             }
 
-            throw new CommunicationException("Unknown Service-grab - Error");
+            return remoteBroker.NextRequest(serviceSession);
+            
         }
 
         public void FailOperation(ServiceSessionOperationMessage serviceSession, string req, Exception ex)
         {
-            if (req != null)
+            if (!IsRemoteMessage(serviceSession, out var remoteBroker))
             {
-                try
+                if (req != null)
                 {
-                    if (GrabService(serviceSession.ServiceName, serviceSession.SessionTicket, true, out var service, out var operations, out var waitingMessages))
+                    try
                     {
-                        if (waitingMessages.TryGetValue(req, out var rq))
+                        if (GrabService(serviceSession.ServiceName, serviceSession.SessionTicket, true, out var service,
+                                out var operations, out var waitingMessages))
                         {
-                            rq.ServerResponse.SetException(ex);
+                            if (waitingMessages.TryGetValue(req, out var rq))
+                            {
+                                rq.ServerResponse.SetException(ex);
+                            }
                         }
                     }
+                    catch (Exception x)
+                    {
+                        LogEnvironment.LogEvent($"Failed to set ServerResponse: {x.Message}", LogSeverity.Error);
+                    }
                 }
-                catch (Exception x)
-                {
-                    LogEnvironment.LogEvent($"Failed to set ServerResponse: {x.Message}", LogSeverity.Error);
-                }
+            }
+            else
+            {
+                remoteBroker.FailOperation(serviceSession, req, ex);
             }
         }
 
         public void CommitServerOperation(ServiceOperationResponseMessage response)
         {
-            if (GrabService(response.TargetService, null, true, out var service, out var operations, out var waitingMessages))
+            if (!IsRemoteMessage(response, out var remoteBroker))
             {
-                if (service != null && service.ServiceKind == ServiceStatus.ServiceType.Local)
+                if (GrabService(response.TargetService, null, true, out var service, out var operations,
+                        out var waitingMessages))
                 {
-                    throw new CommunicationException("Not used for local clients!");
-                }
+                    if (service != null && service.ServiceKind == ServiceStatus.ServiceType.Local)
+                    {
+                        throw new CommunicationException("Not used for local clients!");
+                    }
 
-                if (waitingMessages.TryRemove(response.OperationId, out var waitHandle))
-                {
-                    waitHandle.ServerResponse.SetResult(response);
+                    if (waitingMessages.TryRemove(response.OperationId, out var waitHandle))
+                    {
+                        waitHandle.ServerResponse.SetResult(response);
+                    }
+                    else
+                    {
+                        throw new CommunicationException("The given operation is not open.");
+                    }
                 }
-                else
-                {
-                    throw new CommunicationException("The given operation is not open.");
-                }
+            }
+            else
+            {
+                remoteBroker.CommitServerOperation(response);
             }
         }
 
         public RegisterServiceResponseMessage RegisterService(RegisterServiceMessage registration)
         {
-            lock (registrationLock)
+            if (!IsRemoteMessage(registration, out var remoteBroker))
             {
-                try
+                lock (registrationLock)
                 {
-                    if (GrabService(registration.ServiceName, null, false, out var service, out var operations, out var waitingMessages))
+                    try
+                    {
+                        if (GrabService(registration.ServiceName, null, false, out var service, out var operations,
+                                out var waitingMessages))
+                        {
+                            return new RegisterServiceResponseMessage
+                            {
+                                Reason = "Service is already registered!",
+                                Ok = false
+                            };
+                        }
+
+                        var newSvc = new ServiceStatus
+                        {
+                            LastPing = DateTime.Now,
+                            Ttl = registration.Ttl,
+                            ServiceName = registration.ServiceName,
+                            RegistrationTicket =
+                                $"{registration.ServiceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
+                            ServiceKind = ServiceStatus.ServiceType.InterProcess
+                        };
+                        StringBuilder fmsg = new StringBuilder();
+                        bool ok = services.TryAdd(registration.ServiceName, newSvc);
+                        if (!ok)
+                        {
+                            fmsg.Append(@"Service-Entry could not be added.
+");
+                        }
+
+                        ok = ok && openWaitHandles.TryAdd(registration.ServiceName,
+                            new ConcurrentDictionary<string, OperationWaitHandle>());
+                        if (!ok)
+                        {
+                            fmsg.Append(@"OpenWait-Entry could not be added.
+");
+                        }
+
+                        ok = ok && messages.TryAdd(registration.ServiceName,
+                            new ConcurrentQueue<OperationWaitHandle>());
+                        if (!ok)
+                        {
+                            fmsg.Append(@"OpenMsg-Entry could not be added.
+");
+                        }
+
+                        var retVal = new RegisterServiceResponseMessage
+                        {
+                            SessionTicket = newSvc.RegistrationTicket,
+                            Ok = ok,
+                            Reason = ok ? "" : fmsg.ToString()
+                        };
+                        if (!ok)
+                        {
+                            UnsafeServerDrop(registration.ServiceName);
+                        }
+
+                        return retVal;
+                    }
+                    catch (Exception ex)
                     {
                         return new RegisterServiceResponseMessage
                         {
-                            Reason = "Service is already registered!",
-                            Ok = false
+                            Ok = false,
+                            Reason = ex.Message
                         };
+                    }
+                }
+            }
+
+            return remoteBroker.RegisterService(registration);
+        }
+
+        internal string RegisterService(ILocalServiceClient localClient)
+        {
+            if (!IsRemoteMessage(localClient.ServiceName, out var remoteBroker))
+            {
+                lock (registrationLock)
+                {
+                    if (GrabService(localClient.ServiceName, null, false, out _, out _, out _))
+                    {
+                        throw new InvalidOperationException("Service is already registered!");
                     }
 
                     var newSvc = new ServiceStatus
                     {
                         LastPing = DateTime.Now,
-                        Ttl = registration.Ttl,
-                        ServiceName = registration.ServiceName,
-                        RegistrationTicket = $"{registration.ServiceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
-                        ServiceKind = ServiceStatus.ServiceType.InterProcess
+                        ServiceName = localClient.ServiceName,
+                        RegistrationTicket = $"{localClient.ServiceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
+                        ServiceKind = ServiceStatus.ServiceType.Local,
+                        LocalClient = localClient
                     };
-                    StringBuilder fmsg = new StringBuilder();
-                    bool ok = services.TryAdd(registration.ServiceName, newSvc);
-                    if (!ok)
-                    {
-                        fmsg.Append(@"Service-Entry could not be added.
-");
-                    }
-                    ok = ok && openWaitHandles.TryAdd(registration.ServiceName, new ConcurrentDictionary<string, OperationWaitHandle>());
-                    if (!ok)
-                    {
-                        fmsg.Append(@"OpenWait-Entry could not be added.
-");
-                    }
-                    ok = ok && messages.TryAdd(registration.ServiceName, new ConcurrentQueue<OperationWaitHandle>());
-                    if (!ok)
-                    {
-                        fmsg.Append(@"OpenMsg-Entry could not be added.
-");
-                    }
-                    var retVal = new RegisterServiceResponseMessage
-                    {
-                        SessionTicket = newSvc.RegistrationTicket,
-                        Ok = ok,
-                        Reason = ok ? "" : fmsg.ToString()
-                    };
-                    if (!ok)
-                    {
-                        UnsafeServerDrop(registration.ServiceName);
-                    }
 
-                    return retVal;
-                }
-                catch (Exception ex)
-                {
-                    return new RegisterServiceResponseMessage
-                    {
-                        Ok = false,
-                        Reason = ex.Message
-                    };
+                    var svc =
+                        services.AddOrUpdate(localClient.ServiceName, s => newSvc, (s, o) =>
+                        {
+                            LogEnvironment.LogEvent(
+                                $@"Replacing old Service Registration (serviceName: {o.ServiceName}, isAlive:{o.IsAlive}, lastPing:{o.LastPing:dd.MM.yyyy HH:mm:ss}, ticket:{o.RegistrationTicket}, serviceKind:{o.ServiceKind}, Ttl:{o.Ttl})
+with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAlive}, lastPing:{newSvc.LastPing:dd.MM.yyyy HH:mm:ss}, ticket:{newSvc.RegistrationTicket}, serviceKind:{newSvc.ServiceKind}, Ttl:{newSvc.Ttl})",
+                                LogSeverity.Warning);
+                            return newSvc;
+                        });
+                    return svc.RegistrationTicket;
                 }
             }
-        }
 
-        internal string RegisterService(ILocalServiceClient localClient)
-        {
-            lock (registrationLock)
+            return remoteBroker.RegisterService(new RegisterServiceMessage
             {
-                if (GrabService(localClient.ServiceName, null, false, out _, out _, out _))
-                {
-                    throw new InvalidOperationException("Service is already registered!");
-                }
-
-                var newSvc = new ServiceStatus
-                {
-                    LastPing = DateTime.Now,
-                    ServiceName = localClient.ServiceName,
-                    RegistrationTicket = $"{localClient.ServiceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
-                    ServiceKind = ServiceStatus.ServiceType.Local,
-                    LocalClient = localClient
-                };
-
-                var svc =
-                    services.AddOrUpdate(localClient.ServiceName, s => newSvc, (s, o) =>
-                    {
-                        LogEnvironment.LogEvent($@"Replacing old Service Registration (serviceName: {o.ServiceName}, isAlive:{o.IsAlive}, lastPing:{o.LastPing:dd.MM.yyyy HH:mm:ss}, ticket:{o.RegistrationTicket}, serviceKind:{o.ServiceKind}, Ttl:{o.Ttl})
-with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAlive}, lastPing:{newSvc.LastPing:dd.MM.yyyy HH:mm:ss}, ticket:{newSvc.RegistrationTicket}, serviceKind:{newSvc.ServiceKind}, Ttl:{newSvc.Ttl})", LogSeverity.Warning);
-                        return newSvc;
-                    });
-                return svc.RegistrationTicket;
-            }
+                ResponderFor = localClient.ConsumedService,
+                ServiceName = localClient.ServiceName,
+                Ttl = 15
+            }).SessionTicket;
         }
 
         public bool TryUnRegisterService(ServiceSessionOperationMessage msg)
         {
-            bool retVal = true;
-            try
+            if (!IsRemoteMessage(msg, out var remoteBroker))
             {
-                UnRegisterService(msg);
-            }
-            catch { retVal = false; }
+                bool retVal = true;
+                try
+                {
+                    UnRegisterService(msg);
+                }
+                catch
+                {
+                    retVal = false;
+                }
 
-            return retVal;
-        }
-
-        public void UnRegisterService(ServiceSessionOperationMessage request)
-        {
-            if (GrabService(request.ServiceName, request.SessionTicket, true, out var service, out var operations, out var waitingMessages))
-            {
-                UnsafeServerDrop(request.ServiceName);
+                return retVal;
             }
+
+            return remoteBroker.TryUnRegisterService(msg);
         }
 
         internal void UnRegisterService(ILocalServiceClient service)
@@ -317,56 +383,68 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
 
         public ServiceTickResponseMessage Tick(ServiceSessionOperationMessage request)
         {
-            LogEnvironment.LogDebugEvent($"Submitted Ticket: {request.SessionTicket}", LogSeverity.Report);
-            if (GrabService(request.ServiceName, request.SessionTicket, true, out var service, out var operations, out var waitingMessages))
+            if (!IsRemoteMessage(request, out var remoteBroker))
             {
-                if (service.ServiceKind == ServiceStatus.ServiceType.Local)
+                LogEnvironment.LogDebugEvent($"Submitted Ticket: {request.SessionTicket}", LogSeverity.Report);
+                if (GrabService(request.ServiceName, request.SessionTicket, true, out var service, out var operations,
+                        out var waitingMessages))
                 {
-                    throw new CommunicationException("Use the overload for local services!");
+                    if (service.ServiceKind == ServiceStatus.ServiceType.Local)
+                    {
+                        throw new CommunicationException("Use the overload for local services!");
+                    }
+
+                    lock (service)
+                    {
+                        LogEnvironment.LogDebugEvent($"Ticket: {service.RegistrationTicket}", LogSeverity.Report);
+                        service.LastPing = DateTime.Now;
+                        var hnd = new OperationWaitHandle(new ServerOperationMessage { TickBack = true });
+                        if (service.OpenTaskWait != null)
+                        {
+                            var t = service.OpenTaskWait;
+                            service.OpenTaskWait = null;
+                            t.SetResult(hnd);
+                        }
+                        else
+                        {
+                            operations.Enqueue(hnd);
+                        }
+                    }
+
+                    return new ServiceTickResponseMessage
+                    {
+                        Ok = true,
+                        PendingOperationsCount = operations.Count
+                    };
                 }
 
-                lock (service)
-                {
-                    LogEnvironment.LogDebugEvent($"Ticket: {service.RegistrationTicket}", LogSeverity.Report);
-                    service.LastPing = DateTime.Now;
-                    var hnd = new OperationWaitHandle(new ServerOperationMessage { TickBack = true });
-                    if (service.OpenTaskWait != null)
-                    {
-                        var t = service.OpenTaskWait;
-                        service.OpenTaskWait = null;
-                        t.SetResult(hnd);
-                    }
-                    else
-                    {
-                        operations.Enqueue(hnd);
-                    }
-                }
-
-                return new ServiceTickResponseMessage
-                {
-                    Ok = true,
-                    PendingOperationsCount = operations.Count
-                };
+                throw new CommunicationException("Unknown Service-grab - Error");
             }
 
-            throw new CommunicationException("Unknown Service-grab - Error");
+            return remoteBroker.Tick(request);
         }
 
         public ServiceDiscoverResponseMessage DiscoverService(ServiceDiscoverMessage request)
         {
-            var retVal = new ServiceDiscoverResponseMessage
+            if (!IsRemoteMessage(request, out var remoteBroker))
             {
-                TargetService = request.TargetService,
-                Ok = false,
-                Reason = "Service is not available",
-            };
-            if (GrabService(request.TargetService, null, false, out var service, out var operations, out var waitingMessages))
-            {
-                retVal.Reason = string.Empty;
-                retVal.Ok = true;
+                var retVal = new ServiceDiscoverResponseMessage
+                {
+                    TargetService = request.TargetService,
+                    Ok = false,
+                    Reason = "Service is not available",
+                };
+                if (GrabService(request.TargetService, null, false, out var service, out var operations,
+                        out var waitingMessages))
+                {
+                    retVal.Reason = string.Empty;
+                    retVal.Ok = true;
+                }
+
+                return retVal;
             }
 
-            return retVal;
+            return remoteBroker.DiscoverService(request);
         }
 
         public void Dispose()
@@ -376,43 +454,60 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
 
         public void UnsafeServerDrop(string serviceName)
         {
-            lock (registrationLock)
+            if (!IsRemoteMessage(serviceName, out var remoteBroker))
             {
-                if (services.TryRemove(serviceName, out var svc))
+                lock (registrationLock)
                 {
-                    lock (svc)
+                    if (services.TryRemove(serviceName, out var svc))
                     {
-                        if (svc.OpenTaskWait != null)
+                        lock (svc)
                         {
-                            var t = svc.OpenTaskWait;
-                            svc.OpenTaskWait = null;
-                            t.SetResult(null);
+                            if (svc.OpenTaskWait != null)
+                            {
+                                var t = svc.OpenTaskWait;
+                                svc.OpenTaskWait = null;
+                                t.SetResult(null);
+                            }
                         }
                     }
-                }
-                var hasOps = messages.TryRemove(serviceName, out var operations);
-                var hasMsg = openWaitHandles.TryRemove(serviceName, out var waitingMessages);
-                if (hasMsg)
-                {
-                    foreach (var openWaitHandle in waitingMessages)
-                    {
-                        if (!openWaitHandle.Value.ServerResponse.Task.IsCompleted)
-                        {
-                            openWaitHandle.Value.ServerResponse.SetException(new Exception("Service is shutting down."));
-                        }
-                    }
-                }
 
-                if (hasOps)
-                {
-                    while (operations.TryDequeue(out var msg))
+                    var hasOps = messages.TryRemove(serviceName, out var operations);
+                    var hasMsg = openWaitHandles.TryRemove(serviceName, out var waitingMessages);
+                    if (hasMsg)
                     {
-                        if (!msg.ServerResponse.Task.IsCompleted)
+                        foreach (var openWaitHandle in waitingMessages)
                         {
-                            msg.ServerResponse.SetException(new Exception("Service is shutting down."));
+                            if (!openWaitHandle.Value.ServerResponse.Task.IsCompleted)
+                            {
+                                openWaitHandle.Value.ServerResponse.SetException(
+                                    new Exception("Service is shutting down."));
+                            }
+                        }
+                    }
+
+                    if (hasOps)
+                    {
+                        while (operations.TryDequeue(out var msg))
+                        {
+                            if (!msg.ServerResponse.Task.IsCompleted)
+                            {
+                                msg.ServerResponse.SetException(new Exception("Service is shutting down."));
+                            }
                         }
                     }
                 }
+            }
+            else
+            {
+                remoteBroker.UnsafeServerDrop(serviceName);
+            }
+        }
+
+        private void UnRegisterService(ServiceSessionOperationMessage request)
+        {
+            if (GrabService(request.ServiceName, request.SessionTicket, true, out var service, out var operations, out var waitingMessages))
+            {
+                UnsafeServerDrop(request.ServiceName);
             }
         }
 
@@ -499,6 +594,45 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
                     }
                 }
             }
+        }
+
+        public void RegisterBrokerProxy(string name, IEndPointBroker subBroker)
+        {
+            children.AddOrUpdate(name, subBroker, (s, o) => subBroker);
+        }
+
+        private bool IsRemoteMessage(IServiceMessage message, out IEndPointBroker proxy)
+        {
+            proxy = null;
+            if (message.TargetService.Contains("@"))
+            {
+                return IsRemoteMessage(message.TargetService, out proxy);
+            }
+
+            return false;
+        }
+
+        private bool IsRemoteMessage(IServerMessage message, out IEndPointBroker proxy)
+        {
+            proxy = null;
+            if (message.ServiceName.Contains("@"))
+            {
+                return IsRemoteMessage(message.ServiceName, out proxy);
+            }
+
+            return false;
+        }
+
+        private bool IsRemoteMessage(string serviceName, out IEndPointBroker proxy)
+        {
+            var t = serviceName.LastIndexOf("@") + 1;
+            var svc = serviceName.Substring(t);
+            if (children.TryGetValue(svc, out proxy))
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }

@@ -48,7 +48,11 @@ namespace ITVComponents.WebCoreToolkit.Models.RequestConservation
         public sealed override IServiceProvider RequestServices
         {
             get => requestServices;
-            set => requestServices = value;
+            set
+            {
+                requestServices = value;
+                features = new FeatureCollection();
+            }
         }
 
         public sealed override CancellationToken RequestAborted { get; set; }

@@ -86,7 +86,7 @@
                 string columnName = retVal.Column.Member;
                 string idRaw = CustomActionHelper.RandomName(retVal.Column.Member);
                 string id = $"{idRaw}#={pkName}#";
-                string template = $@"<input id='{id}' class='itv-icb-marker' data-col-name='{columnName}' #if ({columnName}) {{ # checked='checked' # }} # type='checkbox' style='display:none;' />
+                string template = $@"<input id='{id}' class='itv-icb-marker' data-col-name='{columnName}' #if ({columnName}) {{ # checked='checked' # }} # type='checkbox' />
     #{{
         ITVenture.Tools.KendoExtensions.InitInlineCheckbox('{pkName}','{idRaw}',{(readOnly ? "false" : "true")},{customChangeHandler}).apply(arguments[0]);
     }}#";

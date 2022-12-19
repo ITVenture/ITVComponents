@@ -10,13 +10,12 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrapper
     internal class DictionaryWrapper:IFactoryWrapper
     {
         private readonly IDictionary<string, object> exposedObjects;
-        private readonly IDictionary<string, ProxyWrapper> extendedProxies;
+        private IDictionary<string, ProxyWrapper> extendedProxies;
         private readonly bool hasSecurity;
 
-        internal DictionaryWrapper(IDictionary<string,object> exposedObjects, IDictionary<string,ProxyWrapper> extendedProxies, bool hasSecurity)
+        internal DictionaryWrapper(IDictionary<string,object> exposedObjects, bool hasSecurity)
         {
             this.exposedObjects = exposedObjects;
-            this.extendedProxies = extendedProxies;
             this.hasSecurity = hasSecurity;
         }
 
@@ -25,7 +24,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrapper
         /// </summary>
         /// <param name="pluginName">the name of the desired plugin</param>
         /// <returns>the plugin-instance with the given name</returns>
-        public object this[string pluginName] {
+        public object this[string pluginName, IServiceProvider services] {
             get
             {
                 if (exposedObjects.ContainsKey(pluginName))
@@ -61,7 +60,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrapper
         /// <param name="uniqueName">the uniquename for which to check in the list of initialized plugins</param>
         /// <param name="securityRequired">indicates whether the requested plugin requires security in order to be accessed</param>
         /// <returns>a value indicating whether the requested plugin is currently reachable</returns>
-        public bool Contains(string uniqueName, out bool securityRequired)
+        public bool Contains(string uniqueName, IServiceProvider services, out bool securityRequired)
         {
             bool retVal = exposedObjects.ContainsKey(uniqueName);
             securityRequired = false;
@@ -77,6 +76,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrapper
             }
 
             return retVal;
+        }
+
+        public void AttachProxyDictionary(IDictionary<string, ProxyWrapper> proxies)
+        {
+            extendedProxies = proxies;
         }
     }
 }
