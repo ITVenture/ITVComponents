@@ -17,12 +17,12 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub
 {
-    public class ServiceHubProvider:IPlugin, IDeferredInit, IServiceHubProvider
+    public class ServiceHubChannel:IPlugin, IDeferredInit
     {
         private readonly string hubAddresses;
         private readonly IHubFactory hubFactory;
         private IServiceHub hub;
-        private bool ownsBroker = true;
+        private IServiceHubProvider hubProvider;
 
         private ConcurrentDictionary<string, IMemoryChannel> openChannels = new ConcurrentDictionary<string, IMemoryChannel>();
 
@@ -43,35 +43,18 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         /// </summary>
         public string UniqueName { get; set; }
 
-        public IEndPointBroker Broker { get; }
-
-        private IServiceHub Hub => hub ??= hubFactory.CreateHub(this);
+        private IServiceHub Hub => hub ??= hubFactory.CreateHub(hubProvider);
 
         /// <summary>
         /// Initializes a new instance of the ServiceHubProvider class
         /// </summary>
         /// <param name="hubAddresses">the hub-addresses for this serviceHub</param>
         /// <param name="factory">a factory that provides access to other plugins</param>
-        public ServiceHubProvider(string hubAddresses, IHubFactory hubFactory)
+        public ServiceHubChannel(string hubAddresses, IHubFactory hubFactory, IServiceHubProvider hubProvider)
         {
             this.hubAddresses = hubAddresses;
             this.hubFactory = hubFactory;
-            Broker = new EndPointBroker();
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the ServiceHubProvider class
-        /// </summary>
-        /// <param name="parent">the parent hub-provider</param>
-        /// <param name="hubAddresses">the hub-addresses for this serviceHub</param>
-        /// <param name="hubFactory">the factory object that is used to create a service hub that handles incoming messages</param>
-        /// <param name="factory">a factory that provides access to other plugins</param>
-        public ServiceHubProvider(ITVComponents.InterProcessCommunication.MessagingShared.Hub.IServiceHubProvider parent, string hubAddresses, IHubFactory hubFactory)
-        {
-            this.hubAddresses = hubAddresses;
-            this.hubFactory = hubFactory;
-            Broker = parent.Broker;
-            ownsBroker = false;
+            this.hubProvider = hubProvider;
         }
 
         /// <summary>
@@ -118,12 +101,12 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
                 TryClose(mrConn);
             }
 
-            var name = Broker.GetServiceByTag("ChannelName", channel.Name);
+            var name = hubProvider.Broker.GetServiceByTag("ChannelName", channel.Name);
             if (!string.IsNullOrEmpty(name))
             {
                 try
                 {
-                    Broker.UnsafeServerDrop(name);
+                    hubProvider.Broker.UnsafeServerDrop(name);
                 }
                 catch (Exception ex)
                 {
@@ -223,11 +206,6 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         {
             baseChannel.ObjectReceived -= ConnectionRequest;
             baseChannel.Dispose();
-            if (ownsBroker)
-            {
-                Broker.Dispose();
-            }
-
             OnDisposed();
         }
 

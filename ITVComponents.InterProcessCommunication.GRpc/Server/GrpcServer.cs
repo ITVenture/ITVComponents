@@ -9,6 +9,7 @@ using ITVComponents.InterProcessCommunication.Grpc.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Hub;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Factory;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.InterProcessCommunication.MessagingShared.Server;
 using ITVComponents.InterProcessCommunication.Shared.Base;
 using ITVComponents.InterProcessCommunication.Shared.Security;

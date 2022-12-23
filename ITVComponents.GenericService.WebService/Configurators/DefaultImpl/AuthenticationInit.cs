@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using Google.Protobuf.WellKnownTypes;
-using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
 using ITVComponents.Plugins;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Server
+namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 {
-    public class AuthenticationInit:IServiceHubConfigurator, IAuthInit, IPlugin
+    public class AuthenticationInit:IServiceHostConfigurator, IAuthInit, IPlugin
     {
         private readonly bool useAuthorization;
         private List<IAuthenticationConfigProvider> authenticationProviders = new List<IAuthenticationConfigProvider>();
@@ -18,7 +15,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         /// Initializes a new instance of the AuthenticationInit class
         /// </summary>
         /// <param name="parent">the object that initializes the web-host</param>
-        public AuthenticationInit(IServiceHubProvider parent, bool useAuthorization)
+        public AuthenticationInit(IWebHostStartup parent, bool useAuthorization)
         {
             this.useAuthorization = useAuthorization;
             parent.RegisterConfigurator(this);

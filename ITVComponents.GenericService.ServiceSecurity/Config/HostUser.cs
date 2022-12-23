@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using ITVComponents.InterProcessCommunication.MessagingShared.Security;
+using ITVComponents.WebCoreToolkit.Models;
 
-namespace ITVComponents.InterProcessCommunication.MessagingShared.Config
+namespace ITVComponents.GenericService.ServiceSecurity.Config
 {
     [Serializable]
-    public class HubUser
+    public class HostUser
     {
         public string UserName { get; set; }
 

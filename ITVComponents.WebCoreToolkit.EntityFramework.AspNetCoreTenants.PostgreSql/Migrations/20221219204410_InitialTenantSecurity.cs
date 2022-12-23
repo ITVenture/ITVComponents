@@ -361,7 +361,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     PermissionName = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
                     Description = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
                     TenantId = table.Column<int>(type: "integer", nullable: true),
-                    PermissionNameUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, computedColumnSql: "case when TenantId is null then PermissionName else '__T'+convert(varchar(10),TenantId)+'##'+PermissionName end persisted")
+                    PermissionNameUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, stored:true, computedColumnSql: "case when \"TenantId\" is null then \"PermissionName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"PermissionName\" end")
                 },
                 constraints: table =>
                 {
@@ -382,7 +382,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     RoleName = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
                     TenantId = table.Column<int>(type: "integer", nullable: false),
                     IsSystemRole = table.Column<bool>(type: "boolean", nullable: false),
-                    RoleNameUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, computedColumnSql: "'__T'+convert(varchar(10),TenantId)+'##'+RoleName persisted")
+                    RoleNameUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, stored:true, computedColumnSql: "'__T'||cast(\"TenantId\" as character varying(10))||'##'||\"RoleName\"")
                 },
                 constraints: table =>
                 {
@@ -453,7 +453,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     Value = table.Column<string>(type: "text", nullable: false),
-                    NameUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, computedColumnSql: "case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted"),
+                    NameUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, stored:true, computedColumnSql: "case when \"TenantId\" is null then \"Name\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"Name\" end"),
                     TenantId = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
@@ -473,7 +473,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     WebPluginId = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     TenantId = table.Column<int>(type: "integer", nullable: true),
-                    PluginNameUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, computedColumnSql: "case when TenantId is null then UniqueName else '__T'+convert(varchar(10),TenantId)+'##'+UniqueName end persisted"),
+                    PluginNameUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, stored:true, computedColumnSql: "case when \"TenantId\" is null then \"UniqueName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"UniqueName\" end"),
                     UniqueName = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     Constructor = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
                     AutoLoad = table.Column<bool>(type: "boolean", nullable: false),
@@ -768,7 +768,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     DisplayName = table.Column<string>(type: "text", nullable: false),
                     Url = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
-                    UrlUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, computedColumnSql: "case when isnull(Url,'')='' and isnull(RefTag,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) when isnull(Url,'')='' then RefTag else Url end persisted"),
+                    UrlUniqueness = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false, stored:true, computedColumnSql: "case when COALESCE(\"Url\",'')='' and COALESCE(\"RefTag\",'')='' then 'MENU__'||cast(\"NavigationMenuId\" as character varying(10)) when COALESCE(\"Url\",'')='' then \"RefTag\" else \"Url\" end"),
                     ParentId = table.Column<int>(type: "integer", nullable: true),
                     SortOrder = table.Column<int>(type: "integer", nullable: true),
                     PermissionId = table.Column<int>(type: "integer", nullable: true),

@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using ITVComponents.Helpers;
-using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
+//using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 
-namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkitOverrides
+namespace ITVComponents.GenericService.ServiceSecurity
 {
     public class JsonSettingsSecurityRepository : ISecurityRepository
     {
@@ -30,17 +30,17 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <summary>
         /// Gets a list of users in the current application
         /// </summary>
-        public ICollection<User> Users => bufferedUsers = CheckRefresh(bufferedUsers, () => (from t in HubConfiguration.Helper.HubUsers select new User { UserName = t.UserName, AuthenticationType = t.AuthenticationType }).ToList(), ref lastUserRefresh);
+        public ICollection<User> Users => bufferedUsers = CheckRefresh(bufferedUsers, () => (from t in HostConfiguration.Helper.HostUsers select new User { UserName = t.UserName, AuthenticationType = t.AuthenticationType }).ToList(), ref lastUserRefresh);
 
         /// <summary>
         /// Gets a list of Roles that can be granted to users in the current application
         /// </summary>
-        public ICollection<Role> Roles => bufferedRoles = CheckRefresh(bufferedRoles, () => (from t in HubConfiguration.Helper.HubRoles select new Role { RoleName = t.RoleName }).ToList(), ref lastRoleRefresh);
+        public ICollection<Role> Roles => bufferedRoles = CheckRefresh(bufferedRoles, () => (from t in HostConfiguration.Helper.HostRoles select new Role { RoleName = t.RoleName }).ToList(), ref lastRoleRefresh);
 
         /// <summary>
         /// Gets a collection of defined Permissions in the current application
         /// </summary>
-        public ICollection<Permission> Permissions => bufferedPermissions = CheckRefresh(bufferedPermissions, () => (from t in HubConfiguration.Helper.KnownHubPermissions select new Permission { PermissionName = t }).ToList(), ref lastPermissionRefresh);
+        public ICollection<Permission> Permissions => bufferedPermissions = CheckRefresh(bufferedPermissions, () => (from t in HostConfiguration.Helper.KnownHostPermissions select new Permission { PermissionName = t }).ToList(), ref lastPermissionRefresh);
 
         /// <summary>
         /// Gets an enumeration of Roles that are assigned to the given user
@@ -49,22 +49,22 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>an enumerable of all the user-roles</returns>
         public IEnumerable<Role> GetRoles(User user)
         {
-            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return from r in Roles join gr in hu.Roles on r.RoleName equals gr select r;
         }
 
         public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> permissions, string permissionScope)
         {
-            return from u in (from a in (from t in HubConfiguration.Helper.HubRoles
-                            select new
-                            {
-                                PermissionMap = t.Permissions.Select(n => new { t.RoleName, Permission = n }).ToArray()
-                            })
+            return from u in (from a in (from t in HostConfiguration.Helper.HostRoles
+                                         select new
+                                         {
+                                             PermissionMap = t.Permissions.Select(n => new { t.RoleName, Permission = n }).ToArray()
+                                         })
                         .SelectMany(i => i.PermissionMap)
-                    join p in permissions on a.Permission equals p
-                    select a.RoleName).Distinct()
-                join r in Roles on u equals r.RoleName
-                select r;
+                              join p in permissions on a.Permission equals p
+                              select a.RoleName).Distinct()
+                   join r in Roles on u equals r.RoleName
+                   select r;
         }
 
         /// <summary>
@@ -74,8 +74,8 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
-            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
-            return hu.CustomInfo.Where(n => n.PropertyType==propertyType).Select(m => new CustomUserProperty
+            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            return hu.CustomInfo.Where(n => n.PropertyType == propertyType).Select(m => new CustomUserProperty
             {
                 PropertyName = m.PropertyName,
                 Value = m.Value,
@@ -111,7 +111,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>the string representation of the requested property</returns>
         public T GetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType)
         {
-            T retVal = default(T);
+            T retVal = default;
             var tmpVal = GetCustomProperty(user, propertyName, propertyType);
             if (!string.IsNullOrEmpty(tmpVal))
             {
@@ -161,7 +161,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType)
         {
             return (from t in userLabels
-                    join u in HubConfiguration.Helper.HubUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
+                    join u in HostConfiguration.Helper.HostUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
                     select u.CustomInfo).SelectMany(i => i.Where(n => n.PropertyType == propertyType).Select(m => new CustomUserProperty
                     {
                         PropertyName = m.PropertyName,
@@ -189,9 +189,9 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>an enumerable of permissions for the given user</returns>
         public IEnumerable<Permission> GetPermissions(User user)
         {
-            var hu = HubConfiguration.Helper.HubUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return (from t in hu.Roles
-                    join r in HubConfiguration.Helper.HubRoles on t equals r.RoleName
+                    join r in HostConfiguration.Helper.HostRoles on t equals r.RoleName
                     select r.Permissions).SelectMany(n => n)
                 .Select(p => new Permission { PermissionName = p });
         }
@@ -203,7 +203,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>returns a list of activated features</returns>
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {
-            return (IEnumerable<Feature>)HubConfiguration.Helper.Features??Array.Empty<Feature>();
+            return (IEnumerable<Feature>)HostConfiguration.Helper.Features ?? Array.Empty<Feature>();
         }
 
         public string Decrypt(string encryptedValue, string permissionScopeName)
@@ -271,9 +271,9 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
             return (from ur in (from t in userLabels
-                                join u in HubConfiguration.Helper.HubUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
+                                join u in HostConfiguration.Helper.HostUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
                                 select u.Roles).SelectMany(r => r).Distinct()
-                    join hr in HubConfiguration.Helper.HubRoles on ur equals hr.RoleName
+                    join hr in HostConfiguration.Helper.HostRoles on ur equals hr.RoleName
                     select hr.Permissions).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Union(TemporaryGrants.GetTemporaryPermissions(userLabels)).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(p => new Permission { PermissionName = p });
@@ -286,7 +286,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkit
         /// <returns>an enumerable of permissions for the given role</returns>
         public IEnumerable<Permission> GetPermissions(Role role)
         {
-            var ro = HubConfiguration.Helper.HubRoles.First(n => n.RoleName == role.RoleName);
+            var ro = HostConfiguration.Helper.HostRoles.First(n => n.RoleName == role.RoleName);
             return ro.Permissions.Select(p => new Permission { PermissionName = p });
         }
 

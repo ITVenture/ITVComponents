@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using ITVComponents.Logging;
 using ITVComponents.Plugins.Initialization;
+using Exception = System.Exception;
 
 namespace ITVComponents.Plugins.PluginServices
 {
@@ -39,16 +40,26 @@ namespace ITVComponents.Plugins.PluginServices
         /// <param name="formatProvider">a Plugin-instance that is capable for formatting custom strings (i.e. decrypting passwords, or buffering sql-server instance names)</param>
         public static PluginConstructionElement ParsePluginString(string constructorString, IStringFormatProvider formatProvider)
         {
-            Match splitted = ConstructorParser.Match(constructorString);
-            string filename = splitted.Groups["Path"].Value;
-            string className = splitted.Groups["Type"].Value;
-            PluginParameterElement[] constructor = ParseConstructor(splitted.Groups["Parameters"].Value, formatProvider);
-            return new PluginConstructionElement
-                       {
-                           AssemblyName = filename,
-                           TypeName = className,
-                           Parameters = constructor
-                       };
+            try
+            {
+                Match splitted = ConstructorParser.Match(constructorString);
+                string filename = splitted.Groups["Path"].Value;
+                string className = splitted.Groups["Type"].Value;
+                PluginParameterElement[] constructor =
+                    ParseConstructor(splitted.Groups["Parameters"].Value, formatProvider);
+                return new PluginConstructionElement
+                {
+                    AssemblyName = filename,
+                    TypeName = className,
+                    Parameters = constructor
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(constructorString);
+                LogEnvironment.LogEvent(constructorString, LogSeverity.Error);
+                throw;
+            }
         }
 
         /// <summary>

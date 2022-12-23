@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace ITVComponents.InterProcessCommunication.MessagingShared.Config
+namespace ITVComponents.GenericService.ServiceSecurity.Config
 {
     [Serializable]
-    public class HubRole
+    public class HostRole
     {
         public string RoleName { get; set; }
 

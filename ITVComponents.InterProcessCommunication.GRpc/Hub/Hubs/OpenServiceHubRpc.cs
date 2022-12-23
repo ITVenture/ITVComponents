@@ -5,6 +5,7 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.Logging;
 

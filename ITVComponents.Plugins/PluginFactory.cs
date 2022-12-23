@@ -967,7 +967,7 @@ namespace ITVComponents.Plugins
                             {
                                 if (wh != trigger)
                                 {
-                                    throw new InvalidOperationException("Something went completly wrong!");
+                                    throw new InvalidOperationException("Something with trigger went completly wrong!");
                                 }
 
                                 wh.Set();
@@ -977,12 +977,12 @@ namespace ITVComponents.Plugins
                             }
                             else
                             {
-                                throw new InvalidOperationException("Something went completly wrong!");
+                                throw new InvalidOperationException("Something with promise went completly wrong!");
                             }
                         }
                         else
                         {
-                            throw new InvalidOperationException("Something went completly wrong!");
+                            throw new InvalidOperationException("Something with register went completly wrong!");
                         }
                     }
 
@@ -1112,63 +1112,75 @@ namespace ITVComponents.Plugins
         /// <param name="reflectOnly">indicates whether to only validate if the provided constructor string is valid</param>
         private void ParsePluginString(string uniqueName, string loggerString, out Type loggerType, out object[] constructor, bool reflectOnly)
         {
-            Assembly a;
-            PluginConstructionElement parsed = PluginConstructorParser.ParsePluginString(loggerString, stringLiteralFormatter);
-            constructor = this.ParseConstructor(parsed.Parameters, reflectOnly);
-            lock (registeredAssemblies)
+            try
             {
-                if (!registeredAssemblies.ContainsKey(parsed.AssemblyName))
+                Assembly a;
+                PluginConstructionElement parsed =
+                    PluginConstructorParser.ParsePluginString(loggerString, stringLiteralFormatter);
+                constructor = this.ParseConstructor(parsed.Parameters, reflectOnly);
+                lock (registeredAssemblies)
                 {
-                    string pth = Path.GetDirectoryName(parsed.AssemblyName);
-                    if (pth != string.Empty)
+                    if (!registeredAssemblies.ContainsKey(parsed.AssemblyName))
                     {
-                        if (!registeredDirectories.Contains(pth))
+                        string pth = Path.GetDirectoryName(parsed.AssemblyName);
+                        if (pth != string.Empty)
                         {
-                            registeredDirectories.Add(pth);
+                            if (!registeredDirectories.Contains(pth))
+                            {
+                                registeredDirectories.Add(pth);
+                            }
+                        }
+
+                        a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext);
+                        if (!reflectOnly)
+                        {
+                            registeredAssemblies.Add(parsed.AssemblyName, a);
                         }
                     }
-
-                    a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext);
-                    if (!reflectOnly)
+                    else
                     {
-                        registeredAssemblies.Add(parsed.AssemblyName, a);
+                        a = registeredAssemblies[parsed.AssemblyName];
                     }
                 }
-                else
-                {
-                    a = registeredAssemblies[parsed.AssemblyName];
-                }
-            }
 
-            loggerType = a.GetType(parsed.TypeName);
-            if (loggerType.IsGenericTypeDefinition)
-            {
-                var t = new List<GenericTypeArgument>();
-                t.AddRange(from p in loggerType.GetGenericArguments() select new GenericTypeArgument{GenericTypeName = p.Name});
-                var dynLoader = DynamicLoaders.FirstOrDefault(l => l.HasParamsFor(uniqueName));
-                if (dynLoader != null)
+                loggerType = a.GetType(parsed.TypeName);
+                if (loggerType.IsGenericTypeDefinition)
                 {
-                    dynLoader.GetGenericParams(uniqueName, t, stringLiteralFormatter);
-                    var c = (from p in t select p.TypeResult).ToArray();
-                    loggerType = loggerType.MakeGenericType(c);
-                }
-                else
-                {
-                    var arg = new ImplementGenericTypeEventArgs { GenericTypes = t, PluginUniqueName = uniqueName, Formatter = stringLiteralFormatter };
-                    OnImplementGenericType(arg);
-                    if (arg.Handled)
+                    var t = new List<GenericTypeArgument>();
+                    t.AddRange(from p in loggerType.GetGenericArguments()
+                        select new GenericTypeArgument { GenericTypeName = p.Name });
+                    var dynLoader = DynamicLoaders.FirstOrDefault(l => l.HasParamsFor(uniqueName));
+                    if (dynLoader != null)
                     {
-                        var c = (from p in arg.GenericTypes select p.TypeResult).ToArray();
+                        dynLoader.GetGenericParams(uniqueName, t, stringLiteralFormatter);
+                        var c = (from p in t select p.TypeResult).ToArray();
                         loggerType = loggerType.MakeGenericType(c);
                     }
                     else
                     {
-                        throw new InvalidOperationException("Unable to construct generic Type");
+                        var arg = new ImplementGenericTypeEventArgs
+                            { GenericTypes = t, PluginUniqueName = uniqueName, Formatter = stringLiteralFormatter };
+                        OnImplementGenericType(arg);
+                        if (arg.Handled)
+                        {
+                            var c = (from p in arg.GenericTypes select p.TypeResult).ToArray();
+                            loggerType = loggerType.MakeGenericType(c);
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException("Unable to construct generic Type");
+                        }
                     }
                 }
-            }
 
-            LogEnvironment.LogDebugEvent(null, $"found {loggerType}...", (int)LogSeverity.Report, "PluginSystem");
+                LogEnvironment.LogDebugEvent(null, $"found {loggerType}...", (int)LogSeverity.Report, "PluginSystem");
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(loggerString, LogSeverity.Error);
+                Console.WriteLine(loggerString);
+                throw;
+            }
         }
 
         /// <summary>

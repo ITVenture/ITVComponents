@@ -1,28 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading.Tasks;
-using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
-namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Server
+namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 {
-    public class SslHubInit:IServiceHubConfigurator, IPlugin
+    public class SslHostInit:IServiceHostConfigurator, IPlugin
     {
-        private readonly IServiceHubProvider parent;
+        private readonly IWebHostStartup parent;
         private readonly bool withHsts;
         private readonly int httpsRedirectPort;
         private readonly string pathToCertificate;
@@ -35,7 +28,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         /// Initializes a new instance of the AuthenticationInit class
         /// </summary>
         /// <param name="parent">the object that initializes the web-host</param>
-        public SslHubInit(IServiceHubProvider parent, bool withHsts, int httpsRedirectPort, string pathToCertificate, string certificatePassword)
+        public SslHostInit(IWebHostStartup parent, bool withHsts, int httpsRedirectPort, string pathToCertificate, string certificatePassword)
         {
             this.parent = parent;
             this.withHsts = withHsts;
@@ -49,7 +42,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         /// Initializes a new instance of the AuthenticationInit class
         /// </summary>
         /// <param name="parent">the object that initializes the web-host</param>
-        public SslHubInit(IServiceHubProvider parent, bool withHsts, int httpsRedirectPort)
+        public SslHostInit(IWebHostStartup parent, bool withHsts, int httpsRedirectPort)
         {
             this.parent = parent;
             this.withHsts = withHsts;
@@ -62,7 +55,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         /// Initializes a new instance of the AuthenticationInit class
         /// </summary>
         /// <param name="parent">the object that initializes the web-host</param>
-        public SslHubInit(IServiceHubProvider parent, bool withHsts, int httpsRedirectPort, string certificateSerial)
+        public SslHostInit(IWebHostStartup parent, bool withHsts, int httpsRedirectPort, string certificateSerial)
         {
             this.parent = parent;
             this.withHsts = withHsts;

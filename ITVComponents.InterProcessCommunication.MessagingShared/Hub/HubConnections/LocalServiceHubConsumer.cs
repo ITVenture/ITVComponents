@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Threading.Tasks;
+using ITVComponents.GenericService.ServiceSecurity;
 using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
-using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Internal;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;

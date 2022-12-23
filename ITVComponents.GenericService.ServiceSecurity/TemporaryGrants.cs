@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Logging;
 
-namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurity
+namespace ITVComponents.GenericService.ServiceSecurity
 {
     public static class TemporaryGrants
     {
@@ -18,7 +18,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurit
                 var list = grantTable.GetOrAdd(user, s => new List<string>());
                 lock (list)
                 {
-                    LogEnvironment.LogDebugEvent($"Adding Grant {permission} for {user}.",LogSeverity.Report);
+                    LogEnvironment.LogDebugEvent($"Adding Grant {permission} for {user}.", LogSeverity.Report);
                     list.Add(permission);
                 }
             }
@@ -31,7 +31,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurit
                 var list = grantTable.GetOrAdd(user, s => new List<string>());
                 lock (list)
                 {
-                    LogEnvironment.LogDebugEvent($"Revoking Grant {permission} for {user}.",LogSeverity.Report);
+                    LogEnvironment.LogDebugEvent($"Revoking Grant {permission} for {user}.", LogSeverity.Report);
                     list.RemoveAll(n => n == permission);
                 }
             }
@@ -39,13 +39,13 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurit
 
         public static void RegisterService(string serviceName, string userName)
         {
-            LogEnvironment.LogDebugEvent($"Registering Service {serviceName} ran by {userName}.",LogSeverity.Report);
+            LogEnvironment.LogDebugEvent($"Registering Service {serviceName} ran by {userName}.", LogSeverity.Report);
             services.TryAdd(serviceName, userName);
         }
 
         public static void UnRegisterService(string serviceName)
         {
-            LogEnvironment.LogDebugEvent($"Removing Service {serviceName}.",LogSeverity.Report);
+            LogEnvironment.LogDebugEvent($"Removing Service {serviceName}.", LogSeverity.Report);
             services.TryRemove(serviceName, out _);
         }
 
@@ -54,7 +54,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubSecurit
             List<string[]> allPerms = new List<string[]>();
             foreach (var label in userLabels)
             {
-                LogEnvironment.LogDebugEvent($"Collecting extended permissions for {label}.",LogSeverity.Report);
+                LogEnvironment.LogDebugEvent($"Collecting extended permissions for {label}.", LogSeverity.Report);
                 if (grantTable.TryGetValue(label, out var l))
                 {
                     lock (l)

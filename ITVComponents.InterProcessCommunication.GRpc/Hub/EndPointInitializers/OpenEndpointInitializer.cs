@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
+using ITVComponents.GenericService.WebService;
+using ITVComponents.GenericService.WebService.Configurators;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs;
 using ITVComponents.Plugins;
 using Microsoft.AspNetCore.Builder;
@@ -11,13 +12,13 @@ using Microsoft.AspNetCore.Routing;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
 {
-    public class OpenEndPointInitializer:IServiceHubConfigurator, IPlugin
+    public class OpenEndPointInitializer:IServiceHostConfigurator, IPlugin
     {
         /// <summary>
         /// Initializes a new instance of the OpenEndpointInitializer class
         /// </summary>
         /// <param name="parent"></param>
-        public OpenEndPointInitializer(IServiceHubProvider parent)
+        public OpenEndPointInitializer(IWebHostStartup parent)
         {
             parent.RegisterConfigurator(this);
         }

@@ -1,7 +1,5 @@
 ﻿using System;
-using ITVComponents.InterProcessCommunication.Grpc.Hub.Extensions;
-using ITVComponents.InterProcessCommunication.MessagingShared.Hub.WebToolkitOverrides;
-using ITVComponents.Plugins;
+using ITVComponents.GenericService.ServiceSecurity;
 using ITVComponents.WebCoreToolkit.ApiKeyAuthentication;
 using ITVComponents.WebCoreToolkit.ApiKeyAuthentication.Extensions;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -10,11 +8,11 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.Server
+namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 {
-    public class ApiKeyAuthInit:IAuthenticationConfigProvider, IServiceHubConfigurator
+    public class ApiKeyAuthInit:IAuthenticationConfigProvider, IServiceHostConfigurator
     {
-        public ApiKeyAuthInit(IServiceHubProvider hubProvider,IAuthInit hub)
+        public ApiKeyAuthInit(IWebHostStartup hubProvider,IAuthInit hub)
         {
             hub.RegisterAuthenticationService(this);
             hubProvider.RegisterConfigurator(this);

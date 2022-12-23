@@ -1,16 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using ITVComponents.Settings;
 using ITVComponents.Settings.Native;
 
-namespace ITVComponents.InterProcessCommunication.Grpc
+namespace ITVComponents.GenericService.WebService
 {
-    public class GrpcHubConfiguration : JsonSettingsSection
+    public class WebHostConfiguration : JsonSettingsSection
     {
-        private static GrpcHubConfiguration Instance => GetSection<GrpcHubConfiguration>("ITV_IPC_GRPC_Hub");
+        private static WebHostConfiguration Instance => GetSection<WebHostConfiguration>("ITV_SVC_Host");
         public bool UseExtConfig { get; set; } = false;
 
         public bool TrustAllCertificates { get; set; }
@@ -28,7 +24,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc
 
         public static class Helper
         {
-            private static GrpcHubSettings native = NativeSettings.GetSection<GrpcHubSettings>("ITVenture:InterProcessCommunication:Grpc:HubConfig", d => { d.TrustAllCertificates = true; });
+            private static WebHostSettings native = NativeSettings.GetSection<WebHostSettings>("ITVenture:ServiceConfiguration:WebHostConfig", d => { d.TrustAllCertificates = true; });
 
             public static bool TrustAllCertificates => Instance.UseExtConfig ? Instance.TrustAllCertificates : native.TrustAllCertificates;
 
