@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV186</Version>
+    <Version>3.0.0-PRV191</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <Authors>mw</Authors>
@@ -26,7 +26,7 @@
     <PackageReference Include="microsoft.extensions.configuration.binder" Version="6.0.0" />
     <PackageReference Include="microsoft.extensions.configuration.Json" Version="6.0.0" />
     <PackageReference Include="microsoft.extensions.primitives" Version="6.0.0" />
-    <PackageReference Include="newtonsoft.json" Version="13.0.1" />
+    <PackageReference Include="newtonsoft.json" Version="13.0.2" />
     <PackageReference Include="system.directoryservices" Version="6.0.0" />
     <PackageReference Include="system.directoryservices.accountmanagement" Version="6.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="6.0.0" />

@@ -15,6 +15,9 @@ using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options;
 using Microsoft.Extensions.Configuration;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Extensions;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Options;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Services;
+using Microsoft.AspNetCore.Identity.UI.Services;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB
 {
@@ -28,8 +31,22 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB
             {
                 return config.GetSection<SecurityContextOptions>(path);
             }
+            
+            if (key == "ServiceOptions")
+            {
+                return config.GetSection<CobServiceOptions>(path);
+            }
 
             return null;
+        }
+
+        [ServiceRegistrationMethod]
+        public static void Register(IServiceCollection services, [WebPartConfig("ServiceOptions")] CobServiceOptions servicesOptions)
+        {
+            if (servicesOptions.UseDefaultMailSender)
+            {
+                services.AddSingleton<IEmailSender, DefaultMailSender>();
+            }
         }
 
         [MvcRegistrationMethod]

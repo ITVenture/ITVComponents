@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV186</Version>
+    <Version>3.0.0-PRV191</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -18,7 +18,7 @@
     <Compile Update="Resources\SqlCommands.Designer.cs" AutoGen="True" DependentUpon="SqlCommands.resx" DesignTime="True" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.Data.SqLite" Version="1.0.116" />
+    <PackageReference Include="System.Data.SqLite" Version="1.0.117" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />

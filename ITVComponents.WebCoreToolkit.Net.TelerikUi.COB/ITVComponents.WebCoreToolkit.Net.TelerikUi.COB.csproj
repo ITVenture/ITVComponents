@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV186</Version>
+    <Version>3.0.0-PRV191</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -25,8 +25,8 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi\ITVComponents.WebCoreToolkit.Net.TelerikUi.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="6.0.10" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.3.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="6.0.12" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.4.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\js\" />

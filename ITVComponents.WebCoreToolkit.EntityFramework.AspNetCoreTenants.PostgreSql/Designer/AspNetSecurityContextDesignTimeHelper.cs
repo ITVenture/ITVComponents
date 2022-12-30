@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql.SyntaxHelper;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql.Designer
@@ -10,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
             var optionsBuilder = new DbContextOptionsBuilder<AspNetSecurityContext>();
             optionsBuilder.UseNpgsql( so => so.MigrationsAssembly(typeof(AspNetSecurityContextDesignTimeHelper).Assembly.FullName));
 
-            return new AspNetSecurityContext(optionsBuilder.Options);
+            return new AspNetSecurityContext(new PostgreSqlColumnsSyntaxHelper(),optionsBuilder.Options);
         }
     }
 }

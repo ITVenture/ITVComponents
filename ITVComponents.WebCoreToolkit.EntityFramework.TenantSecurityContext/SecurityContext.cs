@@ -1,4 +1,5 @@
-﻿using ITVComponents.WebCoreToolkit.Security;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -6,7 +7,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
     public class SecurityContext: SecurityContext<SecurityContext>
     {
-        public SecurityContext(DbContextOptions<SecurityContext> options) : base(options)
+        public SecurityContext(ICalculatedColumnsSyntaxProvider syntaxProvider,DbContextOptions<SecurityContext> options) : base(syntaxProvider, options)
         {
         }
 

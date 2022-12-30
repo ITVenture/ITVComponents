@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0-windows</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV186</Version>
+    <Version>3.0.0-PRV191</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <UseWPF>true</UseWPF>
@@ -11,8 +11,8 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Extended.Wpf.Toolkit" Version="4.4.0" />
-    <PackageReference Include="fontawesome.sharp" Version="6.1.1" />
+    <PackageReference Include="Extended.Wpf.Toolkit" Version="4.5.0" />
+    <PackageReference Include="fontawesome.sharp" Version="6.2.1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.DataAccess.SqLite\ITVComponents.DataAccess.SqLite.csproj" />

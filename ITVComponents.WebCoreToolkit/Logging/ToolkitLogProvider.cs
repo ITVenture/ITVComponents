@@ -150,7 +150,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
             events.Enqueue(new SystemEvent
             {
                 LogLevel = logLevel,
-                EventTime = DateTime.Now,
+                EventTime = DateTime.UtcNow,
                 Category = category,
                 Title = title,
                 Message = message

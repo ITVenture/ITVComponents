@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer.SyntaxHelper;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer.Designer
@@ -10,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
             var optionsBuilder = new DbContextOptionsBuilder<AspNetSecurityContext>();
             optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=IWCASPSecurity;Trusted_Connection=True;", so => so.MigrationsAssembly(typeof(AspNetSecurityContextDesignTimeHelper).Assembly.FullName));
 
-            return new AspNetSecurityContext(optionsBuilder.Options);
+            return new AspNetSecurityContext(new SqlColumnsSyntaxHelper(),optionsBuilder.Options);
         }
     }
 }

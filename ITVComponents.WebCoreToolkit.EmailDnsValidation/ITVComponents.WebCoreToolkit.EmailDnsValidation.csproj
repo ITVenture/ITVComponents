@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV186</Version>
+    <Version>3.0.0-PRV191</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <!--TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeReferencedProjectInPackage</TargetsForTfmSpecificContentInPackage-->
@@ -24,7 +24,7 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Update="DnsClient" Version="1.6.1" />
+    <PackageReference Update="DnsClient" Version="1.7.0" />
   </ItemGroup>
   <!--ItemGroup>
     <Reference Include="Sustainsys.Saml2.AspNetCore2" PrivateAssets="All">

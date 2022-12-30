@@ -63,9 +63,9 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Hubs
                     try
                     {
                         var nextMessage = await serviceBackend.Broker.NextRequest(request);
-                        req = nextMessage.OperationId;
                         if (nextMessage != null)
                         {
+                            req = nextMessage.OperationId;
                             await channel.WriteAsync(new ServerOperationMessage
                             {
                                 HubUser = nextMessage.HubUser,

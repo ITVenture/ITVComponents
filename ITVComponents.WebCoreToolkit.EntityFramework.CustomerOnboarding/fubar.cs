@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
         private string currentUserId;
         private string currentUserEmail;
 
-        public fubar(DbContextOptions<fubar> options) : base(options)
+        public fubar(ICalculatedColumnsSyntaxProvider syntaxProvider,DbContextOptions<fubar> options) : base(syntaxProvider, options)
         {
         }
 

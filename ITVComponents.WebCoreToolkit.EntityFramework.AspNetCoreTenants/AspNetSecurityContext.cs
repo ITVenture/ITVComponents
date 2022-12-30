@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Identity;
@@ -22,7 +23,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 {
     public class AspNetSecurityContext : AspNetSecurityContext<AspNetSecurityContext>
     {
-        public AspNetSecurityContext(DbContextOptions<AspNetSecurityContext> options) : base(options)
+        public AspNetSecurityContext(ICalculatedColumnsSyntaxProvider syntaxProvider, DbContextOptions<AspNetSecurityContext> options) : base(syntaxProvider, options)
         {
         }
 

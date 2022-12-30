@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV186</Version>
+    <Version>3.0.0-PRV191</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -22,19 +22,19 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook">
-      <Version>6.0.10</Version>
+      <Version>6.0.12</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google">
-      <Version>6.0.10</Version>
+      <Version>6.0.12</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer">
-      <Version>6.0.10</Version>
+      <Version>6.0.12</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount">
-      <Version>6.0.10</Version>
+      <Version>6.0.12</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect">
-      <Version>6.0.10</Version>
+      <Version>6.0.12</Version>
     </PackageReference>
   </ItemGroup>
   <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">

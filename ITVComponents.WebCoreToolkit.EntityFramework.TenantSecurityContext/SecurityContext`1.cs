@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
@@ -54,6 +55,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
     public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
     where TImpl:SecurityContext<TImpl>
     {
+        private readonly ICalculatedColumnsSyntaxProvider calculatedColumnsSyntax;
         private readonly ILogger<TImpl> logger;
         private readonly IPermissionScope tenantProvider;
         private readonly IContextUserProvider userProvider;
@@ -63,8 +65,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         private Stack<FullSecurityAccessHelper> securityStateStack = new Stack<FullSecurityAccessHelper>();
         private bool hideDisabledUsers = true;
 
-        public SecurityContext(DbContextOptions<TImpl> options) : base(options)
+        public SecurityContext(ICalculatedColumnsSyntaxProvider calculatedColumnsSyntax, DbContextOptions<TImpl> options) : base(options)
         {
+            this.calculatedColumnsSyntax = calculatedColumnsSyntax;
         }
 
         public SecurityContext(IPermissionScope tenantProvider, IContextUserProvider userProvider, ILogger<TImpl> logger, DbContextOptions<TImpl> options) : base(options)
@@ -335,11 +338,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         {
             base.OnModelCreating(modelBuilder);
             modelBuilder.TableNamesFromProperties(this);
-            modelBuilder.Entity<NavigationMenu>().Property(p => p.UrlUniqueness).HasComputedColumnSql("case when isnull(Url,'')='' and isnull(RefTag,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) when isnull(Url,'')='' then RefTag else Url end persisted");
-            modelBuilder.Entity<Role>().Property(p => p.RoleNameUniqueness).HasComputedColumnSql("'__T'+convert(varchar(10),TenantId)+'##'+RoleName persisted");
-            modelBuilder.Entity<Permission>().Property(p => p.PermissionNameUniqueness).HasComputedColumnSql("case when TenantId is null then PermissionName else '__T'+convert(varchar(10),TenantId)+'##'+PermissionName end persisted");
-            modelBuilder.Entity<WebPlugin>().Property(p => p.PluginNameUniqueness).HasComputedColumnSql("case when TenantId is null then UniqueName else '__T'+convert(varchar(10),TenantId)+'##'+UniqueName end persisted");
-            modelBuilder.Entity<WebPluginConstant>().Property(p => p.NameUniqueness).HasComputedColumnSql("case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted");
+            if (calculatedColumnsSyntax != null)
+            {
+                calculatedColumnsSyntax.WithCalculatedPropert(modelBuilder.Entity<NavigationMenu>().Property(p => p.UrlUniqueness));
+                calculatedColumnsSyntax.WithCalculatedPropert(modelBuilder.Entity<Role>().Property(p => p.RoleNameUniqueness));
+                calculatedColumnsSyntax.WithCalculatedPropert(modelBuilder.Entity<Permission>().Property(p => p.PermissionNameUniqueness));
+                calculatedColumnsSyntax.WithCalculatedPropert(modelBuilder.Entity<WebPlugin>().Property(p => p.PluginNameUniqueness));
+                calculatedColumnsSyntax.WithCalculatedPropert(modelBuilder.Entity<WebPluginConstant>().Property(p => p.NameUniqueness));
+            }
+            else
+            {
+                modelBuilder.Entity<NavigationMenu>().Property(p => p.UrlUniqueness).HasComputedColumnSql();
+                modelBuilder.Entity<Role>().Property(p => p.RoleNameUniqueness).HasComputedColumnSql();
+                modelBuilder.Entity<Permission>().Property(p => p.PermissionNameUniqueness).HasComputedColumnSql();
+                modelBuilder.Entity<WebPlugin>().Property(p => p.PluginNameUniqueness).HasComputedColumnSql();
+                modelBuilder.Entity<WebPluginConstant>().Property(p => p.NameUniqueness).HasComputedColumnSql();
+            }
+
             modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
             modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
             modelBuilder.Entity<TenantUser>(b => b.Property(n => n.Enabled).HasDefaultValue(true));
