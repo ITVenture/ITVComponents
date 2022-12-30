@@ -69,7 +69,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             {
                 string[] features = securityRepository.GetFeatures(permissionScope.PermissionPrefix)
                     .Where(n => n.Enabled).Select(n => n.FeatureName).ToArray();
-                return requiredFeatures.Any(f => features.Contains(f));
+                return requiredFeatures.Any(f => features.Contains(f, StringComparer.OrdinalIgnoreCase));
             }
 
             return false;
