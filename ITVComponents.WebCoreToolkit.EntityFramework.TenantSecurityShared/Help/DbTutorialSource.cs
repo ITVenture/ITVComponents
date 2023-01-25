@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Help;
@@ -39,7 +40,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                 baseLang = currentCulture.Substring(0, currentCulture.IndexOf("-"));
             }
 
-            return dbContext.Tutorials.Where(n => n.ModuleUrl == pathValue && n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang || n.LanguageTag == "Default")).OrderBy(n => n.SortableName)
+            return dbContext.Tutorials.Where(n => n.ModuleUrl.ToLower() == pathValue.ToLower() && n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang || n.LanguageTag == "Default")).OrderBy(n => n.SortableName)
                 .ToArray()
                 .Select(n => new TutorialDefinition
                 {

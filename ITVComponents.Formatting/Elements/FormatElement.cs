@@ -16,6 +16,10 @@ namespace ITVComponents.Formatting.Elements
         public StringBuilder FormatHint { get; } = new StringBuilder();
         public StringBuilder FormatLength { get; } = new StringBuilder();
         public CodeType CodeType { get; set; } = CodeType.Expression;
+        public bool IsRecursive { get; set; }
+        public StringBuilder RecursionDepthString { get; } = new StringBuilder();
+        public int RecursionDepth { get; set; } = 1;
+
         #endregion
     }
 

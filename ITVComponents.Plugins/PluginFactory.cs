@@ -288,7 +288,7 @@ namespace ITVComponents.Plugins
                 IPlugin retVal = this[pluginName];
                 if (retVal == null && triggerAsParameterRequest)
                 {
-                    var param = new UnknownConstructorParameterEventArgs(pluginName);
+                    var param = new UnknownConstructorParameterEventArgs(pluginName, null);
                     OnUnknownConstructorParameter(param);
                     if (param.Handled && param.Value != null)
                     {
@@ -336,16 +336,9 @@ namespace ITVComponents.Plugins
             return LoadPlugin<T>(uniqueName, pluginConstructor, buffer);
         }
 
-        /// <summary>
-        /// Creates a new Plugin
-        /// </summary>
-        /// <param name="uniqueName">the unique name for the created plugin</param>
-        /// <param name="pluginConstructor">Constructorstring for the Plugin in the Format [AssemblyPath]&lt;FullQulifiedType&gt;Parameters</param>
-        /// <param name="buffer">indicates whether to keept the generated object for controlled disposal</param>
-        /// <typeparam name="T">the Type that is supposed to be created</typeparam>
-        /// <returns>the created IPlugin instance</returns>
-        public T LoadPlugin<T>(string uniqueName, string pluginConstructor, bool buffer) where T : class, IPlugin
+        public T LoadPlugin<T>(string uniqueName, string pluginConstructor, Dictionary<string,object> customVariables, bool? doBuffer = null) where T : class, IPlugin
         {
+            var buffer = doBuffer ?? this.buffer;
             if (testOnlyFactory)
             {
                 throw new InvalidOperationException("Unable to load a plugin in a test-only factory!");
@@ -359,7 +352,7 @@ namespace ITVComponents.Plugins
             try
             {
                 IPlugin retVal;
-                if (TryLoadPlugin(uniqueName, pluginConstructor, buffer, out retVal, false))
+                if (TryLoadPlugin(uniqueName, pluginConstructor, buffer, customVariables, out retVal, false))
                 {
                     if (retVal is IDeferredInit init)
                     {
@@ -414,6 +407,19 @@ namespace ITVComponents.Plugins
         }
 
         /// <summary>
+        /// Creates a new Plugin
+        /// </summary>
+        /// <param name="uniqueName">the unique name for the created plugin</param>
+        /// <param name="pluginConstructor">Constructorstring for the Plugin in the Format [AssemblyPath]&lt;FullQulifiedType&gt;Parameters</param>
+        /// <param name="buffer">indicates whether to keept the generated object for controlled disposal</param>
+        /// <typeparam name="T">the Type that is supposed to be created</typeparam>
+        /// <returns>the created IPlugin instance</returns>
+        public T LoadPlugin<T>(string uniqueName, string pluginConstructor, bool buffer) where T : class, IPlugin
+        {
+            return LoadPlugin<T>(uniqueName, pluginConstructor, null, buffer);
+        }
+
+        /// <summary>
         /// Verifies a given constructor and returns a boolean value indicating whether the plugin-string is processable in a running environment
         /// </summary>
         /// <param name="uniqueName">the uniquename of the plugin</param>
@@ -423,7 +429,7 @@ namespace ITVComponents.Plugins
         public bool VerifyConstructor(string uniqueName, string constructor, bool? buffer = null)
         {
             IPlugin dummy;
-            return TryLoadPlugin(uniqueName, constructor, buffer ?? this.buffer, out dummy, true);
+            return TryLoadPlugin(uniqueName, constructor, buffer ?? this.buffer, null, out dummy, true);
         }
 
         /// <summary>
@@ -812,18 +818,18 @@ namespace ITVComponents.Plugins
         /// <param name="plugin">the loaded plugin</param>
         /// <param name="testOnly">indicates whether to load the plugin or to only verify the constructor</param>
         /// <returns>a value indicating whether the plugin could be successfully loaded</returns>
-        private bool TryLoadPlugin(string uniqueName, string pluginConstructor, bool buffer, out IPlugin plugin, bool testOnly)
+        private bool TryLoadPlugin(string uniqueName, string pluginConstructor, bool buffer, Dictionary<string,object> customVariables, out IPlugin plugin, bool testOnly)
         {
             LogEnvironment.LogDebugEvent($"Loading {uniqueName} ({pluginConstructor}) with buffer={buffer}", LogSeverity.Report);
             Type pluginType;
             object[] constructor;
             plugin = null;
             ManualResetEventSlim trigger = null;
+            this.ParsePluginString(uniqueName, pluginConstructor, customVariables, ref buffer, out pluginType, out constructor, testOnly);
             if (testOnly || !buffer || this.pluginInitializationPromises.TryAdd(uniqueName, trigger = new ManualResetEventSlim(false)))
             {
                 try
                 {
-                    this.ParsePluginString(uniqueName, pluginConstructor, out pluginType, out constructor, testOnly);
                     if (pluginType == null)
                     {
                         if (!testOnly)
@@ -1110,14 +1116,13 @@ namespace ITVComponents.Plugins
         /// <param name="loggerType">the Type of the logger</param>
         /// <param name="constructor">the parsed result of the construction parameters</param>
         /// <param name="reflectOnly">indicates whether to only validate if the provided constructor string is valid</param>
-        private void ParsePluginString(string uniqueName, string loggerString, out Type loggerType, out object[] constructor, bool reflectOnly)
+        private void ParsePluginString(string uniqueName, string loggerString, Dictionary<string,object> customVariables, ref bool buffer, out Type loggerType, out object[] constructor, bool reflectOnly)
         {
             try
             {
                 Assembly a;
                 PluginConstructionElement parsed =
-                    PluginConstructorParser.ParsePluginString(loggerString, stringLiteralFormatter);
-                constructor = this.ParseConstructor(parsed.Parameters, reflectOnly);
+                    PluginConstructorParser.ParsePluginString(loggerString, customVariables, stringLiteralFormatter);
                 lock (registeredAssemblies)
                 {
                     if (!registeredAssemblies.ContainsKey(parsed.AssemblyName))
@@ -1152,19 +1157,21 @@ namespace ITVComponents.Plugins
                     var dynLoader = DynamicLoaders.FirstOrDefault(l => l.HasParamsFor(uniqueName));
                     if (dynLoader != null)
                     {
-                        dynLoader.GetGenericParams(uniqueName, t, stringLiteralFormatter);
+                        dynLoader.GetGenericParams(uniqueName, t, customVariables, stringLiteralFormatter, out bool knownTypeUsed);
                         var c = (from p in t select p.TypeResult).ToArray();
                         loggerType = loggerType.MakeGenericType(c);
+                        buffer &= !knownTypeUsed;
                     }
                     else
                     {
                         var arg = new ImplementGenericTypeEventArgs
-                            { GenericTypes = t, PluginUniqueName = uniqueName, Formatter = stringLiteralFormatter };
+                            { GenericTypes = t, PluginUniqueName = uniqueName, Formatter = stringLiteralFormatter, KnownArguments = customVariables };
                         OnImplementGenericType(arg);
                         if (arg.Handled)
                         {
                             var c = (from p in arg.GenericTypes select p.TypeResult).ToArray();
                             loggerType = loggerType.MakeGenericType(c);
+                            buffer &= !arg.KnownArgumentsUsed;
                         }
                         else
                         {
@@ -1173,12 +1180,17 @@ namespace ITVComponents.Plugins
                     }
                 }
 
+                constructor = this.ParseConstructor(parsed.Parameters, new PluginRef
+                {
+                    PluginType=loggerType,
+                    UniqueName = uniqueName
+                }, customVariables, reflectOnly);
                 LogEnvironment.LogDebugEvent(null, $"found {loggerType}...", (int)LogSeverity.Report, "PluginSystem");
             }
             catch (Exception ex)
             {
+                LogEnvironment.LogEvent(ex.OutlineException(), LogSeverity.Error);
                 LogEnvironment.LogEvent(loggerString, LogSeverity.Error);
-                Console.WriteLine(loggerString);
                 throw;
             }
         }
@@ -1189,9 +1201,9 @@ namespace ITVComponents.Plugins
         /// <param name="constructor">the constructorparameter string</param>
         /// <param name="reflectOnly">indicates whether to only validate the constructor and therefore only to check the roTypeList for the constructor values</param>
         /// <returns>an object array containing the parsed objects</returns>
-        private object[] ParseConstructor(PluginParameterElement[] constructor, bool reflectOnly)
+        private object[] ParseConstructor(PluginParameterElement[] constructor, PluginRef pluginType, Dictionary<string,object> customExpressionVariables, bool reflectOnly)
         {
-            return (from t in constructor select GetConstructorVal(t, reflectOnly)).ToArray();
+            return (from t in constructor select GetConstructorVal(t, pluginType, customExpressionVariables, reflectOnly)).ToArray();
         }
 
         /// <summary>
@@ -1199,7 +1211,7 @@ namespace ITVComponents.Plugins
         /// </summary>
         /// <param name="parameter">The Parameter for which to get the value</param>
         /// <param name="reflectOnly">indicates whether to only verify constructors and therefore check the roTypeList instead of the PluginList</param>
-        private object GetConstructorVal(PluginParameterElement parameter, bool reflectOnly)
+        private object GetConstructorVal(PluginParameterElement parameter, PluginRef pluginType, Dictionary<string, object> customVariables, bool reflectOnly)
         {
             object retVal = null;
             switch (parameter.TypeOfParameter)
@@ -1216,31 +1228,41 @@ namespace ITVComponents.Plugins
                 case ParameterKind.Plugin:
                     {
                         string value = parameter.ParameterValue.ToString();
-                        retVal= GetObjectByName(value, reflectOnly);
+                        retVal= GetObjectByName(value, pluginType, reflectOnly);
                         break;
                     }
 
                 case ParameterKind.Expression:
+                {
+                    var vars = new Dictionary<string, object>
                     {
-                        retVal = ExpressionParser.Parse(parameter.ParameterValue.ToString(), new Dictionary<string, object>
-                        {
-                            {"Get", new Func<string, object>(name => GetObjectByName(name, reflectOnly))}
-                        }, a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
-                        if (reflectOnly)
-                        {
-                            if (retVal != null)
-                            {
-                                retVal = AssemblyResolver.FindReflectionOnlyTypeFor(retVal.GetType());
-                            }
-                        }
-                        break;
+                        { "Get", new Func<string, object>(name => GetObjectByName(name, pluginType, reflectOnly)) },
+                        { "PlugInType", pluginType }
+                    };
+
+                    if (customVariables != null)
+                    {
+                        vars["CustomArg"] = customVariables;
                     }
+
+                    retVal = ExpressionParser.Parse(parameter.ParameterValue.ToString(), vars,
+                        a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
+                    if (reflectOnly)
+                    {
+                        if (retVal != null)
+                        {
+                            retVal = AssemblyResolver.FindReflectionOnlyTypeFor(retVal.GetType());
+                        }
+                    }
+
+                    break;
+                }
             }
 
             return retVal;
         }
 
-        private object GetObjectByName(string name, bool reflectOnly)
+        private object GetObjectByName(string name, PluginRef callingType, bool reflectOnly)
         {
             object retVal = null;
             if (this.plugins.ContainsKey(name) || (reflectOnly
@@ -1269,7 +1291,7 @@ namespace ITVComponents.Plugins
             }
             else if (reflectOnly || !SingletonEnvironment.FindSingletonPlugin(name, out retVal))
             {
-                UnknownConstructorParameterEventArgs e = new UnknownConstructorParameterEventArgs(name);
+                UnknownConstructorParameterEventArgs e = new UnknownConstructorParameterEventArgs(name, callingType);
                 OnUnknownConstructorParameter(e);
                 if (e.Handled)
                 {
@@ -1340,9 +1362,14 @@ namespace ITVComponents.Plugins
         public object Value { get; set; }
 
         /// <summary>
-        /// Gets the name of the requested Name for this Request
+        /// Gets the name of the Parameter-Name Name for this Request
         /// </summary>
         public string RequestedName { get; private set; }
+
+        /// <summary>
+        /// Gets the Type of the PlugIn that is being constructed
+        /// </summary>
+        public PluginRef PluginType { get; }
 
         /// <summary>
         /// Gets or sets a value indicating whether the request could be handled by the client object
@@ -1353,10 +1380,11 @@ namespace ITVComponents.Plugins
         /// Initializes a new instance of the UnkownConstructorParameterEventArgs class
         /// </summary>
         /// <param name="requestedName">the name of the requested value</param>
-        public UnknownConstructorParameterEventArgs(string requestedName)
+        public UnknownConstructorParameterEventArgs(string requestedName, PluginRef constructedPluginType)
             : this()
         {
             RequestedName = requestedName;
+            PluginType = constructedPluginType;
         }
 
         /// <summary>
@@ -1383,6 +1411,8 @@ namespace ITVComponents.Plugins
         internal IStringFormatProvider Formatter { get; set; }
 
         public bool Handled { get; set; }
+        public Dictionary<string, object> KnownArguments { get; set; }
+        public bool KnownArgumentsUsed { get; set; }
     }
 
     public class GenericTypeArgument

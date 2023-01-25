@@ -52,7 +52,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         public ICollection<Permission> Permissions => decoratedRepo.Permissions;
         public IEnumerable<Role> GetRoles(User user)
         {
-            if (user.UserName == decoratedUser.Identity.Name)
+            if (user.UserName.Equals(decoratedUser.Identity.Name, StringComparison.OrdinalIgnoreCase))
             {
                 yield return new Role { RoleName = "Me" };
             }
@@ -104,7 +104,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
-            if (userLabels.Length == 1 && userLabels[0] == decoratedUser.Identity.Name && userAuthenticationType ==
+            if (userLabels.Length == 1 && userLabels[0].Equals(decoratedUser.Identity.Name,StringComparison.OrdinalIgnoreCase) && userAuthenticationType ==
                 ((ClaimsIdentity)decoratedUser.Identity).AuthenticationType)
             {
                 return true;
@@ -125,7 +125,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public IEnumerable<Permission> GetPermissions(User user)
         {
-            if (user.UserName == decoratedUser.Identity.Name)
+            if (user.UserName.Equals(decoratedUser.Identity.Name, StringComparison.OrdinalIgnoreCase))
             {
                 return from t in assignedPermissions
                     select new Permission { PermissionName = t };
@@ -136,7 +136,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
-            if (userLabels.Length == 1 && userLabels[0] == decoratedUser.Identity.Name && userAuthenticationType ==
+            if (userLabels.Length == 1 && userLabels[0].Equals(decoratedUser.Identity.Name, StringComparison.OrdinalIgnoreCase) && userAuthenticationType ==
                 ((ClaimsIdentity)decoratedUser.Identity).AuthenticationType)
             {
                 return from t in assignedPermissions
@@ -164,7 +164,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType)
         {
-            if (userLabels.Length == 1 && userLabels[0] == decoratedUser.Identity.Name && userAuthenticationType ==
+            if (userLabels.Length == 1 && userLabels[0].Equals(decoratedUser.Identity.Name, StringComparison.OrdinalIgnoreCase) && userAuthenticationType ==
                 ((ClaimsIdentity)decoratedUser.Identity).AuthenticationType)
             {
                 yield return new ScopeInfo
@@ -174,7 +174,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {
-            if (permissionScopeName == assignedUserScope)
+            if (permissionScopeName.Equals(assignedUserScope,StringComparison.OrdinalIgnoreCase))
             {
                 return from t in assignedFeatures
                     select new Feature

@@ -457,7 +457,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                     tmp = new FullSecurityAccessHelper(securityContext, true, true);
                 }
 
-                var dt = DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
+                var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
                 var raw = (from t in securityContext.Features
                     join a in securityContext.TenantFeatureActivations.Where(ta =>
                             ta.Tenant.TenantName == permissionScopeName

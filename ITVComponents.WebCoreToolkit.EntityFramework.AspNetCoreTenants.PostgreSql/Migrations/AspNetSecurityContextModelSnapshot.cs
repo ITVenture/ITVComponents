@@ -505,8 +505,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)")
-                        .HasComputedColumnSql("case when isnull(Url,'')='' and isnull(RefTag,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) when isnull(Url,'')='' then RefTag else Url end persisted");
+                        .HasColumnType("character varying(1024)");
 
                     b.HasKey("NavigationMenuId");
 
@@ -543,8 +542,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)")
-                        .HasComputedColumnSql("case when TenantId is null then PermissionName else '__T'+convert(varchar(10),TenantId)+'##'+PermissionName end persisted");
+                        .HasColumnType("character varying(1024)");
 
                     b.Property<int?>("TenantId")
                         .HasColumnType("integer");
@@ -579,8 +577,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)")
-                        .HasComputedColumnSql("'__T'+convert(varchar(10),TenantId)+'##'+RoleName persisted");
+                        .HasColumnType("character varying(1024)");
 
                     b.Property<int>("TenantId")
                         .HasColumnType("integer");
@@ -1211,7 +1208,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
                     b.HasIndex("TemplateModuleId");
 
-                    b.ToTable("templateModuleScripts", (string)null);
+                    b.ToTable("TemplateModuleScripts", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", b =>
@@ -1456,8 +1453,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)")
-                        .HasComputedColumnSql("case when TenantId is null then UniqueName else '__T'+convert(varchar(10),TenantId)+'##'+UniqueName end persisted");
+                        .HasColumnType("character varying(1024)");
 
                     b.Property<string>("StartupRegistrationConstructor")
                         .HasMaxLength(2048)
@@ -1498,8 +1494,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)")
-                        .HasComputedColumnSql("case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted");
+                        .HasColumnType("character varying(1024)");
 
                     b.Property<int?>("TenantId")
                         .HasColumnType("integer");

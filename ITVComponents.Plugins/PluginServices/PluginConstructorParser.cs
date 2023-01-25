@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins.Initialization;
 using Exception = System.Exception;
@@ -38,7 +39,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// </summary>
         /// <param name="constructorString">the constructor hint</param>
         /// <param name="formatProvider">a Plugin-instance that is capable for formatting custom strings (i.e. decrypting passwords, or buffering sql-server instance names)</param>
-        public static PluginConstructionElement ParsePluginString(string constructorString, IStringFormatProvider formatProvider)
+        public static PluginConstructionElement ParsePluginString(string constructorString, Dictionary<string,object> customStringFormatArguments, IStringFormatProvider formatProvider)
         {
             try
             {
@@ -46,7 +47,7 @@ namespace ITVComponents.Plugins.PluginServices
                 string filename = splitted.Groups["Path"].Value;
                 string className = splitted.Groups["Type"].Value;
                 PluginParameterElement[] constructor =
-                    ParseConstructor(splitted.Groups["Parameters"].Value, formatProvider);
+                    ParseConstructor(splitted.Groups["Parameters"].Value, customStringFormatArguments, formatProvider);
                 return new PluginConstructionElement
                 {
                     AssemblyName = filename,
@@ -56,7 +57,7 @@ namespace ITVComponents.Plugins.PluginServices
             }
             catch (Exception ex)
             {
-                Console.WriteLine(constructorString);
+                LogEnvironment.LogEvent(ex.OutlineException(), LogSeverity.Error);
                 LogEnvironment.LogEvent(constructorString, LogSeverity.Error);
                 throw;
             }
@@ -68,7 +69,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// <param name="constructor">the constructorparameter string</param>
         /// <param name="formatProvider">a Plugin-instance that is capable for formatting custom strings (i.e. decrypting passwords, or buffering sql-server instance names)</param>
         /// <returns>an object array containing the parsed objects</returns>
-        private static PluginParameterElement[] ParseConstructor(string constructor, IStringFormatProvider formatProvider)
+        private static PluginParameterElement[] ParseConstructor(string constructor, Dictionary<string,object> customStringFormatArguments, IStringFormatProvider formatProvider)
         {
             List<PluginParameterElement> ls = new List<PluginParameterElement>();
             List<string> strings = new List<string>();
@@ -81,7 +82,7 @@ namespace ITVComponents.Plugins.PluginServices
                     if (m.Groups["formatIndicator"].Value == "$" && formatProvider != null)
                     {
                         LogEnvironment.LogDebugEvent($"Resolving {tmp} using {formatProvider}...",LogSeverity.Report);
-                        tmp = formatProvider.ProcessLiteral(tmp);
+                        tmp = formatProvider.ProcessLiteral(tmp, customStringFormatArguments);
                         LogEnvironment.LogDebugEvent($"Resulted to {tmp}",LogSeverity.Report);
                     }
 

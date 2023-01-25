@@ -42,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ModuleC
                 select new { Parameter = a, Value = v.Value };
             var p = context.WebPlugins.FirstOrDefault(n =>
                 n.UniqueName == pluginName && n.Tenant != null &&
-                n.Tenant.TenantName == permissionScope.PermissionPrefix);
+                n.Tenant.TenantName.ToLower() == permissionScope.PermissionPrefix.ToLower());
             Dictionary<string, object> formatHint = new Dictionary<string, object>();
             foreach (var item in j)
             {
@@ -63,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ModuleC
             var mustEnable = (bool)TypeConverter.Convert(values[$"{pluginName}_EnableModule"], typeof(bool));
             var plug = context.WebPlugins.FirstOrDefault(n =>
                 n.UniqueName == pluginName && n.Tenant != null &&
-                n.Tenant.TenantName == permissionScope.PermissionPrefix);
+                n.Tenant.TenantName.ToLower() == permissionScope.PermissionPrefix.ToLower());
             var currentEnabled = plug != null;
             if (mustEnable && !currentEnabled)
             {
@@ -149,11 +149,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ModuleC
             arguments ??= Array.Empty<PluginParameterInfo>();
             var p = context.WebPlugins.FirstOrDefault(n =>
                 n.UniqueName == pluginName && n.Tenant != null &&
-                n.Tenant.TenantName == permissionScope.PermissionPrefix);
+                n.Tenant.TenantName.ToLower() == permissionScope.PermissionPrefix.ToLower());
             
             if (p != null)
             {
-                var result = PluginConstructorParser.ParsePluginString(p.Constructor, null);
+                var result = PluginConstructorParser.ParsePluginString(p.Constructor, null, null);
                 if (result.Parameters.Length == arguments.Length)
                 {
                     retVal[$"{pluginName}_EnableModule"]= true;

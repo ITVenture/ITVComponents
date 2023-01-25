@@ -14,7 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Models.Comparers
             if (ReferenceEquals(x, null)) return false;
             if (ReferenceEquals(y, null)) return false;
             if (x.GetType() != y.GetType()) return false;
-            return x.PermissionName == y.PermissionName;
+            return x.PermissionName.Equals(y.PermissionName,StringComparison.OrdinalIgnoreCase);
         }
 
         public int GetHashCode(Permission obj)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing.Text;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -96,6 +97,10 @@ namespace ITVComponents.Formatting
 
                         tmp[i] = new StringElement { Length = fmt.Length, Start = fmt.Start };
                         tmp[i].Content.Append($"{pref}[{fmt.Content}]");
+                        if (fmt.IsRecursive && fmt.RecursionDepth != 1)
+                        {
+                            tmp[1].Content.Append($"{{{fmt.RecursionDepth}}}");
+                        }
                     }
                     else
                     {
@@ -145,6 +150,10 @@ namespace ITVComponents.Formatting
 
                             tmp[i] = new StringElement { Length = fmt.Length, Start = fmt.Start };
                             tmp[i].Content.Append($"{pref}[{fmt.Content}]");
+                            if (fmt.IsRecursive && fmt.RecursionDepth != 1)
+                            {
+                                tmp[1].Content.Append($"{{{fmt.RecursionDepth}}}");
+                            }
                         }
                         else
                         {
@@ -222,9 +231,12 @@ namespace ITVComponents.Formatting
 
             if (fe.CodeType == CodeType.RecursiveExpression || fe.CodeType == CodeType.RecursiveBlock)
             {
-                if (val is string recVal && !string.IsNullOrEmpty(recVal))
+                for (int i = 0; i < fe.RecursionDepth; i++)
                 {
-                    val = FormatText(sessionContext, recVal);
+                    if (val is string recVal && !string.IsNullOrEmpty(recVal))
+                    {
+                        val = FormatText(sessionContext, recVal);
+                    }
                 }
             }
 
@@ -244,6 +256,7 @@ namespace ITVComponents.Formatting
 
         private static IFormatElement[] TokenizeString(string s)
         {
+            CodeType[] recursiveBlocks = new[] { CodeType.RecursiveBlock, CodeType.RecursiveExpression };
             Stack<ParseState> parserStack = new Stack<ParseState>();
             ParseState currentState = ParseState.String;
             IFormatElement currentElement = new StringElement();
@@ -389,19 +402,46 @@ namespace ITVComponents.Formatting
                             parserStack.Push(currentState);
                             currentState = ParseState.FormatterLength;
                         }
-                        else if (o == "]")
+                        else if (o == "]" ||
+                                 (o == "}" && ((FormatElement)currentElement).IsRecursive))
                         {
-                            if (currentElement.Length != 0)
+                            if (t != "]{")
                             {
-                                elements.Add(currentElement);
-                            }
+                                if (((FormatElement)currentElement).RecursionDepthString.Length != 0)
+                                {
+                                    ((FormatElement)currentElement).RecursionDepth = int.Parse(((FormatElement)currentElement).RecursionDepthString.ToString());
+                                }
 
-                            currentElement = new StringElement();
-                            currentElement.Start = i + 1;
-                            currentState = parserStack.Pop();
-                            if (currentState != ParseState.String)
+                                if (currentElement.Length != 0)
+                                {
+                                    elements.Add(currentElement);
+                                }
+
+                                currentElement = new StringElement();
+                                currentElement.Start = i + 1;
+                                currentState = parserStack.Pop();
+                                if (currentState != ParseState.String)
+                                {
+                                    throw new FormatException($"Unexpected Token @{i}!");
+                                }
+
+                                if (t == "]#")
+                                {
+                                    i++;
+                                }
+                            }
+                            else
                             {
-                                throw new FormatException($"Unexpected Token @{i}!");
+                                parserStack.Push(currentState);
+                                ((FormatElement)currentElement).IsRecursive = true;
+                                if (!recursiveBlocks.Contains(((FormatElement)currentElement).CodeType))
+                                {
+                                    throw new FormatException(
+                                        "RecursionDepth is not supported for non-recursive elements!");
+                                }
+
+                                currentState = ParseState.RecursionDepth;
+                                i++;
                             }
                         }
                         else
@@ -638,6 +678,29 @@ namespace ITVComponents.Formatting
                             ((FormatElement)currentElement).FormatLength.Append(o);
                         }
                         break;
+                    case ParseState.RecursionDepth:
+                    {
+                        if (char.IsDigit(o, 0))
+                        {
+                            if (!((FormatElement)currentElement).IsRecursive)
+                            {
+                                throw new FormatException($"Recursion depth is invalid at this point.");
+                            }
+
+                            ((FormatElement)currentElement).RecursionDepthString.Append(o);
+                        }
+                        else if (o == "}")
+                        {
+                            i--;
+                            currentState = parserStack.Pop();
+                        }
+                        else
+                        {
+                            throw new FormatException($"Invalid character in Recursive Depth definition! ({o}).");
+                        }
+
+                        break;
+                    }
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
@@ -677,6 +740,7 @@ namespace ITVComponents.Formatting
         FormatTerentary,
         FormatterHint,
         FormatterHintString,
-        FormatterLength
+        FormatterLength,
+        RecursionDepth
     }
 }

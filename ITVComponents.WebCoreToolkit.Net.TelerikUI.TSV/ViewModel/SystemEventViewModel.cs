@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
+using ITVComponents.DataAccess.DataAnnotations;
 using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
@@ -13,6 +14,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         [MaxLength(1024)]
         public string Title { get; set; }
         public string Message { get; set; }
+        
+        [UtcDateTime]
         public DateTime EventTime { get; set; }
     }
 }

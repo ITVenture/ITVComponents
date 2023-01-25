@@ -466,7 +466,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             bool addIfMissing)
         {
             var nowU = DateTime.UtcNow;
-            var ftu = db.Features.First(n => n.FeatureName == feature.FeatureName);
+            var ftu = db.Features.First(n => n.FeatureName.ToLower() == feature.FeatureName.ToLower());
             var retVal = db.TenantFeatureActivations.LocalFirstOrDefault(n =>
                 n.TenantId == tenantId && (n.ActivationStart ?? nowU) <= nowU && (n.ActivationEnd ?? nowU) >= nowU);
             if (retVal == null && addIfMissing)
@@ -485,7 +485,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         protected virtual TTenantQuery GetQuery(int tenantId, QueryTemplateMarkup query, bool addIfMissing)
         {
-            var qry = db.DiagnosticsQueries.First(n => n.DiagnosticsQueryName == query.Name);
+            var qry = db.DiagnosticsQueries.First(n => n.DiagnosticsQueryName.ToLower() == query.Name.ToLower());
             var retVal = db.TenantDiagnosticsQueries.LocalFirstOrDefault(n =>
                 n.DiagnosticsQueryId == qry.DiagnosticsQueryId && n.TenantId == tenantId);
             if (retVal == null && addIfMissing)
@@ -588,7 +588,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         protected virtual TRole GetRole(int tenantId, RoleTemplateMarkup role, bool addIfMissing)
         {
             var retVal = db.SecurityRoles.LocalFirstOrDefault(n =>
-                n.TenantId == tenantId && n.RoleName == role.Name);
+                n.TenantId == tenantId && n.RoleName.ToLower() == role.Name.ToLower());
             if (retVal== null && addIfMissing)
             {
                 retVal = new TRole
@@ -606,7 +606,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         protected virtual TPermission GetPermission(int tenantId, PermissionTemplateMarkup perm, bool addIfMissing)
         {
             var retVal = db.Permissions.LocalFirstOrDefault(n =>
-                n.PermissionName == perm.Name && (n.TenantId == tenantId || (perm.Global && n.TenantId == null)));
+                n.PermissionName.ToLower() == perm.Name.ToLower() && (n.TenantId == tenantId || (perm.Global && n.TenantId == null)));
             if (retVal== null && perm.Global)
             {
                 throw new InvalidOperationException($"Global Role {perm.Name} was not found!");

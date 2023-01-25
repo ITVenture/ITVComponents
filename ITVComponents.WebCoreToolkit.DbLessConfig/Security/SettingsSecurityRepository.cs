@@ -76,7 +76,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         /// <returns>an enumerable of all the user-roles</returns>
         public IEnumerable<Role> GetRoles(User user)
         {
-            var hu = options.Users.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            var hu = options.Users.First(n => n.UserName.Equals(user.UserName,StringComparison.OrdinalIgnoreCase) && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return from r in Roles join gr in hu.Roles on r.RoleName equals gr select r;
         }
 
@@ -101,7 +101,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
-            var hu = options.Users.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            var hu = options.Users.First(n => n.UserName.Equals(user.UserName,StringComparison.OrdinalIgnoreCase) && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return hu.CustomInfo.Where(n => n.PropertyType == propertyType).Select(i => new CustomUserProperty
             {
                 PropertyName = i.PropertyName, Value = i.Value,
@@ -177,7 +177,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
             return options.Users.Any(n =>
-                n.AuthenticationType == userAuthenticationType && userLabels.Contains(n.UserName));
+                n.AuthenticationType == userAuthenticationType && userLabels.Contains(n.UserName, StringComparer.OrdinalIgnoreCase));
         }
 
         /// <summary>
@@ -217,7 +217,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         /// <returns>an enumerable of permissions for the given user</returns>
         public IEnumerable<Permission> GetPermissions(User user)
         {
-            var hu = options.Users.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            var hu = options.Users.First(n => n.UserName.Equals(user.UserName, StringComparison.OrdinalIgnoreCase) && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return (from t in hu.Roles
                     join r in options.Roles on t equals r.RoleName
                     select r.Permissions).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
@@ -247,7 +247,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         /// <returns>an enumerable of permissions for the given role</returns>
         public IEnumerable<Permission> GetPermissions(Role role)
         {
-            var ro = options.Roles.First(n => n.RoleName == role.RoleName);
+            var ro = options.Roles.First(n => n.RoleName.Equals(role.RoleName,StringComparison.OrdinalIgnoreCase));
             return ro.Permissions.Select(p => new Permission {PermissionName = p});
         }
 

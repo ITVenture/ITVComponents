@@ -22,7 +22,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Handler
         public static async Task<IResult> SaveModuleTemplateConfig(HttpContext context, string area, string moduleName,
             [FromBody] Dictionary<string,string> configurationData, [FromServices] IBaseTenantContext db, [FromServices] ITemplateHandlerFactory handlerFactory)
         {
-            var template = db.TemplateModules.FirstOrDefault(n => n.TemplateModuleName == moduleName);
+            var template = db.TemplateModules.FirstOrDefault(n => n.TemplateModuleName.ToLower() == moduleName.ToLower());
             if (template != null)
             {
                 var configurators = template.Configurators.OrderBy(n => n.Name);
@@ -39,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Handler
             [FromServices]ITemplateHandlerFactory handlerFactory)
         {
             var retVal = new Dictionary<string, object>();
-            var template = db.TemplateModules.FirstOrDefault(n => n.TemplateModuleName == moduleName);
+            var template = db.TemplateModules.FirstOrDefault(n => n.TemplateModuleName.ToLower() == moduleName.ToLower());
             if (template != null)
             {
                 var configurators = template.Configurators.OrderBy(n => n.Name);

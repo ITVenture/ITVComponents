@@ -1,4 +1,6 @@
-﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.SyntaxHelper;
+﻿using ITVComponents.EFRepo.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.SyntaxHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -11,8 +13,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
         {
             var optionsBuilder = new DbContextOptionsBuilder<SecurityContext>();
             optionsBuilder.UseNpgsql(so => so.MigrationsAssembly(typeof(SecurityContextDesignTimeHelper).Assembly.FullName));
-
-            return new SecurityContext(new PostgreSqlColumnsSyntaxHelper(),optionsBuilder.Options);
+            var builderOptions = new DbContextModelBuilderOptions<SecurityContext>();
+            PostgreSqlColumnsSyntaxHelper.ConfigureComputedColumns(builderOptions);
+            return new SecurityContext(builderOptions,optionsBuilder.Options);
         }
     }
 }

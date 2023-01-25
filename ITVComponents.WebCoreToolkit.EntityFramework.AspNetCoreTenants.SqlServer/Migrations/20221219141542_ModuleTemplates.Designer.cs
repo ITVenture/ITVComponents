@@ -1218,7 +1218,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
 
                     b.HasIndex("TemplateModuleId");
 
-                    b.ToTable("templateModuleScripts", (string)null);
+                    b.ToTable("TemplateModuleScripts", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", b =>

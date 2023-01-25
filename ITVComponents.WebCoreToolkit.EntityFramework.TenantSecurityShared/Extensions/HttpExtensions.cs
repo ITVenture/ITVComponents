@@ -46,11 +46,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             }
 
             var loca = location;
-            var exists = db.Tutorials.Any(n => n.ModuleUrl == loca && n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang));
+            var exists = db.Tutorials.Any(n => n.ModuleUrl.ToLower() == loca.ToLower() && n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang));
             if (!exists)
             {
                 exists = db.Tutorials.Any(
-                    n => n.ModuleUrl == loca && n.Streams.Any(n => n.LanguageTag == "Default"));
+                    n => n.ModuleUrl.ToLower() == loca.ToLower() && n.Streams.Any(n => n.LanguageTag == "Default"));
             }
 
             return exists;

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.Formatting.Extensions;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Settings;
@@ -28,10 +29,12 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
         /// </summary>
         /// <param name="rawString">the raw-string that was read from a plugin-configuration string</param>
         /// <returns>the format-result of the raw-string</returns>
-        public string ProcessLiteral(string rawString)
+        public string ProcessLiteral(string rawString, Dictionary<string, object> customStringFormatArguments)
         {
             configLock.WaitOne();
-            return formatPrototype.FormatText(rawString, TextFormat.DefaultFormatPolicyWithPrimitives);
+            customStringFormatArguments??=new ();
+            customStringFormatArguments = formatPrototype.ExtendDictionary(customStringFormatArguments);
+            return customStringFormatArguments.FormatText(rawString, TextFormat.DefaultFormatPolicyWithPrimitives);
         }
 
         /// <summary>

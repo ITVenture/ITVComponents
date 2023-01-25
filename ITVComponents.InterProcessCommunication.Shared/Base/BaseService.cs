@@ -407,7 +407,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                         var tret = targetMethod.ReturnType;
                         if (ret is Task && tret.IsGenericType && tret.GetGenericTypeDefinition() == typeof(Task<>))
                         {
-                            tret.GetGenericArguments().ForEach(Console.WriteLine);
+                            //tret.GetGenericArguments().ForEach(Console.WriteLine);
                             var fc = (Delegate)makeAsyncAwaitInfo.MakeGenericMethod(tret.GetGenericArguments()).Invoke(null, null);
                             Task<object> tmp = (Task<object>)fc.DynamicInvoke(ret);
                             ret = AsyncHelpers.RunSync(async () => await tmp);

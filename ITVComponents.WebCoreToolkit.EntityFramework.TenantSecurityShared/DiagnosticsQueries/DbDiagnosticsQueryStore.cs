@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
@@ -54,7 +55,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// <returns>a DiagnosticsQueryDefinition-Object containing all parameters and permissions required to execute it</returns>
         public DiagnosticsQueryDefinition GetQuery(string queryName)
         {
-            var dbQuery = dbContext.DiagnosticsQueries.FirstOrDefault(n => n.DiagnosticsQueryName == queryName);
+            var dbQuery = dbContext.DiagnosticsQueries.FirstOrDefault(n => n.DiagnosticsQueryName.ToLower() == queryName.ToLower());
             if (dbQuery != null)
             {
                 var retVal = new DiagnosticsQueryDefinition

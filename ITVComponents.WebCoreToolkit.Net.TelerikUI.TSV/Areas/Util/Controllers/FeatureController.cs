@@ -302,11 +302,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             return Json(await new[] { model.ToViewModel<TemplateModuleConfigurator, TemplateModuleConfiguratorViewModel>() }.ToDataSourceResultAsync(request, ModelState));
         }
 
-        //templateModuleScripts
+        //TemplateModuleScripts
         [HttpPost]
         public IActionResult ReadScripts([DataSourceRequest] DataSourceRequest request, [FromQuery] int templateModuleId)
         {
-            return Json(db.templateModuleScripts.Where(n => n.TemplateModuleId == templateModuleId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TemplateModuleScript, TemplateModuleScriptViewModel>()));
+            return Json(db.TemplateModuleScripts.Where(n => n.TemplateModuleId == templateModuleId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TemplateModuleScript, TemplateModuleScriptViewModel>()));
         }
 
         [HttpPost]
@@ -318,7 +318,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             {
                 await this.TryUpdateModelAsync<TemplateModuleScriptViewModel, TemplateModuleScript>(model);
                 model.TemplateModuleId = templateModuleId;
-                db.templateModuleScripts.Add(model);
+                db.TemplateModuleScripts.Add(model);
                 await db.SaveChangesAsync();
             }
 
@@ -330,10 +330,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         public async Task<IActionResult> DestroyScript([DataSourceRequest] DataSourceRequest request, TemplateModuleScriptViewModel viewModel)
         {
 
-            var model = db.templateModuleScripts.First(n => n.TemplateModuleScriptId== viewModel.TemplateModuleScriptId);
+            var model = db.TemplateModuleScripts.First(n => n.TemplateModuleScriptId== viewModel.TemplateModuleScriptId);
             if (ModelState.IsValid)
             {
-                db.templateModuleScripts.Remove(model);
+                db.TemplateModuleScripts.Remove(model);
                 await db.SaveChangesAsync();
             }
 
@@ -344,7 +344,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [Authorize("HasPermission(Sysadmin)")]
         public async Task<IActionResult> UpdateScript([DataSourceRequest] DataSourceRequest request, TemplateModuleScriptViewModel viewModel)
         {
-            var model = db.templateModuleScripts.First(n => n.TemplateModuleScriptId == viewModel.TemplateModuleScriptId);
+            var model = db.TemplateModuleScripts.First(n => n.TemplateModuleScriptId == viewModel.TemplateModuleScriptId);
             if (ModelState.IsValid)
             {
                 await this.TryUpdateModelAsync<TemplateModuleScriptViewModel, TemplateModuleScript>(model, "", m => { return m.ElementType == null; });

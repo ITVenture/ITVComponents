@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -18,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewCom
         public async Task<IViewComponentResult> InvokeAsync(string templateName, TemplateModule module = null, string subElement = "Default")
         {
             ViewData["templateName"] = templateName;
-            var template = module ?? db.TemplateModules.First(n => n.TemplateModuleName == templateName);
+            var template = module ?? db.TemplateModules.First(n => n.TemplateModuleName.ToLower() == templateName.ToLower());
             switch (subElement)
             {
                 case "scripts":

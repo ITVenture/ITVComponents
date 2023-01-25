@@ -57,8 +57,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         {
             using (new FullSecurityAccessHelper(dbContext, true, false))
             {
-                return !dbContext.Permissions.Any(n => n.PermissionName == permissionName && n.TenantId == null);
-            }
+                return !dbContext.Permissions.Any(n => n.PermissionName.ToLower()==permissionName.ToLower() && n.TenantId == null); }
         }
 
         public static bool EnsureNavUniqueness<TContext>(this TContext dbContext)

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Formatting;
+using ITVComponents.Formatting.Extensions;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins;
@@ -79,9 +80,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// </summary>
         /// <param name="rawString">the raw-string that was read from a plugin-configuration string</param>
         /// <returns>the format-result of the raw-string</returns>
-        public string ProcessLiteral(string rawString)
+        public string ProcessLiteral(string rawString, Dictionary<string,object> customStringFormatArguments)
         {
-            return formatPrototype.FormatText(rawString, EncryptSupport);
+            customStringFormatArguments ??= new();
+            customStringFormatArguments = formatPrototype.ExtendDictionary(customStringFormatArguments);
+            return customStringFormatArguments.FormatText(rawString, EncryptSupport);
         }
 
         private object EncryptSupport(string constName, string formatterName, string argumentName)

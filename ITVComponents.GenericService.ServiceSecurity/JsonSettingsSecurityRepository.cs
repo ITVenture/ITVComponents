@@ -49,7 +49,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
         /// <returns>an enumerable of all the user-roles</returns>
         public IEnumerable<Role> GetRoles(User user)
         {
-            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName.ToLower() == user.UserName.ToLower() && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return from r in Roles join gr in hu.Roles on r.RoleName equals gr select r;
         }
 
@@ -74,7 +74,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
-            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName.ToLower() == user.UserName.ToLower() && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return hu.CustomInfo.Where(n => n.PropertyType == propertyType).Select(m => new CustomUserProperty
             {
                 PropertyName = m.PropertyName,
@@ -189,7 +189,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
         /// <returns>an enumerable of permissions for the given user</returns>
         public IEnumerable<Permission> GetPermissions(User user)
         {
-            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName == user.UserName && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
+            var hu = HostConfiguration.Helper.HostUsers.First(n => n.UserName.ToLower() == user.UserName.ToLower() && (string.IsNullOrEmpty(n.AuthenticationType) || string.IsNullOrEmpty(user.AuthenticationType) || n.AuthenticationType == user.AuthenticationType));
             return (from t in hu.Roles
                     join r in HostConfiguration.Helper.HostRoles on t equals r.RoleName
                     select r.Permissions).SelectMany(n => n)
@@ -286,7 +286,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
         /// <returns>an enumerable of permissions for the given role</returns>
         public IEnumerable<Permission> GetPermissions(Role role)
         {
-            var ro = HostConfiguration.Helper.HostRoles.First(n => n.RoleName == role.RoleName);
+            var ro = HostConfiguration.Helper.HostRoles.First(n => n.RoleName.ToLower() == role.RoleName.ToLower());
             return ro.Permissions.Select(p => new Permission { PermissionName = p });
         }
 

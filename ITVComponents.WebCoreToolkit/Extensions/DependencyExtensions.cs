@@ -362,7 +362,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>the provided ServiceCollection for method chaining</returns>
         public static IServiceCollection RegisterExplicityInterfacesTransient<TService>(this IServiceCollection services)
         {
-            return RegisterExplicityInterfacesScoped<TService, TService>(services);
+            return RegisterExplicityInterfacesTransient<TService, TService>(services);
         }
 
         /// <summary>
@@ -385,7 +385,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>the provided ServiceCollection for method chaining</returns>
         public static IServiceCollection RegisterExplicityInterfacesSingleton<TService>(this IServiceCollection services)
         {
-            return RegisterExplicityInterfacesScoped<TService, TService>(services);
+            return RegisterExplicityInterfacesSingleton<TService, TService>(services);
         }
 
         /// <summary>

@@ -52,7 +52,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                 });
 
             migrationBuilder.CreateTable(
-                name: "templateModuleScripts",
+                name: "TemplateModuleScripts",
                 columns: table => new
                 {
                     TemplateModuleScriptId = table.Column<int>(type: "int", nullable: false)
@@ -62,9 +62,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_templateModuleScripts", x => x.TemplateModuleScriptId);
+                    table.PrimaryKey("PK_TemplateModuleScripts", x => x.TemplateModuleScriptId);
                     table.ForeignKey(
-                        name: "FK_templateModuleScripts_TemplateModules_TemplateModuleId",
+                        name: "FK_TemplateModuleScripts_TemplateModules_TemplateModuleId",
                         column: x => x.TemplateModuleId,
                         principalTable: "TemplateModules",
                         principalColumn: "TemplateModuleId",
@@ -109,8 +109,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                 column: "FeatureId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_templateModuleScripts_TemplateModuleId",
-                table: "templateModuleScripts",
+                name: "IX_TemplateModuleScripts_TemplateModuleId",
+                table: "TemplateModuleScripts",
                 column: "TemplateModuleId");
         }
 
@@ -120,7 +120,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                 name: "TemplateModuleConfiguratorParameters");
 
             migrationBuilder.DropTable(
-                name: "templateModuleScripts");
+                name: "TemplateModuleScripts");
 
             migrationBuilder.DropTable(
                 name: "TemplateModuleConfigurators");

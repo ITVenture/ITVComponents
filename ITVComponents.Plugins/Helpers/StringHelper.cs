@@ -29,7 +29,7 @@ namespace ITVComponents.Plugins.Helpers
             var retVal = typeExpression;
             if (formatter != null && typeExpression.StartsWith("$"))
             {
-                retVal = formatter.ProcessLiteral(typeExpression.Substring(1));
+                retVal = formatter.ProcessLiteral(typeExpression.Substring(1), null);
             }
 
             return retVal;

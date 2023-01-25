@@ -10,6 +10,7 @@ using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Options;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navigation
@@ -74,7 +75,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
 
         private IEnumerable<NavigationMenu> SelectNavigation(int? parent, string explicitTenant)
         {
-            var items = from n in securityContext.Navigation where n.ParentId == parent orderby n.SortOrder??0 select n;
+            var items = (from n in securityContext.Navigation where n.ParentId == parent orderby n.SortOrder??0 select n).ToArray();
             foreach (var item in items)
             {
                 NavigationMenu ret = new NavigationMenu

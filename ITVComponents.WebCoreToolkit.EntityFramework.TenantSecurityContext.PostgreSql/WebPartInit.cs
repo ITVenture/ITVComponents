@@ -7,6 +7,7 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -57,10 +58,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                 if (t != null)
                 {
                     services.UseDbIdentities(t, options => options.UseNpgsql(partActivation.ConnectionStringName));
+                    if (partActivation.ActivateFilters)
+                    {
+
+                    }
                 }
                 else
                 {
                     services.UseDbIdentities(options => options.UseNpgsql(partActivation.ConnectionStringName));
+                    services.ConfigureComputedColumns<SecurityContext>();
                 }
 
             }

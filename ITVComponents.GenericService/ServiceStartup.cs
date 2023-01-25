@@ -10,6 +10,8 @@ using System.Configuration;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.DataAccess.Extensions;
+using ITVComponents.ExtendedFormatting;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Config;
 using ITVComponents.Plugins.Helpers;
@@ -147,6 +149,15 @@ namespace ITVComponents.GenericService
             if (ServiceConfigHelper.GenericTypeInformation != null &&
                 ServiceConfigHelper.GenericTypeInformation.ContainsKey(e.PluginUniqueName))
             {
+                var knownTypes = e.KnownArguments ?? new Dictionary<string, object>();
+                knownTypes.ForEach(n => dic.Add(n.Key, new SmartProperty
+                {
+                    GetterMethod = t =>
+                    {
+                        e.KnownArgumentsUsed = true;
+                        return n.Value;
+                    }
+                }));
                 var tmp = ServiceConfigHelper.GenericTypeInformation[e.PluginUniqueName];
                 var impl = (from t in e.GenericTypes
                     join j in tmp on t.GenericTypeName equals j.TypeParameterName

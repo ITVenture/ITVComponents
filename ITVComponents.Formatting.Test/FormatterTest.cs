@@ -70,15 +70,16 @@ namespace ITVComponents.Formatting.Test
                 Val1L = "[Val1?.Length]",
                 Val2 = "HORN",
                 Val2L = "[Val2.Length]",
-                Val3 = DateTime.Today
+                Val3 = DateTime.Today,
+                LengthProp = "Length"
             };
             var differ = Target.Val3.Subtract(DateTime.Parse("01.01.1900")).TotalDays;
             Assert.AreEqual(string.Format(@"Das ist ein TEST123. Von weitem klingt ein HORN. Heute ist der {0:dd.MM.yyyy}
-Seit dem 1.1.1900 sind {1,-10} Tage vergangen. HORN ist 4 Zeichen lang und TEST123 ist 7 Zeichen lang.", DateTime.Today,differ),
+Seit dem 1.1.1900 sind {1,-10} Tage vergangen. HORN ist 4 Zeichen (oder auch lng:4) lang und TEST123 ist 7 Zeichen lang.", DateTime.Today,differ),
                 Target.FormatText(@"Das ist ein [Val1]. Von weitem klingt ein [Val2]. Heute ist der [Val3:dd.MM.yyyy]
 Seit dem 1.1.1900 sind $[dateTime = 'System.DateTime'
 dt1 = dateTime.Parse(""01.01.1900"");
-return Val3.Subtract(dt1).TotalDays;,-10] Tage vergangen. [Val2] ist £[Val2L] Zeichen lang und [Val1] ist $£[return Val1L;] Zeichen lang.", TextFormat.DefaultFormatPolicyWithPrimitives));
+return Val3.Subtract(dt1).TotalDays;,-10] Tage vergangen. [Val2] ist £[Val2L] Zeichen (oder auch £[""lng:[[Val2.[LengthProp]]]""]{2}) lang und [Val1] ist $£[return Val1L;] Zeichen lang.", TextFormat.DefaultFormatPolicyWithPrimitives));
         }
 
         [TestMethod]

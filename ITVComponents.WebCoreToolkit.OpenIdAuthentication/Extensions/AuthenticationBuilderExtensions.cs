@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Dynamitey;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
+using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.OpenIdAuthentication.Options;
 using Microsoft.AspNetCore.Authentication;
@@ -98,7 +99,6 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
 
                 o.Events.OnUserInformationReceived = context =>
                 {
-                    Console.WriteLine(context.User.ToString());
                     return Task.CompletedTask;
                 };
 
@@ -139,7 +139,7 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
 
                 o.Events.OnAuthenticationFailed = context =>
                 {
-                    Console.WriteLine(context.Exception.OutlineException());
+                    LogEnvironment.LogEvent(context.Exception.OutlineException(), LogSeverity.Error);
                     return Task.CompletedTask;
                 };
             };

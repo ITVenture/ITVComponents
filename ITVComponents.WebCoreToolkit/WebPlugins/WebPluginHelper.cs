@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using ITVComponents.DataAccess.Extensions;
+using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
@@ -150,7 +152,16 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
 
                         if (!string.IsNullOrEmpty(plugin.Constructor))
                         {
-                            args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
+                            if (args.PluginType != null)
+                            {
+                                args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
+                                                        new Dictionary<string,object>{{"CallingPlugin",args.PluginType}});
+                            }
+                            else
+                            {
+                                args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
+                            }
+
                             args.Handled = true;
                         }
 
@@ -199,6 +210,15 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 if (impl != null)
                 {
                     var dic = new Dictionary<string, object>();
+                    var knownTypes = args.KnownArguments ?? new Dictionary<string, object>();
+                    knownTypes.ForEach(n => dic.Add(n.Key, new SmartProperty
+                    {
+                        GetterMethod = t =>
+                        {
+                            args.KnownArgumentsUsed = true;
+                            return n.Value;
+                        }
+                    }));
                     var assignments = (from t in args.GenericTypes
                         join a in impl on t.GenericTypeName equals a.GenericTypeName
                         select new { Arg = t, Type = a.TypeExpression });

@@ -4,13 +4,14 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
 {
@@ -19,12 +20,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
         private string currentUserId;
         private string currentUserEmail;
 
-        public fubar(ICalculatedColumnsSyntaxProvider syntaxProvider,DbContextOptions<fubar> options) : base(syntaxProvider, options)
+        public fubar(DbContextModelBuilderOptions<fubar> builderOptions,DbContextOptions<fubar> options) : base(builderOptions, options)
         {
         }
 
-        public fubar(IPermissionScope tenantProvider, IContextUserProvider userProvider, ILogger<fubar> logger, DbContextOptions<fubar> options) : base(tenantProvider, userProvider, logger, options)
+        public fubar(IPermissionScope tenantProvider, IContextUserProvider userProvider, ILogger<fubar> logger, IOptions<DbContextModelBuilderOptions<fubar>> builderOptions, DbContextOptions<fubar> options) : base(tenantProvider, userProvider, logger, builderOptions, options)
         {
+            modelBuilderOptions.ConfigureExpressionProperty(()=>UserId);
+            modelBuilderOptions.ConfigureExpressionProperty(() => UserMail);
         }
 
         public string UserId => currentUserId ??= GetUserId();
@@ -34,8 +37,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-            modelBuilder.ConfigureDefaultFilters(UseFilters, () => FilterAvailable, () => FilterAvailable,
-                () => CurrentTenantId, () => UserId, () => UserMail);
         }
 
         public DbSet<CompanyInfo> Companies { get; set; }

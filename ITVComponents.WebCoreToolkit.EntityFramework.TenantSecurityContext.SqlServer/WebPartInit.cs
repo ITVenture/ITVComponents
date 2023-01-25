@@ -60,6 +60,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sql
                 if (t != null)
                 {
                     services.UseDbIdentities(t, options => options.UseSqlServer(partActivation.ConnectionStringName));
+
                 }
                 else
                 {

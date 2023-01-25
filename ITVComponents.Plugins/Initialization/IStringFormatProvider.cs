@@ -13,6 +13,6 @@ namespace ITVComponents.Plugins.Initialization
         /// </summary>
         /// <param name="rawString">the raw-string that was read from a plugin-configuration string</param>
         /// <returns>the format-result of the raw-string</returns>
-        string ProcessLiteral(string rawString);
+        string ProcessLiteral(string rawString, Dictionary<string,object> customStringFormatArguments);
     }
 }

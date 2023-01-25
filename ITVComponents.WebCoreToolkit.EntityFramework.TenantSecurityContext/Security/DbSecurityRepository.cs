@@ -27,12 +27,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sec
         protected override Expression<Func<User, bool>> UserFilter(WebCoreToolkit.Models.User user)
         {
             return (n =>
-                n.UserName == user.UserName && (n.AuthenticationType == null || user.AuthenticationType == null || n.AuthenticationType.AuthenticationTypeName == user.AuthenticationType));
+                n.UserName.ToLower() == user.UserName.ToLower() && (n.AuthenticationType == null || user.AuthenticationType == null || n.AuthenticationType.AuthenticationTypeName == user.AuthenticationType));
         }
 
         protected override Expression<Func<User, bool>> UserFilter(string[] userLabels, string authType)
         {
-            return n => userLabels.Contains(n.UserName) &&
+            var lbl = (from t in userLabels select t.ToLower()).ToArray();
+            return n => lbl.Contains(n.UserName.ToLower()) &&
                         (n.AuthenticationType == null || n.AuthenticationType.AuthenticationTypeName == authType);
         }
 

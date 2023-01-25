@@ -52,7 +52,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 
         public DbSet<TemplateModuleConfiguratorParameter> TemplateModuleConfiguratorParameters { get; set; }
 
-        public DbSet<TemplateModuleScript> templateModuleScripts { get; set; }
+        public DbSet<TemplateModuleScript> TemplateModuleScripts { get; set; }
 
         public DbSet<Tenant> Tenants { get; set; }
 

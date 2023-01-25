@@ -14,7 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Models.Comparers
             if (ReferenceEquals(x, null)) return false;
             if (ReferenceEquals(y, null)) return false;
             if (x.GetType() != y.GetType()) return false;
-            return x.ScopeName == y.ScopeName;
+            return x.ScopeName.Equals(y.ScopeName,StringComparison.OrdinalIgnoreCase);
         }
 
         public int GetHashCode(ScopeInfo obj)

@@ -6,25 +6,61 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.TemplateHandling;
 using Microsoft.Extensions.DependencyInjection;
+using ITVComponents.Scripting.CScript.Helpers;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.Scripting.CScript.Core;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
     [WebPart]
     public static class WebPartInit
     {
-        [MvcRegistrationMethod]
-        public static void RegisterAssemblyPart(ApplicationPartManager manager)
+        [LoadWebPartConfig]
+        public static object LoadOptions(IConfiguration config, string settingsKey, string path)
         {
-            manager.RegisterSharedViews();
+            if (settingsKey == "ContextSettings")
+            {
+                return config.GetSection<SecurityContextOptions>(path);
+            }
+
+            if (settingsKey == "ActivationSettings")
+            {
+                return config.GetSection<ActivationOptions>(path);
+            }
+
+            return null;
         }
 
         [ServiceRegistrationMethod]
-        public static void RegisterServices(IServiceCollection services)
+        public static void RegisterServices(IServiceCollection services, [WebPartConfig("ContextSettings")] SecurityContextOptions contextOptions,
+            [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
         {
-            services.AddScoped<ITemplateHandlerFactory, TemplateHandlerFactory>();
+            Type t = null;
+            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            {
+                var dic = new Dictionary<string, object>();
+                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+            }
+
+            if (partOptions.ActivateTemplateFactory)
+            {
+                services.AddScoped<ITemplateHandlerFactory, TemplateHandlerFactory>();
+            }
+
+            if (partOptions.ActivateFilters)
+            {
+                if (t != null)
+                {
+                    services.ConfigureGlobalFilters(t);
+                }
+            }
         }
     }
 }

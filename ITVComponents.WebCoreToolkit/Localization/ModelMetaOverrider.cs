@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Transactions;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
@@ -56,7 +57,7 @@ namespace ITVComponents.WebCoreToolkit.Localization
                     }
                     else
                     {
-                        Console.WriteLine($"No message found for {vatt}.");
+                        LogEnvironment.LogEvent($"No message found for {vatt}.", LogSeverity.Warning);
                     }
                 }
                 else if (obj is DataTypeAttribute datt && string.IsNullOrEmpty(datt.ErrorMessage) &&
@@ -70,12 +71,12 @@ namespace ITVComponents.WebCoreToolkit.Localization
                     }
                     else
                     {
-                        Console.WriteLine($"No message found for {datt} with type {dtyp}.");
+                        LogEnvironment.LogEvent($"No message found for {datt} with type {dtyp}.", LogSeverity.Warning);
                     }
                 }
                 else if (obj is ValidationAttribute vatt2)
                 {
-                    Console.WriteLine($"{vatt2} has a custom message ({vatt2.ErrorMessage}) or a resourcename ({vatt2.ErrorMessageResourceName}).");
+                    LogEnvironment.LogEvent($"{vatt2} has a custom message ({vatt2.ErrorMessage}) or a resourcename ({vatt2.ErrorMessageResourceName}).", LogSeverity.Warning);
                 }
                 /*attribute.ErrorMessageResourceName = tmp;
                 attribute.ErrorMessageResourceType = theType;*/
