@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV209</Version>
+    <Version>3.0.0-PRV241</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -13,7 +13,7 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="sharpziplib" Version="1.4.1" />
+    <PackageReference Include="sharpziplib" Version="1.4.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />

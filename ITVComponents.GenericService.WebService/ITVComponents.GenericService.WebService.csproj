@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV209</Version>
+    <Version>3.0.0-PRV241</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Copyright>2020 by IT-Venture GmbH</Copyright>
@@ -42,7 +42,7 @@
     <Compile Update="ServiceStartup.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="6.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="6.0.15" />
     <PackageReference Include="Microsoft.extensions.configuration" Version="6.0.1" />
     <PackageReference Include="Microsoft.extensions.configuration.binder" Version="6.0.0" />
     <PackageReference Include="Microsoft.extensions.configuration.json" Version="6.0.0" />

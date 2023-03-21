@@ -3,10 +3,11 @@
     <LangVersion>8.0</LangVersion>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.0-PRV209</Version>
+    <Version>3.0.0-PRV241</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
+    <RazorCompileOnPublish>true</RazorCompileOnPublish>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
     <LangVersion>9</LangVersion>
   </PropertyGroup>
@@ -29,7 +30,7 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi\ITVComponents.WebCoreToolkit.Net.TelerikUi.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.4.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.5.0" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources\TextsAndMessages.resx">
