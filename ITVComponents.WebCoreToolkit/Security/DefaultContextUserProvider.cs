@@ -4,6 +4,8 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -24,7 +26,26 @@ namespace ITVComponents.WebCoreToolkit.Security
             this.httpContext = httpContext;
         }
 
-        public ClaimsPrincipal User => user ?? httpContext?.HttpContext?.User;
+        public ClaimsPrincipal User
+        {
+            get
+            {
+                ClaimsPrincipal retVal = null;
+                try
+                {
+                    retVal = user ?? httpContext?.HttpContext?.User;
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogDebugEvent("Failed to get current user from current http-context. returning null",
+                        LogSeverity.Warning);
+                    LogEnvironment.LogDebugEvent($"Error-detail: {ex.OutlineException()}", LogSeverity.Warning);
+                }
+
+                return retVal;
+            }
+        }
+
         public HttpContext HttpContext => httpContext?.HttpContext;
 
         public IDictionary<string, object> RouteData =>

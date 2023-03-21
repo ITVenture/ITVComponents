@@ -2,12 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text;
 using System.Text.Encodings.Web;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 {
@@ -37,16 +40,17 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
         /// Adds a reference to the ITVComponents-Base-script
         /// </summary>
         /// <param name="html"></param>
+        /// <param name="version">the version of the current application running</param>
         /// <returns></returns>
-        public static IHtmlContent ItvScriptRef(this IHtmlHelper html)
+        public static IHtmlContent ItvScriptRef(this IHtmlHelper html, string version = null)
         {
-            return html.Raw(@"<script src=""/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvComponents.min.js""></script>
-<script src=""/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvJqPlugs.min.js""></script>");
+            return html.Raw($@"<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvComponents.min.js".ExtendUrlWithVersion()}""></script>
+<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvJqPlugs.min.js".ExtendUrlWithVersion()}""></script>");
         }
 
-        public static IHtmlContent ItvCustomBootstrapV4(this IHtmlHelper html)
+        public static IHtmlContent ItvCustomBootstrapV4(this IHtmlHelper html, string version= null)
         {
-            return html.Raw(@"<link href=""/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/css/itvComponentsBS4.min.css"" type=""text/css"" rel=""stylesheet"">");
+            return html.Raw($@"<link href=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/css/itvComponentsBS4.min.css".ExtendUrlWithVersion()}"" type=""text/css"" rel=""stylesheet"">");
         }
 
         public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule, string uploadReason, string callbackMethod, string errorCallbackMethod = null, int height = 0, int width = 0, Dictionary<string, string> customAttributes = null)

@@ -6,10 +6,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
     {
         public int DashboardWidgetId { get; set; }
 
-        [MaxLength(100)]
+        [MaxLength(1024)]
         public string DisplayName { get; set; }
 
-        [MaxLength(200)]
+        [MaxLength(2048)]
         public string TitleTemplate { get; set; }
 
         [MaxLength(100)]

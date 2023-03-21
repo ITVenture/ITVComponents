@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "6.0.10")
+                .HasAnnotation("ProductVersion", "6.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder, 1L, 1);
@@ -371,8 +371,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .HasColumnType("int");
 
                     b.Property<string>("DisplayName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
 
                     b.Property<string>("SystemName")
                         .HasMaxLength(100)
@@ -382,8 +382,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TitleTemplate")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
 
                     b.HasKey("DashboardWidgetId");
 
@@ -394,6 +394,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                         .HasFilter("[SystemName] IS NOT NULL");
 
                     b.ToTable("Widgets", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidgetLocalization", b =>
+                {
+                    b.Property<int>("DashboardWidgetLocalizationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DashboardWidgetLocalizationId"), 1L, 1);
+
+                    b.Property<int>("DashboardWidgetId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("LocaleName")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Template")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TitleTemplate")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.HasKey("DashboardWidgetLocalizationId");
+
+                    b.HasIndex(new[] { "DashboardWidgetId", "LocaleName" }, "IX_UniqueDashboardLocaleDef")
+                        .IsUnique();
+
+                    b.ToTable("WidgetLocales", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DiagnosticsQuery", b =>
@@ -1855,6 +1893,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
                     b.Navigation("DiagnosticsQuery");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidgetLocalization", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidget", "Widget")
+                        .WithMany("Localizations")
+                        .HasForeignKey("DashboardWidgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Widget");
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DiagnosticsQuery", b =>
                 {
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.Permission", "Permission")
@@ -2309,6 +2358,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrati
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidget", b =>
                 {
+                    b.Navigation("Localizations");
+
                     b.Navigation("Params");
                 });
 

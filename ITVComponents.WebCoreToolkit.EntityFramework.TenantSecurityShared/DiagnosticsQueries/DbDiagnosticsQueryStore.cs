@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.DiagnosticsQueries
@@ -10,7 +12,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
     /// <summary>
     /// DiagnosticsQueryStore that is bound to the Security Db-Context
     /// </summary>
-    public class DbDiagnosticsQueryStore<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> : IDiagnosticsStore
+    public class DbDiagnosticsQueryStore<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> : IDiagnosticsStore
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -21,9 +23,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         where TQuery : DiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
         where TTenantQuery : TenantDiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
         where TQueryParameter : DiagnosticsQueryParameter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
-        where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
-        where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
-        where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>, new()
+        where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TWidgetLocalization : DashboardWidgetLocalization<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>, new()
         where TUserProperty : CustomUserProperty<TUserId, TUser>
         where TUser : class
         where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
@@ -41,9 +44,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         where TClientApp : ClientApp<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
         where TClientAppUser : ClientAppUser<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
     {
-        private readonly ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> dbContext;
+        private readonly ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> dbContext;
 
-        public DbDiagnosticsQueryStore(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> dbContext)
+        public DbDiagnosticsQueryStore(ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> dbContext)
         {
             this.dbContext = dbContext;
         }
@@ -88,8 +91,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// Finds the demanded Dashboard-Item and returns it
         /// </summary>
         /// <param name="dashboardName">the name of the requested dashboard-item</param>
+        /// <param name="targetCulture">the culture that is used to select the basic-markup for the requested dashboard-template</param>
+        /// <param name="userDashboardId">the id of the user-dashboard that is requested</param>
         /// <returns>the definition of the requested dashboard-item including the permissions required to use it</returns>
-        public DashboardWidgetDefinition GetDashboard(string dashboardName, int? userDashboardId = null)
+        public DashboardWidgetDefinition GetDashboard(string dashboardName, string targetCulture, int? userDashboardId = null)
         {
             var tmp = dbContext.Widgets.FirstOrDefault(n => n.SystemName == dashboardName);
             var userDash = (userDashboardId != null)
@@ -97,7 +102,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
                 : null;
             if (tmp != null && (userDashboardId == null || userDash != null))
             {
-                var retVal = GetDashboardItem(tmp, userDash);
+                var retVal = GetDashboardItem(tmp, userDash, targetCulture);
                 if (userDashboardId == null)
                 {
                     retVal.SortOrder = dbContext.UserWidgets.Count();
@@ -200,25 +205,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// Gets an array containing all defined DashboardWidget-Definitions
         /// </summary>
         /// <returns>an array that contains all known dashboard-templates</returns>
-        public DashboardWidgetDefinition[] GetWidgetTemplates()
+        public DashboardWidgetDefinition[] GetWidgetTemplates(string targetCulture)
         {
             return (from t in dbContext.Widgets.ToArray()
                 orderby t.DisplayName
-                select GetDashboardItem(t,null)).ToArray();
+                select GetDashboardItem(t,null, targetCulture)).ToArray();
         }
 
         /// <summary>
         /// Gets an array containing all User-Widgets
         /// </summary>
         /// <returns>an array that contains all assigned user-widgets.</returns>
-        public DashboardWidgetDefinition[] GetUserWidgets(string userName)
+        public DashboardWidgetDefinition[] GetUserWidgets(string userName, string targetCulture)
         {
             var tmp = dbContext.ShowAllTenants;
             try
             {
                 var tmpUw = dbContext.UserWidgets.OrderBy(n => n.SortOrder).ToArray();
                 return (from t in tmpUw
-                    select GetDashboardItem(t.Widget,t)).ToArray();
+                    select GetDashboardItem(t.Widget,t, targetCulture)).ToArray();
             }
             finally
             {
@@ -231,17 +236,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// </summary>
         /// <param name="tmp">the entity from which to create the definition</param>
         /// <returns>a complete widget-definition</returns>
-        private DashboardWidgetDefinition GetDashboardItem(TWidget tmp, TUserWidget userWidget)
+        private DashboardWidgetDefinition GetDashboardItem(TWidget tmp, TUserWidget userWidget, string targetCulture)
         {
+            IDashboardRawDefinition lng = !string.IsNullOrEmpty(targetCulture)
+                ? tmp.Localizations.FirstOrDefault(n => n.LocaleName == targetCulture)
+                : null;
+            if (lng == null && !string.IsNullOrEmpty(targetCulture) && targetCulture.Contains("-"))
+            {
+                var loca = targetCulture.Substring(0, targetCulture.IndexOf("-"));
+                lng = tmp.Localizations.FirstOrDefault(n => n.LocaleName == loca);
+            }
+
+            lng ??= tmp;
             var retVal = new DashboardWidgetDefinition
             {
                 Area = tmp.Area,
                 CustomQueryString = userWidget?.CustomQueryString??tmp.CustomQueryString,
                 DiagnosticsQuery = GetQuery(tmp.DiagnosticsQuery.DiagnosticsQueryName),
-                DisplayName = userWidget?.DisplayName??tmp.DisplayName,
+                DisplayName = userWidget?.DisplayName??lng.DisplayName,
                 SystemName = tmp.SystemName,
-                Template = tmp.Template,
-                TitleTemplate = tmp.TitleTemplate,
+                Template = lng.Template,
+                TitleTemplate = lng.TitleTemplate,
                 UserWidgetId = userWidget?.UserWidgetId??0,
                 DashboardWidgetId = tmp.DashboardWidgetId
             };

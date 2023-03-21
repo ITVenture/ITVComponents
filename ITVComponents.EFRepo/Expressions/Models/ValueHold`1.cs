@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
+using ITVComponents.TypeConversion;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ITVComponents.EFRepo.Expressions.Models
 {
@@ -13,7 +16,15 @@ namespace ITVComponents.EFRepo.Expressions.Models
         {
             finalType = typeof(ValueHold<>).MakeGenericType(t);
             var retVal = finalType.GetConstructor(Type.EmptyTypes).Invoke(null);
-            finalType.GetProperty("Value").SetValue(retVal, value);
+            if (TypeConverter.TryConvert(value, t, out var tval))
+            {
+                finalType.GetProperty("Value").SetValue(retVal, tval);
+            }
+            else
+            {
+                LogEnvironment.LogEvent($"Unable to convert the value {value} to type {t.FullName}", LogSeverity.Error);
+            }
+
             return retVal;
         }
     }

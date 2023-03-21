@@ -267,8 +267,8 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
             try
             {
                 channel?.Dispose();
-                serverCallbackCancel.Cancel();
-                serverCallbackCancel.Dispose();
+                serverCallbackCancel?.Cancel();
+                serverCallbackCancel?.Dispose();
             }
             catch
             {
@@ -298,6 +298,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
         /// </summary>
         private void InitHubConnection()
         {
+            CleanUp();
             AppContext.SetSwitch(
                 "System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
             rnd = new Random();

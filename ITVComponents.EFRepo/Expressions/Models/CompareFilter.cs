@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
 
 namespace ITVComponents.EFRepo.Expressions.Models
 {
@@ -15,6 +16,18 @@ namespace ITVComponents.EFRepo.Expressions.Models
         public object Value { get; set; }
 
         public object Value2 { get; set; }
+
+        protected override string DescribeFilter()
+        {
+            return JsonHelper.ToJson(new
+            {
+                PropertyName,
+                Value,
+                Value2,
+                Operator = Operator.ToString(),
+                Type = "Comparer"
+            });
+        }
     }
 
     public enum CompareOperator
@@ -27,7 +40,15 @@ namespace ITVComponents.EFRepo.Expressions.Models
         LessThanOrEqual,
         Contains,
         ContainsNot,
+        StartsWith,
+        StartsNotWith,
+        EndsWith,
+        EndsNotWith,
         Between,
-        NotBetween
+        NotBetween,
+        IsNull,
+        IsNotNull,
+        IsEmpty,
+        IsNotEmpty
     }
 }

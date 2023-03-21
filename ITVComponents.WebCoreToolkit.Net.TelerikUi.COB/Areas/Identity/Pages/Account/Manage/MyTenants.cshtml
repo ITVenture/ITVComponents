@@ -4,6 +4,7 @@
 @using Microsoft.Extensions.Localization
 @using Kendo.Mvc.UI
 @using System.Web
+@using ITVComponents.WebCoreToolkit.Net.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage
 @{
     ViewData["Title"] = localizer["Manage your tenants"];
@@ -14,7 +15,7 @@
 }
 
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.Manage.MyTenantsModel
-<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.COB/js/viewScripts.min.js"></script>
+<script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.COB/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
 
 @Html.AntiForgeryToken()
 <a class="btn btn-primary" href="~/Identity/Account/Manage/CreateTenant?returnUrl=@(HttpUtility.UrlEncode(Url.PageLink("./MyTenants"/*,"Manage"*/,values: new {area="Identiy"})))">@pageLocalizer["New_Tenant"]</a>

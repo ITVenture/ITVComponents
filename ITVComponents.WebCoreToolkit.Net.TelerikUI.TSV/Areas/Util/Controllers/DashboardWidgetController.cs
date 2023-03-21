@@ -21,7 +21,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
     [Authorize("HasPermission(DashboardWidgets.View,DashboardWidgets.Write),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
-    public class DashboardWidgetController<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TContext> : Controller
+    public class DashboardWidgetController<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TContext> : Controller
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -32,9 +32,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         where TQuery : DiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
         where TTenantQuery : TenantDiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
         where TQueryParameter : DiagnosticsQueryParameter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
-        where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>, new()
-        where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>, new()
-        where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
+        where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>, new()
+        where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>, new()
+        where TWidgetLocalization : DashboardWidgetLocalization<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>, new()
+        where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
         where TUserProperty : CustomUserProperty<TUserId, TUser>
         where TUser : class
         where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
@@ -51,7 +52,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         where TClientAppPermission : ClientAppPermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
         where TClientApp : ClientApp<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
         where TClientAppUser : ClientAppUser<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
-        where TContext : DbContext, ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser>
+        where TContext : DbContext, ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser>
     {
         private readonly TContext db;
 
@@ -67,6 +68,17 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         }
 
         public IActionResult Param(int dashboardWidgetId)
+        {
+            ViewData["ParameterTypes"] = new SelectList(EnumHelper.DescribeEnum<InputType>(), "Value", "Description");
+            return View(dashboardWidgetId);
+        }
+
+        public IActionResult Locale(int dashboardWidgetId)
+        {
+            return View(dashboardWidgetId);
+        }
+
+        public IActionResult DashboardDetailTabs(int dashboardWidgetId)
         {
             ViewData["ParameterTypes"] = new SelectList(EnumHelper.DescribeEnum<InputType>(), "Value", "Description");
             return View(dashboardWidgetId);
@@ -176,6 +188,57 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             }
 
             return Json(await new[] { model.ToViewModel<TWidgetParam, DashboardParamViewModel>() }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        /*locale*/
+        [HttpPost]
+        public IActionResult ReadLocales([DataSourceRequest] DataSourceRequest request, int dashboardWidgetId)
+        {
+            return Json(db.WidgetLocales.Where(n => n.DashboardWidgetId == dashboardWidgetId).ToDataSourceResult(request, n => n.ToViewModel<TWidgetLocalization, DashboardWidgetLocalizationViewModel>()));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(DashboardWidgets.Write)")]
+        public async Task<IActionResult> CreateLocale([DataSourceRequest] DataSourceRequest request, [FromQuery] int dashboardWidgetId)
+        {
+            var model = new TWidgetLocalization();
+            if (ModelState.IsValid)
+            {
+                await this.TryUpdateModelAsync<DashboardWidgetLocalizationViewModel, TWidgetLocalization>(model);
+                model.DashboardWidgetId = dashboardWidgetId;
+                db.WidgetLocales.Add(model);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { model.ToViewModel<TWidgetLocalization, DashboardWidgetLocalizationViewModel>() }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(DashboardWidgets.Write)")]
+        public async Task<IActionResult> DestroyLocale([DataSourceRequest] DataSourceRequest request, DashboardWidgetLocalizationViewModel viewModel)
+        {
+            var model = db.WidgetLocales.First(n => n.DashboardWidgetLocalizationId == viewModel.DashboardWidgetLocalizationId);
+            if (ModelState.IsValid)
+            {
+                db.WidgetLocales.Remove(model);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(DashboardWidgets.Write)")]
+        public async Task<IActionResult> UpdateLocale([DataSourceRequest] DataSourceRequest request, DashboardWidgetLocalizationViewModel viewModel)
+        {
+            var model = db.WidgetLocales.First(n => n.DashboardWidgetLocalizationId == viewModel.DashboardWidgetLocalizationId);
+            if (ModelState.IsValid)
+            {
+                await this.TryUpdateModelAsync<DashboardWidgetLocalizationViewModel, TWidgetLocalization>(model, "", m => { return m.ElementType == null; });
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { model.ToViewModel<TWidgetLocalization, DashboardWidgetLocalizationViewModel>() }.ToDataSourceResultAsync(request, ModelState));
         }
     }
 }

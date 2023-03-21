@@ -17,7 +17,7 @@
 
     ViewBag.Title = "Plugins";
 }
-<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js"></script>
+<script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
 @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", ViewData["tenantId"] } } })
 
 

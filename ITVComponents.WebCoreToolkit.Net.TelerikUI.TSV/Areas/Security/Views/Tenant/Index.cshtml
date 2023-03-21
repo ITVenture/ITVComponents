@@ -20,10 +20,10 @@
 
     ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_Tenants;
 }
-<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js"></script>
+<script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
 @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "userId", null } } })
 @await Component.InvokeAsync(typeof(RequiredSection), new {nameOfView="roles2UserScript"})
 @Html.DetailViewScript("RoleDetails", "RasDummy#=RoleId#", $"~/Security/Role/RoleDetails?roleId=#=RoleId#&tenantId=#=TenantId#", false)
 @Html.DetailViewScript("PermissionDetails", "Perm#=PermissionId#_#=TenantId#", "~/Security/Role/RoleTable?permissionId=#=PermissionId#&tenantId=#=TenantId#")
 @Html.DetailViewScript("FeatureActivations", "ActivationsOf#=FeatureId#_#=TenantId#", "~/Util/Feature/ActivationTable?tenantId=#=TenantId#&featureId=#=FeatureId#")
-@Html.DetailViewScript("GenericPluginArguments", "GenArgsOf#=PluginId#_#=TenantId#", "~/Util/PlugIn/ArgumentsTable?pluginId=#=PluginId#")
+@Html.DetailViewScript("GenericPluginArguments", "GenArgsOf#=WebPluginId#_#=TenantId#", "~/Util/PlugIn/ArgumentsTable?pluginId=#=WebPluginId#")

@@ -10,6 +10,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.ViewModel;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Routing;
@@ -29,13 +30,19 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
         /// <response code="404">a not-found when the given Widget (or user-widget) does not exist</response>
         public static async Task<IResult> Get(HttpContext context, string widgetName, int userWidgetId = -1)
         {
+            var cult = context.Features.Get<IRequestCultureFeature>();
+            string currentCulture = null;
+            if (cult != null)
+            {
+                currentCulture = cult.RequestCulture.UICulture.Name;
+            }
             bool hasId = userWidgetId != -1;
             var dbContext = context.RequestServices.GetService<IDiagnosticsStore>();
             if (dbContext != null)
             {
                 var model = !hasId
-                    ? dbContext.GetDashboard(widgetName)
-                    : dbContext.GetDashboard(widgetName, userWidgetId);
+                    ? dbContext.GetDashboard(widgetName, currentCulture)
+                    : dbContext.GetDashboard(widgetName, currentCulture, userWidgetId);
                 if (model != null && context.RequestServices.VerifyUserPermissions(new[]
                         { model.DiagnosticsQuery.Permission }))
                 {

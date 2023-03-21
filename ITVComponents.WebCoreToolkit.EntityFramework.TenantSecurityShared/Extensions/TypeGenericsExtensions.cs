@@ -13,11 +13,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         public static Dictionary<string, Type> GetSecurityContextArguments(this Type type)
         {
             var secDefinition = type.GetInterfaces().FirstOrDefault(
-                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>));
+                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>));
             if (secDefinition != null)
             {
                 var types = secDefinition.GenericTypeArguments;
-                return new Dictionary<string, Type>
+                var genTypes = secDefinition.GetGenericTypeDefinition().GetGenericArguments();
+                var dic = new Dictionary<string, Type>();
+                for (int i = 0; i < types.Length; i++)
+                {
+                    dic.Add(genTypes[i].Name, types[i]);
+                }
+
+                dic.Add("TContext", type);
+                return dic;
+                /*return new Dictionary<string, Type>
                 {
                     { "TUserId", types[0] },
                     { "TUser", types[1] },
@@ -33,24 +42,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
                     { "TTenantQuery", types[11] },
                     { "TWidget", types[12] },
                     { "TWidgetParam", types[13] },
-                    { "TUserWidget", types[14] },
-                    { "TUserProperty", types[15] },
-                    { "TAssetTemplate", types[16] },
-                    { "TAssetTemplatePath", types[17] },
-                    { "TAssetTemplateGrant", types[18] },
-                    { "TAssetTemplateFeature", types[19] },
-                    { "TSharedAsset", types[20] },
-                    { "TSharedAssetUserFilter", types[21] },
-                    { "TSharedAssetTenantFilter", types[22] },
-                    { "TClientAppTemplate", types[23] },
-                    { "TAppPermission", types[24] },
-                    { "TAppPermissionSet", types[25] },
-                    { "TClientAppTemplatePermission", types[26] },
-                    { "TClientApp", types[27] },
-                    { "TClientAppPermission", types[28] },
-                    { "TClientAppUser", types[29] },
+                    {"TWidgetLocalization", types[14]},
+                    { "TUserWidget", types[15] },
+                    { "TUserProperty", types[16] },
+                    { "TAssetTemplate", types[17] },
+                    { "TAssetTemplatePath", types[18] },
+                    { "TAssetTemplateGrant", types[19] },
+                    { "TAssetTemplateFeature", types[20] },
+                    { "TSharedAsset", types[21] },
+                    { "TSharedAssetUserFilter", types[22] },
+                    { "TSharedAssetTenantFilter", types[23] },
+                    { "TClientAppTemplate", types[24] },
+                    { "TAppPermission", types[25] },
+                    { "TAppPermissionSet", types[26] },
+                    { "TClientAppTemplatePermission", types[27] },
+                    { "TClientApp", types[28] },
+                    { "TClientAppPermission", types[29] },
+                    { "TClientAppUser", types[30] },
                     { "TContext", type }
-                };
+                };*/
             }
 
             throw new InvalidOperationException("Given type does not implement ISecurityContext interface");

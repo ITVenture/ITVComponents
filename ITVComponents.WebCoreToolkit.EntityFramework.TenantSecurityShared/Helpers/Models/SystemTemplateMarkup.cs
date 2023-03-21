@@ -24,6 +24,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         public DashboardWidgetTemplateMarkup[] DashboardWidgets { get; set; }
 
+        public DashboardWidgetLocaleTemplateMarkup[] DashboardWidgetLocales { get; set; }
+
         public PermissionTemplateMarkup[] Permissions { get; set; }
 
         public DiagnosticsQueryTemplateMarkup[] DiagnosticsQueries { get; set; }
@@ -31,5 +33,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public NavigationMenuTemplateMarkup[] Navigation { get; set; }
 
         public TrustedModuleTemplateMarkup[]  TrustedModules{ get; set; }
+
+        public HealthScriptTemplateMarkup[] HealthScripts { get; set; }
     }
 }

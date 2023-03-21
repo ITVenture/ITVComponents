@@ -2,6 +2,7 @@
 @using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Localization.Model
+@using ITVComponents.WebCoreToolkit.Net.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
 @using Kendo.Mvc.TagHelpers
 @using Microsoft.AspNetCore.Mvc.TagHelpers
@@ -14,7 +15,7 @@
 @{
     Layout = "_Layout.cshtml";
 }
-<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.COB/js/viewScripts.min.js"></script>
+<script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.COB/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
 
 <div class="col-sm-11">
 

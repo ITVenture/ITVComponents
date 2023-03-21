@@ -17,5 +17,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         
         [UtcDateTime]
         public DateTime EventTime { get; set; }
+
+        public object LogInfo { get; set; }
     }
 }

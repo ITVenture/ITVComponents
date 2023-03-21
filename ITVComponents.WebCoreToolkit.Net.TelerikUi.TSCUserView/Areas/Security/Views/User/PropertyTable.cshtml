@@ -16,7 +16,7 @@
         {
             columns.Bound(c => c.PropertyName).Title(TextsAndMessagesHelper.IWCN_General_Name);
             columns.Bound(c => c.Value).Title(TextsAndMessagesHelper.IWCN_General_Value);
-            columns.Bound(c => c.PropertyType);
+            columns.ForeignKey(c => c.PropertyType, (SelectList)ViewData["propertyTypes"]);
             if (Context.RequestServices.VerifyUserPermissions(new[] {"Users.Properties.Write"}))
             {
                 columns.Command(ga =>

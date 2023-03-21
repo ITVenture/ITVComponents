@@ -79,7 +79,7 @@ namespace ITVComponents.EFRepo.Internal
             {
                 if (!ignoreNotFound)
                 {
-                    throw new InvalidOperationException("The Query does not deliver a result.");
+                    throw new InvalidOperationException($"The Query ({filter}) does not deliver a result for Entity-Type {typeof(T)}.");
                 }
 
                 return null;
@@ -87,7 +87,7 @@ namespace ITVComponents.EFRepo.Internal
 
             if (tmp.Length != 1)
             {
-                throw new InvalidOperationException("The Query is not unique.");
+                throw new InvalidOperationException($"The Query ({filter}) is not unique for Entity-Type {typeof(T)}.");
             }
 
             return tmp[0];

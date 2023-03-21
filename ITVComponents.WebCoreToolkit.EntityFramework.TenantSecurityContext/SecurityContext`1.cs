@@ -54,7 +54,7 @@ using ITVComponents.EFRepo.Options;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam,UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
+    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
     where TImpl:SecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -241,6 +241,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<DashboardWidget> Widgets { get; set; }
 
         public DbSet<DashboardParam> WidgetParams { get; set; }
+
+        public DbSet<DashboardWidgetLocalization> WidgetLocales { get; set; }
 
         public DbSet<UserWidget> UserWidgets { get; set; }
 

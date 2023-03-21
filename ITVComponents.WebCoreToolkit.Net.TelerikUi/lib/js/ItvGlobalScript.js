@@ -64,7 +64,7 @@ var ITVenture = {
                     function () {
                         try {
                             var p = arguments[arguments.length - 1];
-                            var paramName = p.paramName.replace("\\{", "{").replace("\\}", "}");
+                            var paramName = p.paramName.replaceAll("\\{", "{").replaceAll("\\}", "}");
                             if (!paramName.startsWith("->") &&
                                 !paramName.startsWith("$") &&
                                 !paramName.startsWith("!$") &&
@@ -79,7 +79,7 @@ var ITVenture = {
                                 var fx = new Function(paramName.substring(1));
                                 return fx.apply(messageArguments);
                             }
-
+                            
                             return paramName;
 
                         }
@@ -99,7 +99,7 @@ var ITVenture = {
     Pages: {},
     Helpers: {
         htmlEntities: function (raw) {
-            return raw.replace(/[&<>'\"]/g,
+            return raw.replaceAll(/[&<>'\"]/g,
                 tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]));
         },
         serializeArray: function (object, keys) {

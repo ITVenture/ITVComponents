@@ -23,9 +23,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries
         /// Finds the demanded Dashboard-Item and returns it
         /// </summary>
         /// <param name="dashboardName">the name of the requested dashboard-item</param>
+        /// <param name="targetCulture">the culture that is used to select the basic-markup for the requested dashboard-template</param>
         /// <param name="userDashboardId">the id of the user-dashboard that is requested</param>
         /// <returns>the definition of the requested dashboard-item including the permissions required to use it</returns>
-        DashboardWidgetDefinition GetDashboard(string dashboardName, int? userDashboardId = null);
+        DashboardWidgetDefinition GetDashboard(string dashboardName, string targetCulture, int? userDashboardId = null);
 
         /// <summary>
         /// Sets the User-Widgets for the given user
@@ -39,12 +40,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries
         /// Gets an array containing all defined DashboardWidget-Definitions
         /// </summary>
         /// <returns>an array that contains all known dashboard-templates</returns>
-        DashboardWidgetDefinition[] GetWidgetTemplates();
+        DashboardWidgetDefinition[] GetWidgetTemplates(string targetCulture);
 
         /// <summary>
         /// Gets an array containing all User-Widgets
         /// </summary>
         /// <returns>an array that contains all assigned user-widgets.</returns>
-        DashboardWidgetDefinition[] GetUserWidgets(string userName);
+        DashboardWidgetDefinition[] GetUserWidgets(string userName, string targetCulture);
     }
 }

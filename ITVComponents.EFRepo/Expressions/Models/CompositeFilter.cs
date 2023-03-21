@@ -1,4 +1,7 @@
-﻿using System;
+﻿using ITVComponents.Helpers;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,6 +15,16 @@ namespace ITVComponents.EFRepo.Expressions.Models
         public BoolOperator Operator { get; set; }
 
         public FilterBase[] Children { get; set; }
+
+        protected override string DescribeFilter()
+        {
+            return JsonHelper.ToJson(new
+            {
+                Operator = Operator.ToString(),
+                Type = "Composite",
+                Children = (from t in Children select t.ToString()).ToArray()
+            });
+        }
     }
 
     public enum BoolOperator

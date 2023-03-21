@@ -1,0 +1,56 @@
+﻿﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@model int
+@(Html.Kendo().Grid<DashboardWidgetLocalizationViewModel>().Name($"DLocaleTab{Model}")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.LocaleName).Title("Browser-Culture");
+        columns.Bound(c => c.DisplayName).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
+        columns.Bound(c => c.TitleTemplate).Title(TextsAndMessagesHelper.IWCN_Dashboard_DisplayTemplate);
+        columns.Bound(n => n.Template).Title("Template").ClientTemplate("<pre>#=ITVenture.Helpers.htmlEntities(Template)#</pre>");
+
+        if (Context.RequestServices.VerifyUserPermissions(new [] {"DashboardWidgets.Write"}))
+        {
+            columns.Command(ga =>
+            {
+                ga.Edit();
+                ga.PopupConfirmDelete();
+            }).Width(180);
+        }
+
+    })
+    //.Events(c => c.UseForeignKeyFilter())
+    .ToolBar(toolbar =>
+    {
+        toolbar.RefreshTable();
+        if (Context.RequestServices.VerifyUserPermissions(new[] {"DashboardWidgets.Write"}))
+        {
+            toolbar.Create();
+        }
+    })
+    .DataSource(dataSource =>
+    {
+        var src = dataSource
+            .Ajax()
+            .Read(read => read.Action("ReadLocales", "DashboardWidget", new {dashboardWidgetId = Model}))
+            .Sort(s => s.Add(m => m.LocaleName).Ascending());
+        if (Context.RequestServices.VerifyUserPermissions(new[] {"DiagnosticsQueries.Write"}))
+        {
+            src.Create(create => create.Action("CreateLocale", "DashboardWidget", new {dashboardWidgetId= Model}))
+                .Update(update => update.Action("UpdateLocale", "DashboardWidget"))
+                .Destroy(destroy => destroy.Action("DestroyLocale", "DashboardWidget"));
+        }
+        src.Model(m => m.Id(t => t.DashboardWidgetLocalizationId));
+    })
+    .Scrollable(s => s.Height("auto"))
+    .Resizable(c => c.Columns(true)))

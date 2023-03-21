@@ -17,31 +17,30 @@ using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health
 {
-    public class ScriptedHealthCheck:IHealthCheck
+    public class ScriptedHealthCheck : IHealthCheck
     {
-        private readonly IBaseTenantContext db;
-        private readonly IWebPluginHelper pluginsAccess;
         private readonly IServiceProvider services;
 
-        public ScriptedHealthCheck(IBaseTenantContext db, IWebPluginHelper pluginsAccess, IServiceProvider services)
+        public ScriptedHealthCheck(IServiceProvider services)
         {
-            this.db = db;
-            this.pluginsAccess = pluginsAccess;
             this.services = services;
         }
 
         public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            var check = await db.HealthScripts.FirstOrDefaultAsync(n =>
-                n.HealthScriptName == context.Registration.Name);
-            if (check != null)
+            using (var currentScope = services.CreateAsyncScope())
             {
-                lock (db)
+                var db = currentScope.ServiceProvider.GetService<IBaseTenantContext>();
+                var pluginsAccess = currentScope.ServiceProvider.GetService<IWebPluginHelper>();
+                var check = await db.HealthScripts.FirstOrDefaultAsync(n =>
+                    n.HealthScriptName == context.Registration.Name);
+                if (check != null)
                 {
                     FullSecurityAccessHelper helper = null;
                     if (db.FilterAvailable)
@@ -135,7 +134,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
                                 }
 
                                 var result = new HealthCheckResult(healthScript.OverAllResult,
-                                    healthScript.OverAllDescription, data: new ReadOnlyDictionary<string, object>(tmp),
+                                    healthScript.OverAllDescription,
+                                    data: new ReadOnlyDictionary<string, object>(tmp),
                                     exception: healthScript.OverAllResult == HealthStatus.Healthy
                                         ? null
                                         : new Exception("NOK"));
@@ -149,9 +149,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
                         helper?.Dispose();
                     }
                 }
-            }
 
-            return new HealthCheckResult(HealthStatus.Healthy, "Unchecked");
+                return new HealthCheckResult(HealthStatus.Healthy, "Unchecked");
+            }
         }
     }
 }

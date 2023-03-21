@@ -6,7 +6,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
     {
         public static ApplicationPartManager EnableItvExtensionViews(this ApplicationPartManager manager)
         {
-            ApplicationPart part = new AssemblyPart(typeof(ApplicationPartExtensions).Assembly);
+            ApplicationPart part = new CompiledRazorAssemblyPart(typeof(ApplicationPartExtensions).Assembly);
             manager.ApplicationParts.Add(part);
             return manager;
         }

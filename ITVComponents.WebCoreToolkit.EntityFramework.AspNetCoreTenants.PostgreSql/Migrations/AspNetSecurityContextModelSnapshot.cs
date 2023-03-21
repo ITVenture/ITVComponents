@@ -369,8 +369,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .HasColumnType("integer");
 
                     b.Property<string>("DisplayName")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
 
                     b.Property<string>("SystemName")
                         .HasMaxLength(100)
@@ -380,8 +380,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .HasColumnType("text");
 
                     b.Property<string>("TitleTemplate")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
 
                     b.HasKey("DashboardWidgetId");
 
@@ -391,6 +391,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsUnique();
 
                     b.ToTable("Widgets", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidgetLocalization", b =>
+                {
+                    b.Property<int>("DashboardWidgetLocalizationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("DashboardWidgetLocalizationId"));
+
+                    b.Property<int>("DashboardWidgetId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("LocaleName")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Template")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TitleTemplate")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("DashboardWidgetLocalizationId");
+
+                    b.HasIndex(new[] { "DashboardWidgetId", "LocaleName" }, "IX_UniqueDashboardLocaleDef")
+                        .IsUnique();
+
+                    b.ToTable("WidgetLocales", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DiagnosticsQuery", b =>
@@ -505,7 +543,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasColumnType("character varying(1024)")
+                        .HasComputedColumnSql("case when COALESCE(\"Url\",'')='' and COALESCE(\"RefTag\",'')='' then 'MENU__'||cast(\"NavigationMenuId\" as character varying(10)) when COALESCE(\"Url\",'')='' then \"RefTag\" else \"Url\" end");
 
                     b.HasKey("NavigationMenuId");
 
@@ -542,7 +581,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasColumnType("character varying(1024)")
+                        .HasComputedColumnSql("case when \"TenantId\" is null then \"PermissionName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"PermissionName\" end");
 
                     b.Property<int?>("TenantId")
                         .HasColumnType("integer");
@@ -577,7 +617,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasColumnType("character varying(1024)")
+                        .HasComputedColumnSql("'__T'||cast(\"TenantId\" as character varying(10))||'##'||\"RoleName\"");
 
                     b.Property<int>("TenantId")
                         .HasColumnType("integer");
@@ -1453,7 +1494,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasColumnType("character varying(1024)")
+                        .HasComputedColumnSql("case when \"TenantId\" is null then \"UniqueName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"UniqueName\" end");
 
                     b.Property<string>("StartupRegistrationConstructor")
                         .HasMaxLength(2048)
@@ -1494,7 +1536,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasColumnType("character varying(1024)")
+                        .HasComputedColumnSql("case when \"TenantId\" is null then \"Name\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"Name\" end");
 
                     b.Property<int?>("TenantId")
                         .HasColumnType("integer");
@@ -1841,6 +1884,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired();
 
                     b.Navigation("DiagnosticsQuery");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidgetLocalization", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidget", "Widget")
+                        .WithMany("Localizations")
+                        .HasForeignKey("DashboardWidgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Widget");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DiagnosticsQuery", b =>
@@ -2297,6 +2351,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardWidget", b =>
                 {
+                    b.Navigation("Localizations");
+
                     b.Navigation("Params");
                 });
 

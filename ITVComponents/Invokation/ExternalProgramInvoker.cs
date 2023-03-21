@@ -50,6 +50,7 @@ namespace ITVComponents.Invokation
                 FileName = applicationName,
                 RedirectStandardError = RedirectConsole,
                 RedirectStandardOutput = RedirectConsole,
+                RedirectStandardInput = RedirectConsole,
                 UseShellExecute = UseShellExecute
             };
             return Run(pif, timeout, maxRetryCount);
@@ -74,6 +75,7 @@ namespace ITVComponents.Invokation
                 FileName = applicationName,
                 RedirectStandardError = RedirectConsole,
                 RedirectStandardOutput = RedirectConsole,
+                RedirectStandardInput = RedirectConsole,
                 UseShellExecute = UseShellExecute,
                 WorkingDirectory = executionDirectory
             };
@@ -95,6 +97,7 @@ namespace ITVComponents.Invokation
                 FileName = applicationName,
                 RedirectStandardError = RedirectConsole,
                 RedirectStandardOutput = RedirectConsole,
+                RedirectStandardInput = RedirectConsole,
                 UseShellExecute = UseShellExecute
             };
             return Run(pif, -1, 0);
@@ -116,6 +119,7 @@ namespace ITVComponents.Invokation
                 FileName = applicationName,
                 RedirectStandardError = RedirectConsole,
                 RedirectStandardOutput = RedirectConsole,
+                RedirectStandardInput = RedirectConsole,
                 UseShellExecute = UseShellExecute,
                 WorkingDirectory = executionDirectory
             };
@@ -134,6 +138,7 @@ namespace ITVComponents.Invokation
             info.CreateNoWindow = Hidden;
             info.RedirectStandardError = RedirectConsole;
             info.RedirectStandardOutput = RedirectConsole;
+            info.RedirectStandardInput = RedirectConsole;
             info.UseShellExecute = UseShellExecute;
             return Run(info, timeout, maxRetryCount);
         }
@@ -156,6 +161,7 @@ namespace ITVComponents.Invokation
                 FileName = applicationName,
                 RedirectStandardError = RedirectConsole,
                 RedirectStandardOutput = RedirectConsole,
+                RedirectStandardInput = RedirectConsole,
                 UseShellExecute = UseShellExecute
             };
             return await RunAsync(pif, timeout, maxRetryCount);
@@ -180,6 +186,7 @@ namespace ITVComponents.Invokation
                 FileName = applicationName,
                 RedirectStandardError = RedirectConsole,
                 RedirectStandardOutput = RedirectConsole,
+                RedirectStandardInput = RedirectConsole,
                 UseShellExecute = UseShellExecute,
                 WorkingDirectory = executionDirectory
             };
@@ -201,6 +208,7 @@ namespace ITVComponents.Invokation
                 FileName = applicationName,
                 RedirectStandardError = RedirectConsole,
                 RedirectStandardOutput = RedirectConsole,
+                RedirectStandardInput = RedirectConsole,
                 UseShellExecute = UseShellExecute
             };
             return await RunAsync(pif, -1, 0);
@@ -217,6 +225,7 @@ namespace ITVComponents.Invokation
             info.CreateNoWindow = Hidden;
             info.RedirectStandardError = RedirectConsole;
             info.RedirectStandardOutput = RedirectConsole;
+            info.RedirectStandardInput = RedirectConsole;
             info.UseShellExecute = UseShellExecute;
             return await RunAsync(info, timeout, maxRetryCount);
         }
@@ -237,6 +246,7 @@ namespace ITVComponents.Invokation
                 FileName = applicationName,
                 RedirectStandardError = RedirectConsole,
                 RedirectStandardOutput = RedirectConsole,
+                RedirectStandardInput = RedirectConsole,
                 UseShellExecute = UseShellExecute,
                 WorkingDirectory = executionDirectory
             };
@@ -266,15 +276,20 @@ namespace ITVComponents.Invokation
             }
 
             proc.Start();
+            if (RedirectConsole)
+            {
+                OnProcessStarting(proc);
+            }
+
             List<Task> waits = new List<Task>();
             if (proc.StartInfo.RedirectStandardError)
             {
-                waits.Add(ReadStream(proc.StandardError, err, true, proc.StartInfo.FileName, OnErrorOutput, token));
+                waits.Add(ReadStream(proc.StandardError, err, true, proc.StartInfo.FileName, OnErrorOutput, proc, token));
             }
 
             if (proc.StartInfo.RedirectStandardOutput)
             {
-                waits.Add(ReadStream(proc.StandardOutput, con, false, proc.StartInfo.FileName, OnConsoleOutput, token));
+                waits.Add(ReadStream(proc.StandardOutput, con, false, proc.StartInfo.FileName, OnConsoleOutput, proc, token));
             }
 
 #if NETCOREAPP3_1
@@ -304,14 +319,14 @@ namespace ITVComponents.Invokation
             return Task.CompletedTask;
         }
 
-        private async Task ReadStream(StreamReader procStandardOutput, StringBuilder con, bool isError, string topic, Action<string> raiseEventAction, CancellationToken token)
+        private async Task ReadStream(StreamReader procStandardOutput, StringBuilder con, bool isError, string topic, Action<string, Process> raiseEventAction, Process runningProcess, CancellationToken token)
         {
             string s = null;
             while ((s = await procStandardOutput.ReadLineAsync().WithCancellation(token).ConfigureAwait(false)) != null)
             {
                 con.AppendLine(s);
                 LogEnvironment.LogDebugEvent(null,s,isError?(int)LogSeverity.Error:(int)LogSeverity.Report, topic);
-                raiseEventAction(s);
+                raiseEventAction(s, runningProcess);
             }
         }
 
@@ -390,28 +405,47 @@ namespace ITVComponents.Invokation
         /// Raises the ConsoleOutput event
         /// </summary>
         /// <param name="e">the string that was read from the console-stream</param>
-        protected virtual void OnConsoleOutput(string e)
+        /// <param name="process">the process that is currently running</param>
+        protected virtual void OnConsoleOutput(string e, Process process)
         {
-            ConsoleOutput?.Invoke(this, e);
+            var info = new ConsoleOutputInfo(e, process);
+            ConsoleOutput?.Invoke(this, info);
+        }
+
+        /// <summary>
+        /// Raises the ProcessStarting event
+        /// </summary>
+        /// <param name="process">the process that has started to run.</param>
+        protected virtual void OnProcessStarting(Process process)
+        {
+            var info = new ConsoleOutputInfo(null, process);
+            ProcessStarting?.Invoke(this, info);
         }
 
         /// <summary>
         /// Raises the ErrorOutput event
         /// </summary>
         /// <param name="e">the string that was read from the error-stream</param>
-        protected virtual void OnErrorOutput(string e)
+        /// <param name="process">the process that is currently running</param>
+        protected virtual void OnErrorOutput(string e, Process process)
         {
-            ErrorOutput?.Invoke(this, e);
+            var info = new ConsoleOutputInfo(e, process);
+            ErrorOutput?.Invoke(this, info);
         }
 
         /// <summary>
         /// Is fired, when the current process fires a normal console output
         /// </summary>
-        public event EventHandler<string> ConsoleOutput;
+        public event EventHandler<ConsoleOutputInfo> ConsoleOutput;
 
         /// <summary>
         /// Is fired, when the current process fires an error output
         /// </summary>
-        public event EventHandler<string> ErrorOutput;
+        public event EventHandler<ConsoleOutputInfo> ErrorOutput;
+
+        /// <summary>
+        /// Is fired when the process has started and provides the opportunity to write to the default-output of the console of the calling process.
+        /// </summary>
+        public event EventHandler<ConsoleOutputInfo> ProcessStarting;
     }
 }

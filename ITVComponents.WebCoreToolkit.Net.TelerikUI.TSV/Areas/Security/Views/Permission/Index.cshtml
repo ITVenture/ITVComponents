@@ -16,7 +16,7 @@
     ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_Permissions;
     var isAdmin = Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin});
 }
-<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js"></script>
+<script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
 
 <div class="row">
     @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", null }, { "roleId", null }, {"renderDetails", !isAdmin} } })

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
+using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
@@ -20,7 +21,14 @@ namespace ITVComponents.WebCoreToolkit.Net
         [LoadWebPartConfig]
         public static NetPartOptions LoadOptions(IConfiguration config, string path)
         {
-            return config.GetSection<NetPartOptions>(path);
+            var ret = config.GetSection<NetPartOptions>(path);
+            config.RefResolve(ret);
+            if (!string.IsNullOrEmpty(ret.UrlQueryExtVersion))
+            {
+                AppVersionHelper.SetVersion(ret.UrlQueryExtVersion);
+            }
+
+            return ret;
         }
 
         [EndpointRegistrationMethod]

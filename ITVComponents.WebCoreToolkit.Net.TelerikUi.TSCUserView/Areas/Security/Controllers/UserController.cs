@@ -2,10 +2,12 @@
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.ViewModels;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
@@ -14,7 +16,10 @@ using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty;
 using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission;
+using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.Areas.Security.Controllers
 {
@@ -70,6 +75,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
         public IActionResult PropertyTable(int userId)
         {
             ViewData["userId"] = userId;
+            ViewData["propertyTypes"] = new SelectList(EnumHelper.DescribeEnum<CustomUserPropertyType>(), "Value", "Description");
             return PartialView();
         }
 

@@ -1,20 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Formats.Asn1;
 using System.Linq;
 using System.Text;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.EFRepo.DataSync;
 using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.Helpers;
+using ITVComponents.Plugins.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ConfigurationHandler
 {
-    public abstract class SysConfigurationHandler<TContext, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> : ConfigurationHandlerBase
+    public abstract class SysConfigurationHandler<TContext, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser> : ConfigurationHandlerBase
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
@@ -25,9 +28,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         where TQuery : DiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
         where TTenantQuery : TenantDiagnosticsQuery<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
         where TQueryParameter : DiagnosticsQueryParameter<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery>
-        where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
-        where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
-        where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam>
+        where TWidget : DashboardWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TWidgetParam : DashboardParam<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TWidgetLocalization : DashboardWidgetLocalization<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TUserWidget : UserWidget<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
         where TUserProperty : CustomUserProperty<TUserId, TUser>
         where TUser : class
         where TAssetTemplate : AssetTemplate<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
@@ -44,7 +48,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         where TClientAppPermission : ClientAppPermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
         where TClientApp : ClientApp<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
         where TClientAppUser : ClientAppUser<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
-        where TContext:DbContext, ISecurityContext<TUserId,TUser,TRole,TPermission,TUserRole,TRolePermission,TTenantUser,TNavigationMenu,TTenantNavigation,TQuery,TQueryParameter,TTenantQuery,TWidget,TWidgetParam,TUserWidget,TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser>
+        where TContext:DbContext, ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser>
     {
 
         public SysConfigurationHandler(TContext db)
@@ -97,8 +101,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         CompareTenantTemplates(sys.TenantTemplates, upSys.TenantTemplates);
                         CompareDiagnosticsQueries(sys.DiagnosticsQueries, upSys.DiagnosticsQueries);
                         CompareDashboardWidgets(sys.DashboardWidgets, upSys.DashboardWidgets);
+                        CompareDashboardWidgetLocales(sys.DashboardWidgetLocales, upSys.DashboardWidgetLocales);
                         CompareNavigation(sys.Navigation, upSys.Navigation);
                         CompareTrustedModules(sys.TrustedModules, upSys.TrustedModules);
+                        CompareHealthScripts(sys.HealthScripts, upSys.HealthScripts);
                     }
 
                     break;
@@ -128,7 +134,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         /// <param name="extendQuery">an action that can provide query extensions if required</param>
         public override void ApplyChanges(IEnumerable<Change> changes, StringBuilder messages, Action<string, Dictionary<string, object>> extendQuery = null)
         {
-            DbContext.ApplyData(changes.ToArray(), messages, extendQuery);
+            using (var h = new FullSecurityAccessHelper(DbContext, true, false))
+            {
+                DbContext.ApplyData(changes.ToArray(), messages, extendQuery);
+            }
         }
 
         private SystemTemplateMarkup DescribeSystem()
@@ -192,6 +201,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                             })
                             .ToArray()
                     }).ToArray(),
+                    DashboardWidgetLocales = DbContext.WidgetLocales.Select(l => new DashboardWidgetLocaleTemplateMarkup
+                        {
+                            LocaleName = l.LocaleName,
+                            DisplayName = l.DisplayName,
+                            SystemName = l.Widget.SystemName,
+                            Template = l.Template,
+                            TitleTemplate = l.TitleTemplate
+                        })
+                        .ToArray(),
                     Navigation = GetSortedNav(),
                     TrustedModules = DbContext.TrustedFullAccessComponents.Select(n =>
                         new TrustedModuleTemplateMarkup
@@ -201,7 +219,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                             TrustedForAllTenants = n.TrustedForAllTenants,
                             TrustedForGlobals = n.TrustedForGlobals
                         }
-                    ).ToArray()
+                    ).ToArray(),
+                    HealthScripts = DbContext.HealthScripts.Select(n => new HealthScriptTemplateMarkup
+                    {
+                        HealthScriptName = n.HealthScriptName,
+                        Script = n.Script
+                    }).ToArray()
                 };
 
 
@@ -214,7 +237,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
             var allNav = DbContext.Navigation.ToList();
             var sortedNav = new List<TNavigationMenu>();
             var lastCt = 0;
-            while (allNav.Count != 0 || lastCt == allNav.Count)
+            while (allNav.Count != 0 && lastCt != allNav.Count)
             {
                 lastCt = allNav.Count;
                 var tmp = allNav.Where(n => n.ParentId == null || sortedNav.Any(p => p.NavigationMenuId == n.ParentId))
@@ -265,7 +288,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 else if (c.Original == null && c.New != null)
                 {
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
-                    change.Details.Add(MakeDetail(keyNames[0], c.New.RefTag, MakeLinqAssign<TContext>(keyNames[0], "AuthenticationTypes", "AuthenticationTypeName")));
+                    change.Details.Add(MakeDetail(keyNames[0], c.New.RefTag));
                     change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, multiline:true));
                     change.Details.Add(MakeDetail("SpanClass", c.New.SpanClass));
                     change.Details.Add(MakeDetail("Url", c.New.Url));
@@ -288,17 +311,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         Apply = true,
                         KeyExpression = keyExp
                     };
-                    if (c.New.DisplayName != c.Original.DisplayName)
+                    if ((c.New.DisplayName != c.Original.DisplayName && !string.IsNullOrWhiteSpace(c.New.DisplayName) && !string.IsNullOrWhiteSpace(c.Original.DisplayName)) || (string.IsNullOrWhiteSpace(c.New.DisplayName) != string.IsNullOrWhiteSpace(c.Original.DisplayName)))
                     {
                         change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName, multiline: true));
                     }
 
-                    if (c.New.SpanClass != c.Original.SpanClass)
+                    if ((c.New.SpanClass != c.Original.SpanClass && !string.IsNullOrWhiteSpace(c.New.SpanClass) && !string.IsNullOrWhiteSpace(c.Original.SpanClass)) || (string.IsNullOrWhiteSpace(c.New.SpanClass) != string.IsNullOrWhiteSpace(c.Original.SpanClass)))
                     {
                         change.Details.Add(MakeDetail("SpanClass", c.New.SpanClass));
                     }
 
-                    if (c.New.Url != c.Original.Url)
+                    if ((c.New.Url != c.Original.Url && !string.IsNullOrWhiteSpace(c.New.Url) && !string.IsNullOrWhiteSpace(c.Original.Url)) || (string.IsNullOrWhiteSpace(c.New.Url) != string.IsNullOrWhiteSpace(c.Original.Url)))
                     {
                         change.Details.Add(MakeDetail("Url", c.New.Url, currentValue:c.Original.Url));
                     }
@@ -308,19 +331,170 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         change.Details.Add(MakeDetail("SortOrder", c.New.SortOrder.ToString()));
                     }
 
-                    if (c.New.FeatureName != c.Original.FeatureName)
+                    if ((c.New.FeatureName != c.Original.FeatureName && !string.IsNullOrWhiteSpace(c.New.FeatureName) && !string.IsNullOrWhiteSpace(c.Original.FeatureName)) || (string.IsNullOrWhiteSpace(c.New.FeatureName) != string.IsNullOrWhiteSpace(c.Original.FeatureName)))
                     {
                         change.Details.Add(MakeDetail("Feature", c.New.FeatureName, MakeLinqAssign<TContext>("Feature", "Features", "FeatureName"), c.Original.FeatureName));
                     }
 
-                    if (c.New.PermissionName != c.Original.PermissionName)
+                    if ((c.New.PermissionName != c.Original.PermissionName && !string.IsNullOrWhiteSpace(c.New.PermissionName) && !string.IsNullOrWhiteSpace(c.Original.PermissionName)) || (string.IsNullOrWhiteSpace(c.New.PermissionName) != string.IsNullOrWhiteSpace(c.Original.PermissionName)))
                     {
                         change.Details.Add(MakeDetail("EntryPoint", c.New.PermissionName, MakeLinqAssign<TContext>("EntryPoint", "Permissions", "PermissionName"), c.Original.PermissionName));
                     }
 
-                    if (c.New.ParentRef != c.Original.ParentRef)
+                    if ((c.New.ParentRef != c.Original.ParentRef && !string.IsNullOrWhiteSpace(c.New.ParentRef) && !string.IsNullOrWhiteSpace(c.Original.ParentRef))  || (string.IsNullOrWhiteSpace(c.New.ParentRef) != string.IsNullOrWhiteSpace(c.Original.ParentRef)))
                     {
                         change.Details.Add(MakeDetail("Parent", c.New.ParentRef, MakeLinqAssign<TContext>("Parent", "Navigation", keyNames[0]), c.Original.ParentRef));
+                    }
+
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+                }
+            }
+        }
+
+        private void CompareHealthScripts(HealthScriptTemplateMarkup[] sysHealthScripts,
+            HealthScriptTemplateMarkup[] upSysHealthScripts)
+        {
+            var keyNames = new string[] { "HealthScriptName" };
+            var entityName = "HealthScripts";
+
+            var keyExp = new Dictionary<string, string>
+            {
+            };
+
+            var groups = (from t in sysHealthScripts select t.HealthScriptName.ToLower()).Union(from t in upSysHealthScripts select t.HealthScriptName.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in sysHealthScripts on c equals  a1.HealthScriptName.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in upSysHealthScripts on c equals a2.HealthScriptName.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Name = c, Original = na1, New = na2 }).ToArray();
+
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                    {
+                        { keyNames[0], c.Original.HealthScriptName}
+                    },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], c.New.HealthScriptName));
+                    change.Details.Add(MakeDetail("Script", c.New.Script, multiline:true));
+                    RegisterChange(change);
+                }
+                else if (c.Original != null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Update,
+                        Key = new Dictionary<string, string>
+                        {
+                            { keyNames[0], c.Original.HealthScriptName}
+                        },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    if ((c.New.Script != c.Original.Script && !string.IsNullOrWhiteSpace(c.New.Script) && !string.IsNullOrWhiteSpace(c.Original.Script)) || (string.IsNullOrWhiteSpace(c.New.Script) != string.IsNullOrWhiteSpace(c.Original.Script)))
+                    {
+                        change.Details.Add(MakeDetail("Script", c.New.Script, currentValue: c.Original.Script, multiline: true));
+                    }
+
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+                }
+            }
+        }
+
+        private void CompareDashboardWidgetLocales(DashboardWidgetLocaleTemplateMarkup[] sysDashboardWidgetLocales,
+            DashboardWidgetLocaleTemplateMarkup[] upSysDashboardWidgetLocales)
+        {
+            var keyNames = new string[] { "Widget", "LocaleName" };
+            var entityName = "WidgetLocales";
+            
+            var keyExp = new Dictionary<string, string>
+            {
+                {keyNames[0], MakeLinqQuery<TContext>("Widgets", "SystemName", filterValueVariable: "Value")}
+            };
+
+            var groups = (from t in sysDashboardWidgetLocales select new {SystemName= t.SystemName.ToLower(), LocaleName=t.LocaleName.ToLower()}).Union(from t in upSysDashboardWidgetLocales select new { SystemName = t.SystemName.ToLower(), LocaleName = t.LocaleName.ToLower() }).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in sysDashboardWidgetLocales on c equals new {SystemName = a1.SystemName.ToLower(), LocaleName = a1.LocaleName.ToLower()} into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in upSysDashboardWidgetLocales on c equals new { SystemName = a2.SystemName.ToLower(), LocaleName = a2.LocaleName.ToLower() } into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Name = c, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                    {
+                        { keyNames[0], c.Original.SystemName},
+                        {keyNames[1], c.Original.LocaleName}
+                    },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail("LocaleName", c.New.LocaleName));
+                    change.Details.Add(MakeDetail("Widget", c.New.SystemName, MakeLinqAssign<TContext>("Widget", "Widgets", "SystemName")));
+                    change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, multiline: true));
+                    change.Details.Add(MakeDetail("TitleTemplate", c.New.TitleTemplate, multiline: true));
+                    change.Details.Add(MakeDetail("Template", c.New.Template, multiline: true));
+                    RegisterChange(change);
+                }
+                else if (c.Original != null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Update,
+                        Key = new Dictionary<string, string>
+                        {
+                            { keyNames[0], c.Original.SystemName},
+                            {keyNames[1], c.Original.LocaleName}
+                        },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    if ((c.New.DisplayName != c.Original.DisplayName && !string.IsNullOrWhiteSpace(c.New.DisplayName) && !string.IsNullOrWhiteSpace(c.Original.DisplayName)) || (string.IsNullOrWhiteSpace(c.New.DisplayName) != string.IsNullOrWhiteSpace(c.Original.DisplayName)))
+                    {
+                        change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName, multiline: true));
+                    }
+
+                    if ((c.New.TitleTemplate != c.Original.TitleTemplate && !string.IsNullOrWhiteSpace(c.New.TitleTemplate) && !string.IsNullOrWhiteSpace(c.Original.TitleTemplate)) || (string.IsNullOrWhiteSpace(c.New.TitleTemplate) != string.IsNullOrWhiteSpace(c.Original.TitleTemplate)))
+                    {
+                        change.Details.Add(MakeDetail("TitleTemplate", c.New.TitleTemplate, currentValue: c.Original.TitleTemplate, multiline: true));
+                    }
+
+                    if ((c.New.Template != c.Original.Template && !string.IsNullOrWhiteSpace(c.New.Template) && !string.IsNullOrWhiteSpace(c.Original.Template)) || (string.IsNullOrWhiteSpace(c.New.Template) != string.IsNullOrWhiteSpace(c.Original.Template)))
+                    {
+                        change.Details.Add(MakeDetail("Template", c.New.Template, currentValue: c.Original.Template, multiline: true));
                     }
 
                     if (change.Details.Count != 0)
@@ -388,32 +562,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         Apply = true,
                         KeyExpression = keyExp
                     };
-                    if (c.New.DisplayName != c.Original.DisplayName)
+                    if ((c.New.DisplayName != c.Original.DisplayName && !string.IsNullOrWhiteSpace(c.New.DisplayName) && !string.IsNullOrWhiteSpace(c.Original.DisplayName)) || (string.IsNullOrWhiteSpace(c.New.DisplayName) != string.IsNullOrWhiteSpace(c.Original.DisplayName)))
                     {
                         change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName, multiline: true));
                     }
 
-                    if (c.New.Area != c.Original.Area)
+                    if ((c.New.Area != c.Original.Area && !string.IsNullOrWhiteSpace(c.New.Area) && !string.IsNullOrWhiteSpace(c.Original.Area)) || (string.IsNullOrWhiteSpace(c.New.Area) != string.IsNullOrWhiteSpace(c.Original.Area)))
                     {
                         change.Details.Add(MakeDetail("Area", c.New.Area, currentValue: c.Original.Area));
                     }
 
-                    if (c.New.CustomQueryString != c.Original.CustomQueryString)
+                    if ((c.New.CustomQueryString != c.Original.CustomQueryString && !string.IsNullOrWhiteSpace(c.New.CustomQueryString) && !string.IsNullOrWhiteSpace(c.Original.CustomQueryString)) || (string.IsNullOrWhiteSpace(c.New.CustomQueryString) != string.IsNullOrWhiteSpace(c.Original.CustomQueryString)))
                     {
                         change.Details.Add(MakeDetail("CustomQueryString", c.New.CustomQueryString, currentValue: c.Original.CustomQueryString));
                     }
 
-                    if (c.New.TitleTemplate != c.Original.TitleTemplate)
+                    if ((c.New.TitleTemplate != c.Original.TitleTemplate && !string.IsNullOrWhiteSpace(c.New.TitleTemplate) && !string.IsNullOrWhiteSpace(c.Original.TitleTemplate)) || (string.IsNullOrWhiteSpace(c.New.TitleTemplate) != string.IsNullOrWhiteSpace(c.Original.TitleTemplate)))
                     {
                         change.Details.Add(MakeDetail("TitleTemplate", c.New.TitleTemplate, currentValue: c.Original.TitleTemplate, multiline: true));
                     }
 
-                    if (c.New.Template != c.Original.Template)
+                    if ((c.New.Template != c.Original.Template && !string.IsNullOrWhiteSpace(c.New.Template) && !string.IsNullOrWhiteSpace(c.Original.Template)) || (string.IsNullOrWhiteSpace(c.New.Template) != string.IsNullOrWhiteSpace(c.Original.Template)))
                     {
                         change.Details.Add(MakeDetail("Template", c.New.Template, currentValue: c.Original.Template, multiline: true));
                     }
 
-                    if (c.New.DiagnosticsQueryName != c.Original.DiagnosticsQueryName)
+                    if ((c.New.DiagnosticsQueryName != c.Original.DiagnosticsQueryName && !string.IsNullOrWhiteSpace(c.New.DiagnosticsQueryName) && !string.IsNullOrWhiteSpace(c.Original.DiagnosticsQueryName)) || (string.IsNullOrWhiteSpace(c.New.DiagnosticsQueryName) != string.IsNullOrWhiteSpace(c.Original.DiagnosticsQueryName)))
                     {
                         change.Details.Add(MakeDetail("DiagnosticsQuery", c.New.DiagnosticsQueryName,
                             MakeLinqAssign<TContext>("DiagnosticsQuery", "DiagnosticsQueries", "DiagnosticsQueryName"), c.Original.DiagnosticsQueryName));
@@ -491,7 +665,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         change.Details.Add(MakeDetail("InputType", c.New.InputType.ToString(), currentValue:c.Original.InputType.ToString()));
                     }
 
-                    if (c.New.InputConfig != c.Original.InputConfig)
+                    if ((c.New.InputConfig != c.Original.InputConfig && !string.IsNullOrWhiteSpace(c.New.InputConfig) && !string.IsNullOrWhiteSpace(c.Original.InputConfig)) || (string.IsNullOrWhiteSpace(c.New.InputConfig) != string.IsNullOrWhiteSpace(c.Original.InputConfig)))
                     {
                         change.Details.Add(MakeDetail("InputConfig", c.New.InputConfig, currentValue:c.Original.InputConfig));
                     }
@@ -500,6 +674,226 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     {
                         RegisterChange(change);
                     }
+                }
+            }
+        }
+
+        private void CompareAssetTemplates(AssetTemplateMarkup[] sysAssetTemplates,
+            AssetTemplateMarkup[] upSysAssetTemplates)
+        {
+            var keyNames = new string[] { "SystemKey" };
+            var entityName = "AssetTemplates";
+            var keyExp = new Dictionary<string, string>
+            {
+            };
+
+            var groups = (from t in sysAssetTemplates select t.SystemKey.ToLower()).Union(from t in upSysAssetTemplates select t.SystemKey.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in sysAssetTemplates on c equals a1.SystemKey.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in upSysAssetTemplates on c equals a2.SystemKey.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Name = c, Original = na1, New = na2 }).ToArray();
+
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                    {
+                        { keyNames[0], $"{c.Original.SystemKey}" },
+                    },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], c.New.SystemKey));
+                    change.Details.Add(MakeDetail("Name", c.New.Name));
+                    change.Details.Add(MakeDetail("RequiredPermission", c.New.RequiredPermission, MakeLinqAssign<TContext>("RequiredPermission", "Permissions", "PermissionName", "n.TenantId==null")));
+                    change.Details.Add(MakeDetail("RequiredFeature", c.New.RequiredFeature, MakeLinqAssign<TContext>("RequiredFeature", "Features", "FeatureName")));
+                    RegisterChange(change);
+                    RegisterAssetPermissions(c.New.SystemKey, c.New.Grants);
+                    RegisterAssetFeatures(c.New.SystemKey, c.New.FeatureGrants);
+                    RegisterAssetPathFilters(c.New.SystemKey, c.New.PathTemplates);
+                }
+                else if (c.Original != null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Update,
+                        Key = new Dictionary<string, string>
+                        {
+                            { keyNames[0], $"{c.Original.SystemKey}" },
+                        },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    if ((c.New.Name != c.Original.Name && !string.IsNullOrWhiteSpace(c.New.Name) && !string.IsNullOrWhiteSpace(c.Original.Name)) || (string.IsNullOrWhiteSpace(c.New.Name) != string.IsNullOrWhiteSpace(c.Original.Name)))
+                    {
+                        change.Details.Add(MakeDetail("Name", c.New.Name, currentValue: c.Original.Name));
+                    }
+
+                    if ((c.New.RequiredPermission != c.Original.RequiredPermission && !string.IsNullOrWhiteSpace(c.New.RequiredPermission) && !string.IsNullOrWhiteSpace(c.Original.RequiredPermission)) || (string.IsNullOrWhiteSpace(c.New.RequiredPermission) != string.IsNullOrWhiteSpace(c.Original.RequiredPermission)))
+                    {
+                        change.Details.Add(MakeDetail("RequiredPermission", c.New.RequiredPermission, MakeLinqAssign<TContext>("RequiredPermission", "Permissions", "PermissionName", "n.TenantId==null"), c.Original.RequiredPermission)); }
+
+                    if ((c.New.RequiredFeature != c.Original.RequiredFeature && !string.IsNullOrWhiteSpace(c.New.RequiredFeature) && !string.IsNullOrWhiteSpace(c.Original.RequiredFeature)) || (string.IsNullOrWhiteSpace(c.New.RequiredFeature) != string.IsNullOrWhiteSpace(c.Original.RequiredFeature)))
+                    {
+                        change.Details.Add(MakeDetail("RequiredFeature", c.New.RequiredFeature, MakeLinqAssign<TContext>("RequiredFeature", "Features", "FeatureName"), c.Original.RequiredFeature));
+                    }
+
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+
+                    RegisterAssetPermissions(c.New.SystemKey, c.New.Grants, c.Original.Grants);
+                    RegisterAssetFeatures(c.New.SystemKey, c.New.FeatureGrants, c.Original.FeatureGrants);
+                    RegisterAssetPathFilters(c.New.SystemKey, c.New.PathTemplates, c.Original.PathTemplates);
+                }
+            }
+        }
+
+        private void RegisterAssetPermissions(string systemKey, string[] grants, string[] originalGrants = null)
+        {
+            originalGrants ??= Array.Empty<string>();
+            var keyNames = new string[] { "Template", "Permission" };
+            var entityName = "AssetTemplateGrants";
+            var keyExp = new Dictionary<string, string>
+            {
+                { keyNames[0], MakeLinqQuery<TContext>("AssetTemplates", "SystemKey", filterValueVariable: "Value") },
+                { keyNames[1], MakeLinqQuery<TContext>("Permissions", "PermissionName", filterValueVariable: "Value", additionalWhere: "n.TenantId==null") }
+            };
+            var groups = (from t in originalGrants select t.ToLower()).Union(from t in grants select t.ToLower())
+                .Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in originalGrants on c equals a1.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in grants on c equals a2.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Name = c, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                        {
+                            { keyNames[0], systemKey },
+                            { keyNames[1], c.Original }
+                        },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
+                    change.Details.Add(MakeDetail(keyNames[1], c.New, MakeLinqAssign<TContext>(keyNames[1], "Permissions", "PermissionName", "n.TenantId==null")));
+                    RegisterChange(change);
+                }
+            }
+        }
+
+        private void RegisterAssetFeatures(string systemKey, string[] grants, string[] originalGrants = null)
+        {
+            originalGrants ??= Array.Empty<string>();
+            var keyNames = new string[] { "Template", "Feature" };
+            var entityName = "AssetTemplateFeatures";
+            var keyExp = new Dictionary<string, string>
+            {
+                {keyNames[0], MakeLinqQuery<TContext>("AssetTemplates", "SystemKey", filterValueVariable: "Value")},
+                { keyNames[1], MakeLinqQuery<TContext>("Features", "FeatureName", filterValueVariable: "Value") }
+            };
+            var groups = (from t in originalGrants select t.ToLower()).Union(from t in grants select t.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in originalGrants on c equals a1.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in grants on c equals a2.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Name = c, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                        {
+                            { keyNames[0], systemKey },
+                            { keyNames[1], c.Original }
+                        },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
+                    change.Details.Add(MakeDetail(keyNames[1], c.New, MakeLinqAssign<TContext>(keyNames[1], "Permissions", "PermissionName", "n.TenantId==null")));
+                    RegisterChange(change);
+                }
+            }
+        }
+
+        private void RegisterAssetPathFilters(string systemKey, string[] filters, string[] originalFilters = null)
+        {
+            originalFilters ??= Array.Empty<string>();
+            var keyNames = new string[] { "Template", "PathTemplate" };
+            var entityName = "AssetTemplateFeatures";
+            var keyExp = new Dictionary<string, string>
+            {
+                {keyNames[0], MakeLinqQuery<TContext>("AssetTemplates", "SystemKey", filterValueVariable: "Value")}
+            };
+            var groups = (from t in originalFilters select t.ToLower()).Union(from t in filters select t.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                       join a1 in originalFilters on c equals a1.ToLower() into ja1
+                       from na1 in ja1.DefaultIfEmpty()
+                       join a2 in filters on c equals a2.ToLower() into ja2
+                       from na2 in ja2.DefaultIfEmpty()
+                       select new { Name = c, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                        {
+                            { keyNames[0], systemKey },
+                            { keyNames[1], c.Original }
+                        },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
+                    change.Details.Add(MakeDetail(keyNames[1], c.New));
+                    RegisterChange(change);
                 }
             }
         }
@@ -559,12 +953,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         Apply = true,
                         KeyExpression = keyExp
                     };
-                    if (c.New.DbContext != c.Original.DbContext)
+                    if ((c.New.DbContext != c.Original.DbContext && !string.IsNullOrWhiteSpace(c.New.DbContext) && !string.IsNullOrWhiteSpace(c.Original.DbContext)) || (string.IsNullOrWhiteSpace(c.New.DbContext) != string.IsNullOrWhiteSpace(c.Original.DbContext)))
                     {
                         change.Details.Add(MakeDetail("DbContext", c.New.DbContext, currentValue: c.Original.DbContext));
                     }
 
-                    if (c.New.QueryText!= c.Original.QueryText)
+                    if ((c.New.QueryText != c.Original.QueryText && !string.IsNullOrWhiteSpace(c.New.QueryText) && !string.IsNullOrWhiteSpace(c.Original.QueryText)) || (string.IsNullOrWhiteSpace(c.New.QueryText) != string.IsNullOrWhiteSpace(c.Original.QueryText)))
                     {
                         change.Details.Add(MakeDetail("QueryText", c.New.QueryText, currentValue: c.Original.QueryText, multiline:true));
                     }
@@ -574,7 +968,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         change.Details.Add(MakeDetail("AutoReturn", c.New.AutoReturn.ToString(), "Entity.AutoReturn=(NewValueRaw==\"True\")", c.Original.AutoReturn.ToString()));
                     }
 
-                    if (c.New.Permission != c.Original.Permission)
+                    if ((c.New.Permission != c.Original.Permission && !string.IsNullOrWhiteSpace(c.New.Permission) && !string.IsNullOrWhiteSpace(c.Original.Permission)) || (string.IsNullOrWhiteSpace(c.New.Permission) != string.IsNullOrWhiteSpace(c.Original.Permission)))
                     {
                         change.Details.Add(MakeDetail("Permission", c.New.Permission, MakeLinqAssign<TContext>("Permission", "Permissions", "PermissionName", "n.TenantId==null"), c.Original.Permission));
                     }
@@ -658,12 +1052,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         change.Details.Add(MakeDetail("Optional", c.New.Optional.ToString(), currentValue: c.Original.Optional.ToString()));
                     }
 
-                    if (c.New.Format != c.Original.Format)
+                    if ((c.New.Format != c.Original.Format && !string.IsNullOrWhiteSpace(c.New.Format) && !string.IsNullOrWhiteSpace(c.Original.Format)) || (string.IsNullOrWhiteSpace(c.New.Format) != string.IsNullOrWhiteSpace(c.Original.Format)))
                     {
                         change.Details.Add(MakeDetail("Format", c.New.Format, currentValue: c.Original.Format));
                     }
 
-                    if (c.New.DefaultValue != c.Original.DefaultValue)
+                    if ((c.New.DefaultValue != c.Original.DefaultValue && !string.IsNullOrWhiteSpace(c.New.DefaultValue) && !string.IsNullOrWhiteSpace(c.Original.DefaultValue)) || (string.IsNullOrWhiteSpace(c.New.DefaultValue) != string.IsNullOrWhiteSpace(c.Original.DefaultValue)))
                     {
                         change.Details.Add(MakeDetail("DefaultValue", c.New.DefaultValue, currentValue: c.Original.DefaultValue));
                     }
@@ -728,12 +1122,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         Apply = true,
                         KeyExpression = keyExp
                     };
-                    if (c.New.Description != c.Original.Description)
+                    if ((c.New.Description != c.Original.Description && !string.IsNullOrWhiteSpace(c.New.Description) && !string.IsNullOrWhiteSpace(c.Original.Description)) || (string.IsNullOrWhiteSpace(c.New.Description) != string.IsNullOrWhiteSpace(c.Original.Description)))
                     {
                         change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description, multiline: true));
                     }
 
-                    if (c.New.Markup != c.Original.Markup)
+                    if ((c.New.Markup != c.Original.Markup && !string.IsNullOrWhiteSpace(c.New.Markup) && !string.IsNullOrWhiteSpace(c.Original.Markup)) || (string.IsNullOrWhiteSpace(c.New.Markup) != string.IsNullOrWhiteSpace(c.Original.Markup)))
                     {
                         change.Details.Add(MakeDetail("Markup", c.New.Markup, currentValue: c.Original.Markup, multiline: true));
                     }
@@ -799,7 +1193,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         Apply = true,
                         KeyExpression = keyExp
                     };
-                    if (c.New.Description != c.Original.Description)
+                    if ((c.New.Description != c.Original.Description && !string.IsNullOrWhiteSpace(c.New.Description) && !string.IsNullOrWhiteSpace(c.Original.Description)) || (string.IsNullOrWhiteSpace(c.New.Description) != string.IsNullOrWhiteSpace(c.Original.Description)))
                     {
                         change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description, multiline: true));
                     }
@@ -874,7 +1268,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         Apply = true,
                         KeyExpression = keyExp
                     };
-                    if (c.New.FeatureDescription != c.Original.FeatureDescription)
+                    if ((c.New.FeatureDescription != c.Original.FeatureDescription && !string.IsNullOrWhiteSpace(c.New.FeatureDescription) && !string.IsNullOrWhiteSpace(c.Original.FeatureDescription)) || (string.IsNullOrWhiteSpace(c.New.FeatureDescription) != string.IsNullOrWhiteSpace(c.Original.FeatureDescription)))
                     {
                         change.Details.Add(MakeDetail("FeatureDescription", c.New.FeatureDescription, currentValue: c.Original.FeatureDescription, multiline: true));
                     }
@@ -944,7 +1338,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         Apply = true,
                         KeyExpression = keyExp
                     };
-                    if (c.New.Value!= c.Original.Value)
+                    if ((c.New.Value != c.Original.Value && !string.IsNullOrWhiteSpace(c.New.Value) && !string.IsNullOrWhiteSpace(c.Original.Value)) || (string.IsNullOrWhiteSpace(c.New.Value) != string.IsNullOrWhiteSpace(c.Original.Value)))
                     {
                         change.Details.Add(MakeDetail("SettingsValue", c.New.Value, currentValue:c.Original.Value, multiline: true));
                     }
@@ -965,7 +1359,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         private void CompareAuthenticationTypeClaims(AuthenticationTypeClaimTemplateMarkup[] sysAuthenticationTypeClaimTemplates, AuthenticationTypeClaimTemplateMarkup[] upSysAuthenticationTypeClaimTemplates)
         {
             var keyNames = new string[]{"AuthenticationType", "IncomingClaimName", "OutgoingClaimName", "Condition"};
-            var entityName = "Permissions";
+            var entityName = "AuthenticationClaimMappings";
             var keyExp = new Dictionary<string, string>
             {
                 {keyNames[0], MakeLinqQuery<TContext>("AuthenticationTypes", "AuthenticationTypeName", filterValueVariable: "Value")}
@@ -1013,22 +1407,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                             {keyNames[2], c.Original.OutgoingClaimName},
                             {keyNames[3], c.Original.Condition}
                         }, EntityName = entityName, Apply = true, KeyExpression = keyExp };
-                    if (c.New.OutgoingClaimValue != c.Original.OutgoingClaimValue)
+                    if ((c.New.OutgoingClaimValue != c.Original.OutgoingClaimValue && !string.IsNullOrWhiteSpace(c.New.OutgoingClaimValue) && !string.IsNullOrWhiteSpace(c.Original.OutgoingClaimValue)) || (string.IsNullOrWhiteSpace(c.New.OutgoingClaimValue) != string.IsNullOrWhiteSpace(c.Original.OutgoingClaimValue)))
                     {
                         change.Details.Add(MakeDetail("OutgoingClaimValue", c.New.OutgoingClaimValue, currentValue: c.Original.OutgoingClaimValue));
                     }
 
-                    if (c.New.OutgoingIssuer != c.Original.OutgoingIssuer)
+                    if ((c.New.OutgoingIssuer != c.Original.OutgoingIssuer && !string.IsNullOrWhiteSpace(c.New.OutgoingIssuer) && !string.IsNullOrWhiteSpace(c.Original.OutgoingIssuer)) || (string.IsNullOrWhiteSpace(c.New.OutgoingIssuer) != string.IsNullOrWhiteSpace(c.Original.OutgoingIssuer)))
                     {
                         change.Details.Add(MakeDetail("OutgoingIssuer", c.New.OutgoingIssuer, currentValue: c.Original.OutgoingIssuer));
                     }
 
-                    if (c.New.OutgoingOriginalIssuer != c.Original.OutgoingOriginalIssuer)
+                    if ((c.New.OutgoingOriginalIssuer != c.Original.OutgoingOriginalIssuer && !string.IsNullOrWhiteSpace(c.New.OutgoingOriginalIssuer) && !string.IsNullOrWhiteSpace(c.Original.OutgoingOriginalIssuer)) || (string.IsNullOrWhiteSpace(c.New.OutgoingOriginalIssuer) != string.IsNullOrWhiteSpace(c.Original.OutgoingOriginalIssuer)))
                     {
                         change.Details.Add(MakeDetail("OutgoingOriginalIssuer", c.New.OutgoingOriginalIssuer, currentValue: c.Original.OutgoingOriginalIssuer));
                     }
 
-                    if (c.New.OutgoingValueType != c.Original.OutgoingValueType)
+                    if ((c.New.OutgoingValueType != c.Original.OutgoingValueType && !string.IsNullOrWhiteSpace(c.New.OutgoingValueType) && !string.IsNullOrWhiteSpace(c.Original.OutgoingValueType)) || (string.IsNullOrWhiteSpace(c.New.OutgoingValueType) != string.IsNullOrWhiteSpace(c.Original.OutgoingValueType)))
                     {
                         change.Details.Add(MakeDetail("OutgoingValueType", c.New.OutgoingValueType, currentValue: c.Original.OutgoingValueType));
                     }
@@ -1105,7 +1499,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 else if (c.Original != null)
                 {
                     var change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, { "TenantId", null } }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{} };
-                    if (c.New.Description != c.Original.Description)
+                    if ((c.New.Description != c.Original.Description && !string.IsNullOrWhiteSpace(c.New.Description) && !string.IsNullOrWhiteSpace(c.Original.Description)) || (string.IsNullOrWhiteSpace(c.New.Description) != string.IsNullOrWhiteSpace(c.Original.Description)))
                     {
                         change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description, multiline: true));
                     }
@@ -1152,7 +1546,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 else if (c.Original != null)
                 {
                     var change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, { "TenantId", null } }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{} };
-                    if (c.New.Value != c.Original.Value)
+                    if ((c.New.Value != c.Original.Value && !string.IsNullOrWhiteSpace(c.New.Value) && !string.IsNullOrWhiteSpace(c.Original.Value)) || (string.IsNullOrWhiteSpace(c.New.Value) != string.IsNullOrWhiteSpace(c.Original.Value)))
                     {
                         change.Details.Add(MakeDetail("Value", c.New.Value, currentValue: c.Original.Value));
                     }
@@ -1201,7 +1595,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 else if (c.Original != null)
                 {
                     var change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.UniqueName}" }, { "TenantId", null } }, EntityName = "WebPlugins", Apply = true };
-                    if (c.New.Constructor != c.Original.Constructor)
+                    if ((c.New.Constructor != c.Original.Constructor && !string.IsNullOrWhiteSpace(c.New.Constructor) && !string.IsNullOrWhiteSpace(c.Original.Constructor)) || (string.IsNullOrWhiteSpace(c.New.Constructor) != string.IsNullOrWhiteSpace(c.Original.Constructor)))
                     {
                         change.Details.Add(MakeDetail("Constructor", c.New.Constructor, currentValue: c.Original.Constructor));
                     }
@@ -1277,7 +1671,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         Apply = true,
                         KeyExpression = keyExp
                     };
-                    if (c.New.TypeExpression != c.Original.TypeExpression)
+                    if ((c.New.TypeExpression != c.Original.TypeExpression && !string.IsNullOrWhiteSpace(c.New.TypeExpression) && !string.IsNullOrWhiteSpace(c.Original.TypeExpression)) || (string.IsNullOrWhiteSpace(c.New.TypeExpression) != string.IsNullOrWhiteSpace(c.Original.TypeExpression)))
                     {
                         change.Details.Add(MakeDetail("TypeExpression", c.New.TypeExpression, currentValue: c.Original.TypeExpression));
                     }

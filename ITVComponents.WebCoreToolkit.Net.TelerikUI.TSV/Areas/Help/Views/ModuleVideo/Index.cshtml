@@ -16,7 +16,7 @@
 
     ViewBag.Title = TextsAndMessagesHelper.IWCN_Titles_TutorialVideos;
 }
-<script src="/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js"></script>
+<script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
 
 @(Html.Kendo().Grid<VideoTutorialViewModel>().Name("TutorialList")
     //.HtmlAttributes(new { style = "width:50vw;" })

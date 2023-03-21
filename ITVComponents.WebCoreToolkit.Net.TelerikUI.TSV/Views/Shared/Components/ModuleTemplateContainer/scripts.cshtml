@@ -4,6 +4,7 @@
 @using ITVComponents.EFRepo.DynamicData
 @using ITVComponents.Plugins.PluginServices
 @using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.Net.Extensions
 @using ITVComponents.WebCoreToolkit.Routing
 @using Microsoft.AspNetCore.Routing
 @using Microsoft.Extensions.Localization
@@ -11,5 +12,5 @@
 
 @foreach (var s in Model)
 {
-    <script type="text/javascript" src="@s"></script>
+    <script type="text/javascript" src="@s.ExtendUrlWithVersion()"></script>
 }

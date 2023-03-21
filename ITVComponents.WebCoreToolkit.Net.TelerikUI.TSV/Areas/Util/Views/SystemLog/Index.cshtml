@@ -22,12 +22,7 @@
         //.HtmlAttributes(new { style = "width:50vw;" })
         .Columns(columns =>
         {
-            columns.InfoBubble(n => n.LogLevel, "SystemEventId", "glyphSprite fad #=LogLevel==0?'fa-glasses':(LogLevel==1?'fa-bug':(LogLevel==2?'fa-info-circle':(LogLevel==3?'fa-exclamation-circle':(LogLevel==4?'fa-times-circle':(LogLevel==5?'fa-skull-crossbones':'fa-question-circle')))))#",
-                "--fa-secondary-color:#=LogLevel==0?'\\#fcd2d5':(LogLevel==1?'\\#000000':(LogLevel==2?'\\#92a5f0':(LogLevel==3?'\\#f2e296':(LogLevel==4?'\\#bf6363':(LogLevel==5?'red':'\\#faffa3')))))#;" +
-                $"--fa-primary-color:#=LogLevel==0?'\\#362b2c':(LogLevel==1?'\\#324d05':(LogLevel==2?'\\#000000':(LogLevel==3?'\\#000000':(LogLevel==4?'\\#000000':(LogLevel==5?'\\#750721':'\\#000000')))))#",
-                "SystemEvent",
-                "#=LogLevel==0?'\\#362b2c':(LogLevel==1?'\\#000000':(LogLevel==2?'\\#92a5f0':(LogLevel==3?'\\#c09854':(LogLevel==4?'\\#bf6363':(LogLevel==5?'red':'\\#faffa3')))))#",
-                "#=LogLevel==0?'\\#fcd2d5':(LogLevel==1?'\\#324d05':(LogLevel==2?'\\#000000':(LogLevel==3?'\\#1a3c4d':(LogLevel==4?'\\#000000':(LogLevel==5?'\\#750721':'\\#000000')))))#", "Message").Width(40).Title(" ");
+            columns.InfoBubble(n => n.LogLevel, nameof(SystemEventViewModel.LogInfo), nameof(SystemEventViewModel.SystemEventId), "SystemLog").Width(40).Title(" ");
             /*columns.Bound(n => n.LogLevel).ClientTemplate($"<span class=\"\" " +
                                                           $"style=\"--fa-secondary-color:#=LogLevel==0?'\\#fcd2d5':(LogLevel==1?'\\#000000':(LogLevel==2?'\\#92a5f0':(LogLevel==3?'\\#f2e296':(LogLevel==4?'\\#bf6363':(LogLevel==5?'red':'\\#faffa3')))))#;" +
                                                                 $"--fa-primary-color:#=LogLevel==0?'\\#362b2c':(LogLevel==1?'\\#324d05':(LogLevel==2?'\\#000000':(LogLevel==3?'\\#000000':(LogLevel==4?'\\#000000':(LogLevel==5?'\\#750721':'\\#000000')))))#\"></span>").Title(" ").Width(50);*/

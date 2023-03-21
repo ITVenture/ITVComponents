@@ -78,4 +78,4 @@
     .Filterable(f => f.Enabled(true))
     .ClientDetailTemplateId("DashboardParam"))
 
-@Html.DetailViewScript("DashboardParam", "DashboardParam#=DashboardWidgetId#","~/Util/DashboardWidget/Param?dashboardWidgetId=#=DashboardWidgetId#")
+@Html.DetailViewScript("DashboardParam", "DashboardDetails#=DashboardWidgetId#","~/Util/DashboardWidget/DashboardDetailTabs?dashboardWidgetId=#=DashboardWidgetId#")

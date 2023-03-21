@@ -180,13 +180,37 @@
                 return retVal;
             }
 
-            public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(this GridColumnFactory<TModel> target,
+        public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(this GridColumnFactory<TModel> target,
+            Expression<Func<TModel, TValue>> expression,
+            string diagInfoName,
+            string pkName,
+            string entityName) where TModel : class
+        {
+            var retVal = target.Bound(expression);
+
+            string template =
+                $@"<span id='xc{pkName}{entityName}_#={pkName}#' diagProperty='{diagInfoName}'><span></span></span>
+    #{{
+        var nameId = {pkName}.toString();
+        var name = ""xc{pkName}{entityName}_"".concat(nameId);
+        $(function(){{
+             ITVenture.Tools.InlineBubble.DiagPopupFor(name);
+        }});
+    }}#";
+
+            retVal.ClientTemplate(template);
+            retVal.EditorTemplateName("EmptyEditor");
+            return retVal;
+        }
+
+        public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(this GridColumnFactory<TModel> target,
                 Expression<Func<TModel, TValue>> expression,
                 string pkName,
                 string entityName) where TModel : class
             {
                 var retVal = target.Bound(expression);
                 var name = retVal.Column.Member;
+                
                 string template =
                     $@"<span id='xc{pkName}{entityName}_#={pkName}#' diagProperty='{name}'><span></span></span>
     #{{

@@ -200,7 +200,7 @@ namespace ITVComponents.AssemblyResolving
                 }
                 catch (Exception ex)
                 {
-                    LogEnvironment.LogEvent($"Error resolving Assembly by name: {ex.Message}", LogSeverity.Error);
+                    LogEnvironment.LogDebugEvent($"Error resolving Assembly by name: {ex.Message}", LogSeverity.Error);
                 }
             }
 
