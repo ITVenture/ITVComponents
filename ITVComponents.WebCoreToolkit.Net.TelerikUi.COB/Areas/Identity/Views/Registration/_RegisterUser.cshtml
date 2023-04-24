@@ -1,6 +1,6 @@
 ﻿@using Microsoft.Extensions.Localization
 @using Microsoft.AspNetCore.Hosting
-@using System.Drawing
+@*using System.Drawing*@
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity
 @using ITVComponents.WebCoreToolkit.Options
@@ -49,16 +49,9 @@
                             @foreach (var provider in (List<AuthenticationHandlerDefinition>)ViewData["externalLogins"])
                             {
                                 var tmp = hostingEnvironment.WebRootFileProvider.GetFileInfo(provider.LogoFile);
-                                int w, h;
-                                using (var img = Image.FromFile(tmp.PhysicalPath))
-                                {
-                                    w = img.Width;
-                                    h = img.Height;
-                                }
-                                
                                 if (tmp.Exists)
                                 {
-                                    <button type="submit" class="btn btn-primary" name="provider" value="@provider.AuthenticationSchemeName" title="@localizer["Log in using your {0} account", provider.DisplayName]" style="background-image: url(@(provider.LogoFile)); width: @(w + 5)px; height: @(h + 5)px; background-position: center; background-repeat: no-repeat; background-size: @(w)px auto"></button>
+                                    <button type="submit" class="btn btn-primary" name="provider" value="@provider.AuthenticationSchemeName" title="@localizer["Log in using your {0} account", provider.DisplayName]" style="background-image: url(@(provider.LogoFile)); width: @(provider.ImageWidth + 5)px; height: @(provider.ImageHeight + 5)px; background-position: center; background-repeat: no-repeat; background-size: @(provider.ImageWidth)px auto"></button>
                                 }
                                 else
                                 {

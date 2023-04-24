@@ -6,6 +6,8 @@ namespace ITVComponents.EFRepo.SqlServer.DIIntegration
 {
     public class SqlContextOptionsLoader<TContext>:ContextOptionsLoader<TContext> where TContext : DbContext
     {
+        private readonly string connectString;
+
         private bool useProxies;
 
         private bool useCommandTimeout = false;
@@ -21,8 +23,9 @@ namespace ITVComponents.EFRepo.SqlServer.DIIntegration
             this.useProxies = useProxies;
         }*/
 
-        public SqlContextOptionsLoader(string connectString, bool useProxies, int commandTimeout):base(connectString)
+        public SqlContextOptionsLoader(string connectString, bool useProxies, int commandTimeout):base()
         {
+            this.connectString = connectString;
             this.useProxies = useProxies;
             if (commandTimeout >= 0)
             {
@@ -31,9 +34,8 @@ namespace ITVComponents.EFRepo.SqlServer.DIIntegration
             }
         }
 
-        protected override DbContextOptions ConfigureDb(DbContextOptionsBuilder<TContext> builder, string connectString)
+        protected override void ConfigureOptionsBuilder(DbContextOptionsBuilder<TContext> builder)
         {
-            
             builder.UseSqlServer(connectString, o =>
             {
                 if (useCommandTimeout)
@@ -45,8 +47,6 @@ namespace ITVComponents.EFRepo.SqlServer.DIIntegration
             {
                 builder.UseLazyLoadingProxies();
             }
-
-            return builder.Options;
         }
     }
 }

@@ -46,6 +46,15 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             typeof(WebPartManager).GetMethod("PartCustomObjectConfig", BindingFlags.Public | BindingFlags.Instance);
 
         /// <summary>
+        /// Configures the SharedObjectsHeap for this Manager
+        /// </summary>
+        /// <param name="configure">the configure-method</param>
+        public void ConfigureSharedObjects(Action<ISharedObjHeap> configure)
+        {
+            configure(sharedHeap);
+        }
+
+        /// <summary>
         /// Initializes a new instance of the WebPartManager class
         /// </summary>
         /// <param name="config">the configuration for the current app</param>

@@ -39,6 +39,7 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
                 o.ClientId = options.ClientId;
                 o.ClientSecret = options.ClientSecret;
                 o.SaveTokens = options.SaveTokens;
+                o.AccessDeniedPath = options.AccessDeniedPath;
                 if (options.Scope != null)
                 {
                     options.Scope.ForEach(o.Scope.Add);
@@ -72,6 +73,7 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
                 o.GetClaimsFromUserInfoEndpoint = options.GetClaimsFromUserInfoEndpoint;
                 o.RequireHttpsMetadata = options.RequireHttpsMetadata;
                 o.UseTokenLifetime = true;
+                o.AccessDeniedPath = options.AccessDeniedPath;
                 //o.StateDataFormat = new Horn();
                 //o.StateDataFormat = new SecureDataFormat<AuthenticationProperties>()
                 if (!string.IsNullOrEmpty(options.AuthSchemeExtension))
@@ -166,6 +168,7 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
                 o.ClientSecret = options.ClientSecret;
                 o.SaveTokens = options.SaveTokens;
                 o.AccessType = options.AccessType;
+                o.AccessDeniedPath = options.AccessDeniedPath;
                 if (options.Scope != null)
                 {
                     options.Scope.ForEach(o.Scope.Add);

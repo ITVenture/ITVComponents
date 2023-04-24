@@ -8,5 +8,6 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Options
 {
     public class MicrosoftConnectOptions:ExternalAuthenticationOptionsBase
     {
+        public string AccessDeniedPath { get; set; }
     }
 }

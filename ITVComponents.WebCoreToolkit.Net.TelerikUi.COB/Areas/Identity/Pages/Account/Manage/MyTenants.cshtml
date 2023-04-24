@@ -18,7 +18,7 @@
 <script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.COB/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
 
 @Html.AntiForgeryToken()
-<a class="btn btn-primary" href="~/Identity/Account/Manage/CreateTenant?returnUrl=@(HttpUtility.UrlEncode(Url.PageLink("./MyTenants"/*,"Manage"*/,values: new {area="Identiy"})))">@pageLocalizer["New_Tenant"]</a>
+<a class="btn btn-primary" href="~/Identity/Account/Manage/CreateTenant?returnUrl=@(HttpUtility.UrlEncode(Url.PageLink("MyTenants"/*,"Manage"*/,values: new {area="Identiy"})))">@pageLocalizer["New_Tenant"]</a>
 
 @(Html.Kendo().Grid<MyTenantsModel.ParticipatingTenantViewModel>().Name("MyTenantsGrid")
     .Columns(c =>

@@ -242,7 +242,8 @@ namespace ITVComponents.ParallelProcessing
 
             if (lo != highestPriority && !roundClock)
             {
-                CreateProcessor(highestPriority);
+                LogEnvironment.LogEvent("There are not enough Workers available to have exclusive high-prio workers. High Priority Tasks may take longer than expected", LogSeverity.Warning);
+                //CreateProcessor(highestPriority);
             }
         }
 

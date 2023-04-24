@@ -37,19 +37,35 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// <summary>
         /// Gets the deserialized Settings-value. If it is not configured, null is returned (-> default(TSettings)).
         /// </summary>
-        public TSettings ValueOrDefault => valueOrDefault ??= GetSettingsValue();
+        public TSettings ValueOrDefault => valueOrDefault ??= GetSettingsValue(null);
+
+        public TSettings GetValue(string explicitSettingName)
+        {
+            return GetValueOrDefault(explicitSettingName) ?? new TSettings();
+        }
+
+        public TSettings GetValueOrDefault(string explicitSettingName)
+        {
+            return GetSettingsValue(explicitSettingName);
+        }
 
         /// <summary>
         /// Reads the settings-value from the underlaying provider
         /// </summary>
         /// <returns>the configured settings-instance or its default-value</returns>
-        private TSettings GetSettingsValue()
+        private TSettings GetSettingsValue(string? explicitSettingName)
         {
-            var typeName = typeof(TSettings).Name;
-            var att = (SettingNameAttribute)Attribute.GetCustomAttribute(typeof(TSettings), typeof(SettingNameAttribute), true);
-            if (att != null)
+            var typeName = explicitSettingName;
+            if (string.IsNullOrEmpty(typeName))
             {
-                typeName = att.SettingsKeyName;
+                typeName = typeof(TSettings).Name;
+                var att = (SettingNameAttribute)Attribute.GetCustomAttribute(typeof(TSettings),
+                    typeof(SettingNameAttribute), true);
+                if (att != null)
+                {
+                    typeName = att.SettingsKeyName;
+                }
+
             }
 
             var tmp = settingsProvider.GetJsonSetting(typeName);

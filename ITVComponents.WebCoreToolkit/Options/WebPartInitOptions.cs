@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Dynamitey.DynamicObjects;
 
 namespace ITVComponents.WebCoreToolkit.Options
 {
@@ -28,8 +29,9 @@ namespace ITVComponents.WebCoreToolkit.Options
         public int TaskQueueCapacity { get; set; } = 100;
         public bool UseLocalization { get; set; }
         public bool UseSharedAssets { get; set; }
-        public List<LocalizationMappingOption> UiCultureMapping { get; set; } = new();
+        public List<CultureConfigOption> CultureConfig { get; set; } = new();
         public List<LocalizationMappingOption> CultureMapping { get; set; } = new();
+        public List<LocalizationMappingOption> UiCultureMapping { get; set; }
 
         public List<PlugInDependencyOption> PlugInDependencies { get; set; } = new();
 

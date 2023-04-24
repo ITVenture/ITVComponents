@@ -18,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
                 n.IsGenericType && n.GetGenericTypeDefinition() == scb);
             if (ifs != null)
             {
-                var rawTypes = new[] { contextType }.Union(ifs.GetGenericArguments()).ToArray();
+                var rawTypes = new[] { contextType }.Concat(ifs.GetGenericArguments()).ToArray();
                 var meth = staticClass.GetMethods(BindingFlags.Public | BindingFlags.Static)
                     .FirstOrDefault(n => n.IsGenericMethodDefinition && n.Name == methodName &&
                                          n.GetGenericArguments().Length == rawTypes.Length);

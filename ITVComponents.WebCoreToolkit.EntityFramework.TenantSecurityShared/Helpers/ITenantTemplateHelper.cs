@@ -16,9 +16,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         void ApplyTemplate(Tenant tenant, TenantTemplateMarkup template);
 
         void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template);
+
+        void ApplyTemplate(Tenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext> afterApply);
+
+        void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext> afterRevoke);
     }
 
-    public interface ITenantTemplateHelper<TContext>:ITenantTemplateHelper
+    /*public interface ITenantTemplateHelper<TContext>:ITenantTemplateHelper
     where TContext: IBaseTenantContext
     {
         TenantTemplateMarkup ExtractTemplate(Tenant tenant);
@@ -26,5 +30,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         void ApplyTemplate(Tenant tenant, TenantTemplateMarkup template, Action<TContext> afterApply);
 
         void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template, Action<TContext> afterRevoke);
-    }
+    }*/
 }

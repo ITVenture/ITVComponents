@@ -147,6 +147,22 @@ namespace ITVComponents.WebCoreToolkit
             {
                 services.ConfigureLocalization(o =>
                 {
+                    /*if (options.UiCultureMapping.Count != 0)
+                    {
+                        foreach (var p in options.UiCultureMapping)
+                        {
+                            o.MapUiCulture(p.IncomingCulture, p.RedirectCulture);
+                        }
+                    }*/
+
+                    if (options.CultureMapping.Count != 0)
+                    {
+                        foreach (var p in options.CultureMapping)
+                        {
+                            o.MapCulture(p.IncomingCulture, p.RedirectCulture);
+                        }
+                    }
+
                     if (options.UiCultureMapping.Count != 0)
                     {
                         foreach (var p in options.UiCultureMapping)
@@ -155,11 +171,11 @@ namespace ITVComponents.WebCoreToolkit
                         }
                     }
 
-                    if (options.CultureMapping.Count != 0)
+                    if (options.CultureConfig.Count != 0)
                     {
-                        foreach (var p in options.CultureMapping)
+                        foreach (var p in options.CultureConfig)
                         {
-                            o.MapCulture(p.IncomingCulture, p.RedirectCulture);
+                            o.ConfigureCulture(p);
                         }
                     }
                 });

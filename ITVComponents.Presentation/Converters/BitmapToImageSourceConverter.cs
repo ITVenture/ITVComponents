@@ -13,7 +13,7 @@ using System.Windows.Media.Imaging;
 
 namespace ITVComponents.Presentation.Converters
 {
-    [ValueConversion(typeof(Bitmap), typeof(ImageSource))]
+    /*[ValueConversion(typeof(Bitmap), typeof(ImageSource))]
     public class BitmapToImageSourceConverter:IValueConverter
     {
         /// <summary>
@@ -46,5 +46,5 @@ namespace ITVComponents.Presentation.Converters
         {
             throw new NotSupportedException();
         }
-    }
+    }*/
 }

@@ -140,6 +140,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string IWCN_AT_LegalPaths => GetString(nameof(IWCN_AT_LegalPaths));
         public static string IWCN_AT_SharePermissions => GetString(nameof(IWCN_AT_SharePermissions));
         public static string IWCN_AT_ShareFeatures => GetString(nameof(IWCN_AT_ShareFeatures));
+
+        public static string IWCN_Titles_Sequences => GetString(nameof(IWCN_Titles_Sequences));
         //--
 
         public static string GetIWCN_General_DisplayName(this IRequestCultureFeature requestCulture)
@@ -455,5 +457,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string GetIWCN_AT_LegalPaths(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_LegalPaths), requestCulture.RequestCulture.UICulture);
         public static string GetIWCN_AT_SharePermissions(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_SharePermissions), requestCulture.RequestCulture.UICulture);
         public static string GetIWCN_AT_ShareFeatures(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_AT_ShareFeatures), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_Titles_Sequences(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_Titles_Sequences), requestCulture.RequestCulture.UICulture);
     }
 }

@@ -1,6 +1,6 @@
 ﻿@page
 @using Microsoft.Extensions.Localization
-@using System.Drawing
+@*using System.Drawing*@
 @using Microsoft.AspNetCore.Hosting
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Account.LoginModel
 @inject IStringLocalizer<IdentityMessages> localizer
@@ -63,15 +63,9 @@
                         @foreach (var provider in Model.ExternalLogins)
                         {
                             var tmp = hostingEnvironment.WebRootFileProvider.GetFileInfo(provider.LogoFile);
-                            int w = 0, h = 0;
                             if (tmp.Exists)
                             {
-                                using (var img = Image.FromFile(tmp.PhysicalPath))
-                                {
-                                    w = img.Width;
-                                    h = img.Height;
-                                }
-                                <button type="submit" class="btn btn-primary" name="provider" value="@provider.AuthenticationSchemeName" title="@localizer["Log in using your {0} account", provider.DisplayName]" style="background-image: url(@(provider.LogoFile)); width: @(w + 5)px; height: @(h + 5)px; background-position: center; background-repeat: no-repeat; background-size: @(w)px auto"></button>
+                                <button type="submit" class="btn btn-primary" name="provider" value="@provider.AuthenticationSchemeName" title="@localizer["Log in using your {0} account", provider.DisplayName]" style="background-image: url(@(provider.LogoFile)); width: @(provider.ImageWidth + 5)px; height: @(provider.ImageHeight + 5)px; background-position: center; background-repeat: no-repeat; background-size: @(provider.ImageWidth)px auto"></button>
                             }
                             else
                             {

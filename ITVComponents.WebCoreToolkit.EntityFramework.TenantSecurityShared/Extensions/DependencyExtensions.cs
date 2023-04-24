@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Options;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.GlobalFiltering;
@@ -56,6 +58,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         public static IServiceCollection UseDbGlobalSettings(this IServiceCollection services)
         {
             return services.AddScoped<IGlobalSettingsProvider, GlobalSettingsProvider>();
+        }
+
+        /// <summary>
+        /// Configures methods for the used SecurityContext that must be implemented db-specific
+        /// </summary>
+        /// <param name="services">the services where the Configuration is injected into</param>
+        /// <param name="contextType">the context-type to configure</param>
+        /// <param name="options">a callback identifying the options that need to be injected</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection ConfigureMethods(this IServiceCollection services, Type contextType,
+            Action<IContextModelBuilderOptions> options)
+        {
+            var method = LambdaHelper.GetMethodInfo(() => ConfigureMethods<DbContext>(services, options))
+                .GetGenericMethodDefinition();
+            method = method.MakeGenericMethod(contextType);
+            return (IServiceCollection)method.Invoke(null, new object[] { services, options });
+        }
+
+
+        /// <summary>
+        /// Configures methods for the used SecurityContext that must be implemented db-specific
+        /// </summary>
+        /// <typeparam name="TContext">the context-type to configure</typeparam>
+        /// <param name="services">the services where the Configuration is injected into</param>
+        /// <param name="options">a callback identifying the options that need to be injected</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection ConfigureMethods<TContext>(this IServiceCollection services, Action<IContextModelBuilderOptions> options)
+        {
+            return services.Configure<DbContextModelBuilderOptions<TContext>>(o =>
+            {
+                options(o);
+            });
         }
 
 

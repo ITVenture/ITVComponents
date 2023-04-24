@@ -27,7 +27,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
         private readonly IStringLocalizer<IdentityMessages> localizer;
         private readonly ISecurityContextWithOnboarding dbContext;
         private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
-        private readonly ITenantTemplateHelper<ISecurityContextWithOnboarding> tenantInitializer;
+        private readonly ITenantTemplateHelper tenantInitializer;
+        //private readonly ITenantTemplateHelper<ISecurityContextWithOnboarding> tenantInitializer;
 
         public CreateTenantModel(
             UserManager<User> userManager,
@@ -35,7 +36,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
             IStringLocalizer<IdentityMessages> localizer,
             ISecurityContextWithOnboarding dbContext,
             IGlobalSettings<TenantSetupOptions> setupOptions,
-            ITenantTemplateHelper<ISecurityContextWithOnboarding> tenantInitializer)
+            ITenantTemplateHelper tenantInitializer)
         {
             _userManager = userManager;
             _signInManager = signInManager;
@@ -179,8 +180,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
             {
                 var tmpl = dbContext.TenantTemplates.First(n => n.Name == cfg.BasicTenantTemplate);
                 var mku = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup);
-                tenantInitializer.ApplyTemplate(tenant, mku, ctx =>
+                tenantInitializer.ApplyTemplate(tenant, mku, ct =>
                 {
+                    var ctx = ct as ISecurityContextWithOnboarding;
                     if (!string.IsNullOrEmpty(cfg.AdminUserRole))
                     {
                         var rl = ctx.SecurityRoles.First(n =>

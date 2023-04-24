@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Options;
 using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
@@ -31,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         /// <param name="services">the services where the SecurityContext is injected</param>
         /// <param name="options">the options for the context</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseDbIdentities(this IServiceCollection services, Action<DbContextOptionsBuilder> options)
+        public static IServiceCollection UseDbIdentities(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options)
         {
             return services.AddDbContext<SecurityContext>(options)
                 .RegisterExplicityInterfacesScoped<SecurityContext>()
@@ -41,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                             i.GetService<ILogger<DbSecurityRepository<SecurityContext>>>());
                     return i.GetAssetSecurityRepository(retVal);
                 })
-                .AddScoped<ITenantTemplateHelper<SecurityContext>, TenantTemplateHelper<SecurityContext>>()
+                //.AddScoped<ITenantTemplateHelper<SecurityContext>, TenantTemplateHelper<SecurityContext>>()
                 .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<SecurityContext>>();
         }
 
@@ -53,7 +54,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         /// <param name="options">the options for the context</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities(this IServiceCollection services, Type contextType,
-            Action<DbContextOptionsBuilder> options)
+            Action<IServiceProvider, DbContextOptionsBuilder> options)
         {
             var method = LambdaHelper.GetMethodInfo(() => UseDbIdentities<SecurityContext>(services, options))
                 .GetGenericMethodDefinition();
@@ -68,7 +69,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         /// <param name="services">the services where the SecurityContext is injected</param>
         /// <param name="options">the options for the context</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseDbIdentities<TImpl>(this IServiceCollection services, Action<DbContextOptionsBuilder> options) where TImpl:SecurityContext<TImpl>
+        public static IServiceCollection UseDbIdentities<TImpl>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options) where TImpl:SecurityContext<TImpl>
         {
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
@@ -78,7 +79,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                             i.GetService<ILogger<DbSecurityRepository<TImpl>>>());
                     return i.GetAssetSecurityRepository(retVal);
                 })
-                .AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
+                //.AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
                 .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<TImpl>>();
         }
 
@@ -89,7 +90,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         /// <param name="services">the services where the SecurityContext is injected</param>
         /// <param name="options">the options for the context</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseDbIdentities<TImpl, TTmpHelper>(this IServiceCollection services, Action<DbContextOptionsBuilder> options) 
+        public static IServiceCollection UseDbIdentities<TImpl, TTmpHelper>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options) 
             where TImpl : SecurityContext<TImpl>
             where TTmpHelper: TenantTemplateHelper<TImpl>
         {
@@ -101,7 +102,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                             i.GetService<ILogger<DbSecurityRepository<TImpl>>>());
                     return i.GetAssetSecurityRepository(retVal);
                 })
-                .AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()
+                //.AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()
                 .AddScoped<ITenantTemplateHelper, TTmpHelper>();
         }
 

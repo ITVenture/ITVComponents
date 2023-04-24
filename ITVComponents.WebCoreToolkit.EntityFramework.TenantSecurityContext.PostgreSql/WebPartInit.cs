@@ -8,6 +8,8 @@ using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -51,13 +53,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
             {
                 var dic = new Dictionary<string, object>();
                 t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
             }
 
             if (partActivation.ActivateDbContext)
             {
                 if (t != null)
                 {
-                    services.UseDbIdentities(t, options => options.UseNpgsql(partActivation.ConnectionStringName));
+                    services.UseDbIdentities(t, (services, options) => options.UseNpgsql(partActivation.ConnectionStringName));
                     if (partActivation.ActivateFilters)
                     {
 
@@ -65,7 +68,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                 }
                 else
                 {
-                    services.UseDbIdentities(options => options.UseNpgsql(partActivation.ConnectionStringName));
+                    services.UseDbIdentities((services, options) => options.UseNpgsql(partActivation.ConnectionStringName));
                     services.ConfigureComputedColumns<SecurityContext>();
                 }
 

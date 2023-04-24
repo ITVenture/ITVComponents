@@ -51,7 +51,17 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// <summary>
         /// Gets the deserialized Settings-value. If it is not configured, null is returned (-> default(TSettings)).
         /// </summary>
-        public TSettings ValueOrDefault => valueOrDefault ??= GetSettingsValue();
+        public TSettings ValueOrDefault => valueOrDefault ??= GetSettingsValue(null);
+
+        public TSettings GetValue(string explicitSettingName)
+        {
+            return GetValueOrDefault(explicitSettingName) ?? new TSettings();
+        }
+
+        public TSettings GetValueOrDefault(string explicitSettingName)
+        {
+            return GetSettingsValue(explicitSettingName);
+        }
 
         /// <summary>
         /// Sets the value of this settings item
@@ -79,13 +89,26 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
             settingsProvider.UpdateJsonSetting(typeName, currentScope, tmp);
         }
 
+        public void Update(string explicitSettingName, TSettings newValue)
+        {
+            var tmp = JsonHelper.ToJson(newValue);
+            settingsProvider.UpdateJsonSetting(explicitSettingName, permissionScope.PermissionPrefix, tmp);
+        }
+
+        public void Update(string explicitSettingName, TSettings newValue, bool useTenantEncryption)
+        {
+            var currentScope = permissionScope.PermissionPrefix;
+            var tmp = securityRepo.EncryptJsonObject(newValue, currentScope);
+            settingsProvider.UpdateJsonSetting(explicitSettingName, currentScope, tmp);
+        }
+
         /// <summary>
         /// Reads the settings-value from the underlaying provider
         /// </summary>
         /// <returns>the configured settings-instance or its default-value</returns>
-        private TSettings GetSettingsValue()
+        private TSettings GetSettingsValue(string? explicitSettingName)
         {
-            var tmp = settingsProvider.GetJsonSetting(typeName);
+            var tmp = settingsProvider.GetJsonSetting(explicitSettingName??typeName);
             if (!string.IsNullOrEmpty(tmp))
             {
                 var retVal = JsonHelper.FromJsonString<TSettings>(tmp);

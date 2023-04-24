@@ -6,6 +6,8 @@ namespace ITVComponents.EFRepo.PostgreSql.DIIntegration
 {
     public class PostgreSqlContextOptionsLoader<TContext>:ContextOptionsLoader<TContext> where TContext : DbContext
     {
+        private readonly string connectString;
+
         private bool useProxies;
         /*public PostgreSqlContextOptionsLoader(string targetSetting, IStringFormatProvider connectStringFormatter, bool useProxies) : base(targetSetting, connectStringFormatter, 1)
         {
@@ -18,20 +20,19 @@ namespace ITVComponents.EFRepo.PostgreSql.DIIntegration
             this.useProxies = useProxies;
         }*/
 
-        public PostgreSqlContextOptionsLoader(string connectString, bool useProxies) : base(connectString)
+        public PostgreSqlContextOptionsLoader(string connectString, bool useProxies) : base()
         {
+            this.connectString = connectString;
             this.useProxies = useProxies;
         }
 
-        protected override DbContextOptions ConfigureDb(DbContextOptionsBuilder<TContext> builder, string connectString)
+        protected override void ConfigureOptionsBuilder(DbContextOptionsBuilder<TContext> builder)
         {
             builder.UseNpgsql(connectString);
             if (useProxies)
             {
                 builder.UseLazyLoadingProxies();
             }
-
-            return builder.Options;
         }
     }
 }

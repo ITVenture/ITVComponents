@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Data;
-using System.Drawing;
-using System.Drawing.Imaging;
+/*using System.Drawing;
+using System.Drawing.Imaging;*/
 using System.Dynamic;
 using System.IO;
 using System.Linq;
@@ -14,6 +14,8 @@ using ITVComponents.DataAccess.Resources;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
 using TypeConverter = ITVComponents.TypeConversion.TypeConverter;
 
 namespace ITVComponents.DataAccess
@@ -380,7 +382,7 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
                     {
                         v= new object();
                     }
-                    else if (value is Image)
+                    else if (value is SixLabors.ImageSharp.Image)
                     {
                         v = new byte[0];
                     }
@@ -397,11 +399,10 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
                 {
                     if (!t.IsAssignableFrom(value.GetType()) && !(value is DynamicResult) && !(value is SmartProperty))
                     {
-                        if (value is Image && t == typeof(byte[]))
+                        if (value is Image img && t == typeof(byte[]))
                         {
-                            Image img = value as Image;
                             MemoryStream mst = new MemoryStream();
-                            img.Save(mst, ImageFormat.Jpeg);
+                            img.Save(mst, new PngEncoder());
                             mst.Close();
                             value = mst.ToArray();
                         }
@@ -540,10 +541,9 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
             object v = values[name /*.ToUpper()*/];
             if (v.GetType() != type && !(v is DBNull))
             {
-                if (v.GetType() == typeof(byte[]) && typeof(Image).IsAssignableFrom(type))
+                if (v.GetType() == typeof(byte[]) && typeof(SixLabors.ImageSharp.Image).IsAssignableFrom(type))
                 {
-                    MemoryStream mst = new MemoryStream(v as byte[]);
-                    v = Image.FromStream(mst);
+                    v = Image.Load(v as byte[]);
                 }
                 else
                 if (v is DynamicResult)

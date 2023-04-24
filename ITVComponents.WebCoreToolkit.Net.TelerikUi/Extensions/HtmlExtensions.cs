@@ -106,6 +106,26 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
             });
         }
 
+        public static IHtmlContent AjaxFkLabelFor<TModel, TResult>(this IHtmlHelper<TModel> target,
+            Expression<Func<TModel, TResult>> expression, string targetElement, string repoName, string tableName, string area = null, string emptyLabel = null)
+        {
+            string columnName = target.DisplayNameFor(expression);
+            var prefix = CustomActionHelper.RandomName("FkFilterArg");
+            return target.Raw($@"
+<div id=""{targetElement}_{prefix}""></div>
+<script>
+    var {prefix}_id = $(""targetElement"").closest("".k-popup-edit-form"").data(""kendoEditable"").options.model[""{columnName}""];
+    var {prefix}_repo = ""{repoName}"";
+    var {prefix}_emptyLabel = ""{emptyLabel??"Not Found"}"";
+    var {prefix}_table = ""{tableName}"";
+    var {prefix}_area = ""{area}"";
+    $(async function(){{
+        var content = await ITVenture.Tools.ListCallbackHelper.ResolveFk({prefix}_repo, {prefix}_table, {prefix}_id, {prefix}_emptyLabel, {prefix}_area);
+        $(""#{targetElement}_{prefix}"").html(content);
+    }});
+</script>");
+        }
+
         public static IHtmlContent MultiSelectFor<TModel, TResult>(this IHtmlHelper<TModel> target, Expression<Func<TModel, TResult>> expression, string repoName, string tableName, string placeholder = "") where TModel : class
         {
            //var retVal = target.Bound(expression);

@@ -49,6 +49,48 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
             }
         }
 
+        public TSettings GetValue(string explicitSettingName)
+        {
+            return GetValueOrDefault(explicitSettingName) ?? new TSettings();
+        }
+
+        public TSettings GetValueOrDefault(string explicitSettingName)
+        {
+            return ResolveSetting(explicitSettingName, out _);
+        }
+
+        public HierarchyScope GetSettingScope(string explicitSettingName)
+        {
+            ResolveSetting(explicitSettingName, out var ret);
+            return ret;
+        }
+
+        private TSettings ResolveSetting(string explicitSettingName, out HierarchyScope explicitScope)
+        {
+            TSettings retVal = default;
+            explicitScope = HierarchyScope.None;
+            if (retVal == null)
+            {
+                retVal = scoped?.GetValueOrDefault(explicitSettingName);
+                if (retVal != null)
+                {
+                    explicitScope = HierarchyScope.Scoped;
+                }
+
+            }
+
+            if (retVal == null)
+            {
+                retVal = global?.GetValueOrDefault(explicitSettingName);
+                if (retVal != null)
+                {
+                    explicitScope = HierarchyScope.Global;
+                }
+            }
+
+            return retVal;
+        }
+
         /// <summary>
         /// Gets a value indicating whether this setting was loaded from global or from scope
         /// </summary>

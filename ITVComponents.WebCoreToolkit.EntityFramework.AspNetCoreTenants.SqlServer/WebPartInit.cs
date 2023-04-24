@@ -8,6 +8,7 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.AspNetCore.Identity;
@@ -53,17 +54,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
             {
                 var dic = new Dictionary<string, object>();
                 t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
             }
 
             if (partActivation.ActivateDbContext)
             {
                 if (t != null)
                 {
-                    services.UseDbIdentities(t, options => options.UseSqlServer(partActivation.ConnectionStringName));
+                    //services.AddDbContext<>()
+                    services.UseDbIdentities(t, (services,options) =>
+                    {
+                        options.UseSqlServer(partActivation.ConnectionStringName);
+                    });
                 }
                 else
                 {
-                    services.UseDbIdentities(options => options.UseSqlServer(partActivation.ConnectionStringName));
+                    services.UseDbIdentities((services, options) => options.UseSqlServer(partActivation.ConnectionStringName));
                 }
             }
         }

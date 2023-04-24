@@ -21,5 +21,15 @@ namespace ITVComponents.WebCoreToolkit.Configuration
         /// Gets the deserialized Settings-value. If it is not configured, null is returned (-> default(TSettings)).
         /// </summary>
         TSettings ValueOrDefault { get; }
+
+        /// <summary>
+        /// Gets the deserialized Settings-value. If it is not configured, an object is constructed, using the Default-Constructor.
+        /// </summary>
+        TSettings GetValue(string explicitSettingName);
+
+        /// <summary>
+        /// Gets the deserialized Settings-value. If it is not configured, null is returned (-> default(TSettings)).
+        /// </summary>
+        TSettings GetValueOrDefault(string explicitSettingName);
     }
 }

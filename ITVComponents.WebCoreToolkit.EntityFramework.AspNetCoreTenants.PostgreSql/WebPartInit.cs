@@ -7,6 +7,8 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -50,17 +52,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
             {
                 var dic = new Dictionary<string, object>();
                 t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
             }
 
             if (partActivation.ActivateDbContext)
             {
                 if (t != null)
                 {
-                    services.UseDbIdentities(t, options => options.UseNpgsql(partActivation.ConnectionStringName));
+                    services.UseDbIdentities(t, (services,options) => options.UseNpgsql(partActivation.ConnectionStringName));
                 }
                 else
                 {
-                    services.UseDbIdentities(options => options.UseNpgsql(partActivation.ConnectionStringName));
+                    services.UseDbIdentities((services, options) => options.UseNpgsql(partActivation.ConnectionStringName));
                 }
             }
         }

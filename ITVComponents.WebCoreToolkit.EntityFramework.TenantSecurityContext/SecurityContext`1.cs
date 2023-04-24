@@ -231,6 +231,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         /// </summary>
         protected IPrincipal Me => userProvider?.User;
 
+        public int SequenceNextVal(string sequenceName)
+        {
+            var mth = modelBuilderOptions.GetMethod<Func<DbContext, string, int, int>>("SequenceNextVal");
+            if (mth == null)
+            {
+                throw new InvalidOperationException("SequenceNextVal was not implemented for this Database-Type");
+            }
+
+            if (CurrentTenantId != null)
+            {
+                return mth(this, sequenceName, CurrentTenantId.Value);
+            }
+
+            return -1;
+        }
+
         [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<AuthenticationType> AuthenticationTypes { get;set; }
         public DbSet<AuthenticationClaimMapping> AuthenticationClaimMappings { get; set; }
@@ -322,6 +338,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<TutorialStream> TutorialStreams { get; set; }
 
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
+
+        public DbSet<Sequence> Sequences { get; set; }
 
         void IBaseTenantContext.RegisterSecurityRollback(FullSecurityAccessHelper fullSecurityAccessHelper)
         {

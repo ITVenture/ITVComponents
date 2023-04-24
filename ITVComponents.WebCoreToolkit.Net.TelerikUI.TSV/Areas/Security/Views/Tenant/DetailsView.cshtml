@@ -19,5 +19,9 @@
         item.Add().Text("Features").LoadContentFrom("FeatureTable", "Feature", new { area = "Util", tenantId = Model });
         item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_PlugIns).LoadContentFrom("PluginTable", "Plugin", new {tenantId = Model, area = "Util"});
         item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_PlugInConstants).LoadContentFrom("ConstTable", "PlugInConst", new { tenantId = Model, area="Util" });
+        if (Context.RequestServices.VerifyUserPermissions(new[] { "Sequences.View", "Sequences.Write" }))
+        {
+            item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_Sequences).LoadContentFrom("SequenceTable", "Sequence", new { tenantId = Model, area = "Util" });
+        }
         item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_TenantTemplates).LoadContentFrom("TenantTemplateActivation", "TenantTemplate", new { area = "Util", tenantId = Model });
     }))

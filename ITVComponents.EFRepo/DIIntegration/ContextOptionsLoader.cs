@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using Dynamitey.DynamicObjects;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Initialization;
 using Microsoft.EntityFrameworkCore;
@@ -8,24 +10,23 @@ namespace ITVComponents.EFRepo.DIIntegration
 {
     public abstract class ContextOptionsLoader<TContext>:IPlugin where TContext : DbContext
     {
-        /*private readonly string targetSetting;
-        private readonly IStringFormatProvider connectStringFormatter;
-        private readonly int recursionDepth;
-        private bool useDi = false;*/
-        private readonly string connectString;
+        private List<ContextOptionsLoader<TContext>> innerLoaders = new();
+        //private readonly string connectString;
 
 
-        /*protected ContextOptionsLoader(string targetSetting, IStringFormatProvider connectStringFormatter, int recursionDepth)
+        protected ContextOptionsLoader()
         {
-            this.targetSetting = targetSetting;
-            this.connectStringFormatter = connectStringFormatter;
-            this.recursionDepth = recursionDepth;
-            useDi = true;
-        }*/
+            //this.connectString = connectString;
+        }
 
-        protected ContextOptionsLoader(string connectString)
+        protected ContextOptionsLoader(ContextOptionsLoader<TContext> parent)
         {
-            this.connectString = connectString;
+            parent.RegisterInnerLoader(this);
+        }
+
+        private void RegisterInnerLoader(ContextOptionsLoader<TContext> contextOptionsLoader)
+        {
+            innerLoaders.Add(contextOptionsLoader);
         }
 
         public DbContextOptions Options => BuildOptions();
@@ -33,12 +34,9 @@ namespace ITVComponents.EFRepo.DIIntegration
         private DbContextOptions BuildOptions()
         {
             DbContextOptionsBuilder<TContext> builder = new DbContextOptionsBuilder<TContext>();
-            //var connectString = useDi?connectStringFormatter.ProcessLiteral($"£[{targetSetting}]{(recursionDepth>1?$"{{{recursionDepth}}}":"")}", null):this.connectString;
             builder.ReplaceService<IModelCacheKeyFactory, CustomModelCache>();
-            return ConfigureDb(builder, connectString);
+            return ConfigureDb(builder);
         }
-
-        protected abstract DbContextOptions ConfigureDb(DbContextOptionsBuilder<TContext> builder, string connectString);
 
         public string UniqueName { get; set; }
 
@@ -50,6 +48,15 @@ namespace ITVComponents.EFRepo.DIIntegration
         protected virtual void OnDisposed()
         {
             Disposed?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected abstract void ConfigureOptionsBuilder(DbContextOptionsBuilder<TContext> builder);
+
+        private DbContextOptions ConfigureDb(DbContextOptionsBuilder<TContext> builder)
+        {
+            ConfigureOptionsBuilder(builder);
+            innerLoaders.ForEach(n => n.ConfigureOptionsBuilder(builder));
+            return builder.Options;
         }
 
         public event EventHandler Disposed;

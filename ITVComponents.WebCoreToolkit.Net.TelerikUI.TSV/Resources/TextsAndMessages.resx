@@ -321,4 +321,7 @@
   <data name="IWCN_AT_SystemKey" xml:space="preserve">
     <value>System-Key</value>
   </data>
+  <data name="IWCN_Titles_Sequences" xml:space="preserve">
+    <value>Sequences</value>
+  </data>
 </root>

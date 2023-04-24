@@ -12,7 +12,7 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
     {
         private static ConcurrentBag<ExtensionMethod> allExtensions = new ConcurrentBag<ExtensionMethod>();
 
-        private Type extensionAttrType = typeof(ExtensionAttribute);
+        private static readonly Type extensionAttrType = typeof(ExtensionAttribute);
 
         private MethodInfo theMethod;
 
@@ -36,6 +36,58 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
             }
         }
 
+        private ExtensionMethod(MethodInfo inf)
+        {
+            theMethod = inf;
+            ThisType = theMethod.GetParameters().First().ParameterType;
+            if (ThisType.IsGenericMethodParameter)
+            {
+                ThisType = typeof(object);
+            }
+
+            lock (allExtensions)
+            {
+                if (allExtensions.All(n => n.theMethod != theMethod))
+                {
+                    allExtensions.Add(this);
+                }
+            }
+        }
+
+        public static void RegisterAllMethods(Type extensionType)
+        {
+            RegisterNonGenericMethods(extensionType);
+            RegisterGenericMethods(extensionType);
+        }
+
+        public static void RegisterGenericMethods(Type extensionType)
+        {
+            if (!Attribute.IsDefined(extensionType, extensionAttrType))
+            {
+                throw new InvalidOperationException("Only Types providing Extension Method allowed!");
+            }
+
+            var methods = extensionType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+            foreach (var meth in methods.Where(m => m.IsGenericMethod))
+            {
+                var fubar = new ExtensionMethod(meth);
+            }
+        }
+
+        public static void RegisterNonGenericMethods(Type extensionType)
+        {
+            if (!Attribute.IsDefined(extensionType, extensionAttrType))
+            {
+                throw new InvalidOperationException("Only Types providing Extension Method allowed!");
+            }
+
+            var methods = extensionType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+            foreach (var meth in methods.Where(m => !m.IsGenericMethodDefinition))
+            {
+                var fubar = new ExtensionMethod(meth);
+            }
+        }
+
         /// <summary>
         /// Helper method to create a type-array from scripting
         /// </summary>
@@ -53,7 +105,7 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
                 return
                     from i in
                         (from t in allExtensions select new {Separation = t.DegreeOfSeparationFrom(type), Extension = t})
-                    where i.Separation != -1
+                    where i.Separation != -1 && i.Extension.theMethod.Name == name && i.Extension.theMethod.GetParameters().Length >= argumentCount
                     orderby i.Separation
                     select i.Extension.theMethod;
             }

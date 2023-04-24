@@ -29,7 +29,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <param name="services">the services where the SecurityContext is injected</param>
         /// <param name="options">the options for the context</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseDbIdentities(this IServiceCollection services, Action<DbContextOptionsBuilder> options)
+        public static IServiceCollection UseDbIdentities(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options)
         {
             return services.AddDbContext<AspNetSecurityContext>(options)
                 .RegisterExplicityInterfacesScoped<AspNetSecurityContext>()
@@ -40,7 +40,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
                     return i.GetAssetSecurityRepository(retVal);
 
                 })
-                .AddScoped<ITenantTemplateHelper<AspNetSecurityContext>, TenantTemplateHelper<AspNetSecurityContext>>()
+                //.AddScoped<ITenantTemplateHelper<AspNetSecurityContext>, TenantTemplateHelper<AspNetSecurityContext>>()
                 .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<AspNetSecurityContext>>();
         }
 
@@ -51,7 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <param name="services">the services where the SecurityContext is injected</param>
         /// <param name="options">the options for the context</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseDbIdentities<TImpl>(this IServiceCollection services, Action<DbContextOptionsBuilder> options) where TImpl:AspNetSecurityContext<TImpl>
+        public static IServiceCollection UseDbIdentities<TImpl>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options) where TImpl:AspNetSecurityContext<TImpl>
         {
             return services.AddDbContext<TImpl>(options)
                     .RegisterExplicityInterfacesScoped<TImpl>()
@@ -61,7 +61,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
                                 i.GetService<ILogger<AspNetDbSecurityRepository<TImpl>>>());
                         return i.GetAssetSecurityRepository(retVal);
                     })
-                    .AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
+                    //.AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
                     .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<TImpl>>();
         }
 
@@ -73,7 +73,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <param name="options">the options for the context</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities(this IServiceCollection services, Type contextType,
-            Action<DbContextOptionsBuilder> options)
+            Action<IServiceProvider, DbContextOptionsBuilder> options)
         {
             var method = LambdaHelper.GetMethodInfo(() => UseDbIdentities<AspNetSecurityContext>(services,options))
                 .GetGenericMethodDefinition();
@@ -88,7 +88,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <param name="services">the services where the SecurityContext is injected</param>
         /// <param name="options">the options for the context</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseDbIdentities<TImpl, TTmpHelper>(this IServiceCollection services, Action<DbContextOptionsBuilder> options)
+        public static IServiceCollection UseDbIdentities<TImpl, TTmpHelper>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options)
             where TImpl : AspNetSecurityContext<TImpl>
             where TTmpHelper : TenantTemplateHelper<TImpl>
         {
@@ -100,7 +100,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
                             i.GetService<ILogger<AspNetDbSecurityRepository<TImpl>>>());
                     return i.GetAssetSecurityRepository(retVal);
                 })
-                .AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()
+                //.AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()
                 .AddScoped<ITenantTemplateHelper, TTmpHelper>();
         }
 

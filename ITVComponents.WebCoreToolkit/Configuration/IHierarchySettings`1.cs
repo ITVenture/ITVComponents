@@ -26,6 +26,21 @@ namespace ITVComponents.WebCoreToolkit.Configuration
         /// Gets a value indicating whether this setting was loaded from global or from scope
         /// </summary>
         HierarchyScope SettingScope { get; }
+
+        /// <summary>
+        /// Gets the deserialized Settings-value. If it is not configured, an object is constructed, using the Default-Constructor.
+        /// </summary>
+        TSettings GetValue(string explicitSettingName);
+
+        /// <summary>
+        /// Gets the deserialized Settings-value. If it is not configured, null is returned (-> default(TSettings)).
+        /// </summary>
+        TSettings GetValueOrDefault(string explicitSettingName);
+
+        /// <summary>
+        /// Gets a value indicating whether this setting was loaded from global or from scope
+        /// </summary>
+        HierarchyScope GetSettingScope(string explicitSettingName);
     }
 
     public enum HierarchyScope

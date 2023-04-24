@@ -44,7 +44,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
         private readonly IStringLocalizer<IdentityMessages> localizer;
         private readonly TContext dbContext;
         private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
-        private readonly ITenantTemplateHelper<TContext> tenantInitializer;
+        private readonly ITenantTemplateHelper tenantInitializer;
         private readonly IOptions<AuthenticationHandlerOptions> availableAuthenticators;
         private readonly ISecurityRepository securityRepo;
 
@@ -55,7 +55,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
             IStringLocalizer<IdentityMessages> localizer,
             TContext dbContext,
             IGlobalSettings<TenantSetupOptions> setupOptions,
-            ITenantTemplateHelper<TContext> tenantInitializer,
+            ITenantTemplateHelper tenantInitializer,
             IOptions<AuthenticationHandlerOptions> availableAuthenticators,
             ISecurityRepository securityRepo)
         {
@@ -336,8 +336,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
                     {
                         var tmpl = dbContext.TenantTemplates.First(n => n.Name == cfg.BasicTenantTemplate);
                         var mku = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup);
-                        tenantInitializer.ApplyTemplate(tenant, mku, ctx =>
+                        tenantInitializer.ApplyTemplate(tenant, mku, ct =>
                         {
+                            var ctx = ct as ISecurityContextWithOnboarding;
                             if (!string.IsNullOrEmpty(cfg.AdminUserRole))
                             {
                                 var rl = ctx.SecurityRoles.First(n =>

@@ -9,5 +9,7 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Options
     public class GoogleConnectOptions:ExternalAuthenticationOptionsBase
     {
         public string AccessType { get; set; }
+
+        public string AccessDeniedPath { get; set; }
     }
 }

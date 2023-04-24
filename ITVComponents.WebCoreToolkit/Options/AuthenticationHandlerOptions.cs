@@ -20,6 +20,10 @@ namespace ITVComponents.WebCoreToolkit.Options
 
         public string LogoFile { get; set; }
 
+        public int ImageWidth { get; set; }
+
+        public int ImageHeight { get; set; }
+
         public bool DisplayInHandlerSelection { get; set; }
     }
 }

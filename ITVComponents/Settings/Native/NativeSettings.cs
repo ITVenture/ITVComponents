@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
 using Microsoft.Extensions.Configuration;
 
 namespace ITVComponents.Settings.Native
@@ -13,7 +14,7 @@ namespace ITVComponents.Settings.Native
     {
         private static IConfigurationBuilder builder;
         private static IConfiguration configuration;
-
+        private static IDisposable reloadToken;
         public static IConfiguration Configuration
         {
             get
@@ -21,6 +22,7 @@ namespace ITVComponents.Settings.Native
                 if (configuration == null)
                 {
                     configuration = Builder.Build();
+                    reloadToken = configuration.GetReloadToken().RegisterChangeCallback(ConfigReload, null);
                 }
 
                 return configuration; 
@@ -49,6 +51,8 @@ namespace ITVComponents.Settings.Native
             if (reset || builder == null)
             {
                 Configuration = null;
+                reloadToken?.Dispose();
+                reloadToken = null;
                 var startAssembly = Assembly.GetEntryAssembly();
                 var settingsFileName = "appsettings.json";
                 if (startAssembly != null)
@@ -58,13 +62,19 @@ namespace ITVComponents.Settings.Native
                 }
 
                 RawSettingsName = Path.GetFileNameWithoutExtension(settingsFileName);
-                builder = new ConfigurationBuilder().AddJsonFile(settingsFileName, optional:true);
+                builder = new ConfigurationBuilder().AddJsonFile(settingsFileName, optional: true,
+                    reloadOnChange: true);
             }
         }
 
         public static T GetSection<T>(string path, Action<T> configureDefaults = null) where T : class, new()
         {
             return Configuration.GetSection(path, configureDefaults);
+        }
+
+        private static void ConfigReload(object obj)
+        {
+            LogEnvironment.LogDebugEvent("Native-Settings reload occurred.", LogSeverity.Report);
         }
     }
 }

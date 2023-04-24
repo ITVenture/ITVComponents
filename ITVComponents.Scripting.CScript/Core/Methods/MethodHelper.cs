@@ -66,7 +66,7 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
             {
                 methods = SelectGenerics(ExtensionMethod.GetExtensions(type, methodName, arguments.Length),
                     typeArguments, true);
-                retVal = FindMethodFromArray(staticMethod, methods, new []{ type}.Union(types).ToArray(), args, out oargs);
+                retVal = FindMethodFromArray(staticMethod, methods, new []{ type}.Concat(types).ToArray(), new object[]{null}.Concat(args).ToArray(), out oargs);
                 if (retVal != null)
                 {
                     staticMethod = true;
@@ -476,7 +476,7 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
                     IsExtension = extensions
                 };
 #endif
-                if (mi.IsGeneric && typeArguments != null)
+                if (mi.IsGeneric && typeArguments != null && typeArguments.Length == mi.MethodInfo.GetGenericArguments().Length)
                 {
                     try
                     {

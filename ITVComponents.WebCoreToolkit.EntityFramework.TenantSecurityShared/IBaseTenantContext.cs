@@ -78,6 +78,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
 
+        public DbSet<Sequence> Sequences { get; set; }
+
+        public int SequenceNextVal(string sequenceName);
+
         DatabaseFacade Database { get; }
 
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken));

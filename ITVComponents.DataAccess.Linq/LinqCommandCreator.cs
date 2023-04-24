@@ -23,7 +23,6 @@ namespace ITVComponents.DataAccess.Linq
         "System.Data.dll",
         "System.Data.DataSetExtensions.dll",
         "System.Core.dll",
-        "System.Drawing.dll",
         "Microsoft.CSharp.dll",
         "ITVComponents.dll",
         "ITVComponents.DataAccess.dll",

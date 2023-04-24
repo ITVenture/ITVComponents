@@ -18,5 +18,7 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Options
 
         public bool TokenToClaims { get; set; }
         public bool ShrinkStatus { get; set; }
+
+        public string AccessDeniedPath { get; set; }
     }
 }
