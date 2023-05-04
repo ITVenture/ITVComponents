@@ -3,22 +3,22 @@
     public class ProcessBridgeServer:LogTarget
     {
         public ProcessBridgeServer(int minSeverity, int maxSeverity, string contextFilter, bool initialStatus)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, true)
         {
         }
 
         public ProcessBridgeServer(LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, true)
         {
         }
 
         public ProcessBridgeServer(int minSeverity, int maxSeverity, string contextFilter, bool initialStatus, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus, debugEnabled)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, debugEnabled, true)
         {
         }
 
         public ProcessBridgeServer(LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus, debugEnabled)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, debugEnabled, true)
         {
         }
 

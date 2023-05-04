@@ -147,7 +147,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="contextFilter">an expression that will be used to filter logMessages before they are logged</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int minSeverity,
                              int maxSeverity, string contextFilter, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, debugEnabled)
+            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, debugEnabled, true)
         {
             InitializeLog(logName, archiveCount, maxLogSize);
         }
@@ -163,7 +163,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int minSeverity,
                              int maxSeverity, bool debugEnabled)
-            : base(minSeverity, maxSeverity, null, initialLogStatus, debugEnabled)
+            : base(minSeverity, maxSeverity, null, initialLogStatus, debugEnabled, true)
         {
             InitializeLog(logName, archiveCount, maxLogSize);
         }
@@ -180,7 +180,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus,
                              LogSeverity minSeverity, LogSeverity maxSeverity, bool debugEnabled)
-            : base(minSeverity, maxSeverity,null, initialLogStatus,debugEnabled)
+            : base(minSeverity, maxSeverity,null, initialLogStatus,debugEnabled, true)
         {
             InitializeLog(logName, archiveCount, maxLogSize);
         }
@@ -261,28 +261,25 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         {
             lastUsage = DateTime.Now;
             string eventMessage = string.Format(@"{0:dd.MM.yyyy HH:mm:ss} {1:000} {2,10} {3} {4}
-", DateTime.Now, severity, LogEnvironment.GetClosestSeverity(severity),context,
-                                                eventText);
-            lock (syncher)
+", DateTime.Now, severity, LogEnvironment.GetClosestSeverity(severity), context,
+                eventText);
+            if (currentSize > maxLogSize)
             {
-                if (currentSize > maxLogSize)
+                try
                 {
-                    try
-                    {
-                        SwitchLog();
-                    }
-                    catch (Exception ex)
-                    {
-                    }
+                    SwitchLog();
                 }
-
-                if (innerStream == null)
+                catch (Exception ex)
                 {
-                    OpenStream();
                 }
-
-                WriteMessage(eventMessage);
             }
+
+            if (innerStream == null)
+            {
+                OpenStream();
+            }
+
+            WriteMessage(eventMessage);
         }
 
         /// <summary>

@@ -209,7 +209,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             userProvider?.User != null && (userProvider.User.Identities.Any(i => i.IsAuthenticated));
 
         [ExpressionPropertyRedirect("CurrentUserName")]
-        protected string CurrentUserName => userProvider.User?.Identity?.Name;
+        public string CurrentUserName => userProvider.User?.Identity?.Name;
 
         [ExpressionPropertyRedirect("CurrentTenant")]
         private string CurrentTenant

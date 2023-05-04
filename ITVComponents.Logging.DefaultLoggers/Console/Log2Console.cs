@@ -19,7 +19,7 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="maxSeverity">the maximum severity of this logger</param>
         /// <param name="enabled">indicates whether the logger is active from beginning</param>
         public Log2Console(LogSeverity minSeverity, LogSeverity maxSeverity, bool enabled)
-            : base(minSeverity, maxSeverity, enabled)
+            : base(minSeverity, maxSeverity, enabled, true)
         {   
         }
 
@@ -30,7 +30,7 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="maxSeverity">the maximum severity of this logger</param>
         /// <param name="enabled">indicates whether the logger is active from beginning</param>
         public Log2Console(int minSeverity, int maxSeverity, bool enabled)
-            : base(minSeverity, maxSeverity, enabled)
+            : base(minSeverity, maxSeverity, enabled, true)
         {
         }
 
@@ -42,7 +42,7 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="contextFilter">an expression that canbge used to filter Messages before they are processed</param>
         /// <param name="enabled">indicates whether the logger is active from beginning</param>
         public Log2Console(LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool enabled)
-            : base(minSeverity, maxSeverity, contextFilter, enabled)
+            : base(minSeverity, maxSeverity, contextFilter, enabled, true)
         {
         }
 
@@ -54,7 +54,7 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="contextFilter">an expression that canbge used to filter Messages before they are processed</param>
         /// <param name="enabled">indicates whether the logger is active from beginning</param>
         public Log2Console(int minSeverity, int maxSeverity, string contextFilter, bool enabled)
-            : base(minSeverity, maxSeverity, contextFilter, enabled)
+            : base(minSeverity, maxSeverity, contextFilter, enabled, true)
         {
         }
 
@@ -67,7 +67,7 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="maxSeverity">the maximum severity of this logger</param>
         /// <param name="enabled">indicates whether the logger is active from beginning</param>
         public Log2Console(LogSeverity minSeverity, LogSeverity maxSeverity, bool enabled, bool debugEnabled)
-            : base(minSeverity, maxSeverity, null, enabled, debugEnabled)
+            : base(minSeverity, maxSeverity, null, enabled, debugEnabled, true)
         {   
         }
 
@@ -78,7 +78,7 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="maxSeverity">the maximum severity of this logger</param>
         /// <param name="enabled">indicates whether the logger is active from beginning</param>
         public Log2Console(int minSeverity, int maxSeverity, bool enabled, bool debugEnabled)
-            : base(minSeverity, maxSeverity, null, enabled, debugEnabled)
+            : base(minSeverity, maxSeverity, null, enabled, debugEnabled, true)
         {
         }
 
@@ -90,7 +90,7 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="contextFilter">an expression that canbge used to filter Messages before they are processed</param>
         /// <param name="enabled">indicates whether the logger is active from beginning</param>
         public Log2Console(LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool enabled, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, enabled, debugEnabled)
+            : base(minSeverity, maxSeverity, contextFilter, enabled, debugEnabled, true)
         {
         }
 
@@ -102,7 +102,7 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="contextFilter">an expression that canbge used to filter Messages before they are processed</param>
         /// <param name="enabled">indicates whether the logger is active from beginning</param>
         public Log2Console(int minSeverity, int maxSeverity, string contextFilter, bool enabled, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, enabled, debugEnabled)
+            : base(minSeverity, maxSeverity, contextFilter, enabled, debugEnabled, true)
         {
         }
 

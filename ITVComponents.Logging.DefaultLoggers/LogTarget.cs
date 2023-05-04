@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Helpers;
@@ -13,6 +14,13 @@ namespace ITVComponents.Logging.DefaultLoggers
         /// </summary>
         private bool enabled;
 
+        private readonly bool useSynchronizedWriting;
+
+        /// <summary>
+        /// Synchronizes log-writes for all threads on this LogTarget.
+        /// </summary>
+        private object syncLock = new();
+
         /// <summary>
         /// Initializes a new instance of the LogTarget class
         /// </summary>
@@ -21,11 +29,13 @@ namespace ITVComponents.Logging.DefaultLoggers
         /// <param name="contextFilter">A n Expression that can be used to filter the context of provided messages</param>
         /// <param name="initialStatus">the initial status of this logger</param>
         /// <param name="debugEnabled">indicates whether to log debug-messages</param>
-        protected LogTarget(int minSeverity, int maxSeverity, string contextFilter, bool initialStatus, bool debugEnabled) : this()
+        /// <param name="useSynchronizedWriting">indicates whether Log-actions should must explicitly be thread-save</param>
+        protected LogTarget(int minSeverity, int maxSeverity, string contextFilter, bool initialStatus, bool debugEnabled, bool useSynchronizedWriting) : this()
         {
             MinSeverity = minSeverity;
             MaxSeverity = maxSeverity;
             enabled = initialStatus;
+            this.useSynchronizedWriting = useSynchronizedWriting;
             ContextFilter = contextFilter;
             EnableDebugMessages = debugEnabled;
             if (debugEnabled)
@@ -40,8 +50,9 @@ namespace ITVComponents.Logging.DefaultLoggers
         /// <param name="minSeverity">the minimum severity of the logger</param>
         /// <param name="maxSeverity">the maximum severity of the logger</param>
         /// <param name="initialStatus">the initial status of this logger</param>
-        protected LogTarget(int minSeverity, int maxSeverity, bool initialStatus)
-            : this(minSeverity, maxSeverity, null, initialStatus, false)
+        /// <param name="useSynchronizedWriting">indicates whether Log-actions should must explicitly be thread-save</param>
+        protected LogTarget(int minSeverity, int maxSeverity, bool initialStatus, bool useSynchronizedWriting)
+            : this(minSeverity, maxSeverity, null, initialStatus, false, useSynchronizedWriting)
         {
         }
 
@@ -52,8 +63,9 @@ namespace ITVComponents.Logging.DefaultLoggers
         /// <param name="maxSeverity">the maximum severity of the logger</param>
         /// <param name="contextFilter">A n Expression that can be used to filter the context of provided messages</param>
         /// <param name="initialStatus">the initial status of this logger</param>
-        protected LogTarget(LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus)
-            : this((int)minSeverity, (int)maxSeverity + 29, contextFilter, initialStatus, false)
+        /// <param name="useSynchronizedWriting">indicates whether Log-actions should must explicitly be thread-save</param>
+        protected LogTarget(LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus, bool useSynchronizedWriting)
+            : this((int)minSeverity, (int)maxSeverity + 29, contextFilter, initialStatus, false, useSynchronizedWriting)
         {
         }
 
@@ -65,8 +77,9 @@ namespace ITVComponents.Logging.DefaultLoggers
         /// <param name="contextFilter">A n Expression that can be used to filter the context of provided messages</param>
         /// <param name="initialStatus">the initial status of this logger</param>
         /// <param name="debugEnabled">indicates whether to log debug-messages</param>
-        protected LogTarget(LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus, bool debugEnabled)
-            : this((int)minSeverity, (int)maxSeverity + 29, contextFilter, initialStatus, debugEnabled)
+        /// <param name="useSynchronizedWriting">indicates whether Log-actions should must explicitly be thread-save</param>
+        protected LogTarget(LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus, bool debugEnabled, bool useSynchronizedWriting)
+            : this((int)minSeverity, (int)maxSeverity + 29, contextFilter, initialStatus, debugEnabled, useSynchronizedWriting)
         {
         }
 
@@ -76,8 +89,9 @@ namespace ITVComponents.Logging.DefaultLoggers
         /// <param name="minSeverity">the minimum severity of the logger</param>
         /// <param name="maxSeverity">the maximum severity of the logger</param>
         /// <param name="initialStatus">the initial status of this logger</param>
-        protected LogTarget(LogSeverity minSeverity, LogSeverity maxSeverity, bool initialStatus)
-            : this((int) minSeverity, (int) maxSeverity + 29, null, initialStatus, false)
+        /// <param name="useSynchronizedWriting">indicates whether Log-actions should must explicitly be thread-save</param>
+        protected LogTarget(LogSeverity minSeverity, LogSeverity maxSeverity, bool initialStatus, bool useSynchronizedWriting)
+            : this((int) minSeverity, (int) maxSeverity + 29, null, initialStatus, false, useSynchronizedWriting)
         {
         }
 
@@ -88,8 +102,9 @@ namespace ITVComponents.Logging.DefaultLoggers
         /// <param name="maxSeverity">the maximum severity of the logger</param>
         /// <param name="contextFilter">A n Expression that can be used to filter the context of provided messages</param>
         /// <param name="initialStatus">the initial status of this logger</param>
-        protected LogTarget(int minSeverity, int maxSeverity, string contextFilter, bool initialStatus) :
-            this(minSeverity, maxSeverity, contextFilter, initialStatus, false)
+        /// <param name="useSynchronizedWriting">indicates whether Log-actions should must explicitly be thread-save</param>
+        protected LogTarget(int minSeverity, int maxSeverity, string contextFilter, bool initialStatus, bool useSynchronizedWriting) :
+            this(minSeverity, maxSeverity, contextFilter, initialStatus, false, useSynchronizedWriting)
         {
         }
 
@@ -143,9 +158,25 @@ namespace ITVComponents.Logging.DefaultLoggers
         /// <param name="context">the logger-context that can be used to filter messages by context</param>
         public void LogEvent(string eventText, int severity, string context)
         {
-            if (Enabled && Loggable(severity) && Loggable(context))
+            bool b = useSynchronizedWriting;
+            if (b)
             {
-                Log(eventText, severity, context);
+                Monitor.Enter(syncLock);
+            }
+
+            try
+            {
+                if (Enabled && Loggable(severity) && Loggable(context))
+                {
+                    Log(eventText, severity, context);
+                }
+            }
+            finally
+            {
+                if (b)
+                {
+                    Monitor.Exit(syncLock);
+                }
             }
         }
 

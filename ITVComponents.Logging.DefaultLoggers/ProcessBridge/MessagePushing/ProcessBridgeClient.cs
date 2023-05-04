@@ -24,7 +24,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
         private bool active = false;
 
         public ProcessBridgeClient(IBaseClient simpleClient, string remoteLoggerName, int minSeverity, int maxSeverity, string contextFilter, bool initialStatus)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, true)
         {
             this.simpleClient = simpleClient;
             try
@@ -42,7 +42,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
         }
 
         public ProcessBridgeClient(IBaseClient simpleClient, string remoteLoggerName, LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, true)
         {
             this.simpleClient = simpleClient;
             try
@@ -60,7 +60,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
         }
 
         public ProcessBridgeClient(IBaseClient simpleClient, string remoteLoggerName, int minSeverity, int maxSeverity, string contextFilter, bool initialStatus, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus, debugEnabled)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, debugEnabled, true)
         {
             this.simpleClient = simpleClient;
             try
@@ -78,7 +78,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
         }
 
         public ProcessBridgeClient(IBaseClient simpleClient, string remoteLoggerName, LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus, debugEnabled)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, debugEnabled, true)
         {
             this.simpleClient = simpleClient;
             try

@@ -18,4 +18,4 @@
     ViewBag.Title = "Sequences";
 }
 
-@await Component.InvokeAsync(typeof(ShowTable))
+@await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { {"tenantId", ViewData["tenantId"]} } })

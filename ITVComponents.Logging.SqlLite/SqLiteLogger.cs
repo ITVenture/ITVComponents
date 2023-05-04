@@ -50,7 +50,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="contextFilter">an expression that will be used to filter logMessages before they are logged</param>
         public SqLiteLogger(string logName, bool initialLogStatus, int minSeverity,
                              int maxSeverity, string contextFilter)
-            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus)
+            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, false)
         {
             this.logName = logName;
             InitWriter();
@@ -65,7 +65,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public SqLiteLogger(string logName, bool initialLogStatus, int minSeverity,
                              int maxSeverity)
-            : base(minSeverity, maxSeverity, initialLogStatus)
+            : base(minSeverity, maxSeverity, initialLogStatus, false)
         {
             this.logName = logName;
             InitWriter();
@@ -81,7 +81,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public SqLiteLogger(string logName, bool initialLogStatus,
                              LogSeverity minSeverity, LogSeverity maxSeverity)
-            : base(minSeverity, maxSeverity, initialLogStatus)
+            : base(minSeverity, maxSeverity, initialLogStatus, false)
         {
             this.logName = logName;
             InitWriter();
@@ -121,7 +121,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="debugEnabled">indicates whether to log debug-messages</param>
         public SqLiteLogger(string logName, bool initialLogStatus, int minSeverity,
                              int maxSeverity, string contextFilter, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, debugEnabled)
+            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, debugEnabled, false)
         {
             this.logName = logName;
             InitWriter();
@@ -137,7 +137,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="debugEnabled">indicates whether to log debug-messages</param>
         public SqLiteLogger(string logName, bool initialLogStatus, int minSeverity,
                              int maxSeverity, bool debugEnabled)
-            : base(minSeverity, maxSeverity, null, initialLogStatus,debugEnabled)
+            : base(minSeverity, maxSeverity, null, initialLogStatus,debugEnabled, false)
         {
             this.logName = logName;
             InitWriter();
@@ -154,7 +154,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="debugEnabled">indicates whether to log debug-messages</param>
         public SqLiteLogger(string logName, bool initialLogStatus,
                              LogSeverity minSeverity, LogSeverity maxSeverity, bool debugEnabled)
-            : base(minSeverity, maxSeverity, null, initialLogStatus, debugEnabled)
+            : base(minSeverity, maxSeverity, null, initialLogStatus, debugEnabled, false)
         {
             this.logName = logName;
             InitWriter();

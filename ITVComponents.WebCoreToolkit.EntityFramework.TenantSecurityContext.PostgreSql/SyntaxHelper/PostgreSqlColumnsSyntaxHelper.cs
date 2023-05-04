@@ -34,9 +34,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                 var tmp = c.Database.SqlQuery<ValueTableModel<int>>(@"UPDATE ""Sequences""
     SET ""CurrentValue"" = case when ""CurrentValue""+""StepSize""<=""MaxValue"" then ""CurrentValue""+""StepSize"" when ""CurrentValue""+""StepSize"" > ""MaxValue"" and ""Cycle""=true then ""MinValue"" else -1 end
     WHERE ""SequenceName""= @name and ""TenantId"" = @tenantId
-    RETURNING ""cc""", new NpgsqlParameter("name", name),
+    RETURNING ""CurrentValue"" ""Value""", new NpgsqlParameter("name", name),
                     new NpgsqlParameter("tenantId", tenantId));
-                return tmp.First();
+                return tmp.First().Value;
             });
         }
     }

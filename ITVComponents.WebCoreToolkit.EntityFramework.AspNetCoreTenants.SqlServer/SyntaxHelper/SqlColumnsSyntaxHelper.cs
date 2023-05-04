@@ -37,7 +37,7 @@ into @vld
 where SequenceName = @name and TenantId = @tenantId
 select * from @vld", new SqlParameter("@name", name),
                     new Microsoft.Data.SqlClient.SqlParameter("@tenantId", tenantId));
-                return tmp.First();
+                return tmp.First().Value;
             });
         }
     }

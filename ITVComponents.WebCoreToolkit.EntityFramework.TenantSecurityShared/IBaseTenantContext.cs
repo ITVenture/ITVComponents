@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
+using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
     [ExplicitlyExpose]
-    public interface IBaseTenantContext
+    public interface IBaseTenantContext:IUserAwareContext
     {
         /// <summary>
         /// Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.DataAnnotations;
+using ITVComponents.EFRepo.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -12,18 +13,19 @@ namespace ITVComponents.EFRepo.Interceptors
 {
     public class ModCreateInterceptor:ISaveChangesInterceptor
     {
-        private readonly string userName;
+        private readonly ICurrentUserProvider userProvider;
         private readonly bool useUtc;
 
-        public ModCreateInterceptor(string userName, bool useUtc)
+        public ModCreateInterceptor(ICurrentUserProvider userProvider, bool useUtc)
         {
-            this.userName = userName;
+            this.userProvider = userProvider;
             this.useUtc = useUtc;
         }
 
         public InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
         {
             var l = eventData.Context.ChangeTracker.Entries().ToList();
+            var userName = userProvider.GetUserName(eventData.Context);
             foreach (var entry in l)
             {
                 foreach (var m in entry.Members.Where(m =>

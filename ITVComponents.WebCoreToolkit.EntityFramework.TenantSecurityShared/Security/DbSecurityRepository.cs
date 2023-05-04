@@ -317,9 +317,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
             var typeClaims = securityContext.AuthenticationClaimMappings.Where(n =>
                 n.AuthenticationType.AuthenticationTypeName == userAuthenticationType).ToArray();
-            var preMapped = from t in originalClaims 
+            var claimMapRaw = new Dictionary<string, ClaimData[]>(from t in originalClaims group t by t.Type into g select new KeyValuePair<string, ClaimData[]>(g.Key,g.ToArray()));
+            var claimMap = new ClaimMap(claimMapRaw);
+            var preMapped = from t in originalClaims
                 join i in typeClaims on t.Type equals i.IncomingClaimName
-                select new { Original = t, Map = i };
+                select new
+                {
+                    Original = new ClaimMapRoot
+                    {
+                        Value = t.Value,
+                        Issuer = t.Issuer,
+                        OriginalIssuer = t.OriginalIssuer,
+                        Type = t.Type,
+                        ValueType = t.ValueType,
+                        ClaimMap = claimMap
+                    },
+                    Map = i
+                };
             return (from t in preMapped where string.IsNullOrEmpty(t.Map.Condition) || (ExpressionParser.Parse(t.Map.Condition, t.Original) is bool b && b)
                    select TryGetClaim(t.Map,t.Original)).Where(n => n != null);
         }

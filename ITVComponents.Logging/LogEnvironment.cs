@@ -243,12 +243,15 @@ namespace ITVComponents.Logging
             Debug.WriteLine(eventText);
             try
             {
+                ILogTarget[] targets;
                 lock (logTargets)
                 {
-                    foreach (var n in logTargets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
-                    {
-                        n.LogEvent(eventText, severity, context);
-                    }
+                    targets = logTargets.ToArray();
+                }
+
+                foreach (var n in targets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
+                {
+                    n.LogEvent(eventText, severity, context);
                 }
 
                 if (loggerTicket != null)
@@ -258,10 +261,12 @@ namespace ITVComponents.Logging
                     {
                         lock (loggers)
                         {
-                            foreach (var n in loggers.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
-                            {
-                                n.LogEvent(eventText, severity, context);
-                            }
+                            targets = loggers.ToArray();
+                        }
+
+                        foreach (var n in targets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
+                        {
+                            n.LogEvent(eventText, severity, context);
                         }
                     }
                 }
