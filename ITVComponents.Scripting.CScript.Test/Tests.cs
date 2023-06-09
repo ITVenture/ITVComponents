@@ -269,8 +269,24 @@ new TC{TestString:""FickiWicki""}],TC)
             Assert.AreEqual(tmp, true);
             tmp = ExpressionParser.Parse("12 has HornDampf(\"TEST\")", tmp1);
             Assert.AreEqual(tmp, false);
+            tmp = ExpressionParser.Parse("12 has Length", tmp1);
+            Assert.AreEqual(tmp, false);
             tmp = ExpressionParser.Parse("[] has Length", tmp1);
             Assert.AreEqual(tmp, true);
+        }
+
+        [TestMethod]
+        public void IsTest()
+        {
+            Dictionary<string, object> tmp1 = new Dictionary<string, object>();
+            var tmp = ExpressionParser.Parse("12 is 'System.Int32'", tmp1);
+            Assert.AreEqual(tmp, true);
+
+            tmp = ExpressionParser.Parse("[12] is 'System.Array'", tmp1);
+            Assert.AreEqual(tmp, true);
+
+            tmp = ExpressionParser.Parse("12 is 'System.Array'", tmp1);
+            Assert.AreEqual(tmp, false);
         }
         
         [TestMethod]

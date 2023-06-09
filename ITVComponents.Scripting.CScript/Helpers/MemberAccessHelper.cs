@@ -18,17 +18,17 @@ namespace ITVComponents.Scripting.CScript.Helpers
 {
     internal static class MemberAccessHelper
     {
-        public static object GetMemberValue(this object target, string name, Type explicitType, ScriptValues.ValueType valueType, ScriptingPolicy policy)
+        public static object GetMemberValue(this object target, string name, Type explicitType, ScriptValues.ValueType valueType, ScriptingPolicy policy, MemberAccessMode mode)
         {
             if (valueType== ScriptValues.ValueType.Method || valueType == ScriptValues.ValueType.Constructor)
             {
                 var bv = target;
                 if (valueType == ScriptValues.ValueType.Constructor && bv is ObjectLiteral olt)
                 {
-                    return olt[name];
+                    return mode == MemberAccessMode.Read ? olt[name] : olt.ContainsKey(name);
                 }
 
-                return bv;
+                return mode == MemberAccessMode.Read ? bv : true;
             }
 
             object targetObject;
@@ -42,30 +42,32 @@ namespace ITVComponents.Scripting.CScript.Helpers
             {
                 if (ojl != null)
                 {
-                    return ojl[name];
+                    return mode == MemberAccessMode.Read ? ojl[name] : ojl.ContainsKey(name);
                 }
 
                 if (ful != null)
                 {
-                    return ful.GetInitialScopeValue(name);
+                    return mode == MemberAccessMode.Read
+                        ? ful.GetInitialScopeValue(name)
+                        : ful.InitialScopeValueExists(name);
                 }
 
                 if (odi != null && odi.ContainsKey(name))
                 {
-                    return odi[name];
+                    return mode == MemberAccessMode.Read ? odi[name] : true;
                 }
                 else if (odi != null)
                 {
-                    return null;
+                    return mode == MemberAccessMode.Read ? null : false;
                 }
 
                 if (iba != null && iba.ContainsKey(name))
                 {
-                    return iba[name];
+                    return mode == MemberAccessMode.Read ? iba[name] : true;
                 }
                 else if (iba != null)
                 {
-                    return null;
+                    return mode == MemberAccessMode.Read ? null : false;
                 }
             }
 
@@ -73,28 +75,48 @@ namespace ITVComponents.Scripting.CScript.Helpers
             {
                 if (policy.IsDenied((Type)targetObject, TypeAccessMode.Direct, policy.PolicyMode))
                 {
+                    if (mode == MemberAccessMode.CheckExists)
+                    {
+                        return false;
+                    }
+
                     throw new ScriptSecurityException($"Access to enum '{((Type)targetObject).FullName}' is denied");
                 }
 
-                return Enum.Parse((Type)targetObject, name);
+                var ok = Enum.TryParse((Type)targetObject, name, out var rem);
+                return mode == MemberAccessMode.Read ? rem : ok;
             }
 
-            if (mi == null)
+            if (mi == null && mode == MemberAccessMode.Read)
             {
                 throw new ScriptException(string.Format("Member {0} is not declared on {1}", name,
                                                         targetObject));
             }
+            else if (mi == null)
+            {
+                return false;
+            }
 
             if (mi is PropertyInfo pi)
             {
-                if (policy.IsDenied(pi, targetObject, PropertyAccessMode.Read, targetObject == null))
+                bool denied = policy.IsDenied(pi, targetObject, PropertyAccessMode.Read, targetObject == null);
+                if (denied && mode == MemberAccessMode.Read)
                 {
                     throw new ScriptSecurityException($"Access to property '{pi.Name}' is denied");
                 }
+                else if (denied)
+                {
+                    return false;
+                }
 
-                if (pi.CanRead)
+                if (pi.CanRead && mode == MemberAccessMode.Read)
                 {
                     return pi.GetValue(targetObject, null);
+                }
+                
+                if (mode == MemberAccessMode.CheckExists)
+                {
+                    return pi.CanRead;
                 }
 
                 return null;
@@ -102,20 +124,30 @@ namespace ITVComponents.Scripting.CScript.Helpers
 
             if (mi is FieldInfo fi)
             {
-                if (policy.IsDenied(fi, targetObject, FieldAccessMode.Read, targetObject == null))
+                var denied = policy.IsDenied(fi, targetObject, FieldAccessMode.Read, targetObject == null);
+                if (denied && mode == MemberAccessMode.Read)
                 {
                     throw new ScriptSecurityException($"Access to field '{fi.Name}' is denied");
                 }
+                else if (denied)
+                {
+                    return false;
+                }
 
-                return fi.GetValue(targetObject);
+                return mode == MemberAccessMode.Read ? fi.GetValue(targetObject) : true;
             }
 
             if (mi is EventInfo)
             {
-                return null;
+                return mode == MemberAccessMode.Read ? null : true;
             }
 
-            throw new ScriptException(string.Format("GetValue is not supported for MemberType {0}", mi.MemberType));
+            if (mode == MemberAccessMode.Read)
+            {
+                throw new ScriptException(string.Format("GetValue is not supported for MemberType {0}", mi.MemberType));
+            }
+
+            return false;
         }
 
         public static Type GetMemberType(this object target, string name, Type explicitType, ScriptValues.ValueType valueType)
@@ -302,5 +334,11 @@ namespace ITVComponents.Scripting.CScript.Helpers
             Type t = (Type)baseVal;
             return (from m in t.GetMembers(BindingFlags.Public | (isStatic ? BindingFlags.Static : BindingFlags.Instance)) where m.Name == memberName select m).FirstOrDefault();
         }
+    }
+
+    internal enum MemberAccessMode
+    {
+        Read,
+        CheckExists
     }
 }

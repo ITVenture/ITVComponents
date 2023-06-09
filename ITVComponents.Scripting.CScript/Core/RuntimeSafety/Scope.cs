@@ -675,7 +675,7 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
             else if (!string.IsNullOrEmpty(ImplicitContext) && name != ImplicitContext)
             {
                 var retVal = GetValue(ImplicitContext);
-                return retVal.GetMemberValue(name, null, ValueType.PropertyOrField, ((IScope)this).ScriptingPolicy);
+                return retVal.GetMemberValue(name, null, ValueType.PropertyOrField, ((IScope)this).ScriptingPolicy, MemberAccessMode.Read);
 
             }
 

@@ -338,19 +338,37 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             {
                 if (obj != null)
                 {
+                    List<Type> allTheTypes = new List<Type>();
                     var contextType = obj.GetType();
-                    var nameSpace = contextType.Namespace;
-                    var assemblyName = contextType.Assembly.FullName;
-                    if (assemblyName != sysAssembly)
+                    while (contextType != typeof(object))
                     {
+                        var ass = contextType.Assembly;
+                        
+                        if (!ass.IsDynamic)
+                        {
+                            allTheTypes.Add(contextType);
+                        }
+
+                        var ifs = contextType.GetInterfaces();
+                        var bt = contextType.BaseType;
+                        allTheTypes.AddRange(ifs.Where(n => !n.Assembly.IsDynamic));
+                        contextType = bt;
+                    }
+
+                    //if (assemblyName != sysAssembly)
+                    foreach(var t in allTheTypes)
+                    {
+                        var nameSpace = t.Namespace;
+                        var assemblyName = t.Assembly.FullName;
                         lock (cfg)
                         {
-                            if (!cfg.References.Contains(assemblyName))
+                            
+                            if (assemblyName != sysAssembly && !cfg.References.Contains(assemblyName) && !string.IsNullOrEmpty(assemblyName))
                             {
                                 cfg.References.Add(assemblyName);
                             }
 
-                            if (usings && !cfg.Usings.Contains(nameSpace))
+                            if (usings && !cfg.Usings.Contains(nameSpace) && !string.IsNullOrEmpty(nameSpace))
                             {
                                 cfg.Usings.Add(nameSpace);
                             }

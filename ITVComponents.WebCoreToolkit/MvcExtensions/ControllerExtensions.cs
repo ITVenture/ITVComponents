@@ -12,7 +12,7 @@ namespace ITVComponents.WebCoreToolkit.MvcExtensions
 {
     public static class ControllerExtensions
     {
-        public static async Task<bool> TryUpdateModelAsync<TViewModel, TModel>(this Controller controller, TModel model) where TViewModel : class, new() where TModel : class
+        public static async Task<bool> TryUpdateModelAsync<TViewModel, TModel>(this Controller controller, TModel model, Action<TModel, TViewModel> postProcess = null) where TViewModel : class, new() where TModel : class
         {
             TViewModel tmp = new TViewModel();
             var retVal = await controller.TryUpdateModelAsync(tmp);
@@ -21,10 +21,11 @@ namespace ITVComponents.WebCoreToolkit.MvcExtensions
                 tmp.CopyToDbModel(model);
             }
 
+            postProcess?.Invoke(model, tmp);
             return retVal;
         }
 
-        public static async Task<bool> TryUpdateModelAsync<TViewModel, TModel>(this Controller controller, TModel model, string prefix, Func<ModelMetadata,bool> propertyFilter) where TViewModel : class, new() where TModel : class
+        public static async Task<bool> TryUpdateModelAsync<TViewModel, TModel>(this Controller controller, TModel model, string prefix, Func<ModelMetadata,bool> propertyFilter, Action<TModel, TViewModel> postProcess = null) where TViewModel : class, new() where TModel : class
         {
             TViewModel tmp = new TViewModel();
             var retVal = await controller.TryUpdateModelAsync(tmp, prefix, propertyFilter);
@@ -33,6 +34,7 @@ namespace ITVComponents.WebCoreToolkit.MvcExtensions
                 tmp.CopyToDbModel(model);
             }
 
+            postProcess?.Invoke(model, tmp);
             return retVal;
         }
     }

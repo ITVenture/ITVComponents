@@ -129,18 +129,26 @@ v4     = 1234""".Replace("\r\n","\n").Replace("\n",Environment.NewLine);
                 {"abvv2", DateTime.Parse("01.01.2017")},
                 {"asdfv3", "haha"},
                 {"v4", 1234},
-                {"hohov5", null}
+                {"hohov5", null},
+                {"honk", new[]{"fubar"}}
             };
-            
+
             Assert.AreEqual(@"abvv2  = 01.01.2017 00:00:00
 asdfv3 = haha
 hohov5 = 
+honk   = System.String[]
 v1     = 1234
 v4     = 12341234".Replace("\r\n", "\n").Replace("\n", Environment.NewLine),
                 Hicks.FormatText(@"[.:kv][v4][dasgibtsgarnicht]"));
 
             Assert.AreEqual(@"haha",
                 Hicks.FormatText(@"[$data[""asdfv3""]]"));
+
+            Assert.AreEqual(@"aba",
+                Hicks.FormatText(@"a[(honk.Length!=0?honk[0].Substring(2,1):"""")]a"));
+
+            Assert.AreEqual(@"False",
+                Hicks.FormatText(@"[v1 has Length]"));
         }
 
         [TestMethod]

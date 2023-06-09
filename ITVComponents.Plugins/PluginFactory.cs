@@ -579,11 +579,7 @@ namespace ITVComponents.Plugins
                 throw new InvalidOperationException("Supported only in Test-Mode!");
             }
 
-            if (localRegistrations.Value == null)
-            {
-                localRegistrations.Value = new Dictionary<string, object>();
-            }
-
+            localRegistrations.Value ??= new Dictionary<string, object>();
             localRegistrations.Value[parameterName] = targetType;
         }
 
@@ -594,11 +590,7 @@ namespace ITVComponents.Plugins
         /// <param name="parameterInstance">the value to return if the factory requests the given parameter in the local thread</param>
         public void RegisterObjectLocal(string parameterName, object parameterInstance)
         {
-            if (localRegistrations.Value == null)
-            {
-                localRegistrations.Value = new Dictionary<string, object>();
-            }
-
+            localRegistrations.Value ??= new Dictionary<string, object>();
             localRegistrations.Value[parameterName] = !testOnlyFactory ? parameterInstance : AssemblyResolver.FindReflectionOnlyTypeFor(parameterInstance.GetType());
         }
 

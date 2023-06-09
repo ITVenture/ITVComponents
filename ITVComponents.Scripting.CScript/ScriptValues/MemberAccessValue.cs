@@ -88,7 +88,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
             get
             {
                 object baseVal = baseValue.GetValue(null, policy);
-                return baseVal.GetMemberValue(Name, explicitType, ValueType, policy);
+                return baseVal.GetMemberValue(Name, explicitType, ValueType, policy, MemberAccessMode.Read);
             }
         }
 
@@ -130,6 +130,12 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
 
             object target = baseValue.GetValue(null, policy);
             target.SetMemberValue(Name, value, explicitType, ValueType, policy);
+        }
+
+        protected override bool HasValue()
+        {
+            object baseVal = baseValue.GetValue(null, policy);
+            return (bool)baseVal.GetMemberValue(Name, explicitType, ValueType, policy, MemberAccessMode.CheckExists);
         }
     }
 }

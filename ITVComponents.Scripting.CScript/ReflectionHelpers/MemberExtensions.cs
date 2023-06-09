@@ -14,7 +14,7 @@ namespace ITVComponents.Scripting.CScript.ReflectionHelpers
         public static object GetValue(this object target, string memberName, ScriptingPolicy policy = null)
         {
             return MemberAccessHelper.GetMemberValue(target, memberName, null, ValueType.PropertyOrField,
-                policy ?? ScriptingPolicy.Default);
+                policy ?? ScriptingPolicy.Default, MemberAccessMode.Read);
         }
 
         public static void SetValue(this object target, string memberName, object value, ScriptingPolicy  policy = null)

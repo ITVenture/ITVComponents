@@ -15,7 +15,8 @@ namespace ITVComponents.EFRepo.DataSync
 {
     public static class SimpleDataApplyer
     {
-        public static void ApplyData(this DbContext db, Change[] changes, StringBuilder messages, Action<string, Dictionary<string,object>> extendQuery)
+        public static void ApplyData(this DbContext db, Change[] changes, StringBuilder messages, Action<string, Dictionary<string,object>> extendQuery,
+            Action<Dictionary<string, object>> extendQueryVariables)
         {
             foreach (var change in changes.Where(n => n.Apply))
             {
@@ -58,7 +59,7 @@ namespace ITVComponents.EFRepo.DataSync
                         break;
                     case ChangeType.Update:
                     {
-                        var rawQuery = BuildRawKey(db, change);
+                        var rawQuery = BuildRawKey(db, change, extendQueryVariables);
                         extendQuery?.Invoke(change.EntityName, rawQuery);
                         entity = targetSet.FindWithQuery(rawQuery, false);
                         var id = targetSet.GetIndex(entity);
@@ -67,7 +68,7 @@ namespace ITVComponents.EFRepo.DataSync
                     }
                     case ChangeType.Delete:
                     {
-                        var rawQuery = BuildRawKey(db, change);
+                        var rawQuery = BuildRawKey(db, change, extendQueryVariables);
                         extendQuery?.Invoke(change.EntityName, rawQuery);
                         entity = targetSet.FindWithQuery(rawQuery, true);
                         if (entity != null)
@@ -97,14 +98,13 @@ namespace ITVComponents.EFRepo.DataSync
                             var xp = string.IsNullOrEmpty(detail.ValueExpression)?
                                 $"Entity.{detail.TargetProp}=ChangeType(NewValueRaw,Type)"
                                 :detail.ValueExpression;
-                            ExpressionParser.Parse(xp, new
-                            {
-                                Entity = entity,
-                                Change = change,
-                                NewValueRaw = detail.NewValue,
-                                Db = db,
-                                Type = entity.GetValueType(detail.TargetProp)
-                            });
+                            ExpressionParser.Parse(xp, BuildContext(
+                                entity:entity, 
+                                db:db,
+                                change:change, 
+                                newValue:detail.NewValue,
+                                propertyType: entity.GetValueType(detail.TargetProp),
+                                extendContext: extendQueryVariables));
                         }
 
                         if (change.ChangeType == ChangeType.Insert)
@@ -127,7 +127,7 @@ namespace ITVComponents.EFRepo.DataSync
             db.SaveChanges();
         }
 
-        private static Dictionary<string, object> BuildRawKey(DbContext db, Change change)
+        private static Dictionary<string, object> BuildRawKey(DbContext db, Change change, Action<Dictionary<string,object>> extendVariables)
         {
             var retVal = new Dictionary<string, object>();
             foreach (var k in change.Key)
@@ -139,11 +139,49 @@ namespace ITVComponents.EFRepo.DataSync
                 }
 
                 var key = !string.IsNullOrEmpty(keyExpression)
-                    ? ExpressionParser.Parse(keyExpression, new {Value = k.Value, Db = db})
+                    ? ExpressionParser.Parse(keyExpression, BuildContext(db:db, value:k.Value, extendContext:extendVariables))
                     : k.Value;
                 retVal.Add(k.Key, key);
             }
 
+            return retVal;
+        }
+
+        public static Dictionary<string, object> BuildContext(DbContext db, Change change = null, object entity = null,
+            string newValue = null, object propertyType = null, string value = null,
+            Action<Dictionary<string, object>> extendContext = null)
+        {
+            var retVal = new Dictionary<string, object>
+            {
+                { "Db", db }
+            };
+
+            if (change != null)
+            {
+                retVal.Add("Change", change);
+            }
+
+            if (entity != null)
+            {
+                retVal.Add("Entity", entity);
+            }
+
+            if (newValue != null)
+            {
+                retVal.Add("NewValueRaw", newValue);
+            }
+
+            if (propertyType != null)
+            {
+                retVal.Add("Type", propertyType);
+            }
+
+            if (value != null)
+            {
+                retVal.Add("Value", value);
+            }
+
+            extendContext?.Invoke(retVal);
             return retVal;
         }
     }

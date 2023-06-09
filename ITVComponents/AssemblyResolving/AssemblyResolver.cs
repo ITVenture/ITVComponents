@@ -87,7 +87,7 @@ namespace ITVComponents.AssemblyResolving
             }
             catch (Exception ex)
             {
-                LogEnvironment.LogDebugEvent($"Loading of assembly failed. ({ex.Message}", LogSeverity.Warning);
+                LogEnvironment.LogDebugEvent($"Loading of assembly '{assemblyName}' failed. ({ex.Message}", LogSeverity.Warning);
             }
 
             var an = new AssemblyName(assemblyName);
@@ -200,7 +200,7 @@ namespace ITVComponents.AssemblyResolving
                 }
                 catch (Exception ex)
                 {
-                    LogEnvironment.LogDebugEvent($"Error resolving Assembly by name: {ex.Message}", LogSeverity.Error);
+                    LogEnvironment.LogDebugEvent($"Error resolving Assembly '{assemblyName}' by name: {ex.Message}", LogSeverity.Error);
                 }
             }
 

@@ -141,7 +141,7 @@ namespace ITVComponents.EFRepo.DataSync
         /// <param name="managedFilterType">the managed filter-type</param>
         /// <param name="scriptedFilterType">the scripted filter-type</param>
         /// <returns></returns>
-        protected string MakeLinqQuery<TContext>(string sourceEntity, string filterProperty, string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null, string filterValueVariable = "NewValueRaw")
+        protected string MakeLinqQuery<TContext>(string sourceEntity, string filterProperty, string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null, string filterValueVariable = "Value")
             where TContext:DbContext
         {
             NativeScriptHelper.SetAutoReferences($"SysQry{UniqueName}", true);

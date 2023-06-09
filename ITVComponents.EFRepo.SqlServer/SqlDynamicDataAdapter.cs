@@ -727,7 +727,6 @@ rc.column_name RefColumn,
 convert(bit, case when k.column_name is not null or i.object_id is not null then 1 else 0 end) HasIndex,
 convert(bit, case when pk.type='PK' then 1 else 0 end) IsPrimaryKey,
 convert(bit, case when pk.type='UQ' or (isnull(pk.type,'') !='PK' and u.object_id is not null) then 1 else 0 end) IsUniqueKey,
-pk.Type,
 convert(bit, case when count(cc.referenced_column_id) > 0 then 1 else 0 end) HasReferences
 FROM INFORMATION_SCHEMA.COLUMNS c
 left outer join information_schema.KEY_COLUMN_USAGE k on k.COLUMN_NAME = c.column_name and k.table_name = c.TABLE_NAME

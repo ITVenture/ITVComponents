@@ -429,12 +429,13 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
                 return false;
             }
 
-            object tmpValue = Value;
+            bool hv = HasValue();
+            object tmpValue = hv?Value:null;
             if (ValueType == ValueType.PropertyOrField)
             {
                 if (arguments == null || arguments.Length == 0)
                 {
-                    return true;
+                    return hv;
                 }
                 if (tmpValue == null)
                 {
@@ -670,6 +671,15 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// </summary>
         /// <param name="value">the new Value to assign to this Value</param>
         internal abstract void SetValue(object value);
+
+        /// <summary>
+        /// Indicates if this Script value has an accessible value
+        /// </summary>
+        /// <returns></returns>
+        protected virtual bool HasValue()
+        {
+            return true;
+        }
     }
 
     /// <summary>

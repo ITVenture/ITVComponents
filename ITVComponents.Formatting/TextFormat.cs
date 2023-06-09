@@ -57,12 +57,16 @@ namespace ITVComponents.Formatting
 
         public static string FormatText(this object target, string format, Func<string, string, string, object> argumentsCallback, ScriptingPolicy policy = null)
         {
-
-            var tmp = TokenizeString(format);
-            using (var context = CreateScriptingSession(target, policy))
+            if (!string.IsNullOrEmpty(format))
             {
-                return string.Concat(from t in tmp select Stringify(t, context, argumentsCallback));
+                var tmp = TokenizeString(format);
+                using (var context = CreateScriptingSession(target, policy))
+                {
+                    return string.Concat(from t in tmp select Stringify(t, context, argumentsCallback));
+                }
             }
+
+            return format;
         }
 
         public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser, ScriptingPolicy policy = null)
@@ -72,6 +76,11 @@ namespace ITVComponents.Formatting
 
         public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser, Func<string, string, string, object> argumentsCallback, ScriptingPolicy policy = null)
         {
+            if (string.IsNullOrEmpty(format))
+            {
+                return format;
+            }
+
             var tmp = TokenizeString(format);
             for (int i = 0; i < tmp.Length; i++)
             {
@@ -123,6 +132,11 @@ namespace ITVComponents.Formatting
 
         public static string FormatText(this IDisposable scriptingContext, string format, CustomExpressionParse customExpressionParser, Func<string, string, string, object> argumentsCallback)
         {
+            if (string.IsNullOrEmpty(format))
+            {
+                return format;
+            }
+
             if (ExpressionParser.IsReplSession(scriptingContext))
             {
                 var tmp = TokenizeString(format);
@@ -175,13 +189,18 @@ namespace ITVComponents.Formatting
 
         public static string FormatText(IDisposable scriptingContext, string format, Func<string, string, string, object> argumentsCallback)
         {
-            if (ExpressionParser.IsReplSession(scriptingContext))
+            if (!string.IsNullOrEmpty(format))
             {
-                var tmp = TokenizeString(format);
-                return string.Concat(from t in tmp select Stringify(t, scriptingContext, argumentsCallback));
+                if (ExpressionParser.IsReplSession(scriptingContext))
+                {
+                    var tmp = TokenizeString(format);
+                    return string.Concat(from t in tmp select Stringify(t, scriptingContext, argumentsCallback));
+                }
+
+                return FormatText((object)scriptingContext, format, argumentsCallback);
             }
 
-            return FormatText((object)scriptingContext, format, argumentsCallback);
+            return format;
         }
 
         public static void AddCustomFormatHint(string hint, Func<object, string> formatFunction)

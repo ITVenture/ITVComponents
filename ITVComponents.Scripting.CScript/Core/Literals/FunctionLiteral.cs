@@ -265,5 +265,11 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
                 parent.AutoInvokeEnabled = false;
             }
         }
+
+        public bool InitialScopeValueExists(string name)
+        {
+            var tmp = scope.GetBaseValue(name, out var ret);
+            return ret;
+        }
     }
 }

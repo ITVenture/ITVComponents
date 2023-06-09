@@ -136,7 +136,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         {
             using (var h = new FullSecurityAccessHelper(DbContext, true, false))
             {
-                DbContext.ApplyData(changes.ToArray(), messages, extendQuery);
+                DbContext.ApplyData(changes.ToArray(), messages, extendQuery, null);
             }
         }
 

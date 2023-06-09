@@ -58,7 +58,7 @@
                     var row = "<tr><td colspan='5'><span style='font-size:1.5rem;' class='fad fa-"
                         .concat(comparer.iconForType(item.ChangeType))
                         .concat("'></span>&nbsp;&nbsp;")
-                        .concat(item.Key).concat("</td></tr>");
+                        .concat(item.EntityName).concat("</td></tr>");
                     tab.append(row);
                 }
             }
