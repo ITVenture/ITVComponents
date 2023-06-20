@@ -4,9 +4,11 @@ using System.Linq;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.GlobalFiltering;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Settings;
@@ -101,9 +103,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             return services;
         }
 
+        public static IServiceCollection ConfigureDefaultContextUserProvider<TContext>(this IServiceCollection services) 
+            where TContext : DbContext, IUserAwareContext
+        {
+            services.AddScoped<ICurrentUserProvider<TContext>, UserAwareContextUserProvider<TContext>>();
+            return services;
+        }
+
         public static IServiceCollection ConfigureGlobalFilters(this IServiceCollection services, Type contextType)
         {
             var method = LambdaHelper.GetMethodInfo(() => ConfigureGlobalFilters<DbContext>(services))
+                .GetGenericMethodDefinition();
+            method = method.MakeGenericMethod(contextType);
+            return (IServiceCollection)method.Invoke(null, new object[] { services });
+        }
+
+        public static IServiceCollection ConfigureDefaultContextUserProvider(this IServiceCollection services,
+            Type contextType)
+        {
+            var method = LambdaHelper.GetMethodInfo(() => ConfigureDefaultContextUserProvider<DummyUserAwareDbContext>(services))
                 .GetGenericMethodDefinition();
             method = method.MakeGenericMethod(contextType);
             return (IServiceCollection)method.Invoke(null, new object[] { services });

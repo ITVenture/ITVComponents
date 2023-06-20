@@ -58,17 +58,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
 
             if (partActivation.ActivateDbContext)
             {
+                var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
                 if (t != null)
                 {
-                    services.UseDbIdentities(t, (services, options) => options.UseNpgsql(partActivation.ConnectionStringName));
-                    if (partActivation.ActivateFilters)
+                    services.UseDbIdentities(t, (services, options) =>
                     {
-
-                    }
+                        options.UseNpgsql(partActivation.ConnectionStringName);
+                        manager.CustomObjectConfig(options, services);
+                    });
                 }
                 else
                 {
-                    services.UseDbIdentities((services, options) => options.UseNpgsql(partActivation.ConnectionStringName));
+                    services.UseDbIdentities((services, options) =>
+                    {
+                        options.UseNpgsql(partActivation.ConnectionStringName);
+                        manager.CustomObjectConfig(options, services);
+                    });
+
                     services.ConfigureComputedColumns<SecurityContext>();
                 }
 

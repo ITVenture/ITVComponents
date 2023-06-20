@@ -12,6 +12,4 @@
     <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />
     <ProjectReference Include="..\ITVComponents.Scripting.CScript\ITVComponents.Scripting.CScript.csproj" />
   </ItemGroup>
-  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
-  </Target>
 </Project>

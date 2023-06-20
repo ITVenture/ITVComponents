@@ -3,7 +3,7 @@
     <LangVersion>8.0</LangVersion>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.4</Version>
+    <Version>3.0.5-PRE029</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -38,6 +38,4 @@
       </Generator>
     </EmbeddedResource>
   </ItemGroup>
-  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
-  </Target>
 </Project>

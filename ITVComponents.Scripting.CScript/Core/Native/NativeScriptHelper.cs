@@ -6,6 +6,7 @@ using System.Dynamic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.InteropServices;
 //using System.Runtime.Remoting.Contexts;
@@ -26,6 +27,7 @@ using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.CodeAnalysis.Scripting.Hosting;
+using System.DirectoryServices.AccountManagement;
 #if !Community
 using ITVComponents.Logging;
 #endif
@@ -36,10 +38,10 @@ namespace ITVComponents.Scripting.CScript.Core.Native
     public static class NativeScriptHelper
     {
         private static readonly ConcurrentDictionary<string, NativeConfiguration> configurations = new ConcurrentDictionary<string, NativeConfiguration>();
-        private static readonly ConcurrentDictionary<string, Lazy<ScriptRunner<object>>> roslynScripts = new ConcurrentDictionary<string, Lazy<ScriptRunner<object>>>();
+        //private static readonly ConcurrentDictionary<string, Lazy<ScriptRunner<object>>> roslynScripts = new ConcurrentDictionary<string, Lazy<ScriptRunner<object>>>();
         private static object initializationLock = new object();
-        private static InteractiveAssemblyLoader loader;
-        private static DateTime loaderInitializationTime;
+        /*private static InteractiveAssemblyLoader loader;
+        private static DateTime loaderInitializationTime;*/
 
         /// <summary>
         /// Adds a reference to a specific Assembly. You can either specify the assembly with path, Name (i.e. System.dll) or with its AssemblyName 
@@ -101,6 +103,18 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         }
 
         /// <summary>
+        /// Registers a type on the given configuration including usings when required
+        /// </summary>
+        /// <param name="configuration">the configuration native configuration name</param>
+        /// <param name="usingType">the using-type on which to apply the references</param>
+        /// <param name="includeUsings">indicates whether to make the type and all types of the namespace available implicitly</param>
+        public static void AddAutoRef(string configuration, Type usingType, bool includeUsings)
+        {
+            var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+            ApplyAutoRef(cfg, usingType, includeUsings);
+        }
+
+        /// <summary>
         /// Sets a value on the given configuration that indicates whether automatic referencing should be used for native script-parts
         /// </summary>
         /// <param name="configuration">the configuration that will be used in native scripts</param>
@@ -111,6 +125,24 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             lock (cfg)
             {
                 cfg.AutoReferences = enabled;
+            }
+        }
+
+        /// <summary>
+        /// Resets a specific NativeConfiguration. If no name is provided, all known NativeConfigurations are reset.
+        /// </summary>
+        /// <param name="configuration">the configuration to reset</param>
+        public static void ResetNativeScripts(string configuration = null)
+        {
+            if (string.IsNullOrEmpty(configuration))
+            {
+                var ks = configurations.Keys.ToArray();
+                Array.ForEach(ks,ResetNativeScripts);
+            }
+            else
+            {
+                var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+                cfg.Reset();
             }
         }
 
@@ -130,7 +162,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             }
 
             string roslynHash = GetFlatString(expression);
-            var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
+            var roslynScript = cfg.Scripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
                 ScriptOptions scriptoptions;
                 lock (cfg)
@@ -147,7 +179,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                         .WithOptimizationLevel(OptimizationLevel.Release);
                 }
                 //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
-                var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
+                var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), cfg.AssemblyLoader);
                 retVal.Compile();
                 return retVal.CreateDelegate();
             }));
@@ -180,7 +212,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             }
 
             string roslynHash = GetFlatString(expression);
-            var roslynScript = roslynScripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
+            var roslynScript = cfg.Scripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
                 ScriptOptions scriptoptions;
                 lock (cfg)
@@ -198,7 +230,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 }
 
                 //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
-                var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper));
+                var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), cfg.AssemblyLoader);
                 retVal.Compile();
                 return retVal.CreateDelegate();
             }));
@@ -213,7 +245,49 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper { Global = idic }));
         }
 
-        private static InteractiveAssemblyLoader Loader
+        /// <summary>
+        /// Compiles an expression from c# code
+        /// </summary>
+        /// <typeparam name="T">the expected expression-type</typeparam>
+        /// <param name="configuration">the configuration name to use for the given expression</param>
+        /// <param name="expression">the expression as string</param>
+        /// <returns>an Expression object</returns>
+        public static Expression<T> CompileExpression<T>(string configuration, string expression)
+        {
+            var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+            if (cfg.AutoReferences)
+            {
+                ApplyAutoRef(cfg, typeof(T), true);
+            }
+
+            string roslynHash = GetFlatString(expression);
+            var roslynScript = cfg.ExpressionBuilders.GetOrAdd(roslynHash, new Lazy<LambdaHolder>(() =>
+            {
+                ScriptOptions scriptoptions;
+                lock (cfg)
+                {
+                    scriptoptions = ScriptOptions.Default
+                        .WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" }))
+                        .WithReferences(
+                            new[]
+                            {
+                                typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly,
+                                AssemblyResolver.FindAssemblyByName("System.Linq"),
+                                AssemblyResolver.FindAssemblyByName("Microsoft.CSharp")
+                            }.Union(from t in cfg.References select AssemblyResolver.FindAssemblyByName(t)).ToArray())
+                        .WithOptimizationLevel(OptimizationLevel.Release);
+                }
+
+                //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
+                var retVal = CSharpScript.Create<Expression<T>>(expression, scriptoptions,null, cfg.AssemblyLoader);
+                retVal.Compile();
+                return new LambdaHolder(retVal.CreateDelegate());
+            }));
+
+            return roslynScript.Value.Invoke<Expression<T>>();
+        }
+
+        /*private static InteractiveAssemblyLoader Loader
         {
             get
             {
@@ -256,9 +330,9 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                     }
                 }*/
 
-                return retVal;
+                /*return retVal;
             }
-        }
+        }*/
 
         /// <summary>
         /// Creates a hash of the given method-text
@@ -333,46 +407,59 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         /// <param name="usings">indicates whether to apply also the usings on the given configuration</param>
         private static void ApplyAutoRef(NativeConfiguration cfg, ICollection<object> scriptObjects, bool usings)
         {
-            var sysAssembly = typeof(object).Assembly.FullName;
+            
             foreach (var obj in scriptObjects)
             {
                 if (obj != null)
                 {
-                    List<Type> allTheTypes = new List<Type>();
+                    
                     var contextType = obj.GetType();
-                    while (contextType != typeof(object))
-                    {
-                        var ass = contextType.Assembly;
-                        
-                        if (!ass.IsDynamic)
-                        {
-                            allTheTypes.Add(contextType);
-                        }
+                    ApplyAutoRef(cfg, contextType, usings);
+                }
+            }
+        }
 
-                        var ifs = contextType.GetInterfaces();
-                        var bt = contextType.BaseType;
-                        allTheTypes.AddRange(ifs.Where(n => !n.Assembly.IsDynamic));
-                        contextType = bt;
+        /// <summary>
+        /// Adds References and usings to the given native-script configuration, that are required to interact with a specific type
+        /// </summary>
+        /// <param name="cfg">the native configuration object</param>
+        /// <param name="contextType">the context-type</param>
+        /// <param name="usings">indicates whether to add usings as well</param>
+        private static void ApplyAutoRef(NativeConfiguration cfg, Type contextType, bool usings)
+        {
+            var sysAssembly = typeof(object).Assembly.FullName;
+            List<Type> allTheTypes = new List<Type>();
+            while (contextType != typeof(object))
+            {
+                var ass = contextType.Assembly;
+
+                if (!ass.IsDynamic)
+                {
+                    allTheTypes.Add(contextType);
+                }
+
+                var ifs = contextType.GetInterfaces();
+                var bt = contextType.BaseType;
+                allTheTypes.AddRange(ifs.Where(n => !n.Assembly.IsDynamic));
+                contextType = bt;
+            }
+
+            //if (assemblyName != sysAssembly)
+            foreach (var t in allTheTypes)
+            {
+                var nameSpace = t.Namespace;
+                var assemblyName = t.Assembly.FullName;
+                lock (cfg)
+                {
+
+                    if (assemblyName != sysAssembly && !cfg.References.Contains(assemblyName) && !string.IsNullOrEmpty(assemblyName))
+                    {
+                        cfg.References.Add(assemblyName);
                     }
 
-                    //if (assemblyName != sysAssembly)
-                    foreach(var t in allTheTypes)
+                    if (usings && !cfg.Usings.Contains(nameSpace) && !string.IsNullOrEmpty(nameSpace))
                     {
-                        var nameSpace = t.Namespace;
-                        var assemblyName = t.Assembly.FullName;
-                        lock (cfg)
-                        {
-                            
-                            if (assemblyName != sysAssembly && !cfg.References.Contains(assemblyName) && !string.IsNullOrEmpty(assemblyName))
-                            {
-                                cfg.References.Add(assemblyName);
-                            }
-
-                            if (usings && !cfg.Usings.Contains(nameSpace) && !string.IsNullOrEmpty(nameSpace))
-                            {
-                                cfg.Usings.Add(nameSpace);
-                            }
-                        }
+                        cfg.Usings.Add(nameSpace);
                     }
                 }
             }

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.4</Version>
+    <Version>3.0.5-PRE029</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <!--TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeReferencedProjectInPackage</TargetsForTfmSpecificContentInPackage-->
@@ -39,6 +39,4 @@
       <HintPath>..\..\..\repos\Saml2\Sustainsys.Saml2.AspNetCore2\bin\Debug\netstandard2.0\Sustainsys.Saml2.Metadata.dll</HintPath>
     </Reference>
   </ItemGroup-->
-  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
-  </Target>
 </Project>

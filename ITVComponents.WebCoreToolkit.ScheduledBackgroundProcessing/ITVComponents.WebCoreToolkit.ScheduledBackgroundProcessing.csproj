@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.4</Version>
+    <Version>3.0.5-PRE029</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <LangVersion>9</LangVersion>
@@ -17,6 +17,4 @@
     <ProjectReference Include="..\ITVComponents.ParallelProcessing.TaskSchedulers\ITVComponents.ParallelProcessing.TaskSchedulers.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
   </ItemGroup>
-  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
-  </Target>
 </Project>

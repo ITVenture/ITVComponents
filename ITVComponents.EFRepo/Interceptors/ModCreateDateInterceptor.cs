@@ -5,7 +5,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.DataAnnotations;
+using ITVComponents.EFRepo.DIIntegration;
 using ITVComponents.EFRepo.Helpers;
+using ITVComponents.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -13,54 +15,80 @@ namespace ITVComponents.EFRepo.Interceptors
 {
     public class ModCreateInterceptor:ISaveChangesInterceptor
     {
-        private readonly ICurrentUserProvider userProvider;
+        private readonly IServiceProvider services;
+        private readonly ICurrentUserProvider localUserProvider;
         private readonly bool useUtc;
+
+        public ModCreateInterceptor(IServiceProvider services, bool useUtc)
+        {
+            this.services = services;
+            this.useUtc = useUtc;
+        }
 
         public ModCreateInterceptor(ICurrentUserProvider userProvider, bool useUtc)
         {
-            this.userProvider = userProvider;
+            localUserProvider = userProvider;
             this.useUtc = useUtc;
         }
 
         public InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
         {
-            var l = eventData.Context.ChangeTracker.Entries().ToList();
-            var userName = userProvider.GetUserName(eventData.Context);
-            foreach (var entry in l)
+            if (eventData.Context != null)
             {
-                foreach (var m in entry.Members.Where(m =>
-                                 Attribute.IsDefined(m.Metadata.PropertyInfo, typeof(ModMarkerAttribute)))
-                             .Select(f => new
-                             {
-                                 f.Metadata.PropertyInfo,
-                                 Attribute = (ModMarkerAttribute)Attribute.GetCustomAttribute(f.Metadata.PropertyInfo,
-                                     typeof(ModMarkerAttribute), true)
-                             }))
+                var contextType = eventData.Context.GetType();
+                var userProviderType = typeof(ICurrentUserProvider<>).MakeGenericType(contextType);
+                var userProvider = localUserProvider ??
+                                   (ICurrentUserProvider)services.GetService(
+                                       userProviderType);
+                if (userProvider != null)
                 {
-                    DateTime dt = useUtc ? DateTime.UtcNow : DateTime.Now;
-                    if (entry.State == EntityState.Added)
+                    var l = eventData.Context.ChangeTracker.Entries().ToList();
+                    var userName = userProvider.GetUserName(eventData.Context);
+                    foreach (var entry in l)
                     {
-                        if (m.Attribute is CreatedAttribute && m.PropertyInfo.PropertyType == typeof(DateTime))
+                        foreach (var m in entry.Members.Where(m =>
+                                         m.Metadata.PropertyInfo != null && Attribute.IsDefined(m.Metadata.PropertyInfo,
+                                             typeof(ModMarkerAttribute)))
+                                     .Select(f => new
+                                     {
+                                         f.Metadata.PropertyInfo,
+                                         Attribute = (ModMarkerAttribute)Attribute.GetCustomAttribute(
+                                             f.Metadata.PropertyInfo,
+                                             typeof(ModMarkerAttribute), true)
+                                     }))
                         {
-                            m.PropertyInfo.SetValue(entry.Entity, dt);
-                        }
-                        else if (m.Attribute is CreatorAttribute && m.PropertyInfo.PropertyType == typeof(string))
-                        {
-                            m.PropertyInfo.SetValue(entry.Entity, userName);
-                        }
-                    }
+                            DateTime dt = useUtc ? DateTime.UtcNow : DateTime.Now;
+                            if (entry.State == EntityState.Added)
+                            {
+                                if (m.Attribute is CreatedAttribute && m.PropertyInfo.PropertyType == typeof(DateTime))
+                                {
+                                    m.PropertyInfo.SetValue(entry.Entity, dt);
+                                }
+                                else if (m.Attribute is CreatorAttribute &&
+                                         m.PropertyInfo.PropertyType == typeof(string))
+                                {
+                                    m.PropertyInfo.SetValue(entry.Entity, userName);
+                                }
+                            }
 
-                    if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
-                    {
-                        if (m.Attribute is ModifiedAttribute && m.PropertyInfo.PropertyType == typeof(DateTime))
-                        {
-                            m.PropertyInfo.SetValue(entry.Entity, dt);
-                        }
-                        else if (m.Attribute is ModifierAttribute && m.PropertyInfo.PropertyType == typeof(string))
-                        {
-                            m.PropertyInfo.SetValue(entry.Entity, userName);
+                            if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
+                            {
+                                if (m.Attribute is ModifiedAttribute && m.PropertyInfo.PropertyType == typeof(DateTime))
+                                {
+                                    m.PropertyInfo.SetValue(entry.Entity, dt);
+                                }
+                                else if (m.Attribute is ModifierAttribute &&
+                                         m.PropertyInfo.PropertyType == typeof(string))
+                                {
+                                    m.PropertyInfo.SetValue(entry.Entity, userName);
+                                }
+                            }
                         }
                     }
+                }
+                else
+                {
+                    LogEnvironment.LogEvent($"No Service of Type {userProviderType} was found.", LogSeverity.Error);
                 }
             }
 

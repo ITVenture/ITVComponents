@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0-windows</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.4</Version>
+    <Version>3.0.5-PRE029</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <ExtrasEnableWpfProjectSetup>true</ExtrasEnableWpfProjectSetup>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
@@ -29,6 +29,4 @@
     <Compile Update="SchedulePushUi\TaskPage.xaml.cs" DependentUpon="TaskPage.xaml" />
     <Compile Update="Editors\CustomTextEditor.xaml.cs" DependentUpon="CustomTextEditor.xaml" />
   </ItemGroup-->
-  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
-  </Target>
 </Project>

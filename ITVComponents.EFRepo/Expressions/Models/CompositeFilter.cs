@@ -12,9 +12,24 @@ namespace ITVComponents.EFRepo.Expressions.Models
 {
     public class CompositeFilter : FilterBase
     {
+        private List<FilterBase> filters = new();
+
+        private FilterBase[] builtFilter;
+
         public BoolOperator Operator { get; set; }
 
-        public FilterBase[] Children { get; set; }
+        public FilterBase[] Children
+        {
+            get
+            {
+                return builtFilter ??= filters.ToArray();
+            }
+            set
+            {
+                filters.Clear();
+                filters.AddRange(value);
+            }
+        }
 
         protected override string DescribeFilter()
         {
@@ -24,6 +39,12 @@ namespace ITVComponents.EFRepo.Expressions.Models
                 Type = "Composite",
                 Children = (from t in Children select t.ToString()).ToArray()
             });
+        }
+
+        public void AddFilter(FilterBase filter)
+        {
+            filters.Add(filter);
+            builtFilter = null;
         }
     }
 

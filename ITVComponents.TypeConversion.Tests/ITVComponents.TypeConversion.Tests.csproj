@@ -17,6 +17,4 @@
     <ProjectReference Include="..\ITVComponents.TypeConversion.DefaultConverters\ITVComponents.TypeConversion.DefaultConverters.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
-  <Target Name="CopyPackageRel" AfterTargets="Pack" Condition="'$(Configuration)'=='Release' And '$(PushIt)'=='True'">
-  </Target>
 </Project>

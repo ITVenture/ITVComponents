@@ -59,17 +59,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
 
             if (partActivation.ActivateDbContext)
             {
+                var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
                 if (t != null)
                 {
                     //services.AddDbContext<>()
                     services.UseDbIdentities(t, (services,options) =>
                     {
                         options.UseSqlServer(partActivation.ConnectionStringName);
+                        manager.CustomObjectConfig(options, services);
                     });
                 }
                 else
                 {
-                    services.UseDbIdentities((services, options) => options.UseSqlServer(partActivation.ConnectionStringName));
+                    services.UseDbIdentities((services, options) =>
+                    {
+                        options.UseSqlServer(partActivation.ConnectionStringName);
+                        manager.CustomObjectConfig(options, services);
+                    });
                 }
             }
         }

@@ -25,6 +25,10 @@
             .ToolBar(toolbar =>
             {
                 toolbar.RefreshTable();
+                toolbar.Custom().Name("ResetScripts").Text("Reset Native Script snippets").HtmlAttributes(new Dictionary<string, object>
+                {
+                    { "onclick", "ITVenture.Pages.Util.AssemblyDiagnostics.ResetNativeScripts()" }
+                });
             })
             .DataSource(dataSource =>
             {

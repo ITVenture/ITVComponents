@@ -30,6 +30,11 @@ namespace ITVComponents.Security
         /// the scopen in which data is protected
         /// </summary>
         private static DataProtectionScope scope;
+
+        /// <summary>
+        /// Gets a value indicating whether Passwordsecurity was initialized
+        /// </summary>
+        public static bool Initialized => initialized;
         
         /// <summary>
         /// Initializes the security module with a specific entropy

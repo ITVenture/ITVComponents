@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.DataSync;
 using ITVComponents.EFRepo.DataSync.Models;
+using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Health;
 using ITVComponents.WebCoreToolkit.Models;
@@ -105,6 +106,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Areas.Util.Controllers
             }
 
             return Json(Array.Empty<ClaimData>().ToDataSourceResult(request));
+        }
+
+        [HttpPost]
+        public IActionResult ResetNativeScripts()
+        {
+            NativeScriptHelper.ResetNativeScripts();
+            return Ok();
         }
 
         [HttpPost]

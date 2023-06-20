@@ -13,10 +13,10 @@ ITVenture.Pages.Help.ModuleVideo = {
         var table = grid.data("kendoGrid");
         var item = table.dataItem(tr);
         var parentTutorial = grid.attr("parentTutorial");
-        return encodeURIComponent("##VID#".concat(parentTutorial).concat("#").concat(item.TutorialStreamId));
+        return "##VID#".concat(parentTutorial).concat("#").concat(item.TutorialStreamId);
     },
     BatchFileUpdateHint: function (e) {
         var parentTutorial = e.attr("parentTutorial");
-        return encodeURIComponent("##VID#".concat(parentTutorial));
+        return "##VID#".concat(parentTutorial);
     }
 }

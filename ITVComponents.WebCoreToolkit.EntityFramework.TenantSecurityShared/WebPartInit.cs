@@ -16,6 +16,8 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.EFRepo.Helpers;
+using ITVComponents.EFRepo.Interceptors;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
@@ -54,12 +56,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
                 services.AddScoped<ITemplateHandlerFactory, TemplateHandlerFactory>();
             }
 
-            if (partOptions.ActivateFilters)
+            if (partOptions.ActivateFilters && t != null)
             {
-                if (t != null)
-                {
-                    services.ConfigureGlobalFilters(t);
-                }
+                services.ConfigureGlobalFilters(t);
+            }
+
+            if (partOptions.ActivateDefaultContextUserProvider && t != null)
+            {
+                services.ConfigureDefaultContextUserProvider(t);
+            }
+        }
+
+        [CustomConfigurator(typeof(DbContextOptionsBuilder))]
+        public static void ConfigureDbInterceptors(DbContextOptionsBuilder optionsBuilder, IServiceProvider services,
+            [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
+        {
+            if (partOptions.ActivateCreateModifyAttributes)
+            {
+                optionsBuilder.AddInterceptors(new ModCreateInterceptor(services, partOptions.UseUTCForCreateModifyAttributes));
             }
         }
     }

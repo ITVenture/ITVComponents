@@ -31,6 +31,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
         public bool ActivateFilters { get; set; }
         public bool ActivateTemplateFactory { get; set; }
 
+        public bool ActivateCreateModifyAttributes { get; set; }
+
+        public bool UseUTCForCreateModifyAttributes { get; set; }
+
+        public bool ActivateDefaultContextUserProvider { get; set; }
+
         [AutoResolveChildren]
         public List<HealthCheckDefinition> HealthChecks { get; set; } = new();
 

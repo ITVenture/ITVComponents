@@ -13,6 +13,7 @@ using ITVComponents.Cloning;
 using ITVComponents.Cloning.Model;
 using ITVComponents.DataAccess.DataAnnotations;
 using ITVComponents.TypeConversion;
+using Microsoft.CodeAnalysis;
 
 namespace ITVComponents.DataAccess.Extensions
 {
@@ -59,9 +60,10 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="requestObjectInstance">offsers a customValueSoruce attribute to access custom required objects</param>
         /// <param name="postProcessAction">a user defined action that is performed after converting the requested data to a viewModel object</param>
         /// <returns>a Viewmodel that contains all Data that was read from the model</returns>
-        public static T ToViewModel<TDbModel, T>(this TDbModel modelObject, Func<Type, object> requestObjectInstance, Action<TDbModel, T> postProcessAction = null) where T : class, new()
+        public static T ToViewModel<TDbModel, T>(this TDbModel modelObject, Func<Type, object> requestObjectInstance, Action<TDbModel, T> postProcessAction = null, Func<string,bool> propertyFilter = null) where T : class, new()
                                                                                                                 where TDbModel : class
         {
+            propertyFilter ??= (s => true);
             if (modelObject == null)
             {
                 return null;
@@ -77,7 +79,7 @@ namespace ITVComponents.DataAccess.Extensions
                                     select new { Property = t, Attributes = System.Linq.Enumerable.Cast<CustomValueSourceAttribute>(Attribute.GetCustomAttributes(t, typeof(CustomValueSourceAttribute), true)).First() }).ToArray();
             var hashCalc = customValueProps.FirstOrDefault(n => n.Attributes is ModelHashAttribute);
             var action = GetActionFor<TDbModel, T>(toViewModelActions, SelectToViewModelProps<TDbModel, T>, true);
-            action(modelObject, retVal);
+            action(modelObject, retVal, propertyFilter);
             foreach (var customValue in customValueProps)
             {
                 if (customValue != hashCalc)
@@ -108,16 +110,17 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="target">the target object to which to copy the entire content of the source object</param>
         /// <param name="postProcessAction">a user defined action that is performed after converting the requested data to a viewModel object</param>
         /// <returns>a Viewmodel that contains all Data that was read from the model</returns>
-        public static void CopyToModel<TDbModel, T>(this TDbModel modelObject, T target, Action<TDbModel, T> postProcessAction = null) where T : class
+        public static void CopyToModel<TDbModel, T>(this TDbModel modelObject, T target, Action<TDbModel, T> postProcessAction = null, Func<string,bool> propertyFilter = null) where T : class
                                                                                                                 where TDbModel : class
         {
+            propertyFilter ??= (s => true);
             if (modelObject == null || target == null)
             {
                 return;
             }
 
             var action = GetActionFor<TDbModel, T>(modelCopyActions, SelectCopyToVmProps<TDbModel, T>, false);
-            action(modelObject, target);
+            action(modelObject, target, propertyFilter);
             postProcessAction?.Invoke(modelObject, target);
         }
 
@@ -146,16 +149,17 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="modelObject">the Data, that was read from the database</param>
         /// <param name="target">the target object to which to copy the entire content of the source object</param>
         /// <returns>a Viewmodel that contains all Data that was read from the model</returns>
-        public static void CopyToDbModel<TViewModel, TDbModel>(this TViewModel modelObject, TDbModel target) where TViewModel : class
+        public static void CopyToDbModel<TViewModel, TDbModel>(this TViewModel modelObject, TDbModel target, Func<string, bool> propertyFilter = null) where TViewModel : class
                                                                                                                 where TDbModel : class
         {
+            propertyFilter ??= (s => true);
             if (modelObject == null || target == null)
             {
                 return;
             }
 
             var action = GetActionFor<TViewModel, TDbModel>(assignmentDbActions, CreateDbCopyMethod<TViewModel, TDbModel>, false);
-            action(modelObject, target);
+            action(modelObject, target, propertyFilter);
         }
 
         private static IEnumerable<AssignmentHolder> SelectCopyToVmProps<TModel, TViewModel>()
@@ -276,10 +280,10 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="methodTargetDic">the Dictionary where the assignment-method is being stored</param>
         /// <param name="selector">the Property-Selector method</param>
         /// <returns></returns>
-        private static Action<TSource, TTarget> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> methodTargetDic, Func<IEnumerable<AssignmentHolder>> selector, bool useUtcSpecify)
+        private static Action<TSource, TTarget, Func<string,bool>> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> methodTargetDic, Func<IEnumerable<AssignmentHolder>> selector, bool useUtcSpecify)
         {
             var tmp1 = methodTargetDic.GetOrAdd(typeof(TSource), t => new ConcurrentDictionary<Type, Delegate>());
-            Action<TSource, TTarget> copyAction = (Action<TSource, TTarget>)tmp1.GetOrAdd(typeof(TTarget), t => ObjectCloneExtensions.BuildAssignmentLambda<TSource, TTarget>(selector(), useUtcSpecify));
+            Action<TSource, TTarget, Func<string,bool>> copyAction = (Action<TSource, TTarget, Func<string, bool>>)tmp1.GetOrAdd(typeof(TTarget), t => ObjectCloneExtensions.BuildAssignmentLambda<TSource, TTarget>(selector(), useUtcSpecify));
             return copyAction;
         }
 

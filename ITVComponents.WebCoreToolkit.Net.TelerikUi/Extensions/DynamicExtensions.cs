@@ -50,15 +50,20 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
             {
                 foreach (var sort in request.Sorts)
                 {
-                    if (sort.SortOrder == SortOrder.Asc)
+                    var ordx = ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.ColumnName, redirectColumnName);
+                    if (ordx != null)
                     {
-                        preFiltered =
-                            preFiltered.OrderBy(ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.ColumnName, redirectColumnName));
-                    }
-                    else
-                    {
-                        preFiltered =
-                            preFiltered.OrderByDescending(ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.ColumnName, redirectColumnName));
+                        if (sort.SortOrder == SortOrder.Asc)
+                        {
+
+                            preFiltered =
+                                preFiltered.OrderBy(ordx);
+                        }
+                        else
+                        {
+                            preFiltered =
+                                preFiltered.OrderByDescending(ordx);
+                        }
                     }
                 }
             }

@@ -43,7 +43,10 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         private ISharedObjHeap sharedHeap = new SharedObjectHeap();
 
         private MethodInfo customConfigMeth =
-            typeof(WebPartManager).GetMethod("PartCustomObjectConfig", BindingFlags.Public | BindingFlags.Instance);
+            typeof(WebPartManager).GetMethods(BindingFlags.Public | BindingFlags.Instance).First(n => n.Name == "PartCustomObjectConfig" && n.GetParameters().Length == 1);
+
+        private MethodInfo customConfigMeth2 =
+            typeof(WebPartManager).GetMethods(BindingFlags.Public | BindingFlags.Instance).First(n => n.Name == "PartCustomObjectConfig" && n.GetParameters().Length == 2);
 
         /// <summary>
         /// Configures the SharedObjectsHeap for this Manager
@@ -60,6 +63,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// <param name="config">the configuration for the current app</param>
         public WebPartManager(IConfiguration config)
         {
+            sharedHeap.Property<WebPartManager>("WebPartManager").Value = this;
             this.config = config;
             var options = config.GetSection<WebPartOptions>("ITVenture:WebParts");
             var webPartTypes = (from t in options.Assemblies
@@ -168,6 +172,11 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
         }
 
+        public void PartCustomObjectConfig<T>(T target, IServiceProvider services)
+        {
+            throw new NotImplementedException("This is a sample method! Implement it in your WebPart-Initializer");
+        }
+
         /// <summary>
         /// Invokes all custom Configurators for the given Type
         /// </summary>
@@ -176,6 +185,17 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         public void CustomObjectConfig<T>(T target)
         {
             InvokeMethods<T>(customMethods, new object[] { target });
+        }
+
+        /// <summary>
+        /// Invokes all custom Configurators for the given Type
+        /// </summary>
+        /// <typeparam name="T">the Type of which an instance is being configured with this call</typeparam>
+        /// <param name="target">the target object that is being configured with the call</param>
+        /// <param name="services">the service-provider instance that can be used for di-tasks when an objects needs to be configured on runtime</param>
+        public void CustomObjectConfig<T>(T target, IServiceProvider services)
+        {
+            InvokeMethods<T>(customMethods, new object[] { target, services });
         }
 
         /// <summary>
@@ -246,7 +266,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             }
         }
 
-        private Expression<Action> MakeCustomConfigCall(Type configuredObjectType)
+        private Expression<Action>[] MakeCustomConfigCall(Type configuredObjectType)
         {
             object t = null;
             if (configuredObjectType.IsValueType)
@@ -255,10 +275,13 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             }
 
             var ct = Expression.Constant(t, configuredObjectType);
+            var ct2 = Expression.Constant(null, typeof(IServiceProvider));
             var gm = customConfigMeth.MakeGenericMethod(configuredObjectType);
+            var gm2 = customConfigMeth2.MakeGenericMethod(configuredObjectType);
             var me = Expression.Constant(this);
             var methCall = Expression.Call(me,gm,ct);
-            return Expression.Lambda<Action>(methCall);
+            var methCall2 = Expression.Call(me, gm2, ct, ct2);
+            return new []{Expression.Lambda<Action>(methCall), Expression.Lambda<Action>(methCall2) };
         }
 
         private void InvokeMethods<T>(ConcurrentDictionary<Type, List<MethodRef>> methodDic, object[] defaults)
@@ -378,29 +401,34 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         /// <param name="info">the method that was found on a WebPartInitializer</param>
         /// <param name="target">the appropriate method that is going to invoke the provided method during the initialization of an app</param>
         /// <returns>a values indicating whether an mvc-registration method is compatible to the registration method found on a webpart-declaration</returns>
-        private bool MethodMatches(MethodInfo info, Expression<Action> target)
+        private bool MethodMatches(MethodInfo info, params Expression<Action>[] target)
         {
-            var targetMethod = LambdaHelper.GetMethodInfo(target);
-            var srcParams = info.GetParameters();
-            var trgParams = targetMethod.GetParameters();
-            var extParams = (from t in srcParams.Select((p, i) => new { p, i })
-                where t.i >= trgParams.Length
-                select t.p).ToArray();
-            if (trgParams.Length == srcParams.Length && (from s in srcParams.Select((p, i) => new { p, i })
-                    join t in trgParams.Select((p, i) => new { p, i }) on s.i equals t.i
-                                                         where s.p.ParameterType == t.p.ParameterType || t.p.ParameterType.IsAssignableFrom(s.p.ParameterType)
-                    select new { s, t }).Count() == srcParams.Length)
+            foreach (var targetMeth in target)
             {
-                return true;
-            }
-            else if (srcParams.Length > trgParams.Length && (from s in srcParams.Select((p, i) => new { p, i })
-                         join t in trgParams.Select((p, i) => new { p, i }) on s.i equals t.i
-                         where s.p.ParameterType == t.p.ParameterType ||
-                               t.p.ParameterType.IsAssignableFrom(s.p.ParameterType)
-                         select new { s, t }).Count() == trgParams.Length &&
-                     (extParams.Length == 1 || extParams.All(p => Attribute.IsDefined(p, typeof(WebPartConfigAttribute)))))
-            {
-                return true;
+                var targetMethod = LambdaHelper.GetMethodInfo(targetMeth);
+                var srcParams = info.GetParameters();
+                var trgParams = targetMethod.GetParameters();
+                var extParams = (from t in srcParams.Select((p, i) => new { p, i })
+                    where t.i >= trgParams.Length
+                    select t.p).ToArray();
+                if (trgParams.Length == srcParams.Length && (from s in srcParams.Select((p, i) => new { p, i })
+                        join t in trgParams.Select((p, i) => new { p, i }) on s.i equals t.i
+                        where s.p.ParameterType == t.p.ParameterType ||
+                              t.p.ParameterType.IsAssignableFrom(s.p.ParameterType)
+                        select new { s, t }).Count() == srcParams.Length)
+                {
+                    return true;
+                }
+                else if (srcParams.Length > trgParams.Length && (from s in srcParams.Select((p, i) => new { p, i })
+                             join t in trgParams.Select((p, i) => new { p, i }) on s.i equals t.i
+                             where s.p.ParameterType == t.p.ParameterType ||
+                                   t.p.ParameterType.IsAssignableFrom(s.p.ParameterType)
+                             select new { s, t }).Count() == trgParams.Length &&
+                         (extParams.Length == 1 ||
+                          extParams.All(p => Attribute.IsDefined(p, typeof(WebPartConfigAttribute)))))
+                {
+                    return true;
+                }
             }
 
             return false;
