@@ -69,14 +69,10 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         {
             TSettings retVal = default;
             explicitScope = HierarchyScope.None;
-            if (retVal == null)
+            retVal = scoped?.GetValueOrDefault(explicitSettingName);
+            if (retVal != null)
             {
-                retVal = scoped?.GetValueOrDefault(explicitSettingName);
-                if (retVal != null)
-                {
-                    explicitScope = HierarchyScope.Scoped;
-                }
-
+                explicitScope = HierarchyScope.Scoped;
             }
 
             if (retVal == null)

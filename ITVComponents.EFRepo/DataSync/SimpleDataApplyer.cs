@@ -7,6 +7,8 @@ using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.EFRepo.Expressions;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Helpers;
+using ITVComponents.Helpers;
+using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.ReflectionHelpers;
 using Microsoft.EntityFrameworkCore;
@@ -55,30 +57,46 @@ namespace ITVComponents.EFRepo.DataSync
                 switch (change.ChangeType)
                 {
                     case ChangeType.Insert:
+                        LogEnvironment.LogDebugEvent(null,$"Creating new instance of Type '{rawType.FullName}'.",(int)LogSeverity.Report,"EFRepo:SimpleDataApplyer");
                         entity = targetSet.New();
                         break;
                     case ChangeType.Update:
                     {
                         var rawQuery = BuildRawKey(db, change, extendQueryVariables);
+                        LogEnvironment.LogDebugEvent(null,
+                            $"Querying Record of type '{rawType.FullName}' with the following Arguments:\r\n{JsonHelper.ToJson(rawQuery)}.",
+                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                         extendQuery?.Invoke(change.EntityName, rawQuery);
                         entity = targetSet.FindWithQuery(rawQuery, false);
                         var id = targetSet.GetIndex(entity);
                         messages.AppendLine($"Fetched record {id} of {change.EntityName} for {change.ChangeType}.");
+                        LogEnvironment.LogDebugEvent(null, $"Fetched record {id} of Type '{rawType.FullName}' for {change.ChangeType}.",
+                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                         break;
                     }
                     case ChangeType.Delete:
                     {
                         var rawQuery = BuildRawKey(db, change, extendQueryVariables);
-                        extendQuery?.Invoke(change.EntityName, rawQuery);
+                        LogEnvironment.LogDebugEvent(null,
+                            $"Querying Record of type '{rawType.FullName}' with the following Arguments:\r\n{JsonHelper.ToJson(rawQuery)}.",
+                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            extendQuery?.Invoke(change.EntityName, rawQuery);
                         entity = targetSet.FindWithQuery(rawQuery, true);
                         if (entity != null)
                         {
                             var id = targetSet.GetIndex(entity);
                             messages.AppendLine($"Fetched record {id} of {change.EntityName} for {change.ChangeType}.");
+                            LogEnvironment.LogDebugEvent(null,
+                                $"Fetched record {id} of Type '{rawType.FullName}' for {change.ChangeType}.",
+                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                         }
                         else
                         {
-                            messages.AppendLine($"Entity of {change.EntityName} for {change.ChangeType} was not found.");
+                            messages.AppendLine(
+                                $"Entity of {change.EntityName} for {change.ChangeType} was not found.");
+                            LogEnvironment.LogDebugEvent(null,
+                                $"No Entity was found for ChangeType {change.ChangeType}.",
+                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                         }
 
                         break;
@@ -93,7 +111,10 @@ namespace ITVComponents.EFRepo.DataSync
                 {
                     if (change.ChangeType != ChangeType.Delete)
                     {
-                        foreach (var detail in change.Details)
+                        LogEnvironment.LogDebugEvent(null, $"Updating the Entity of type '{rawType.FullName}' in {change.ChangeType}-Mode.\r\nProperties:\r\n{JsonHelper.ToJson(change.Details)}",
+                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                        bool any = false;
+                        foreach (var detail in change.Details.Where(n => n.Apply))
                         {
                             var xp = string.IsNullOrEmpty(detail.ValueExpression)?
                                 $"Entity.{detail.TargetProp}=ChangeType(NewValueRaw,Type)"
@@ -105,15 +126,23 @@ namespace ITVComponents.EFRepo.DataSync
                                 newValue:detail.NewValue,
                                 propertyType: entity.GetValueType(detail.TargetProp),
                                 extendContext: extendQueryVariables));
+                            any = true;
                         }
 
-                        if (change.ChangeType == ChangeType.Insert)
+                        if (change.ChangeType == ChangeType.Insert && any)
                         {
                             targetSet.Add(entity);
+                        }
+                        else
+                        {
+                            messages.AppendLine(
+                                $"An Insert of an entity with no properties was ignored ({change.EntityName}.");
                         }
 
                         messages.AppendLine(
                             $"Performed {change.ChangeType} on {change.EntityName} with {change.Details.Count} values");
+                        LogEnvironment.LogDebugEvent(null, $"{change.Details.Count} Updates were performed on Instance of Type '{rawType.FullName}' for {change.ChangeType}.",
+                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                     }
                     else
                     {
@@ -124,6 +153,8 @@ namespace ITVComponents.EFRepo.DataSync
                 }
             }
 
+            LogEnvironment.LogDebugEvent(null, $"About to save changes.",
+                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
             db.SaveChanges();
         }
 

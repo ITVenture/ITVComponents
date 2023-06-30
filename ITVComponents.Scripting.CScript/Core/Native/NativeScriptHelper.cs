@@ -429,7 +429,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         {
             var sysAssembly = typeof(object).Assembly.FullName;
             List<Type> allTheTypes = new List<Type>();
-            while (contextType != typeof(object))
+            while (contextType != null && contextType != typeof(object))
             {
                 var ass = contextType.Assembly;
 

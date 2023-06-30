@@ -116,6 +116,11 @@ namespace ITVComponents.EFRepo.DataSync
         protected string MakeLinqAssign<TContext>(string targetProperty, string sourceEntity, string filterProperty, string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null)
         where TContext:DbContext
         {
+            if (!string.IsNullOrEmpty(additionalWhere))
+            {
+                additionalWhere = additionalWhere.Replace(@"""", @"""""");
+            }
+
             return
                 @$"Entity.{targetProperty} = (!'System.String'.IsNullOrEmpty(NewValueRaw))?`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? "NewValueRaw" : $"ChangeType(NewValueRaw,{scriptedFilterType})")}}}:null";
         }
@@ -145,6 +150,11 @@ namespace ITVComponents.EFRepo.DataSync
             where TContext:DbContext
         {
             NativeScriptHelper.SetAutoReferences($"SysQry{UniqueName}", true);
+            if (!string.IsNullOrEmpty(additionalWhere))
+            {
+                additionalWhere = additionalWhere.Replace(@"""", @"""""");
+            }
+
             return @$"`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? filterValueVariable : $"ChangeType({filterValueVariable},{scriptedFilterType})")}}}";
         }
 

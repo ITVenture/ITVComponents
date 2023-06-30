@@ -75,7 +75,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
                 return retVal;
             }
 
-            return new TSettings();
+            return default;
         }
     }
 }

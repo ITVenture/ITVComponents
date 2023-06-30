@@ -170,7 +170,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
                 TickBack = false
-            }, GetCallOptions());
+            }, GetCallOptions()).ConfigureAwait(false);
 
             return cmt.ResponsePayload;
         }
@@ -333,7 +333,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                         var en = client.ServiceReady(session, GetCallOptions(new CallOptions(cancellationToken: cancelR)));
                         try
                         {
-                            while (await en.ResponseStream.MoveNext())
+                            while (await en.ResponseStream.MoveNext().ConfigureAwait(false))
                             {
                                 var c = en.ResponseStream.Current;
                                 if (!c.TickBack)
