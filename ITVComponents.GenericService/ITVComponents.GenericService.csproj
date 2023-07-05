@@ -9,7 +9,7 @@
     <RepositoryType>git</RepositoryType>
     <Description>ITV Core Components for creating a generic Service</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RepositoryUrl>https://github.com/ITVenture/IT-Venture-Core-Libraries</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Properties\**" />

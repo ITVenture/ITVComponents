@@ -4,7 +4,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>3.0.7-PRE011</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RepositoryUrl>https://github.com/ITVenture/IT-Venture-Core-Libraries</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Helpers\ZipEntryFactory.cs" />
