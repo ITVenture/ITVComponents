@@ -20,142 +20,166 @@ namespace ITVComponents.EFRepo.DataSync
         public static void ApplyData(this DbContext db, Change[] changes, StringBuilder messages, Action<string, Dictionary<string,object>> extendQuery,
             Action<Dictionary<string, object>> extendQueryVariables)
         {
-            foreach (var change in changes.Where(n => n.Apply))
+            try
             {
-                object entity;
-                IDbSet targetSet;
-                var rawEntity = ExpressionParser.Parse(change.EntityName, db);
-                var rawType = rawEntity.GetType();
-                var dbsetType = typeof(DbSet<>);
-                var obj = typeof(object);
-                var success = false;
-                if (rawType.IsGenericType)
+                foreach (var change in changes.Where(n => n.Apply))
                 {
-                    while (rawType != obj && rawType != null)
+                    object entity;
+                    IDbSet targetSet;
+                    var rawEntity = ExpressionParser.Parse(change.EntityName, db);
+                    var rawType = rawEntity.GetType();
+                    var dbsetType = typeof(DbSet<>);
+                    var obj = typeof(object);
+                    var success = false;
+                    if (rawType.IsGenericType)
                     {
-                        if (rawType.IsGenericType)
+                        while (rawType != obj && rawType != null)
                         {
-                            var tmp = rawType.GetGenericTypeDefinition();
-                            if (tmp == dbsetType)
+                            if (rawType.IsGenericType)
                             {
-                                rawType = rawType.GetGenericArguments()[0];
-                                success = true;
-                                break;
+                                var tmp = rawType.GetGenericTypeDefinition();
+                                if (tmp == dbsetType)
+                                {
+                                    rawType = rawType.GetGenericArguments()[0];
+                                    success = true;
+                                    break;
+                                }
                             }
+
+                            rawType = rawType.BaseType;
                         }
-
-                        rawType = rawType.BaseType;
                     }
-                }
 
-                if (!success)
-                {
-                    throw new InvalidOperationException($"Unable to extract entity-type of {change.EntityName}.");
-                }
-
-                targetSet = db.Set(rawType);
-                switch (change.ChangeType)
-                {
-                    case ChangeType.Insert:
-                        LogEnvironment.LogDebugEvent(null,$"Creating new instance of Type '{rawType.FullName}'.",(int)LogSeverity.Report,"EFRepo:SimpleDataApplyer");
-                        entity = targetSet.New();
-                        break;
-                    case ChangeType.Update:
+                    if (!success)
                     {
-                        var rawQuery = BuildRawKey(db, change, extendQueryVariables);
-                        LogEnvironment.LogDebugEvent(null,
-                            $"Querying Record of type '{rawType.FullName}' with the following Arguments:\r\n{JsonHelper.ToJson(rawQuery)}.",
-                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
-                        extendQuery?.Invoke(change.EntityName, rawQuery);
-                        entity = targetSet.FindWithQuery(rawQuery, false);
-                        var id = targetSet.GetIndex(entity);
-                        messages.AppendLine($"Fetched record {id} of {change.EntityName} for {change.ChangeType}.");
-                        LogEnvironment.LogDebugEvent(null, $"Fetched record {id} of Type '{rawType.FullName}' for {change.ChangeType}.",
-                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
-                        break;
+                        throw new InvalidOperationException($"Unable to extract entity-type of {change.EntityName}.");
                     }
-                    case ChangeType.Delete:
+
+                    targetSet = db.Set(rawType);
+                    switch (change.ChangeType)
                     {
-                        var rawQuery = BuildRawKey(db, change, extendQueryVariables);
-                        LogEnvironment.LogDebugEvent(null,
-                            $"Querying Record of type '{rawType.FullName}' with the following Arguments:\r\n{JsonHelper.ToJson(rawQuery)}.",
-                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
-                            extendQuery?.Invoke(change.EntityName, rawQuery);
-                        entity = targetSet.FindWithQuery(rawQuery, true);
-                        if (entity != null)
+                        case ChangeType.Insert:
+                            LogEnvironment.LogDebugEvent(null, $"Creating new instance of Type '{rawType.FullName}'.",
+                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            entity = targetSet.New();
+                            break;
+                        case ChangeType.Update:
                         {
+                            var rawQuery = BuildRawKey(db, change, extendQueryVariables);
+                            LogEnvironment.LogDebugEvent(null,
+                                $"Querying Record of type '{rawType.FullName}' with the following Arguments:\r\n{JsonHelper.ToJson(rawQuery)}.",
+                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            extendQuery?.Invoke(change.EntityName, rawQuery);
+                            entity = targetSet.FindWithQuery(rawQuery, false);
                             var id = targetSet.GetIndex(entity);
                             messages.AppendLine($"Fetched record {id} of {change.EntityName} for {change.ChangeType}.");
                             LogEnvironment.LogDebugEvent(null,
                                 $"Fetched record {id} of Type '{rawType.FullName}' for {change.ChangeType}.",
                                 (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            break;
                         }
-                        else
+                        case ChangeType.Delete:
                         {
-                            messages.AppendLine(
-                                $"Entity of {change.EntityName} for {change.ChangeType} was not found.");
+                            var rawQuery = BuildRawKey(db, change, extendQueryVariables);
                             LogEnvironment.LogDebugEvent(null,
-                                $"No Entity was found for ChangeType {change.ChangeType}.",
+                                $"Querying Record of type '{rawType.FullName}' with the following Arguments:\r\n{JsonHelper.ToJson(rawQuery)}.",
+                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            extendQuery?.Invoke(change.EntityName, rawQuery);
+                            entity = targetSet.FindWithQuery(rawQuery, true);
+                            if (entity != null)
+                            {
+                                var id = targetSet.GetIndex(entity);
+                                messages.AppendLine(
+                                    $"Fetched record {id} of {change.EntityName} for {change.ChangeType}.");
+                                LogEnvironment.LogDebugEvent(null,
+                                    $"Fetched record {id} of Type '{rawType.FullName}' for {change.ChangeType}.",
+                                    (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            }
+                            else
+                            {
+                                messages.AppendLine(
+                                    $"Entity of {change.EntityName} for {change.ChangeType} was not found.");
+                                LogEnvironment.LogDebugEvent(null,
+                                    $"No Entity was found for ChangeType {change.ChangeType}.",
+                                    (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            }
+
+                            break;
+                        }
+                        default:
+                            entity = null;
+                            messages.AppendLine($"Ignored Change of Type {change.ChangeType}");
+                            break;
+                    }
+
+                    if (entity != null)
+                    {
+                        if (change.ChangeType != ChangeType.Delete)
+                        {
+                            LogEnvironment.LogDebugEvent(null,
+                                $"Updating the Entity of type '{rawType.FullName}' in {change.ChangeType}-Mode.\r\nProperties:\r\n{JsonHelper.ToJson(change.Details)}",
+                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            bool any = false;
+                            foreach (var detail in change.Details.Where(n => n.Apply))
+                            {
+                                var xp = string.IsNullOrEmpty(detail.ValueExpression)
+                                    ? $"Entity.{detail.TargetProp}=ChangeType(NewValueRaw,Type)"
+                                    : detail.ValueExpression;
+                                LogEnvironment.LogDebugEvent(null,
+                                    $"Executing the following expression: {xp}.",
+                                    (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                                try
+                                {
+                                    ExpressionParser.Parse(xp, BuildContext(
+                                        entity: entity,
+                                        db: db,
+                                        change: change,
+                                        newValue: detail.NewValue,
+                                        propertyType: entity.GetValueType(detail.TargetProp),
+                                        extendContext: extendQueryVariables));
+                                    any = true;
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogEnvironment.LogDebugEvent(null,
+                                        $"Assignment-Expression failed!. ({ex.OutlineException()})",
+                                        (int)LogSeverity.Error, "EFRepo:SimpleDataApplyer");
+                                    throw;
+                                }
+                            }
+
+                            if (change.ChangeType == ChangeType.Insert && any)
+                            {
+                                targetSet.Add(entity);
+                            }
+                            else
+                            {
+                                messages.AppendLine(
+                                    $"An Insert of an entity with no properties was ignored ({change.EntityName}.");
+                            }
+
+                            messages.AppendLine(
+                                $"Performed {change.ChangeType} on {change.EntityName} with {change.Details.Count} values");
+                            LogEnvironment.LogDebugEvent(null,
+                                $"{change.Details.Count} Updates were performed on Instance of Type '{rawType.FullName}' for {change.ChangeType}.",
                                 (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                         }
-
-                        break;
-                    }
-                    default:
-                        entity = null;
-                        messages.AppendLine($"Ignored Change of Type {change.ChangeType}");
-                        break;
-                }
-
-                if (entity != null)
-                {
-                    if (change.ChangeType != ChangeType.Delete)
-                    {
-                        LogEnvironment.LogDebugEvent(null, $"Updating the Entity of type '{rawType.FullName}' in {change.ChangeType}-Mode.\r\nProperties:\r\n{JsonHelper.ToJson(change.Details)}",
-                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
-                        bool any = false;
-                        foreach (var detail in change.Details.Where(n => n.Apply))
-                        {
-                            var xp = string.IsNullOrEmpty(detail.ValueExpression)?
-                                $"Entity.{detail.TargetProp}=ChangeType(NewValueRaw,Type)"
-                                :detail.ValueExpression;
-                            ExpressionParser.Parse(xp, BuildContext(
-                                entity:entity, 
-                                db:db,
-                                change:change, 
-                                newValue:detail.NewValue,
-                                propertyType: entity.GetValueType(detail.TargetProp),
-                                extendContext: extendQueryVariables));
-                            any = true;
-                        }
-
-                        if (change.ChangeType == ChangeType.Insert && any)
-                        {
-                            targetSet.Add(entity);
-                        }
                         else
                         {
+                            targetSet.Remove(entity);
                             messages.AppendLine(
-                                $"An Insert of an entity with no properties was ignored ({change.EntityName}.");
+                                $"Performed {change.ChangeType} on {change.EntityName}");
                         }
-
-                        messages.AppendLine(
-                            $"Performed {change.ChangeType} on {change.EntityName} with {change.Details.Count} values");
-                        LogEnvironment.LogDebugEvent(null, $"{change.Details.Count} Updates were performed on Instance of Type '{rawType.FullName}' for {change.ChangeType}.",
-                            (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
-                    }
-                    else
-                    {
-                        targetSet.Remove(entity);
-                        messages.AppendLine(
-                            $"Performed {change.ChangeType} on {change.EntityName}");
                     }
                 }
             }
+            finally
+            {
 
-            LogEnvironment.LogDebugEvent(null, $"About to save changes.",
-                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
-            db.SaveChanges();
+                LogEnvironment.LogDebugEvent(null, $"About to save changes.",
+                    (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                db.SaveChanges();
+            }
         }
 
         private static Dictionary<string, object> BuildRawKey(DbContext db, Change change, Action<Dictionary<string,object>> extendVariables)

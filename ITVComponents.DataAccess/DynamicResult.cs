@@ -14,8 +14,7 @@ using ITVComponents.DataAccess.Resources;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
+using SkiaSharp;
 using TypeConverter = ITVComponents.TypeConversion.TypeConverter;
 
 namespace ITVComponents.DataAccess
@@ -382,7 +381,7 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
                     {
                         v= new object();
                     }
-                    else if (value is SixLabors.ImageSharp.Image)
+                    else if (value is SKImage)
                     {
                         v = new byte[0];
                     }
@@ -399,10 +398,10 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
                 {
                     if (!t.IsAssignableFrom(value.GetType()) && !(value is DynamicResult) && !(value is SmartProperty))
                     {
-                        if (value is Image img && t == typeof(byte[]))
+                        if (value is SKImage img && t == typeof(byte[]))
                         {
                             MemoryStream mst = new MemoryStream();
-                            img.Save(mst, new PngEncoder());
+                            img.Encode(SKEncodedImageFormat.Png,60).SaveTo(mst);
                             mst.Close();
                             value = mst.ToArray();
                         }
@@ -541,9 +540,9 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
             object v = values[name /*.ToUpper()*/];
             if (v.GetType() != type && !(v is DBNull))
             {
-                if (v.GetType() == typeof(byte[]) && typeof(SixLabors.ImageSharp.Image).IsAssignableFrom(type))
+                if (v is byte[] barr && typeof(SKImage).IsAssignableFrom(type))
                 {
-                    v = Image.Load(v as byte[]);
+                    v = SKImage.FromEncodedData(SKData.Create(new MemoryStream(barr)));
                 }
                 else
                 if (v is DynamicResult)

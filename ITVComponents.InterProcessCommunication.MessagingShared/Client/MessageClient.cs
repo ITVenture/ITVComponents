@@ -10,6 +10,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Base;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.Threading;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 {
@@ -85,7 +86,9 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
                     AuthenticatedUser = identityProvider?.CurrentIdentity
                 };
 
-                var response = TestMessage<ObjectAvailabilityResponseMessage>(connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(msg, true))).ConfigureAwait(false).GetAwaiter().GetResult();
+                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(msg, true));
+                var response = TestMessage<ObjectAvailabilityResponseMessage>(tk).ConfigureAwait(false).GetAwaiter()
+                    .GetResult();
                 return new ObjectAvailabilityResult {Available = response.Available, Message = response.Message};
             }
 
@@ -105,11 +108,13 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
         {
             if (connected)
             {
-                return TestMessage<AbandonExtendedProxyResponseMessage>(connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(new AbandonExtendedProxyRequestMessage
-                {
-                    ObjectName = uniqueName,
-                    AuthenticatedUser = identityProvider?.CurrentIdentity
-                }, true))).ConfigureAwait(false).GetAwaiter().GetResult().Result;
+                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
+                    new AbandonExtendedProxyRequestMessage
+                    {
+                        ObjectName = uniqueName,
+                        AuthenticatedUser = identityProvider?.CurrentIdentity
+                    }, true));
+                return TestMessage<AbandonExtendedProxyResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult().Result;
             }
 
             throw new InterProcessException("Not connected!", null);
@@ -119,13 +124,15 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
         {
             if (connected)
             {
-                return TestMessage<GetPropertyResponseMessage>(connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(new GetPropertyRequestMessage
-                {
-                    TargetMethod = propertyName,
-                    TargetObject = uniqueName,
-                    MethodArguments = index,
-                    AuthenticatedUser = identityProvider?.CurrentIdentity
-                }, true))).ConfigureAwait(false).GetAwaiter().GetResult().Result;
+                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
+                    new GetPropertyRequestMessage
+                    {
+                        TargetMethod = propertyName,
+                        TargetObject = uniqueName,
+                        MethodArguments = index,
+                        AuthenticatedUser = identityProvider?.CurrentIdentity
+                    }, true));
+                return TestMessage<GetPropertyResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult().Result;
             }
 
             throw new InterProcessException("Not connected!", null);
@@ -135,14 +142,16 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
         {
             if (connected)
             {
-                var tmp = TestMessage<SetPropertyResponseMessage>(connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(new SetPropertyRequestMessage
-                {
-                    TargetMethod = propertyName,
-                    TargetObject = uniqueName,
-                    MethodArguments = index,
-                    Value = value,
-                    AuthenticatedUser = identityProvider?.CurrentIdentity
-                }, true))).ConfigureAwait(false).GetAwaiter().GetResult();
+                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
+                    new SetPropertyRequestMessage
+                    {
+                        TargetMethod = propertyName,
+                        TargetObject = uniqueName,
+                        MethodArguments = index,
+                        Value = value,
+                        AuthenticatedUser = identityProvider?.CurrentIdentity
+                    }, true));
+                var tmp = TestMessage<SetPropertyResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult();
                 if (!tmp.Ok)
                 {
                     throw new InterProcessException("Set-Property was not successful", null);
@@ -167,7 +176,14 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             {
                 try
                 {
-                    var ret = TestMessage<InvokeMethodResponseMessage>(connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(new InvokeMethodRequestMessage { MethodArguments = arguments, TargetMethod = methodName, TargetObject = uniqueName, AuthenticatedUser = identityProvider?.CurrentIdentity }, true))).ConfigureAwait(false).GetAwaiter().GetResult();
+                    var tk = connection.InvokeServiceAsync(targetService,
+                        JsonHelper.ToJsonStrongTyped(
+                            new InvokeMethodRequestMessage
+                            {
+                                MethodArguments = arguments, TargetMethod = methodName, TargetObject = uniqueName,
+                                AuthenticatedUser = identityProvider?.CurrentIdentity
+                            }, true));
+                    var ret = TestMessage<InvokeMethodResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult();
                     return new ExecutionResult
                     {
                         ActionName = methodName,
@@ -198,7 +214,14 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             {
                 try
                 {
-                    var ret = await TestMessage<InvokeMethodResponseMessage>(connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(new InvokeMethodRequestMessage { MethodArguments = arguments, TargetMethod = methodName, TargetObject = uniqueName, AuthenticatedUser = identityProvider?.CurrentIdentity }, true)));
+                    var tk = connection.InvokeServiceAsync(targetService,
+                        JsonHelper.ToJsonStrongTyped(
+                            new InvokeMethodRequestMessage
+                            {
+                                MethodArguments = arguments, TargetMethod = methodName, TargetObject = uniqueName,
+                                AuthenticatedUser = identityProvider?.CurrentIdentity
+                            }, true));
+                    var ret = await TestMessage<InvokeMethodResponseMessage>(tk);
                     return new ExecutionResult
                     {
                         ActionName = methodName,
@@ -231,13 +254,15 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             if (connected)
             {
                 LogEnvironment.LogEvent($@"Subscribe {eventName} on {UniqueName} for {connection.ServiceName}. TargetService: {targetService}", LogSeverity.Report);
-                var ret = TestMessage<RegisterEventResponseMessage>(connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(new RegisterEventRequestMessage
-                {
-                    TargetObject = uniqueName,
-                    EventName = eventName,
-                    RespondChannel = connection.ServiceName,
-                    AuthenticatedUser = identityProvider?.CurrentIdentity
-                }, true))).ConfigureAwait(false).GetAwaiter().GetResult();
+                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
+                    new RegisterEventRequestMessage
+                    {
+                        TargetObject = uniqueName,
+                        EventName = eventName,
+                        RespondChannel = connection.ServiceName,
+                        AuthenticatedUser = identityProvider?.CurrentIdentity
+                    }, true));
+                var ret = TestMessage<RegisterEventResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult();
                 if (!ret.Ok)
                 {
                     throw new InterProcessException("Register-Event was not successful", null);
@@ -263,13 +288,15 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
             if (connected)
             {
-                var ret = TestMessage<UnRegisterEventResponseMessage>(connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(new UnRegisterEventRequestMessage
-                {
-                    TargetObject = uniqueName,
-                    EventName = eventName,
-                    RespondChannel = connection.ServiceName,
-                    AuthenticatedUser = identityProvider?.CurrentIdentity
-                }, true))).ConfigureAwait(false).GetAwaiter().GetResult();
+                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
+                    new UnRegisterEventRequestMessage
+                    {
+                        TargetObject = uniqueName,
+                        EventName = eventName,
+                        RespondChannel = connection.ServiceName,
+                        AuthenticatedUser = identityProvider?.CurrentIdentity
+                    }, true));
+                var ret = TestMessage<UnRegisterEventResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult();
                 if (!ret.Ok)
                 {
                     throw new InterProcessException("Un-Register-Event was not successful", null);
@@ -421,7 +448,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             string message = null;
             try
             {
-                message = await msgFunc;
+                message = await msgFunc.ConfigureAwait(false);
                 tmp = JsonHelper.FromJsonStringStrongTyped<object>(message, true);
                 var ret = tmp as TExpectedType;
                 if (tmp != null && ret != null)

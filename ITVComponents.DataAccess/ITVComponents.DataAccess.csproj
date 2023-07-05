@@ -2,9 +2,9 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.7-PRE007</Version>
+    <Version>3.0.7-PRE011</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ITVenture/IT-Venture-Core-Libraries</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
@@ -15,8 +15,7 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <!--PackageReference Include="System.Drawing.Common" Version="6.0.0" /-->
-    <PackageReference Include="SixLabors.ImageSharp" version="3.0.0" />
+    <PackageReference Include="SkiaSharp" version="2.88.3" />
   </ItemGroup>
   <ItemGroup>
     <!-- Resources -->
