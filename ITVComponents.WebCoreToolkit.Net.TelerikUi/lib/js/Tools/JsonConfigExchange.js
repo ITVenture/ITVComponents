@@ -26,7 +26,7 @@
             tab.html("");
             var idSeed = Math.floor(Math.random() * 4500);
             if (comparer.idExtension !== null) {
-                idSeed = "".concat(idSeed).concat(comparer.idExtension);
+                idSeed = "".concat(idSeed).concat("_").concat(comparer.idExtension);
             }
             var checkSeed = "check_".concat(idSeed);
             var tableSeed = "detTab_".concat(idSeed);

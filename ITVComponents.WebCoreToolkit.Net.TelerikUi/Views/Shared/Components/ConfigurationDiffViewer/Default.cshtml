@@ -73,7 +73,7 @@
     var idExtension = "@HttpUtility.JavaScriptStringEncode(idExtension)";
     var resultTab = "@HttpUtility.JavaScriptStringEncode(resultTab)";
     var resultCallback = @callback;
-    @targetDecl = ITVenture.Tools.JSonCfgExchange(postTarget, idExtension, resultTab, resultCallback);
+    @(targetDecl) = ITVenture.Tools.JSonCfgExchange(postTarget, idExtension, resultTab, resultCallback);
 </script>
 <div purpose='Upload' id='@uploaderDivId' nameTarget='@uploaderDivId' uploadModule='@uploaderModuleName' uploadReason='@reason' class='dropzone dropzone-flexi' style="position:relative;height:100px;width:70%;" uploadHint="@(target).GetUploadHint(@uploadCallback)"></div>
 
@@ -98,7 +98,7 @@
     </tbody>
 </table>
 
-@Html.Kendo().Button().Name("ApplyChanges").Content("Anwenden").Events(c => c.Click($"{target}.ApplyConfigChanges")).SpriteCssClass("fad fa-share-all")
+@Html.Kendo().Button().Name($"ApplyChanges{idExtension}").Content("Anwenden").Events(c => c.Click($"{target}.ApplyConfigChanges")).SpriteCssClass("fad fa-share-all")
 
 <script>
     ITVenture.Tools.Uploader.prepareUploadRegion({
