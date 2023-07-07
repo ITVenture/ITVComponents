@@ -5,11 +5,12 @@ using System.Text;
 using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core.Native;
+using ITVComponents.Threading;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.EFRepo.DataSync
 {
-    public abstract class ConfigurationHandlerBase:IPlugin, IConfigurationHandler
+    public abstract class ConfigurationHandlerBase: IConfigurationHandler, IDeferredInit
     {
         /// <summary>
         /// Holds all current changes in a list
@@ -26,11 +27,30 @@ namespace ITVComponents.EFRepo.DataSync
         public string UniqueName { get; set; }
 
         /// <summary>
+        /// Indicates whether this deferrable init-object is already initialized
+        /// </summary>
+        public bool Initialized { get; private set; }
+
+        /// <summary>
+        /// Indicates whether this Object requires immediate Initialization right after calling the constructor
+        /// </summary>
+        public bool ForceImmediateInitialization => true;
+
+        /// <summary>
         /// Provides a list of Permissions that a user must have any of, to perform a specific task
         /// </summary>
         /// <param name="reason">the reason why this component is being invoked</param>
         /// <returns>a list of required permissions</returns>
         public abstract string[] PermissionsForReason(string reason);
+
+        /// <summary>
+        /// Initializes this deferred initializable object
+        /// </summary>
+        public void Initialize()
+        {
+            RunInit();
+            Initialized = true;
+        }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
@@ -149,7 +169,6 @@ namespace ITVComponents.EFRepo.DataSync
         protected string MakeLinqQuery<TContext>(string sourceEntity, string filterProperty, string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null, string filterValueVariable = "Value")
             where TContext:DbContext
         {
-            NativeScriptHelper.SetAutoReferences($"SysQry{UniqueName}", true);
             if (!string.IsNullOrEmpty(additionalWhere))
             {
                 additionalWhere = additionalWhere.Replace(@"""", @"""""");
@@ -162,6 +181,14 @@ namespace ITVComponents.EFRepo.DataSync
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         protected virtual void Dispose(bool disposing)
         {
+        }
+
+        /// <summary>
+        /// Enables derived classes to perform custom initialization tasks
+        /// </summary>
+        protected virtual void RunInit()
+        {
+            NativeScriptHelper.SetAutoReferences($"SysQry{UniqueName}", true);
         }
 
         /// <summary>

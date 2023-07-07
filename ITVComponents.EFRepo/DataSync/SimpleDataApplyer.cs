@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.EFRepo.Expressions;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Helpers;
+using ITVComponents.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
@@ -20,6 +22,10 @@ namespace ITVComponents.EFRepo.DataSync
         public static void ApplyData(this DbContext db, Change[] changes, StringBuilder messages, Action<string, Dictionary<string,object>> extendQuery,
             Action<Dictionary<string, object>> extendQueryVariables)
         {
+            Dictionary<string, int> inserts = new Dictionary<string, int>();
+            Dictionary<string, int> deletes = new Dictionary<string, int>();
+            Dictionary<string, int> updates = new Dictionary<string, int>();
+            Dictionary<string, int> modifications = new Dictionary<string, int>();
             try
             {
                 foreach (var change in changes.Where(n => n.Apply))
@@ -59,20 +65,16 @@ namespace ITVComponents.EFRepo.DataSync
                     switch (change.ChangeType)
                     {
                         case ChangeType.Insert:
-                            LogEnvironment.LogDebugEvent(null, $"Creating new instance of Type '{rawType.FullName}'.",
-                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            inserts.AddOrUpdate(change.EntityName, 1, n => n.Value + 1);
                             entity = targetSet.New();
                             break;
                         case ChangeType.Update:
                         {
                             var rawQuery = BuildRawKey(db, change, extendQueryVariables);
-                            LogEnvironment.LogDebugEvent(null,
-                                $"Querying Record of type '{rawType.FullName}' with the following Arguments:\r\n{JsonHelper.ToJson(rawQuery)}.",
-                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                             extendQuery?.Invoke(change.EntityName, rawQuery);
                             entity = targetSet.FindWithQuery(rawQuery, false);
                             var id = targetSet.GetIndex(entity);
-                            messages.AppendLine($"Fetched record {id} of {change.EntityName} for {change.ChangeType}.");
+                            updates.AddOrUpdate(change.EntityName, 1, n => n.Value + 1);
                             LogEnvironment.LogDebugEvent(null,
                                 $"Fetched record {id} of Type '{rawType.FullName}' for {change.ChangeType}.",
                                 (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
@@ -81,16 +83,12 @@ namespace ITVComponents.EFRepo.DataSync
                         case ChangeType.Delete:
                         {
                             var rawQuery = BuildRawKey(db, change, extendQueryVariables);
-                            LogEnvironment.LogDebugEvent(null,
-                                $"Querying Record of type '{rawType.FullName}' with the following Arguments:\r\n{JsonHelper.ToJson(rawQuery)}.",
-                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                             extendQuery?.Invoke(change.EntityName, rawQuery);
                             entity = targetSet.FindWithQuery(rawQuery, true);
                             if (entity != null)
                             {
                                 var id = targetSet.GetIndex(entity);
-                                messages.AppendLine(
-                                    $"Fetched record {id} of {change.EntityName} for {change.ChangeType}.");
+                                deletes.AddOrUpdate(change.EntityName, 1, n => n.Value + 1);
                                 LogEnvironment.LogDebugEvent(null,
                                     $"Fetched record {id} of Type '{rawType.FullName}' for {change.ChangeType}.",
                                     (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
@@ -125,9 +123,6 @@ namespace ITVComponents.EFRepo.DataSync
                                 var xp = string.IsNullOrEmpty(detail.ValueExpression)
                                     ? $"Entity.{detail.TargetProp}=ChangeType(NewValueRaw,Type)"
                                     : detail.ValueExpression;
-                                LogEnvironment.LogDebugEvent(null,
-                                    $"Executing the following expression: {xp}.",
-                                    (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                                 try
                                 {
                                     ExpressionParser.Parse(xp, BuildContext(
@@ -142,7 +137,8 @@ namespace ITVComponents.EFRepo.DataSync
                                 catch (Exception ex)
                                 {
                                     LogEnvironment.LogDebugEvent(null,
-                                        $"Assignment-Expression failed!. ({ex.OutlineException()})",
+                                        $@"Assignment-Expression failed!. ({ex.OutlineException()})
+Expression: {xp}",
                                         (int)LogSeverity.Error, "EFRepo:SimpleDataApplyer");
                                     throw;
                                 }
@@ -152,23 +148,18 @@ namespace ITVComponents.EFRepo.DataSync
                             {
                                 targetSet.Add(entity);
                             }
-                            else
+                            else if (change.ChangeType == ChangeType.Insert)
                             {
                                 messages.AppendLine(
                                     $"An Insert of an entity with no properties was ignored ({change.EntityName}.");
                             }
 
-                            messages.AppendLine(
-                                $"Performed {change.ChangeType} on {change.EntityName} with {change.Details.Count} values");
-                            LogEnvironment.LogDebugEvent(null,
-                                $"{change.Details.Count} Updates were performed on Instance of Type '{rawType.FullName}' for {change.ChangeType}.",
-                                (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
+                            modifications.AddOrUpdate(change.EntityName, change.Details.Count,
+                                n => n.Value + change.Details.Count);
                         }
                         else
                         {
                             targetSet.Remove(entity);
-                            messages.AppendLine(
-                                $"Performed {change.ChangeType} on {change.EntityName}");
                         }
                     }
                 }
@@ -176,9 +167,27 @@ namespace ITVComponents.EFRepo.DataSync
             finally
             {
 
-                LogEnvironment.LogDebugEvent(null, $"About to save changes.",
-                    (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                 db.SaveChanges();
+            }
+
+            foreach (var insert in inserts)
+            {
+                messages.AppendLine($"Inserted {insert.Value} Rows on Entity {insert.Key}");
+            }
+
+            foreach (var update in updates)
+            {
+                messages.AppendLine($"Updated {update.Value} Rows on Entity {update.Key}");
+            }
+
+            foreach (var delete in deletes)
+            {
+                messages.AppendLine($"Deleted {delete.Value} Rows on Entity {delete.Key}");
+            }
+
+            foreach (var modification in modifications)
+            {
+                messages.AppendLine($"{modification.Value} values were updated on Entity {modification.Key} in total");
             }
         }
 
