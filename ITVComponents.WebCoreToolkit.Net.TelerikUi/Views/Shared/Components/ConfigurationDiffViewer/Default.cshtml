@@ -73,7 +73,7 @@
     var idExtension = "@HttpUtility.JavaScriptStringEncode(idExtension)";
     var resultTab = "@HttpUtility.JavaScriptStringEncode(resultTab)";
     var resultCallback = @callback;
-    @(targetDecl) = ITVenture.Tools.JSonCfgExchange(postTarget, idExtension, resultTab, resultCallback);
+    @(Html.Raw(targetDecl)) = ITVenture.Tools.JSonCfgExchange(postTarget, idExtension, resultTab, resultCallback);
 </script>
 <div purpose='Upload' id='@uploaderDivId' nameTarget='@uploaderDivId' uploadModule='@uploaderModuleName' uploadReason='@reason' class='dropzone dropzone-flexi' style="position:relative;height:100px;width:70%;" uploadHint="@(target).GetUploadHint(@uploadCallback)"></div>
 
@@ -102,6 +102,6 @@
 
 <script>
     ITVenture.Tools.Uploader.prepareUploadRegion({
-        "@uploaderDivId": @(target).ProcessDifferences
+        "@uploaderDivId": @(Html.Raw(target)).ProcessDifferences
     });
 </script>

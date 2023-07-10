@@ -11,6 +11,7 @@
         resultTab: resultTab,
         postTarget: postTarget,
         enrichPostObj: resultCallback,
+        tableId:null,
         GetUploadHint: function(cbOrString) {
             if (typeof cbOrString === "function") {
                 var ag = arguments.slice(1);
@@ -48,9 +49,9 @@
                         .concat("'></table></td></tr>");
                     tab.append(row);
                     if (item.Details.length !== 0) {
-                        var id = "#".concat(tableSeed).concat("_").concat(i);
+                        comparer.tableId = "#".concat(tableSeed).concat("_").concat(i);
                         var cid = "#".concat(checkSeed).concat("_").concat(i);
-                        var detTab = $(id);
+                        var detTab = $(comparer.tableId);
                         comparer.BuildDetails(detTab, item.Details, idSeed, i);
                         $(cid).on("change", comparer.parentCheckChanged);
                     }
@@ -129,8 +130,8 @@
                 $(e).prop("checked", $(that).prop("checked"));
             });
         },
-        ApplyConfigChanges: function() {
-            var allControls = $("[jccMode='dyn']");
+        ApplyConfigChanges: function () {
+            var allControls = $(comparer.tableId).find("[jccMode='dyn']");
             allControls.each(function(i, e) {
                 var ctl = $(e);
                 var tp = ctl.attr("jcctype");
