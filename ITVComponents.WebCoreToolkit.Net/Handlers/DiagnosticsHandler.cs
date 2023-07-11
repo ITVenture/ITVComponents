@@ -46,7 +46,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
 
             var queryArg = new Dictionary<string, string>(context.Request.Query.Select(n =>
                 new KeyValuePair<string, string>(n.Key, Tools.TranslateValue(n.Value.ToString(), contextObj))));
-            if (string.IsNullOrEmpty(fileHandler) || !Regex.IsMatch("^\\w+$",fileHandler))
+            if (string.IsNullOrEmpty(fileHandler) || !Regex.IsMatch(fileHandler, "^\\w+$"))
             {
                 var dbContext = context.RequestServices.ContextForDiagnosticsQuery(diagnosticsQueryName, area, out var diagQuery);
                 if (dbContext != null)
