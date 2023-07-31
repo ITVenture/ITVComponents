@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Principal;
 using System.Text;
 using ITVComponents.EFRepo.DataSync.Models;
@@ -16,6 +17,8 @@ namespace ITVComponents.EFRepo.DataSync
         /// Holds all current changes in a list
         /// </summary>
         private List<Change> changes = new List<Change>();
+
+        private List<Change> deletes = new List<Change>();
 
         protected ConfigurationHandlerBase()
         {
@@ -72,12 +75,13 @@ namespace ITVComponents.EFRepo.DataSync
             try
             {
                 PerformCompareInternal(name, fileType, content, uploadingIdentity);
-                var retVal = changes.ToArray();
+                var retVal = changes.Concat(deletes.OrderBy(n => n.DeletePriority)).ToArray();
                 return retVal;
             }
             finally
             {
                 changes.Clear();
+                deletes.Clear();
             }
         }
 
@@ -142,7 +146,7 @@ namespace ITVComponents.EFRepo.DataSync
             }
 
             return
-                @$"Entity.{targetProperty} = (!'System.String'.IsNullOrEmpty(NewValueRaw))?`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? "NewValueRaw" : $"ChangeType(NewValueRaw,{scriptedFilterType})")}}}:null";
+                @$"Entity.{targetProperty} = (!'System.String'.IsNullOrEmpty(NewValueRaw))?`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? "NewValueRaw" : $"ChangeType(NewValueRaw,{scriptedFilterType})")}}}:null";
         }
 
         /// <summary>
@@ -151,7 +155,14 @@ namespace ITVComponents.EFRepo.DataSync
         /// <param name="change">an object describing the differences of a specific record between two systems</param>
         protected void RegisterChange(Change change)
         {
-            changes.Add(change);
+            if (change.ChangeType != ChangeType.Delete || change.DeletePriority == -1)
+            {
+                changes.Add(change);
+            }
+            else
+            {
+                deletes.Add(change);
+            }
         }
 
 
@@ -174,7 +185,7 @@ namespace ITVComponents.EFRepo.DataSync
                 additionalWhere = additionalWhere.Replace(@"""", @"""""");
             }
 
-            return @$"`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? filterValueVariable : $"ChangeType({filterValueVariable},{scriptedFilterType})")}}}";
+            return @$"`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? filterValueVariable : $"ChangeType({filterValueVariable},{scriptedFilterType})")}}}";
         }
 
 

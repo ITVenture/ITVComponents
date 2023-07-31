@@ -69,7 +69,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             bool forExplicitTenants = !string.IsNullOrEmpty(explicitTenantParam);
             ContextExtensions.Init();
             var tmp = builder.MapGet(
-                $"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}{(forAreas ? "/{area:exists}" : "")}/Diagnostics/{{diagnosticsQueryName:required}}/{{fileHandler:alpha}}",
+                $"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}{(forAreas ? "/{area:exists}" : "")}/Diagnostics/{{diagnosticsQueryName:required}}/{{fileHandler:alpha?}}",
                 DiagnosticsHandler.Process);
 
             if (withAuthorization)

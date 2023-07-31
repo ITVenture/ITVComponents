@@ -14,6 +14,7 @@ using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.ReflectionHelpers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 
 namespace ITVComponents.EFRepo.DataSync
 {
@@ -26,6 +27,7 @@ namespace ITVComponents.EFRepo.DataSync
             Dictionary<string, int> deletes = new Dictionary<string, int>();
             Dictionary<string, int> updates = new Dictionary<string, int>();
             Dictionary<string, int> modifications = new Dictionary<string, int>();
+            Dictionary<Type, IDbSet> typeSets = new Dictionary<Type, IDbSet>();
             try
             {
                 foreach (var change in changes.Where(n => n.Apply))
@@ -61,7 +63,7 @@ namespace ITVComponents.EFRepo.DataSync
                         throw new InvalidOperationException($"Unable to extract entity-type of {change.EntityName}.");
                     }
 
-                    targetSet = db.Set(rawType);
+                    targetSet = typeSets.GetOrInsert(rawType, db.Set);
                     switch (change.ChangeType)
                     {
                         case ChangeType.Insert:
@@ -166,7 +168,6 @@ Expression: {xp}",
             }
             finally
             {
-
                 db.SaveChanges();
             }
 

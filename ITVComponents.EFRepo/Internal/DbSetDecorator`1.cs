@@ -19,7 +19,9 @@ namespace ITVComponents.EFRepo.Internal
         public DbSetDecorator(DbSet<T> decorated)
         {
             this.decorated = decorated;
+
         }
+
         public EntityEntry Add(object entity)
         {
             return decorated.Add((T) entity);

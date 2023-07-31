@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.PowerShell.Commands.Internal;
 
 namespace ITVComponents.Extensions
 {
@@ -19,6 +20,19 @@ namespace ITVComponents.Extensions
             {
                 dictionary[key] = initialValue;
             }
+        }
+
+        public static TValue GetOrInsert<TKey, TValue>(this IDictionary<TKey, TValue> dictionary, TKey key,
+            Func<TKey, TValue> create)
+        {
+            if (dictionary.ContainsKey(key))
+            {
+                return dictionary[key];
+            }
+
+            TValue retVal = create(key);
+            dictionary.Add(key, retVal);
+            return retVal;
         }
     }
 }

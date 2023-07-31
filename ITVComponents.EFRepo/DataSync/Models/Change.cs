@@ -16,6 +16,8 @@ namespace ITVComponents.EFRepo.DataSync.Models
         public List<ChangeDetail> Details { get; set; } = new List<ChangeDetail>();
 
         public bool Apply { get; set; }
+
+        public int DeletePriority { get; set; } = -1;
     }
 
     public enum ChangeType

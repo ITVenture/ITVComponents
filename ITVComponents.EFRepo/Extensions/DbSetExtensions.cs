@@ -28,10 +28,46 @@ namespace ITVComponents.EFRepo.Extensions
         /// <typeparam name="T">the entity type</typeparam>
         /// <param name="dbset">the db-set on which to perform the search</param>
         /// <param name="condition">the condition to check on the entity</param>
+        /// <returns>the first fitting value or null</returns>
+        public static T LocalFirstOrDefault<T>(this DbSet<T> dbset, Expression<Func<T, bool>> condition,
+            bool useToArray) where T : class
+        {
+            if (useToArray)
+            {
+                return dbset.Local.ToArray().FirstOrDefault(condition.Compile(true)) ?? dbset.FirstOrDefault(condition);
+            }
+
+            return LocalFirstOrDefault(dbset, condition);
+        }
+
+        /// <summary>
+        /// Finds the first record that is either buffered or stored in the database, that fits the given criteria
+        /// </summary>
+        /// <typeparam name="T">the entity type</typeparam>
+        /// <param name="dbset">the db-set on which to perform the search</param>
+        /// <param name="condition">the condition to check on the entity</param>
         /// <returns>the first fitting value</returns>
         public static T LocalFirst<T>(this DbSet<T> dbset, Expression<Func<T, bool>> condition) where T : class
         {
             return dbset.Local.FirstOrDefault(condition.Compile(true)) ?? dbset.First(condition);
+        }
+
+        /// <summary>
+        /// Finds the first record that is either buffered or stored in the database, that fits the given criteria
+        /// </summary>
+        /// <typeparam name="T">the entity type</typeparam>
+        /// <param name="dbset">the db-set on which to perform the search</param>
+        /// <param name="condition">the condition to check on the entity</param>
+        /// <returns>the first fitting value</returns>
+        public static T LocalFirst<T>(this DbSet<T> dbset, Expression<Func<T, bool>> condition, bool useToArray)
+            where T : class
+        {
+            if (useToArray)
+            {
+                return dbset.Local.ToArray().FirstOrDefault(condition.Compile(true)) ?? dbset.First(condition);
+            }
+
+            return LocalFirst(dbset, condition);
         }
     }
 }
