@@ -72,6 +72,13 @@ namespace ITVComponents.Settings.Native
             return Configuration.GetSection(path, configureDefaults);
         }
 
+        public static string ReadSection(string path)
+        {
+            return configuration.GetSection(path).Value;
+        }
+
+
+
         private static void ConfigReload(object obj)
         {
             LogEnvironment.LogDebugEvent("Native-Settings reload occurred.", LogSeverity.Report);

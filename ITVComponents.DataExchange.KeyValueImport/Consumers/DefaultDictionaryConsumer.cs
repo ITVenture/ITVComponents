@@ -36,7 +36,7 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
         /// <summary>
         /// If AutoMap is enabled, this dictionary contains the current mapping
         /// </summary>
-        private Dictionary<string, string> autoMap = new Dictionary<string, string>();
+        private Dictionary<string, List<string>> autoMap = new Dictionary<string, List<string>>();
 
         /// <summary>
         /// Initializes a new instance of the DefaultKeyValueConsumer class
@@ -149,7 +149,7 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
                 {
                     if (!CheckFirstLine(data))
                     {
-                        foreach (KeyValuePair<string, string> item in autoMap)
+                        foreach (KeyValuePair<string, List<string>> item in autoMap)
                         {
                             TValue vl = default(TValue);
                             if (data.ContainsKey(item.Key))
@@ -157,7 +157,11 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
                                 vl = data[item.Key];
                             }
 
-                            SetValueOfColumn(item.Value, vl);
+                            foreach (var outKey in item.Value)
+                            {
+                                SetValueOfColumn(outKey, vl);
+                            }
+
                             acceptedKeys.Add(item.Key);
                         }
 
@@ -225,38 +229,43 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
                         string name = GetStringValueOfItem(data[column]);
                         if (name != null)
                         {
-                            foreach (SubstitutionRule rule in ColumnNameSubstitutionRules)
+                            autoMap.Add(column, new List<string>());
+                            var globalSubst = ColumnNameSubstitutionRules.Where(n => string.IsNullOrEmpty(n.GroupTag)).ToArray();
+                            name = ProcessRuleSet(globalSubst, name);
+                            var groupedSubst = (from t in ColumnNameSubstitutionRules
+                                where !string.IsNullOrEmpty(t.GroupTag)
+                                group t by t.GroupTag
+                                into g
+                                select g).ToArray();
+                            if (groupedSubst.Length != 0)
                             {
-                                name = Regex.Replace(name, rule.RegexPattern, rule.ReplaceValue, rule.RegexOptions);
-                                if (!string.IsNullOrEmpty(rule.ReplaceValue))
+                                foreach (var g in groupedSubst)
                                 {
-                                    while(name.StartsWith(rule.ReplaceValue))
+                                    var n = ProcessRuleSet(g, name);
+                                    if (!nameHelper.Contains(n))
                                     {
-                                        name = name.Substring(1);
-                                    }
-
-                                    while (name.EndsWith(rule.ReplaceValue))
-                                    {
-                                        name = name.Substring(0, name.Length - 1);
+                                        autoMap[column].Add(n);
+                                        nameHelper.Add(n);
                                     }
                                 }
                             }
-
-                            if (nameHelper.Contains(name))
+                            else
                             {
-                                int id = 1;
-                                string repName = $"{name}{id}";
-                                while (nameHelper.Contains(repName))
+                                if (nameHelper.Contains(name))
                                 {
-                                    id++;
-                                    repName = $"{name}{id}";
+                                    int id = 1;
+                                    string repName = $"{name}{id}";
+                                    while (nameHelper.Contains(repName))
+                                    {
+                                        id++;
+                                        repName = $"{name}{id}";
+                                    }
+                                    name = repName;
                                 }
 
-                                name = repName;
+                                autoMap[column].Add(name);
+                                nameHelper.Add(name);
                             }
-
-                            autoMap.Add(column, name);
-                            nameHelper.Add(name);
                         }
                     }
                 }
@@ -265,6 +274,26 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
             return retVal;
         }
 
+        private string ProcessRuleSet(IEnumerable<SubstitutionRule> substitutionSet, string name)
+        {
+            var retVal = name;
+            foreach (SubstitutionRule rule in substitutionSet)
+            {
+                retVal = Regex.Replace(retVal, rule.RegexPattern, rule.ReplaceValue, rule.RegexOptions);
+                if (!string.IsNullOrEmpty(rule.ReplaceValue))
+                {
+                    while (retVal.StartsWith(rule.ReplaceValue))
+                    {
+                        retVal = retVal.Substring(1);
+                    }
+                    while (retVal.EndsWith(rule.ReplaceValue))
+                    {
+                        retVal = retVal.Substring(0, retVal.Length - 1);
+                    }
+                }
+            }
+            return retVal;
+        }
         #endregion
     }
 }

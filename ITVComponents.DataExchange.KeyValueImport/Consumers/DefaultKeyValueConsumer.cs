@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Mail;
 using System.Text.RegularExpressions;
 using ITVComponents.DataAccess;
@@ -33,7 +34,7 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
         /// <summary>
         /// If AutoMap is enabled, this dictionary contains the current mapping
         /// </summary>
-        private Dictionary<string, string> autoMap = new Dictionary<string, string>();
+        private Dictionary<string, List<string>> autoMap = new Dictionary<string, List<string>>();
 
         /// <summary>
         /// Initializes a new instance of the DefaultKeyValueConsumer class
@@ -71,14 +72,14 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether to force columnnames to be alphanumeric only (so, all non-alphanumeric characters are removed). This Setting is only applied when using ColumnMode.FromFirstLine
-        /// </summary>
-        public bool ForceAlphanumericColumnNames { get; set; } = false;
-
-        /// <summary>
         /// Gets a value indicating whether to flush the current headers and re-evaluate them using the provided data-set
         /// </summary>
         public IDecider<ColumnReEvaluationData> ReEvaluateHeaders { get; } = new SimpleDecider<ColumnReEvaluationData>(true);
+
+        /// <summary>
+        /// Gets a list of Substitution rules that is applied to every columnName
+        /// </summary>
+        public IList<SubstitutionRule> ColumnNameSubstitutionRules { get; } = new List<SubstitutionRule>();
 
         #region Overrides of ImportConsumerBase<IBasicKeyValueProvider,KeyValueAcceptanceCallbackParameter>
 
@@ -125,9 +126,19 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
                 {
                     if (!CheckFirstLine(data))
                     {
-                        foreach (KeyValuePair<string, string> item in autoMap)
+                        foreach (KeyValuePair<string, List<string>> item in autoMap)
                         {
-                            SetValueOfColumn(item.Value, data[item.Key]);
+                            object vl = default(object);
+                            if (data.ContainsKey(item.Key))
+                            {
+                                vl = data[item.Key];
+                            }
+
+                            foreach (var outKey in item.Value)
+                            {
+                                SetValueOfColumn(outKey, vl);
+                            }
+
                             acceptedKeys.Add(item.Key);
                         }
 
@@ -187,25 +198,54 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
             {
                 retVal = true;
                 autoMap.Clear();
+                HashSet<string> nameHelper = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (string column in data.Keys)
                 {
                     if (column != "$origin")
                     {
+                        
                         string name = $"{data[column]}";
                         if (!string.IsNullOrEmpty(name))
                         {
-                            if (Regex.IsMatch(name, @"^\d+$"))
+                            autoMap.Add(column, new List<string>());
+                            var globalSubst = ColumnNameSubstitutionRules.Where(n => string.IsNullOrEmpty(n.GroupTag))
+                                .ToArray();
+                            name = ProcessRuleSet(globalSubst, name);
+                            var groupedSubst = (from t in ColumnNameSubstitutionRules
+                                where !string.IsNullOrEmpty(t.GroupTag)
+                                group t by t.GroupTag
+                                into g
+                                select g).ToArray();
+                            if (groupedSubst.Length != 0)
                             {
-                                name = $"@{name}";
+                                foreach (var g in groupedSubst)
+                                {
+                                    var n = ProcessRuleSet(g, name);
+                                    if (!nameHelper.Contains(n))
+                                    {
+                                        autoMap[column].Add(n);
+                                        nameHelper.Add(n);
+                                    }
+                                }
                             }
-
-                            if (ForceAlphanumericColumnNames)
+                            else
                             {
-                                name =
-                                    Regex.Replace(name, @"[^\w_@]", "", RegexOptions.Singleline);
-                            }
+                                if (nameHelper.Contains(name))
+                                {
+                                    int id = 1;
+                                    string repName = $"{name}{id}";
+                                    while (nameHelper.Contains(repName))
+                                    {
+                                        id++;
+                                        repName = $"{name}{id}";
+                                    }
 
-                            autoMap.Add(column, name);
+                                    name = repName;
+                                }
+
+                                autoMap[column].Add(name);
+                                nameHelper.Add(name);
+                            }
                         }
                     }
                 }
@@ -215,6 +255,27 @@ namespace ITVComponents.DataExchange.KeyValueImport.Consumers
         }
 
         #endregion
+
+        private string ProcessRuleSet(IEnumerable<SubstitutionRule> substitutionSet, string name)
+        {
+            var retVal = name;
+            foreach (SubstitutionRule rule in substitutionSet)
+            {
+                retVal = Regex.Replace(retVal, rule.RegexPattern, rule.ReplaceValue, rule.RegexOptions);
+                if (!string.IsNullOrEmpty(rule.ReplaceValue))
+                {
+                    while (retVal.StartsWith(rule.ReplaceValue))
+                    {
+                        retVal = retVal.Substring(1);
+                    }
+                    while (retVal.EndsWith(rule.ReplaceValue))
+                    {
+                        retVal = retVal.Substring(0, retVal.Length - 1);
+                    }
+                }
+            }
+            return retVal;
+        }
     }
     
     public enum ColumnNameMode
