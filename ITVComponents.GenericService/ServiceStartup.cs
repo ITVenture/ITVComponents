@@ -12,10 +12,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.ExtendedFormatting;
+using ITVComponents.GenericService.Impl;
+using ITVComponents.GenericService.PluginLoader;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Config;
 using ITVComponents.Plugins.Helpers;
 using ITVComponents.Plugins.Initialization;
+using ITVComponents.Plugins.SingletonPattern;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,17 +34,17 @@ namespace ITVComponents.GenericService
         /// <summary>
         /// the loader object used to load the worker plugins
         /// </summary>
-        private PluginFactory pluginLoader;
-
-        /// <summary>
-        /// The ServiceHost that is running the local service
-        /// </summary>
-        private static IHost host;
+        private ISingletonFactory pluginLoader;
 
         /// <summary>
         /// Gets or sets a value indicating whether this Service is in the configuration mode
         /// </summary>
         protected bool Configure { get; set; }
+
+        /// <summary>
+        /// Gets the Startup-Object for the global ServiceStartup
+        /// </summary>
+        public static IHostStarter Startup { get; private set; }
 
         /// <summary>
         /// Initializes a new instance of the ServiceStartup class
@@ -54,36 +57,72 @@ namespace ITVComponents.GenericService
         {
             ServiceStartup srv = new ServiceStartup();
             srv.Configure = param.Action == RunAction.Configure;
-            srv.Init();
-            var builder = Host.CreateDefaultBuilder().ConfigureServices((hostContext, services) =>
+            Startup = srv.Init();
+            Startup.ServiceCollection.AddSingleton<ISingletonFactory>(s =>
             {
-                services.AddHostedService(s => srv);
-                var cf = NativeSettings.Configuration.GetSection("HostOptions");
-                services.Configure<HostOptions>(cf.GetSection("HostOptions"));
+                var r = new PluginFactory(PluginInitializationPhase.SingletonStatic, false, s,
+                    new ConfigFilePluginLoader());
+                r.Start();
+                return r;
             });
-            configureBuilder(builder);
-            host = builder.Build();
+            Startup.ServiceCollection.AddScoped<IPluginFactory>(s =>
+            {
+                var sf = s.GetService<ISingletonFactory>();
+                var r = new PluginFactory(PluginInitializationPhase.ScopeStatic, false, s,sf,
+                    new ConfigFilePluginLoader());
+                return r; 
+
+            });
+            Startup.ServiceCollection.AddHostedService(s =>
+            {
+                srv.ServiceProvider = s;
+                return srv;
+            });
+
+            var cf = NativeSettings.Configuration.GetSection("HostOptions");
+            Startup.ServiceCollection.Configure<HostOptions>(cf.GetSection("HostOptions"));
+            if (configureBuilder != null)
+            {
+                Startup.WithHost(configureBuilder);
+            }
+            //configureBuilder(Startup.HostBuilder);
+
+
             if (param.Action == RunAction.Debug || (srv.Configure && param.Run))
             {
-                host.RunAsync();
+                Startup.RunAsync(CancellationToken.None);
                 Console.ReadLine();
                 //host.StopAsync();
-                host.Dispose();
+                Startup.Shutdown();
             }
             else
             {
-                host.Run();
+                Startup.Run();
             }
         }
+
+        public IServiceProvider ServiceProvider { get; private set; }
 
         /// <summary>
         /// Performs further initialization on the service
         /// </summary>
-        protected virtual void Init()
+        protected virtual IHostStarter Init()
         {
-            pluginLoader = new PluginFactory(true, false, true, Configure);
+            IHostStarter retVal = null;
+            pluginLoader = new PluginFactory(PluginInitializationPhase.Startup,Configure, new ConfigFilePluginLoader());
             pluginLoader.AllowFactoryParameter = true;
+            if (string.IsNullOrEmpty(ServiceConfigHelper.ServiceStartup))
+            {
+                retVal = new DefaultHostStarter();
+                pluginLoader.RegisterObject("startup", retVal);
+            }
+            else
+            {
+                retVal = pluginLoader.LoadPlugin<IHostStarter>("startup", ServiceConfigHelper.ServiceStartup, null);
+            }
+
             pluginLoader.ImplementGenericType += ImplementGenericPlugIn;
+            return retVal;
         }
 
         /// <summary>
@@ -131,16 +170,13 @@ namespace ITVComponents.GenericService
         /// </summary>
         private void SetupWorkers()
         {
-            foreach (PluginConfigurationItem pi in ServiceConfigHelper.PlugIns)
+            /*foreach (PluginConfigurationItem pi in ServiceConfigHelper.PlugIns.Where(n => n.InitializationPhase == PluginInitializationPhase.Singleton && !n.Disabled))
             {
-                if (!pi.Disabled)
-                {
-                    pluginLoader.LoadPlugin<IPlugin>(pi.Name, pi.ConstructionString);
-                }
-            }
+                pluginLoader.LoadPlugin<IPlugin>(pi.Name, pi.ConstructionString);
+            }*/
 
-            pluginLoader.LoadDynamics();
-            pluginLoader.InitializeDeferrables(ServiceConfigHelper.PlugIns.Where(n => !n.Disabled).Select(n => n.Name).ToArray());
+            pluginLoader.Start();
+            pluginLoader.InitializeDeferrables();
         }
 
         private void ImplementGenericPlugIn(object sender, ImplementGenericTypeEventArgs e)

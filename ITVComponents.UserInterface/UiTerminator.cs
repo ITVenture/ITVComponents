@@ -11,7 +11,12 @@ namespace ITVComponents.UserInterface
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
-        public string UniqueName { get; set; }
+        public string Name { get; }
+
+        public UiTerminator(string name)
+        {
+            Name = name;
+        }
 
         /// <summary>
         /// Gets the default UI of this UI - Element
@@ -20,28 +25,5 @@ namespace ITVComponents.UserInterface
         {
             return null;
         }
-
-        /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        private void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

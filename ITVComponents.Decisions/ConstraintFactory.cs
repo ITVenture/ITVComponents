@@ -15,7 +15,7 @@ namespace ITVComponents.Decisions
         /// <summary>
         /// The PluginFactory that is used request other plugins 
         /// </summary>
-        private readonly PluginFactory factory;
+        private readonly IPluginFactory factory;
 
         /// <summary>
         /// Holds a list of registered constructors
@@ -31,20 +31,15 @@ namespace ITVComponents.Decisions
         /// Initializes a new instance of the ConstraintFactory class
         /// </summary>
         /// <param name="factory">the pluginfactory that is used to request other plugins that are used for Constraint construction</param>
-        public ConstraintFactory(PluginFactory factory)
+        public ConstraintFactory(IPluginFactory factory)
         {
             this.factory = factory;
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Gets the PluginFactory that is attached to this ConstraintFactory
         /// </summary>
-        protected PluginFactory Factory => factory;
+        protected IPluginFactory Factory => factory;
 
         /// <summary>
         /// Registers a constructor in this factory
@@ -164,11 +159,11 @@ namespace ITVComponents.Decisions
                     if (pival.StartsWith("$") && !pival.StartsWith("$$"))
                     {
                         pival = pival.Substring(1);
-                        tmp = factory[pival, true];
-                        if (tmp == null)
+                        tmp = factory[pival];
+                        /*if (tmp == null)
                         {
                             tmp = factory.GetRegisteredObject(pival);
-                        }
+                        }*/
                     }
                 }
 

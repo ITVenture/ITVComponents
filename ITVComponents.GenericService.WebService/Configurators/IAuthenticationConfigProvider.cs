@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 
 namespace ITVComponents.GenericService.WebService.Configurators
 {
-    public interface IAuthenticationConfigProvider: IPlugin
+    public interface IAuthenticationConfigProvider
     {
         /// <summary>
         /// Configures the shared default of the Authentication builder

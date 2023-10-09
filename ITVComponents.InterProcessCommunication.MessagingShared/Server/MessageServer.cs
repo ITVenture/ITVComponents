@@ -24,7 +24,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
         private Timer reconnector;
         private object reconnLock = new object();
 
-        public MessageServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(factory, useExtendedProxying, useSecurity, security)
+        public MessageServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(factory, useExtendedProxying, useSecurity, security)
         {
             hubClient = new LocalServiceHubConsumer(serviceName, serviceHub, null, security);
             hubClient.MessageArrived += ClientInvokation;
@@ -36,15 +36,15 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
             hubClient.MessageArrived += ClientInvokation;
         }
 
-        public MessageServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName):this(serviceHub, factory, serviceName, false,false,null)
+        public MessageServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName):this(serviceHub, factory, serviceName, false,false,null)
         {
         }
 
-        public MessageServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName, bool useExtendedProxying):this(serviceHub, factory, serviceName, useExtendedProxying,false,null)
+        public MessageServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName, bool useExtendedProxying):this(serviceHub, factory, serviceName, useExtendedProxying,false,null)
         {
         }
 
-        public MessageServer(IHubConnectionFactory hubFactory, PluginFactory factory, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(factory, useExtendedProxying, useSecurity, security)
+        public MessageServer(IHubConnectionFactory hubFactory, IPluginFactory factory, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(factory, useExtendedProxying, useSecurity, security)
         {
             this.hubFactory = hubFactory;
             reconnector = new Timer(TryReconnect, null, Timeout.Infinite, Timeout.Infinite);

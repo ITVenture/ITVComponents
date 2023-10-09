@@ -10,19 +10,15 @@ namespace ITVComponents.Plugins.ApplicationManagementServices
 {
     public class ApplicationStatistics : IStatisticsProvider
     {
+        public ApplicationStatistics(string uniqueName)
+        {
+            Name = uniqueName;
+        }
+
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
+        public string Name { get; }
 
         /// <summary>
         /// Instructs a IMetricsProvider Implementing object to start gathering System metrics
@@ -78,20 +74,6 @@ namespace ITVComponents.Plugins.ApplicationManagementServices
             retVal.Add("PeakVirtualMemorySize64", currentProc.PeakVirtualMemorySize64);
             return retVal;
         }
-
-        /// <summary>
-        /// Raises the Disposed event that is used by the factory
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
 
         /// <summary>
         /// Module Information for a loaded module

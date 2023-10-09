@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.Security
     /// <summary>
     /// Maps a physical user to one or multiple labels
     /// </summary>
-    public interface IUserNameMapper:IPlugin
+    public interface IUserNameMapper
     {
         /// <summary>
         /// Gets all labels for the given Identity

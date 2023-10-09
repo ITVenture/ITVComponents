@@ -14,10 +14,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
     {
         Dictionary<string, HealthScriptResult> Results { get; set; }
         string TargetTenant{ get; set; }
-        Func<string,IPlugin> GetPlugin { get; set; }
+        Func<string,object> GetPlugin { get; set; }
 
-        Func<FunctionLiteral, Action<IPlugin, HealthScriptResult>> Callback { get; set; }
-        Action<string, Action<IPlugin, HealthScriptResult>> TestPlugin { get; set; }
+        Func<FunctionLiteral, Action<object, HealthScriptResult>> Callback { get; set; }
+        Action<string, Action<object, HealthScriptResult>> TestPlugin { get; set; }
         IServices Services { get; set; }
         Type LogEnvironment { get; set; }
         Type LogSeverity { get; set; }

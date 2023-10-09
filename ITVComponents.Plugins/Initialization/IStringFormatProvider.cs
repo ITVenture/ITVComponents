@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Plugins.Initialization
 {
-    public interface IStringFormatProvider:IPlugin
+    public interface IStringFormatProvider
     {
         /// <summary>
         /// Processes a raw-string and uses it as format-string of the configured const-collection

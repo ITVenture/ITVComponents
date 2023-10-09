@@ -37,11 +37,6 @@ namespace ITVComponents.DataExchange
         private ThreadLocal<Func<string, object>> variableCallback = new ThreadLocal<Func<string, object>>();
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Collects data for a specific configuration name
         /// </summary>
         /// <param name="builderName">the name of the structure-Builder that is associated with this collector-job</param>
@@ -159,23 +154,13 @@ namespace ITVComponents.DataExchange
         }
 
         /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// Runs the specified query and registers the result in the defined targets
         /// </summary>
         /// <param name="query">the query that must added to some targets</param>
         private void RunQuery(QueryDefinition query)
         {
-            IDbWrapper db;
             DynamicResult[] data;
-            using (mappers[query.Source].AcquireDatabase(false, out db))
+            using (var db = mappers[query.Source].AcquireDatabase())
             {
                 List<IDbDataParameter> parameters = new List<IDbDataParameter>();
                 foreach (var param in query.Parameters)
@@ -220,12 +205,6 @@ namespace ITVComponents.DataExchange
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            OnDisposed();
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

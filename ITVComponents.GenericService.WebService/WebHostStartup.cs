@@ -3,16 +3,18 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.GenericService.WebService.Configurators;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace ITVComponents.GenericService.WebService
 {
-    public class WebHostStartup: IPlugin, IDeferredInit,IWebHostStartup
+    public class WebHostStartup: IDeferredInit,IWebHostStartup, IHostStarter
     {
         private bool ownsApp;
         private WebApplication app;
@@ -20,7 +22,6 @@ namespace ITVComponents.GenericService.WebService
         private readonly string hostAddresses;
         private readonly string basePath;
         private static WebHostStartup instance;
-        public string UniqueName { get; set; }
         public bool Initialized { get; private set; }
         public bool ForceImmediateInitialization => false;
 
@@ -62,7 +63,6 @@ namespace ITVComponents.GenericService.WebService
                     }
 
                     InitializeApp(app);
-                    app.RunAsync();
                 }
 
                 Initialized = true;
@@ -86,13 +86,6 @@ namespace ITVComponents.GenericService.WebService
             {
                 app?.StopAsync().GetAwaiter().GetResult();
             }
-
-            OnDisposed();
-        }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
         }
 
         private void SetDefaults()
@@ -109,6 +102,38 @@ namespace ITVComponents.GenericService.WebService
             }
         }
 
-        public event EventHandler Disposed;
+        public IHost Host { get; }
+        public IServiceCollection ServiceCollection => WebAppBuilder.Services;
+        public void ApplyServices(IServiceCollection services)
+        {
+            if (services != ServiceCollection)
+            {
+                foreach (var desc in services)
+                {
+                    ServiceCollection.Add(desc);
+                }
+            }
+        }
+
+        public void Run()
+        {
+            app.Run();
+        }
+
+        public Task RunAsync(CancellationToken cancellation)
+        {
+            return app.RunAsync();
+        }
+
+        public void Shutdown()
+        {
+            app?.StopAsync().GetAwaiter().GetResult();
+            app = null;
+        }
+
+        public void WithHost(Action<IHostBuilder> configureBuilder)
+        {
+            configureBuilder(WebAppBuilder.Host);
+        }
     }
 }

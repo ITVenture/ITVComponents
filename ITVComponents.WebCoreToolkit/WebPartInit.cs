@@ -57,7 +57,7 @@ namespace ITVComponents.WebCoreToolkit
                             var tp = (Type)ExpressionParser.Parse(opt.TypeExpression, dic);
                             if (tp != null && !string.IsNullOrEmpty(opt.FriendlyName))
                             {
-                                o.AddDependency(opt.FriendlyName, p => p.GetService(tp));
+                                o.AddDependency(opt.FriendlyName, tp);
                             }
                         }
                     });

@@ -10,7 +10,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
     /// <summary>
     /// Permission driven Security Validator for service objects
     /// </summary>
-    public abstract class ServiceSecurityValidatorBase:ICustomServerSecurity, IPlugin
+    public abstract class ServiceSecurityValidatorBase:ICustomServerSecurity
     {
         protected IFactoryWrapper factory;
 
@@ -24,11 +24,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
         {
             this.services = services;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Verifies access to a plugin for the specified identity
@@ -152,20 +147,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
             this.factory = factory;
         }
 
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
         /// <summary>
         /// Verifies the permissions of a user for a set of assigned HasPermission attributes
         /// </summary>
@@ -202,10 +183,5 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.PermissionBase
         /// <param name="effectivePermissions">provides a list of permissions that are granted to the authenticated user</param>
         /// <returns>a value whether the access can be granted</returns>
         protected abstract bool VerifyPermissionLabels(IIdentity userIdentity, string[] requiredPermissions, out string[] effectivePermissions);
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

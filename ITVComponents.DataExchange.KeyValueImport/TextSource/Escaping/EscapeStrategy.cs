@@ -8,7 +8,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.DataExchange.KeyValueImport.TextSource.Escaping
 {
-    public abstract class EscapeStrategy:IPlugin
+    public abstract class EscapeStrategy
     {
         /// <summary>
         /// Holds all initializes strategies
@@ -40,11 +40,6 @@ namespace ITVComponents.DataExchange.KeyValueImport.TextSource.Escaping
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Removes escape-characters from a string and returns the effective value
         /// </summary>
         /// <param name="raw">the raw-value of the string</param>
@@ -72,24 +67,10 @@ namespace ITVComponents.DataExchange.KeyValueImport.TextSource.Escaping
         /// </summary>
         public void Dispose()
         {
-            OnDisposed();
             if (availableStrategies.TryGetValue(name, out var me) && me == this)
             {
                 availableStrategies.TryRemove(name, out _);
             }
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

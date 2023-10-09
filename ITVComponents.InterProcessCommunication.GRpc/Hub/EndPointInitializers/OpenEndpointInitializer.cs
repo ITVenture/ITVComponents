@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
 {
-    public class OpenEndPointInitializer:IServiceHostConfigurator, IPlugin
+    public class OpenEndPointInitializer: IServiceHostConfigurator
     {
         /// <summary>
         /// Initializes a new instance of the OpenEndpointInitializer class
@@ -22,11 +22,6 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
         {
             parent.RegisterConfigurator(this);
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Configures the WebApplication builder (inject services, set defaults, etc.)
@@ -44,24 +39,5 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
         {
             app.MapGrpcService<OpenServiceHubRpc>();
         }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-        
-        /// <summary>
-        /// raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

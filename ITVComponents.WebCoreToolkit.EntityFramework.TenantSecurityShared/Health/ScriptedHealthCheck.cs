@@ -68,13 +68,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
                                     healthScript.HealthStatus = typeof(HealthStatus);
                                     healthScript.HealthScriptResult = typeof(HealthScriptResult);
                                     healthScript.Results = new Dictionary<string, HealthScriptResult>();
-                                    healthScript.GetPlugin = name => factory[name, true];
+                                    healthScript.GetPlugin = name => factory[name];
                                     healthScript.Services = new ServicesDecorator(services);
                                     healthScript.OverAllResult = HealthStatus.Healthy;
                                     healthScript.OverAllDescription = "OK";
                                     healthScript.Callback = f =>
-                                        (Action<IPlugin, HealthScriptResult>)f.CreateDelegate(
-                                            typeof(Action<IPlugin, HealthScriptResult>));
+                                        (Action<object, HealthScriptResult>)f.CreateDelegate(
+                                            typeof(Action<object, HealthScriptResult>));
                                     healthScript.TestPlugin = (name, testDetailFunc) =>
                                     {
                                         HealthScriptResult result = new HealthScriptResult
@@ -87,7 +87,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
                                         {
                                             if (healthScript.OverAllResult == HealthStatus.Healthy)
                                             {
-                                                var plug = factory[name, true];
+                                                var plug = factory[name];
                                                 testDetailFunc(plug, result);
                                             }
                                             else

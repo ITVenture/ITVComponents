@@ -9,7 +9,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
     /// <summary>
     /// Describes the functionality of a Scheduling manager object
     /// </summary>
-    public interface ISchedulingManager:IPlugin
+    public interface ISchedulingManager
     {
         /// <summary>
         /// Gets a list of available Schedulers

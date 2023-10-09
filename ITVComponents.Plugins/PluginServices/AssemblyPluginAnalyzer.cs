@@ -4,7 +4,7 @@ using System.Reflection;
 
 namespace ITVComponents.Plugins.PluginServices
 {
-    public class AssemblyPluginAnalyzer:ILoaderInterface, IPlugin
+    public class AssemblyPluginAnalyzer:ILoaderInterface, IDisposable
     {
         /// <summary>
         /// holds a list of a available plugins
@@ -15,7 +15,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// Initializes a new instance of the AssemblyPluginAnalyzerPlugin class
         /// </summary>
         /// <param name="factory">the plugin-factory that is used to load plugins</param>
-        public AssemblyPluginAnalyzer(PluginFactory factory)
+        public AssemblyPluginAnalyzer(IPluginFactory factory)
         {
             factory.PluginInitialized += PluginInitialized;
             factory.Disposed += FactoryGone;
@@ -23,17 +23,12 @@ namespace ITVComponents.Plugins.PluginServices
 
         private void FactoryGone(object? sender, EventArgs e)
         {
-            if (sender is PluginFactory factory)
+            if (sender is IPluginFactory factory)
             {
                 factory.PluginInitialized -= PluginInitialized;
                 factory.Disposed -= FactoryGone;
             }
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets a list of declared types in the given assembly
@@ -78,10 +73,9 @@ namespace ITVComponents.Plugins.PluginServices
         /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
         /// </summary>
         /// <filterpriority>2</filterpriority>
-        public void Dispose()
+        public virtual void Dispose()
         {
             availablePlugins.Clear();
-            OnDisposed();
         }
 
         /// <summary>
@@ -112,15 +106,6 @@ namespace ITVComponents.Plugins.PluginServices
         }
 
         /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// Adds the names of all loaded plugins to a list of plugins that can be used by other plugins that need to be initialized
         /// </summary>
         /// <param name="sender">the event-sender</param>
@@ -129,10 +114,5 @@ namespace ITVComponents.Plugins.PluginServices
         {
             availablePlugins.Add(e.PluginName);
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

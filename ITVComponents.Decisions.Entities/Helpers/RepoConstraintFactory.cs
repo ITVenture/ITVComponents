@@ -10,18 +10,17 @@ namespace ITVComponents.Decisions.Entities.Helpers
     /// </summary>
     public class RepoConstraintFactory:ConstraintFactory
     {
-        private IContextBuffer contextProvider;
+        private DbContext context;
 
         /// <summary>
         /// Initializes a new instance of the RepoConstraintFactory class
         /// </summary>
         /// <param name="contextProvider">the contextprovider object that enables this Factory to access the db using EntityFramework</param>
         /// <param name="factory">the pluginFactory that will provide custom plugins that are required in order to execute some constraints</param>
-        public RepoConstraintFactory(IContextBuffer contextProvider, PluginFactory factory) : base(factory)
+        public RepoConstraintFactory(DbContext context, IPluginFactory factory) : base(factory)
         {
-            this.contextProvider = contextProvider;
+            this.context = context;
             RefreshConstraints();
-            BackgroundRunner.AddPeriodicTask(RefreshConstraints, 60000);
         }
 
         /// <summary>
@@ -39,11 +38,7 @@ namespace ITVComponents.Decisions.Entities.Helpers
         /// </summary>
         private void RefreshConstraints()
         {
-            DbContext repo;
-            using (contextProvider.AcquireContext(out repo))
-            {
-                RepoConstraintsInitializer.InitializeConstraints(this, this.Factory, repo);
-            }
+            RepoConstraintsInitializer.InitializeConstraints(this, this.Factory, context);
         }
     }
 }

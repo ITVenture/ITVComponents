@@ -7,7 +7,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.TypeConversion.DefaultConverters
 {
-    public abstract class TypeConversionPlugin : TypeConversionProvider, IPlugin
+    /*public abstract class TypeConversionPlugin : TypeConversionProvider
     {
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
@@ -31,5 +31,5 @@ namespace ITVComponents.TypeConversion.DefaultConverters
         /// Informs a calling class of a Disposal of this Instance
         /// </summary>
         public event EventHandler Disposed;
-    }
+    }*/
 }

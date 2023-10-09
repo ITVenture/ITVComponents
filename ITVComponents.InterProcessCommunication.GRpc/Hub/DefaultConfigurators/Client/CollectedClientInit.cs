@@ -27,11 +27,6 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Registers a configurator that will be invoied when a configuration-method is called
         /// </summary>
         /// <param name="configurator"></param>
@@ -64,26 +59,6 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
 
             return retVal;
         }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
 
     }
 }

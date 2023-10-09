@@ -12,9 +12,8 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.Logging.SqlLite.SqLite
 {
-    public class LogDbInitializer:ISqLiteDbInitializer, IPlugin
+    public class LogDbInitializer:ISqLiteDbInitializer
     {
-        public string UniqueName { get; set; }
         public string GetPreciseDatabaseName(string databaseNameRaw)
         {
             return string.Format(databaseNameRaw, DateTime.Now);
@@ -27,18 +26,6 @@ namespace ITVComponents.Logging.SqlLite.SqLite
 create index idx_EventTime on Log(EventTime);
 create index idx_EventSeverity on Log(Severity);
 create index idx_EventContext on Log(EventContext);");
-        }
-
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        public event EventHandler Disposed;
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
         }
     }
 }

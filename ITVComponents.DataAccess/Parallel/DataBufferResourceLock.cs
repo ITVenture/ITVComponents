@@ -3,7 +3,7 @@ using ITVComponents.Threading;
 
 namespace ITVComponents.DataAccess.Parallel
 {
-    /// <summary>
+    /*/// <summary>
     /// Locks a database object with its resetEvent and releases it on disposal
     /// </summary>
     internal class DataBufferResourceLock:IResourceLock
@@ -79,5 +79,5 @@ namespace ITVComponents.DataAccess.Parallel
         {
             return new ExclusivePauseHelper(()=>InnerLock?.PauseExclusive());
         }
-    }
+    }*/
 }

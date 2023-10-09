@@ -5,8 +5,8 @@ using System.Text;
 
 namespace ITVComponents.Plugins.SingletonPattern
 {
-    [AttributeUsage(AttributeTargets.Class|AttributeTargets.Interface)]
+    /*[AttributeUsage(AttributeTargets.Class|AttributeTargets.Interface)]
     public class SingletonAttribute:Attribute
     {
-    }
+    }*/
 }

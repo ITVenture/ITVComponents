@@ -11,12 +11,12 @@ using ITVComponents.Serialization;
 
 namespace ITVComponents.InterProcessCommunication.ManagementExtensions
 {
-    public class PluginManagementServer:IPlugin, IPluginManagementServer, IDeferredInit
+    public class PluginManagementServer:IPluginManagementServer, IDeferredInit
     {
         /// <summary>
         /// provides a list of all loaded plugins in the current runtime-environment
         /// </summary>
-        private PluginFactory factory;
+        private IPluginFactory factory;
 
         /*/// <summary>
         /// a list of runtime configurable objects
@@ -56,7 +56,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
         /// <param name="factory">the plugin factory that is used to get loaded plugins that may be managable</param>
         /// <param name="jobRefreshTimeout">the timeout after which a timer checks whether jobs need updates</param>
         /// <param name="keepDaysBeforeHousekeep">number of days before statistic jobs are being removed from the list of processed jobs</param>
-        public PluginManagementServer(PluginFactory factory, int jobRefreshTimeout, int keepDaysBeforeHousekeep)
+        public PluginManagementServer(IPluginFactory factory, int jobRefreshTimeout, int keepDaysBeforeHousekeep)
             : this()
         {
             this.jobRefreshTimeout = jobRefreshTimeout;
@@ -78,18 +78,13 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Gets a list of statistics providing plugins
         /// </summary>
         /// <returns>a list of plugins that are able to provide runtime statistics</returns>
         public PluginInformation[] GetStatisticsProviders()
         {
             return (from t in statisticsProviders
-                    select new PluginInformation {PluginName = t.UniqueName, PluginType = t.GetType().FullName}).ToArray
+                    select new PluginInformation {PluginName = t.Name, PluginType = t.GetType().FullName}).ToArray
                 ();
         }
 
@@ -103,16 +98,6 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
                     select new PluginInformation {PluginName = t.UniqueName, PluginType = t.GetType().FullName}).ToArray
                 ();
         }*/
-
-        /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-           // factory.PluginInitialized -= PluginInitialized;
-            OnDisposed();
-        }
 
 
         /// <summary>
@@ -193,15 +178,6 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
             return ok;
         }*/
 
-        /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
         /*/// <summary>
         /// is triggered when a plugin is initialized and adds classes that are managable (IRuntimeConfigurable or IStatisticsProvider) to according lists
         /// </summary>
@@ -242,7 +218,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
                 {
                     DateTime now = DateTime.Now;
                     var currentJobs = (from t in statisticJobs
-                     join j in statisticsProviders on t.PluginName equals j.UniqueName
+                     join j in statisticsProviders on t.PluginName equals j.Name
                      where (now >= t.StartTime && now <= t.EndTime && now.Subtract(t.LastUpdate).TotalMinutes > t.RefreshTimeout) || (now > t.EndTime && t.JobRunning)
                      select new {Target = j, Job = t});
                     foreach (var job in currentJobs)
@@ -301,11 +277,6 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
                 refreshTimer.Change(jobRefreshTimeout, jobRefreshTimeout);
             }
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
 
         public bool Initialized { get; private set; }
         public bool ForceImmediateInitialization => false;

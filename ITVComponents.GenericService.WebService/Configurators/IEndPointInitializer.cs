@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace ITVComponents.GenericService.WebService.Configurators
 {
-    public interface IEndPointInitializer:IPlugin
+    public interface IEndPointInitializer
     {
         /// <summary>
         /// Maps the gdrp-endpoints to the endpoint route builder that configures the current http host

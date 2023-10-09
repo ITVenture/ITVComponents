@@ -19,8 +19,9 @@ namespace ITVComponents.UserInterface.DefaultLayouts
         /// Initializes a new instance of the StackLayoutController class
         /// </summary>
         /// <param name="landscapeStack"></param>
-        public StackLayoutController(bool landscapeStack)
+        public StackLayoutController(bool landscapeStack, string name)
         {
+            Name = name;
             layout = new StackLayout();
             layout.mainStack.Orientation = landscapeStack ? Orientation.Horizontal : Orientation.Vertical;
         }
@@ -28,7 +29,7 @@ namespace ITVComponents.UserInterface.DefaultLayouts
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
-        public string UniqueName { get; set; }
+        public string Name { get; }
 
         /// <summary>
         /// Gets the default UI of this UI - Element
@@ -53,22 +54,8 @@ namespace ITVComponents.UserInterface.DefaultLayouts
         /// <param name="userInterface"></param>
         protected override void AddUiComponent(IUserInterface userInterface)
         {
-            LogEnvironment.LogDebugEvent(string.Format("Adding {0} to {1}", userInterface.UniqueName, UniqueName), LogSeverity.Report);
+            LogEnvironment.LogDebugEvent(string.Format("Adding {0} to {1}", userInterface.Name, Name), LogSeverity.Report);
             layout.mainStack.Children.Add(userInterface.GetUi());
         }
-
-        /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

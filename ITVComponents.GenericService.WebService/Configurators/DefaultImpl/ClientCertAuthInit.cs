@@ -21,11 +21,6 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Configures the shared default of the Authentication builder
         /// </summary>
         /// <param name="sharedOptions"></param>
@@ -58,24 +53,5 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 
                 });
         }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

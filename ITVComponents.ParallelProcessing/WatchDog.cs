@@ -9,13 +9,8 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.ParallelProcessing
 {
-    public abstract class WatchDog:ICriticalComponent, IPlugin
+    public abstract class WatchDog:ICriticalComponent
     {
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
         /// <summary>
         /// Checks whether the given taskProcessor is alive and takes appropriate actions if the processor is corrupted
         /// </summary>
@@ -33,14 +28,6 @@ namespace ITVComponents.ParallelProcessing
         }
 
 
-
-        /// <summary>
-        ///   Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
 
         /// <summary>
         /// Checks whether the given taskProcessor is alive and takes appropriate actions if the processor is corrupted
@@ -120,21 +107,8 @@ namespace ITVComponents.ParallelProcessing
         }
 
         /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// When raised, a supporting component can take appropriate actions to shutdown an application
         /// </summary>
         public event CriticalErrorEventHandler CriticalError;
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

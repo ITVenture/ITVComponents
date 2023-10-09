@@ -7,7 +7,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.EFRepo.DataSync
 {
-    public interface IConfigurationHandler:IPlugin
+    public interface IConfigurationHandler
     {
         /// <summary>
         /// Provides a list of Permissions that a user must have any of, to perform a specific task

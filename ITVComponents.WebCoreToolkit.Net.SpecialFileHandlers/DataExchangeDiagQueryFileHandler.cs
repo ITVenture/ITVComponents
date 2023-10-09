@@ -32,14 +32,17 @@ namespace ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers
         private IScopedSettingsProvider ScopedSettings =>
             scopeSettings ??= Services.GetService<IScopedSettingsProvider>();
 
+        private string name;
+
         /// <summary>
         /// Initializes a new instance of the DataExchangeDiagQueryFileHandler class
         /// </summary>
         /// <param name="services">the serviceprovider that can be used to resolve further dependencies</param>
         /// <param name="dumper">the dumper instance that is used to materialize the querydata to a file</param>
-        public DataExchangeDiagQueryFileHandler(IServiceProvider services, IDataDumper dumper) : base(services)
+        public DataExchangeDiagQueryFileHandler(IServiceProvider services, IDataDumper dumper, string uniqueName) : base(services)
         {
             this.dumper = dumper;
+            name = uniqueName;
         }
 
         /// <summary>
@@ -52,7 +55,7 @@ namespace ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers
         protected override async Task<AsyncReadFileResult> MaterializeQueryData(object[] data, string queryName,
             IIdentity downloadIdentity)
         {
-            var settingsName = $"{UniqueName}CfgFor{queryName}";
+            var settingsName = $"{name}CfgFor{queryName}";
             var setting = ScopedSettings.GetJsonSetting(settingsName);
             if (string.IsNullOrEmpty(setting))
             {

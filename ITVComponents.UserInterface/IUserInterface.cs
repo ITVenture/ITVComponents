@@ -11,8 +11,10 @@ namespace ITVComponents.UserInterface
     /// <summary>
     /// Represents a Plugin that is able to register UI - Elements on a LayoutManager object
     /// </summary>
-    public interface IUserInterface:IPlugin
+    public interface IUserInterface
     {
+        string Name { get; }
+
         /// <summary>
         /// Gets the default UI of this UI - Element
         /// </summary>

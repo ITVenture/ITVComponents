@@ -22,10 +22,10 @@ namespace ITVComponents.GenericService.ServiceSecurity
 
         private object writeSync = new object();
 
-        /// <summary>
+        /*/// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
-        public string UniqueName { get; set; }
+        public string UniqueName { get; set; }*/
 
         /// <summary>
         /// Gets a list of users in the current application
@@ -313,7 +313,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
-            OnDisposed();
+            //OnDisposed();
         }
 
         /// <summary>
@@ -338,17 +338,17 @@ namespace ITVComponents.GenericService.ServiceSecurity
             return retVal;
         }
 
-        /// <summary>
+        /*/// <summary>
         /// Raises the Disposed event
         /// </summary>
         protected virtual void OnDisposed()
         {
             Disposed?.Invoke(this, EventArgs.Empty);
-        }
+        }*/
 
         /// <summary>
         /// Informs a calling class of a Disposal of this Instance
         /// </summary>
-        public event EventHandler Disposed;
+        //public event EventHandler Disposed;
     }
 }

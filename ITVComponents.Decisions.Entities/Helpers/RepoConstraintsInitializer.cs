@@ -16,7 +16,7 @@ namespace ITVComponents.Decisions.Entities.Helpers
     {
         private static ConcurrentDictionary<DbContext, DeciderContext> context2Decisions = new ConcurrentDictionary<DbContext, DeciderContext>();
         private static ConcurrentDictionary<IConstraintFactory, DeciderContext> factory2Decisions = new ConcurrentDictionary<IConstraintFactory, DeciderContext>();
-        public static void InitializeConstraints(IConstraintFactory constraintFactory, PluginFactory pluginFactory, DbContext entityContext)
+        public static void InitializeConstraints(IConstraintFactory constraintFactory, IPluginFactory pluginFactory, DbContext entityContext)
         {
             var constraintTypes = entityContext.Set<ConstraintDefinition>();
             Dictionary<string, object> emptyDict = new Dictionary<string, object>
@@ -67,7 +67,7 @@ namespace ITVComponents.Decisions.Entities.Helpers
 
         private class DeciderContext
         {
-            public PluginFactory PluginFactory { get; set; }
+            public IPluginFactory PluginFactory { get; set; }
             public DbContext DbContext { get; set; }
             public IConstraintFactory ConstraintFactory { get; set; }
         }

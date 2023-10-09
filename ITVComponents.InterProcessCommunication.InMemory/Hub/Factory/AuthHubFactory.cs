@@ -23,8 +23,6 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
     {
         private IIdentityProvider provider;
 
-        public string UniqueName { get; set; }
-
         public AuthHubFactory()
         {
             provider = new IdentityFromWindowsProvider();
@@ -38,20 +36,6 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
         public IServiceHub CreateHub(IServiceHubProvider backend)
         {
             return new AuthServiceHubIm(backend, new SimpleUserNameMapper(), new JsonSettingsSecurityRepository());
-        }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
         }
 
         public IServiceHubClientChannel CreateClient(string serviceAddr, AsyncBackStream backStream)
@@ -75,10 +59,5 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
                     { ProposedGuid = name, Ttl = ttl, User = JsonHelper.ToJsonStrongTyped(provider.CurrentIdentity) });
             Task.Delay(1500).GetAwaiter().GetResult();
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

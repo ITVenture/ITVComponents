@@ -20,19 +20,20 @@ namespace ITVComponents.EFRepo.DataSync
 
         private List<Change> deletes = new List<Change>();
 
-        protected ConfigurationHandlerBase()
+        protected ConfigurationHandlerBase(string uniqueName)
         {
+            Name = uniqueName;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
         /// </summary>
         public bool Initialized { get; private set; }
+
+        /// <summary>
+        /// Gets the name of this ConfigurationHandler instance
+        /// </summary>
+        public string Name { get; }
 
         /// <summary>
         /// Indicates whether this Object requires immediate Initialization right after calling the constructor
@@ -146,7 +147,7 @@ namespace ITVComponents.EFRepo.DataSync
             }
 
             return
-                @$"Entity.{targetProperty} = (!'System.String'.IsNullOrEmpty(NewValueRaw))?`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? "NewValueRaw" : $"ChangeType(NewValueRaw,{scriptedFilterType})")}}}:null";
+                @$"Entity.{targetProperty} = (!'System.String'.IsNullOrEmpty(NewValueRaw))?`E(Db as Db->SysQry{Name})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? "NewValueRaw" : $"ChangeType(NewValueRaw,{scriptedFilterType})")}}}:null";
         }
 
         /// <summary>
@@ -185,7 +186,7 @@ namespace ITVComponents.EFRepo.DataSync
                 additionalWhere = additionalWhere.Replace(@"""", @"""""");
             }
 
-            return @$"`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? filterValueVariable : $"ChangeType({filterValueVariable},{scriptedFilterType})")}}}";
+            return @$"`E(Db as Db->SysQry{Name})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? filterValueVariable : $"ChangeType({filterValueVariable},{scriptedFilterType})")}}}";
         }
 
 
@@ -199,7 +200,7 @@ namespace ITVComponents.EFRepo.DataSync
         /// </summary>
         protected virtual void RunInit()
         {
-            NativeScriptHelper.SetAutoReferences($"SysQry{UniqueName}", true);
+            NativeScriptHelper.SetAutoReferences($"SysQry{Name}", true);
         }
 
         /// <summary>

@@ -13,7 +13,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.WatchDogs
     /// <summary>
     /// A Local ProcessWatchDog implementation that will used an external process for the reboot of the process
     /// </summary>
-    public class LocalProcessWatchDog:IPlugin, IDeferredInit, IProcessWatchDog
+    public class LocalProcessWatchDog:IDeferredInit, IProcessWatchDog
     {
         /// <summary>
         /// the interprocess client that enables this instance to alert an invalid process state
@@ -55,11 +55,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.WatchDogs
             this.client = client;
             this.objectName = objectName;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
@@ -107,26 +102,5 @@ namespace ITVComponents.InterProcessCommunication.Shared.WatchDogs
                 }
             };
         }
-
-        /// <summary>
-        ///   Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

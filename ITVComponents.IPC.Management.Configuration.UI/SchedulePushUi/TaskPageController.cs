@@ -33,7 +33,7 @@ namespace ITVComponents.IPC.Management.Configuration.UI.SchedulePushUi
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
-        public string UniqueName { get; set; }
+        public string Name { get; }
 
         /// <summary>
         /// Gets a list of all available tasks
@@ -45,8 +45,9 @@ namespace ITVComponents.IPC.Management.Configuration.UI.SchedulePushUi
         /// </summary>
         /// <param name="client">the client object that is used to request data from the service</param>
         /// <param name="schedulerName">the name of the target scheduler</param>
-        public TaskPageController(ISchedulingManager client, string schedulerName)
+        public TaskPageController(ISchedulingManager client, string schedulerName, string name)
         {
+            Name = name;
             this.schedulerName = schedulerName;
             this.client = client;
             Tasks = new ReadOnlyObservableCollection<ScheduledTaskDescription>(tasks);
@@ -107,21 +108,6 @@ namespace ITVComponents.IPC.Management.Configuration.UI.SchedulePushUi
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            OnDisposed();
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

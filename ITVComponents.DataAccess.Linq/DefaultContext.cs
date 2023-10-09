@@ -7,7 +7,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.DataAccess.Linq
 {
-    public class DefaultContext:IDataContext, IPlugin
+    public class DefaultContext:IDataContext, IDisposable
     {
         /// <summary>
         /// holds local tables for the current Thread
@@ -29,12 +29,7 @@ namespace ITVComponents.DataAccess.Linq
         {
             get { return tables.Value; }
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
+        
         /// <summary>
         /// Flushes the local data of this context
         /// </summary>
@@ -60,21 +55,6 @@ namespace ITVComponents.DataAccess.Linq
         public void Dispose()
         {
             tables.Dispose();
-            OnDisposed();
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

@@ -5,7 +5,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.DataExchange.Interfaces
 {
-    public interface IDataCollector:IPlugin
+    public interface IDataCollector
     {
         /// <summary>
         /// Collects data for a specific configuration name

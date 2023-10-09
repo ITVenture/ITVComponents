@@ -20,8 +20,8 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         /// <summary>
         /// Initializes a new instance of the PeriodScheduler
         /// </summary>
-        public DeferredStartScheduler()
-            : base()
+        public DeferredStartScheduler(string uniqueName)
+            : base(uniqueName)
         {
             pendingRequests = new List<DeferredScheduleRequest>();
         }
@@ -66,7 +66,7 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         /// <returns>a scheduler - request for the given processor and task</returns>
         public override ScheduleRequest CreateRequest(ParallelTaskProcessor parallelTaskProcessor, ITask task)
         {
-            ScheduleRequest retVal = new DeferredScheduleRequest(UniqueName, parallelTaskProcessor, task, DateTime.Now);
+            ScheduleRequest retVal = new DeferredScheduleRequest(SchedulerName, parallelTaskProcessor, task, DateTime.Now);
             return retVal;
         }
 

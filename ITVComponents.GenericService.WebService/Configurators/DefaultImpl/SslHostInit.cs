@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Https;
 
 namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 {
-    public class SslHostInit:IServiceHostConfigurator, IPlugin
+    public class SslHostInit:IServiceHostConfigurator
     {
         private readonly IWebHostStartup parent;
         private readonly bool withHsts;
@@ -63,12 +63,6 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
             this.certificateSerial = certificateSerial;
             parent.RegisterConfigurator(this);
         }
-
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Configures the WebApplication builder (inject services, set defaults, etc.)
@@ -155,24 +149,5 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
                 app.UseHsts();
             }
         }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

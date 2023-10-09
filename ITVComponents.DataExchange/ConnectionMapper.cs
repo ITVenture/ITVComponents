@@ -6,7 +6,6 @@ using ITVComponents.DataAccess;
 using ITVComponents.DataAccess.Parallel;
 using ITVComponents.DataExchange.Interfaces;
 using ITVComponents.Plugins;
-using ITVComponents.Plugins.SelfRegistration;
 using ITVComponents.Threading;
 
 namespace ITVComponents.DataExchange
@@ -16,28 +15,29 @@ namespace ITVComponents.DataExchange
         /// <summary>
         /// the connector that will provide dataconnections
         /// </summary>
-        private IConnectionBuffer connector;
+        private IPluginFactory factory;
+
+        private readonly string sourceName;
 
         /// <summary>
         /// the collector that is allowed to use this connection mapper
         /// </summary>
         private IDataCollector collector;
 
+        private readonly string name;
+
         /// <summary>
         /// Initializes a new instance of the ConnectionMapper class
         /// </summary>
         /// <param name="source">the database Source that provides access to the database</param>
         /// <param name="target">the target collection that will consume the connected source</param>
-        public ConnectionMapper(IConnectionBuffer source, IDataCollector target)
+        public ConnectionMapper(IPluginFactory factory, string sourceName, IDataCollector target, string uniqueName)
         {
-            this.connector = source;
+            this.factory= factory;
+            this.sourceName = sourceName;
             this.collector = target;
+            this.name = uniqueName;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
@@ -55,9 +55,9 @@ namespace ITVComponents.DataExchange
         /// <param name="useTransaction">indicates whether to open a new transaction on the returned connection</param>
         /// <param name="database">the database connection</param>
         /// <returns>a ResourceLock - Object that enables the caller to free the Database implicitly after using</returns>
-        public IResourceLock AcquireDatabase(bool useTransaction, out IDbWrapper database)
+        public IDbWrapper AcquireDatabase()
         {
-            return connector.AcquireConnection(useTransaction, out database);
+            return (IDbWrapper)factory[sourceName];
         }
 
         /// <summary>
@@ -69,7 +69,7 @@ namespace ITVComponents.DataExchange
             {
                 try
                 {
-                    collector.RegisterSource(UniqueName, this);
+                    collector.RegisterSource(name, this);
                     Init();
                 }
                 finally
@@ -85,17 +85,7 @@ namespace ITVComponents.DataExchange
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            collector.UnregisterSource(UniqueName, this);
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
+            collector.UnregisterSource(name, this);
         }
 
         /// <summary>
@@ -104,10 +94,5 @@ namespace ITVComponents.DataExchange
         protected virtual void Init()
         {
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

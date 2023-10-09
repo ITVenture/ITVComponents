@@ -7,13 +7,12 @@ using ITVComponents.DataAccess;
 using ITVComponents.DataExchange.Configuration;
 using ITVComponents.DataExchange.Interfaces;
 using ITVComponents.Plugins;
-using ITVComponents.Plugins.SelfRegistration;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Helpers;
 
 namespace ITVComponents.DataExchange
 {
-    public class StructureBuilder:IStructureBuilder, IPlugin, IDeferredInit
+    public class StructureBuilder:IStructureBuilder, IDeferredInit, IDisposable
     {
         /// <summary>
         /// Holds the current root collection that will contain the entire datastructure that is built by this builder
@@ -45,12 +44,15 @@ namespace ITVComponents.DataExchange
         /// </summary>
         private IDataCollector parent;
 
+        private readonly string uniqueName;
+
         /// <summary>
         /// Initializes a new instance of the StructureBuilder class
         /// </summary>
-        public StructureBuilder(IDataCollector parent)
+        public StructureBuilder(IDataCollector parent, string uniqueName)
         {
             this.parent = parent;
+            this.uniqueName = uniqueName;
             rootCollection = new ThreadLocal<DynamicResult[]>();
             currentCallback = new ThreadLocal<ExecuteQuery>();
             currentItem = new ThreadLocal<DynamicResult>();
@@ -79,11 +81,6 @@ namespace ITVComponents.DataExchange
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
         /// </summary>
         public bool Initialized { get; private set; }
@@ -102,8 +99,8 @@ namespace ITVComponents.DataExchange
             {
                 try
                 {
-                    parent.RegisterStructureBuilder(UniqueName, this);
-                    parent.RegisterTarget(UniqueName, this);
+                    parent.RegisterStructureBuilder(uniqueName, this);
+                    parent.RegisterTarget(uniqueName, this);
                     Init();
                 }
                 finally
@@ -167,15 +164,6 @@ namespace ITVComponents.DataExchange
             {
                 currentCallback.Value = null;
             }
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -259,14 +247,8 @@ namespace ITVComponents.DataExchange
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            parent.UnregisterStructureBuilder(UniqueName, this);
-            parent.UnregisterTarget(UniqueName, this);
-            OnDisposed();
+            parent.UnregisterStructureBuilder(uniqueName, this);
+            parent.UnregisterTarget(uniqueName, this);
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

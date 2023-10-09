@@ -5,8 +5,13 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Base
 {
-    public interface IBaseClient:IPlugin, IOperationalProvider
+    public interface IBaseClient:IOperationalProvider
     {
+        /// <summary>
+        /// Gets the target address, this client connects to
+        /// </summary>
+        string Target { get; }
+
         /// <summary>
         /// Gets an object that provides locking functionality for this Consumer object
         /// </summary>

@@ -181,18 +181,6 @@ namespace ITVComponents.Logging
             lock (targetList)
             {
                 targetList.Add(target);
-                void DispHandler(object sender, EventArgs args)
-                {
-                    lock (targetList)
-                    {
-                        targetList.Remove(target);
-
-                    }
-
-                    ((ILogTarget)sender).Disposed -= DispHandler;
-                };
-
-                target.Disposed += DispHandler;
             }
         }
 

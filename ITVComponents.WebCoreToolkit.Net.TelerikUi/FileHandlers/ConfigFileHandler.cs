@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
 {
-    public class ConfigFileHandler:IPlugin, IRespondingFileHandler
+    public class ConfigFileHandler: IRespondingFileHandler, IDisposable
     {
         /// <summary>
         /// A regex used to extract filter-instructions from a download-query
@@ -36,11 +36,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
         {
             this.handler = handler;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Provides a list of Permissions that a user must have any of, to perform a specific task
@@ -119,21 +114,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
         public void Dispose()
         {
             Dispose(true);
-            OnDisposed();
         }
 
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         protected virtual void Dispose(bool disposing)
         {
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -152,10 +138,5 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
 
             return retVal;
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

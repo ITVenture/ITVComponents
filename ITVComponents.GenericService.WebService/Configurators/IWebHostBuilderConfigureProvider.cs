@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 
 namespace ITVComponents.GenericService.WebService.Configurators
 {
-    public interface IWebHostBuilderConfigureProvider:IPlugin
+    public interface IWebHostBuilderConfigureProvider
     {
         /// <summary>
         /// Configures the HostBuilder before it is being created

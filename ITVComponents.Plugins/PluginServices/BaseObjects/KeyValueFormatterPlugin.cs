@@ -6,7 +6,7 @@ using ITVComponents.ExtendedFormatting;
 
 namespace ITVComponents.Plugins.PluginServices.BaseObjects
 {
-    public class KeyValueFormatterPlugin : KeyValueFormatter, IPlugin
+    public class KeyValueFormatterPlugin : KeyValueFormatter
     {
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin

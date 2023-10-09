@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Con
     public class TenantSecurityConfigurationHandler<TContext>: SysConfigurationHandler<TContext,int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget,CustomUserProperty,AssetTemplate,AssetTemplatePath, AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
         where TContext:SecurityContext<TContext>
     {
-        public TenantSecurityConfigurationHandler(TContext db) : base(db)
+        public TenantSecurityConfigurationHandler(string name, TContext db) : base(name, db)
         {
         }
     }

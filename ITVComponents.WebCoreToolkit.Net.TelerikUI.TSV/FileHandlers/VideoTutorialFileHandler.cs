@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHandlers
 {
-    public class VideoTutorialFileHandler : IAsyncFileHandler, IPlugin
+    public class VideoTutorialFileHandler : IAsyncFileHandler
     {
         private readonly IBaseTenantContext db;
 
@@ -20,8 +20,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHan
         {
             this.db = db;
         }
-
-        public string UniqueName { get; set; }
 
         public string[] PermissionsForReason(string reason)
         {
@@ -117,17 +115,5 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHan
 
             throw new InvalidOperationException("Invalid File-Identifier provided!");
         }
-
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        public event EventHandler Disposed;
     }
 }

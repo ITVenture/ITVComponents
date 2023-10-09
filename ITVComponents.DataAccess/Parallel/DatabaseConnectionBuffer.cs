@@ -9,7 +9,7 @@ using ITVComponents.Threading;
 
 namespace ITVComponents.DataAccess.Parallel
 {
-    /// <summary>
+    /*/// <summary>
     /// Buffers Connections and avoids multiple usage of connections
     /// </summary>
     public class DatabaseConnectionBuffer: IConnectionBuffer
@@ -27,7 +27,7 @@ namespace ITVComponents.DataAccess.Parallel
         /// <summary>
         /// the Plugin factory used to generate the connection plugins
         /// </summary>
-        private PluginFactory factory;
+        private IPluginFactory factory;
 
         /// <summary>
         /// indicates whether this buffer is currently being disposed
@@ -59,7 +59,7 @@ namespace ITVComponents.DataAccess.Parallel
         /// </summary>
         /// <param name="factory">the plugin factory used to generate database connections</param>
         /// <param name="connectionString">the connection string used to initialize database connections</param>
-        public DatabaseConnectionBuffer(PluginFactory factory, string connectionString)
+        public DatabaseConnectionBuffer(IPluginFactory factory, string connectionString)
             : this()
         {
             this.factory = factory;
@@ -75,11 +75,6 @@ namespace ITVComponents.DataAccess.Parallel
             activeConnectionLock = new object();
             timer = new Timer(MonitorConnections, string.Format("::{0}::", GetHashCode()), 0, 600000);
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets an available Database Connection from the pool of available connections
@@ -210,15 +205,6 @@ namespace ITVComponents.DataAccess.Parallel
         }
 
         /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// Raises the ConnectionAcquiring event
         /// </summary>
         /// <param name="obj">the obejct that is being acquired</param>
@@ -270,13 +256,8 @@ namespace ITVComponents.DataAccess.Parallel
         }
 
         /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
-
-        /// <summary>
         /// Enables a client object to configure the acquired connection before it is returned
         /// </summary>
         public event Action<IDbWrapper> ConnectionAcquiring;
-    }
+    }*/
 }

@@ -12,13 +12,13 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// <summary>
         /// Holds a list of interceptors that need to be called when a plugin is being initialized
         /// </summary>
-        private static List<Action<PluginFactory, IPlugin>> pluginInterceptors = new List<Action<PluginFactory, IPlugin>>();
+        private static List<Action<IPluginFactory, object>> pluginInterceptors = new List<Action<IPluginFactory, object>>();
 
         /// <summary>
         /// Registers a handler that will be fired for each plugin that is being initialized in a specific context
         /// </summary>
         /// <param name="action">the action to execute for each plugin initialization</param>
-        public static void RegisterInterceptor(Action<PluginFactory, IPlugin> action)
+        public static void RegisterInterceptor(Action<IPluginFactory, object> action)
         {
             lock (pluginInterceptors)
             {
@@ -31,9 +31,9 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// </summary>
         /// <param name="factory">the factory that has loaded a plugin</param>
         /// <param name="plugin">the loaded plugin</param>
-        public static void RunInterceptors(PluginFactory factory, IPlugin plugin)
+        public static void RunInterceptors(IPluginFactory factory, object plugin)
         {
-            Action<PluginFactory, IPlugin>[] pi =null;
+            Action<IPluginFactory, object>[] pi =null;
             lock (pluginInterceptors)
             {
                 pi = pluginInterceptors.ToArray();

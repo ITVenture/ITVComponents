@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <param name="options">the options that are used for Plugin-injection</param>
         /// <param name="configure">a callback that allows the custom configuration of the Plugin-settings</param>
         /// <returns>the Plugin-options that were passed initially for method-chaining.</returns>
-        public static InjectablePluginOptions ConfigureInjectablePlugin<T>(this InjectablePluginOptions options, Func<CustomPluginInjector<T>> configure) where T : class, IPlugin
+        public static InjectablePluginOptions ConfigureInjectablePlugin<T>(this InjectablePluginOptions options, Func<CustomPluginInjector<T>> configure) where T : class
         {
             var item = configure();
             options.AddInjector(item);

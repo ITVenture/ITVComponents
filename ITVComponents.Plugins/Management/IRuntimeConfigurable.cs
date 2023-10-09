@@ -8,7 +8,7 @@ namespace ITVComponents.Plugins.Management
     /// <summary>
     /// Provides 
     /// </summary>
-    public interface IRuntimeConfigurable:IPlugin
+    public interface IRuntimeConfigurable
     {
         /// <summary>
         /// Gets a set of runtime-configurable settings for this RuntimeConfigurable object

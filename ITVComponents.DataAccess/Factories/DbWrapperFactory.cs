@@ -3,6 +3,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.DataAccess.Factories
 {
+    /*
     /// <summary>
     /// Factory used to load the database layer
     /// </summary>
@@ -11,7 +12,7 @@ namespace ITVComponents.DataAccess.Factories
         /// <summary>
         /// the factory used to load the database layer
         /// </summary>
-        private PluginFactory innerFactory;
+        private IPluginFactory innerFactory;
 
         /// <summary>
         /// Initializes a new instance of the DbWrapperFactory class
@@ -39,5 +40,5 @@ namespace ITVComponents.DataAccess.Factories
         {
             innerFactory.Dispose();
         }
-    }
+    }*/
 }

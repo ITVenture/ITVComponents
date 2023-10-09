@@ -15,14 +15,14 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// Initializes the PluginFactory
         /// </summary>
         /// <returns>the initialized factory</returns>
-        PluginFactory GetFactory();
+        IPluginFactory GetFactory();
 
         /// <summary>
         /// Initializes the PluginFactory
         /// </summary>
         /// <param name="explicitPluginScope">the scope that must be explicitly used for loading plugins and constants</param>
         /// <returns>the initialized factory</returns>
-        PluginFactory GetFactory(string explicitPluginScope);
+        IPluginFactory GetFactory(string explicitPluginScope);
 
         /// <summary>
         /// Resets the factory

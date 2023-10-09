@@ -11,7 +11,7 @@ namespace ITVComponents.Plugins
     /// <summary>
     /// Allows an object to delay its disposal when it is busy
     /// </summary>
-    interface IDelayedDisposable : IDisposable
+    public interface IDelayedDisposable : IDisposable
     {
         /// <summary>
         /// Tries to dispose the object and waits for the provided timeout

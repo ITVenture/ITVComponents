@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
 {
-    internal class InjectablePluginImpl<T>:IInjectablePlugin<T> where T:class, IPlugin
+    internal class InjectablePluginImpl<T>:IInjectablePlugin<T> where T : class
     {
         private readonly IServiceProvider services;
         private readonly IOptions<InjectablePluginOptions> options;

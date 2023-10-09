@@ -10,7 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
-using ITVComponents.Plugins.SelfRegistration;
 using ITVComponents.Serialization;
 using Microsoft.Win32;
 
@@ -19,8 +18,10 @@ namespace ITVComponents.ParallelProcessing
     /// <summary>
     /// Unspecific implementation for a TaskScheduler. Tasks are being added to the processor immediately
     /// </summary>
-    public class TaskScheduler : IPlugin, IDeferredInit
+    public class TaskScheduler : IDeferredInit, IDisposable
     {
+        private readonly string uniqueName;
+
         /// <summary>
         /// Holds a list of available schedulers
         /// </summary>
@@ -42,19 +43,20 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Prevents a default instance of the TaskScheduler class from being created
         /// </summary>
-        public TaskScheduler()
+        public TaskScheduler(string uniqueName)
         {
+            this.uniqueName = uniqueName;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
         /// </summary>
         public bool Initialized { get; private set; }
+
+        /// <summary>
+        /// Gets the name of this scheduler
+        /// </summary>
+        public string SchedulerName => uniqueName;
 
         /// <summary>
         /// Indicates whether this Object requires immediate Initialization right after calling the constructor
@@ -98,7 +100,7 @@ namespace ITVComponents.ParallelProcessing
             {
                 try
                 {
-                    availableSchedulers.AddOrUpdate(UniqueName, (s) => this, (s, o) => this);
+                    availableSchedulers.AddOrUpdate(uniqueName, (s) => this, (s, o) => this);
                     Init();
                 }
                 finally
@@ -158,7 +160,7 @@ namespace ITVComponents.ParallelProcessing
         /// <returns>a scheduler - request for the given processor and task</returns>
         public virtual ScheduleRequest CreateRequest(ParallelTaskProcessor parallelTaskProcessor, ITask task)
         {
-            return new ScheduleRequest(UniqueName, parallelTaskProcessor, task);
+            return new ScheduleRequest(uniqueName, parallelTaskProcessor, task);
         }
 
         /// <summary>
@@ -180,13 +182,8 @@ namespace ITVComponents.ParallelProcessing
             return availableSchedulers.Keys.ToArray();
         }
 
-        /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
         public virtual void Dispose()
         {
-            OnDisposed();
         }
 
         /// <summary>
@@ -221,20 +218,6 @@ namespace ITVComponents.ParallelProcessing
         {
             task.Target.TaskScheduled(new TaskContainer {Request = task, Task = task.Task});
         }
-
-        /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
 
         /// <summary>
         /// A Request for Scheduling

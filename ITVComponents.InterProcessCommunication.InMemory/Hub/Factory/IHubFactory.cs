@@ -11,7 +11,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
 {
-    public interface IHubFactory:IPlugin
+    public interface IHubFactory
     {
         /// <summary>
         /// Creates a ServiceHub object that is able to process incoming messages

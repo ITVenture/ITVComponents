@@ -27,7 +27,7 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
             ResolveServices(services, out var selector, out var plugins);
             if(selector.GetPlugin(uniqueName) != null)
             {
-                var tmp = plugins.GetFactory()[uniqueName, true];
+                var tmp = plugins.GetFactory()[uniqueName];
                 if (tmp != null)
                 {
                     securityRequired = tmp.RequiresSecurity();
@@ -44,6 +44,18 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
             extendedProxies = proxies;
         }
 
+        public string GetUniqueName(object plugin)
+        {
+            string retVal = null;
+            var tmp = extendedProxies.ToArray();
+            if (tmp.Any(n => n.Value == plugin))
+            {
+                retVal = tmp.First(n => n.Value == plugin).Key;
+            }
+
+            return retVal;
+        }
+
         private object FetchPlugin(string pluginName, IServiceProvider services)
         {
             if (extendedProxies.TryGetValue(pluginName, out var ret))
@@ -54,7 +66,7 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
             ResolveServices(services, out var selector, out var plugins);
             if (selector.GetPlugin(pluginName) != null)
             {
-                return plugins.GetFactory()[pluginName, true];
+                return plugins.GetFactory()[pluginName];
             }
 
             return null;

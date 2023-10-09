@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 {
-    public class RoutingInit : IServiceHostConfigurator, IPlugin
+    public class RoutingInit : IServiceHostConfigurator
     {
         private bool useAreas;
 
@@ -24,7 +24,6 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 
         }
 
-        public string UniqueName { get; set; }
         public void ConfigureBuilder(WebApplicationBuilder builder)
         {
             builder.Services.AddRouting();
@@ -47,17 +46,5 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
                     pattern: "{controller=Home}/{action=Index}/{id?}");
             });
         }
-
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        public event EventHandler Disposed;
     }
 }

@@ -6,7 +6,7 @@ using ITVComponents.Plugins.SelfRegistration;
 
 namespace ITVComponents.Plugins.SingletonPattern
 {
-    [Singleton]
+    /*[Singleton]
     public class SingletonPlugin:IPlugin,IDeferredInit
     {
         private PluginFactory factory;
@@ -67,5 +67,5 @@ namespace ITVComponents.Plugins.SingletonPattern
         /// Informs a calling class of a Disposal of this Instance
         /// </summary>
         public event EventHandler Disposed;
-    }
+    }*/
 }

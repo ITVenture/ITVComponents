@@ -3,7 +3,7 @@ using ITVComponents.Serialization;
 
 namespace ITVComponents.Plugins.RuntimeSerialization
 {
-    /// <summary>
+    /*/// <summary>
     /// Enables an application using a PluginFactory to automatically save the runtime status of all plugins after shutting it down
     /// </summary>
     [Obsolete("Not supported anymore!", true)]
@@ -20,5 +20,5 @@ namespace ITVComponents.Plugins.RuntimeSerialization
         /// </summary>
         /// <returns>the Runtime status of the current application's plugins</returns>
         RuntimeInformation LoadRuntimeStatus();
-    }
+    }*/
 }

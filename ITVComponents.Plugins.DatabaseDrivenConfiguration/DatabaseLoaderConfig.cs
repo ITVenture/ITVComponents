@@ -38,8 +38,7 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
                 d.LoaderConfigurations.Add(new LoaderConfiguration
                 {
                     Name = "Default",
-                    PluginTableName = "Plugins",
-                    RefreshCycle = 2000
+                    PluginTableName = "Plugins"
                 });
             });
 

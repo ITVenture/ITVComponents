@@ -37,6 +37,11 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Factory
             clientMode = false;
         }
 
+        /// <summary>
+        /// Gets the target hub that this hub-connector connects to
+        /// </summary>
+        public string Target => hubAddress;
+
         public IHubConnection CreateConnection()
         {
             var tailId = targetService.IndexOf("@");

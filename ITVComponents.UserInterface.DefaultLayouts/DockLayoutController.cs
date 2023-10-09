@@ -7,7 +7,6 @@ using System.Windows;
 using System.Windows.Controls;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
-using ITVComponents.Plugins.SelfRegistration;
 using ITVComponents.UserInterface.DefaultLayouts.Config;
 
 namespace ITVComponents.UserInterface.DefaultLayouts
@@ -27,14 +26,15 @@ namespace ITVComponents.UserInterface.DefaultLayouts
         /// <summary>
         /// Initializes a new instance of the StackLayoutController class
         /// </summary>
-        public DockLayoutController()
+        public DockLayoutController(string name)
         {
+            Name = name;
         }
 
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
-        public string UniqueName { get; set; }
+        public string Name { get; }
 
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
@@ -55,15 +55,6 @@ namespace ITVComponents.UserInterface.DefaultLayouts
         }
 
         /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
         /// Initializes this deferred initializable object
         /// </summary>
         public void Initialize()
@@ -72,7 +63,7 @@ namespace ITVComponents.UserInterface.DefaultLayouts
             {
                 try
                 {
-                    config = DockLayoutConfig.Helper.DockLayouts[UniqueName];
+                    config = DockLayoutConfig.Helper.DockLayouts[Name];
                     layout = new DockLayout();
                     if (config.Height != 0)
                     {
@@ -107,18 +98,9 @@ namespace ITVComponents.UserInterface.DefaultLayouts
         protected override void AddUiComponent(IUserInterface userInterface)
         {
             Control gui = userInterface.GetUi();
-            ConfigureUi(userInterface.UniqueName, gui);
+            ConfigureUi(userInterface.Name, gui);
             layout.mainDock.Children.Add(gui);
-            LogEnvironment.LogDebugEvent(string.Format("Adding {0} to {1}",userInterface.UniqueName,UniqueName), LogSeverity.Report);
-        }
-
-        /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
+            LogEnvironment.LogDebugEvent(string.Format("Adding {0} to {1}",userInterface.Name,Name), LogSeverity.Report);
         }
 
         /// <summary>
@@ -154,10 +136,5 @@ namespace ITVComponents.UserInterface.DefaultLayouts
                 DockPanel.SetDock(gui, config.DefaultDock);
             }
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

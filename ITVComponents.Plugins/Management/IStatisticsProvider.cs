@@ -8,8 +8,10 @@ namespace ITVComponents.Plugins.Management
     /// <summary>
     /// Enables a Plugin to provide statistics for other plugins
     /// </summary>
-    public interface IStatisticsProvider: IPlugin
+    public interface IStatisticsProvider
     {
+        string Name { get; }
+
         /// <summary>
         /// Instructs a IMetricsProvider Implementing object to start gathering System metrics
         /// </summary>

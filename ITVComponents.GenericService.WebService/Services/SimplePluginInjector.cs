@@ -10,9 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.GenericService.WebService.Services
 {
-    internal class SimplePluginInjector<T>: IInjectablePlugin<T> where T : class, IPlugin
+    internal class SimplePluginInjector<T>: IInjectablePlugin<T> where T : class
     {
-        private readonly PluginFactory factory;
+        private readonly IPluginFactory factory;
         public SimplePluginInjector(IWebPluginHelper factory)
         {
             this.factory = factory.GetFactory();

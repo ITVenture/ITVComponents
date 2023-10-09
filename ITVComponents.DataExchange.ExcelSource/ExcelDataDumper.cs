@@ -22,11 +22,6 @@ namespace ITVComponents.DataExchange.ExcelSource
         private bool legacyFormat;
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Initializes a new instance of the ExcelDataDumper class
         /// </summary>
         public ExcelDataDumper() : this(false)
@@ -91,15 +86,6 @@ namespace ITVComponents.DataExchange.ExcelSource
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -340,10 +326,5 @@ namespace ITVComponents.DataExchange.ExcelSource
                 }
             }
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

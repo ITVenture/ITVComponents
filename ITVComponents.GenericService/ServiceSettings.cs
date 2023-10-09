@@ -16,6 +16,6 @@ namespace ITVComponents.GenericService
         public PluginConfigurationCollection PlugIns { get; set; } = new PluginConfigurationCollection();
         public GenericTypeConstructionCollection GenericTypeInformation { get; set; } = new GenericTypeConstructionCollection();
         public List<string> Dependencies { get; set; } = new List<string>();
-
+        public string ServiceStartup { get; set; }
     }
 }

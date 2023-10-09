@@ -11,12 +11,12 @@ namespace ITVComponents.Plugins.ApplicationShutdown
     /// <summary>
     /// Default strategy of a ProcessWatchDog, that will try to exit the application when a critical error has occurred
     /// </summary>
-    public class OptimisticWatchDog:IProcessWatchDog, IPlugin
+    public class OptimisticWatchDog:IProcessWatchDog
     {
         /// <summary>
         /// The PluginFactory that hosts all plugins of the process
         /// </summary>
-        private PluginFactory factory;
+        private IPluginFactory factory;
 
         /// <summary>
         /// Initiates an emergency shutdown of the service if a critical error ocurred
@@ -27,16 +27,11 @@ namespace ITVComponents.Plugins.ApplicationShutdown
         /// Initializes a new instance of the OptimisticWatchDog class
         /// </summary>
         /// <param name="factory">the factory that hosts all Plugins of the current process</param>
-        public OptimisticWatchDog(PluginFactory factory)
+        public OptimisticWatchDog(IPluginFactory factory)
         {
             this.factory = factory;
             this.emergencyThread = new Thread(new ThreadStart(this.ExitNow));
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Rgisters this ProcessWatchDog instance for a specific critical component object
@@ -55,22 +50,6 @@ namespace ITVComponents.Plugins.ApplicationShutdown
         }
 
         /// <summary>
-        ///   Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// initiates an emergency exit on the current Service
         /// </summary>
         private void ExitNow()
@@ -81,10 +60,5 @@ namespace ITVComponents.Plugins.ApplicationShutdown
 
             Environment.Exit(-1);
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

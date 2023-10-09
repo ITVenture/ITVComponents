@@ -9,6 +9,10 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Configura
 {
     public class ConfigurationServer:ConfiguratorBase
     {
+        public ConfigurationServer(string uniqueName) : base(uniqueName)
+        {
+        }
+
         /// <summary>
         /// Gets an array of available Configuration Names on the current application
         /// </summary>

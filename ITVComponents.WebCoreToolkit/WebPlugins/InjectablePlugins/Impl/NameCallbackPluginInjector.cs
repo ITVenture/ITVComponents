@@ -7,7 +7,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
 {
-    public class NameCallbackPluginInjector<T>:DefaultPluginInjector<T> where T:class,IPlugin
+    public class NameCallbackPluginInjector<T>:DefaultPluginInjector<T> where T : class
     {
         /// <summary>
         /// The Callback that estimates the name of the plugin to inject

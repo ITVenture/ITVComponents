@@ -36,11 +36,6 @@ namespace ITVComponents.Logging.SqlLite
         private Thread writerThread;
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Initializes a new instance of the FileLogWriter class
         /// </summary>
         /// <param name="logName">the full-qualified location of the logfile</param>

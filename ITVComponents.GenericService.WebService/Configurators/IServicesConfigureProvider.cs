@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.GenericService.WebService.Configurators
 {
-    public interface IServicesConfigureProvider : IPlugin
+    public interface IServicesConfigureProvider 
     {
         /// <summary>
         /// Configures the services for a specific use-case

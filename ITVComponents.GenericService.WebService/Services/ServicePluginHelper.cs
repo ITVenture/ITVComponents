@@ -11,19 +11,19 @@ namespace ITVComponents.GenericService.WebService.Services
 {
     internal class ServicePluginHelper:IWebPluginHelper
     {
-        private readonly PluginFactory factory;
+        private readonly IPluginFactory factory;
 
-        public ServicePluginHelper(PluginFactory factory)
+        public ServicePluginHelper(IPluginFactory factory)
         {
             this.factory = factory;
         }
 
-        public PluginFactory GetFactory()
+        public IPluginFactory GetFactory()
         {
             return factory;
         }
 
-        public PluginFactory GetFactory(string explicitPluginScope)
+        public IPluginFactory GetFactory(string explicitPluginScope)
         {
             LogEnvironment.LogEvent($"Explicit Tenant was requested. Returning default factory anyway.", LogSeverity.Warning);
             return factory;

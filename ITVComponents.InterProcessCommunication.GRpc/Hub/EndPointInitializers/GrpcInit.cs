@@ -24,16 +24,11 @@ using Microsoft.Extensions.Hosting;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
 {
-    public class GrpcInit : IPlugin, IServiceHostConfigurator
+    public class GrpcInit : IServiceHostConfigurator
     {
         private readonly IServiceHubProvider hubProvider;
         private readonly bool configureKestrel = true;
         private bool ownsBroker = true;
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the ServiceHubProvider class
@@ -49,25 +44,6 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
         {
             this.configureKestrel = configureKestrel;
         }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
 
         public void ConfigureBuilder(WebApplicationBuilder builder)
         {

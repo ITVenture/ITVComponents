@@ -27,12 +27,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
         private readonly IWebPluginHelper pluginProvider;
         private readonly IHttpContextAccessor httpContext;
         private ConcurrentDictionary<Type, object> bufferedServices = new ConcurrentDictionary<Type, object>();
-        private ConcurrentDictionary<string, IPlugin> bufferedPlugins = new ConcurrentDictionary<string, IPlugin>();
+        private ConcurrentDictionary<string, object> bufferedPlugins = new ConcurrentDictionary<string, object>();
 
         private ConcurrentDictionary<Type, object> bufferedHandlers =
             new ConcurrentDictionary<Type, object>();
         private IRequestCultureFeature cult = null;
-        private PluginFactory factory;
+        private IPluginFactory factory;
 
         public TemplateHandlerFactory(IServiceProvider services, IWebPluginHelper pluginProvider,
             IHttpContextAccessor httpContext)
@@ -42,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
             this.httpContext = httpContext;
         }
 
-        private PluginFactory Factory => factory ??= pluginProvider.GetFactory();
+        private IPluginFactory Factory => factory ??= pluginProvider.GetFactory();
 
         public object GetBackEndHandler(TemplateModuleConfigurator configurator, out IDictionary<string,object> arguments)
         {
@@ -120,7 +120,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
 
         private object GetPlugin(string pluginName)
         {
-            return bufferedPlugins.GetOrAdd(pluginName, s => Factory[s, true]);
+            return bufferedPlugins.GetOrAdd(pluginName, s => Factory[s]);
         }
 
         private object GetService(Type serviceType)

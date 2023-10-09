@@ -6,7 +6,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.UserInterface
 {
-    public interface ISplash:IPlugin
+    public interface ISplash
     {
         void Show();
         void Hide();

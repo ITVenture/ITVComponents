@@ -77,7 +77,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <summary>
         /// the plugin factory that is used for initializing forther plugins
         /// </summary>
-        private PluginFactory factory;
+        private IPluginFactory factory;
 
         /// <summary>
         /// a watchdog instance that is used to restart non-responsive processors
@@ -96,7 +96,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="useAffineThreads">indicates whether to use affine threads</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
         protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
-                                 int highTaskThreshold, bool useAffineThreads, bool useTasks, PluginFactory factory)
+                                 int highTaskThreshold, bool useAffineThreads, bool useTasks, IPluginFactory factory)
             : this(
                 highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, 0, useTasks, factory)
         {
@@ -115,7 +115,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="factory">the factory that is used to initialize further plugins</param>
         /// <param name="watchDog">a watchdog instance that is used to restart non-responsive processors</param>
         protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold,
-            int highTaskThreshold, bool useAffineThreads, bool useTasks, PluginFactory factory, WatchDog watchDog)
+            int highTaskThreshold, bool useAffineThreads, bool useTasks, IPluginFactory factory, WatchDog watchDog)
             : this(
                 highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, 0, useTasks, factory, watchDog)
         {
@@ -134,7 +134,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
         /// <param name="watchDog">a watchdog instance that is used to restart non-responsive processors</param>
-        protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int maximumFailsPerItem, bool useTasks, PluginFactory factory, WatchDog watchDog) :
+        protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int maximumFailsPerItem, bool useTasks, IPluginFactory factory, WatchDog watchDog) :
             this(highestPriority, lowestPriority, workerCount, workerPollInterval, lowTaskThreshold, highTaskThreshold, useAffineThreads, maximumFailsPerItem, useTasks, factory)
         {
             this.watchDog = watchDog;
@@ -152,7 +152,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="useAffineThreads">indicates whether to use affine threads</param>
         /// <param name="maximumFailsPerItem">defines how many times a task can fail before it is considered a failure</param>
         /// <param name="factory">the factory that is used to initialize further plugins</param>
-        protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int maximumFailsPerItem, bool useTasks, PluginFactory factory) : this()
+        protected AsyncServer(int highestPriority, int lowestPriority, int workerCount, int workerPollInterval, int lowTaskThreshold, int highTaskThreshold, bool useAffineThreads, int maximumFailsPerItem, bool useTasks, IPluginFactory factory) : this()
         {
             this.highestPriority = highestPriority;
             this.lowestPriority = lowestPriority;
@@ -177,7 +177,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>
-        public abstract string UniqueName { get; set; }
+        public abstract string Name { get; }
 
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
@@ -416,7 +416,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// </summary>
         private void Ready()
         {
-            string workerName = this.UniqueName + "TaskProcessor";
+            string workerName = this.Name + "TaskProcessor";
             processor = new ParallelTaskProcessor<TTask>(workerName, GetWorker, highestPriority, lowestPriority, workerCount,
                 workerPollInterval, lowTaskThreshold, highTaskThreshold,
                 useAffineThreads, useTasks, watchDog);

@@ -13,7 +13,6 @@ using System.Windows.Input;
 using ITVComponents.DataAccess;
 using ITVComponents.DataAccess.SqLite;
 using ITVComponents.Plugins;
-using ITVComponents.Plugins.SelfRegistration;
 using ITVComponents.UserInterface;
 using ITVComponents.UserInterface.WindowExtensions;
 
@@ -33,7 +32,7 @@ namespace ITVComponents.Logging.SqlLite.Viewer
 
         private IDbWrapper currentLogWrapper;
 
-        public string UniqueName { get; set; }
+        public string Name { get; }
 
         public bool HandleKeyDown { get; } = false;
         public bool HandleKeyUp { get; } = false;
@@ -57,7 +56,11 @@ namespace ITVComponents.Logging.SqlLite.Viewer
                 
                 if (raise)
                 {
-                    currentLogWrapper?.Dispose();
+                    if (currentLogWrapper is IDisposable dip)
+                    {
+                        dip.Dispose();
+                    }
+
                     currentLogWrapper = null;
                     OnPropertyChanged(nameof(SelectedLog));
                     OnPropertyChanged(nameof(LogData));
@@ -65,8 +68,9 @@ namespace ITVComponents.Logging.SqlLite.Viewer
             }
         }
 
-        public LogViewerController(string logPath, string searchFilter)
+        public LogViewerController(string logPath, string searchFilter, string name)
         {
+            Name = name;
             this.logPath = logPath;
             this.searchFilter = searchFilter;
         }
@@ -108,11 +112,6 @@ namespace ITVComponents.Logging.SqlLite.Viewer
             }
         }
 
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
         public void RefreshLogs()
         {
             DirectoryInfo inf = new DirectoryInfo(logPath);
@@ -137,11 +136,6 @@ namespace ITVComponents.Logging.SqlLite.Viewer
         /// </summary>
         protected virtual void Init()
         {
-        }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
         }
 
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -171,7 +165,5 @@ namespace ITVComponents.Logging.SqlLite.Viewer
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
-
-        public event EventHandler Disposed;
     }
 }

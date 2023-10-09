@@ -30,7 +30,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Configura
         /// <param name="remoteClient">the clienObject that enables the communication with the target process</param>
         /// <param name="configServerName">the name of the ConfigurationServer object</param>
 
-        public ConfigurationClient(IBaseClient remoteClient, string configServerName) : base()
+        public ConfigurationClient(IBaseClient remoteClient, string configServerName, string uniqueName) : base(uniqueName)
         {
             this.remoteClient = remoteClient;
             this.configServerName = configServerName;

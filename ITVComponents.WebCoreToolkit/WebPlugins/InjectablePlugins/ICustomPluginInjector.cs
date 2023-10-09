@@ -19,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         /// <param name="services">the DI services for the  current request</param>
         /// <param name="prefixWithArea">indicates whether to check for a prefix with the given area-prefix</param>
         /// <returns>the demanded plugin instance</returns>
-        IPlugin GetPlugin(IServiceProvider services, bool prefixWithArea);
+        object GetPlugin(IServiceProvider services, bool prefixWithArea);
 
         /// <summary>
         /// Gets the demanded plugin instance
@@ -27,6 +27,6 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         /// <param name="services">the DI services for the current request</param>
         /// <param name="explicitRequestedName">the name of the required plugin</param>
         /// <returns>the demanded plugin instance</returns>
-        IPlugin GetPlugin(IServiceProvider services, string explicitRequestedName);
+        object GetPlugin(IServiceProvider services, string explicitRequestedName);
     }
 }

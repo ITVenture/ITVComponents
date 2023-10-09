@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.TypeConversion.DefaultConverters
 {
-    public class EnumConverter:TypeConversionPlugin
+    public class EnumConverter: TypeConversionProvider
     {
         /// <summary>
         /// Gets a value indicating whether this converter is capable of converting the given value to the target type

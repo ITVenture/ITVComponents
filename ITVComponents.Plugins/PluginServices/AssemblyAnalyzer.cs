@@ -19,7 +19,7 @@ namespace ITVComponents.Plugins.PluginServices
 {
     public class AssemblyAnalyzer
     {
-        private static Type obsoleteCallbackType = GetObsoleteCallbackType();
+        //private static Type obsoleteCallbackType = GetObsoleteCallbackType();
 
         /// <summary>
         /// Describes all plugin-types in an assembly
@@ -58,9 +58,9 @@ namespace ITVComponents.Plugins.PluginServices
         public static TypeDescriptor[] DescribeAssembly(Assembly assembly, Action<Type, TypeDescriptor> analyzeType = null, Action<ConstructorInfo, ConstructorDescriptor> analyzeConstructor = null, Action<ParameterInfo, ConstructorParameterDescriptor> analyzeParameter = null)
         {
             int objectId = 1;
-            var plug = typeof(IPlugin);
+            //var plug = typeof(IPlugin);
             var pluginTypes =
-                (from t in assembly.GetTypes() where plug.IsAssignableFrom(t) && !t.IsAbstract select t);
+                (from t in assembly.GetTypes() where t.IsPublic && t.IsClass && !t.IsAbstract && t.GetConstructors().Any() select t);
             return (from t in pluginTypes select DescribeType(t, ref objectId, analyzeType, analyzeConstructor, analyzeParameter)).ToArray();
         }
 
@@ -176,7 +176,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// <returns>a constructor descriptor for the given constructor info</returns>
         private static ConstructorDescriptor DescribeConstructor(ConstructorInfo c, int index, ref int objectId, Action<ParameterInfo, ConstructorParameterDescriptor> analyzeParameter)
         {
-            ParameterInfo[] parameters = c.GetParameters().Where(n => n.ParameterType !=obsoleteCallbackType).ToArray();
+            ParameterInfo[] parameters = c.GetParameters().ToArray();
             List<ConstructorParameterDescriptor> parameterDescriptors = new List<ConstructorParameterDescriptor>();
             foreach (ParameterInfo param in parameters)
             {
@@ -313,7 +313,7 @@ namespace ITVComponents.Plugins.PluginServices
                     retVal = "\"^^SomeExpression\"";
                 }
             }
-            else if (parameterType == typeof(PluginFactory))
+            else if (parameterType.GetInterfaces().Contains(typeof(IPluginFactory)))
             {
                 retVal = "$factory";
             }
@@ -321,11 +321,11 @@ namespace ITVComponents.Plugins.PluginServices
             return retVal;
         }
 
-        [Obsolete]
+        /*[Obsolete]
         private static Type GetObsoleteCallbackType()
         {
             return typeof(SelfRegistrationCallback);
-        }
+        }*/
 
         /*private static Type AsReflectOnlyType(Type runtimeType)
         {

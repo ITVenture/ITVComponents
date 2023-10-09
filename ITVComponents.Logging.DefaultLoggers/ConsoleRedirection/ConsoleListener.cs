@@ -14,7 +14,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ConsoleRedirection
     /// <summary>
     /// Writes Logs to the appropriate file
     /// </summary>
-    public class ConsoleListener : TextWriter, IPlugin
+    public class ConsoleListener : TextWriter
     {
         /// <summary>
         /// the buffer used to write into the file
@@ -65,11 +65,6 @@ namespace ITVComponents.Logging.DefaultLoggers.ConsoleRedirection
             this.decoratedWriter = System.Console.Out;
             System.Console.SetOut(this);
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets the encoding of the inner writer
@@ -125,15 +120,6 @@ namespace ITVComponents.Logging.DefaultLoggers.ConsoleRedirection
         }
 
         /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// Extracts the next line from the stream-buffer
         /// </summary>
         /// <returns>a byte array representing the next log line including a timestamp</returns>
@@ -164,10 +150,5 @@ namespace ITVComponents.Logging.DefaultLoggers.ConsoleRedirection
 
             return retVal;
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

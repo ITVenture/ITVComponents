@@ -128,7 +128,7 @@ namespace ITVComponents.Plugins.PluginServices
 
                 case 'L':
                     {
-                        retVal.LiteralKind = LiteralKind.String;
+                        retVal.LiteralKind = LiteralKind.Long;
                         retVal.TypeOfParameter = ParameterKind.Literal;
                         retVal.ParameterValue = long.Parse(value);
                         break;
@@ -136,7 +136,7 @@ namespace ITVComponents.Plugins.PluginServices
 
                 case 'I':
                     {
-                        retVal.LiteralKind = LiteralKind.String;
+                        retVal.LiteralKind = LiteralKind.Int;
                         retVal.TypeOfParameter = ParameterKind.Literal;
                         retVal.ParameterValue = int.Parse(value);
                         break;
@@ -144,7 +144,7 @@ namespace ITVComponents.Plugins.PluginServices
 
                 case 'D':
                     {
-                        retVal.LiteralKind = LiteralKind.String;
+                        retVal.LiteralKind = LiteralKind.Double;
                         retVal.TypeOfParameter = ParameterKind.Literal;
                         retVal.ParameterValue = double.Parse(value);
                         break;
@@ -152,14 +152,14 @@ namespace ITVComponents.Plugins.PluginServices
 
                 case 'F':
                     {
-                        retVal.LiteralKind = LiteralKind.String;
+                        retVal.LiteralKind = LiteralKind.Single;
                         retVal.TypeOfParameter = ParameterKind.Literal;
                         retVal.ParameterValue = float.Parse(value);
                         break;
                     }
                 case 'B':
                     {
-                        retVal.LiteralKind = LiteralKind.String;
+                        retVal.LiteralKind = LiteralKind.Boolean;
                         retVal.TypeOfParameter = ParameterKind.Literal;
                         retVal.ParameterValue = bool.Parse(value);
                         break;

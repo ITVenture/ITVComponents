@@ -8,7 +8,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.Decisions
 {
-    public interface IConstraintFactory: IPlugin
+    public interface IConstraintFactory:INotifyDisposed
     {
         void RegisterType(ConstraintConstructor constructor);
 

@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
     /// <summary>
     /// Maps the user to the names in the group-collection in the claim
     /// </summary>
-    internal class User2GroupsMapper : IUserNameMapper, IPlugin
+    internal class User2GroupsMapper : IUserNameMapper
     {
         private readonly UserMappingOptions userMappingOptions;
         private readonly User2GroupsMappingOptions options;
@@ -30,11 +30,6 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
             this.groupClaim = groupClaim;
             userMappingOptions = new();
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets all labels for the given Identity
@@ -71,24 +66,5 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
 
             return retVal.ToArray();
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

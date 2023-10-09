@@ -24,10 +24,10 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             IPermissionScope scope = services.GetService<IPermissionScope>();
             var name = $"{scope?.PermissionPrefix}{rawName}";
             var factory = plugins.GetFactory();
-            var retVal = factory[name, true];
+            var retVal = factory[name];
             if (retVal == null)
             {
-                retVal = factory[rawName, true];
+                retVal = factory[rawName];
             }
 
             if (retVal is IAsyncFileHandler afh)

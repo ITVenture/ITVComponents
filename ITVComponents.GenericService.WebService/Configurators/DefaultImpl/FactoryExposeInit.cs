@@ -13,12 +13,11 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 {
-    public class FactoryExposeInit : IServiceHostConfigurator, IPlugin
+    public class FactoryExposeInit : IServiceHostConfigurator
     {
-        private readonly PluginFactory factory;
-        public string UniqueName { get; set; }
+        private readonly IPluginFactory factory;
 
-        public FactoryExposeInit(IWebHostStartup webHost, PluginFactory factory)
+        public FactoryExposeInit(IWebHostStartup webHost, IPluginFactory factory)
         {
             webHost.RegisterConfigurator(this);
             this.factory = factory;
@@ -34,17 +33,5 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
         public void ConfigureApp(WebApplication app)
         {
         }
-
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        public event EventHandler Disposed;
     }
 }

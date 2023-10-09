@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling
     /// <summary>
     /// Implements an up- and downloader component for the ItvFileUpload endPoint
     /// </summary>
-    public interface IAsyncFileHandler : IPlugin
+    public interface IAsyncFileHandler
     {
         /// <summary>
         /// Provides a list of Permissions that a user must have any of, to perform a specific task

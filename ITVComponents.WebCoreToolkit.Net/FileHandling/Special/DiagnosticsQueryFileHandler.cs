@@ -17,7 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Net.FileHandling.Special
 {
-    public abstract class DiagnosticsQueryFileHandler:IAsyncFileHandler,IPlugin
+    public abstract class DiagnosticsQueryFileHandler:IAsyncFileHandler
     {
         private readonly IServiceProvider services;
 
@@ -37,11 +37,6 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling.Special
         /// Provides the ServiceProvider that can be used to retrieve further services
         /// </summary>
         protected IServiceProvider Services => services;
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Provides a list of Permissions that a user must have any of, to perform a specific task
@@ -109,27 +104,5 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling.Special
         /// <param name="downloadIdentity">the download-identity that was used to request the data</param>
         /// <returns>a file-read result that describes the retrieved data</returns>
         protected abstract Task<AsyncReadFileResult> MaterializeQueryData(object[] data, string queryName, IIdentity downloadIdentity);
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Releases all required resources
-        /// </summary>
-        public void Dispose()
-        {
-            repo = null;
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

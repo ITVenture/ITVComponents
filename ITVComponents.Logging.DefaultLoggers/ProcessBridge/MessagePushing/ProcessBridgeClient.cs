@@ -37,7 +37,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
             }
             catch (Exception ex)
             {
-                LogEnvironment.LogEvent($"Failed to initialize remote-logger ({remoteLoggerName}@{simpleClient.UniqueName}): {ex.Message}", LogSeverity.Error);
+                LogEnvironment.LogEvent($"Failed to initialize remote-logger ({remoteLoggerName}@{simpleClient.Target}): {ex.Message}", LogSeverity.Error);
             }
         }
 
@@ -55,7 +55,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
             }
             catch (Exception ex)
             {
-                LogEnvironment.LogEvent($"Failed to initialize remote-logger ({remoteLoggerName}@{simpleClient.UniqueName}): {ex.Message}", LogSeverity.Error);
+                LogEnvironment.LogEvent($"Failed to initialize remote-logger ({remoteLoggerName}@{simpleClient.Target}): {ex.Message}", LogSeverity.Error);
             }
         }
 
@@ -73,7 +73,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
             }
             catch (Exception ex)
             {
-                LogEnvironment.LogEvent($"Failed to initialize remote-logger ({remoteLoggerName}@{simpleClient.UniqueName}): {ex.Message}", LogSeverity.Error);
+                LogEnvironment.LogEvent($"Failed to initialize remote-logger ({remoteLoggerName}@{simpleClient.Target}): {ex.Message}", LogSeverity.Error);
             }
         }
 
@@ -91,7 +91,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
             }
             catch (Exception ex)
             {
-                LogEnvironment.LogEvent($"Failed to initialize remote-logger ({remoteLoggerName}@{simpleClient.UniqueName}): {ex.Message}", LogSeverity.Error);
+                LogEnvironment.LogEvent($"Failed to initialize remote-logger ({remoteLoggerName}@{simpleClient.Target}): {ex.Message}", LogSeverity.Error);
             }
         }
 

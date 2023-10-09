@@ -24,12 +24,6 @@ namespace ITVComponents.DataAccess.Remote
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-
-        /// <summary>
         /// Executes a command with name-bound parameters
         /// </summary>
         /// <param name="command">the command to execute</param>
@@ -289,7 +283,5 @@ namespace ITVComponents.DataAccess.Remote
         {
             proxy.ReleaseConnection(sessionId);
         }
-
-        public event EventHandler Disposed;
     }
 }

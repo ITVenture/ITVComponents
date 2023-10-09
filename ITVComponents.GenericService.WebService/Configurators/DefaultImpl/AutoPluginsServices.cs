@@ -12,13 +12,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 {
-    public class AutoPluginsServices : IServiceHostConfigurator, IPlugin
+    public class AutoPluginsServices : IServiceHostConfigurator
     {
         public AutoPluginsServices(IWebHostStartup startup)
         {
             startup.RegisterConfigurator(this);
         }
-        public string UniqueName { get; set; }
 
         public void ConfigureBuilder(WebApplicationBuilder builder)
         {
@@ -28,18 +27,5 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
         public void ConfigureApp(WebApplication app)
         {
         }
-
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        public event EventHandler Disposed;
-
     }
 }

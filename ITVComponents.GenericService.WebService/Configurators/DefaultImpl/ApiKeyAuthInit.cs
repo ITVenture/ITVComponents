@@ -18,8 +18,6 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
             hubProvider.RegisterConfigurator(this);
         }
 
-        public string UniqueName { get; set; }
-
         /// <summary>
         /// Configures the WebApplication builder (inject services, set defaults, etc.)
         /// </summary>
@@ -60,24 +58,5 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
             {
             });
         }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

@@ -6,7 +6,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.DataAccess
 {
-    public interface IDbWrapper : IPlugin
+    public interface IDbWrapper: IDisposable
     {
         /// <summary>
         /// Executes a command with name-bound parameters

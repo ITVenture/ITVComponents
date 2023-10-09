@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.TypeConversion.DefaultConverters
 {
-    public class NullableConverter : TypeConversionPlugin
+    public class NullableConverter : TypeConversionProvider
     {
         public override bool CapableFor(object value, Type targetType)
         {

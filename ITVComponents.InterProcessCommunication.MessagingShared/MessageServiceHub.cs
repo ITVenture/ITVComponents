@@ -8,7 +8,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared
 {
-    public class MessageServiceHub: IServiceHubProvider, IPlugin
+    public class MessageServiceHub: IServiceHubProvider
     {
         private static MessageServiceHub instance;
 
@@ -29,19 +29,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared
         {
             Broker.Dispose();
             Broker = null;
-            OnDisposed();
         }
-
-        public string UniqueName { get; set; }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

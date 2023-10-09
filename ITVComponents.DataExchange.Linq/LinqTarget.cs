@@ -7,11 +7,10 @@ using ITVComponents.DataAccess.Extensions;
 using ITVComponents.DataAccess.Linq;
 using ITVComponents.DataExchange.Interfaces;
 using ITVComponents.Plugins;
-using ITVComponents.Plugins.SelfRegistration;
 
 namespace ITVComponents.DataExchange.Linq
 {
-    public class LinqTarget:IDataContainer, IPlugin, IDeferredInit
+    public class LinqTarget:IDataContainer, IDeferredInit, IDisposable
     {
         /// <summary>
         /// The target context to serve with data
@@ -23,21 +22,19 @@ namespace ITVComponents.DataExchange.Linq
         /// </summary>
         private IDataCollector parent;
 
+        private readonly string name;
+
         /// <summary>
         /// Initializes a new instance of the LinqTaret class
         /// </summary>
         /// <param name="targetContext">the linq datacontext that is used to store data for linq queries</param>
         /// <param name="parent">the datacollector that is using this target to register partial results</param>
-        public LinqTarget(IDataContext targetContext, IDataCollector parent)
+        public LinqTarget(IDataContext targetContext, IDataCollector parent, string uniqueName)
         {
             this.targetContext = targetContext;
             this.parent = parent;
+            this.name = uniqueName;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
@@ -69,7 +66,7 @@ namespace ITVComponents.DataExchange.Linq
             {
                 try
                 {
-                    parent.RegisterTarget(UniqueName, this);
+                    parent.RegisterTarget(name, this);
                     Init();
                 }
                 finally
@@ -103,17 +100,7 @@ namespace ITVComponents.DataExchange.Linq
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            parent.UnregisterTarget(UniqueName, this);
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
+            parent.UnregisterTarget(name, this);
         }
 
         /// <summary>
@@ -122,10 +109,5 @@ namespace ITVComponents.DataExchange.Linq
         protected virtual void Init()
         {
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

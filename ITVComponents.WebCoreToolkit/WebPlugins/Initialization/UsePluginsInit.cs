@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
+using ITVComponents.Plugins.Initialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -55,10 +56,13 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.Initialization
                     using (var scope = serviceProvider.CreateScope())
                     {
                         var pluginProvider = scope.ServiceProvider.GetService<IWebPluginsSelector>();
-                        PluginFactory noBufFactory;
-                        using (noBufFactory = new PluginFactory(false))
+                        IPluginFactory noBufFactory;
+                        using (noBufFactory = new PluginFactory(PluginInitializationPhase.Startup,false,scope.ServiceProvider, new WebPluginLoadHelper(pluginProvider, false,scope.ServiceProvider, PluginInitializationPhase.Startup)))
                         {
-                            plugLogger.LogDebug("Enumerating Startup-Plugins");
+
+                            noBufFactory.Start();
+                            noBufFactory.InitializeDeferrables();
+                            /*plugLogger.LogDebug("Enumerating Startup-Plugins");
                             foreach (var plug in pluginProvider.GetStartupPlugins())
                             {
                                 try
@@ -79,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.Initialization
                                 }
                             }
 
-                            plugLogger.LogDebug("Done");
+                            plugLogger.LogDebug("Done")*/
                         }
                     }
                 }

@@ -8,8 +8,10 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.MailMerge
 {
-    public abstract class MergerStrategy:IPlugin
+    public abstract class MergerStrategy:IDisposable
     {
+        private readonly string uniqueName;
+
         /// <summary>
         /// Holds a list of mergers that were initialized in the current AppDomain
         /// </summary>
@@ -18,18 +20,14 @@ namespace ITVComponents.MailMerge
         /// <summary>
         /// Initializes a new instance of the MergerStrategy class
         /// </summary>
-        protected MergerStrategy()
+        protected MergerStrategy(string uniqueName)
         {
+            this.uniqueName = uniqueName;
             lock (mergers)
             {
                 mergers.Add(this);
             }
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets the merger with the given name from the list of initialized mergers
@@ -40,7 +38,7 @@ namespace ITVComponents.MailMerge
         {
             lock (mergers)
             {
-                var retVal = mergers.FirstOrDefault(n => n.UniqueName == mergerName);
+                var retVal = mergers.FirstOrDefault(n => n.uniqueName == mergerName);
                 if (retVal == null)
                 {
                     throw new IndexOutOfRangeException("The demanded merger was not found!");
@@ -58,7 +56,7 @@ namespace ITVComponents.MailMerge
         {
             lock (mergers)
             {
-                return (from t in mergers orderby t.UniqueName select t.UniqueName).ToArray();
+                return (from t in mergers orderby t.uniqueName select t.uniqueName).ToArray();
             }
         }
 
@@ -90,7 +88,6 @@ namespace ITVComponents.MailMerge
         /// <filterpriority>2</filterpriority>
         public void Dispose()
         {
-            OnDisposed();
             lock (mergers)
             {
                 mergers.Remove(this);
@@ -117,19 +114,6 @@ namespace ITVComponents.MailMerge
         {
             throw new NotImplementedException("The method is not supported by this merger!");
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 
     /// <summary>

@@ -12,7 +12,7 @@ namespace ITVComponents.WebCoreToolkit.Net.PlugInServices
     [ScopedDependency(FriendlyName = "WebPluginAnalyzer")]
     public class WebPluginAnalyzer:AssemblyPluginAnalyzer
     {
-        public WebPluginAnalyzer(PluginFactory factory) : base(factory)
+        public WebPluginAnalyzer(IPluginFactory factory) : base(factory)
         {
         }
 

@@ -12,7 +12,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
     /// <summary>
     /// Implements a default UserNameMapper that only returns the name of the underlaying identity user
     /// </summary>
-    public class SimpleUserNameMapper:IUserNameMapper, IPlugin
+    public class SimpleUserNameMapper:IUserNameMapper
     {
         private readonly UserMappingOptions userMappingOptions;
 
@@ -25,12 +25,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
         {
             userMappingOptions = new UserMappingOptions();
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
+        
         /// <summary>
         /// Gets all labels for the given principaluser
         /// </summary>
@@ -51,24 +46,5 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
 
             return retVal.ToArray();
         }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

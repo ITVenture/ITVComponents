@@ -82,5 +82,22 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrapper
         {
             extendedProxies = proxies;
         }
+
+        public string GetUniqueName(object plugin)
+        {
+            var tmp = exposedObjects.ToArray();
+            if (tmp.Any(n => n.Value == plugin))
+            {
+                return tmp.First(n => n.Value == plugin).Key;
+            }
+
+            var tmp2 = extendedProxies.ToArray();
+            if (tmp2.Any(n => n.Value == plugin))
+            {
+                return tmp2.First(n => n.Value == plugin).Key;
+            }
+
+            return null;
+        }
     }
 }

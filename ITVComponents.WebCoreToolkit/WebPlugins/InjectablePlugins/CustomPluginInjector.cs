@@ -12,7 +12,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
     /// Base implementation of a Plugin-injector
     /// </summary>
     /// <typeparam name="T">the Plugin-type that is created with this injector</typeparam>
-    public abstract class CustomPluginInjector<T>:ICustomPluginInjector where T:class,IPlugin
+    public abstract class CustomPluginInjector<T>:ICustomPluginInjector where T : class
     {
         /// <summary>
         /// Gets the name of the Plugin to create with this injector
@@ -28,11 +28,11 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         /// <param name="services">the services collection providing required dependencies</param>
         /// <param name="prefixWithArea">indicates whether to check for a prefix with the given area-prefix</param>
         /// <returns>the requested plugin instance</returns>
-        IPlugin ICustomPluginInjector.GetPlugin(IServiceProvider services, bool prefixWithArea)
+        object ICustomPluginInjector.GetPlugin(IServiceProvider services, bool prefixWithArea)
         {
             var factoryLoader = services.GetRequiredService<IWebPluginHelper>();
             var factory = factoryLoader.GetFactory();
-            return factory[GetPluginUniqueName(services, prefixWithArea),true];
+            return factory[GetPluginUniqueName(services, prefixWithArea)];
         }
 
         /// <summary>
@@ -41,11 +41,11 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         /// <param name="services">the DI services for the current request</param>
         /// <param name="explicitRequestedName">the name of the required plugin</param>
         /// <returns>the demanded plugin instance</returns>
-        IPlugin ICustomPluginInjector.GetPlugin(IServiceProvider services, string explicitRequestedName)
+        object ICustomPluginInjector.GetPlugin(IServiceProvider services, string explicitRequestedName)
         {
             var factoryLoader = services.GetRequiredService<IWebPluginHelper>();
             var factory = factoryLoader.GetFactory();
-            return factory[explicitRequestedName, true];
+            return factory[explicitRequestedName];
         }
 
         /// <summary>

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace ITVComponents.EFRepo.DIIntegration
 {
-    public abstract class ContextOptionsLoader<TContext>:IPlugin where TContext : DbContext
+    public abstract class ContextOptionsLoader<TContext> where TContext : DbContext
     {
         private List<ContextOptionsLoader<TContext>> innerLoaders = new();
         //private readonly string connectString;

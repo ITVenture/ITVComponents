@@ -6,13 +6,8 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
 {
-    public class ProcessBridgeServer : IPlugin, ILogBridge
+    public class ProcessBridgeServer : ILogBridge
     {
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
         /// <summary>
         /// Logs an event through the ProcessBridge on a remote logger instance
         /// </summary>
@@ -23,25 +18,5 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
         {
             LogEnvironment.LogEvent(message, severity, context);
         }
-
-        /// <summary>Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.</summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

@@ -7,7 +7,7 @@ using ITVComponents.Scripting.CScript.Helpers;
 
 namespace ITVComponents.Logging.DefaultLoggers
 {
-    public abstract class LogTarget:IPlugin, IDebugLogTarget
+    public abstract class LogTarget:IDebugLogTarget, IDisposable
     {
         /// <summary>
         /// indicates whether this logTarget is enabled
@@ -117,11 +117,6 @@ namespace ITVComponents.Logging.DefaultLoggers
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Gets or sets a value indicating whether this LogWriter is active
         /// </summary>
         public bool Enabled
@@ -180,13 +175,9 @@ namespace ITVComponents.Logging.DefaultLoggers
             }
         }
 
-        /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
+        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public virtual void Dispose()
         {
-            OnDisposed();
         }
 
         /// <summary>
@@ -204,15 +195,6 @@ namespace ITVComponents.Logging.DefaultLoggers
         protected virtual bool IsEnabled()
         {
             return true;
-        }
-
-        /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -244,10 +226,5 @@ namespace ITVComponents.Logging.DefaultLoggers
 
             return retVal;
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

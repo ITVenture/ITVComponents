@@ -12,7 +12,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub
     /// <summary>
     /// Enables an implemeting class to configure a client-channel before gprc-clients are created
     /// </summary>
-    public interface IHubClientConfigurator: IPlugin
+    public interface IHubClientConfigurator
     {
         /// <summary>
         /// Configures a channel before a grpc-client is created

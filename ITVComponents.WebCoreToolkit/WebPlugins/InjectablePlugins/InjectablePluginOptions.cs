@@ -24,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         /// </summary>
         /// <typeparam name="T">the interface of which a proxy needs to be created</typeparam>
         /// <param name="injector">the injector used to create the demanded instance</param>
-        public void AddInjector<T>(CustomPluginInjector<T> injector) where T : class,IPlugin
+        public void AddInjector<T>(CustomPluginInjector<T> injector) where T : class
         {
             var t = typeof(T);
             injectors.Add(t, injector);
@@ -36,7 +36,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         /// <typeparam name="T">the proxy-type to return</typeparam>
         /// <param name="services">a services collection that provides required services</param>
         /// <returns>the created proxy instance</returns>
-        internal T GetPlugIn<T>(IServiceProvider services) where T:class,IPlugin
+        internal T GetPlugIn<T>(IServiceProvider services) where T : class
         {
             if (!injectors.ContainsKey(typeof(T)))
             {
@@ -53,7 +53,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         /// <typeparam name="T">the proxy-type to return</typeparam>
         /// <param name="services">a services collection that provides required services</param>
         /// <returns>the created proxy instance</returns>
-        internal T GetPlugIn<T>(IServiceProvider services, string explicitRequestedName) where T : class, IPlugin
+        internal T GetPlugIn<T>(IServiceProvider services, string explicitRequestedName) where T : class
         {
             if (!injectors.ContainsKey(typeof(T)))
             {

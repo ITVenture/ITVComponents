@@ -10,7 +10,7 @@ using ITVComponents.Settings;
 
 namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Configuration
 {
-    public abstract class ConfiguratorBase:IPlugin, IDeferredInit, IConfigurationServer
+    public abstract class ConfiguratorBase:INotifyDisposed, IDeferredInit, IConfigurationServer
     {
         /// <summary>
         /// Holds a list of available configurators
@@ -19,17 +19,15 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Configura
 
         public static string[] KnownConfigurators => availableConfigurators.Keys.ToArray();
 
+        private string regName;
+
         /// <summary>
         /// Initializes a new instance of the ConfiguratorBase class
         /// </summary>
-        protected ConfiguratorBase()
+        protected ConfiguratorBase(string uniqueName)
         {
+            regName = uniqueName;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
@@ -86,7 +84,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Configura
             }
             finally
             {
-                availableConfigurators.AddOrUpdate(UniqueName, this, (s, o) => this);
+                availableConfigurators.AddOrUpdate(regName, this, (s, o) => this);
                 Initialized = true;
             }
         }
@@ -103,7 +101,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Configura
         /// </summary>
         protected virtual void OnDisposed()
         {
-            availableConfigurators.TryRemove(UniqueName, out var tmp);
+            availableConfigurators.TryRemove(regName, out _);
             Disposed?.Invoke(this, EventArgs.Empty);
         }
 

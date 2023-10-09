@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace ITVComponents.EFRepo.DynamicData
 {
-    public abstract class DynamicDataAdapter:IPlugin
+    public abstract class DynamicDataAdapter: IDisposable
     {
         private readonly DbContext parentContext;
 
@@ -23,11 +23,6 @@ namespace ITVComponents.EFRepo.DynamicData
         {
             this.parentContext = parentContext;
         }
-        
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets a list of eligible types that are available for table-design
@@ -152,20 +147,6 @@ namespace ITVComponents.EFRepo.DynamicData
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public virtual void Dispose()
         {
-            OnDisposed();
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

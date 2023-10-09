@@ -26,15 +26,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
                 var name = $"{scope?.PermissionPrefix}{area}{s}";
                 var factory = plugins.GetFactory();
-                var retVal = factory[name, true];
+                var retVal = factory[name];
                 if (retVal == null)
                 {
                     name = $"{scope?.PermissionPrefix}{s}";
-                    retVal = factory[name, true];
+                    retVal = factory[name];
                 }
                 if (retVal == null)
                 {
-                    retVal = factory[s, true];
+                    retVal = factory[s];
                 }
 
                 return retVal;

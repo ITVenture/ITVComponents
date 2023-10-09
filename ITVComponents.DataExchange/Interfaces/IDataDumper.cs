@@ -6,7 +6,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.DataExchange.Interfaces
 {
-    public interface IDataDumper:IPlugin
+    public interface IDataDumper
     {
         /// <summary>
         /// Dumps collected data into the given file

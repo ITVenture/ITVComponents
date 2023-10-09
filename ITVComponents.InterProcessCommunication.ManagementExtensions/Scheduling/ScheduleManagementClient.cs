@@ -11,7 +11,7 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
     /// <summary>
     /// Manages remote schedulers
     /// </summary>
-    public class ScheduleManagementClient:IPlugin, ISchedulingManager
+    public class ScheduleManagementClient: ISchedulingManager
     {
         /// <summary>
         /// A connector object that is used to communicate with a foreign object
@@ -39,11 +39,6 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
             this.managementObjectName = managementObjectName;
             proxy = client.CreateProxy<ISchedulingManager>(managementObjectName);
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets a list of available schedulers
@@ -101,28 +96,5 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
 
             return false;*/
         }
-
-        /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

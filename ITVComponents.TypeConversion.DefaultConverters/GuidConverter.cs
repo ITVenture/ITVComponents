@@ -10,7 +10,7 @@ namespace ITVComponents.TypeConversion.DefaultConverters
     /// <summary>
     /// A Default instance of a String-to-GUID-Converter
     /// </summary>
-    public class GuidConverter:TypeConversionPlugin
+    public class GuidConverter: TypeConversionProvider
     {
         /// <summary>
         /// Gets a value indicating whether this converter is capable of converting the given value to the target type

@@ -1,4 +1,4 @@
-﻿//-----------------------------------------------------------------------
+﻿/*//-----------------------------------------------------------------------
 // <copyright file="IPlugin.cs" company="IT-Venture GmbH">
 //     2009 by IT-Venture GmbH
 // </copyright>
@@ -22,4 +22,4 @@ namespace ITVComponents.Plugins
         /// </summary>
         string UniqueName { get; set; }
     }
-}
+}*/

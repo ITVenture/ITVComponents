@@ -28,11 +28,6 @@ namespace ITVComponents.DataExchange.FileDumping
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Dumps collected data into the given file
         /// </summary>
         /// <param name="fileName">the name of the target filename for this dump-run</param>
@@ -170,26 +165,5 @@ namespace ITVComponents.DataExchange.FileDumping
 
             return $"[$$Format($$(\"[{retVal}]\"))]";
         }
-
-        /// <summary>
-        ///   Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed Event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

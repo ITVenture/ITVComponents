@@ -43,11 +43,6 @@ namespace ITVComponents.DataAccess.Linq
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Executes a command with name-bound parameters
         /// </summary>
         /// <param name="command">the command to execute</param>
@@ -335,17 +330,9 @@ namespace ITVComponents.DataAccess.Linq
             throw new NotImplementedException();
         }
 
-        /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
+        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
+        public virtual void Dispose()
         {
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

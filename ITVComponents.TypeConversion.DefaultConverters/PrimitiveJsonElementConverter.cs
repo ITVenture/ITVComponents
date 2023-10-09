@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.TypeConversion.DefaultConverters
 {
-    public class PrimitiveJsonElementConverter : TypeConversionPlugin
+    public class PrimitiveJsonElementConverter : TypeConversionProvider
     {
         public override bool CapableFor(object value, Type targetType)
         {

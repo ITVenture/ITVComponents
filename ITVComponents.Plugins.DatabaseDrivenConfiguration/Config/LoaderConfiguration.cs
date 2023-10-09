@@ -24,11 +24,6 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration.Config
         public string ParamTableName { get; set; }
 
         /// <summary>
-        /// Gets or sets the construction instruction for the plugin instance
-        /// </summary>
-        public int RefreshCycle { get; set; }
-
-        /// <summary>
         /// Gets or sets the TenantName when a multi-tenant environment is used
         /// </summary>
         public string TenantName { get; set; }
@@ -40,7 +35,7 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration.Config
         {
             if (!string.IsNullOrEmpty(Name))
             {
-                return $"{Name} ({PluginTableName}, {RefreshCycle} milliseconds)";
+                return $"{Name} ({PluginTableName}, {ParamTableName}, {TenantName})";
             }
 
             return base.ToString();

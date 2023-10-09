@@ -17,7 +17,7 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
 {
-    public class SettingsSecurityRepository : ISecurityRepository, IPlugin
+    public class SettingsSecurityRepository : ISecurityRepository
     {
         private readonly IdentitySettings options;
         private IList<User> bufferedUsers;
@@ -32,11 +32,6 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         {
             this.options = NativeSettings.GetSection<IdentitySettings>(IdentitySettings.SettingsKey);
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets a list of users in the current application
@@ -337,24 +332,8 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
             return new ScopeInfo[0];
         }
 
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
-            OnDisposed();
-
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

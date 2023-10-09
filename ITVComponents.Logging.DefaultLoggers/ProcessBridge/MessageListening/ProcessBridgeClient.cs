@@ -4,7 +4,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
 {
-    public class ProcessBridgeClient:IPlugin
+    public class ProcessBridgeClient:IDisposable
     {
         /// <summary>
         /// The Logger bridge that is used to consume the logging service
@@ -21,11 +21,6 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
             bridge = consumer.CreateProxy<ILogBridge>(serviceName);
             bridge.LogMessage += LogMessage;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether to enable the bridge logger
@@ -53,16 +48,6 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
         public void Dispose()
         {
             bridge.LogMessage -= LogMessage;
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -74,10 +59,5 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
         {
             LogEnvironment.LogEvent(e.Message, e.Severity);
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

@@ -11,7 +11,7 @@ namespace ITVComponents.IO
     /// <summary>
     /// Presents some generic IO Operations such as reading, writing and deleting of files in an interface.
     /// </summary>
-    public interface IFileAccess:IPlugin
+    public interface IFileAccess
     {
         /// <summary>
         /// Opens a read-only stream for the given file

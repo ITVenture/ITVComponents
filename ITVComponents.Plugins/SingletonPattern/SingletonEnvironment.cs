@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace ITVComponents.Plugins.SingletonPattern
 {
-    public static class SingletonEnvironment
+    /*public static class SingletonEnvironment
     {
         /// <summary>
         /// Holds the singletonFactory object
@@ -179,5 +179,5 @@ namespace ITVComponents.Plugins.SingletonPattern
 
             return false;
         }
-    }
+    }*/
 }

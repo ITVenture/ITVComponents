@@ -80,22 +80,7 @@ namespace ITVComponents.DataAccess.SqlServer
         public void Dispose()
         {
             connection.Dispose();
-            if (Disposed != null)
-            {
-                Disposed(this, EventArgs.Empty);
-            }
         }
-
-        /// <summary>
-        /// Informs a client object that this item has been disposed
-        /// </summary>
-        [field: NonSerialized]
-        public event EventHandler Disposed;
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Executes a command with name-bound parameters

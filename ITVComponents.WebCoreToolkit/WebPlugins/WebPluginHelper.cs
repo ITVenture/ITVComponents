@@ -1,13 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Resources;
 using System.Threading.Tasks;
+using Antlr4.Runtime.Misc;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Helpers;
+using ITVComponents.Plugins.Initialization;
+using ITVComponents.Plugins.Model;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -31,8 +35,10 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
        private IServiceProvider serviceProvider;
         //private PluginFactory pluginFactory;
         //private ConcurrentDictionary<GuidEnumeration, PluginFactory> factories;
-        private PluginFactory factory;
+        private IPluginFactory factory;
         private ILogger<WebPluginHelper> logger;
+
+        private bool useExplicitTenants;
 
         /// <summary>
         /// Initializes a new instance of the WebPluginHelper class
@@ -67,12 +73,13 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// Gets the a PluginFactory inside the current OWinContext
         /// </summary>
         /// <returns>a pluginfactory</returns>
-        public PluginFactory GetFactory()
+        public IPluginFactory GetFactory()
         {
             if (factory == null)
             {
-                factory = CreateFactory(true, false);
-                SetupFactory(factory, true);
+                useExplicitTenants = false;
+                factory = CreateFactory();
+                //SetupFactory(factory, true);
             }
 
             return factory;
@@ -83,7 +90,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// </summary>
         /// <param name="explicitPluginScope">the scope that must be explicitly used for loading plugins and constants</param>
         /// <returns>the initialized factory</returns>
-        public PluginFactory GetFactory(string explicitPluginScope)
+        public IPluginFactory GetFactory(string explicitPluginScope)
         {
             if (factory != null && pluginProvider.ExplicitPluginPermissionScope != explicitPluginScope)
             {
@@ -96,8 +103,9 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             }
 
             pluginProvider.ExplicitPluginPermissionScope = explicitPluginScope;
-            factory = CreateFactory(false, true);
-            SetupFactory(factory, false);
+            useExplicitTenants = true;
+            factory = CreateFactory();
+            //SetupFactory(factory, false);
             return factory;
         }
 
@@ -111,76 +119,25 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// Initializes a new i PluginFactory instance
         /// </summary>
         /// <returns>a Factory that can be used to load further plugins</returns>
-        private PluginFactory CreateFactory(bool checkSecurity, bool useExplicitTenants)
+        private IPluginFactory CreateFactory()
         {
-            var retVal = new PluginFactory();
-            LogEnvironment.OpenRegistrationTicket(retVal);
-            retVal.AllowFactoryParameter = true;
-            retVal.RegisterObject(Global.ServiceProviderName, serviceProvider);
-            retVal.RegisterObject(Global.PlugInSelectorName, pluginProvider);
-            string explicitUserScope = null;
-            if (useExplicitTenants)
+            IDynamicLoader basicLoader = serviceProvider.GetService<IDynamicLoader>();
+            IList<IDynamicLoader>  l = new List<IDynamicLoader>();
+            if (basicLoader != null)
             {
-                explicitUserScope = pluginProvider.ExplicitPluginPermissionScope;
+                l.Add(basicLoader);
             }
 
-            UnknownConstructorParameterEventHandler handler = (sender, args) =>
+            l.Add(new WebPluginLoadHelper(pluginProvider, useExplicitTenants, serviceProvider, PluginInitializationPhase.ScopeStatic));
+            var retVal = new PluginFactory(PluginInitializationPhase.ScopeStatic, false, serviceProvider, l.ToArray());
+            LogEnvironment.OpenRegistrationTicket(retVal);
+            retVal.AllowFactoryParameter = true;
+            //retVal.RegisterObject(Global.ServiceProviderName, serviceProvider);
+            retVal.RegisterObject(Global.PlugInSelectorName, pluginProvider);
+            if (factoryOptions != null)
             {
-                PluginFactory pi = (PluginFactory) sender;
-                IWebPluginsSelector availablePlugins = pluginProvider;
-                var globalProvider = serviceProvider.GetService<IGlobalSettingsProvider>();
-                var tenantProvider = serviceProvider.GetService<IScopedSettingsProvider>();
-                var preInitializationSequence = tenantProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}", explicitUserScope)
-                                                ?? globalProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}");
-                var postInitializationSequence = tenantProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}", explicitUserScope)
-                                                ?? globalProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}");
-                var preInitSequence = DeserializeInitArray(preInitializationSequence);
-                var postInitSequence = DeserializeInitArray(postInitializationSequence);
-                WebPlugin plugin =
-                    availablePlugins.GetPlugin(args.RequestedName);
-                if (plugin != null)
-                {
-                    if (!checkSecurity || serviceProvider.VerifyUserPermissions(new []{args.RequestedName},true))
-                    {
-                        if (preInitSequence.Length != 0)
-                        {
-                            foreach (var s in preInitSequence)
-                            {
-                                var tmp = pi[s, true];
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(plugin.Constructor))
-                        {
-                            if (args.PluginType != null)
-                            {
-                                args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
-                                                        new Dictionary<string,object>{{"CallingPlugin",args.PluginType}});
-                            }
-                            else
-                            {
-                                args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
-                            }
-
-                            args.Handled = true;
-                        }
-
-                        if (postInitSequence.Length != 0)
-                        {
-                            foreach (var s in postInitSequence)
-                            {
-                                var tmp = pi[s, true];
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    var tmp = factoryOptions?.GetDependency(args.RequestedName, serviceProvider);
-                    args.Handled = tmp != null;
-                    args.Value = tmp;
-                }
-            };
+                factoryOptions.ApplyOptions(factory);
+            }
             
             void Initializer(object sender, PluginInitializedEventArgs args)
             {
@@ -190,98 +147,21 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             void Finalizer(object sender, EventArgs e)
             {
                 LogEnvironment.DisposeRegistrationTicket(sender);
-                var pi = (PluginFactory) sender ;
-                var dp = (IServiceProvider) pi.GetRegisteredObject(Global.ServiceProviderName);
+                var pi = (IPluginFactory) sender ;
+                var dp = (IServiceProvider) pi[Global.ServiceProviderName];
                 if (dp != null)
                 {
                     factory = null;
                 }
                 pi.Disposed -= Finalizer;
-                pi.UnknownConstructorParameter -= handler;
                 pi.PluginInitialized -= Initializer;
-                pi.ImplementGenericType -= Implementer;
             }
 
-            void Implementer(object sender, ImplementGenericTypeEventArgs args)
-            {
-                PluginFactory pi = (PluginFactory)sender;
-                IWebPluginsSelector availablePlugins = pluginProvider;
-                var impl = availablePlugins.GetGenericParameters(args.PluginUniqueName);
-                if (impl != null)
-                {
-                    var dic = new Dictionary<string, object>();
-                    var knownTypes = args.KnownArguments ?? new Dictionary<string, object>();
-                    knownTypes.ForEach(n => dic.Add(n.Key, new SmartProperty
-                    {
-                        GetterMethod = t =>
-                        {
-                            args.KnownArgumentsUsed = true;
-                            return n.Value;
-                        }
-                    }));
-                    var assignments = (from t in args.GenericTypes
-                        join a in impl on t.GenericTypeName equals a.GenericTypeName
-                        select new { Arg = t, Type = a.TypeExpression });
-                    foreach (var item in assignments)
-                    {
-                        item.Arg.TypeResult = (Type)ExpressionParser.Parse(item.Type.ApplyFormat(args), dic);
-                    }
-
-                    args.Handled = true;
-                }
-            }
-
-            retVal.UnknownConstructorParameter += handler;
             retVal.PluginInitialized += Initializer;
             retVal.Disposed += Finalizer;
-            retVal.ImplementGenericType += Implementer;
+            retVal.Start();
+            retVal.InitializeDeferrables();
             return retVal;
-        }
-
-        private string[] DeserializeInitArray(string jsonSerializedArray)
-        {
-            string[] retVal = Array.Empty<string>();
-            if (!string.IsNullOrEmpty(jsonSerializedArray))
-            {
-                try
-                {
-                    retVal = JsonHelper.FromJsonString<string[]>(jsonSerializedArray);
-                }
-                catch (Exception ex)
-                {
-                    LogEnvironment.LogEvent(
-                        $"Failed to deserialize Init-Sequence as string[] for {jsonSerializedArray}",
-                        LogSeverity.Error);
-                }
-            }
-
-            return retVal;
-        }
-
-        /// <summary>
-        /// Sets up the factory and loads autoload-configured plugins
-        /// </summary>
-        private void SetupFactory(PluginFactory factory, bool testPermissions)
-        {
-            foreach (WebPlugin pi in pluginProvider.GetAutoLoadPlugins())
-            {
-                try
-                {
-                    if (!testPermissions || serviceProvider.VerifyUserPermissions(new []{pi.UniqueName}, true))
-                    {
-                        factory.LoadPlugin<IPlugin>(pi.UniqueName, pi.Constructor);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    //pi.AutoLoad = false;
-                    //pluginProvider.ConfigurePlugin(pi);
-                    logger.LogError($@"Plugin failed to load.
-Error:
-{ex.OutlineException()}
-Section: Plugins", ex, "Plugins");
-                }
-            }
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.EFRepo
 {
-    public class ContextBuffer:IContextBuffer
+    /*public class ContextBuffer:IContextBuffer
     {
         /// <summary>
         /// The constructor string that will be used to initialize the context
@@ -19,14 +19,14 @@ namespace ITVComponents.EFRepo
         /// <summary>
         /// the PluginFactory that will load the data-context
         /// </summary>
-        private readonly PluginFactory factory;
+        private readonly IPluginFactory factory;
 
         /// <summary>
         /// Initializes a new instance of the ContextBuffer class
         /// </summary>
         /// <param name="contextConstructor">the constructor-string that will load the EF-Context as a plugin</param>
         /// <param name="factory">the plugin-factory that will load the context</param>
-        public ContextBuffer(string contextConstructor, PluginFactory factory)
+        public ContextBuffer(string contextConstructor, IPluginFactory factory)
         {
             this.contextConstructor = contextConstructor;
             this.factory = factory;
@@ -40,34 +40,9 @@ namespace ITVComponents.EFRepo
         /// <returns>a resource-lock that will dispose the context after using</returns>
         public IResourceLock AcquireContext<TContext>(out TContext context) where TContext : DbContext
         {
-            IPlugin tmp = factory.LoadPlugin<IPlugin>("dummy", contextConstructor, false);
-            context = (TContext)tmp ;
+            var tmp = factory.LoadPlugin<TContext>("dummy", contextConstructor, false);
+            context = tmp ;
             return new ResourceDisposer(context);
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
-    }
+    }*/
 }

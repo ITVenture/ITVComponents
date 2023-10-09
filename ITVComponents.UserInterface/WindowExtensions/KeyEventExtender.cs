@@ -8,7 +8,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.UserInterface.WindowExtensions
 {
-    public class KeyEventExtender:IWindowExtender, IPlugin, IKeyEventProvider
+    public class KeyEventExtender:IWindowExtender, IKeyEventProvider
     {
         /// <summary>
         /// Holds a all handlers that are capable for handling events
@@ -24,12 +24,7 @@ namespace ITVComponents.UserInterface.WindowExtensions
         /// the window that needs to be extended by this window-extender
         /// </summary>
         private Window window;
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
+        
         /// <summary>
         /// Extends the target window with the required functions
         /// </summary>
@@ -58,15 +53,6 @@ namespace ITVComponents.UserInterface.WindowExtensions
             window.PreviewKeyDown -= ProcessKeyDown;
             window.PreviewKeyUp -= ProcessKeyUp;
             this.window = null;
-        }
-
-        /// <summary>
-        /// Raises the disposd event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -102,15 +88,6 @@ namespace ITVComponents.UserInterface.WindowExtensions
         }
 
         /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
         /// Registers a KeyHandler that is capable for handling Keystrokes on the main-window
         /// </summary>
         /// <param name="handler">the handler that will process keystrokes</param>
@@ -136,10 +113,5 @@ namespace ITVComponents.UserInterface.WindowExtensions
                 }
             }
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

@@ -16,11 +16,6 @@ namespace ITVComponents.WebCoreToolkit.Security.IO
         private readonly IPermissionScope permissionScope;
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Initializes a new instance of the EncryptedFileAccess class
         /// </summary>
         /// <param name="innerAccess">the inner file-Access implementation that handles cleartext-data</param>
@@ -103,23 +98,5 @@ namespace ITVComponents.WebCoreToolkit.Security.IO
         {
             return await innerAccess.DeleteFileAsync(name);
         }
-
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

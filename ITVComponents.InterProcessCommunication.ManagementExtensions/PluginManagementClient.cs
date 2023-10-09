@@ -9,7 +9,7 @@ using ITVComponents.Plugins.Management;
 
 namespace ITVComponents.InterProcessCommunication.ManagementExtensions
 {
-    public class PluginManagementClient:IPlugin
+    public class PluginManagementClient
     {
         /// <summary>
         /// the method name on the server object for getting statistics providing plugins
@@ -52,11 +52,6 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
             this.managementObject = managementObject;
             server = communicator.CreateProxy<IPluginManagementServer>(managementObject);
         }
-        
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets a value indicating whether the service object is available on the remote service
@@ -108,24 +103,6 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
         }
 
         /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed Event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// Checks whether this object is currently online
         /// </summary>
         /// <returns>a value indicating whether the status of the remote object is ok</returns>
@@ -134,10 +111,5 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions
             return communicator.ValidateConnection() &&
                           (communicator.CheckRemoteObjectAvailability(managementObject)?.Available??false);
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

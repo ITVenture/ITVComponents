@@ -8,7 +8,7 @@ using ITVComponents.Settings;
 
 namespace ITVComponents.GenericService.Shared
 {
-    public class ServiceWatchDogClient : IPlugin, IDeferredInit
+    public class ServiceWatchDogClient : IDeferredInit, IDisposable
     {
         /// <summary>
         /// The client object that is used to connect to the watchDog service
@@ -30,10 +30,7 @@ namespace ITVComponents.GenericService.Shared
             this.client = client;
             this.watchDogName = watchDogName;
         }
-
-        /// <summary>Gets or sets the UniqueName of this Plugin</summary>
-        public string UniqueName { get; set; }
-
+        
         /// <summary>
         /// Indicates whether this deferrable init-object is already initialized
         /// </summary>
@@ -72,21 +69,6 @@ namespace ITVComponents.GenericService.Shared
                 var cp = Process.GetCurrentProcess();
                 proxy.RegisterRegularShutdown(cp.MachineName, Section.ServiceName, cp.ProcessName, cp.Id);
             }
-
-            OnDisposed();
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

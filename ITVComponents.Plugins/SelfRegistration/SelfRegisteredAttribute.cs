@@ -5,7 +5,7 @@ using System.Text;
 
 namespace ITVComponents.Plugins.SelfRegistration
 {
-    /// <summary>
+    /*/// <summary>
     /// Marker Attribute used to indicate that a class is able to self-registration. 
     /// </summary>
     /// <remarks>
@@ -23,5 +23,5 @@ namespace ITVComponents.Plugins.SelfRegistration
     /// </summary>
     /// <param name="plugin">the plugin instance</param>
     [Obsolete("Use IDeferredInit Interface instead", true)]
-    public delegate void SelfRegistrationCallback(IPlugin plugin);
+    public delegate void SelfRegistrationCallback(IPlugin plugin);*/
 }

@@ -24,7 +24,13 @@ namespace ITVComponents.IPC.Management.Configuration.UI
         private ConfiguratorBase _selectedConfiguration;
         private JsonSettingsSection selectedJsonSection;
         private string _selectedSection;
-        public string UniqueName { get; set; }
+
+        public ConfigurationPageController(string uniqueName)
+        {
+            Name = uniqueName;
+        }
+
+        public string Name { get; }
 
         public bool HandleKeyDown { get; } = false;
         public bool HandleKeyUp { get; } = false;
@@ -109,25 +115,10 @@ namespace ITVComponents.IPC.Management.Configuration.UI
         {
         }
 
-        public void Dispose()
-        {
-            
-        }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
         protected virtual void OnPropertyChanged(PropertyChangedEventArgs e)
         {
             PropertyChanged?.Invoke(this, e);
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
 
         /// <summary>Occurs when a property value changes.</summary>
         public event PropertyChangedEventHandler PropertyChanged;

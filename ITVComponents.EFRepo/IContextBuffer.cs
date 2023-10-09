@@ -9,8 +9,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.EFRepo
 {
-    public interface IContextBuffer: IPlugin
+    /*public interface IContextBuffer
     {
         IResourceLock AcquireContext<TContext>(out TContext context) where TContext : DbContext;
-    }
+    }*/
 }

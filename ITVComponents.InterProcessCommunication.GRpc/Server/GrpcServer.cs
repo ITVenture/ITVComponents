@@ -21,28 +21,28 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Server
 {
     public class GrpcServer:MessageServer
     {
-        public GrpcServer(string hubAddress, PluginFactory factory, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):
+        public GrpcServer(string hubAddress, IPluginFactory factory, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):
             base(new GrpcHubConnectionFactory(hubAddress, serviceName, configurator, security), factory, useExtendedProxying, useSecurity, security)
         {
         }
 
-        public GrpcServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(serviceHub, factory, serviceName, useExtendedProxying, useSecurity, security)
+        public GrpcServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(serviceHub, factory, serviceName, useExtendedProxying, useSecurity, security)
         {
         }
 
-        public GrpcServer(string hubAddress, PluginFactory factory, IHubClientConfigurator configurator, string serviceName):this(hubAddress, factory, configurator, serviceName, false,false,null)
+        public GrpcServer(string hubAddress, IPluginFactory factory, IHubClientConfigurator configurator, string serviceName):this(hubAddress, factory, configurator, serviceName, false,false,null)
         {
         }
 
-        public GrpcServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName):this(serviceHub, factory, serviceName, false,false,null)
+        public GrpcServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName):this(serviceHub, factory, serviceName, false,false,null)
         {
         }
 
-        public GrpcServer(string hubAddress, PluginFactory factory, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying):this(hubAddress, factory, configurator, serviceName, useExtendedProxying,false,null)
+        public GrpcServer(string hubAddress, IPluginFactory factory, IHubClientConfigurator configurator, string serviceName, bool useExtendedProxying):this(hubAddress, factory, configurator, serviceName, useExtendedProxying,false,null)
         {
         }
 
-        public GrpcServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName, bool useExtendedProxying):this(serviceHub, factory, serviceName, useExtendedProxying,false,null)
+        public GrpcServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName, bool useExtendedProxying):this(serviceHub, factory, serviceName, useExtendedProxying,false,null)
         {
         }
 

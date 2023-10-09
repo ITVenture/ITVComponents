@@ -39,7 +39,7 @@
         var connection = ITVenture.Tools.Notifications.notifyHub = new signalR.HubConnectionBuilder().withUrl(ITVenture.Helpers.ResolveUrl("~/Util/GlobalNotificationHub")).withAutomaticReconnect().build();
 
         connection.on("Notify", ITVenture.Tools.Notifications.Notify);
-        ITVenture.Tools.Notifications.On("ModuleData", ITVenture.Tools.Notifications.ModuleData)
+        ITVenture.Tools.Notifications.On("ModuleData", ITVenture.Tools.Notifications.ModuleData);
         connection.start().catch(function (err) {
             return console.error(err.toString());
         });

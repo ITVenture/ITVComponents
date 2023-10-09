@@ -30,6 +30,8 @@ namespace ITVComponents.GenericService
 
         public static PluginConfigurationCollection PlugIns => Section.UseExtConfig ? Section.PlugIns : Default.PlugIns;
 
+        public static string ServiceStartup => Section.UseExtConfig ? Section.ServiceStartup : Default.ServiceStartup;
+
         public static GenericTypeConstructionCollection GenericTypeInformation => Section.UseExtConfig
             ? Section.GenericTypeInformation
             : Default.GenericTypeInformation;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
+using Microsoft.AspNetCore.Mvc.TagHelpers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.WebPlugins
@@ -12,16 +13,16 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
     /// </summary>
     public class FactoryOptions
     {
-        private Dictionary<string, Func<IServiceProvider,object>> dependencies = new Dictionary<string, Func<IServiceProvider, object>>();
+        private Dictionary<string, Type> dependencies = new Dictionary<string, Type>();
 
         /// <summary>
         /// Adds a dependency that must be accessible from the pluginfactory as a parameter
         /// </summary>
         /// <param name="name">the name of the dependency</param>
         /// <param name="dependency">the injected value of the dependency</param>
-        public void AddDependency(string name, Func<IServiceProvider, object> dependency)
+        public void AddDependency(string name, Type dependencyType)
         {
-            dependencies.Add(name, dependency);
+            dependencies.Add(name, dependencyType);
         }
 
         /// <summary>
@@ -33,10 +34,18 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         {
             if (dependencies.ContainsKey(name))
             {
-                return dependencies[name](services);
+                return services.GetService(dependencies[name]);
             }
 
             return null;
+        }
+
+        public void ApplyOptions(IPluginFactory factory)
+        {
+            foreach (var dep in dependencies)
+            {
+                factory.RegisterObjectType(dep.Key, dep.Value); 
+            }
         }
     }
 }

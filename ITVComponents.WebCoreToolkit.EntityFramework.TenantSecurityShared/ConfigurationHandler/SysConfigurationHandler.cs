@@ -51,7 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         where TContext:DbContext, ISecurityContext<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser>
     {
 
-        public SysConfigurationHandler(TContext db)
+        public SysConfigurationHandler(string name, TContext db):base(name)
         {
             DbContext = db;
         }

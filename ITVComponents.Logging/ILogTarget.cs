@@ -8,7 +8,5 @@ namespace ITVComponents.Logging
     public interface ILogTarget
     {
         void LogEvent(string eventText, int severity, string context);
-
-        event EventHandler Disposed;
     }
 }

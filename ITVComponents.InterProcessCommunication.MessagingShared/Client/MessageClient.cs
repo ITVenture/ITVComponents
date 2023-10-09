@@ -26,7 +26,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
         private bool connected;
         private bool initCalled;
 
-        public MessageClient(IServiceHubProvider serviceHub, string targetService, bool useEvents)
+        public MessageClient(IServiceHubProvider serviceHub, string targetService, bool useEvents):base($"local/{targetService}")
         {
             var tailId = targetService.IndexOf("@");
             string tail = null;
@@ -59,7 +59,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             this.identityProvider = identityProvider;
         }
 
-        protected MessageClient(IHubConnectionFactory connector, string targetService, IIdentityProvider identityProvider, bool  useEvents)
+        protected MessageClient(IHubConnectionFactory connector, string targetService, IIdentityProvider identityProvider, bool  useEvents):base($"{connector.Target}/{targetService}")
         {
             this.connector = connector;
             this.targetService = targetService;
@@ -253,7 +253,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
             if (connected)
             {
-                LogEnvironment.LogEvent($@"Subscribe {eventName} on {UniqueName} for {connection.ServiceName}. TargetService: {targetService}", LogSeverity.Report);
+                LogEnvironment.LogEvent($@"Subscribe {eventName} on {uniqueName} for {Target}", LogSeverity.Report);
                 var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
                     new RegisterEventRequestMessage
                     {

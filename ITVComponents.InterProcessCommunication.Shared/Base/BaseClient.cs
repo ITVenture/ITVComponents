@@ -95,18 +95,16 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// <summary>
         /// Initializes a default instance of the BaseClient class
         /// </summary>
-        protected BaseClient()
+        protected BaseClient(string target)
         {
             reconnectLock = new object();
             reconnector = new Timer(PollConnection);
             lockHelper = new object();
             threadsOwner = $"::{Guid.NewGuid()}::";
+            Target = target;
         }
 
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
+        public string Target { get; }
 
         /// <summary>
         /// Gets a value indicating whether this object is operational
@@ -391,11 +389,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 }
 
                 Dispose(true);
-                //.Prepare(new object[] { remoteEndPoint, serverChannel});
-                if (Disposed != null)
-                {
-                    Disposed(this, EventArgs.Empty);
-                }
             }
         }
 
@@ -787,12 +780,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error);
             }
         }
-
-        /// <summary>
-        /// Informs a creating object when this item is being disposed
-        /// </summary>
-        [field: NonSerialized]
-        public event EventHandler Disposed;
 
         [field: NonSerialized]
         public event EventHandler OperationalChanged;

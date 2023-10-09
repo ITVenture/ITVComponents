@@ -10,7 +10,7 @@ using ITVComponents.Serialization;
 
 namespace ITVComponents.Plugins.RuntimeSerialization
 {
-    /// <summary>
+    /*/// <summary>
     /// Binary serializer class enabling a plugin driven application to save the runtime status of its plugins
     /// </summary>
     [Obsolete("Not supported anymore!", true)]
@@ -70,5 +70,5 @@ namespace ITVComponents.Plugins.RuntimeSerialization
         /// </summary>
         [field: NonSerialized]
         public event EventHandler Disposed;
-    }
+    }*/
 }

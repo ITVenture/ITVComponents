@@ -13,7 +13,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
 {
-    public class LocalBrokerProxy: IPlugin
+    public class LocalBrokerProxy
     {
         private readonly IServiceHubProvider serviceHubProvider;
         private readonly IServiceProvider services;
@@ -27,8 +27,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
         public LocalBrokerProxy(IServiceHubProvider serviceHubProvider):this(serviceHubProvider, null)
         {
         }
-
-        public string UniqueName { get; set; }
 
         public Task<ServiceOperationResponseMessage> SendMessageToServer(ServerOperationMessage message, IIdentity authenticatedUser)
         {
@@ -89,17 +87,5 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
         {
             serviceHubProvider.Broker.UnsafeServerDrop(serviceName);
         }
-
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        public event EventHandler Disposed;
     }
 }

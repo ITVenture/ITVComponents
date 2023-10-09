@@ -11,7 +11,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
     /// <summary>
     /// A Client-Initializer that can be used in a multi-initializers-scenario
     /// </summary>
-    public abstract class CollectableClientInit:IHubClientConfigurator
+    public abstract class CollectableClientInit:IHubClientConfigurator, IDisposable
     {
         /// <summary>
         /// Initializes a new instance of the CollectableClientInit class without using a parent
@@ -28,11 +28,6 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         {
             parent.RegisterConfigurator(this);
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Configures a channel before a grpc-client is created
@@ -56,26 +51,12 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.DefaultConfigurators.
         public void Dispose()
         {
             Dispose(true);
-            OnDisposed();
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         protected virtual void Dispose(bool disposing)
         {
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
 
     }
 }

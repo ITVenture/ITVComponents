@@ -10,22 +10,26 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
 {
-    public class RemoteBrokerProxy:IEndPointBroker, IPlugin, IDeferredInit
+    public class RemoteBrokerProxy:IEndPointBroker, IDeferredInit
     {
+        public string Name { get; }
         private readonly IBidirectionalClient client;
         private readonly string decoratedName;
         private readonly IServiceHubProvider parent;
 
         private IRemoteBrokerProxy remoteProxy;
 
-        public RemoteBrokerProxy(IBidirectionalClient client, string decoratedName, IServiceHubProvider parent)
+        private string name;
+
+        public RemoteBrokerProxy(IBidirectionalClient client, string decoratedName, IServiceHubProvider parent, string name)
         {
+            Name = name;
             this.client = client;
             this.decoratedName = decoratedName;
             this.parent = parent;
         }
 
-        public string UniqueName { get; set; }
+        //public string UniqueName { get; set; }
 
         private IRemoteBrokerProxy RemoteProxy => remoteProxy ??= client.CreateProxy<IRemoteBrokerProxy>(decoratedName);
 
@@ -107,18 +111,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
             RemoteProxy.UnsafeServerDrop(CleanService(serviceName));
         }
 
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        public event EventHandler Disposed;
-
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
         private void CleanService(IServiceMessage message)
         {
             message.TargetService = CleanService(message.TargetService);
@@ -131,9 +123,9 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
 
         private string CleanService(string serviceName)
         {
-            if (!string.IsNullOrEmpty(serviceName) && serviceName.EndsWith($"@{UniqueName}"))
+            if (!string.IsNullOrEmpty(serviceName) && serviceName.EndsWith($"@{Name}"))
             {
-                return serviceName.Substring(0, serviceName.Length - (UniqueName.Length + 1));
+                return serviceName.Substring(0, serviceName.Length - (Name.Length + 1));
             }
 
             return serviceName;
@@ -163,7 +155,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
         {
             if (!string.IsNullOrEmpty(serviceName))
             {
-                return $"{serviceName}@{UniqueName}";
+                return $"{serviceName}@{Name}";
             }
 
             return serviceName;
@@ -177,7 +169,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
             {
                 if (parent.Broker is EndPointBroker broker)
                 {
-                    broker.RegisterBrokerProxy(UniqueName, this);
+                    broker.RegisterBrokerProxy(Name, this);
                     Initialized = true;
                 }
                 else
@@ -185,6 +177,11 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
                     throw new InvalidOperationException("An EndPoint broker is required to install a proper proxy");
                 }
             }
+        }
+
+        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
+        public virtual void Dispose()
+        {
         }
     }
 }

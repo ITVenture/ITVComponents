@@ -1,4 +1,7 @@
-﻿using ITVComponents.Plugins.Initialization;
+﻿using ITVComponents.Helpers;
+using ITVComponents.Plugins.Initialization;
+using System.Linq;
+using System;
 
 namespace ITVComponents.Plugins.Helpers
 {
@@ -30,6 +33,24 @@ namespace ITVComponents.Plugins.Helpers
             if (formatter != null && typeExpression.StartsWith("$"))
             {
                 retVal = formatter.ProcessLiteral(typeExpression.Substring(1), null);
+            }
+
+            return retVal;
+        }
+
+        public static string[] ProcessSequence(this string list)
+        {
+            string[] retVal = Array.Empty<string>();
+            if (!string.IsNullOrEmpty(list))
+            {
+                if (list.Contains("["))
+                {
+                    retVal = JsonHelper.FromJsonString<string[]>(list);
+                }
+                else
+                {
+                    retVal = list.Replace("\r", "\n").Replace("\n\n", "\n").Replace("\n", "\t").Replace("\t\t", "\t").Replace("\t", ",").Replace(",", ";").Replace(";", "|").Split("|").Where(n => !string.IsNullOrEmpty(n)).Select(n => n.Trim()).ToArray();
+                }
             }
 
             return retVal;

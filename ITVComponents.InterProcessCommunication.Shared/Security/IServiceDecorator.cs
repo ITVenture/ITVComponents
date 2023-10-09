@@ -10,11 +10,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
     /// <summary>
     /// Enables a Plugin to provide a Remote-Service decoration for another PlugIn. This can be useful, if an Object should onyl be exposed with additional security settings
     /// </summary>
-    public interface IServiceDecorator : IPlugin
+    public interface IServiceDecorator 
     {
         /// <summary>
         /// The Decorated Service-Instance
         /// </summary>
-        public IPlugin DecoratedService { get; }
+        public object DecoratedService { get; }
     }
 }

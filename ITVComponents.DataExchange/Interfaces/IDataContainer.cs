@@ -3,7 +3,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.DataExchange.Interfaces
 {
-    public interface IDataContainer:IPlugin
+    public interface IDataContainer
     {
         /// <summary>
         /// Gets the root-collection of the collected data

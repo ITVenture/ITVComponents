@@ -12,7 +12,7 @@ namespace ITVComponents.FileWrapping
     /// <summary>
     /// Abstract representation of an unwrapper class for the pollstep
     /// </summary>
-    public abstract class WrapperStrategy : IPlugin
+    public abstract class WrapperStrategy: IDisposable
     {
         /// <summary>
         /// A List containing available unwrapper objects. The Key identifies the file-format
@@ -47,11 +47,6 @@ namespace ITVComponents.FileWrapping
         /// Gets the fileExtension for the current wrapper type
         /// </summary>
         public abstract string FileExtension { get; }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Gets an Unwrapper that fits the given creteria
@@ -231,10 +226,6 @@ namespace ITVComponents.FileWrapping
             }
 
             Dispose(true);
-            if (Disposed != null)
-            {
-                Disposed(this, EventArgs.Empty);
-            }
         }
 
         /// <summary>
@@ -245,11 +236,5 @@ namespace ITVComponents.FileWrapping
         public virtual void Dispose(bool disposing)
         {
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        [field: NonSerialized]
-        public event EventHandler Disposed;
     }
 }

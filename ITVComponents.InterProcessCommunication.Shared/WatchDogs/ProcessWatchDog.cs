@@ -14,17 +14,12 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.Shared.WatchDogs
 {
-    public class ProcessWatchDog:IPlugin, IIpcWatchDog, IWatchDogService
+    public class ProcessWatchDog:IIpcWatchDog, IWatchDogService
     {
         /// <summary>
         /// Holds all processes that are managed by this ProcessWatchDog
         /// </summary>
         private ConcurrentDictionary<string, ConcurrentDictionary<int, ProcessStatus>> processStates = new ConcurrentDictionary<string, ConcurrentDictionary<int, ProcessStatus>>();
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Sets the Status of a specific process on a machine
@@ -154,14 +149,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.WatchDogs
         }
 
         /// <summary>
-        ///   Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
         /// Is called when an error occurrs
         /// </summary>
         /// <param name="action">the action that was called</param>
@@ -183,18 +170,5 @@ namespace ITVComponents.InterProcessCommunication.Shared.WatchDogs
                     $"Task {action} catched an expected error for {processId}({name}) on {machine}. Error: {ex.OutlineException()}", LogSeverity.Report);
             }
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

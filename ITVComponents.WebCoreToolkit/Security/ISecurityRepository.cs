@@ -10,7 +10,7 @@ using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.WebCoreToolkit.Security
 {
-    public interface ISecurityRepository:IPlugin
+    public interface ISecurityRepository:IDisposable
     {
         /// <summary>
         /// Gets a list of users in the current application

@@ -4,7 +4,7 @@ using ITVComponents.Threading;
 
 namespace ITVComponents.DataAccess.Parallel
 {
-    public interface IConnectionBuffer : IPlugin
+    /*public interface IConnectionBuffer:IDisposable
     {
         /// <summary>
         /// Gets an available Database Connection from the pool of available connections
@@ -18,5 +18,5 @@ namespace ITVComponents.DataAccess.Parallel
         /// Enables a client object to configure the acquired connection before it is returned
         /// </summary>
         event Action<IDbWrapper> ConnectionAcquiring;
-    }
+    }*/
 }

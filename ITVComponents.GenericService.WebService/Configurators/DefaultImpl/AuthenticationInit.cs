@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
 {
-    public class AuthenticationInit:IServiceHostConfigurator, IAuthInit, IPlugin
+    public class AuthenticationInit:IServiceHostConfigurator, IAuthInit
     {
         private readonly bool useAuthorization;
         private List<IAuthenticationConfigProvider> authenticationProviders = new List<IAuthenticationConfigProvider>();
@@ -20,11 +20,6 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
             this.useAuthorization = useAuthorization;
             parent.RegisterConfigurator(this);
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Configures the WebApplication builder (inject services, set defaults, etc.)
@@ -73,25 +68,5 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
         {
             authenticationProviders.Add(provider);
         }
-
-
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

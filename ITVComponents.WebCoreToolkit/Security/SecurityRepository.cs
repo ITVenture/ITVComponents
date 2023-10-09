@@ -86,11 +86,10 @@ namespace ITVComponents.WebCoreToolkit.Security
                 r.Dispose();
             }
 
-            OnDisposed();
+            //OnDisposed();
         }
 
-        public event EventHandler Disposed;
-        public string UniqueName { get; set; }
+        //public event EventHandler Disposed;
         public ICollection<User> Users => Current.Users;
         public ICollection<Role> Roles => Current.Roles;
         public ICollection<Permission> Permissions => Current.Permissions;
@@ -155,9 +154,9 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         public string EncryptJsonObject(object value, string permissionScopeName) => Current.EncryptJsonObject(value, permissionScopeName);
 
-        private void OnDisposed()
+        /*private void OnDisposed()
         {
             Disposed?.Invoke(this, EventArgs.Empty);
-        }
+        }*/
     }
 }

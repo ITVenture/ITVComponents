@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Hub.EndPointInitializers
 {
-    public class AuthEndPointInitializer:IServiceHostConfigurator, IPlugin
+    public class AuthEndPointInitializer:IServiceHostConfigurator
     {
         /// <summary>
         /// Initializes a new instance of the OpenEndpointInitializer class

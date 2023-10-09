@@ -11,12 +11,17 @@ using ITVComponents.Threading;
 
 namespace ITVComponents.DataAccess.Remote
 {
-    public class DatabaseProxyService:IPlugin
+    public class DatabaseProxyService
     {
         /// <summary>
         /// holds all database sessions
         /// </summary>
-        private IConnectionBuffer connectionProvider;
+        private IPluginFactory factory;
+
+        /// <summary>
+        /// the name of the connector plugin that is provided to the client by this proxy-instance
+        /// </summary>
+        private string connectorName;
 
         /// <summary>
         /// holds all open connections
@@ -47,15 +52,11 @@ namespace ITVComponents.DataAccess.Remote
         /// Initializes a new instance of the DatabaseProxyService class
         /// </summary>
         /// <param name="connectionProvider">the connectionProvider that is used to access the database</param>
-        public DatabaseProxyService(IConnectionBuffer connectionProvider)
+        public DatabaseProxyService(IPluginFactory factory, string connectorName)
         {
-            this.connectionProvider = connectionProvider;
+            this.factory= factory;
+            this.connectorName= connectorName;
         }
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Acquires a Connection and returns the session handle
@@ -63,13 +64,12 @@ namespace ITVComponents.DataAccess.Remote
         /// <returns>the session-handle for the created connection</returns>
         public long AcquireConnection()
         {
-            IDbWrapper conn;
-            var tmp = connectionProvider.AcquireConnection(false, out conn);
+            IDbWrapper conn = (IDbWrapper)factory[connectorName];
             long objectId = NextObjectId();
             lock (connections)
             {
                 connections.Add(objectId,
-                                new ConnectionHandle {Connection = conn, Handle = tmp});
+                                new ConnectionHandle {Connection = conn});
             }
 
             return objectId;
@@ -88,7 +88,7 @@ namespace ITVComponents.DataAccess.Remote
                 connections.Remove(sessionId);
             }
 
-            handle.Handle.Dispose();
+            handle.Connection.Dispose();
         }
 
         /// <summary>
@@ -378,24 +378,6 @@ namespace ITVComponents.DataAccess.Remote
         }
 
         /// <summary>
-        /// Führt anwendungsspezifische Aufgaben durch, die mit der Freigabe, der Zurückgabe oder dem Zurücksetzen von nicht verwalteten Ressourcen zusammenhängen.
-        /// </summary>
-        /// <filterpriority>2</filterpriority>
-        public void Dispose()
-        {
-            OnDisposed();
-        }
-
-        /// <summary>
-        /// Raises the disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            EventHandler handler = Disposed;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// Leases the next object id
         /// </summary>
         /// <returns>the id of the next created object</returns>
@@ -407,16 +389,9 @@ namespace ITVComponents.DataAccess.Remote
             }
         }
 
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
-
         private class ConnectionHandle
         {
             public IDbWrapper Connection { get; set; }
-
-            public IResourceLock Handle { get; set; }
         }
     }
 }

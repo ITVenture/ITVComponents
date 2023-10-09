@@ -71,11 +71,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         }
 
         /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
-        /// <summary>
         /// Gets a list of users in the current application
         /// </summary>
         public virtual ICollection<User> Users
@@ -679,7 +674,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
-            OnDisposed();
+            //OnDisposed();
         }
 
         protected abstract User SelectUser(TUser src);
@@ -709,14 +704,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         }
 
         /// <summary>
-        /// raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
         /// Estimats a claimData item from a given mapping and an original claim
         /// </summary>
         /// <param name="map">the mapping instruction for estimating a new claim</param>
@@ -741,10 +728,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
             return null;
         }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

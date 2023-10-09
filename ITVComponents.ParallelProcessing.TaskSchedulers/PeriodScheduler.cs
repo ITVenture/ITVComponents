@@ -6,7 +6,6 @@ using System.Text;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Logging;
 using ITVComponents.ParallelProcessing.TaskSchedulers.Requests;
-using ITVComponents.Plugins.SelfRegistration;
 using ITVComponents.Serialization;
 using ITVComponents.Threading;
 
@@ -30,8 +29,8 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         /// <summary>
         /// Initializes a new instance of the PeriodScheduler
         /// </summary>
-        public PeriodScheduler()
-            : base()
+        public PeriodScheduler(string name)
+            : base(name)
         {
             pendingRequests = new List<PeriodScheduleRequest>();
         }
@@ -76,7 +75,7 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         /// <returns>a scheduler - request for the given processor and task</returns>
         public override ScheduleRequest CreateRequest(ParallelTaskProcessor parallelTaskProcessor, ITask task)
         {
-            PeriodScheduleRequest retVal = new PeriodScheduleRequest(UniqueName, parallelTaskProcessor, task, this, task.LastExecution);
+            PeriodScheduleRequest retVal = new PeriodScheduleRequest(SchedulerName, parallelTaskProcessor, task, this, task.LastExecution);
             return retVal;
         }
 

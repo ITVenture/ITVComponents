@@ -43,8 +43,8 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         {
         }
 
-        public event EventHandler Disposed;
-        public string UniqueName { get; set; }
+        //public event EventHandler Disposed;
+        //public string UniqueName { get; set; }
 
         public ICollection<User> Users => new[]  { new User { AuthenticationType = ((ClaimsIdentity)decoratedUser.Identity).AuthenticationType, UserName = decoratedUser.Identity.Name } };
 

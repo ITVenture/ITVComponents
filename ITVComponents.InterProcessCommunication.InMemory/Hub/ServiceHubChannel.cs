@@ -17,7 +17,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub
 {
-    public class ServiceHubChannel:IPlugin, IDeferredInit
+    public class ServiceHubChannel: IDeferredInit
     {
         private readonly string hubAddresses;
         private readonly IHubFactory hubFactory;
@@ -37,12 +37,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         public bool ForceImmediateInitialization { get; } = false;
 
         private IMemoryChannel baseChannel;
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
-
+        
         private IServiceHub Hub => hub ??= hubFactory.CreateHub(hubProvider);
 
         /// <summary>
@@ -206,20 +201,6 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
         {
             baseChannel.ObjectReceived -= ConnectionRequest;
             baseChannel.Dispose();
-            OnDisposed();
         }
-
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
     }
 }

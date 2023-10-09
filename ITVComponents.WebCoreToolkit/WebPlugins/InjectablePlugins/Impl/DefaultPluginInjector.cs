@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
 {
-    public class DefaultPluginInjector<T>:CustomPluginInjector<T> where T:class,IPlugin
+    public class DefaultPluginInjector<T>:CustomPluginInjector<T> where T : class
     {
         /// <summary>
         /// Estimates the raw-Plugin-Name  (without extending it with the current permission scope)

@@ -6,7 +6,7 @@ using ITVComponents.Plugins;
 
 namespace ITVComponents.DataAccess.Linq
 {
-    public interface IDataContext:IPlugin
+    public interface IDataContext
     {
         /// <summary>
         /// Gets a List of available Tables for this DataContext

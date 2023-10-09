@@ -19,27 +19,27 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Server
 {
     public class InMemoryServer:MessageServer
     {
-        public InMemoryServer(string hubAddress, PluginFactory factory, IHubFactory configurator, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(new MemoryHubConnectionFactory(hubAddress,serviceName,configurator,security), factory, useExtendedProxying, useSecurity, security)
+        public InMemoryServer(string hubAddress, IPluginFactory factory, IHubFactory configurator, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(new MemoryHubConnectionFactory(hubAddress,serviceName,configurator,security), factory, useExtendedProxying, useSecurity, security)
         {
         }
 
-        public InMemoryServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(serviceHub, factory, serviceName, useExtendedProxying, useSecurity, security)
+        public InMemoryServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName, bool useExtendedProxying, bool useSecurity, ICustomServerSecurity security):base(serviceHub, factory, serviceName, useExtendedProxying, useSecurity, security)
         {
         }
 
-        public InMemoryServer(string hubAddress, PluginFactory factory, IHubFactory configurator, string serviceName):this(hubAddress, factory, configurator, serviceName, false,false,null)
+        public InMemoryServer(string hubAddress, IPluginFactory factory, IHubFactory configurator, string serviceName):this(hubAddress, factory, configurator, serviceName, false,false,null)
         {
         }
 
-        public InMemoryServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName):this(serviceHub, factory, serviceName, false,false,null)
+        public InMemoryServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName):this(serviceHub, factory, serviceName, false,false,null)
         {
         }
 
-        public InMemoryServer(string hubAddress, PluginFactory factory, IHubFactory configurator, string serviceName, bool useExtendedProxying):this(hubAddress, factory, configurator, serviceName, useExtendedProxying,false,null)
+        public InMemoryServer(string hubAddress, IPluginFactory factory, IHubFactory configurator, string serviceName, bool useExtendedProxying):this(hubAddress, factory, configurator, serviceName, useExtendedProxying,false,null)
         {
         }
 
-        public InMemoryServer(IServiceHubProvider serviceHub, PluginFactory factory, string serviceName, bool useExtendedProxying):this(serviceHub, factory, serviceName, useExtendedProxying,false,null)
+        public InMemoryServer(IServiceHubProvider serviceHub, IPluginFactory factory, string serviceName, bool useExtendedProxying):this(serviceHub, factory, serviceName, useExtendedProxying,false,null)
         {
         }
 

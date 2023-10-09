@@ -16,7 +16,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Extensions
 
         public static FactoryOptions InjectIdentityProvider(this FactoryOptions options)
         {
-            options.AddDependency(IdentityProviderKey, services => services.GetService<IIdentityProvider>());
+            options.AddDependency(IdentityProviderKey, typeof(IIdentityProvider));
             return options;
         }
     }

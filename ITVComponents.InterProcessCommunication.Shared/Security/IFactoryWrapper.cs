@@ -27,5 +27,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// </summary>
         /// <param name="proxies">the dictionary containing proxy-objects</param>
         void AttachProxyDictionary(IDictionary<string, ProxyWrapper> proxies);
+
+        string GetUniqueName(object plugin);
     }
 }

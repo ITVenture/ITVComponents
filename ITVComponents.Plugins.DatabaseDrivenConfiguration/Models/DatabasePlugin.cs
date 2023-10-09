@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Xml.Linq;
+using ITVComponents.Plugins.Config;
+using ITVComponents.Plugins.Initialization;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.Plugins.DatabaseDrivenConfiguration.Models
@@ -8,21 +10,27 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration.Models
     public class DatabasePlugin
     {
         [Key]
-        public virtual int PluginId { get; set; }
+        public int PluginId { get; set; }
 
         [MaxLength(50)]
-        public virtual string UniqueName { get; set; }
+        public string UniqueName { get; set; }
 
         [MaxLength(2048)]
-        public virtual string Constructor { get; set; }
+        public string Constructor { get; set; }
 
-        public virtual int LoadOrder { get; set; }
+        public int LoadOrder { get; set; }
 
-        public virtual string? TenantId { get; set; }
+        public string? TenantId { get; set; }
 
-        public virtual bool? Disabled { get; set; }
+        public PluginInitializationPhase? PluginInitializationPhase { get; set; }
+
+        public bool? Disabled { get; set; }
+
+        public string PreInitializationList { get; set; }
+
+        public string PostInitializationList { get; set; }
 
         [MaxLength(4096)]
-        public virtual string DisabledReason { get; set; }
+        public string DisabledReason { get; set; }
     }
 }
