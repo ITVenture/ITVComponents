@@ -97,6 +97,7 @@ var ITVenture = {
     },
     Tools: {},
     Pages: {},
+    Classes: {},
     Helpers: {
         htmlEntities: function (raw) {
             return raw.replaceAll(/[&<>'\"]/g,
