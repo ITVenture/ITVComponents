@@ -167,7 +167,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 .concat(        ""if ($ori === null || $ori.trim() === \""\""){{"")
 .concat(""$(\""\\#{uniqueOrigId}\"").val(oriValue).change();"")
 .concat(""}}"")";
-                var additionalCallback = $@"""{(!string.IsNullOrEmpty(customUploadCallback)?$"{customUploadCallback}(value{(preserveOriginal ? ", oriValue" : "")});":"")}""";
+                var additionalCallback = $@"""{(!string.IsNullOrEmpty(customUploadCallback)?$"{customUploadCallback}.apply(this,arguments);" :"")}""";
                 string template = $@"<div id=""{uniqueDummyId}""></div>
 <script>
 var tmpl = ""\u003Cdiv purpose=\""{mode}\"" nameTarget=\""{uniqueDivId}\"" uploadModule=\""{uploaderModule}\"" uploadReason=\""{uploadReason}\"" uploadHint=\""{uploadHint}\"" class=\""dropzone\""\u003E""
