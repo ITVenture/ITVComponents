@@ -167,8 +167,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.EFRepo.Postgr
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.Plugins.EntityFrameworkDrivenConfiguration", "ITVComponents.Plugins.EntityFrameworkDrivenConfiguration\ITVComponents.Plugins.EntityFrameworkDrivenConfiguration.csproj", "{8170CC39-3EAE-4F8B-9D7D-D82DE80890BA}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net.TelerikUi.Tests", "ITVComponents.WebCoreToolkit.Net.TelerikUi.Tests\ITVComponents.WebCoreToolkit.Net.TelerikUi.Tests.csproj", "{447352EA-B4D3-46F4-A694-5BB96E67EE88}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -833,14 +831,6 @@ Global
 		{8170CC39-3EAE-4F8B-9D7D-D82DE80890BA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8170CC39-3EAE-4F8B-9D7D-D82DE80890BA}.Release|x86.ActiveCfg = Release|Any CPU
 		{8170CC39-3EAE-4F8B-9D7D-D82DE80890BA}.Release|x86.Build.0 = Release|Any CPU
-		{447352EA-B4D3-46F4-A694-5BB96E67EE88}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{447352EA-B4D3-46F4-A694-5BB96E67EE88}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{447352EA-B4D3-46F4-A694-5BB96E67EE88}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{447352EA-B4D3-46F4-A694-5BB96E67EE88}.Debug|x86.Build.0 = Debug|Any CPU
-		{447352EA-B4D3-46F4-A694-5BB96E67EE88}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{447352EA-B4D3-46F4-A694-5BB96E67EE88}.Release|Any CPU.Build.0 = Release|Any CPU
-		{447352EA-B4D3-46F4-A694-5BB96E67EE88}.Release|x86.ActiveCfg = Release|Any CPU
-		{447352EA-B4D3-46F4-A694-5BB96E67EE88}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
