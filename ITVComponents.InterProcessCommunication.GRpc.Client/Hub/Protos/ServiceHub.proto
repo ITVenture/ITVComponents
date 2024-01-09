@@ -1,0 +1,64 @@
+﻿syntax = "proto3";
+option csharp_namespace = "ITVComponents.InterProcessCommunication.Grpc.Client.Hub.Protos";
+package ITVRpcComm;
+import "google/protobuf/empty.proto";
+
+service ServiceHub {
+	rpc RegisterService (RegisterServiceMessage) returns (RegisterServiceResponseMessage);
+	rpc ServiceTick (ServiceSessionOperationMessage) returns (ServiceTickResponseMessage);
+	rpc ServiceReady(ServiceSessionOperationMessage) returns (stream ServerOperationMessage);
+	rpc DiscoverService(ServiceDiscoverMessage) returns (ServiceDiscoverResponseMessage);
+	rpc ConsumeService(ServerOperationMessage) returns (ServiceOperationResponseMessage);
+	rpc CommitServiceOperation(ServiceOperationResponseMessage) returns (google.protobuf.Empty);
+}
+
+message ServiceDiscoverMessage{
+	string targetService = 1;
+}
+
+message ServiceDiscoverResponseMessage{
+	string targetService = 1;
+	bool ok = 2;
+	string reason = 3;
+}
+
+message ServerOperationMessage{
+	string targetService = 1;
+	string operationId = 2;
+	string operationPayload = 3;
+	string hubUser = 4;
+	bool tickBack = 5;
+}
+
+message ServiceOperationResponseMessage{
+	string targetService = 1;
+	string operationId = 2;
+	string responsePayload = 3;
+	bool ok = 4;
+	string responderFor = 5;
+}
+
+message RegisterServiceMessage{
+	string serviceName = 1;
+	int32 ttl = 2;
+	string responderFor = 3;
+}
+
+message RegisterServiceResponseMessage{
+	bool ok = 1;
+	string sessionTicket = 2;
+	string reason = 3;
+}
+
+message ServiceSessionOperationMessage{
+	string serviceName = 1;
+	string sessionTicket = 2;
+	int32 ttl = 3;
+	string responderFor = 4;
+}
+
+message ServiceTickResponseMessage{
+	bool ok = 1;
+	string reason = 2;
+	int32 pendingOperationsCount = 3;
+}

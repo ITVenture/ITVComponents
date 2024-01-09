@@ -234,7 +234,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
             base.Dispose();
             hubClient?.Dispose();
             hubClient = null;
-            reconnector.Dispose();
+            reconnector?.Dispose();
         }
 
         private void ClientInvokation(object? sender, MessageArrivedEventArgs e)

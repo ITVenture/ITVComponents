@@ -906,8 +906,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             if (services != null)
             {
                 var retVal = services.GetService(typeof(ICustomServerSecurity)) as ICustomServerSecurity;
-                retVal.Attach(plugins);
-                return retVal;
+                if (retVal != null)
+                {
+                    retVal.Attach(plugins);
+                    return retVal;
+                }
             }
 
             return null;

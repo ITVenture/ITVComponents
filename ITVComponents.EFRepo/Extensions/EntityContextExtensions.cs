@@ -46,9 +46,9 @@ namespace ITVComponents.EFRepo.Extensions
         /// <returns>the name of the requested table</returns>
         public static string GetTableName(this DbContext context, Type type, out Type entityBaseType, out string schema)
         {
-            var et = context.Model.FindEntityType(typeof(Type));
+            var et = context.Model.FindRuntimeEntityType(type);
             schema = et.GetSchema();
-            entityBaseType = et.BaseType.ClrType;
+            entityBaseType = et.ClrType; //et.BaseType?.ClrType??et.ClrType;
             return et.GetTableName();
         }
 
