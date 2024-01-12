@@ -14,7 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers.Model
 
         public static ValueTask<TenantSwitchForm?> BindAsync(HttpContext httpContext, ParameterInfo parameter)
         {
-            var newDic = Tools.TranslateForm(httpContext.Request.Form, false);
+            var newDic = Tools.TranslateForm(httpContext.Request.Form);
             if (newDic.ContainsKey("NewTenant"))
             {
                 return ValueTask.FromResult<TenantSwitchForm?>(new TenantSwitchForm

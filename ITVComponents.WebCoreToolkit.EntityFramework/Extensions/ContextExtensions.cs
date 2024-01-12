@@ -7,6 +7,7 @@ using System.Security;
 using System.Text;
 using System.Threading.Tasks;
 using Dynamitey.DynamicObjects;
+using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.Formatting.PluginSystemExtensions.Configuration;
@@ -78,6 +79,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
             if (id == null)
             {
+                if (postedFilter.ContainsKey("parsedfilter") && postedFilter.ContainsKey("parsedsort") && postedFilter["parsedfilter"] is FilterBase fib && postedFilter["parsedsort"] is Sort[] so)
+                {
+                    var dbSet = context.Set(tableName);
+                    var firstStringCol = dbSet.EntityType.GetProperties().FirstOrDefault(n => n.PropertyType == typeof(string));
+                    var filteredOrdered = dbSet.QueryAndSort(fib, so, s =>
+                    {
+                        if (s == "Label")
+                        {
+                            return firstStringCol.Name;
+                        }
+
+                        return s;
+                    });
+
+
+                }
                 var query = CreateRawQuery(context, tableName, postedFilter, services, out var filterDecl);
                 var typeName = context.GetType().Name;
                 query = $@"{typeName} db = Global.Db;

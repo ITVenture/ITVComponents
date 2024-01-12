@@ -34,11 +34,17 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
         /// </summary>
         /// <param name="values">the values that were posted in a forms-dictionary</param>
         /// <returns>a more accurate search-dictioanry</returns>
-        public static Dictionary<string, object> TranslateForm(IFormCollection values, bool expectFilterForm, bool expectLabelFilter = true)
+        public static Dictionary<string, object> TranslateForm(IFormCollection values, Func<string, StringValues, object> propertyCallback = null, bool expectFilterForm = false)
         {
             var ret = new Dictionary<string, object>();
             foreach (var v in values)
             {
+                var tmp = propertyCallback?.Invoke(v.Key, v.Value);
+                if (tmp != null)
+                {
+                    ret.Add($"Parsed{v.Key}", tmp);
+                }
+                
                 if (expectFilterForm)
                 {
                     switch (v.Key)
@@ -58,7 +64,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                                 {
                                     var id = tmpFilter.IndexOf(st, StringComparison.OrdinalIgnoreCase);
                                     var searchName = tmpFilter.Substring(0, id);
-                                    if (!expectLabelFilter || searchName == "Label")
+                                    if (searchName == "Label")
                                     {
                                         id += st.Length;
                                         var ln = tmpFilter.Length - 1 - id;

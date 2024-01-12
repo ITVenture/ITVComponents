@@ -22,6 +22,8 @@ namespace ITVComponents.EFRepo.Internal
 
         }
 
+        public Type EntityType => typeof(T);
+
         public EntityEntry Add(object entity)
         {
             return decorated.Add((T) entity);
@@ -60,6 +62,32 @@ namespace ITVComponents.EFRepo.Internal
         public object Find(params object[] keyValues)
         {
             return decorated.Find(keyValues);
+        }
+
+        public IQueryable<T> QueryAndSort(FilterBase filter, Sort[] sorts, Func<string,string> redirectColumn = null)
+        {
+            var filtered = decorated.Where(ExpressionBuilder.BuildExpression<T>(filter, redirectColumn));
+            foreach (var sort in sorts)
+            {
+                if (sort.Direction == SortDirection.Ascending)
+                {
+                    filtered = filtered.OrderBy(
+                        ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.MemberName, redirectColumn));
+                }
+                else
+                {
+                    filtered = filtered.OrderByDescending(
+                        ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.MemberName, redirectColumn));
+                }
+            }
+
+            return filtered;
+        }
+
+        IQueryable IDbSet.QueryAndSort(FilterBase filter, Sort[] sorts,
+            Func<string, string> redirectColumn = null)
+        {
+            return this.QueryAndSort(filter, sorts, redirectColumn);
         }
 
         public object FindWithQuery(Dictionary<string, object> query, bool ignoreNotFound)

@@ -92,7 +92,32 @@ namespace ITVComponents.EFRepo.Extensions
             LogEnvironment.LogDebugEvent($"Decorator Constructor: {constructor}", LogSeverity.Report);
             return (IDbSet) constructor.Invoke(new[] {set});
         }
-        
+
+        /// <summary>
+        /// Creates a non-generic Set-Decorator instance that can bei used to manipulate and query an unknown Table in EntityFramework core
+        /// </summary>
+        /// <param name="context">the target db-context</param>
+        /// <param name="name">the set-name</param>
+        /// <returns>a DbSet Decorator instance</returns>
+        public static IDbSet Set(this DbContext context, string name)
+        {
+            Type contextType = context.GetType();
+            var prop = contextType.GetProperty(name,
+                BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance);
+            var set = prop.GetValue(context);
+            var setType = set.GetType();
+            if (setType.IsGenericType && setType.GetGenericTypeDefinition() == typeof(DbSet<>))
+            {
+                var t = setType.GetGenericArguments()[0];
+                var decoratorType = typeof(DbSetDecorator<>).MakeGenericType(t);
+                var constructor = decoratorType.GetConstructor(new[] { setType });
+                LogEnvironment.LogDebugEvent($"Decorator Constructor: {constructor}", LogSeverity.Report);
+                return (IDbSet)constructor.Invoke(new[] { set });
+            }
+
+            throw new Exception("Provided Property does not return a DbSet");
+        }
+
         /// <summary>
         /// Gets all depending items from the provided model type and generates remove-methods for each of them
         /// </summary>
