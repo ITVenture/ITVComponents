@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.12-PRE001</Version>
+    <Version>3.0.12</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Copyright>2020 by IT-Venture GmbH</Copyright>

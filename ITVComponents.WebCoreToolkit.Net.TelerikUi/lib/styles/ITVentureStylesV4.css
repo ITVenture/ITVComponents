@@ -253,7 +253,7 @@ div.k-grid .k-grid-document  {
 
 a.itv-grid-button,
 button.itv-grid-button,
-.k-command-cell > .k-button {
+.k-command-cell > .k-button :not(.itv-grid-textbutton) {
     margin-top: calc(-1px + -.1rem) !important;
     margin-bottom: calc(-1px + -.1rem) !important;
     padding: 0 0 9px 12px;
