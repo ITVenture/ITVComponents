@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Expressions;
@@ -14,12 +15,13 @@ namespace ITVComponents.EFRepo.Internal
 {
     internal class DbSetDecorator<T>:IDbSet where T:class, new()
     {
+        public PropertyInfo PropertyInfo { get; }
         private DbSet<T> decorated;
 
-        public DbSetDecorator(DbSet<T> decorated)
+        public DbSetDecorator(PropertyInfo propertyInfo, DbSet<T> decorated)
         {
+            PropertyInfo = propertyInfo;
             this.decorated = decorated;
-
         }
 
         public Type EntityType => typeof(T);
@@ -66,28 +68,13 @@ namespace ITVComponents.EFRepo.Internal
 
         public IQueryable<T> QueryAndSort(FilterBase filter, Sort[] sorts, Func<string,string> redirectColumn = null)
         {
-            var filtered = decorated.Where(ExpressionBuilder.BuildExpression<T>(filter, redirectColumn));
-            foreach (var sort in sorts)
-            {
-                if (sort.Direction == SortDirection.Ascending)
-                {
-                    filtered = filtered.OrderBy(
-                        ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.MemberName, redirectColumn));
-                }
-                else
-                {
-                    filtered = filtered.OrderByDescending(
-                        ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.MemberName, redirectColumn));
-                }
-            }
-
-            return filtered;
+            return GetQueryDecorator(filter, sorts, redirectColumn);
         }
 
-        IQueryable IDbSet.QueryAndSort(FilterBase filter, Sort[] sorts,
+        IQueryableWrapper IDbSet.QueryAndSort(FilterBase filter, Sort[] sorts,
             Func<string, string> redirectColumn = null)
         {
-            return this.QueryAndSort(filter, sorts, redirectColumn);
+            return GetQueryDecorator(filter, sorts, redirectColumn);
         }
 
         public object FindWithQuery(Dictionary<string, object> query, bool ignoreNotFound)
@@ -161,6 +148,26 @@ namespace ITVComponents.EFRepo.Internal
         public object New()
         {
             return new T();
+        }
+
+        private QueryableDecorator<T> GetQueryDecorator(FilterBase filter, Sort[] sorts, Func<string, string> redirectColumn)
+        {
+            var filtered = decorated.Where(ExpressionBuilder.BuildExpression<T>(filter, redirectColumn));
+            foreach (var sort in sorts)
+            {
+                if (sort.Direction == SortDirection.Ascending)
+                {
+                    filtered = filtered.OrderBy(
+                        ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.MemberName, redirectColumn));
+                }
+                else
+                {
+                    filtered = filtered.OrderByDescending(
+                        ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.MemberName, redirectColumn));
+                }
+            }
+
+            return new QueryableDecorator<T>(filtered);
         }
     }
 }

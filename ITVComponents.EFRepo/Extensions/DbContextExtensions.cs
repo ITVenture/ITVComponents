@@ -110,9 +110,9 @@ namespace ITVComponents.EFRepo.Extensions
             {
                 var t = setType.GetGenericArguments()[0];
                 var decoratorType = typeof(DbSetDecorator<>).MakeGenericType(t);
-                var constructor = decoratorType.GetConstructor(new[] { setType });
+                var constructor = decoratorType.GetConstructor(new[] { typeof(PropertyInfo), setType });
                 LogEnvironment.LogDebugEvent($"Decorator Constructor: {constructor}", LogSeverity.Report);
-                return (IDbSet)constructor.Invoke(new[] { set });
+                return (IDbSet)constructor.Invoke(new[] { prop, set });
             }
 
             throw new Exception("Provided Property does not return a DbSet");

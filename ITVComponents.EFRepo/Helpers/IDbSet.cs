@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Expressions.Models;
@@ -12,6 +13,7 @@ namespace ITVComponents.EFRepo.Helpers
     public interface IDbSet
     {
         Type EntityType { get; }
+        public PropertyInfo PropertyInfo { get; }
 
         /// <summary>
         /// Begins tracking the given entity, and any other reachable entities that are not
@@ -154,8 +156,7 @@ namespace ITVComponents.EFRepo.Helpers
         /// <returns>the requested value</returns>
         object FindWithQuery(Dictionary<string, object> query, bool ignoreNotFound);
 
-        public IQueryable QueryAndSort(FilterBase filter, Sort[] sorts,
-            Func<string, string> redirectColumn = null);
+        public IQueryableWrapper QueryAndSort(FilterBase filter, Sort[] sorts, Func<string, string> redirectColumn = null);
         //
         // Zusammenfassung:
         //     Begins tracking the given entity in the Microsoft.EntityFrameworkCore.EntityState.Deleted
