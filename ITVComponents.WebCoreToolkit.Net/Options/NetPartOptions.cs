@@ -29,7 +29,8 @@ namespace ITVComponents.WebCoreToolkit.Net.Options
         public bool ExposeClientSettings { get; set; } = false;
         public bool UseFileServices { get; set; } = false;
         public bool UseTenantSwitch { get; set; } = false;
-
+        public bool ExposeUserPermissions { get; set; } = false;
+        public bool ExposeTenantFeatures { get; set; } = false;
         public string UrlQueryExtVersion { get; set; } = null;
     }
 }

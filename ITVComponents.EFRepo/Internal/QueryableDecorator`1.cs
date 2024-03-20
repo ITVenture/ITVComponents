@@ -26,7 +26,7 @@ namespace ITVComponents.EFRepo.Internal
 
         public IQueryable<TResult> Select<TResult>(Expression selectExpression)
         {
-            var visitedEx = visitor.Visit(selectExpression);
+            var visitedEx = visitor.VisitLinqExpression(selectExpression);
             var selection = (Expression<Func<T, TResult>>)visitedEx;
             return decorated.Select(selection);
         }

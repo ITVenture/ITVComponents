@@ -34,7 +34,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         /// <param name="nativeConfigName">the native configuration name that is used to compile linq queries</param>
         /// <returns>an expression that provides the basic-query for the given entity-type</returns>
         public static Expression<Func<T, bool>> ViewFilter<T>(this HttpRequest basicRequest,
-            Func<string, string> redirectProps = null, Func<Type, string, bool> useProperty = null, Func<string,string> unpackString = null, string nativeConfigName = null)
+            Func<string, string[]> redirectProps = null, Func<Type, string, bool> useProperty = null, Func<string,string> unpackString = null, string nativeConfigName = null)
         {
             var filter = basicRequest.BuildViewFilter<T>(unpackString, nativeConfigName);
             if (filter != null)

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.12</Version>
+    <Version>3.0.13-PRE023</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -17,7 +17,7 @@
   </Target>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.5.0" />
-    <PackageReference Include="Microsoft.OpenApi" Version="1.6.3" />
+    <PackageReference Include="Microsoft.OpenApi" Version="1.6.14" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />

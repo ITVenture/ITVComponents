@@ -333,11 +333,11 @@
             window: $('<div class="k-edit-form-container d-flex flex-column align-items-fill">' +
                 '<div id="AlertMessage"></div>' +
                 '<div tag="cip-Content" class="flex-row d-flex"></div>' +
-                '<div class="k-edit-buttons k-state-default mt-auto p-2">' +
-                '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'input\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</a>' +
-                '<a class="k-button k-button-icontext k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'input\')"><span class="k-icon k-cancel" ></span>' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</a>' +
+                '<div tag="buttons" class="k-edit-buttons k-state-default mt-auto p-2">' +
                 '</div>' +
                 '</div>'),
+            defaultButtons: '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'input\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</a>' +
+                '<a class="k-button k-button-icontext k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'input\')"><span class="k-icon k-cancel" ></span>' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</a>',
             handleReturn: true
         };
         obj.window.kendoWindow({
@@ -354,14 +354,24 @@
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
         obj.onPressedEnter(function (event) {
-            if (!$(event.target).hasClass("k-button")) {
-                event.preventDefault();
-                ITVenture.Tools.Popup.Accept("input");
+            var dialogInfo = ITVenture.Tools.Popup.FindDialog($(event.target)).data("itvDialog");
+            if (dialogInfo.mode.indexOf("WithButtons") === -1) {
+                if (!$(event.target).hasClass("k-button")) {
+                    event.preventDefault();
+                    ITVenture.Tools.Popup.Accept("input");
+                }
+            }
+            else if (typeof dialogInfo.refObj.defaultAction === "string") {
+                if (!$(event.target).hasClass("k-button")) {
+                    event.preventDefault();
+                    ITVenture.Tools.Popup.Accept("input", dialogInfo.refObj.defaultAction);
+                }
             }
         });
 
         obj.onShow(function (window, dialog, refObj) {
             var inputArea = '<input id="UserInput" class="flex-fill k-textbox" />';
+            var buttonArea = obj.defaultButtons;
             obj.mode = "default";
             if (typeof refObj === "string") {
                 obj.window.children("[id='AlertMessage']").html(refObj);
@@ -373,18 +383,55 @@
                 } else {
                     obj.window.find("[id='UserInput']").val(refObj.Default);
                 }
+
+                if (typeof refObj.Buttons !== "undefined") {
+                    obj.mode = obj.mode.concat("WithButtons");
+                    buttonArea = "";
+                    $.each(refObj.Buttons,
+                        function (id, item) {
+                            buttonArea +=
+                                '<a class="k-button k-button-icontext ' +
+                                (item.Default ? 'k-primary k-grid-update' : '') +
+                                '" href="#" onclick="ITVenture.Tools.Popup.' +
+                                item.Action +
+                                '(\'input\',\'' +
+                                item.ActionArgument +
+                                '\')"><span class="' +
+                                item.SpanClass +
+                                '" ></span>' +
+                                item.Text +
+                                '</a>';
+                        });
+                }
             }
             obj.window.children("[tag='cip-Content']").html(inputArea);
+            obj.window.children("[tag='buttons']").html(buttonArea);
             //obj.window.children("[id='AlertMessage']").html(refObj);
         });
 
         var oldOpen = obj.Open;
         obj.Open = function (refObj, success, cancel) {
-            obj.onAccept(function (window, dialog, refObj) {
+            obj.onAccept(function (window, dialog, refObj, acceptanceData) {
                 if (obj.mode === "default") {
                     success(window, dialog, refObj, window.find("#UserInput").val());
-                } else {
+                } else if (obj.mode == "custom") {
                     success(window, dialog, refObj, obj.window.children("[tag='cip-Content']").children());
+                }
+                else if (obj.mode == "defaultWithButtons") {
+                    var dat = {
+                        input: window.find("#UserInput").val(),
+                        arg: acceptanceData
+                    };
+
+                    success(window, dialog, refObj, dat);
+                }
+                else if (obj.mode == "customWithButtons") {
+                    var dat = {
+                        cipInput: obj.window.children("[tag='cip-Content']").children(),
+                        arg: acceptanceData
+                    };
+
+                    success(window, dialog, refObj, dat);
                 }
             });
             obj.onCancel(cancel);

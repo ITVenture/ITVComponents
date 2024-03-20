@@ -2,7 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.Comparers;
 using ITVComponents.WebCoreToolkit.Net.Handlers.Model;
 using ITVComponents.WebCoreToolkit.Security;
@@ -48,6 +51,17 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             }
 
             return Results.NotFound();
+        }
+
+        /// <summary>
+        /// Returns all permission of the current user
+        /// </summary>
+        /// <param name="context">the http-context in which the Widget is being executed</param>
+        /// <response code="200">a list of permissions that are assigned to the current user</response>
+        public static async Task<IResult> ReadTenantFeatures(HttpContext context, ISecurityRepository repo)
+        {
+            var retVal =  repo.GetFeatures(null).Distinct(new FeatureComparer()).ToArray();
+            return Results.Json(retVal, new JsonSerializerOptions());
         }
     }
 }

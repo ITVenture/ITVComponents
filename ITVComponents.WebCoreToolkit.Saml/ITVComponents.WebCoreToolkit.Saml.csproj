@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.12</Version>
+    <Version>3.0.13-PRE023</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <!--TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeReferencedProjectInPackage</TargetsForTfmSpecificContentInPackage-->
@@ -22,7 +22,7 @@
   </Target-->
   <ItemGroup>
     <PackageReference Include="Microsoft.IdentityModel.Tokens.Saml" Version="6.27.0" />
-    <PackageReference Include="Sustainsys.Saml2.AspNetCore2" Version="2.9.0" />
+    <PackageReference Include="Sustainsys.Saml2.AspNetCore2" Version="2.9.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />

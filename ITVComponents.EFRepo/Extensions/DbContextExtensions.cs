@@ -105,7 +105,7 @@ namespace ITVComponents.EFRepo.Extensions
             var prop = contextType.GetProperty(name,
                 BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance);
             var set = prop.GetValue(context);
-            var setType = set.GetType();
+            var setType = prop.PropertyType;
             if (setType.IsGenericType && setType.GetGenericTypeDefinition() == typeof(DbSet<>))
             {
                 var t = setType.GetGenericArguments()[0];

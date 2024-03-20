@@ -43,6 +43,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
                         options.UseTenantSwitch,
+                        options.ExposeUserPermissions,
+                        options.ExposeTenantFeatures,
                         endPointRegistry);
                 }
 
@@ -52,6 +54,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
                         options.UseTenantSwitch,
+                        false,false,
                         endPointRegistry);
                 }
 
@@ -61,6 +64,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
                         options.UseTenantSwitch,
+                        options.ExposeUserPermissions,
+                        options.ExposeTenantFeatures,
                         endPointRegistry);
                 }
 
@@ -70,6 +75,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
                         options.UseTenantSwitch,
+                        false,false,
                         endPointRegistry);
                 }
             }
@@ -82,6 +88,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
                         options.UseTenantSwitch,
+                        options.ExposeUserPermissions,
+                        options.ExposeTenantFeatures,
                         endPointRegistry);
                 }
 
@@ -91,6 +99,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
                         options.UseTenantSwitch,
+                        false,false,
                         endPointRegistry);
                 }
 
@@ -100,6 +109,8 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
                         options.UseTenantSwitch,
+                        options.ExposeUserPermissions,
+                        options.ExposeTenantFeatures,
                         endPointRegistry);
                 }
 
@@ -109,12 +120,13 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
                         options.UseTenantSwitch,
+                        false,false,
                         endPointRegistry);
                 }
             }
         }
 
-        private static void Register(WebApplication builder, string tenantParam, bool useAreas, bool useAuth, bool useAutoForeignKeys, bool useDiagnostics, bool useWidgets, bool exposeFileSystem, bool exposeClientSettings, bool useFileServices, bool useTenantSwitch, EndPointTrunk endPointRegistry)
+        private static void Register(WebApplication builder, string tenantParam, bool useAreas, bool useAuth, bool useAutoForeignKeys, bool useDiagnostics, bool useWidgets, bool exposeFileSystem, bool exposeClientSettings, bool useFileServices, bool useTenantSwitch, bool exposeUserPermissions, bool exposeTenantFeatures, EndPointTrunk endPointRegistry)
         {
             if (useAutoForeignKeys)
             {
@@ -139,6 +151,16 @@ namespace ITVComponents.WebCoreToolkit.Net
             if (exposeClientSettings && !useAreas)
             {
                 builder.ExposeClientSettings(tenantParam, useAuth);
+            }
+
+            if (exposeUserPermissions && !useAreas && useAuth)
+            {
+                builder.ExposeUserPermissions(tenantParam);
+            }
+
+            if (exposeTenantFeatures && !useAreas && useAuth)
+            {
+                builder.ExposeTenantFeatures(tenantParam);
             }
 
             if (useFileServices && !useAreas)

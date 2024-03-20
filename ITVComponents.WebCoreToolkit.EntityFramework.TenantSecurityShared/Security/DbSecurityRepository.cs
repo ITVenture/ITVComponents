@@ -467,7 +467,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             IDisposable tmp = null;
             try
             {
-                if (!securityContext.Tenants.Any(n => n.TenantName == permissionScopeName))
+                bool useCurrentTenant = string.IsNullOrEmpty(permissionScopeName) && securityContext.CurrentTenantId != null;
+                if (!useCurrentTenant && !securityContext.Tenants.Any(n => n.TenantName == permissionScopeName))
                 {
                     tmp = new FullSecurityAccessHelper(securityContext, true, true);
                 }
@@ -475,9 +476,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                 var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
                 var raw = (from t in securityContext.Features
                     join a in securityContext.TenantFeatureActivations.Where(ta =>
-                            ta.Tenant.TenantName == permissionScopeName
-                            && (ta.ActivationStart== null || ta.ActivationStart <= dt)
-                            && (ta.ActivationEnd == null || ta.ActivationEnd >= dt))
+                                ((!useCurrentTenant && ta.Tenant.TenantName == permissionScopeName) || (useCurrentTenant && ta.TenantId == securityContext.CurrentTenantId))
+                                && (ta.ActivationStart== null || ta.ActivationStart <= dt)
+                                && (ta.ActivationEnd == null || ta.ActivationEnd >= dt))
                             .GroupBy(g => new {g.FeatureId, g.Tenant.TenantName})
                             .Select(n => new {n.Key.FeatureId, n.Key.TenantName})
                         on t.FeatureId equals a.FeatureId into lfaj

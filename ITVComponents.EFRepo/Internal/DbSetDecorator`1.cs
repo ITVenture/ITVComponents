@@ -66,13 +66,13 @@ namespace ITVComponents.EFRepo.Internal
             return decorated.Find(keyValues);
         }
 
-        public IQueryable<T> QueryAndSort(FilterBase filter, Sort[] sorts, Func<string,string> redirectColumn = null)
+        public IQueryable<T> QueryAndSort(FilterBase filter, Sort[] sorts, Func<string,string[]> redirectColumn = null)
         {
             return GetQueryDecorator(filter, sorts, redirectColumn);
         }
 
         IQueryableWrapper IDbSet.QueryAndSort(FilterBase filter, Sort[] sorts,
-            Func<string, string> redirectColumn = null)
+            Func<string, string[]> redirectColumn = null)
         {
             return GetQueryDecorator(filter, sorts, redirectColumn);
         }
@@ -150,20 +150,24 @@ namespace ITVComponents.EFRepo.Internal
             return new T();
         }
 
-        private QueryableDecorator<T> GetQueryDecorator(FilterBase filter, Sort[] sorts, Func<string, string> redirectColumn)
+        private QueryableDecorator<T> GetQueryDecorator(FilterBase filter, Sort[] sorts, Func<string, string[]> redirectColumn)
         {
             var filtered = decorated.Where(ExpressionBuilder.BuildExpression<T>(filter, redirectColumn));
             foreach (var sort in sorts)
             {
-                if (sort.Direction == SortDirection.Ascending)
+                var cols = redirectColumn?.Invoke(sort.MemberName) ?? new[] { sort.MemberName };
+                foreach (var c in cols)
                 {
-                    filtered = filtered.OrderBy(
-                        ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.MemberName, redirectColumn));
-                }
-                else
-                {
-                    filtered = filtered.OrderByDescending(
-                        ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.MemberName, redirectColumn));
+                    if (sort.Direction == SortDirection.Ascending)
+                    {
+                        filtered = filtered.OrderBy(
+                            ExpressionBuilder.BuildPropertyAccessExpression<T>(c));
+                    }
+                    else
+                    {
+                        filtered = filtered.OrderByDescending(
+                            ExpressionBuilder.BuildPropertyAccessExpression<T>(c));
+                    }
                 }
             }
 

@@ -53,6 +53,15 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
             return html.Raw($@"<link href=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/css/itvComponentsBS4.min.css".ExtendUrlWithVersion()}"" type=""text/css"" rel=""stylesheet"">");
         }
 
+        public static IHtmlContent UseFrontendSecurity(this IHtmlHelper html, bool useFeatures, bool usePermissions)
+        {
+            return html.Raw($"""
+<script>
+    {((useFeatures && usePermissions)?"ITVenture.FrontendSecurity.Init();":useFeatures? "ITVenture.FrontendSecurity.InitFeatures();" : usePermissions? "ITVenture.FrontendSecurity.InitPermissions();" : "")}
+</script>
+""");
+        }
+
         public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule, string uploadReason, string callbackMethod, string errorCallbackMethod = null, int height = 0, int width = 0, Dictionary<string, string> customAttributes = null)
         {
             string uniqueDivId;

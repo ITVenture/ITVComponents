@@ -2,13 +2,13 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.12</Version>
+    <Version>3.0.13-PRE023</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="antlr4.runtime.standard" Version="4.12.0" />
-    <PackageReference Include="impromptuinterface" Version="7.0.1" />
+    <PackageReference Include="antlr4.runtime.standard" Version="4.13.1" />
+    <PackageReference Include="impromptuinterface" Version="8.0.4" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.5.0" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
   </ItemGroup>

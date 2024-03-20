@@ -174,7 +174,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {
-            if (permissionScopeName.Equals(assignedUserScope,StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(permissionScopeName) || permissionScopeName.Equals(assignedUserScope,StringComparison.OrdinalIgnoreCase))
             {
                 return from t in assignedFeatures
                     select new Feature

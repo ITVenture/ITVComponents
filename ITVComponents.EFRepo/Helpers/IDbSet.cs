@@ -156,7 +156,7 @@ namespace ITVComponents.EFRepo.Helpers
         /// <returns>the requested value</returns>
         object FindWithQuery(Dictionary<string, object> query, bool ignoreNotFound);
 
-        public IQueryableWrapper QueryAndSort(FilterBase filter, Sort[] sorts, Func<string, string> redirectColumn = null);
+        public IQueryableWrapper QueryAndSort(FilterBase filter, Sort[] sorts, Func<string, string[]> redirectColumn = null);
         //
         // Zusammenfassung:
         //     Begins tracking the given entity in the Microsoft.EntityFrameworkCore.EntityState.Deleted

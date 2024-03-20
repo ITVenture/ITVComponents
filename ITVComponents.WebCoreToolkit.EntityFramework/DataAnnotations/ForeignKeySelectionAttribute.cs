@@ -3,46 +3,104 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.Help.QueryExtenders;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
 {
     [AttributeUsage(AttributeTargets.Class)]
     public class ForeignKeySelectionAttribute:Attribute
     {
+        private readonly Type selectionHelperType;
+
         /// <summary>
         /// Initializes a new instance of the ForeignKeySelectionAttribute class
         /// </summary>
-        /// <param name="completeSelect">the complete select expression for the linq query</param>
-        /// <param name="orderByExpression">the order-by expression of the linq query</param>
-        public ForeignKeySelectionAttribute(string completeSelect, string orderByExpression)
+        /// <param name="selectionHelperType">the Type implementing the IForeignKeySelectorHelper interface that supports custom selections on the given Model-Class</param>
+        public ForeignKeySelectionAttribute(Type selectionHelperType)
         {
-            CompleteSelect = completeSelect;
-            OrderByExpression = orderByExpression;
+            if (Array.IndexOf(selectionHelperType.GetInterfaces(), typeof(IForeignKeySelectorHelper)) == -1)
+            {
+                throw new ArgumentException("Type must implement IForeignKeySelectorHelper",
+                    nameof(selectionHelperType));
+            }
+
+            if (selectionHelperType.GetConstructor(Type.EmptyTypes) == null)
+            {
+                throw new ArgumentException("Type must have a default-constructor!",
+                    nameof(selectionHelperType));
+            }
+
+            this.selectionHelperType = selectionHelperType;
         }
 
-        /// <summary>
-        /// Gets the Select Expression. The current record is exposed as t
-        /// </summary>
-        public string CompleteSelect { get; }
+        public IForeignKeySelectorHelper CreateTypeInstance(Type finalType)
+        {
+            var t = GetAccurateType(finalType, selectionHelperType);
+            var ct = t.GetConstructor(Type.EmptyTypes);
+            var ret = ct.Invoke(Array.Empty<object>());
+            return (IForeignKeySelectorHelper)ret;
+        }
 
-        /// <summary>
-        /// Gets the OrderBy Expression of the query
-        /// </summary>
-        public string OrderByExpression { get;  }
+        private Type GetAccurateType(Type currentEntityType, Type declaredType)
+        {
+            var tmpT = declaredType;
+            if (declaredType.IsGenericTypeDefinition)
+            {
+                var args = declaredType.GetGenericArguments();
+                if (args.Length == 1)
+                {
+                    try
+                    {
+                        tmpT = tmpT.MakeGenericType(currentEntityType);
+                        return tmpT;
+                    }
+                    catch
+                    {
+                    }
+                }
 
-        /// <summary>
-        /// Gets or sets the FilterKeys that can be present in the Filter-Dictionary. For Each Filterkey entry, a matching Filter- and FilterDeclaration-Entry is expected
-        /// </summary>
-        public string[] FilterKeys { get;set; }
+                var pt = currentEntityType;
+                bool ok = false;
+                while (!ok)
+                {
+                    if (pt == typeof(object))
+                    {
+                        throw new InvalidOperationException("Unable to find appropriate Type-Arguments");
+                    }
 
-        /// <summary>
-        /// Gets or sets the Filters that must be applied, when a matching FilterKey is present in the Filter-Dictionary
-        /// </summary>
-        public string[] Filters { get; set; }
+                    if (pt.IsGenericType)
+                    {
+                        var t = pt.GetGenericArguments();
+                        if (t.Length == args.Length)
+                        {
+                            try
+                            {
+                                tmpT = tmpT.MakeGenericType(t);
+                                ok = true;
+                            }
+                            catch
+                            {
+                            }
+                        }
+                        else if (t.Length +1 == args.Length)
+                        {
+                            var argsWithT = new[] { currentEntityType }.Concat(t).ToArray();
+                            try
+                            {
+                                tmpT = tmpT.MakeGenericType(argsWithT);
+                                ok = true;
+                            }
+                            catch
+                            {
+                            }
+                        }
+                    }
 
-        /// <summary>
-        /// Gets or sets the Declarations of variables (including required conversions) that are used to filter the entities when a foreign-key is requested
-        /// </summary>
-        public string[] FilterDeclarations { get; set; }
+                    pt = pt.BaseType;
+                }
+            }
+
+            return tmpT;
+        }
     }
 }

@@ -5,7 +5,9 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.DynamicData;
 using ITVComponents.EFRepo.Expressions.Models;
+using ITVComponents.EFRepo.Expressions.Visitors;
 using ITVComponents.TypeConversion;
 using ParameterExpression = System.Linq.Expressions.ParameterExpression;
 
@@ -13,7 +15,7 @@ namespace ITVComponents.EFRepo.Expressions
 {
     public static class ExpressionBuilder
     {
-        public static Expression<Func<T, bool>> BuildExpression<T>(FilterBase filter, Func<string, string> redirectColumnName = null, Func<Type, string, bool> useProperty = null)
+        public static Expression<Func<T, bool>> BuildExpression<T>(FilterBase filter, Func<string, string[]> redirectColumnName = null, Func<Type, string, bool> useProperty = null)
         {
             var parameter = Expression.Parameter(typeof(T));
             var x = BuildExpression<T>(filter, parameter, redirectColumnName, useProperty??((t,n)=>true));
@@ -26,10 +28,10 @@ namespace ITVComponents.EFRepo.Expressions
             return null;
         }
 
-        public static Expression<Func<T,object>> BuildPropertyAccessExpression<T>(string name, Func<string, string> redirectColumnName = null, Func<Type, string, bool> useProperty = null)
+        public static Expression<Func<T,object>> BuildPropertyAccessExpression<T>(string name/*, Func<string, string> redirectColumnName = null*/, Func<Type, string, bool> useProperty = null)
         {
             var parameter = Expression.Parameter(typeof(T));
-            Expression x = BuildPropertyAccess(name, parameter, redirectColumnName, useProperty ?? ((t, n) => true));
+            Expression x = BuildPropertyAccess(name, parameter, useProperty ?? ((t, n) => true));//BuildPropertyAccess(name, parameter, redirectColumnName, useProperty ?? ((t, n) => true));
             if (x != null)
             {
                 x = Expression.Convert(x, typeof(object));
@@ -45,7 +47,7 @@ namespace ITVComponents.EFRepo.Expressions
             return T => hink;
         }
 
-        private static Expression BuildExpression<T>(FilterBase filter, Expression parameter, Func<string, string> redirectColumnName, Func<Type, string, bool> useProperty)
+        private static Expression BuildExpression<T>(FilterBase filter, ParameterExpression parameter, Func<string, string[]> redirectColumnName, Func<Type, string, bool> useProperty)
         {
             if (filter is CompositeFilter comp)
             {
@@ -57,19 +59,21 @@ namespace ITVComponents.EFRepo.Expressions
             }
             else if (filter is CustomFilter<T> cut)
             {
-                return Expression.Invoke(cut.Filter, parameter);
+                return ParameterReplaceVisitor.ReplaceFuncParams(cut.Filter,
+                    parameter); //Expression.Invoke(cut.Filter, parameter);
             }
             else if (filter is LinqFilter<T> liq)
             {
-                return Expression.Invoke(liq.Filter, parameter);
+                return ParameterReplaceVisitor.ReplaceFuncParams(liq.Filter,
+                    parameter); //Expression.Invoke(liq.Filter, parameter);
             }
 
             throw new InvalidOperationException("Invalid Filter object");
         }
 
-        private static MemberExpression BuildPropertyAccess(string propertyName, Expression parameter, Func<string, string> redirectColumnName, Func<Type,string, bool> useProperty)
+        private static MemberExpression BuildPropertyAccess(string propertyName, Expression parameter/*, Func<string, string> redirectColumnName*/, Func<Type,string, bool> useProperty)
         {
-            var prp = (redirectColumnName?.Invoke(propertyName)??propertyName).Split(".");
+            var prp = propertyName.Split(".");//(redirectColumnName?.Invoke(propertyName)??propertyName).Split(".");
             var currentType = parameter.Type;
             if (HasProperty(currentType, prp[0]) && useProperty(currentType, prp[0]))
             {
@@ -96,13 +100,27 @@ namespace ITVComponents.EFRepo.Expressions
             return null;
         }
 
-        private static Expression BuildCompare<T>(CompareFilter filter, Expression parameter, Func<string, string> redirectColumnName, Func<Type,string, bool> useProperty)
+        private static Expression BuildCompare<T>(CompareFilter filter, ParameterExpression parameter, Func<string, string[]> redirectColumnName, Func<Type,string, bool> useProperty)
         {
-            var prpAccess = BuildPropertyAccess(filter.PropertyName, parameter, redirectColumnName, useProperty);
-            if (prpAccess != null)
+            var targetCols = redirectColumnName?.Invoke(filter.PropertyName) ?? new[] { filter.PropertyName };
+            if (targetCols.Length == 1)
             {
-                var body = CompareExpression(filter.Operator, prpAccess, filter.Value, filter.Value2);
-                return body;
+                var prpAccess = BuildPropertyAccess(targetCols[0], parameter, useProperty);//BuildPropertyAccess(filter.PropertyName, parameter, redirectColumnName, useProperty);
+                if (prpAccess != null)
+                {
+                    var body = CompareExpression(filter.Operator, prpAccess, filter.Value, filter.Value2);
+                    return body;
+                }
+            }
+            else if (targetCols.Length > 1)
+            {
+                CompositeFilter copsit = new CompositeFilter
+                {
+                    Operator = BoolOperator.Or,
+                    Children = (from t in targetCols select (FilterBase)new CompareFilter{Operator = filter.Operator,PropertyName = t,Value = filter.Value, Value2=filter.Value2}).ToArray()
+                };
+
+                return BuildComposite<T>(copsit, parameter, redirectColumnName, useProperty);
             }
 
             return null;
@@ -177,7 +195,7 @@ namespace ITVComponents.EFRepo.Expressions
             }
         }
 
-        private static Expression BuildComposite<T>(CompositeFilter filter, Expression parameter, Func<string, string> redirectColumnName, Func<Type,string,bool> useProperty)
+        private static Expression BuildComposite<T>(CompositeFilter filter, ParameterExpression parameter, Func<string, string[]> redirectColumnName, Func<Type,string,bool> useProperty)
         {
             var first = filter.Children.FirstOrDefault();
             if (first != null)

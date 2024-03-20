@@ -2,12 +2,13 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ForeignKeySelectors;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base
 {
     [Index(nameof(PermissionNameUniqueness),IsUnique=true,Name="IX_UniquePermissionName")]
-    [ForeignKeySelection("new ForeignKeyData<int> {Key = t.PermissionId, Label = t.PermissionName, FullRecord=t.ToDictionary(true)}", "orderby t.PermissionName")]
+    [ForeignKeySelection(typeof(PermissionSelector<,,,,,,>))]
     public abstract class Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser> : ITVComponents.WebCoreToolkit.Models.Permission
         where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
         where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>

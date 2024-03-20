@@ -165,6 +165,20 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
         }
 
         /// <summary>
+        /// Exposes Features of the current Tenant to the client application
+        /// </summary>
+        /// <param name="builder">the endpoint-convention builder that is used to create a presented endpoint</param>
+        /// <param name="explicitTenantParam">indicates whether to accept an explicit tenant parameter</param>
+        /// <returns>the endpoint-convention builder for further configuration</returns>
+        public static IEndpointConventionBuilder ExposeTenantFeatures(this WebApplication builder,
+            string explicitTenantParam)
+        {
+            var forExplicitTenants = !string.IsNullOrEmpty(explicitTenantParam);
+            var tmp = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/TenantFeatures", TenantHandler.ReadTenantFeatures).RequireAuthorization();
+            return tmp;
+        }
+
+        /// <summary>
         /// Exposes File-Services for Up-and Downloading files through a standardized interface
         /// </summary>
         /// <param name="builder">the endpoint-builder used for adding the route</param>

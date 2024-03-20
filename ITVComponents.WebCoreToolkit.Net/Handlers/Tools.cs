@@ -42,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 var tmp = propertyCallback?.Invoke(v.Key, v.Value);
                 if (tmp != null)
                 {
-                    ret.Add($"Parsed{v.Key}", tmp);
+                    ret.Add($"parsed{v.Key}", tmp);
                 }
                 
                 if (expectFilterForm)

@@ -5,6 +5,8 @@ using System.Linq;
 using System.Security.Principal;
 using ITVComponents.EFRepo.DataAnnotations;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
+using ITVComponents.EFRepo.Expressions;
+using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
@@ -428,16 +430,51 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         /// <returns>the query that will be executed go get the foreignkey-data</returns>
         public IEnumerable GetForeignKeyFilterQuery(string tableName, Dictionary<string,object> postedFilter)
         {
+            var hasPreFilter = postedFilter.TryGetValue("parsedfilter", out var clientQuery);
+            FilterBase clientFilter = null;
+            if (hasPreFilter && clientQuery is FilterBase fiba)
+            {
+                clientFilter = fiba;
+            }
+
             if (tableName == "TenantSelectionFk")
             {
-                return (from t in Tenants orderby t.DisplayName select new ForeignKeyData<string>{Key=t.TenantName,Label=t.DisplayName, FullRecord = t.ToDictionary(true)}).ToList().Where(n => userProvider.Services.VerifyUserPermissions(new []{n.Key}));
+                IQueryable<Tenant> ts = Tenants;
+                if (clientFilter != null)
+                {
+                    ts = ts.Where(ExpressionBuilder.BuildExpression<Tenant>(clientFilter, c =>
+                    {
+                        if (c == "Label")
+                        {
+                            return new[] { "TenantName", "DisplayName" };
+                        }
+
+                        return null;
+                    }));
+                }
+                return (from t in ts orderby t.DisplayName select new ForeignKeyData<string>{Key=t.TenantName,Label=t.DisplayName, FullRecord = t.ToDictionary(true)}).ToList().Where(n => userProvider.Services.VerifyUserPermissions(new []{n.Key}));
             }
 
             if (tableName == "AuthorizedWidgets")
             {
                 if (userProvider?.User!= null)
                 {
-                    var ret = (from t in Widgets.ToArray()
+                    IQueryable<DashboardWidget> wigs = Widgets;
+                    if (clientFilter != null)
+                    {
+                        wigs = wigs.Where(ExpressionBuilder.BuildExpression<DashboardWidget>(clientFilter,
+                            c =>
+                            {
+                                if (c == "Label")
+                                {
+                                    return new[] { "SystemName", "DisplayName" };
+                                }
+
+                                return null;
+                            }));
+                    }
+
+                    var ret = (from t in wigs.ToArray()
                         where userProvider.Services.VerifyUserPermissions(new[]
                             { t.DiagnosticsQuery.Permission.PermissionName })
                         orderby t.DisplayName
