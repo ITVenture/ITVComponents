@@ -138,7 +138,7 @@ button.itv-weak-button > span {
     background-color: #42b1ca;
 }*/
 
-.imglinkUp
+/*.imglinkUp
 {
     width:32px;
     height:26px;
@@ -146,7 +146,7 @@ button.itv-weak-button > span {
     background-size: contain;
     display:block;
     text-indent:30px;
-}
+}*/
 
 .k-datepicker,
 .k-dropdown,
@@ -156,7 +156,7 @@ button.itv-weak-button > span {
     width: 100%;
 }
 
-div.k-grid .k-grid-edit,
+div.k-grid .k-grid-edit-command,
 div.k-grid .k-grid-delete,
 div.k-grid .k-grid-cancel,
 div.k-grid .k-grid-update,
@@ -180,7 +180,7 @@ div.k-grid .k-grid-document  {
     line-height: 0;
 }
 
-    div.k-grid .k-grid-edit:not(:hover),
+    div.k-grid .k-grid-edit-command:not(:hover),
     div.k-grid .k-grid-delete:not(:hover),
     div.k-grid .k-grid-cancel:not(:hover),
     /*div.k-grid .k-grid-update:not(:hover),*/
@@ -254,8 +254,6 @@ div.k-grid .k-grid-document  {
 a.itv-grid-button,
 button.itv-grid-button,
 .k-command-cell > .k-button :not(.itv-grid-textbutton) {
-    margin-top: calc(-1px + -.1rem) !important;
-    margin-bottom: calc(-1px + -.1rem) !important;
     padding: 0 0 9px 12px;
 }
 

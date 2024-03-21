@@ -1,8 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.13-PRE023</Version>
+    <Version>3.0.13-PRE024</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -23,7 +23,7 @@
     <Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" />
   </Target>
   <Target Name="MyPreCompileTarget" BeforeTargets="Build">
-    <Exec Command="gulp min" />
+    <Exec Command="npx webpack" />
   </Target>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
@@ -31,8 +31,9 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net\ITVComponents.WebCoreToolkit.Net.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Telerik.UI.for.AspNet.Core" Version="2020.2.617" />
+    <PackageReference Include="Telerik.UI.for.AspNet.Core" Version="2024.1.319" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.5.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.5.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\js\" />
