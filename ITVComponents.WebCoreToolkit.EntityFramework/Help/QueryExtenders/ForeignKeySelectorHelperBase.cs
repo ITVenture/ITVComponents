@@ -33,5 +33,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Help.QueryExtenders
 
         public virtual Sort[] DefaultSorts { get; } = null;
         public virtual Func<string, string[]> ColumnRedirects { get; } = null;
+        public virtual FilterBase GetCustomFilterAddition(IDictionary<string, object> customFilterInfo)
+        {
+            return null;
+        }
     }
 }

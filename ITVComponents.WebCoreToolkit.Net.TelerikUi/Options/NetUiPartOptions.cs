@@ -23,6 +23,13 @@
         public bool UseScriptLocalization { get; set; } = false;
         public string? LayoutPage { get; set; }
         public bool UseHealthView { get; set; } = false;
+        public bool UseControllerView { get; set; } = false;
+
+        public bool UseViewsView { get; set; } = false;
+
+        public bool UseTagHelperView { get; set; } = false;
+
+        public bool UseViewComponentView { get; set; }
         public bool RegisterHub { get; set; }
     }
 }

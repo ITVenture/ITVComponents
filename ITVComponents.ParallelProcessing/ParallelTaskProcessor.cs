@@ -462,7 +462,7 @@ namespace ITVComponents.ParallelProcessing
                 new Dictionary<string, TaskScheduler.ScheduleRequest>();
                 using (var lk = task.DemandExclusive())
                 {
-                    lk.Exclusive(() =>
+                    lk.Exclusive(true, () =>
                     {
                         foreach (SchedulerPolicy policy in task.Schedules)
                         {

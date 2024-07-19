@@ -44,46 +44,56 @@ namespace ITVComponents.EFRepo.Interceptors
                 {
                     var l = eventData.Context.ChangeTracker.Entries().ToList();
                     var userName = userProvider.GetUserName(eventData.Context);
-                    foreach (var entry in l)
+                    if (!string.IsNullOrEmpty(userName))
                     {
-                        foreach (var m in entry.Members.Where(m =>
-                                         m.Metadata.PropertyInfo != null && Attribute.IsDefined(m.Metadata.PropertyInfo,
-                                             typeof(ModMarkerAttribute)))
-                                     .Select(f => new
-                                     {
-                                         f.Metadata.PropertyInfo,
-                                         Attribute = (ModMarkerAttribute)Attribute.GetCustomAttribute(
-                                             f.Metadata.PropertyInfo,
-                                             typeof(ModMarkerAttribute), true)
-                                     }))
+                        foreach (var entry in l)
                         {
-                            DateTime dt = useUtc ? DateTime.UtcNow : DateTime.Now;
-                            if (entry.State == EntityState.Added)
+                            foreach (var m in entry.Members.Where(m =>
+                                             m.Metadata.PropertyInfo != null && Attribute.IsDefined(
+                                                 m.Metadata.PropertyInfo,
+                                                 typeof(ModMarkerAttribute)))
+                                         .Select(f => new
+                                         {
+                                             f.Metadata.PropertyInfo,
+                                             Attribute = (ModMarkerAttribute)Attribute.GetCustomAttribute(
+                                                 f.Metadata.PropertyInfo,
+                                                 typeof(ModMarkerAttribute), true)
+                                         }))
                             {
-                                if (m.Attribute is CreatedAttribute && m.PropertyInfo.PropertyType == typeof(DateTime))
+                                DateTime dt = useUtc ? DateTime.UtcNow : DateTime.Now;
+                                if (entry.State == EntityState.Added)
                                 {
-                                    m.PropertyInfo.SetValue(entry.Entity, dt);
+                                    if (m.Attribute is CreatedAttribute &&
+                                        m.PropertyInfo.PropertyType == typeof(DateTime))
+                                    {
+                                        m.PropertyInfo.SetValue(entry.Entity, dt);
+                                    }
+                                    else if (m.Attribute is CreatorAttribute &&
+                                             m.PropertyInfo.PropertyType == typeof(string))
+                                    {
+                                        m.PropertyInfo.SetValue(entry.Entity, userName);
+                                    }
                                 }
-                                else if (m.Attribute is CreatorAttribute &&
-                                         m.PropertyInfo.PropertyType == typeof(string))
-                                {
-                                    m.PropertyInfo.SetValue(entry.Entity, userName);
-                                }
-                            }
 
-                            if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
-                            {
-                                if (m.Attribute is ModifiedAttribute && m.PropertyInfo.PropertyType == typeof(DateTime))
+                                if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
                                 {
-                                    m.PropertyInfo.SetValue(entry.Entity, dt);
-                                }
-                                else if (m.Attribute is ModifierAttribute &&
-                                         m.PropertyInfo.PropertyType == typeof(string))
-                                {
-                                    m.PropertyInfo.SetValue(entry.Entity, userName);
+                                    if (m.Attribute is ModifiedAttribute &&
+                                        m.PropertyInfo.PropertyType == typeof(DateTime))
+                                    {
+                                        m.PropertyInfo.SetValue(entry.Entity, dt);
+                                    }
+                                    else if (m.Attribute is ModifierAttribute &&
+                                             m.PropertyInfo.PropertyType == typeof(string))
+                                    {
+                                        m.PropertyInfo.SetValue(entry.Entity, userName);
+                                    }
                                 }
                             }
                         }
+                    }
+                    else
+                    {
+                        LogEnvironment.LogEvent("Current Context is not bound to a specific user. No action is performed.", LogSeverity.Report);
                     }
                 }
                 else

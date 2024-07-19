@@ -27,7 +27,7 @@ namespace ITVComponents.Cloning
             propertyFilter ??= s => true;
             var retVal = new T();
             var a = GetCopyActionFor<T>();
-            a(source, retVal, propertyFilter);
+            a(source, retVal, propertyFilter, null);
             return retVal;
         }
 
@@ -38,11 +38,12 @@ namespace ITVComponents.Cloning
         /// <typeparam name="TTarget">the Destination-type</typeparam>
         /// <param name="assignmentSource">the Getter and Setter methods of the target-properties</param>
         /// <returns></returns>
-        public static Action<TSource, TTarget, Func<string,bool>> BuildAssignmentLambda<TSource, TTarget>(IEnumerable<AssignmentHolder> assignmentSource, bool useUtcSpecify)
+        public static Action<TSource, TTarget, Func<string,bool>, IServiceProvider> BuildAssignmentLambda<TSource, TTarget>(IEnumerable<AssignmentHolder> assignmentSource, bool useUtcSpecify)
         {
             var p1 = Expression.Parameter(typeof(TSource));
             var p2 = Expression.Parameter(typeof(TTarget));
             var p3 = Expression.Parameter(typeof(Func<string,bool>));
+            var p4 = Expression.Parameter(typeof(IServiceProvider));
             var tryConvertMethod = typeof(TypeConverter).GetMethod("TryConvert",
                 BindingFlags.Public | BindingFlags.Static, null, new Type[]
                 {
@@ -169,6 +170,11 @@ namespace ITVComponents.Cloning
                         }
                     }
 
+                    if (item.ServiceDrivenValueTranslation != null)
+                    {
+                        valX = Expression.Invoke(item.ServiceDrivenValueTranslation, valX, p4);
+                    }
+
                     Expression assignment;
                     if (item.Setter == null)
                     {
@@ -184,7 +190,7 @@ namespace ITVComponents.Cloning
             }
 
             var block = Expression.Block(assignments);
-            return Expression.Lambda<Action<TSource, TTarget, Func<string,bool>>>(block, p1, p2, p3).Compile();
+            return Expression.Lambda<Action<TSource, TTarget, Func<string,bool>, IServiceProvider>>(block, p1, p2, p3, p4).Compile();
         }
 
         /// <summary>
@@ -192,9 +198,9 @@ namespace ITVComponents.Cloning
         /// </summary>
         /// <typeparam name="T">the object type to flat-clone</typeparam>
         /// <returns></returns>
-        private static Action<T, T, Func<string, bool>> GetCopyActionFor<T>()
+        private static Action<T, T, Func<string, bool>, IServiceProvider> GetCopyActionFor<T>()
         {
-            Action<T, T, Func<string, bool>> copyAction = (Action<T, T, Func<string,bool>>)objectCloneMethods.GetOrAdd(typeof(T), t => BuildAssignmentLambda<T, T>(CreateFlatCopyMethod<T>(), false));
+            Action<T, T, Func<string, bool>, IServiceProvider> copyAction = (Action<T, T, Func<string,bool>, IServiceProvider>)objectCloneMethods.GetOrAdd(typeof(T), t => BuildAssignmentLambda<T, T>(CreateFlatCopyMethod<T>(), false));
             return copyAction;
         }
 

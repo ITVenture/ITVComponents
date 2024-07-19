@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Expressions.Models;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Help.QueryExtenders
 {
@@ -19,5 +20,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Help.QueryExtenders
         Sort[] DefaultSorts { get; }
 
         Func<string, string[]> ColumnRedirects { get; }
+
+        FilterBase GetCustomFilterAddition(IDictionary<string, object> customFilterInfo);
     }
 }

@@ -9,6 +9,7 @@ using ITVComponents.EFRepo.DbContextConfig;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
 using ITVComponents.EFRepo.DbContextConfig.Impl;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ITVComponents.EFRepo.Options
 {
@@ -22,7 +23,24 @@ namespace ITVComponents.EFRepo.Options
 
         public void ConfigureGlobalFilter<T>(Expression<Func<T, bool>> filter) where T : class
         {
-            configurators.Add(new FilterConfigurator<T>(filter, globalFilterVisitor));
+            ConfigureGlobalFilter(filter, null);
+        }
+
+        public void ConfigureGlobalFilter<T>(Expression<Func<T, bool>> filter, Action<EntityTypeBuilder<T>> basicConfig = null) where T : class
+        {
+            if (basicConfig == null)
+            {
+                configurators.Add(new FilterConfigurator<T>(filter, globalFilterVisitor));
+            }
+            else
+            {
+                configurators.Add(new FilterConfigurator<T>(basicConfig, filter, globalFilterVisitor));
+            }
+        }
+
+        public void ConfigureEntity<T>(Action<EntityTypeBuilder<T>> basicConfig) where T : class
+        {
+            configurators.Add(new EntityConfigurator<T>(basicConfig));
         }
 
         public void ConfigureExpressionProperty<T>(Expression<Func<T>> propertyAccess)

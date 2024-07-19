@@ -6,6 +6,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
 using Microsoft.AspNetCore.Authentication;
 
@@ -123,6 +124,16 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             return Array.Empty<ClaimData>();
         }
 
+        public IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType)
+        {
+            return Array.Empty<T>();
+        }
+
+        public T GetUserId<T>(string[] userLabels, string userAuthenticationType)
+        {
+            return default;
+        }
+
         public IEnumerable<Permission> GetPermissions(User user)
         {
             if (user.UserName.Equals(decoratedUser.Identity.Name, StringComparison.OrdinalIgnoreCase))
@@ -170,6 +181,16 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                 yield return new ScopeInfo
                     { ScopeDisplayName = assignedUserScope, ScopeName = "Limited Asset Scope" };
             }
+        }
+
+        /// <summary>
+        /// Gets a TimeZone helper objec that is initialized with the given tenants timezone info
+        /// </summary>
+        /// <param name="permissionScopeName">the target permissionscope</param>
+        /// <returns>the utc-representation of the given datetime value</returns>
+        public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName)
+        {
+            return decoratedRepo.GetTimeZoneHelper(permissionScopeName);
         }
 
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)

@@ -55,7 +55,7 @@
             /// <returns></returns>
             public static GridToolBarCustomCommandBuilder RefreshTable<TModel>(this GridToolBarCommandFactory<TModel> target) where TModel : class
             {
-                return target.Custom().Name(CustomActionHelper.RandomName("refresh")).Text("\u200B").HtmlAttributes(new Dictionary<string, object> {{"onclick", "ITVenture.Tools.TableHelper.refreshTable(event)"}, {"class", "itv-tool-button itv-fa-tbx"}, {"title", TextsAndMessagesHelper.IWCN_KX_RTB_Caption}}).IconClass("fas fa-sync");
+                return target.Custom().Name(CustomActionHelper.RandomName("refresh")).Text("\u200B").HtmlAttributes(new Dictionary<string, object> {{"onclick", "ITVenture.Tools.TableHelper.refreshTable(event)"}, {"class", "itv-tool-button itv-fa-tbx"}, {"title", TextsAndMessagesHelper.IWCN_KX_RTB_Caption}}).IconClass("fa-solid fa-sync");
             }
 
             /// <summary>
@@ -66,7 +66,7 @@
             /// <returns></returns>
             public static GridToolBarCustomCommandBuilder SyncTable<TModel>(this GridToolBarCommandFactory<TModel> target) where TModel : class
             {
-                return target.Custom().Name(CustomActionHelper.RandomName("saveChanges")).Text("\u200B").HtmlAttributes(new Dictionary<string, object> { { "onclick", "ITVenture.Tools.TableHelper.syncDataGrid(event)" }, { "class", "itv-tool-button itv-fa-tbx" }, { "title", TextsAndMessagesHelper.IWCN_KX_STB_Caption } }).IconClass("fas fa-floppy-disks");
+                return target.Custom().Name(CustomActionHelper.RandomName("saveChanges")).Text("\u200B").HtmlAttributes(new Dictionary<string, object> { { "onclick", "ITVenture.Tools.TableHelper.syncDataGrid(event)" }, { "class", "itv-tool-button itv-fa-tbx" }, { "title", TextsAndMessagesHelper.IWCN_KX_STB_Caption } }).IconClass("fa-solid fa-floppy-disks");
             }
 
         /// <summary>
@@ -256,7 +256,7 @@
                         .Click("ITVenture.Tools.TableHelper.confirmDelete")
                         .HtmlAttributes(new {@class = "itv-grid-button", title = TextsAndMessagesHelper.IWCN_KX_PCD_Caption})
                         /*.IconClass("fa fa-trash")*/
-                        .IconClass("k-icon k-i-delete")
+                        .IconClass("k-icon k-i-trash")
                         .Text("\u200B");
             }
 
@@ -276,9 +276,11 @@
                 bool preserveOriginalName = originalNameColumn != null;
                 string columnName = retVal.Column.Member;
                 var urlHelper = new UrlHelper(target.Container.ViewContext);
-                string template = $@"#if (typeof {columnName} === ""string"" && {columnName}.trim() !== """") {{#
+                string template = $@"#if (typeof {columnName} === ""string"" && {columnName}.trim() !== """" && ITVenture.Tools.Uploader.fileTokenMode!==""query"") {{#
         <a href='{(forceDownload ? $"{urlHelper.Content($"~/File/#={columnName}#")}" : "\\#")}' onclick='ITVenture.Tools.Uploader.showFile(ITVenture.Helpers.ResolveUrl(""~/File/#={columnName}#"")); return false;'>{displayText}</a>
-    #}} else {{#
+    #}} else if (typeof {columnName} === ""string"" && {columnName}.trim() !== """" && ITVenture.Tools.Uploader.fileTokenMode===""query""){{#
+        <a href='{(forceDownload ? $"{urlHelper.Content($"~/File?FileToken=#={columnName}#")}" : "\\#")}' onclick='ITVenture.Tools.Uploader.showFile(ITVenture.Helpers.ResolveUrl(""~/File?FileToken=#={columnName}#"")); return false;'>{displayText}</a>
+    #}}else {{#
         <span>{emptyText}</span>
     #}}#";
                 retVal.ClientTemplate(template).EditorTemplateName("Uploader").Filterable(false);

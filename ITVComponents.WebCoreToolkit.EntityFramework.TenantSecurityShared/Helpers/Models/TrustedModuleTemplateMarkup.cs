@@ -10,7 +10,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
     {
         public string FullQualifiedTypeName { get; set; }
         public string Description { get; set; }
-        public bool TrustedForAllTenants { get; set; }
-        public bool TrustedForGlobals { get; set; }
+        public string TargetQualifiedTypeName { get; set; }
+        public string TrustLevelConfig { get; set; }
     }
 }

@@ -72,13 +72,20 @@
         obj.dialog = function () { return obj.window.data("kendoWindow"); };
         obj.window.data("itvDialog", obj);
         obj.window.addClass("itv-dialog");
-        obj.window.on("keydown",
+        var dg = obj.dialog();
+        dg.wrapper.on("keydown",
             function (event) {
-                if (event.key === "Enter" && obj.handleReturn) {
-                    obj.PressedEnter(event);
+                if (event.key === "Enter" && (obj.handleReturn || obj.refObj !== null && typeof (obj.refObj) === "object" && typeof(obj.refObj.handleReturn) === "boolean" && obj.refObj.handleReturn && typeof (obj.refObj.PressedEnter) === "function")) {
+
+                    if (obj.handleReturn) {
+                        obj.PressedEnter(event);
+                    }
+                    else {
+                        obj.refObj.PressedEnter(event);
+                    }
                 }
             });
-        obj.dialog().bind("close",
+        dg.bind("close",
             function () {
                 try {
                     var i;
@@ -98,7 +105,7 @@
                 obj.refObj = null;
                 $(document).scrollTop(obj.scrollTop);
             });
-        obj.dialog().bind("activate",
+        dg.bind("activate",
             function () {
                 for (var i = 0; i < obj.activatedCallbacks.length; i++) {
                     obj.activatedCallbacks[i](obj.window, obj.dialog(), obj.refObj);
@@ -206,8 +213,8 @@
             window: $('<div class="k-edit-form-container">' +
                 '<div id="AlertMessage" class="span10"></div>' +
                 '<div class="k-edit-buttons k-state-default">' +
-                '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'confirm\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</a>' +
-                '<a class="k-button k-button-icontext k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'confirm\')"><span class="k-icon k-cancel" ></span>' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</a>' +
+                '<a class="k-button k-button-lg k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'confirm\')"><span class="fa-regular fa-check" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</span></a>' +
+                '<a class="k-button k-button-lg k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'confirm\')"><span class="fa-regular fa-ban" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</span></a>' +
                 '</div>' +
                 '</div>'),
             handleReturn: true
@@ -226,7 +233,7 @@
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
         obj.onPressedEnter(function (event) {
-            if (!$(event.target).hasClass("k-button")) {
+            if (!($(event.target).hasClass("k-button"))) {
                 event.preventDefault();
                 ITVenture.Tools.Popup.Accept("confirm");
             }
@@ -264,7 +271,8 @@
                 '<div tag="buttons" class="k-edit-buttons k-state-default mt-auto p-2">' +
                 '</div>' +
                 '</div>'),
-            defaultButton: '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'alert\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</a>'
+            defaultButton: '<a class="k-button k-button-lg k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'alert\')"><span class="fa-regular fa-check" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</span></a>',
+            handleReturn: true
         };
         obj.window.kendoWindow({
             visible: false,
@@ -286,23 +294,32 @@
                 obj.window.children("[tag='buttons']").html(obj.defaultButton);
             } else {
                 obj.window.children("[id='AlertMessage']").html(refObj.Message);
-                var buttonArea = "";
-                $.each(refObj.Buttons,
-                    function (id, item) {
-                        buttonArea +=
-                            '<a class="k-button k-button-icontext ' +
-                            (item.Default ? 'k-primary k-grid-update' : '') +
-                            '" href="#" onclick="ITVenture.Tools.Popup.' +
-                            item.Action +
-                            '(\'alert\',\'' +
-                            item.ActionArgument +
-                            '\')"><span class="' +
-                            item.SpanClass +
-                            '" ></span>' +
-                            item.Text +
-                            '</a>';
-                    });
-                obj.window.children("[tag='buttons']").html(buttonArea);
+                if (typeof (refObj.Buttons) === "object") {
+                    var buttonArea = "";
+                    $.each(refObj.Buttons,
+                        function (id, item) {
+                            buttonArea +=
+                                '<a class="k-button k-button-lg ' +
+                                (item.Default ? 'k-primary k-grid-update' : '') +
+                                '" href="#" onclick="ITVenture.Tools.Popup.' +
+                                item.Action +
+                                '(\'alert\',\'' +
+                                item.ActionArgument +
+                                '\')"><span class="' +
+                                item.SpanClass +
+                                '" ></span><span class="k-button-text">' +
+                                item.Text +
+                                '</span></a>';
+                        });
+                    obj.window.children("[tag='buttons']").html(buttonArea);
+                }
+                else {
+                    obj.window.children("[tag='buttons']").html(obj.defaultButton);
+                }
+
+                if (typeof (refObj.Title) === "string") {
+                    dialog.title(refObj.Title);
+                }
             }
         });
 
@@ -321,6 +338,13 @@
             obj.Open.oldOpen(refObj);
         };
         obj.Open.oldOpen = oldOpen;
+        obj.onPressedEnter(function (event) {
+            if (!($(event.target).hasClass("k-button"))) {
+                event.preventDefault();
+                ITVenture.Tools.Popup.Accept("alert");
+            }
+        });
+
         return obj;
     },
     createInputPopup: function () {
@@ -336,8 +360,8 @@
                 '<div tag="buttons" class="k-edit-buttons k-state-default mt-auto p-2">' +
                 '</div>' +
                 '</div>'),
-            defaultButtons: '<a class="k-button k-button-icontext k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'input\')"><span class="k-icon k-update" ></span>' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</a>' +
-                '<a class="k-button k-button-icontext k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'input\')"><span class="k-icon k-cancel" ></span>' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</a>',
+            defaultButtons: '<a class="k-button k-button-lg k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'input\')"><span class="fa-regular fa-check" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</span></a>' +
+                '<a class="k-button k-button-lg k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'input\')"><span class="fa-regular fa-ban" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</span></a>',
             handleReturn: true
         };
         obj.window.kendoWindow({
@@ -390,7 +414,7 @@
                     $.each(refObj.Buttons,
                         function (id, item) {
                             buttonArea +=
-                                '<a class="k-button k-button-icontext ' +
+                                '<a class="k-button k-button-lg ' +
                                 (item.Default ? 'k-primary k-grid-update' : '') +
                                 '" href="#" onclick="ITVenture.Tools.Popup.' +
                                 item.Action +
@@ -398,9 +422,9 @@
                                 item.ActionArgument +
                                 '\')"><span class="' +
                                 item.SpanClass +
-                                '" ></span>' +
+                                '" ></span><span class="k-button-text">' +
                                 item.Text +
-                                '</a>';
+                                '</span></a>';
                         });
                 }
             }

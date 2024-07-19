@@ -6,11 +6,14 @@ using System.Text;
 using System.Text.Encodings.Web;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
+using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 {
@@ -44,8 +47,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
         /// <returns></returns>
         public static IHtmlContent ItvScriptRef(this IHtmlHelper html, string version = null)
         {
+            var opt = html.ViewContext.HttpContext.RequestServices.GetService<IOptions<NetFileLinkOptions>>();
+            var setLinkOptions = opt.Value.FileTokenAsQuery ? @"<script>
+ITVenture.Tools.Uploader.fileTokenMode=""query"";
+</script>" : "";
             return html.Raw($@"<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvComponents.min.js".ExtendUrlWithVersion()}""></script>
-<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvJqPlugs.min.js".ExtendUrlWithVersion()}""></script>");
+<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvJqPlugs.min.js".ExtendUrlWithVersion()}""></script>
+{setLinkOptions}");
         }
 
         public static IHtmlContent ItvCustomBootstrapV4(this IHtmlHelper html, string version= null)

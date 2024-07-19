@@ -42,7 +42,6 @@ namespace ITVComponents.EFRepo.DbContextConfig.Expressions
             {
                 if (propertyReplacements.TryGetValue(ptr.ReplacerName, out var rex))
                 {
-                    Console.WriteLine(ptr.ReplacerName);
                     return rex;
                 }
 

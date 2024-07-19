@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -14,7 +16,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
     [ExplicitlyExpose]
-    public interface IBaseTenantContext:IUserAwareContext
+    public interface IBaseTenantContext:IUserAwareContext, ITrustfulComponent<BaseTenantContextSecurityTrustConfig>
     {
         /// <summary>
         /// Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
@@ -81,6 +83,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 
         public DbSet<Sequence> Sequences { get; set; }
 
+        public DbSet<Culture> Cultures { get; set; }
+
+        public DbSet<Models.Localization> Localizations { get; set; }
+
+        public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
+
+        public DbSet<LocalizationString> LocalizationCultureStrings { get; set; }
+
         public int SequenceNextVal(string sequenceName);
 
         DatabaseFacade Database { get; }
@@ -88,7 +98,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken));
 
         int SaveChanges();
-        protected internal void RegisterSecurityRollback(FullSecurityAccessHelper fullSecurityAccessHelper);
-        protected internal void RollbackSecurity(FullSecurityAccessHelper fullSecurityAccessHelper);
     }
 }

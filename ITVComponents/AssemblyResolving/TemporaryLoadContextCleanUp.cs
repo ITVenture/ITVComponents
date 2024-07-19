@@ -17,14 +17,22 @@ namespace ITVComponents.AssemblyResolving
             this.context = context;
         }
         public IResourceLock InnerLock => null;
-        public void Exclusive(Action action)
+        public void Exclusive(bool autoLock, Action action)
         {
             action();
         }
 
-        public T Exclusive<T>(Func<T> action)
+        public T Exclusive<T>(bool autoLock, Func<T> action)
         {
             return action();
+        }
+
+        public void SynchronizeContext()
+        {
+        }
+
+        public void LeaveSynchronizeContext()
+        {
         }
 
         public IDisposable PauseExclusive()

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Plugins.DIIntegration;
 using Microsoft.Extensions.Options;
@@ -9,15 +10,21 @@ namespace ITVComponents.EFRepo.DIIntegration
     {
         private DbContextModelBuilderOptions<TContext> defaultOptions;
 
-        private DbModelBuilderOptionsProvider<TContext> innerBuilder;
+        private List<DbModelBuilderOptionsProvider<TContext>> innerBuilders;
 
-        protected DbModelBuilderOptionsProvider() : this(null)
+        protected DbModelBuilderOptionsProvider()
         {
+            innerBuilders = new List<DbModelBuilderOptionsProvider<TContext>>();
         }
 
-        protected DbModelBuilderOptionsProvider(DbModelBuilderOptionsProvider<TContext> innerBuilder)
+        protected DbModelBuilderOptionsProvider(DbModelBuilderOptionsProvider<TContext> parentBuilder):this()
         {
-            this.innerBuilder = innerBuilder;
+            parentBuilder.RegisterInnerProvider(this);
+        }
+
+        private void RegisterInnerProvider(DbModelBuilderOptionsProvider<TContext> innerBuilder)
+        {
+            innerBuilders.Add(innerBuilder);
         }
 
         public string UniqueName { get; set; }
@@ -60,8 +67,8 @@ namespace ITVComponents.EFRepo.DIIntegration
 
         private void ConfigureOptions(DbContextModelBuilderOptions<TContext> options)
         {
-            innerBuilder?.ConfigureOptions(options);
             Configure(options);
+            innerBuilders.ForEach(n => n.ConfigureOptions(options));
         }
 
         public event EventHandler Disposed;

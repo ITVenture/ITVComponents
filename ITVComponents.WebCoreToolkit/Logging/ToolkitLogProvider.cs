@@ -59,7 +59,7 @@ namespace ITVComponents.WebCoreToolkit.Logging
             {
                 using (var lk = globalLogCfg.PauseLogging())
                 {
-                    lk.Exclusive(() =>
+                    lk.Exclusive(true, () =>
                     {
                         using (var scope = services.CreateScope())
                         {

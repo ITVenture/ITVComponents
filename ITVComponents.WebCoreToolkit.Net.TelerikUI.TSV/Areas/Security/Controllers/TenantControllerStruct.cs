@@ -5,13 +5,16 @@ using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Resources;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
@@ -82,6 +85,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         [Authorize("HasPermission(Tenants.View,Tenants.Write)")]
         public IActionResult Index()
         {
+            ViewData["TimeZoneInfo"] = TimeZoneTranslationHelper.GetTranslatedTimeZoneList();
             return View();
         }
 

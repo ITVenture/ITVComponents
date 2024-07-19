@@ -92,7 +92,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
             if (partActivation.UsePlugins)
             {
-                services.UseDbPlugins();
+                services.UseDbPlugins(partActivation.PluginBufferDuration);
             }
 
             if (partActivation.UseGlobalSettings)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Extensions;
@@ -63,7 +64,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public TenantTemplateMarkup ExtractTemplate(Tenant tenant)
         {
             db.EnsureNavUniqueness();
-            using (new FullSecurityAccessHelper(db, true, false))
+            using (new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false }))
             {
                 var roles = (from t in db.SecurityRoles
                     where t.TenantId == tenant.TenantId
@@ -163,7 +164,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public void ApplyTemplate(Tenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext> afterApply) 
         {
             db.EnsureNavUniqueness();
-            using (new FullSecurityAccessHelper(db, true, false))
+            using (new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false }))
             {
                 var fmtRoot = new
                 {
@@ -269,7 +270,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public void RevokeTemplate(Tenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext> afterRevoke)
         {
             db.EnsureNavUniqueness();
-            using (new FullSecurityAccessHelper(db, true, false))
+            using (new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false }))
             {
                 var fmtRoot = new
                 {

@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
+using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.WebCoreToolkit.Security
@@ -106,6 +107,25 @@ namespace ITVComponents.WebCoreToolkit.Security
         IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType);
 
         /// <summary>
+        /// Gets a list of User-IDs for the logged-in user
+        /// </summary>
+        /// <typeparam name="T">the id of the current logged-in user</typeparam>
+        /// <param name="userLabels">the labels that represent the current User</param>
+        /// <param name="userAuthenticationType">the autentication-Type that was used for the current user</param>
+        /// <returns>a list of Ids that represent the current user</returns>
+        IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType);
+
+        /// <summary>
+        /// Gets a list of User-IDs for the logged-in user
+        /// </summary>
+        /// <typeparam name="T">the id of the current logged-in user</typeparam>
+        /// <param name="userLabels">the labels that represent the current User</param>
+        /// <param name="userAuthenticationType">the autentication-Type that was used for the current user</param>
+        /// <returns>a list of Ids that represent the current user</returns>
+        T GetUserId<T>(string[] userLabels, string userAuthenticationType);
+
+
+        /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
         /// <param name="originalClaims">the claims that were originally attached to the current identity</param>
@@ -157,6 +177,13 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <param name="permissionScopeName">the name of the current permission-prefix selected by the current user</param>
         /// <returns>returns a list of activated features</returns>
         IEnumerable<Feature> GetFeatures(string permissionScopeName);
+
+        /// <summary>
+        /// Creates a TimeZone helper object that can be used to perform calculations between localtime and utc-time for the given tenant
+        /// </summary>
+        /// <param name="permissionScopeName">the target permission scope</param>
+        /// <returns>a helper object that performs datetime calculations</returns>
+        TimeZoneHelper GetTimeZoneHelper(string permissionScopeName);
 
         /// <summary>
         /// Decrypts a value with the appropriate settings

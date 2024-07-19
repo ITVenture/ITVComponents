@@ -88,6 +88,17 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         /// <returns>a datetime object representing the next point in time when the execution of the configured plan is required</returns>
         public DateTime? GetNextExecutionTime(DateTime lastExecution)
         {
+            return GetNextExecutionTime(lastExecution, true);
+        }
+
+        /// <summary>
+        /// Gets the next execution time based on the last execution of the configured plan
+        /// </summary>
+        /// <param name="lastExecution">the last time that the plan was executed</param>
+        /// <param name="forceFutureDates">indicates whether to force future dates for exectuion-generation. if set to false, the date-generation starts with the given date value</param>
+        /// <returns>a datetime object representing the next point in time when the execution of the configured plan is required</returns>
+        public DateTime? GetNextExecutionTime(DateTime lastExecution, bool forceFutureDates)
+        {
             if (immediate)
             {
                 immediate = false;
@@ -96,7 +107,7 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
 
             bool includeMidnight = false;
             DateTime minExecution = DateTime.Now.Subtract(new TimeSpan(0, 0, 0, 15));
-            if (lastExecution < minExecution)
+            if (lastExecution < minExecution && forceFutureDates)
             {
                 lastExecution = minExecution;
             }

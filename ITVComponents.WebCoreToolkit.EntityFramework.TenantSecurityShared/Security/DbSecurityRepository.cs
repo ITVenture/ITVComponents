@@ -12,13 +12,17 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.Extensions.Logging;
+using SkiaSharp;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.Models.CustomUserProperty;
 using Feature = ITVComponents.WebCoreToolkit.Models.Feature;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
@@ -82,7 +86,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         {
             get
             {
-                using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+                using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext,
+                    new() { ShowAllTenants = false, HideGlobals = false });
                 return (from u in securityContext.Users.ToList()
                     select SelectUser(u)).ToList();
             }
@@ -95,7 +100,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         {
             get
             {
-                using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+                using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
                 return (from r in securityContext.SecurityRoles select r).ToList<Role>();
             }
         }
@@ -107,7 +112,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         {
             get
             {
-                using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+                using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
                 return (from p in securityContext.Permissions select p).ToList<Permission>();
             }
         }
@@ -119,14 +124,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <returns>an enumerable of all the user-roles</returns>
         public virtual IEnumerable<Role> GetRoles(User user)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             return (from r in AllRoles(securityContext.Users.First(UserFilter(user))) select r.Role).ToArray();
         }
 
         public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions,
             string permissionScope)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, true, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = true, HideGlobals = false });
 
             return (from a in (from t in securityContext.SecurityRoles.Where(r =>
                                 r.Tenant.TenantName == permissionScope)
@@ -147,7 +152,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
         public virtual IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             return (from p in UserProps(securityContext.Users.First(UserFilter(user))) where p.PropertyType == propertyType select p).ToArray();
 
         }
@@ -202,7 +207,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
         public bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             var dbuser = securityContext.Users.First(UserFilter(user));
             var prop = securityContext.UserProperties.FirstOrDefault(n =>
                 n.PropertyName == propertyName && n.User == dbuser && n.PropertyType == propertyType);
@@ -283,7 +288,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
         public virtual IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             IQueryable<TUser> tenantUsers;
             if (userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern)))
             {
@@ -305,6 +310,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                 select u).ToArray();
         }
 
+        public virtual IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType)
+        {
+            if (typeof(T) != typeof(TUserId))
+            {
+                throw new InvalidOperationException($"Expected Type was: {typeof(T)}");
+            }
+
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
+            IQueryable<TUser> tenantUsers;
+            if (userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern)))
+            {
+                tenantUsers = securityContext.TenantUsers.Select(u => u.User);
+            }
+            else
+            {
+                var filteredLabels = (from ul in userLabels
+                    where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                var appUsers = securityContext.ClientAppUsers;
+                tenantUsers = appUsers
+                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Select(n => n.TenantUser.User);
+            }
+
+            return tenantUsers.Where(UserFilter(userLabels, userAuthenticationType)).Select(UserId).Cast<T>();
+        }
+
+        public virtual T GetUserId<T>(string[] userLabels, string userAuthenticationType)
+        {
+            var tmp = GetUserIds<T>(userLabels, userAuthenticationType).ToArray();
+            if (tmp.Length != 1)
+            {
+                throw new InvalidOperationException("Use GetUserIds in Environment with User-Mappings!");
+            }
+
+            return tmp[0];
+        }
+
         /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
@@ -314,7 +357,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         public virtual IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims,
             string userAuthenticationType)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             var typeClaims = securityContext.AuthenticationClaimMappings.Where(n =>
                 n.AuthenticationType.AuthenticationTypeName == userAuthenticationType).ToArray();
             var claimMapRaw = new Dictionary<string, ClaimData[]>(from t in originalClaims group t by t.Type into g select new KeyValuePair<string, ClaimData[]>(g.Key,g.ToArray()));
@@ -345,7 +388,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <returns>an enumerable of permissions for the given user</returns>
         public virtual IEnumerable<Permission> GetPermissions(User user)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             return (from p in (from r in AllRoles(securityContext.Users.First(UserFilter(user))) select r.Role.RolePermissions).SelectMany(rp => rp) select new Permission
             {
                 //PermissionName = $"{(!p.Permission.IsGlobal?p.Tenant.TenantName:"")}{p.Permission.PermissionName}"
@@ -361,7 +404,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <returns>an enumerable of permissions for the given user-labels</returns>
         public virtual IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             IQueryable<TUser> tenantUsers;
             string[] preFilteredPerms = null;
             if (userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern)))
@@ -409,7 +452,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <returns>an enumerable of permissions for the given role</returns>
         public virtual IEnumerable<Permission> GetPermissions(Role role)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             if (role is TRole dbRole)
             {
                 return from p in dbRole.RolePermissions select p.Permission;
@@ -429,15 +472,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <returns>a value indicating whether the specified permissionScope is valid</returns>
         public virtual bool PermissionScopeExists(string permissionScopeName)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, false, false);
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
             return securityContext.Tenants.Any(n => n.TenantName == permissionScopeName);
         }
 
         public virtual IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string authType)
         {
-            using var tmp = new FullSecurityAccessHelper(securityContext, true, false);
-            
-            if(userLabels.Any(n => Regex.IsMatch(n, Global.AppUserKeyPattern)))
+            using var tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = true, HideGlobals = false });
+
+            if (userLabels.Any(n => Regex.IsMatch(n, Global.AppUserKeyPattern)))
             {
                 IQueryable<TUser> tenantUsers;
                 var filteredLabels = (from ul in userLabels
@@ -458,6 +501,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         }
 
         /// <summary>
+        /// Creates a TimeZone helper object that can be used to perform calculations between localtime and utc-time for the given tenant
+        /// </summary>
+        /// <param name="permissionScopeName">the target permission scope</param>
+        /// <returns>a helper object that performs datetime calculations</returns>
+        public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName)
+        {
+            var timezone = GetTimeZone(permissionScopeName);
+            return new TimeZoneHelper(timezone);
+        }
+
+        /// <summary>
         /// Gets a list of activated features for a specific permission-Scope
         /// </summary>
         /// <param name="permissionScopeName">the name of the current permission-prefix selected by the current user</param>
@@ -470,7 +524,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                 bool useCurrentTenant = string.IsNullOrEmpty(permissionScopeName) && securityContext.CurrentTenantId != null;
                 if (!useCurrentTenant && !securityContext.Tenants.Any(n => n.TenantName == permissionScopeName))
                 {
-                    tmp = new FullSecurityAccessHelper(securityContext, true, true);
+                    tmp = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = true, HideGlobals = true});
                 }
 
                 var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
@@ -697,7 +751,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
         private byte[] GetEncryptionKey(string permissionScopeName)
         {
-            using (var h = new FullSecurityAccessHelper(securityContext, true, true))
+            using (var h = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = true, HideGlobals = true}))
             {
                 var t = securityContext.Tenants.First(n => n.TenantName == permissionScopeName);
                 if (!string.IsNullOrEmpty(t.TenantPassword))
@@ -707,6 +761,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             }
 
             return null;
+        }
+
+        private TimeZoneInfo GetTimeZone(string permissionScopeName)
+        {
+            using (new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(securityContext, new() { ShowAllTenants = true, HideGlobals = true}))
+            {
+                var t = securityContext.Tenants.First(n => n.TenantName == permissionScopeName);
+                if (!string.IsNullOrEmpty(t.TimeZone))
+                {
+                    return TimeZoneInfo.FindSystemTimeZoneById(t.TimeZone);
+                }
+            }
+
+            return TimeZoneInfo.Local;
         }
 
         /// <summary>

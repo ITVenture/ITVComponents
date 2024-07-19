@@ -9,16 +9,16 @@ namespace ITVComponents.WebCoreToolkit.Models
     [Serializable]
     public class WebPlugin
     {
-        [MaxLength(50)]
+        [MaxLength(300)]
         [Required]
         public string UniqueName { get; set; }
 
-        [MaxLength(2048)]
+        [MaxLength(8192)]
         public string Constructor { get; set; }
 
         public bool AutoLoad { get; set; }
 
-        [MaxLength(2048)]
+        [MaxLength(8192)]
         public string StartupRegistrationConstructor { get; set; }
 
         /// <summary>Returns a string that represents the current object.</summary>

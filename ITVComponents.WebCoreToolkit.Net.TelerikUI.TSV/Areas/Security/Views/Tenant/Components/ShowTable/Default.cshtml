@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
 @using System.Text.Encodings.Web
 @using System.Collections
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
@@ -37,13 +38,14 @@
             columns.Bound(c => c.TenantName).Title(TextsAndMessagesHelper.IWCN_General_SystemName);
             if (ViewData["userId"] == null && ViewData["navigationMenuId"] == null && ViewData["diagnosticsQueryId"] == null)
             {
+                columns.ForeignKey(c => c.TimeZone, (IEnumerable<ForeignKeyData<string>>)ViewData["TimeZoneInfo"], "Key", "Label").Title(TextsAndMessagesHelper.IWCN_General_TimeZone);
                 if (Context.RequestServices.VerifyUserPermissions(new[] {"Tenants.Write"}))
                 {
                     columns.Command(ga =>
                     {
                         ga.Edit();
                         ga.PopupConfirmDelete();
-                        ga.Custom("showPopup").Text("\u200B").HtmlAttributes(new { @class = "itv-grid-button itv-fa-gbx glyphSprite", title = showDetailsCaption }).IconClass("fad fa-cube").Click("ITVenture.Pages.Security.TenantBoundObjectsHelper.showTenantSettings");
+                        ga.Custom("showPopup").Text("\u200B").HtmlAttributes(new { @class = "itv-grid-button itv-fa-gbx glyphSprite", title = showDetailsCaption }).IconClass("fa-duotone fa-cube").Click("ITVenture.Pages.Security.TenantBoundObjectsHelper.showTenantSettings");
                     }).Width(180);
                 }
             }

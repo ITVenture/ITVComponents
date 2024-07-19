@@ -18,5 +18,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         [MaxLength(125),ExcludeFromDictionary]
         public string TenantPassword { get; set; }
+
+        [MaxLength(1024)]
+        public string TimeZone { get; set; }
     }
 }

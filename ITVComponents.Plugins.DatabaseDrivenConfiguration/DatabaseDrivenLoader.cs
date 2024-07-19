@@ -137,9 +137,9 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
         /// </summary>
         /// <param name="uniqueName">the unique-name for which to get the generic arguments</param>
         /// <param name="genericTypeArguments">get generic arguments defined in the plugin-type</param>
-        public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables, IStringFormatProvider formatter, out bool knownTypeUsed)
+        public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables, IStringFormatProvider formatter/*, out bool knownTypeUsed*/)
         {
-            knownTypeUsed = false;
+            //knownTypeUsed = false;
             if (!string.IsNullOrEmpty(genericParamTableName))
             {
                 using (database.AcquireConnection(false, out var db))
@@ -155,16 +155,16 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
                         select new { Target = t, Type = (string)d["TypeExpression"] };
                     Dictionary<string, object> dic = new Dictionary<string, object>();
                     customVariables ??= new Dictionary<string, object>();
-                    bool kt = knownTypeUsed;
+                    //bool kt = knownTypeUsed;
                     customVariables.ForEach(n => dic.Add(n.Key, new SmartProperty
                     {
                         GetterMethod = t =>
                         {
-                            kt = true;
+                      //      kt = true;
                             return n.Value;
                         }
                     }));
-                    knownTypeUsed = kt;
+                    //knownTypeUsed = kt;
                     foreach (var j in joined)
                     {
                         j.Target.TypeResult = (Type)ExpressionParser.Parse(j.Type.ApplyFormat(formatter), dic);

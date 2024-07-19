@@ -38,7 +38,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                     var shadowColor = "";
                     if (e.LogLevel == LogLevel.Trace)
                     {
-                        iconClass = "fad fa-glasses";
+                        iconClass = "fa-duotone fa-glasses";
                         primaryColor = "#362b2c";
                         secondaryColor = "#fcd2d5";
                         backColor = "#362b2c";
@@ -47,7 +47,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                     }
                     else if (e.LogLevel == LogLevel.Debug)
                     {
-                        iconClass = "fad fa-bug";
+                        iconClass = "fa-duotone fa-bug";
                         primaryColor = "#324d05";
                         secondaryColor = "#000000";
                         backColor = "#000000";
@@ -55,7 +55,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                     }
                     else if (e.LogLevel == LogLevel.Information)
                     {
-                        iconClass = "fad fa-info-circle";
+                        iconClass = "fa-duotone fa-info-circle";
                         primaryColor = "#000000";
                         secondaryColor = "#92a5f0";
                         backColor = "#92a5f0";
@@ -63,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                     }
                     else if (e.LogLevel == LogLevel.Warning)
                     {
-                        iconClass = "fad fa-exclamation-circle";
+                        iconClass = "fa-duotone fa-exclamation-circle";
                         primaryColor = "#000000";
                         secondaryColor = "#f2e296";
                         backColor = "#c09854";
@@ -71,7 +71,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                     }
                     else if (e.LogLevel == LogLevel.Error)
                     {
-                        iconClass = "fad fa-times-circle";
+                        iconClass = "fa-duotone fa-times-circle";
                         primaryColor = "#000000";
                         secondaryColor = "#bf6363";
                         backColor = "#bf6363";
@@ -79,7 +79,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                     }
                     else if (e.LogLevel == LogLevel.Critical)
                     {
-                        iconClass = "fad fa-skull-crossbones";
+                        iconClass = "fa-duotone fa-skull-crossbones";
                         primaryColor = "#000000";
                         secondaryColor = "red";
                         backColor = "#red";
@@ -87,7 +87,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                     }
                     else if (e.LogLevel == LogLevel.None)
                     {
-                        iconClass = "fad fa-question-circle";
+                        iconClass = "fa-duotone fa-question-circle";
                         primaryColor = "#000000";
                         secondaryColor = "#faffa3";
                         backColor = "#faffa3";

@@ -1,5 +1,6 @@
 ﻿using ITVComponents.EFRepo.DbContextConfig;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,6 +13,11 @@ namespace ITVComponents.EFRepo.Options
     public interface IContextModelBuilderOptions
     {
         public void ConfigureGlobalFilter<T>(Expression<Func<T, bool>> filter) where T : class;
+
+        public void ConfigureGlobalFilter<T>(Expression<Func<T, bool>> filter,
+            Action<EntityTypeBuilder<T>> basicConfig) where T : class;
+
+        public void ConfigureEntity<T>(Action<EntityTypeBuilder<T>> basicConfig) where T : class;
 
         public void ConfigureExpressionProperty<T>(Expression<Func<T>> propertyAccess);
 

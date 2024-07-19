@@ -24,6 +24,11 @@ namespace ITVComponents.EFRepo.Internal
             this.decorated = decorated;
         }
 
+        public DbSetDecorator(DbSet<T> decorated)
+        {
+            this.decorated = decorated;
+        }
+
         public Type EntityType => typeof(T);
 
         public EntityEntry Add(object entity)

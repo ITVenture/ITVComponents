@@ -4,12 +4,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.ExtendedFormatting;
+using ITVComponents.Plugins.Helpers;
 
 namespace ITVComponents.Plugins.PluginServices
 {
     public class PluginRef : IBasicKeyValueProvider
     {
-        public string UniqueName { get; internal set; }
+        internal UniqueNameHelper UQ { get; set; }
+        public string UniqueName => UQ.UniqueName;
+
+        public string RawName => UQ.UniqueNameRaw;
 
         public Type PluginType { get; internal set; }
 

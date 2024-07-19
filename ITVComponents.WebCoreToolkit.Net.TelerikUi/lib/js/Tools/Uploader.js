@@ -1,5 +1,6 @@
 ﻿Dropzone.autoDiscover = false;
 ITVenture.Tools.Uploader = {
+    fileTokenMode:"path",
     dropzoneConfigured: false,
     configureDropzone: function () {
         Dropzone.prototype.defaultOptions.dictDefaultMessage = ITVenture.Text.getText("Drop files here to upload");

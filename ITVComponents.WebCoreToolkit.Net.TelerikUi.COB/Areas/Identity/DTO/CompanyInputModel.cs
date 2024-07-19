@@ -45,6 +45,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.DTO
         [MaxLength(256), Required, Display(Name = "City")]
         public string City { get; set; }
 
+        [MaxLength(1024), Display(Name = "TimeZone")]
+        public string TimeZone { get; set; }
+
         [Display(Name = "UseInvoiceAddr")]
         public bool UseInvoiceAddr { get; set; }
 

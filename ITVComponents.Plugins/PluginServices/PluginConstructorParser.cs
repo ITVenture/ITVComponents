@@ -99,7 +99,19 @@ namespace ITVComponents.Plugins.PluginServices
                     else
                     {
                         string tmpValue = strings[int.Parse(arg.Substring(9, arg.Length - 11))];
-                        AddConstructorVal((!tmpValue.StartsWith("^^")) ? 'S' : 'O', tmpValue, ls);
+                        var stringType = 'S';
+                        if (tmpValue.StartsWith("^^"))
+                        {
+                            stringType = 'O';
+                            tmpValue = tmpValue.Substring(2);
+                        }
+                        else if (tmpValue.StartsWith("~>"))
+                        {
+                            stringType = '$';
+                            tmpValue = tmpValue.Substring(2);
+                        }
+
+                        AddConstructorVal(stringType, tmpValue, ls);
                     }
                 }
             }
@@ -174,7 +186,7 @@ namespace ITVComponents.Plugins.PluginServices
                 case 'O':
                     {
                         retVal.TypeOfParameter = ParameterKind.Expression;
-                        retVal.ParameterValue = value.Substring(2);
+                        retVal.ParameterValue = value;
                         break;
                     }
             }

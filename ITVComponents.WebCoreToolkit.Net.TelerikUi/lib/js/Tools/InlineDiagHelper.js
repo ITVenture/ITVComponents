@@ -11,15 +11,15 @@
         targetElem.html("");
         if (data != null) {
             if ((data.Result & 4) === 4) {
-                targetElem.addClass("fas fa-times-circle");
+                targetElem.addClass("fa-solid fa-times-circle");
                 targetElem.attr("style", "color:red");
                 popupStyle = "background-color:#b34e4d;text-shadow:0 -1px 0 #1a3c4d;color:white";
             } else if ((data.Result & 2) === 2) {
-                targetElem.addClass("fas fa-exclamation-circle");
+                targetElem.addClass("fa-solid fa-exclamation-circle");
                 targetElem.attr("style", "color:#FACC00");
                 popupStyle = "background-color:#c09854;text-shadow:0 -1px 0 #1a3c4d;color:white";
             } else {
-                targetElem.addClass("fas fa-check-circle");
+                targetElem.addClass("fa-solid fa-check-circle");
                 targetElem.attr("style", "color:green");
                 popupStyle = "background-color:green;text-shadow:0 -1px 0 #1a3c4d;color:white";
             }

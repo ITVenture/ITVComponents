@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "6.0.15")
+                .HasAnnotation("ProductVersion", "6.0.27")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -991,6 +991,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                     b.ToTable("AuthenticationTypes", (string)null);
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Culture", b =>
+                {
+                    b.Property<int>("CultureId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CultureId"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("CultureId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Cultures", (string)null);
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", b =>
                 {
                     b.Property<int>("FeatureId")
@@ -1066,6 +1087,78 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                         .IsUnique();
 
                     b.ToTable("HealthScripts", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Localization", b =>
+                {
+                    b.Property<int>("LocalizationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("LocalizationId"));
+
+                    b.Property<string>("Identifier")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.HasKey("LocalizationId");
+
+                    b.HasIndex("Identifier")
+                        .IsUnique();
+
+                    b.ToTable("Localizations", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.LocalizationCulture", b =>
+                {
+                    b.Property<int>("LocalizationCultureId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("LocalizationCultureId"));
+
+                    b.Property<int>("CultureId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LocalizationId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("LocalizationCultureId");
+
+                    b.HasIndex("LocalizationId");
+
+                    b.HasIndex("CultureId", "LocalizationId")
+                        .IsUnique();
+
+                    b.ToTable("LocalizationCultures", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.LocalizationString", b =>
+                {
+                    b.Property<int>("LocalizationStringId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("LocalizationStringId"));
+
+                    b.Property<int>("LocalizationCultureId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LocalizationKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("LocalizationValue")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("LocalizationStringId");
+
+                    b.HasIndex("LocalizationCultureId", "LocalizationKey")
+                        .IsUnique();
+
+                    b.ToTable("LocalizationCultureStrings", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Sequence", b =>
@@ -1271,6 +1364,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                         .HasMaxLength(125)
                         .HasColumnType("character varying(125)");
 
+                    b.Property<string>("TimeZone")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
                     b.HasKey("TenantId");
 
                     b.HasIndex(new[] { "TenantName" }, "IX_UniqueTenant")
@@ -1380,15 +1477,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
-                    b.Property<bool>("TrustedForAllTenants")
-                        .HasColumnType("boolean");
+                    b.Property<string>("TargetQualifiedTypeName")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
 
-                    b.Property<bool>("TrustedForGlobals")
-                        .HasColumnType("boolean");
+                    b.Property<string>("TrustLevelConfig")
+                        .HasColumnType("text");
 
                     b.HasKey("TrustedFullAccessComponentId");
 
-                    b.HasIndex(new[] { "FullQualifiedTypeName" }, "UQ_TrustedComponentType")
+                    b.HasIndex(new[] { "FullQualifiedTypeName", "TargetQualifiedTypeName" }, "UQ_TrustedComponentType")
                         .IsUnique();
 
                     b.ToTable("TrustedFullAccessComponents", (string)null);
@@ -1485,8 +1583,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                         .HasColumnType("boolean");
 
                     b.Property<string>("Constructor")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
+                        .HasMaxLength(8192)
+                        .HasColumnType("character varying(8192)");
 
                     b.Property<string>("PluginNameUniqueness")
                         .IsRequired()
@@ -1496,16 +1594,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                         .HasComputedColumnSql("case when \"TenantId\" is null then \"UniqueName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"UniqueName\" end");
 
                     b.Property<string>("StartupRegistrationConstructor")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
+                        .HasMaxLength(8192)
+                        .HasColumnType("character varying(8192)");
 
                     b.Property<int?>("TenantId")
                         .HasColumnType("integer");
 
                     b.Property<string>("UniqueName")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.HasKey("WebPluginId");
 
@@ -2017,6 +2115,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                     b.Navigation("AuthenticationType");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.LocalizationCulture", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Culture", "Culture")
+                        .WithMany()
+                        .HasForeignKey("CultureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Localization", "Localization")
+                        .WithMany("Cultures")
+                        .HasForeignKey("LocalizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Culture");
+
+                    b.Navigation("Localization");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.LocalizationString", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.LocalizationCulture", null)
+                        .WithMany("Strings")
+                        .HasForeignKey("LocalizationCultureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Sequence", b =>
                 {
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
@@ -2239,6 +2365,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", b =>
                 {
                     b.Navigation("Activations");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Localization", b =>
+                {
+                    b.Navigation("Cultures");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.LocalizationCulture", b =>
+                {
+                    b.Navigation("Strings");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TemplateModule", b =>

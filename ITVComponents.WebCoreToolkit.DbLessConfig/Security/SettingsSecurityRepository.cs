@@ -11,6 +11,7 @@ using ITVComponents.Security;
 using ITVComponents.Settings.Native;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.DbLessConfig.Configurations;
+using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.Extensions.Options;
@@ -198,6 +199,26 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
             });
         }
 
+        public IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType)
+        {
+            return (from t in userLabels
+                join u in options.Users on new
+                    { UserName = t, AuthenticationType = userAuthenticationType } equals new
+                    { u.UserName, u.AuthenticationType }
+                select u.UserName).Cast<T>();
+        }
+
+        public T GetUserId<T>(string[] userLabels, string userAuthenticationType)
+        {
+            var tmp = GetUserIds<T>(userLabels, userAuthenticationType).ToArray();
+            if (tmp.Length != 1)
+            {
+                throw new InvalidOperationException("Use GetUserIds in Environment with User-Mappings!");
+            }
+
+            return tmp[0];
+        }
+
         /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
@@ -326,7 +347,18 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         {
             return options.ExplicitPermissionScopes == null || options.ExplicitPermissionScopes.Length == 0 || options.ExplicitPermissionScopes.Contains(permissionScopeName, StringComparer.OrdinalIgnoreCase);
         }
-        
+
+        /// <summary>
+        /// Creates a TimeZone helper object that can be used to perform calculations between localtime and utc-time for the given tenant
+        /// </summary>
+        /// <param name="permissionScopeName">the target permission scope</param>
+        /// <returns>a helper object that performs datetime calculations</returns>
+        public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName)
+        {
+            var timezone = GetTimeZone(permissionScopeName);
+            return new TimeZoneHelper(timezone);
+        }
+
         /// <summary>
         /// Gets a list of eligible scopes for the extracted user-labels of the current user
         /// </summary>
@@ -350,6 +382,16 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         protected virtual void OnDisposed()
         {
             Disposed?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Gets a dummy timezone for each attached tenant
+        /// </summary>
+        /// <param name="permissionScopeName">the permissionscopename</param>
+        /// <returns>the target timezone</returns>
+        private TimeZoneInfo GetTimeZone(string permissionScopeName)
+        {
+            return TimeZoneInfo.Local;
         }
 
         /// <summary>

@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.GlobalFi
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Settings;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
@@ -37,8 +38,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         /// </summary>
         /// <param name="services">the services-collection where to inject the DB-Plugin Selector instance</param>
         /// <returns>the ServicesCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseDbPlugins(this IServiceCollection services)
+        public static IServiceCollection UseDbPlugins(this IServiceCollection services, int bufferDuration)
         {
+            services.Configure<WebPluginBufferingOptions>(n => n.BufferDuration = bufferDuration);
             return services.AddScoped<IWebPluginsSelector, DbPluginsSelector>();
         }
 

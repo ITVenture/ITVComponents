@@ -32,5 +32,6 @@ namespace ITVComponents.WebCoreToolkit.Net.Options
         public bool ExposeUserPermissions { get; set; } = false;
         public bool ExposeTenantFeatures { get; set; } = false;
         public string UrlQueryExtVersion { get; set; } = null;
+        public bool UseFileTokenFromQuery { get; set; } = false;
     }
 }

@@ -19,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.MvcExtensions
             var retVal = await controller.TryUpdateModelAsync(tmp);
             if (retVal)
             {
-                tmp.CopyToDbModel(model);
+                tmp.CopyToDbModel(model, services: controller.HttpContext.RequestServices);
             }
 
             postProcess?.Invoke(tmp,model);
@@ -42,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.MvcExtensions
             });
             if (retVal)
             {
-                tmp.CopyToDbModel(model, n => propertiesToUse.Contains(n));
+                tmp.CopyToDbModel(model, n => propertiesToUse.Contains(n), controller.HttpContext.RequestServices);
             }
 
             postProcess?.Invoke(tmp, model);

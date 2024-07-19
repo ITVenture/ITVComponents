@@ -67,6 +67,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
 
         public static string IWCN_General_SystemName => GetString(nameof(IWCN_General_SystemName));
 
+        public static string IWCN_General_TimeZone => GetString(nameof(IWCN_General_TimeZone));
+
         public static string IWCN_General_Value => GetString(nameof(IWCN_General_Value));
         public static string IWCN_Titles_AuthenticationTypes => GetString(nameof(IWCN_Titles_AuthenticationTypes));
         public static string IWCN_Titles_Navigation => GetString(nameof(IWCN_Titles_Navigation));
@@ -233,6 +235,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         {
             return GetString(nameof(IWCN_General_SystemName), requestCulture.RequestCulture.UICulture);
         }
+
+        public static string GetIWCN_General_TimeZone(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_General_TimeZone), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_General_Value(this IRequestCultureFeature requestCulture)
         {

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Dynamitey;
+using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.WebCoreToolkit.Security
@@ -114,6 +115,10 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType) => Current.GetCustomProperties(userLabels,userAuthenticationType, propertyType);
 
+        public IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType) => Current.GetUserIds<T>(userLabels, userAuthenticationType);
+
+        public T GetUserId<T>(string[] userLabels, string userAuthenticationType) => Current.GetUserId<T>(userLabels, userAuthenticationType);
+
         public IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims, string userAuthenticationType) => Current.GetCustomProperties(originalClaims,userAuthenticationType);
 
         public IEnumerable<Permission> GetPermissions(User user) => Current.GetPermissions(user);
@@ -123,6 +128,14 @@ namespace ITVComponents.WebCoreToolkit.Security
         public IEnumerable<Permission> GetPermissions(Role role) => Current.GetPermissions(role);
 
         public bool PermissionScopeExists(string permissionScopeName) => Current.PermissionScopeExists(permissionScopeName);
+
+        /// <summary>
+        /// Creates a TimeZone helper object that can be used to perform calculations between localtime and utc-time for the given tenant
+        /// </summary>
+        /// <param name="permissionScopeName">the target permission scope</param>
+        /// <returns>a helper object that performs datetime calculations</returns>
+        public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName) =>
+            Current.GetTimeZoneHelper(permissionScopeName);
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType) => Current.GetEligibleScopes(userLabels,userAuthenticationType);
 

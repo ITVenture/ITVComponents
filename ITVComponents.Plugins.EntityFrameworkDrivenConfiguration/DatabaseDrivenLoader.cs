@@ -90,9 +90,9 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
         }
 
         public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables,
-            IStringFormatProvider formatter, out bool knownTypeUsed)
+            IStringFormatProvider formatter)
         {
-            knownTypeUsed = false;
+            //knownTypeUsed = false;
             if (useGenericParams)
             {
                 using (database.AcquireContext<TContext>(out var db))
@@ -106,16 +106,16 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
                         select new { Target = t, Type = d.TypeExpression };
                     Dictionary<string, object> dic = new Dictionary<string, object>();
                     customVariables ??= new Dictionary<string, object>();
-                    bool kt = knownTypeUsed;
+                    //bool kt = knownTypeUsed;
                     customVariables.ForEach(n => dic.Add(n.Key, new SmartProperty
                     {
                         GetterMethod = t =>
                         {
-                            kt = true;
+                      //      kt = true;
                             return n.Value;
                         }
                     }));
-                    knownTypeUsed = kt;
+                    //knownTypeUsed = kt;
                     foreach (var j in joined)
                     {
                         j.Target.TypeResult = (Type)ExpressionParser.Parse(j.Type.ApplyFormat(formatter), dic);

@@ -49,6 +49,7 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
                         from p in securityRepository.GetCustomProperties(id.GetClaimData(), id.AuthenticationType)
                         select new Claim(p.Type, p.Value, p.ValueType ?? ClaimValueTypes.String,
                             p.Issuer ?? ITVentureIssuerString, p.OriginalIssuer));
+
                 }
                 
                 return Task.FromResult(principal);

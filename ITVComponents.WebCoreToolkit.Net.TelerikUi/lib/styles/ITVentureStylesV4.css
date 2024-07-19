@@ -23,7 +23,7 @@ button.itv-grid-button {
     overflow: hidden;
     display: inline-block;
     font-size: 0;
-    line-height: 0;
+    /*line-height: 0;*/
     white-space: nowrap;
     background-repeat: no-repeat;
     vertical-align: top !important;
@@ -33,6 +33,7 @@ button.itv-grid-button {
 
 .glyphSprite {
     font-size: inherit !important;
+    /*line-height: 1 !important;*/
 }
 
 .itv-tool-button{
@@ -156,28 +157,38 @@ button.itv-weak-button > span {
     width: 100%;
 }
 
+.k-table-td > textarea {
+    width: 100%;
+    white-space: pre;
+    overflow: scroll;
+    scroll-behavior: auto;
+}
+
 div.k-grid .k-grid-edit-command,
 div.k-grid .k-grid-delete,
 div.k-grid .k-grid-cancel,
+div.k-grid .k-grid-cancel-command,
+div.k-grid .k-grid-save-command,
 div.k-grid .k-grid-update,
 div.k-grid .k-grid-cover-page,
-div.k-grid .k-grid-document  {
-    display:inline-block;
-    width:30px;
-    height:30px;
-    text-align:center!important;
+div.k-grid .k-grid-document {
+    display: inline-block;
+    width: 30px;
+    height: 30px;
+    text-align: center !important;
     /*text-indent:100%;*/
+    background-color: initial;
     padding: 7px 1px 0 7px !important;
     vertical-align: top !important;
-    min-width:0 !important;
+    min-width: 0 !important;
     max-width: 30px !important;
     background-size: contain;
-    box-shadow:none;
+    box-shadow: none;
     white-space: nowrap;
     overflow: hidden;
     border: 0;
     font-size: 0;
-    line-height: 0;
+    /*line-height: 0;*/
 }
 
     div.k-grid .k-grid-edit-command:not(:hover),
@@ -209,7 +220,7 @@ div.k-grid .k-grid-document  {
         overflow: hidden;
         border: 0;
         font-size: 0;
-        line-height: 0;
+        /*line-height: 0;*/
     }
 
 
@@ -221,10 +232,10 @@ div.k-grid .k-grid-document  {
 .itv-grid-button > .fas,
 .itv-tool-button > .fas,
 .k-sprite.fas,
-.k-icon > .k-sprite.fab,
-.itv-grid-button > .fab,
-.itv-tool-button > .fab,
-.k-sprite.fab,
+.k-icon > .k-sprite.fat,
+.itv-grid-button > .fat,
+.itv-tool-button > .fat,
+.k-sprite.fat,
 .k-icon > .k-sprite.far,
 .itv-grid-button > .far,
 .itv-tool-button > .far,
@@ -236,25 +247,46 @@ div.k-grid .k-grid-document  {
 .k-icon > .k-sprite.fal,
 .itv-grid-button > .fal,
 .itv-tool-button > .fal,
-.k-sprite.fal {
+.k-sprite.fal
+.k-icon > .k-sprite.fa-solid,
+.itv-grid-button > .fa-solid,
+.itv-tool-button > .fa-solid,
+.k-sprite.fa-solid,
+.k-icon > .k-sprite.fa-thin,
+.itv-grid-button > .fa-thin,
+.itv-tool-button > .fa-thin,
+.k-sprite.fa-thin,
+.k-icon > .k-sprite.fa-regular,
+.itv-grid-button > .fa-regular,
+.itv-tool-button > .fa-regular,
+.k-sprite.fa-regular,
+.k-icon > .k-sprite.fa-duotone,
+.itv-grid-button > .fa-duotone,
+.itv-tool-button > .fa-duotone,
+.k-sprite.fa-duotone,
+.k-icon > .k-sprite.fa-light,
+.itv-grid-button > .fa-light,
+.itv-tool-button > .fa-light,
+.k-sprite.fa-light {
     font-size: inherit !important;
-    line-height: inherit !important;
+    line-height: 1 !important;
     position: relative;
     width: 16px;
     height: 16px;
     margin-left: 0;
-    padding: 2px 1px 2px 1px !important;
+    /*padding: 2px 1px 2px 1px !important;*/
 }
 
 .itv-grid-button.itv-fa-gbx {
     padding: 8px 8px !important;
-    line-height: 1;
+    /*line-height: 1;*/
 }
 
 a.itv-grid-button,
 button.itv-grid-button,
 .k-command-cell > .k-button :not(.itv-grid-textbutton) {
-    padding: 0 0 9px 12px;
+    color:initial;
+    margin: 0 2px 2px 0;
 }
 
 .itv-tool-button.itv-fa-tbx {
@@ -267,4 +299,5 @@ button.itv-grid-button,
 
 div.k-grid .k-button:hover {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 2px 3px rgba(0, 0, 0, 0.05);
+    background-color: initial;
 }

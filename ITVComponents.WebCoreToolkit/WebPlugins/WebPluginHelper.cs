@@ -146,7 +146,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                         {
                             foreach (var s in preInitSequence)
                             {
-                                var tmp = pi[s, true];
+                                var tmp = pi[s, true, args.PluginType];
                             }
                         }
 
@@ -169,7 +169,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                         {
                             foreach (var s in postInitSequence)
                             {
-                                var tmp = pi[s, true];
+                                var tmp = pi[s, true, args.PluginType];
                             }
                         }
                     }
@@ -215,7 +215,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                     {
                         GetterMethod = t =>
                         {
-                            args.KnownArgumentsUsed = true;
+                            //args.KnownArgumentsUsed = true;
                             return n.Value;
                         }
                     }));

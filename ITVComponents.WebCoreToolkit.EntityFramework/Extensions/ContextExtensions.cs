@@ -115,6 +115,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                         if (postedFilter != null)
                         {
                             fib = postedFilter["parsedfilter"] as FilterBase;
+                            var customFib = selector?.GetCustomFilterAddition(postedFilter);
+                            if (customFib != null)
+                            {
+                                var afi = fib as CompositeFilter;
+                                if (afi == null || afi.Operator != BoolOperator.And)
+                                {
+                                    afi = new CompositeFilter
+                                    {
+                                        Operator = BoolOperator.And,
+                                        Children = new[] { fib, customFib }
+                                    };
+                                }
+                                else
+                                {
+                                    afi.Children = [.. afi.Children, customFib];
+                                }
+
+                                fib = afi;
+                            }
+
                             so = postedFilter["parsedsort"] as Sort[];
                         }
                     }
@@ -135,7 +155,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
                 if (fib == null)
                 {
-                    fib = new CompositeFilter();
+                    fib = selector?.GetCustomFilterAddition(postedFilter) ?? new CompositeFilter();
                 }
 
                 if (so == null)

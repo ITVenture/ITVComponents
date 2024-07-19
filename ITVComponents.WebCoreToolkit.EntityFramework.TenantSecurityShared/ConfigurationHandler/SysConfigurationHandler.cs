@@ -84,7 +84,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
             switch (fileType)
             {
                 case "sysCfg":
-                    using (var h = new FullSecurityAccessHelper(DbContext, true, false))
+                    using (var h = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(DbContext, new() { ShowAllTenants = true, HideGlobals = false }))
                     {
                         var sys = DescribeSystem();
                         var upSys =
@@ -134,7 +134,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         /// <param name="extendQuery">an action that can provide query extensions if required</param>
         public override void ApplyChanges(IEnumerable<Change> changes, StringBuilder messages, Action<string, Dictionary<string, object>> extendQuery = null)
         {
-            using (var h = new FullSecurityAccessHelper(DbContext, true, false))
+            using (var h = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(DbContext, new(){ShowAllTenants = true,HideGlobals = false}))
             {
                 DbContext.ApplyData(changes.ToArray(), messages, extendQuery, null);
             }
@@ -142,7 +142,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
         private SystemTemplateMarkup DescribeSystem()
         {
-            using (var h = new FullSecurityAccessHelper(DbContext, true, false))
+            using (var h = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(DbContext, new() { ShowAllTenants = true, HideGlobals = false }))
             {
                 DbContext.EnsureNavUniqueness();
                 SystemTemplateMarkup retVal = new SystemTemplateMarkup
@@ -216,8 +216,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         {
                             FullQualifiedTypeName = n.FullQualifiedTypeName,
                             Description = n.Description,
-                            TrustedForAllTenants = n.TrustedForAllTenants,
-                            TrustedForGlobals = n.TrustedForGlobals
+                            TrustLevelConfig = n.TrustLevelConfig,
+                            TargetQualifiedTypeName = n.TargetQualifiedTypeName
                         }
                     ).ToArray(),
                     HealthScripts = DbContext.HealthScripts.Select(n => new HealthScriptTemplateMarkup
@@ -1142,16 +1142,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
         private void CompareTrustedModules(TrustedModuleTemplateMarkup[] sysTrusts, TrustedModuleTemplateMarkup[] upTrusts)
         {
-            var keyNames = new string[] { "FullQualifiedTypeName" };
+            var keyNames = new string[] { "FullQualifiedTypeName", "TargetQualifiedTypeName" };
             var entityName = "TrustedFullAccessComponents";
             var keyExp = new Dictionary<string, string>
             {
             };
-            var groups = (from t in sysTrusts select t.FullQualifiedTypeName.ToLower()).Union(from t in upTrusts select t.FullQualifiedTypeName.ToLower()).Distinct().ToArray();
+            var groups = (from t in sysTrusts select new {FullQualifiedTypeName=t.FullQualifiedTypeName.ToLower(), TargetQualifiedTypeName = t.TargetQualifiedTypeName.ToLower()}).Union(from t in upTrusts select new {FullQualifiedTypeName=t.FullQualifiedTypeName.ToLower(), TargetQualifiedTypeName = t.TargetQualifiedTypeName.ToLower()}).Distinct().ToArray();
             var cmp = (from c in groups
-                       join a1 in sysTrusts on c equals a1.FullQualifiedTypeName.ToLower() into ja1
+                       join a1 in sysTrusts on c equals new { FullQualifiedTypeName = a1.FullQualifiedTypeName.ToLower(), TargetQualifiedTypeName = a1.TargetQualifiedTypeName.ToLower() } into ja1
                        from na1 in ja1.DefaultIfEmpty()
-                       join a2 in upTrusts on c equals a2.FullQualifiedTypeName.ToLower() into ja2
+                       join a2 in upTrusts on c equals new { FullQualifiedTypeName = a2.FullQualifiedTypeName.ToLower(), TargetQualifiedTypeName = a2.TargetQualifiedTypeName.ToLower() } into ja2
                        from na2 in ja2.DefaultIfEmpty()
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
@@ -1163,7 +1163,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
                     {
-                        { keyNames[0], $"{c.Original.FullQualifiedTypeName}" }
+                        { keyNames[0], $"{c.Original.FullQualifiedTypeName}" },
+                        {keyNames[1], $"{c.Original.TargetQualifiedTypeName}"}
                     },
                         EntityName = entityName,
                         Apply = true,
@@ -1176,8 +1177,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.FullQualifiedTypeName));
                     change.Details.Add(MakeDetail("Description", c.New.Description, multiline: true));
-                    change.Details.Add(MakeDetail("TrustedForAllTenants", c.New.TrustedForAllTenants.ToString(), "Entity.TrustedForAllTenants=(NewValueRaw==\"True\")"));
-                    change.Details.Add(MakeDetail("TrustedForGlobals", c.New.TrustedForGlobals.ToString(), "Entity.TrustedForGlobals=(NewValueRaw==\"True\")"));
+                    change.Details.Add(MakeDetail("TrustLevelConfig", c.New.TrustLevelConfig));
+                    change.Details.Add(MakeDetail(keyNames[1], c.New.TargetQualifiedTypeName));
                     RegisterChange(change);
                 }
                 else if (c.Original != null)
@@ -1187,7 +1188,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
                         {
-                            { keyNames[0], $"{c.Original.FullQualifiedTypeName}" }
+                            { keyNames[0], $"{c.Original.FullQualifiedTypeName}" },
+                            {keyNames[1], $"{c.Original.TargetQualifiedTypeName}"}
                         },
                         EntityName = entityName,
                         Apply = true,
@@ -1198,14 +1200,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description, multiline: true));
                     }
 
-                    if (c.New.TrustedForAllTenants != c.Original.TrustedForAllTenants)
+                    if (c.New.TrustLevelConfig != c.Original.TrustLevelConfig)
                     {
-                        change.Details.Add(MakeDetail("TrustedForAllTenants", c.New.TrustedForAllTenants.ToString(), "Entity.TrustedForAllTenants=(NewValueRaw==\"True\")", c.Original.TrustedForAllTenants.ToString()));
-                    }
-
-                    if (c.New.TrustedForGlobals != c.Original.TrustedForGlobals)
-                    {
-                        change.Details.Add(MakeDetail("TrustedForGlobals", c.New.TrustedForGlobals.ToString(), "Entity.TrustedForGlobals=(NewValueRaw==\"True\")", c.Original.TrustedForGlobals.ToString()));
+                        change.Details.Add(MakeDetail("TrustLevelConfig", c.New.TrustLevelConfig, currentValue:c.Original.TrustLevelConfig));
                     }
 
                     if (change.Details.Count != 0)

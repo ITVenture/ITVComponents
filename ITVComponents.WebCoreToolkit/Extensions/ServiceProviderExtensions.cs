@@ -146,6 +146,39 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             return permissions ?? Array.Empty<string>();
         }
 
+        public static T[] GetUserIds<T>(this IServiceProvider provider, out bool isAuthenticated)
+        {
+            ISecurityRepository securityRepository;
+            IdentityInfo[] identities;
+            isAuthenticated = (provider.IsLegitSharedAssetPath(out securityRepository, out identities, out var denied) ||
+                               provider.IsUserAuthenticated(out securityRepository, out identities)) && !denied;
+            T[] retVal = null;
+            if (isAuthenticated)
+            {
+                var rp = securityRepository;
+                retVal = identities.SelectMany(i => rp.GetUserIds<T>(i.Labels, i.AuthenticationType)).Distinct()
+                    .ToArray();
+            }
+
+            return retVal;
+        }
+
+        public static T GetUserId<T>(this IServiceProvider provider, out bool isAuthenticated)
+        {
+            var tmp = provider.GetUserIds<T>(out isAuthenticated);
+            if (!isAuthenticated)
+            {
+                return default;
+            }
+
+            if (tmp.Length != 1)
+            {
+                throw new InvalidOperationException("Use GetUserIds in Environment with User-Mappings!");
+            }
+
+            return tmp[0];
+        }
+
         public static ISecurityRepository GetAssetSecurityRepository(this IServiceProvider services, ISecurityRepository decorated)
         {
             var httpContext = services.GetService<IHttpContextAccessor>();

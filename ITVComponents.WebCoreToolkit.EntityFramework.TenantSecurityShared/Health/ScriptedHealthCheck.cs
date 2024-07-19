@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Logging;
@@ -13,6 +14,7 @@ using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
 using ITVComponents.WebCoreToolkit.WebPlugins;
@@ -42,10 +44,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
                     n.HealthScriptName == context.Registration.Name);
                 if (check != null)
                 {
-                    FullSecurityAccessHelper helper = null;
+                    FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig> helper = null;
                     if (db.FilterAvailable)
                     {
-                        helper = new FullSecurityAccessHelper(db, true, false);
+                        helper = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false });
                     }
 
                     try

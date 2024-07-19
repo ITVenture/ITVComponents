@@ -84,7 +84,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         {
             customStringFormatArguments ??= new();
             customStringFormatArguments = formatPrototype.ExtendDictionary(customStringFormatArguments);
-            return customStringFormatArguments.FormatText(rawString, EncryptSupport);
+            return customStringFormatArguments.FormatText(rawString, EncryptSupport, TextFormat.DefaultFormatPolicyWithPrimitives);
         }
 
         private object EncryptSupport(string constName, string formatterName, string argumentName)

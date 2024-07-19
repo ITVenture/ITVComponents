@@ -26,7 +26,7 @@
     {
         columns.Bound(c => c.SettingsKey).Title(TextsAndMessagesHelper.IWCN_General_ParameterName);
         columns.Bound(c => c.JsonSetting).Title(TextsAndMessagesHelper.IWCN_TST_JsonParam);
-        columns.Bound(c => c.SettingsValue).ClientTemplate("<pre>#=SettingsValue#</pre>").Title(TextsAndMessagesHelper.IWCN_General_Value);
+        columns.Bound(c => c.SettingsValue).ClientTemplate("<pre style='max-height:30em;overflow:scroll;'>#=SettingsValue#</pre>").Title(TextsAndMessagesHelper.IWCN_General_Value);
         if (Context.RequestServices.VerifyUserPermissions(new [] {"GlobalSettings.Write"}))
         {
             columns.Command(ga =>

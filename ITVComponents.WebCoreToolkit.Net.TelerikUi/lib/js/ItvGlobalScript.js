@@ -1,6 +1,6 @@
 ﻿kendo.culture("de-CH");
 
-var ITVenture = {
+window.ITVenture = {
     Lang: "de",
     Text: {
         setText: function (language, label, text) {

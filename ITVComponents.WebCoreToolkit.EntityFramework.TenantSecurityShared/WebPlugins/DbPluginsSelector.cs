@@ -1,21 +1,34 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins
 {
     internal class DbPluginsSelector:IWebPluginsSelector
     {
         private readonly IBaseTenantContext securityContext;
+        private readonly IPermissionScope scopeProvider;
+        private readonly WebPluginBufferingOptions bufferConfig;
+
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo>>
+            bufferedPlugins = new ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo>>();
 
         /// <summary>
         /// Initializes a new instance of hte DbPluginsSelector class
         /// </summary>
         /// <param name="securityContext">the injected security-db-context</param>
-        public DbPluginsSelector(IBaseTenantContext securityContext)
+        public DbPluginsSelector(IBaseTenantContext securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
         {
             this.securityContext = securityContext;
+            this.scopeProvider = scopeProvider;
+            this.bufferConfig = bufferConfig.Value;
         }
 
         /// <summary>
@@ -73,9 +86,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// <returns>a WebPlugin definition that can be processed by the underlying factory</returns>
         public WebPlugin GetPlugin(string uniqueName)
         {
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && PluginBuffered(uniqueName, out var bufferInfo))
+            {
+                return bufferInfo.Plugin;
+            }
+
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
-                return securityContext.WebPlugins.FirstOrDefault(n => n.UniqueName == uniqueName);
+                return TryRegisterPlugin(uniqueName, securityContext.WebPlugins.FirstOrDefault(n => n.UniqueName == uniqueName && n.TenantId != null) ??
+                                         securityContext.WebPlugins.FirstOrDefault(n => n.UniqueName == uniqueName && n.TenantId == null));
             }
 
             if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
@@ -84,6 +103,41 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
             }
 
             return securityContext.WebPlugins.FirstOrDefault(n => (n.TenantId == null || n.Tenant.TenantName == ExplicitPluginPermissionScope) && n.UniqueName == uniqueName);
+        }
+
+        private WebPlugin TryRegisterPlugin(string uniqueName, Models.WebPlugin pluginData)
+        {
+            var dc = bufferedPlugins.GetOrAdd(scopeProvider.PermissionPrefix,
+                n => new ConcurrentDictionary<string, DbPluginBufferInfo>());
+            dc.TryAdd(uniqueName, new DbPluginBufferInfo
+            {
+                Created = DateTime.Now,
+                Plugin = pluginData!=null?new WebPlugin
+                {
+                    AutoLoad = pluginData.AutoLoad,
+                    Constructor = pluginData.Constructor,
+                    StartupRegistrationConstructor = pluginData.StartupRegistrationConstructor,
+                    UniqueName = pluginData.UniqueName  
+                }:null
+            });
+
+            return pluginData;
+        }
+
+        private bool PluginBuffered(string uniqueName, out DbPluginBufferInfo bufferInfo)
+        {
+            var dc = bufferedPlugins.GetOrAdd(scopeProvider.PermissionPrefix,
+                n => new ConcurrentDictionary<string, DbPluginBufferInfo>());
+            var retVal = dc.TryGetValue(uniqueName, out bufferInfo);
+            if (retVal && bufferConfig.BufferDuration != 0 &&
+                DateTime.Now.Subtract(bufferInfo.Created).TotalSeconds > bufferConfig.BufferDuration)
+            {
+                dc.Remove(uniqueName, out _);
+                bufferInfo = null;
+                return false;
+            }
+
+            return retVal;
         }
 
         /// <summary>

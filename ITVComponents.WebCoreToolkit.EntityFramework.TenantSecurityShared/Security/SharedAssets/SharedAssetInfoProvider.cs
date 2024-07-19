@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
@@ -322,7 +323,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         {
             if (!ImpersonationDeactivated)
             {
-                using var h = FullSecurityAccessHelper.CreateForCaller(database, true, false);
+                using var h = FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>.CreateForCaller(database, database, new(){ShowAllTenants = true, HideGlobals = false});
                 var rawAsset = (from t in database.SharedAssets
                     join a in database.SharedAssetUserFilters on t.SharedAssetId equals a.SharedAssetId
                     where a.LabelFilter == AnonymousTag && t.AssetKey == assetKey

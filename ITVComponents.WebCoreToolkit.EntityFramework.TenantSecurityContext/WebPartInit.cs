@@ -93,7 +93,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
             if (partActivation.UsePlugins)
             {
-                services.UseDbPlugins();
+                services.UseDbPlugins(partActivation.PluginBufferDuration);
             }
 
             if (partActivation.UseGlobalSettings)

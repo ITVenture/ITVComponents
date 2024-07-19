@@ -17,10 +17,20 @@ namespace ITVComponents.EFRepo.Extensions
         public static void TableNamesFromProperties(this ModelBuilder builder, DbContext targetContext)
         {
             Type t = targetContext.GetType();
-            Type dbsType = typeof (DbSet<>);
+            builder.TableNamesFromProperties(t);
+        }
+
+        /// <summary>
+        /// Configures a DbContext and sets all table-names to the Property-Names that you have specified
+        /// </summary>
+        /// <param name="builder">the ModelBuilder</param>
+        /// <param name="targetContextType">the dataContext-Type on which to set the tablenames</param>
+        public static void TableNamesFromProperties(this ModelBuilder builder, Type targetContextType)
+        {
+            Type dbsType = typeof(DbSet<>);
             HashSet<Type> types = new HashSet<Type>();
             PropertyInfo[] allDbSets =
-                t.GetProperties(BindingFlags.Instance | BindingFlags.GetProperty | BindingFlags.Public |
+                targetContextType.GetProperties(BindingFlags.Instance | BindingFlags.GetProperty | BindingFlags.Public |
                                 BindingFlags.FlattenHierarchy)
                     .Where(n => n.PropertyType.IsGenericType && n.PropertyType.GetGenericTypeDefinition() == dbsType)
                     .ToArray();
@@ -37,7 +47,16 @@ namespace ITVComponents.EFRepo.Extensions
                     types.Add(tableArg[0]);
                     var entityConfig = builder.Entity(tableArg[0]);
                     var att = Attribute.GetCustomAttribute(pi, typeof(ManualTableNameAttribute)) as ManualTableNameAttribute;
-                    entityConfig.ToTable(att?.TableName??pi.Name);
+                    var isBinderTable = Attribute.IsDefined(tableArg[0], typeof(BinderEntityAttribute), true) ||
+                                        Attribute.IsDefined(pi, typeof(BinderEntityAttribute), true);
+                    if (!isBinderTable)
+                    {
+                        entityConfig.ToTable(att?.TableName ?? pi.Name);
+                    }
+                    else
+                    {
+                        entityConfig.ToTable(att?.TableName ?? pi.Name, b => b.ExcludeFromMigrations());
+                    }
                 }
             }
             finally

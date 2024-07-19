@@ -52,6 +52,8 @@ using ClientApp = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityCon
 using ClientAppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppPermission;
 using ClientAppUser = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppUser;
 using ITVComponents.EFRepo.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
@@ -66,7 +68,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         private readonly bool useFilters = false;
         private bool showAllTenants = false;
         private bool hideGlobals = false;
-        private Stack<FullSecurityAccessHelper> securityStateStack = new Stack<FullSecurityAccessHelper>();
+        Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.securityStateStack { get; }= new Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>();
         private bool hideDisabledUsers = true;
 
         public SecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions, DbContextOptions<TImpl> options) : base(options)
@@ -233,6 +235,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         /// </summary>
         protected IPrincipal Me => userProvider?.User;
 
+        public DbSet<LocalizationString> LocalizationCultureStrings { get; set; }
+
         public int SequenceNextVal(string sequenceName)
         {
             var mth = modelBuilderOptions.GetMethod<Func<DbContext, string, int, int>>("SequenceNextVal");
@@ -342,31 +346,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
 
         public DbSet<Sequence> Sequences { get; set; }
+        public DbSet<Culture> Cultures { get; set; }
+        public DbSet<TenantSecurityShared.Models.Localization> Localizations { get; set; }
+        public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
 
-        void IBaseTenantContext.RegisterSecurityRollback(FullSecurityAccessHelper fullSecurityAccessHelper)
+        BaseTenantContextSecurityTrustConfig ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.GetReverseTrust(BaseTenantContextSecurityTrustConfig desiredTrust)
         {
-            if (!fullSecurityAccessHelper.CreatedWithContext)
+            return new BaseTenantContextSecurityTrustConfig
             {
-                throw new InvalidOperationException("Use Constructor with context argument, to use this method.");
-            }
-
-            securityStateStack.Push(new FullSecurityAccessHelper{ForwardHelper=fullSecurityAccessHelper,HideGlobals=hideGlobals,ShowAllTenants = showAllTenants});
-            showAllTenants = fullSecurityAccessHelper.ShowAllTenants;
-            hideGlobals = fullSecurityAccessHelper.HideGlobals;
+                HideGlobals = hideGlobals,
+                ShowAllTenants = showAllTenants
+            };
         }
 
-        void IBaseTenantContext.RollbackSecurity(FullSecurityAccessHelper fullSecurityAccessHelper)
+        void ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.ApplyTrust(BaseTenantContextSecurityTrustConfig desiredTrust)
         {
-            var tmp = securityStateStack.Pop();
-            if (tmp.ForwardHelper == fullSecurityAccessHelper)
-            {
-                showAllTenants = tmp.ShowAllTenants;
-                hideGlobals = tmp.HideGlobals;
-            }
-            else
-            {
-                throw new InvalidOperationException("Invalid Disposal-order!");
-            }
+            showAllTenants = desiredTrust.ShowAllTenants;
+            hideGlobals = desiredTrust.HideGlobals;
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

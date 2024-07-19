@@ -15,7 +15,7 @@ namespace ITVComponents.WebCoreToolkit.Models.RequestConservation
     {
         public EmptyHttpContext()
         {
-            Request = new EmptyRequest(this){RouteValues = new RouteValueDictionary()};
+            Request = new EmptyRequest(this){RouteValues = new RouteValueDictionary(), Query = new QueryCollection()};
             Response = new EmptyResponse(this);
         }
 

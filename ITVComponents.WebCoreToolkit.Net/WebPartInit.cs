@@ -8,10 +8,12 @@ using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Options;
+using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Net
 {
@@ -31,6 +33,12 @@ namespace ITVComponents.WebCoreToolkit.Net
             return ret;
         }
 
+        [ServiceRegistrationMethod]
+        public static void RegisterNetServiceConfigurations(IServiceCollection services, NetPartOptions options)
+        {
+            services.Configure<NetFileLinkOptions>(n => n.FileTokenAsQuery = options.UseFileTokenFromQuery);
+        }
+
         [EndpointRegistrationMethod]
         public static void RegisterNetDefaultEndPoints(WebApplication builder, [WebPartConfig]NetPartOptions options, [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
@@ -42,6 +50,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, options.TenantParam, true, true, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
+                        options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
@@ -53,6 +62,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, options.TenantParam, true, false, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
+                        options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         false,false,
                         endPointRegistry);
@@ -63,6 +73,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, options.TenantParam, false, true, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
+                        options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
@@ -74,6 +85,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, options.TenantParam, false, false, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
+                        options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         false,false,
                         endPointRegistry);
@@ -87,6 +99,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, null, true, true, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
+                        options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
@@ -98,6 +111,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, null, true, false, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
+                        options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         false,false,
                         endPointRegistry);
@@ -108,6 +122,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, null, false, true, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
+                        options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
@@ -119,6 +134,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                     Register(builder, null, false, false, options.UseAutoForeignKeys, options.UseDiagnostics,
                         options.UseWidgets, options.ExposeFileSystem, options.ExposeClientSettings,
                         options.UseFileServices,
+                        options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         false,false,
                         endPointRegistry);
@@ -126,7 +142,7 @@ namespace ITVComponents.WebCoreToolkit.Net
             }
         }
 
-        private static void Register(WebApplication builder, string tenantParam, bool useAreas, bool useAuth, bool useAutoForeignKeys, bool useDiagnostics, bool useWidgets, bool exposeFileSystem, bool exposeClientSettings, bool useFileServices, bool useTenantSwitch, bool exposeUserPermissions, bool exposeTenantFeatures, EndPointTrunk endPointRegistry)
+        private static void Register(WebApplication builder, string tenantParam, bool useAreas, bool useAuth, bool useAutoForeignKeys, bool useDiagnostics, bool useWidgets, bool exposeFileSystem, bool exposeClientSettings, bool useFileServices, bool useFileTokenFromQuery, bool useTenantSwitch, bool exposeUserPermissions, bool exposeTenantFeatures, EndPointTrunk endPointRegistry)
         {
             if (useAutoForeignKeys)
             {
@@ -165,7 +181,7 @@ namespace ITVComponents.WebCoreToolkit.Net
 
             if (useFileServices && !useAreas)
             {
-                builder.UseFileServices(tenantParam, useAuth);
+                builder.UseFileServices(tenantParam, useAuth, useFileTokenFromQuery);
             }
 
             if (useTenantSwitch && string.IsNullOrEmpty(tenantParam) && !useAreas && useAuth)

@@ -12,6 +12,8 @@ using System.Text;
 using ITVComponents.Cloning;
 using ITVComponents.Cloning.Model;
 using ITVComponents.DataAccess.DataAnnotations;
+using ITVComponents.Scripting.CScript.Core.Methods;
+using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.TypeConversion;
 using Microsoft.CodeAnalysis;
 
@@ -51,6 +53,14 @@ namespace ITVComponents.DataAccess.Extensions
             return ToViewModel(modelObject, t => null, postProcessAction);
         }
 
+        public static T ToViewModel<TDbModel, T>(this TDbModel modelObject, Func<Type, object> requestObjectInstance,
+            Action<TDbModel, T> postProcessAction = null, Func<string, bool> propertyFilter = null)
+            where T : class, new()
+            where TDbModel : class
+        {
+            return ToViewModel(modelObject, requestObjectInstance, postProcessAction, propertyFilter, null);
+        }
+
         /// <summary>
         /// Creates an instance of the given ViewModelType and sets all correspondig Properties on it
         /// </summary>
@@ -60,7 +70,7 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="requestObjectInstance">offsers a customValueSoruce attribute to access custom required objects</param>
         /// <param name="postProcessAction">a user defined action that is performed after converting the requested data to a viewModel object</param>
         /// <returns>a Viewmodel that contains all Data that was read from the model</returns>
-        public static T ToViewModel<TDbModel, T>(this TDbModel modelObject, Func<Type, object> requestObjectInstance, Action<TDbModel, T> postProcessAction = null, Func<string,bool> propertyFilter = null) where T : class, new()
+        public static T ToViewModel<TDbModel, T>(this TDbModel modelObject, Func<Type, object> requestObjectInstance, Action<TDbModel, T> postProcessAction, Func<string,bool> propertyFilter, IServiceProvider services) where T : class, new()
                                                                                                                 where TDbModel : class
         {
             propertyFilter ??= (s => true);
@@ -78,8 +88,8 @@ namespace ITVComponents.DataAccess.Extensions
                                           Attribute.IsDefined(t, typeof(CustomValueSourceAttribute), true)
                                     select new { Property = t, Attributes = System.Linq.Enumerable.Cast<CustomValueSourceAttribute>(Attribute.GetCustomAttributes(t, typeof(CustomValueSourceAttribute), true)).First() }).ToArray();
             var hashCalc = customValueProps.FirstOrDefault(n => n.Attributes is ModelHashAttribute);
-            var action = GetActionFor<TDbModel, T>(toViewModelActions, SelectToViewModelProps<TDbModel, T>, true);
-            action(modelObject, retVal, propertyFilter);
+            var action = GetActionFor<TDbModel, T>(toViewModelActions, SelectToViewModelProps<TDbModel, T>(), true);
+            action(modelObject, retVal, propertyFilter, services);
             foreach (var customValue in customValueProps)
             {
                 if (customValue != hashCalc)
@@ -113,14 +123,29 @@ namespace ITVComponents.DataAccess.Extensions
         public static void CopyToModel<TDbModel, T>(this TDbModel modelObject, T target, Action<TDbModel, T> postProcessAction = null, Func<string,bool> propertyFilter = null) where T : class
                                                                                                                 where TDbModel : class
         {
+            CopyToModel(modelObject,target, postProcessAction, propertyFilter, null);
+        }
+
+        /// <summary>
+        /// Creates an instance of the given ViewModelType and sets all correspondig Properties on it
+        /// </summary>
+        /// <typeparam name="T">the ViewModel-Type</typeparam>
+        /// <typeparam name="TDbModel">the dbmodel for which to create a viewModel</typeparam>
+        /// <param name="modelObject">the Data, that was read from the database</param>
+        /// <param name="target">the target object to which to copy the entire content of the source object</param>
+        /// <param name="postProcessAction">a user defined action that is performed after converting the requested data to a viewModel object</param>
+        /// <returns>a Viewmodel that contains all Data that was read from the model</returns>
+        public static void CopyToModel<TDbModel, T>(this TDbModel modelObject, T target, Action<TDbModel, T> postProcessAction, Func<string, bool> propertyFilter, IServiceProvider services) where T : class
+            where TDbModel : class
+        {
             propertyFilter ??= (s => true);
             if (modelObject == null || target == null)
             {
                 return;
             }
 
-            var action = GetActionFor<TDbModel, T>(modelCopyActions, SelectCopyToVmProps<TDbModel, T>, false);
-            action(modelObject, target, propertyFilter);
+            var action = GetActionFor<TDbModel, T>(modelCopyActions, SelectCopyToVmProps<TDbModel, T>(), false);
+            action(modelObject, target, propertyFilter, services);
             postProcessAction?.Invoke(modelObject, target);
         }
 
@@ -149,8 +174,9 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="modelObject">the Data, that was read from the database</param>
         /// <param name="target">the target object to which to copy the entire content of the source object</param>
         /// <returns>a Viewmodel that contains all Data that was read from the model</returns>
-        public static void CopyToDbModel<TViewModel, TDbModel>(this TViewModel modelObject, TDbModel target, Func<string, bool> propertyFilter = null) where TViewModel : class
-                                                                                                                where TDbModel : class
+        public static void CopyToDbModel<TViewModel, TDbModel>(this TViewModel modelObject, TDbModel target,
+            Func<string, bool> propertyFilter = null, IServiceProvider services = null) where TViewModel : class
+            where TDbModel : class
         {
             propertyFilter ??= (s => true);
             if (modelObject == null || target == null)
@@ -158,8 +184,9 @@ namespace ITVComponents.DataAccess.Extensions
                 return;
             }
 
-            var action = GetActionFor<TViewModel, TDbModel>(assignmentDbActions, CreateDbCopyMethod<TViewModel, TDbModel>, false);
-            action(modelObject, target, propertyFilter);
+            var action = GetActionFor<TViewModel, TDbModel>(assignmentDbActions,
+                CreateDbCopyMethod<TViewModel, TDbModel>(services), false);
+            action(modelObject, target, propertyFilter, services);
         }
 
         private static IEnumerable<AssignmentHolder> SelectCopyToVmProps<TModel, TViewModel>()
@@ -280,10 +307,10 @@ namespace ITVComponents.DataAccess.Extensions
         /// <param name="methodTargetDic">the Dictionary where the assignment-method is being stored</param>
         /// <param name="selector">the Property-Selector method</param>
         /// <returns></returns>
-        private static Action<TSource, TTarget, Func<string,bool>> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> methodTargetDic, Func<IEnumerable<AssignmentHolder>> selector, bool useUtcSpecify)
+        private static Action<TSource, TTarget, Func<string,bool>, IServiceProvider> GetActionFor<TSource, TTarget>(ConcurrentDictionary<Type, ConcurrentDictionary<Type, Delegate>> methodTargetDic, IEnumerable<AssignmentHolder> selector, bool useUtcSpecify)
         {
             var tmp1 = methodTargetDic.GetOrAdd(typeof(TSource), t => new ConcurrentDictionary<Type, Delegate>());
-            Action<TSource, TTarget, Func<string,bool>> copyAction = (Action<TSource, TTarget, Func<string, bool>>)tmp1.GetOrAdd(typeof(TTarget), t => ObjectCloneExtensions.BuildAssignmentLambda<TSource, TTarget>(selector(), useUtcSpecify));
+            Action<TSource, TTarget, Func<string,bool>, IServiceProvider> copyAction = (Action<TSource, TTarget, Func<string, bool>, IServiceProvider>)tmp1.GetOrAdd(typeof(TTarget), t => ObjectCloneExtensions.BuildAssignmentLambda<TSource, TTarget>(selector, useUtcSpecify));
             return copyAction;
         }
 
@@ -293,7 +320,7 @@ namespace ITVComponents.DataAccess.Extensions
         /// <typeparam name="TViewModel">the view-model from which to copy the data</typeparam>
         /// <typeparam name="TDbModel">the target db-model</typeparam>
         /// <returns>the created action using Lambda-Expressions</returns>
-        private static IEnumerable<AssignmentHolder> CreateDbCopyMethod<TViewModel, TDbModel>()
+        private static IEnumerable<AssignmentHolder> CreateDbCopyMethod<TViewModel, TDbModel>(IServiceProvider services)
         {
             Type modelType = typeof(TDbModel);
             Type viewType = typeof(TViewModel);
@@ -310,11 +337,32 @@ namespace ITVComponents.DataAccess.Extensions
                         Source = a, 
                         Destination = t, 
                         SpecifyDateTimeAsUtc = Attribute.IsDefined(t, typeof(UtcDateTimeAttribute)) || Attribute.IsDefined(a, typeof(UtcDateTimeAttribute)),
+                        ServiceDrivenValueTranslation = CreateTranslationMethod(a,t),
                         DestinationNullable = t.PropertyType.IsGenericType &&
                                               t.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>),
                         SourceNullable = a.PropertyType.IsGenericType &&
                                          a.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>)
                     });
+        }
+
+        private static Expression CreateTranslationMethod(PropertyInfo source, PropertyInfo dest)
+        {
+            var cvat = (Attribute.GetCustomAttribute(source, typeof(CustomObjectValueTranslateAttribute)) ??
+                       Attribute.GetCustomAttribute(dest, typeof(CustomObjectValueTranslateAttribute))) as
+                CustomObjectValueTranslateAttribute;
+            if (cvat != null)
+            {
+                var rawMethod = LambdaHelper.GetMethodInfo(() => cvat.TranslateValue<object>(null, null))
+                    .GetGenericMethodDefinition();
+                var typedMethod = rawMethod.MakeGenericMethod(source.PropertyType, dest.PropertyType);
+                var p1 = Expression.Parameter(source.PropertyType);
+                var p2 = Expression.Parameter(typeof(IServiceProvider));
+                var co = Expression.Constant(cvat);
+                var rv = Expression.Call(co, typedMethod, p1, p2);
+                return Expression.Lambda(rv, p1, p2);
+            }
+
+            return null;
         }
     }
 }

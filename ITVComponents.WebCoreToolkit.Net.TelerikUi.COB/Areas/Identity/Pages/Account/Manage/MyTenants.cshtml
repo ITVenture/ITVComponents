@@ -28,7 +28,7 @@
         c.Bound(n => n.StatusText).Title(pageLocalizer["TenantStatus"]);
         c.Command(cmd =>
         {
-            cmd.Custom("AcceptInv").Text("\u200B").Click("ITVenture.Pages.Identity.MyTenants.AcceptInvitation").Visible("ITVenture.Pages.Identity.MyTenants.AcceptAvailable").HtmlAttributes(new { @class = "itv-grid-button itv-fa-gbx glyphSprite", title = pageLocalizer["AcceptInvitation"] }).IconClass("fad fa-check");
+            cmd.Custom("AcceptInv").Text("\u200B").Click("ITVenture.Pages.Identity.MyTenants.AcceptInvitation").Visible("ITVenture.Pages.Identity.MyTenants.AcceptAvailable").HtmlAttributes(new { @class = "itv-grid-button itv-fa-gbx glyphSprite", title = pageLocalizer["AcceptInvitation"] }).IconClass("fa-duotone fa-check");
         });
     })
     .BindTo(Model.MyTenants))
