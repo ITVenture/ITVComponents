@@ -88,6 +88,17 @@ namespace ITVComponents.Scripting.CScript.Test
 
         }
 
+        /* Funktioniert bisher nihct...
+         [TestMethod]
+        public void AnonymousTypes()
+        {
+            var fu = new { Bar = new Func<string>(() => "Hallo!") };
+            var bar = new Dictionary<string, object> { { "Fu", fu } };
+            var c1 = ExpressionParser.Parse(
+                "Fu.Bar()", bar);
+            Assert.AreEqual(c1,"Hello!");
+        }*/
+
         [TestMethod]
         public void NativeScripting()
         {

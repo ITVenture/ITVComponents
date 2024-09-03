@@ -20,6 +20,16 @@ namespace ITVComponents.WebCoreToolkit.Helpers
         }
 
         /// <summary>
+        /// Gets the TimeZone-ID of the Target-Zone
+        /// </summary>
+        public string TimeZoneId => timeZone.Id;
+
+        /// <summary>
+        /// Get the Display-Name of the target-Zone
+        /// </summary>
+        public string DisplayName => timeZone.DisplayName;
+
+        /// <summary>
         /// Converts the given DateTime object to Utc depending on the TimeZone configured on the target tenant
         /// </summary>
         /// <param name="dateTimeValue">the dateTime value to convert</param>
@@ -35,7 +45,7 @@ namespace ITVComponents.WebCoreToolkit.Helpers
         /// </summary>
         /// <param name="dateTimeValue">the datetime value that represents a utc-datetime object</param>
         /// <returns>the local-time representation of the given datetime value</returns>
-        DateTime GetLocalDateTime(DateTime dateTimeValue)
+        public DateTime GetLocalDateTime(DateTime dateTimeValue)
         {
             var dt = DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Utc);
             return TimeZoneInfo.ConvertTime(dt, timeZone);

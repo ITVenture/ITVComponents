@@ -7,11 +7,13 @@
     using System.Text.Encodings.Web;
     using System.Threading.Tasks;
     using System.Web;
+    using ITVComponents.DataAccess.Extensions;
     using ITVComponents.Helpers;
     using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
     using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
     using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources;
     using ITVComponents.WebCoreToolkit.Routing;
+    using Kendo.Mvc;
     using Kendo.Mvc.UI;
     using Kendo.Mvc.UI.Fluent;
     using Microsoft.AspNetCore.Mvc.Routing;
@@ -22,6 +24,8 @@
     {
         public static class KendoExtensions
         {
+            public static readonly string UnapplyableFilterName = "##NOPCAN##";
+
             /// <summary>
             /// Enables the ForeignKey row to show a filter-textbox
             /// </summary>
@@ -32,7 +36,7 @@
                 bool valuePrimitive = false, string additionalEditHandler = null)
             {
                 return builder.Edit(
-                    $"ITVenture.Tools.KendoExtensions.UseForeignKeyFilter({(valuePrimitive?"true":"false")},{additionalEditHandler})");
+                    $"ITVenture.Tools.KendoExtensions.UseForeignKeyFilter({(valuePrimitive ? "true" : "false")},{additionalEditHandler})");
             }
 
             /// <summary>
@@ -53,9 +57,16 @@
             /// <typeparam name="TModel">the model of the table</typeparam>
             /// <param name="target">the command-factory for the given table</param>
             /// <returns></returns>
-            public static GridToolBarCustomCommandBuilder RefreshTable<TModel>(this GridToolBarCommandFactory<TModel> target) where TModel : class
+            public static GridToolBarCustomCommandBuilder RefreshTable<TModel>(
+                this GridToolBarCommandFactory<TModel> target) where TModel : class
             {
-                return target.Custom().Name(CustomActionHelper.RandomName("refresh")).Text("\u200B").HtmlAttributes(new Dictionary<string, object> {{"onclick", "ITVenture.Tools.TableHelper.refreshTable(event)"}, {"class", "itv-tool-button itv-fa-tbx"}, {"title", TextsAndMessagesHelper.IWCN_KX_RTB_Caption}}).IconClass("fa-solid fa-sync");
+                return target.Custom().Name(CustomActionHelper.RandomName("refresh")).Text("\u200B").HtmlAttributes(
+                    new Dictionary<string, object>
+                    {
+                        { "onclick", "ITVenture.Tools.TableHelper.refreshTable(event)" },
+                        { "class", "itv-tool-button itv-fa-tbx" },
+                        { "title", TextsAndMessagesHelper.IWCN_KX_RTB_Caption }
+                    }).IconClass("fa-solid fa-sync");
             }
 
             /// <summary>
@@ -64,29 +75,39 @@
             /// <typeparam name="TModel">the model of the table</typeparam>
             /// <param name="target">the command-factory for the given table</param>
             /// <returns></returns>
-            public static GridToolBarCustomCommandBuilder SyncTable<TModel>(this GridToolBarCommandFactory<TModel> target) where TModel : class
+            public static GridToolBarCustomCommandBuilder SyncTable<TModel>(
+                this GridToolBarCommandFactory<TModel> target) where TModel : class
             {
-                return target.Custom().Name(CustomActionHelper.RandomName("saveChanges")).Text("\u200B").HtmlAttributes(new Dictionary<string, object> { { "onclick", "ITVenture.Tools.TableHelper.syncDataGrid(event)" }, { "class", "itv-tool-button itv-fa-tbx" }, { "title", TextsAndMessagesHelper.IWCN_KX_STB_Caption } }).IconClass("fa-solid fa-floppy-disks");
+                return target.Custom().Name(CustomActionHelper.RandomName("saveChanges")).Text("\u200B").HtmlAttributes(
+                    new Dictionary<string, object>
+                    {
+                        { "onclick", "ITVenture.Tools.TableHelper.syncDataGrid(event)" },
+                        { "class", "itv-tool-button itv-fa-tbx" },
+                        { "title", TextsAndMessagesHelper.IWCN_KX_STB_Caption }
+                    }).IconClass("fa-solid fa-floppy-disks");
             }
 
-        /// <summary>
-        /// Displays an inline-checkbox for instant-editing of simple on-off-attributes on a table
-        /// </summary>
-        /// <typeparam name="TModel">the model of the current table</typeparam>
-        /// <param name="target">the column-factory for the current table</param>
-        /// <param name="expression">the expression that identifies the bound column</param>
-        /// <param name="pkName">the primary-key name of the target-model</param>
-        /// <param name="customChangeHandler">a custom changed-handler</param>
-        /// <param name="readOnly">indicates whether to put this on read-only</param>
-        /// <returns>the column-builder for the bound column</returns>
-        public static GridBoundColumnBuilder<TModel> InlineCheckbox<TModel>(this GridColumnFactory<TModel> target, Expression<Func<TModel, bool>> expression, string pkName, string customChangeHandler = null, bool readOnly = false)
+            /// <summary>
+            /// Displays an inline-checkbox for instant-editing of simple on-off-attributes on a table
+            /// </summary>
+            /// <typeparam name="TModel">the model of the current table</typeparam>
+            /// <param name="target">the column-factory for the current table</param>
+            /// <param name="expression">the expression that identifies the bound column</param>
+            /// <param name="pkName">the primary-key name of the target-model</param>
+            /// <param name="customChangeHandler">a custom changed-handler</param>
+            /// <param name="readOnly">indicates whether to put this on read-only</param>
+            /// <returns>the column-builder for the bound column</returns>
+            public static GridBoundColumnBuilder<TModel> InlineCheckbox<TModel>(this GridColumnFactory<TModel> target,
+                Expression<Func<TModel, bool>> expression, string pkName, string customChangeHandler = null,
+                bool readOnly = false)
                 where TModel : class
             {
                 var retVal = target.Bound(expression);
                 string columnName = retVal.Column.Member;
                 string idRaw = CustomActionHelper.RandomName(retVal.Column.Member);
                 string id = $"{idRaw}#={pkName}#";
-                string template = $@"<input id='{id}' class='itv-icb-marker' data-col-name='{columnName}' #if ({columnName}) {{ # checked='checked' # }} # type='checkbox' />
+                string template =
+                    $@"<input id='{id}' class='itv-icb-marker' data-col-name='{columnName}' #if ({columnName}) {{ # checked='checked' # }} # type='checkbox' />
     #{{
         ITVenture.Tools.KendoExtensions.InitInlineCheckbox('{pkName}','{idRaw}',{(readOnly ? "false" : "true")},{customChangeHandler}).apply(arguments[0]);
     }}#";
@@ -113,50 +134,62 @@
             /// <param name="alwaysActive">Indicates whether to keep the display-template editable, so that this column can be edited without entering edit-mode</param>
             /// <param name="customInlineChangedHandler">defines a custom handler that will be called, when an item was selected or deleted. If no value is provided, the default handler will be used and the grid will be synced on every modification action of the item.</param>
             /// <returns>the ColumnBuilder object for the bound field</returns>
-            public static GridBoundColumnBuilder<TModel> MultiSelect<TModel, TValue>(this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName, string placeholder = "", bool alwaysActive = false, string customInlineChangedHandler = null, bool autoSaveOnChange = true) where TModel : class
+            public static GridBoundColumnBuilder<TModel> MultiSelect<TModel, TValue>(
+                this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string repoName,
+                string tableName, string pkName, string placeholder = "", bool alwaysActive = false,
+                string customInlineChangedHandler = null, bool autoSaveOnChange = true) where TModel : class
                 where TValue : IEnumerable
             {
                 var retVal = target.Bound(expression);
                 var route = target.Container.HtmlHelper.ViewContext.HttpContext.Request.RouteValues;
                 string area = null;
-                string changedHandler = customInlineChangedHandler ?? $"ITVenture.Tools.TableHelper.defaultMultiSelectCallback({(autoSaveOnChange?"true":"false")})";
+                string changedHandler = customInlineChangedHandler ??
+                                        $"ITVenture.Tools.TableHelper.defaultMultiSelectCallback({(autoSaveOnChange ? "true" : "false")})";
                 if (route.ContainsKey("area"))
                 {
-                    area = (string) route["area"];
+                    area = (string)route["area"];
                 }
 
-                var urlFormat = target.Container.HtmlHelper.ViewContext.HttpContext.RequestServices.GetService<IUrlFormat>();
-            var url = new StringBuilder();
-            url.Append(urlFormat != null ?
-                urlFormat.FormatUrl($"[SlashPermissionScope]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}") :
-                $"{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}");
-            url.Append($"/ForeignKey/{repoName}/{tableName}");
-            string columnName = $"{retVal.Column.Member}";
+                var urlFormat = target.Container.HtmlHelper.ViewContext.HttpContext.RequestServices
+                    .GetService<IUrlFormat>();
+                var url = new StringBuilder();
+                url.Append(urlFormat != null
+                    ? urlFormat.FormatUrl($"[SlashPermissionScope]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}")
+                    : $"{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}");
+                url.Append($"/ForeignKey/{repoName}/{tableName}");
+                string columnName = $"{retVal.Column.Member}";
                 string displayTemplateName = $"{columnName}#={pkName}#";
                 string idRaw = CustomActionHelper.RandomName(retVal.Column.Member);
                 string id = $"{idRaw}#={pkName}#";
-                var clientTemplate = @$"<select {(!alwaysActive?@"disabled=""disabled""":"")} id=""{id}"" multiple=""multiple"" style='display:none;' name=""{displayTemplateName}"" data-col-name='{columnName}'></select>
+                var clientTemplate =
+                    @$"<select {(!alwaysActive ? @"disabled=""disabled""" : "")} id=""{id}"" multiple=""multiple"" style='display:none;' name=""{displayTemplateName}"" data-col-name='{columnName}'></select>
     #{{
         ITVenture.Tools.KendoExtensions.InitMultiSelect('{retVal.Column.Member}','{pkName}','{idRaw}',{(alwaysActive ? "true" : "false")},'{placeholder}','{url}',{changedHandler}).apply(arguments[0]);
     }}#";
                 retVal.EditorTemplateName("MultiSelect").ClientTemplate(clientTemplate)
                     .EditorViewData(new Dictionary<string, object>
                     {
-                        {$"{columnName}_RepoName", repoName},
-                        {$"{columnName}_TableName", tableName},
-                        {$"{columnName}_Area", area},
-                        {$"{columnName}_Placeholder", placeholder}
+                        { $"{columnName}_RepoName", repoName },
+                        { $"{columnName}_TableName", tableName },
+                        { $"{columnName}_Area", area },
+                        { $"{columnName}_Placeholder", placeholder }
                     });
 
                 return retVal;
             }
 
-            public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string pkName, string iconClass, string iconStyle, string entityName, string backgroundColor, string shadowColor, string contentProperty = null) where TModel : class
+            public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(
+                this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string pkName,
+                string iconClass, string iconStyle, string entityName, string backgroundColor, string shadowColor,
+                string contentProperty = null) where TModel : class
             {
-                return InfoBubble<TModel, TValue>(target, expression, pkName, iconClass, iconStyle, entityName, $"background-color:{backgroundColor};text-shadow:0 -1px 0 {shadowColor};color:white", contentProperty);
+                return InfoBubble<TModel, TValue>(target, expression, pkName, iconClass, iconStyle, entityName,
+                    $"background-color:{backgroundColor};text-shadow:0 -1px 0 {shadowColor};color:white",
+                    contentProperty);
             }
 
-            public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(this GridColumnFactory<TModel> target,
+            public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(
+                this GridColumnFactory<TModel> target,
                 Expression<Func<TModel, TValue>> expression,
                 string pkName,
                 string iconClass,
@@ -167,7 +200,8 @@
             {
                 var retVal = target.Bound(expression);
                 var name = contentProperty ?? retVal.Column.Member;
-                var template = $@"<span id='bc{pkName}{entityName}_#={pkName}#' contentProperty='{name}' bubbleStyle=""{bubbleStyle}""><span class=""{iconClass}"" style=""{iconStyle}""></span></span>
+                var template =
+                    $@"<span id='bc{pkName}{entityName}_#={pkName}#' contentProperty='{name}' bubbleStyle=""{bubbleStyle}""><span class=""{iconClass}"" style=""{iconStyle}""></span></span>
     #{{
         var nameId = {pkName}.toString();
         var name = ""bc{pkName}{entityName}_"".concat(nameId);
@@ -180,16 +214,17 @@
                 return retVal;
             }
 
-        public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(this GridColumnFactory<TModel> target,
-            Expression<Func<TModel, TValue>> expression,
-            string diagInfoName,
-            string pkName,
-            string entityName) where TModel : class
-        {
-            var retVal = target.Bound(expression);
+            public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(
+                this GridColumnFactory<TModel> target,
+                Expression<Func<TModel, TValue>> expression,
+                string diagInfoName,
+                string pkName,
+                string entityName) where TModel : class
+            {
+                var retVal = target.Bound(expression);
 
-            string template =
-                $@"<span id='xc{pkName}{entityName}_#={pkName}#' diagProperty='{diagInfoName}'><span></span></span>
+                string template =
+                    $@"<span id='xc{pkName}{entityName}_#={pkName}#' diagProperty='{diagInfoName}'><span></span></span>
     #{{
         var nameId = {pkName}.toString();
         var name = ""xc{pkName}{entityName}_"".concat(nameId);
@@ -198,19 +233,20 @@
         }});
     }}#";
 
-            retVal.ClientTemplate(template);
-            retVal.EditorTemplateName("EmptyEditor");
-            return retVal;
-        }
+                retVal.ClientTemplate(template);
+                retVal.EditorTemplateName("EmptyEditor");
+                return retVal;
+            }
 
-        public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(this GridColumnFactory<TModel> target,
+            public static GridBoundColumnBuilder<TModel> InfoBubble<TModel, TValue>(
+                this GridColumnFactory<TModel> target,
                 Expression<Func<TModel, TValue>> expression,
                 string pkName,
                 string entityName) where TModel : class
             {
                 var retVal = target.Bound(expression);
                 var name = retVal.Column.Member;
-                
+
                 string template =
                     $@"<span id='xc{pkName}{entityName}_#={pkName}#' diagProperty='{name}'><span></span></span>
     #{{
@@ -226,7 +262,8 @@
                 return retVal;
             }
 
-            public static GridBoundColumnBuilder<TModel> DeciderInfo<TModel, TValue>(this GridColumnFactory<TModel> target,
+            public static GridBoundColumnBuilder<TModel> DeciderInfo<TModel, TValue>(
+                this GridColumnFactory<TModel> target,
                 Expression<Func<TModel, TValue>> expression,
                 string pkName,
                 string entityName) where TModel : class
@@ -254,13 +291,15 @@
                 return
                     target.Custom(CustomActionHelper.RandomName("Delete"))
                         .Click("ITVenture.Tools.TableHelper.confirmDelete")
-                        .HtmlAttributes(new {@class = "itv-grid-button", title = TextsAndMessagesHelper.IWCN_KX_PCD_Caption})
+                        .HtmlAttributes(new
+                            { @class = "itv-grid-button", title = TextsAndMessagesHelper.IWCN_KX_PCD_Caption })
                         /*.IconClass("fa fa-trash")*/
                         .IconClass("k-icon k-i-trash")
                         .Text("\u200B");
             }
 
-            public static GridBoundColumnBuilder<TModel> FileDownload<TModel, TValue>(this GridColumnFactory<TModel> target,
+            public static GridBoundColumnBuilder<TModel> FileDownload<TModel, TValue>(
+                this GridColumnFactory<TModel> target,
                 Expression<Func<TModel, TValue>> expression,
                 string displayText,
                 string handlerModule,
@@ -276,7 +315,8 @@
                 bool preserveOriginalName = originalNameColumn != null;
                 string columnName = retVal.Column.Member;
                 var urlHelper = new UrlHelper(target.Container.ViewContext);
-                string template = $@"#if (typeof {columnName} === ""string"" && {columnName}.trim() !== """" && ITVenture.Tools.Uploader.fileTokenMode!==""query"") {{#
+                string template =
+                    $@"#if (typeof {columnName} === ""string"" && {columnName}.trim() !== """" && ITVenture.Tools.Uploader.fileTokenMode!==""query"") {{#
         <a href='{(forceDownload ? $"{urlHelper.Content($"~/File/#={columnName}#")}" : "\\#")}' onclick='ITVenture.Tools.Uploader.showFile(ITVenture.Helpers.ResolveUrl(""~/File/#={columnName}#"")); return false;'>{displayText}</a>
     #}} else if (typeof {columnName} === ""string"" && {columnName}.trim() !== """" && ITVenture.Tools.Uploader.fileTokenMode===""query""){{#
         <a href='{(forceDownload ? $"{urlHelper.Content($"~/File?FileToken=#={columnName}#")}" : "\\#")}' onclick='ITVenture.Tools.Uploader.showFile(ITVenture.Helpers.ResolveUrl(""~/File?FileToken=#={columnName}#"")); return false;'>{displayText}</a>
@@ -286,9 +326,12 @@
                 retVal.ClientTemplate(template).EditorTemplateName("Uploader").Filterable(false);
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_uploadModule"] = handlerModule;
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_uploadReason"] = uploadReason;
-                target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_preserveOriginal"] = preserveOriginalName;
-                target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_originalNameColumn"] = originalNameColumn;
-                target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_UpdateNullOriginalOnly"] = setOriginalOnlyIfNull;
+                target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_preserveOriginal"] =
+                    preserveOriginalName;
+                target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_originalNameColumn"] =
+                    originalNameColumn;
+                target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_UpdateNullOriginalOnly"] =
+                    setOriginalOnlyIfNull;
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_uploadHint"] = uploadHintHandler;
                 target.Container.ViewContext.ViewData[$"{retVal.Column.Member}_customCallback"] = customUploadCallback;
                 return retVal;
@@ -308,9 +351,12 @@
             /// <param name="filterable">indicates whether this column must be made filterable</param>
             /// <param name="type">the foreign-key type</param>
             /// <returns>A GridColumnBuilder object representing this foreign-key</returns>
-            public static GridBoundColumnBuilder<object> AjaxFk(this GridColumnFactory<object> target, Type type, string columnName, string repoName, string tableName, string pkName, int minSearchLength = 0, Dictionary<string, string> nameBuffer = null, string cascadeFrom = null, bool filterable = false, string emptyLabel = "", string dataCallback = "")
+            public static GridBoundColumnBuilder<object> AjaxFk(this GridColumnFactory<object> target, Type type,
+                string columnName, string repoName, string tableName, string pkName, int minSearchLength = 0,
+                Dictionary<string, string> nameBuffer = null, string cascadeFrom = null, bool filterable = false,
+                string emptyLabel = "", string dataCallback = "")
             {
-                var retVal = target.Bound( type, columnName);
+                var retVal = target.Bound(type, columnName);
                 //string columnName = retVal.Column.Member;
                 string id = CustomActionHelper.RandomName($"FK_{repoName}_{tableName}_{columnName}");
                 nameBuffer?.Add(retVal.Column.Member, id);
@@ -323,14 +369,15 @@
                 string area = null;
                 if (route.ContainsKey("area"))
                 {
-                    area = (string) route["area"];
+                    area = (string)route["area"];
                 }
-                
+
                 string filterScriptName = null;
                 string filterScriptBody = null;
                 if (filterable)
                 {
-                    filterScriptName = CreateFilterScriptFor(repoName, tableName, columnName, area, minSearchLength, dataCallback, out filterScriptBody);
+                    filterScriptName = CreateFilterScriptFor(repoName, tableName, columnName, area, minSearchLength,
+                        dataCallback, out filterScriptBody);
                 }
 
                 string template =
@@ -361,9 +408,10 @@
                 retVal.ClientTemplate(template);
                 if (filterable)
                 {
-                    retVal.Filterable(f => f.UI($"ITVenture.Tools.ListCallbackHelper.getFilterScript('{filterScriptName}')"));
+                    retVal.Filterable(f =>
+                        f.UI($"ITVenture.Tools.ListCallbackHelper.getFilterScript('{filterScriptName}')"));
                 }
-                
+
                 retVal.EditorTemplateName("ApiForeignKey");
                 target.Container.HtmlHelper.Raw($@"<script>
                 {filterScriptBody}
@@ -386,7 +434,10 @@
             /// <param name="repoName">the name of the repository from where to read the data</param>
             /// <param name="filterable">indicates whether this column must be made filterable</param>
             /// <returns>A GridColumnBuilder object representing this foreign-key</returns>
-            public static GridBoundColumnBuilder<TModel> AjaxFk<TModel, TValue>(this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName, object customFilterData, int minSearchLength = 0, Dictionary<string, string> nameBuffer = null, string cascadeFrom = null, bool filterable = false, string emptyLabel = "") where TModel : class
+            public static GridBoundColumnBuilder<TModel> AjaxFk<TModel, TValue>(this GridColumnFactory<TModel> target,
+                Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName,
+                object customFilterData, int minSearchLength = 0, Dictionary<string, string> nameBuffer = null,
+                string cascadeFrom = null, bool filterable = false, string emptyLabel = "") where TModel : class
             {
                 var retVal = target.Bound(expression);
                 string columnName = retVal.Column.Member;
@@ -401,20 +452,23 @@
                 string area = null;
                 if (route.ContainsKey("area"))
                 {
-                    area = (string) route["area"];
+                    area = (string)route["area"];
                 }
-                
+
                 string filterScriptName = null;
                 string filterScriptBody = null;
                 string dataCallback = null;
                 string dataCallbackBody = null;
                 if (customFilterData != null)
                 {
-                    dataCallback = $"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{HtmlExtensions.CreateDataScriptFor(repoName, tableName, columnName, customFilterData, out dataCallbackBody)}";
+                    dataCallback =
+                        $"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{HtmlExtensions.CreateDataScriptFor(repoName, tableName, columnName, customFilterData, out dataCallbackBody)}";
                 }
+
                 if (filterable)
                 {
-                    filterScriptName = CreateFilterScriptFor(repoName, tableName, columnName, area, minSearchLength, dataCallback, out filterScriptBody);
+                    filterScriptName = CreateFilterScriptFor(repoName, tableName, columnName, area, minSearchLength,
+                        dataCallback, out filterScriptBody);
                 }
 
                 string template =
@@ -444,9 +498,10 @@
                 retVal.ClientTemplate(template);
                 if (filterable)
                 {
-                    retVal.Filterable(f => f.UI($"ITVenture.Tools.ListCallbackHelper.getFilterScript('{filterScriptName}')"));
+                    retVal.Filterable(f =>
+                        f.UI($"ITVenture.Tools.ListCallbackHelper.getFilterScript('{filterScriptName}')"));
                 }
-                
+
                 retVal.EditorTemplateName("ApiForeignKey");
                 target.Container.HtmlHelper.Raw($@"<script>
                 {dataCallbackBody}
@@ -470,7 +525,10 @@
             /// <param name="repoName">the name of the repository from where to read the data</param>
             /// <param name="filterable">indicates whether this column must be made filterable</param>
             /// <returns>A GridColumnBuilder object representing this foreign-key</returns>
-            public static GridBoundColumnBuilder<TModel> AjaxFk<TModel, TValue>(this GridColumnFactory<TModel> target, Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName, int minSearchLength = 0, Dictionary<string, string> nameBuffer = null, string cascadeFrom = null, bool filterable = false, string emptyLabel = "", string dataCallback = "") where TModel : class
+            public static GridBoundColumnBuilder<TModel> AjaxFk<TModel, TValue>(this GridColumnFactory<TModel> target,
+                Expression<Func<TModel, TValue>> expression, string repoName, string tableName, string pkName,
+                int minSearchLength = 0, Dictionary<string, string> nameBuffer = null, string cascadeFrom = null,
+                bool filterable = false, string emptyLabel = "", string dataCallback = "") where TModel : class
             {
                 var retVal = target.Bound(expression);
                 string columnName = retVal.Column.Member;
@@ -485,14 +543,15 @@
                 string area = null;
                 if (route.ContainsKey("area"))
                 {
-                    area = (string) route["area"];
+                    area = (string)route["area"];
                 }
-                
+
                 string filterScriptName = null;
                 string filterScriptBody = null;
                 if (filterable)
                 {
-                    filterScriptName = CreateFilterScriptFor(repoName, tableName, columnName, area, minSearchLength, dataCallback, out filterScriptBody);
+                    filterScriptName = CreateFilterScriptFor(repoName, tableName, columnName, area, minSearchLength,
+                        dataCallback, out filterScriptBody);
                 }
 
                 string template =
@@ -524,9 +583,10 @@
                 retVal.ClientTemplate(template);
                 if (filterable)
                 {
-                    retVal.Filterable(f => f.UI($"ITVenture.Tools.ListCallbackHelper.getFilterScript('{filterScriptName}')"));
+                    retVal.Filterable(f =>
+                        f.UI($"ITVenture.Tools.ListCallbackHelper.getFilterScript('{filterScriptName}')"));
                 }
-                
+
                 retVal.EditorTemplateName("ApiForeignKey");
                 target.Container.HtmlHelper.Raw($@"<script>
                 {filterScriptBody}
@@ -534,7 +594,87 @@
                 return retVal;
             }
 
-            private static string CreateFilterScriptFor(string repoName, string tableName, string memberName, string area, int minSearchLength, string dataCallback, out string filter)
+            public static DataSourceRequest RemapRequestMembers(this DataSourceRequest dataSourceRequest,
+                Func<string, string> columnRedirects)
+            {
+                dataSourceRequest.Aggregates.ForEach(n =>
+                {
+                    var rd = columnRedirects(n.Member);
+                    if (!string.IsNullOrEmpty(rd))
+                    {
+                        n.Member = rd;
+                    }
+                });
+            dataSourceRequest.Aggregates.Where(n => n.Member == UnapplyableFilterName).ToArray().ForEach(descriptor =>
+                dataSourceRequest.Aggregates.Remove(descriptor));
+
+
+
+                dataSourceRequest.Groups.ForEach(n =>
+                {
+                    var rd = columnRedirects(n.Member);
+                    if (!string.IsNullOrEmpty(rd))
+                    {
+                        n.Member = rd;
+                    }
+                });
+                dataSourceRequest.Groups.Where(n => n.Member == UnapplyableFilterName).ToArray().ForEach(descriptor =>
+                    dataSourceRequest.Groups.Remove(descriptor));
+
+            dataSourceRequest.Sorts.ForEach(n =>
+                {
+                    var rd = columnRedirects(n.Member);
+                    if (!string.IsNullOrEmpty(rd))
+                    {
+                        n.Member = rd;
+                    }
+                });
+                dataSourceRequest.Sorts.Where(n => n.Member == UnapplyableFilterName).ToArray().ForEach(descriptor =>
+                    dataSourceRequest.Sorts.Remove(descriptor));
+
+            dataSourceRequest.Filters.ProcessFilters(columnRedirects);
+
+                return dataSourceRequest;
+            }
+
+            private static void ProcessFilters(this IList<IFilterDescriptor> descriptors, Func<string, string> columnRedirects)
+            {
+                List<IFilterDescriptor> rems = new List<IFilterDescriptor>();
+                foreach (var descriptor in descriptors)
+                {
+                    if (descriptor is CompositeFilterDescriptor cfd)
+                    {
+                        cfd.FilterDescriptors.ProcessFilters(columnRedirects);
+                        if (cfd.FilterDescriptors.Count == 0)
+                        {
+                            rems.Add(cfd);
+                        }
+                    }
+                    else if (descriptor is FilterDescriptor fd)
+                    {
+                        var rd = columnRedirects(fd.Member);
+                        if (!string.IsNullOrEmpty(rd))
+                        {
+                            fd.Member = rd;
+                        }
+
+                        if (fd.Member == UnapplyableFilterName)
+                        {
+                            rems.Add(fd);
+                        }
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            $"Unsupported descriptor-Type: {descriptor.GetType().FullName}");
+                    }
+                }
+
+                rems.ForEach(descriptor => descriptors.Remove(descriptor));
+            }
+
+            private static string CreateFilterScriptFor(string repoName, string tableName, string memberName,
+                string area, int minSearchLength, string dataCallback, out string filter)
             {
                 string filterFunction = CustomActionHelper.RandomName($"filterFx_{repoName}_{tableName}_{memberName}");
                 filter = $@"ITVenture.Tools.ListCallbackHelper.filterScripts.{filterFunction} = function(element) {{
@@ -543,10 +683,10 @@
                         type: ""aspnetmvc-ajax"",
                         transport:{{
                             read: {{
-                                url:ITVenture.Helpers.ResolveUrl(""~{(!string.IsNullOrEmpty(area)?$"/{area}":"")}/ForeignKey/{repoName}/{tableName}"")
+                                url:ITVenture.Helpers.ResolveUrl(""~{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}/ForeignKey/{repoName}/{tableName}"")
                             }},
-                            prefix:""""{(!string.IsNullOrEmpty(dataCallback)?$@",
-                            data: ""{dataCallback}""":"")}
+                            prefix:""""{(!string.IsNullOrEmpty(dataCallback) ? $@",
+                            data: ""{dataCallback}""" : "")}
                         }},
                         serverFiltering: true,
                         schema:{{
