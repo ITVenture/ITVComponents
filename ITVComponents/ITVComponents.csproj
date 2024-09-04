@@ -1,6 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>3.1.3-PRE003</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -22,14 +22,14 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="microsoft.csharp" Version="4.7.0" />
-    <PackageReference Include="microsoft.extensions.configuration" Version="6.0.1" />
-    <PackageReference Include="microsoft.extensions.configuration.binder" Version="6.0.0" />
-    <PackageReference Include="microsoft.extensions.configuration.Json" Version="6.0.0" />
-    <PackageReference Include="microsoft.extensions.primitives" Version="6.0.0" />
+    <PackageReference Include="microsoft.extensions.configuration" Version="8.0.0" />
+    <PackageReference Include="microsoft.extensions.configuration.binder" Version="8.0.2" />
+    <PackageReference Include="microsoft.extensions.configuration.Json" Version="8.0.0" />
+    <PackageReference Include="microsoft.extensions.primitives" Version="8.0.0" />
     <PackageReference Include="newtonsoft.json" Version="13.0.3" />
-    <PackageReference Include="system.directoryservices" Version="6.0.1" />
-    <PackageReference Include="system.directoryservices.accountmanagement" Version="6.0.0" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="6.0.0" />
+    <PackageReference Include="system.directoryservices" Version="8.0.0" />
+    <PackageReference Include="system.directoryservices.accountmanagement" Version="8.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="System.Security.Principal.Windows" Version="5.0.0" />
   </ItemGroup>
   <ItemGroup>

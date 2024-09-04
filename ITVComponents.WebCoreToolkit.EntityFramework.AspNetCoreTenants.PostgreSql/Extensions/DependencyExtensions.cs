@@ -19,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
         public static IServiceCollection ConfigureComputedColumns(this IServiceCollection services, Type dbContextType)
         {
-            var method = LambdaHelper.GetMethodInfo(() => ConfigureComputedColumns<SecurityContext>(services))
+            var method = LambdaHelper.GetMethodInfo(() => ConfigureComputedColumns<AspNetSecurityContext>(services))
                 .GetGenericMethodDefinition();
             method = method.MakeGenericMethod(dbContextType);
             return (IServiceCollection)method.Invoke(null, new[] { services });
