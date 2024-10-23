@@ -132,6 +132,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
                 TTenantUser, TRoleRole>
         {
+            if (parentRole == newChildRole)
+            {
+                return true;
+            }
+
             var parentEntity = dbContext.SecurityRoles.Include(n => n.PermissiveRoles)
                 .ThenInclude(n => n.PermissiveRole).Where(n => n.RoleId == parentRole)
                 .SelectMany(n => n.PermissiveRoles.Select(p => p.PermissiveRole)).ToArray();
