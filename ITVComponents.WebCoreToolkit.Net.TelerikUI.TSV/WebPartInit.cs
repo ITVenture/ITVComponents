@@ -30,6 +30,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews
             {
                 return config.GetSection<SecurityContextOptions>(path);
             }
+            else if (key == "ContextActivationSettings")
+            {
+                return config.GetSection<ActivationOptions>(path);
+            }
             else if (key == "ViewConfig")
             {
                 return config.GetSection<SecurityViewsOptions>(path);
@@ -55,14 +59,17 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews
         
         [ServiceRegistrationMethod]
         public static void RegisterServices(IServiceCollection services,
-            [WebPartConfig("ViewConfig")] SecurityViewsOptions viewOptions)
+            [WebPartConfig("ViewConfig")] SecurityViewsOptions viewOptions,
+            [WebPartConfig("ContextActivationSettings")] ActivationOptions contextActivation)
         {
+            bool inheritGroups = contextActivation?.UseRoleInheritance ?? false;
             if (viewOptions != null)
             {
                 services.ConfigureTenantViews(o =>
                 {
                     o.TenantLinkMode = viewOptions.TenantLinkMode;
                     o.UseExplicitTenantPasswords = viewOptions.UseExplicitTenantPasswords;
+                    o.UseRoleInheritance = inheritGroups;
                 });
             }
         }

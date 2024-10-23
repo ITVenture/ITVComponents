@@ -101,9 +101,9 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
                         join p in db.Plugins on t.PluginId equals p.PluginId
                         where p.UniqueName == uniqueName
                         select t).ToArray();
-                    var joined = from t in genericTypeArguments
+                    /*var joined = from t in genericTypeArguments
                         join d in data on t.GenericTypeName equals d.GenericTypeName
-                        select new { Target = t, Type = d.TypeExpression };
+                        select new { Target = t, Type = d.TypeExpression };*/
                     Dictionary<string, object> dic = new Dictionary<string, object>();
                     customVariables ??= new Dictionary<string, object>();
                     //bool kt = knownTypeUsed;
@@ -116,9 +116,39 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
                         }
                     }));
                     //knownTypeUsed = kt;
-                    foreach (var j in joined)
+                    List<(string name, Type type)> fixTypes = new List<(string name, Type type)>();
+                    Type argumentProvider = null;
+                    foreach (var j in data)
                     {
-                        j.Target.TypeResult = (Type)ExpressionParser.Parse(j.Type.ApplyFormat(formatter), dic);
+                        var t = (Type)ExpressionParser.Parse(j.TypeExpression.ApplyFormat(formatter), dic);
+                        if (j.GenericTypeName!= "$$genericArgumentProvider")
+                        {
+                            fixTypes.Add((name: j.GenericTypeName,
+                                type: t));
+                        }
+                        else
+                        {
+                            argumentProvider = t;
+                        }
+                    }
+
+                    if (argumentProvider == null)
+                    {
+                        var rawTypes = typeof(object).GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        if (!genericTypeArguments.FinalizeTypeArguments(rawTypes))
+                        {
+                            throw new InvalidOperationException(
+                                $"Unable to finalize Type with given Information for Plugin {uniqueName}.");
+                        }
+                    }
+                    else
+                    {
+                        var rawTypes = argumentProvider.GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        if (!genericTypeArguments.FinalizeTypeArguments(rawTypes))
+                        {
+                            throw new InvalidOperationException(
+                                $"Unable to finalize Type with given Information for Plugin {uniqueName}.");
+                        }
                     }
                 }
             }

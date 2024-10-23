@@ -20,7 +20,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         public string FeatureDescription { get; set; }
 
         public bool Enabled { get; set; }
-
-        public virtual ICollection<TenantFeatureActivation> Activations { get; set; } = new List<TenantFeatureActivation>();
     }
 }

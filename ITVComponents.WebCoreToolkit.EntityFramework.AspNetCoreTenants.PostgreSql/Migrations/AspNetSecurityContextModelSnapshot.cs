@@ -17,7 +17,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "6.0.27")
+                .HasAnnotation("ProductVersion", "8.0.8")
+                .HasAnnotation("Proxies:ChangeTracking", false)
+                .HasAnnotation("Proxies:CheckEquality", false)
+                .HasAnnotation("Proxies:LazyLoading", true)
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -608,6 +611,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     b.Property<bool>("IsSystemRole")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("RoleMetaData")
+                        .HasColumnType("text");
+
                     b.Property<string>("RoleName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -641,10 +647,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RolePermissionId"));
 
+                    b.Property<int?>("OriginId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("PermissionId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("RoleId")
+                    b.Property<int?>("RoleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RoleRoleId")
                         .HasColumnType("integer");
 
                     b.Property<int>("TenantId")
@@ -652,14 +664,41 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
                     b.HasKey("RolePermissionId");
 
+                    b.HasIndex("OriginId");
+
                     b.HasIndex("PermissionId");
+
+                    b.HasIndex("RoleRoleId");
 
                     b.HasIndex("TenantId");
 
-                    b.HasIndex(new[] { "RoleId", "PermissionId", "TenantId" }, "IX_UniqueRolePermission")
+                    b.HasIndex(new[] { "RoleId", "PermissionId", "TenantId", "OriginId" }, "IX_UniqueRolePermission")
                         .IsUnique();
 
                     b.ToTable("RolePermissions", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.RoleRole", b =>
+                {
+                    b.Property<int>("RoleRoleId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RoleRoleId"));
+
+                    b.Property<int?>("PermissiveRoleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PermittedRoleId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("RoleRoleId");
+
+                    b.HasIndex("PermissiveRoleId");
+
+                    b.HasIndex("PermittedRoleId");
+
+                    b.ToTable("RoleRoles", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.SharedAsset", b =>
@@ -914,10 +953,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("UserRoleId"));
 
-                    b.Property<int>("RoleId")
+                    b.Property<int?>("RoleId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("TenantUserId")
+                    b.Property<int?>("TenantUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("UserRoleId");
@@ -1082,6 +1121,216 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     b.ToTable("Features", (string)null);
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatSequence", b =>
+                {
+                    b.Property<int>("SequenceId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SequenceId"));
+
+                    b.Property<int>("CurrentValue")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Cycle")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaxValue")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinValue")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SequenceName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("StepSize")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("SequenceId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex(new[] { "SequenceName", "TenantId" }, "UQ_SequenceName")
+                        .IsUnique();
+
+                    b.ToTable("Sequences", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatTenantFeatureActivation", b =>
+                {
+                    b.Property<int>("TenantFeatureActivationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TenantFeatureActivationId"));
+
+                    b.Property<DateTime?>("ActivationEnd")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ActivationStart")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("FeatureId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TenantFeatureActivationId");
+
+                    b.HasIndex("FeatureId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("TenantFeatureActivations", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatTenantSetting", b =>
+                {
+                    b.Property<int>("TenantSettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TenantSettingId"));
+
+                    b.Property<bool>("JsonSetting")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("SettingsKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SettingsValue")
+                        .HasColumnType("text");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TenantSettingId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex(new[] { "SettingsKey", "TenantId" }, "UQ_SettingsKey")
+                        .IsUnique();
+
+                    b.ToTable("TenantSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatWebPlugin", b =>
+                {
+                    b.Property<int>("WebPluginId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WebPluginId"));
+
+                    b.Property<bool>("AutoLoad")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Constructor")
+                        .HasMaxLength(8192)
+                        .HasColumnType("character varying(8192)");
+
+                    b.Property<string>("PluginNameUniqueness")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasComputedColumnSql("case when \"TenantId\" is null then \"UniqueName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"UniqueName\" end");
+
+                    b.Property<string>("StartupRegistrationConstructor")
+                        .HasMaxLength(8192)
+                        .HasColumnType("character varying(8192)");
+
+                    b.Property<int?>("TenantId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UniqueName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.HasKey("WebPluginId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex(new[] { "PluginNameUniqueness" }, "IX_UniquePluginName")
+                        .IsUnique();
+
+                    b.ToTable("WebPlugins", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatWebPluginConstant", b =>
+                {
+                    b.Property<int>("WebPluginConstantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WebPluginConstantId"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("NameUniqueness")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasComputedColumnSql("case when \"TenantId\" is null then \"Name\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"Name\" end");
+
+                    b.Property<int?>("TenantId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("WebPluginConstantId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex(new[] { "NameUniqueness" }, "IX_UniquePluginConst")
+                        .IsUnique();
+
+                    b.ToTable("WebPluginConstants", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatWebPluginGenericParameter", b =>
+                {
+                    b.Property<int>("WebPluginGenericParameterId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WebPluginGenericParameterId"));
+
+                    b.Property<string>("GenericTypeName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TypeExpression")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<int>("WebPluginId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("WebPluginGenericParameterId");
+
+                    b.HasIndex(new[] { "WebPluginId", "GenericTypeName" }, "IX_UniqueGenericParamName")
+                        .IsUnique();
+
+                    b.ToTable("GenericPluginParams", (string)null);
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.GlobalSetting", b =>
                 {
                     b.Property<int>("GlobalSettingId")
@@ -1202,47 +1451,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsUnique();
 
                     b.ToTable("LocalizationCultureStrings", (string)null);
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Sequence", b =>
-                {
-                    b.Property<int>("SequenceId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SequenceId"));
-
-                    b.Property<int>("CurrentValue")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("Cycle")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("MaxValue")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MinValue")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SequenceName")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<int>("StepSize")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TenantId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("SequenceId");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex(new[] { "SequenceName", "TenantId" }, "UQ_SequenceName")
-                        .IsUnique();
-
-                    b.ToTable("Sequences", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.SystemEvent", b =>
@@ -1398,6 +1606,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<bool?>("TenantDirty")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("TenantName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -1407,77 +1618,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .HasMaxLength(125)
                         .HasColumnType("character varying(125)");
 
+                    b.Property<int?>("TenantTypeId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("TimeZone")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
                     b.HasKey("TenantId");
 
+                    b.HasIndex("TenantTypeId");
+
                     b.HasIndex(new[] { "TenantName" }, "IX_UniqueTenant")
                         .IsUnique();
 
                     b.ToTable("Tenants", (string)null);
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantFeatureActivation", b =>
-                {
-                    b.Property<int>("TenantFeatureActivationId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TenantFeatureActivationId"));
-
-                    b.Property<DateTime?>("ActivationEnd")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("ActivationStart")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("FeatureId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TenantId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("TenantFeatureActivationId");
-
-                    b.HasIndex("FeatureId");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("TenantFeatureActivations", (string)null);
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting", b =>
-                {
-                    b.Property<int>("TenantSettingId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TenantSettingId"));
-
-                    b.Property<bool>("JsonSetting")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("SettingsKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("SettingsValue")
-                        .HasColumnType("text");
-
-                    b.Property<int>("TenantId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("TenantSettingId");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex(new[] { "SettingsKey", "TenantId" }, "UQ_SettingsKey")
-                        .IsUnique();
-
-                    b.ToTable("TenantSettings", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantTemplate", b =>
@@ -1502,6 +1657,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     b.HasKey("TenantTemplateId");
 
                     b.ToTable("TenantTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantType", b =>
+                {
+                    b.Property<int>("TenantTypeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TenantTypeId"));
+
+                    b.Property<int?>("TenantTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TenantTypeName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("TypeMetaData")
+                        .HasColumnType("text");
+
+                    b.HasKey("TenantTypeId");
+
+                    b.HasIndex("TenantTemplateId");
+
+                    b.HasIndex(new[] { "TenantTypeName" }, "UQ_TenantTypeName")
+                        .IsUnique();
+
+                    b.ToTable("TenantTypes", (string)null);
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TrustedFullAccessComponent", b =>
@@ -1612,114 +1796,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     b.HasKey("VideoTutorialId");
 
                     b.ToTable("Tutorials", (string)null);
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", b =>
-                {
-                    b.Property<int>("WebPluginId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WebPluginId"));
-
-                    b.Property<bool>("AutoLoad")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Constructor")
-                        .HasMaxLength(8192)
-                        .HasColumnType("character varying(8192)");
-
-                    b.Property<string>("PluginNameUniqueness")
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)")
-                        .HasComputedColumnSql("case when \"TenantId\" is null then \"UniqueName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"UniqueName\" end");
-
-                    b.Property<string>("StartupRegistrationConstructor")
-                        .HasMaxLength(8192)
-                        .HasColumnType("character varying(8192)");
-
-                    b.Property<int?>("TenantId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UniqueName")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.HasKey("WebPluginId");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex(new[] { "PluginNameUniqueness" }, "IX_UniquePluginName")
-                        .IsUnique();
-
-                    b.ToTable("WebPlugins", (string)null);
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginConstant", b =>
-                {
-                    b.Property<int>("WebPluginConstantId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WebPluginConstantId"));
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("NameUniqueness")
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)")
-                        .HasComputedColumnSql("case when \"TenantId\" is null then \"Name\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"Name\" end");
-
-                    b.Property<int?>("TenantId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("WebPluginConstantId");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex(new[] { "NameUniqueness" }, "IX_UniquePluginConst")
-                        .IsUnique();
-
-                    b.ToTable("WebPluginConstants", (string)null);
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginGenericParameter", b =>
-                {
-                    b.Property<int>("WebPluginGenericParameterId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WebPluginGenericParameterId"));
-
-                    b.Property<string>("GenericTypeName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("TypeExpression")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<int>("WebPluginId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("WebPluginGenericParameterId");
-
-                    b.HasIndex(new[] { "WebPluginId", "GenericTypeName" }, "IX_UniqueGenericParamName")
-                        .IsUnique();
-
-                    b.ToTable("GenericPluginParams", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -2101,6 +2177,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.RolePermission", b =>
                 {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.RolePermission", "Origin")
+                        .WithMany("RoleInheritanceChildren")
+                        .HasForeignKey("OriginId");
+
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.Permission", "Permission")
                         .WithMany("RolePermissions")
                         .HasForeignKey("PermissionId")
@@ -2109,9 +2189,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.Role", "Role")
                         .WithMany("RolePermissions")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.ClientCascade)
-                        .IsRequired();
+                        .HasForeignKey("RoleId");
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.RoleRole", "LinkedBy")
+                        .WithMany("ResultingLinks")
+                        .HasForeignKey("RoleRoleId");
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
                         .WithMany()
@@ -2119,11 +2201,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("LinkedBy");
+
+                    b.Navigation("Origin");
+
                     b.Navigation("Permission");
 
                     b.Navigation("Role");
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.RoleRole", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.Role", "PermissiveRole")
+                        .WithMany("PermittedRoles")
+                        .HasForeignKey("PermissiveRoleId");
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.Role", "PermittedRole")
+                        .WithMany("PermissiveRoles")
+                        .HasForeignKey("PermittedRoleId");
+
+                    b.Navigation("PermissiveRole");
+
+                    b.Navigation("PermittedRole");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.SharedAsset", b =>
@@ -2241,15 +2342,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                 {
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.Role", "Role")
                         .WithMany("UserRoles")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.ClientCascade)
-                        .IsRequired();
+                        .HasForeignKey("RoleId");
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.TenantUser", "User")
                         .WithMany("Roles")
-                        .HasForeignKey("TenantUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("TenantUserId");
 
                     b.Navigation("Role");
 
@@ -2286,6 +2383,76 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     b.Navigation("AuthenticationType");
                 });
 
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatSequence", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatTenantFeatureActivation", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", "Feature")
+                        .WithMany()
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Feature");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatTenantSetting", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatWebPlugin", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatWebPluginConstant", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatWebPluginGenericParameter", b =>
+                {
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatWebPlugin", "Plugin")
+                        .WithMany("Parameters")
+                        .HasForeignKey("WebPluginId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plugin");
+                });
+
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.LocalizationCulture", b =>
                 {
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Culture", "Culture")
@@ -2312,17 +2479,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .HasForeignKey("LocalizationCultureId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Sequence", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TemplateModule", b =>
@@ -2369,34 +2525,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     b.Navigation("ParentModule");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantFeatureActivation", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", b =>
                 {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", "Feature")
-                        .WithMany("Activations")
-                        .HasForeignKey("FeatureId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantType", "TenantType")
                         .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("TenantTypeId");
 
-                    b.Navigation("Feature");
-
-                    b.Navigation("Tenant");
+                    b.Navigation("TenantType");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantType", b =>
                 {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
+                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantTemplate", "TenantTemplate")
                         .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("TenantTemplateId");
 
-                    b.Navigation("Tenant");
+                    b.Navigation("TenantTemplate");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream", b =>
@@ -2419,35 +2563,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         .IsRequired();
 
                     b.Navigation("Parent");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId");
-
-                    b.Navigation("Tenant");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginConstant", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId");
-
-                    b.Navigation("Tenant");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPluginGenericParameter", b =>
-                {
-                    b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", "Plugin")
-                        .WithMany("Parameters")
-                        .HasForeignKey("WebPluginId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Plugin");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -2555,9 +2670,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.Role", b =>
                 {
+                    b.Navigation("PermissiveRoles");
+
+                    b.Navigation("PermittedRoles");
+
                     b.Navigation("RolePermissions");
 
                     b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.RolePermission", b =>
+                {
+                    b.Navigation("RoleInheritanceChildren");
+                });
+
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.RoleRole", b =>
+                {
+                    b.Navigation("ResultingLinks");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.SharedAsset", b =>
@@ -2584,9 +2713,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                     b.Navigation("ClaimMappings");
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels.FlatWebPlugin", b =>
                 {
-                    b.Navigation("Activations");
+                    b.Navigation("Parameters");
                 });
 
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Localization", b =>
@@ -2619,11 +2748,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
             modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.VideoTutorial", b =>
                 {
                     b.Navigation("Streams");
-                });
-
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin", b =>
-                {
-                    b.Navigation("Parameters");
                 });
 #pragma warning restore 612, 618
         }

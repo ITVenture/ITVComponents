@@ -13,9 +13,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     [Authorize("HasPermission(SystemLog.View),HasFeature(ITVAdminViews)"), Area("Util")]
     public class SystemLogController:Controller
     {
-        private readonly IBaseTenantContext db;
+        private readonly ICoreSystemContext db;
 
-        public SystemLogController(IBaseTenantContext db)
+        public SystemLogController(ICoreSystemContext db)
         {
             this.db = db;
             db.ShowAllTenants = true;

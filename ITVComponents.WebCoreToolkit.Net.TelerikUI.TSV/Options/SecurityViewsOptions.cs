@@ -22,6 +22,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options
         public bool WithAreas { get; set; }
 
         public bool WithoutAreas { get; set; }
+        public bool UseRoleInheritance { get; set; }
     }
 
     public enum LinkMode

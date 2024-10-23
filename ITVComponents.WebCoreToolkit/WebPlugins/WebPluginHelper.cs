@@ -219,15 +219,35 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                             return n.Value;
                         }
                     }));
-                    var assignments = (from t in args.GenericTypes
+                    /*var assignments = (from t in args.GenericTypes
                         join a in impl on t.GenericTypeName equals a.GenericTypeName
-                        select new { Arg = t, Type = a.TypeExpression });
-                    foreach (var item in assignments)
+                        select new { Arg = t, Type = a.TypeExpression });*/
+                    List<(string name, Type type)> fixTypes = new List<(string name, Type type)>();
+                    Type argumentProvider = null;
+                    foreach (var item in impl)
                     {
-                        item.Arg.TypeResult = (Type)ExpressionParser.Parse(item.Type.ApplyFormat(args), dic);
+                        var t = (Type)ExpressionParser.Parse(item.TypeExpression.ApplyFormat(args), dic);
+                        if (item.GenericTypeName != "$$genericArgumentProvider")
+                        {
+                            fixTypes.Add((name: item.GenericTypeName,
+                                type: t));
+                        }
+                        else
+                        {
+                            argumentProvider = t;
+                        }
                     }
 
-                    args.Handled = true;
+                    if (argumentProvider == null)
+                    {
+                        var rawTypes = typeof(object).GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        args.Handled = args.GenericTypes.FinalizeTypeArguments(rawTypes);
+                    }
+                    else
+                    {
+                        var rawTypes = argumentProvider.GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        args.Handled = args.GenericTypes.FinalizeTypeArguments(rawTypes);
+                    }
                 }
             }
 

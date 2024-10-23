@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq.Expressions;
 using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
+using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Helpers;
@@ -31,17 +32,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options)
         {
+            var finaltth = typeof(AspNetSecurityContext).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,>), fixTypeEntries: ("TContext",typeof(AspNetSecurityContext)));
             return services.AddDbContext<AspNetSecurityContext>(options)
                 .RegisterExplicityInterfacesScoped<AspNetSecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
-                    var retVal = new AspNetDbSecurityRepository<AspNetSecurityContext>(i.GetService<AspNetSecurityContext>(),
+                    var retVal = new AspNetDbSecurityRepository<AspNetSecurityContext>(
+                        i.GetService<AspNetSecurityContext>(),
                         i.GetService<ILogger<AspNetDbSecurityRepository<AspNetSecurityContext>>>());
                     return i.GetAssetSecurityRepository(retVal);
 
                 })
                 //.AddScoped<ITenantTemplateHelper<AspNetSecurityContext>, TenantTemplateHelper<AspNetSecurityContext>>()
-                .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<AspNetSecurityContext>>();
+                .AddScoped(finaltth, typeof(TenantTemplateHelper<AspNetSecurityContext>));
         }
 
         /// <summary>
@@ -53,6 +56,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities<TImpl>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options) where TImpl:AspNetSecurityContext<TImpl>
         {
+            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
@@ -62,10 +66,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
                         return i.GetAssetSecurityRepository(retVal);
                     })
                     //.AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
-                    .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<TImpl>>();
+                    .AddScoped(finaltth, typeof(TenantTemplateHelper<TImpl>));
         }
 
-        /// <summary>
+        /*/// <summary>
         /// Enables DbIdentities with the default SecurityContext db-context
         /// </summary>
         /// <param name="contextType">the implementation-type if derived from the base SecurityContext - class</param>
@@ -79,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
                 .GetGenericMethodDefinition();
             method = method.MakeGenericMethod(contextType);
             return (IServiceCollection)method.Invoke(null, new object[] { services, options });
-        }
+        }*/
 
         /// <summary>
         /// Enables DbIdentities with the default SecurityContext db-context
@@ -92,6 +96,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
             where TImpl : AspNetSecurityContext<TImpl>
             where TTmpHelper : TenantTemplateHelper<TImpl>
         {
+            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
@@ -101,7 +106,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
                     return i.GetAssetSecurityRepository(retVal);
                 })
                 //.AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()
-                .AddScoped<ITenantTemplateHelper, TTmpHelper>();
+                .AddScoped(finaltth, typeof(TTmpHelper));
         }
 
         /// <summary>
@@ -114,7 +119,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
             return services.AddScoped<INavigationBuilder, AspNetDbNavigationBuilder<AspNetSecurityContext>>();
         }
 
-        /// <summary>
+        /*/// <summary>
         /// Activate DB-Navigation
         /// </summary>
         /// <param name="services">the Services-collection where to inject the DB-Navigation builder instance</param>
@@ -124,7 +129,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         {
             var t = typeof(AspNetDbNavigationBuilder<>).MakeGenericType(contextType);
             return services.AddScoped(typeof(INavigationBuilder), t);
-        }
+        }*/
 
         /// <summary>
         /// Activate DB-Navigation
@@ -147,7 +152,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
             return services.AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
         }
 
-        /// <summary>
+        /*/// <summary>
         /// Activate Db-Driven Shared Assets 
         /// </summary>
         /// <param name="services">the Services-collection where to inject the DB-Asset-handler instance</param>
@@ -157,7 +162,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         {
             var t = typeof(SharedAssetProvider<>).MakeGenericType(contextType);
             return services.AddScoped(typeof(ISharedAssetAdapter), t);
-        }
+        }*/
 
         /// <summary>
         /// Activate Db-Driven Application Refresh Token services 
@@ -176,10 +181,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <param name="services">the Services-collection where to inject the DB-AppToken-handler instance</param>
         /// <param name="contextType">the target type of the db-context to use</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseApplicationTokenService(this IServiceCollection services, Type contextType)
+        public static IServiceCollection UseApplicationTokenService<TImpl>(this IServiceCollection services) 
+            where TImpl : AspNetSecurityContext<TImpl>
         {
-            var t = typeof(ApplicationTokenService<>).MakeGenericType(contextType);
-            return services.AddScoped(typeof(IApplicationTokenService), t);
+            return services.AddScoped<IApplicationTokenService, ApplicationTokenService<TImpl>>();
         }
 
         /// <summary>

@@ -14,6 +14,7 @@ using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
@@ -38,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
         {
             using (var currentScope = services.CreateAsyncScope())
             {
-                var db = currentScope.ServiceProvider.GetService<IBaseTenantContext>();
+                var db = currentScope.ServiceProvider.GetService<ICoreSystemContext>();
                 var pluginsAccess = currentScope.ServiceProvider.GetService<IWebPluginHelper>();
                 var check = await db.HealthScripts.FirstOrDefaultAsync(n =>
                     n.HealthScriptName == context.Registration.Name);

@@ -16,6 +16,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         public int? PermissionId { get; set; }
         public int? UserId { get; set; }
 
+        public int? PermissiveRoleId { get; set; }
+
         public string UniQUID{get; set; }
         public bool Editable { get; set; }
         

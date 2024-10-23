@@ -12,9 +12,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 {
     public class DbTutorialSource:ITutorialSource
     {
-        private readonly IBaseTenantContext dbContext;
+        private readonly ICoreSystemContext dbContext;
 
-        public DbTutorialSource(IBaseTenantContext dbContext)
+        public DbTutorialSource(ICoreSystemContext dbContext)
         {
             this.dbContext = dbContext;
         }

@@ -1,5 +1,7 @@
 ﻿using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.DiagnosticsQueries;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using Microsoft.AspNetCore.Identity;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.CustomUserProperty;
 using DashboardParam = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardParam;
@@ -13,7 +15,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Diagnos
     /// <summary>
     /// DiagnosticsQueryStore that is bound to the Security Db-Context
     /// </summary>
-    public class AspNetDbDiagnosticsQueryStore<TImpl>: DbDiagnosticsQueryStore<string, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
+    public class AspNetDbDiagnosticsQueryStore<TImpl>: DbDiagnosticsQueryStore<Tenant, string, User, Role, Permission, UserRole, RolePermission, TenantUser,RoleRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation>
     where TImpl:AspNetSecurityContext<TImpl>
     {
         public AspNetDbDiagnosticsQueryStore(TImpl dbContext):base(dbContext)

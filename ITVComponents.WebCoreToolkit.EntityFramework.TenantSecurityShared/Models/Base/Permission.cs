@@ -8,13 +8,15 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base
 {
     [Index(nameof(PermissionNameUniqueness),IsUnique=true,Name="IX_UniquePermissionName")]
-    [ForeignKeySelection(typeof(PermissionSelector<,,,,,,>))]
-    public abstract class Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser> : ITVComponents.WebCoreToolkit.Models.Permission
-        where TRole : Role<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
-        where TPermission : Permission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
-        where TUserRole : UserRole<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
-        where TRolePermission : RolePermission<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
-        where TTenantUser : TenantUser<TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser>
+    [ForeignKeySelection(typeof(PermissionSelector<,,,,,,,,>))]
+    public abstract class Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole> : ITVComponents.WebCoreToolkit.Models.Permission
+        where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+        where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+        where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+        where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+        where TTenantUser: TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+        where TTenant: Tenant
+        where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
     {
         public Permission()
         {
@@ -36,6 +38,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         public virtual ICollection<TRolePermission> RolePermissions { get; set; } = new List<TRolePermission>();
 
         [ForeignKey(nameof(TenantId))]
-        public virtual Tenant Tenant { get; set; }
+        public virtual TTenant Tenant { get; set; }
     }
 }

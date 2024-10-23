@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using Microsoft.AspNetCore.Identity;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models
 {
-    public class Role: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.Role<string, User, Role,Permission,UserRole,RolePermission,TenantUser>
+    public class Role: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.Role<Tenant,string, User, Role,Permission,UserRole,RolePermission,TenantUser, RoleRole>
     {
     }
 }

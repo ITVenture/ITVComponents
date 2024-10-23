@@ -16,9 +16,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     [Authorize("HasPermission(GlobalSettings.View,GlobalSettings.Write),HasFeature(ITVAdminViews)"),Area("Util")]
     public class GlobalSettingsController:Controller
     {
-        private readonly IBaseTenantContext db;
+        private readonly ICoreSystemContext db;
 
-        public GlobalSettingsController(IBaseTenantContext db)
+        public GlobalSettingsController(ICoreSystemContext db)
         {
             this.db = db;
             db.ShowAllTenants = true;

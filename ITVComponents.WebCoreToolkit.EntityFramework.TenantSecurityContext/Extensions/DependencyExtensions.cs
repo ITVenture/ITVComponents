@@ -4,10 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Options;
+using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Navigation;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Security.SharedAssets;
@@ -34,6 +36,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options)
         {
+            var finaltth = typeof(SecurityContext).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,>), fixTypeEntries: ("TContext", typeof(SecurityContext)));
             return services.AddDbContext<SecurityContext>(options)
                 .RegisterExplicityInterfacesScoped<SecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
@@ -43,10 +46,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                     return i.GetAssetSecurityRepository(retVal);
                 })
                 //.AddScoped<ITenantTemplateHelper<SecurityContext>, TenantTemplateHelper<SecurityContext>>()
-                .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<SecurityContext>>();
+                .AddScoped(finaltth,typeof(TenantTemplateHelper<SecurityContext>));
         }
 
-        /// <summary>
+        /*/// <summary>
         /// Enables DbIdentities with the default SecurityContext db-context
         /// </summary>
         /// <param name="contextType">the implementation-type if derived from the base SecurityContext - class</param>
@@ -60,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                 .GetGenericMethodDefinition();
             method = method.MakeGenericMethod(contextType);
             return (IServiceCollection)method.Invoke(null, new object[] { services, options });
-        }
+        }*/
 
         /// <summary>
         /// Enables DbIdentities with the default SecurityContext db-context
@@ -71,6 +74,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities<TImpl>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options) where TImpl:SecurityContext<TImpl>
         {
+            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
@@ -80,7 +84,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                     return i.GetAssetSecurityRepository(retVal);
                 })
                 //.AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
-                .AddScoped<ITenantTemplateHelper, TenantTemplateHelper<TImpl>>();
+                .AddScoped(finaltth, typeof(TenantTemplateHelper<TImpl>));
         }
 
         /// <summary>
@@ -94,6 +98,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
             where TImpl : SecurityContext<TImpl>
             where TTmpHelper: TenantTemplateHelper<TImpl>
         {
+            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
@@ -103,7 +108,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
                     return i.GetAssetSecurityRepository(retVal);
                 })
                 //.AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()
-                .AddScoped<ITenantTemplateHelper, TTmpHelper>();
+                .AddScoped(finaltth, typeof(TTmpHelper));
         }
 
         /// <summary>
@@ -126,7 +131,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
             return services.AddScoped<INavigationBuilder, DbNavigationBuilder<TImpl>>();
         }
 
-        /// <summary>
+        /*/// <summary>
         /// Activate DB-Navigation
         /// </summary>
         /// <param name="services">the Services-collection where to inject the DB-Navigation builder instance</param>
@@ -136,7 +141,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         {
             var t = typeof(DbNavigationBuilder<>).MakeGenericType(contextType);
             return services.AddScoped(typeof(INavigationBuilder), t);
-        }
+        }*/
 
         /// <summary>
         /// Activate Db-Driven Shared Assets 
@@ -148,7 +153,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
             return services.AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
         }
 
-        /// <summary>
+        /*/// <summary>
         /// Activate Db-Driven Shared Assets 
         /// </summary>
         /// <param name="services">the Services-collection where to inject the DB-Asset-handler instance</param>
@@ -158,7 +163,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Ext
         {
             var t = typeof(SharedAssetProvider<>).MakeGenericType(contextType);
             return services.AddScoped(typeof(ISharedAssetAdapter), t);
-        }
+        }*/
 
         /// <summary>
         /// Activate Db-Driven Shared Assets 

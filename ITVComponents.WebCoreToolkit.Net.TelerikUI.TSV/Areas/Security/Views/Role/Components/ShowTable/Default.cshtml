@@ -8,10 +8,11 @@
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using Kendo.Mvc.TagHelpers
 @using Kendo.Mvc.UI
 @using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
 @{
-    var tmp = Html.Kendo().Grid<RoleViewModel>().Name($"RolesFor{ViewData["tenantId"]}_{ViewData["permissionId"]}_{ViewData["tenantUserId"]}")
+    var tmp = Html.Kendo().Grid<RoleViewModel>().Name($"RolesFor{ViewData["tenantId"]}_{ViewData["permissionId"]}_{ViewData["tenantUserId"]}_{ViewData["roleId"]}")
         //.HtmlAttributes(new { style = "width:50vw;" })
         .Columns(columns =>
         {
@@ -23,6 +24,10 @@
             else if (ViewData["tenantUserId"] != null)
             {
                 columns.InlineCheckbox(e => e.Assigned, "UniQUID", readOnly: !Context.RequestServices.VerifyUserPermissions(new []{"Roles.AssignUser"})).Title(TextsAndMessagesHelper.IWCN_P_STDV_Assigned).Width(150);
+            }
+            else if (ViewData["roleId"] != null)
+            {
+                columns.InlineCheckbox(e => e.Assigned, "UniQUID", readOnly: !Context.RequestServices.VerifyUserPermissions(new[] { "Roles.AssignRole" })).Title(TextsAndMessagesHelper.IWCN_P_STDV_Assigned).Width(150);
             }
             else
             {
@@ -43,7 +48,7 @@
         .ToolBar(toolbar =>
         {
             toolbar.RefreshTable();
-            if (ViewData["permissionId"] == null && ViewData["tenantUserId"] == null && Context.RequestServices.VerifyUserPermissions(new []{"Roles.Write"}))
+            if (ViewData["permissionId"] == null && ViewData["tenantUserId"] == null && ViewData["roleId"] == null && Context.RequestServices.VerifyUserPermissions(new []{"Roles.Write"}))
             {
                 toolbar.Create();
             }
@@ -52,12 +57,12 @@
         {
             var src = dataSource
                 .Ajax()
-                .Read(read => read.Action("Read", "Role", new {tenantId = ViewData["tenantId"], permissionId = ViewData["permissionId"], tenantUserId = ViewData["tenantUserId"] }));
-            if (Context.RequestServices.VerifyUserPermissions(new[] {"Roles.Write","Roles.AssignPermission","Roles.AssignUser"}))
+                .Read(read => read.Action("Read", "Role", new {tenantId = ViewData["tenantId"], permissionId = ViewData["permissionId"], tenantUserId = ViewData["tenantUserId"], roleId = ViewData["roleId"] }));
+            if (Context.RequestServices.VerifyUserPermissions(new[] {"Roles.Write","Roles.AssignPermission","Roles.AssignUser", "Roles.AssignRole"}))
             {
-                src.Create(create => create.Action("Create", "Role", new { tenantId = ViewData["tenantId"]}))
-            .Update(update => update.Action("Update", "Role"))
-            .Destroy(destroy => destroy.Action("Destroy", "Role"));
+                src.Create(create => create.Action("Create", "Role", new { tenantId = ViewData["tenantId"] }))
+                    .Update(update => update.Action("Update", "Role"))
+                    .Destroy(destroy => destroy.Action("Destroy", "Role"));
             }
             src.Model(m => m.Id(t => t.RoleId))
                 .Sort(n => n.Add(m => m.RoleName));
@@ -67,7 +72,7 @@
 .Sortable(c => c.Enabled(true))
 .Filterable(f => f.Enabled(true))
 .Resizable(c => c.Columns(true));
-    if (ViewData["tenantId"] != null && ViewData["tenantUserId"] == null && ViewData["permissionId"] == null)
+    if (ViewData["tenantId"] != null && ViewData["tenantUserId"] == null && ViewData["permissionId"] == null && ViewData["roleId"] == null)
     {
         tmp.ClientDetailTemplateId("RoleDetails");
     }

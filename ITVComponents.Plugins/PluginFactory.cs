@@ -1439,13 +1439,6 @@ namespace ITVComponents.Plugins
         //public bool KnownArgumentsUsed { get; set; }
     }
 
-    public class GenericTypeArgument
-    {
-        public string GenericTypeName { get; set; }
-
-        public Type TypeResult { get; set; }
-    }
-
     /// <summary>
     /// Informs a client class that a plugin has been initialized by the factory
     /// </summary>

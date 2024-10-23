@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using Microsoft.AspNetCore.Identity;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models
 {
-    public class TenantNavigationMenu: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.TenantNavigationMenu<string, User, Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu>
+    public class TenantNavigationMenu: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.TenantNavigationMenu<Tenant, string, User, Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, NavigationMenu,TenantNavigationMenu>
     {
     }
 }

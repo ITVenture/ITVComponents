@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using ITVComponents.DuckTyping.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
@@ -8,7 +9,11 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Helpers.Initialization;
+using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Interceptors;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Identity;
@@ -16,12 +21,35 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using DependencyExtensions = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions.DependencyExtensions;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 {
     [WebPart]
     public static class WebPartInit
     {
+        private static IDependencyInitializer init;
+
+        public static IDependencyInitializer DependencyInit => init;
+
+        public static bool ContextTypeInitialized { get; private set; }
+
+        public static void SetContextType(Type contextType)
+        {
+            if (ContextTypeInitialized)
+            {
+                throw new InvalidOperationException("ContextType already initialized!");
+            }
+
+            var t = contextType ?? typeof(AspNetSecurityContext);
+            (string name, Type type)[] fxparam = [(name: "TContext", type: t), (name: "TImpl", type: t)];
+            init = typeof(DependencyExtensions).WrapType<IDependencyInitializer>(t, fixParameters: fxparam);
+            init.ExtendWithStatic(typeof(EntityFramework.TenantSecurityShared.Extensions.DependencyExtensions), t,
+                fixParameters: fxparam);
+            ContextTypeInitialized = true;
+        }
+
+
         [LoadWebPartConfig]
         public static object LoadOptions(IConfiguration config, string settingsKey, string path)
         {
@@ -50,11 +78,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
-            Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (!ContextTypeInitialized)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                Type t = null;
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                    SetContextType(t);
+                }
+                else
+                {
+                    SetContextType(null);
+                }
             }
 
             if (partActivation.ActivateDbContext)
@@ -68,31 +104,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
             if (partActivation.UseNavigation)
             {
-                if (t != null)
-                {
-                    services.UseDbNavigation(t);
-                }
-                else
-                {
-                    services.UseDbNavigation();
-                }
+                DependencyInit.UseDbNavigation(services);
             }
 
             if (partActivation.UseSharedAssets)
             {
-                if (t != null)
-                {
-                    services.UseDbSharedAssets(t);
-                }
-                else
-                {
-                    services.UseDbSharedAssets();
-                }
+                DependencyInit.UseDbSharedAssets(services);
             }
 
             if (partActivation.UsePlugins)
             {
-                services.UseDbPlugins(partActivation.PluginBufferDuration);
+                DependencyInit.UseDbPlugins(services, partActivation.PluginBufferDuration);
             }
 
             if (partActivation.UseGlobalSettings)
@@ -102,7 +124,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
             if (partActivation.UseTenantSettings)
             {
-                services.UseTenantSettings();
+                DependencyInit.UseTenantSettings(services);
             }
 
             if (partActivation.UseLogAdapter)
@@ -112,14 +134,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
             if (partActivation.UseApplicationTokens)
             {
-                if (t != null)
-                {
-                    services.UseApplicationTokenService(t);
-                }
-                else
-                {
-                    services.UseApplicationTokenService();
-                }
+                DependencyInit.UseApplicationTokenService(services);
             }
             /*if (!string.IsNullOrEmpty(options?.ContextType))
             {
@@ -152,6 +167,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                         builder.AddScriptedCheck(item.Label);
                     }
                 }
+            }
+        }
+
+        [CustomConfigurator(typeof(DbContextOptionsBuilder))]
+        public static void ConfigureDbInterceptors(DbContextOptionsBuilder optionsBuilder, IServiceProvider services,
+            [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
+        {
+
+            if (partOptions.UseDefaultInterceptors)
+            {
+                optionsBuilder.AddInterceptors(
+                    new SecurityModificationInterceptor<Tenant, string, User, Role, Permission, UserRole, RolePermission,
+                        TenantUser, RoleRole>(services));
             }
         }
     }

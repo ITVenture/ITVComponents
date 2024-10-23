@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using ITVComponents.DuckTyping.Extensions;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.SettingsExtensions;
@@ -7,12 +8,14 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Helpers.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using DependencyExtensions = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions.DependencyExtensions;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql
 {
@@ -55,12 +58,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                 services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
             }
 
+            if (!AspNetCoreTenants.WebPartInit.ContextTypeInitialized)
+            {
+                AspNetCoreTenants.WebPartInit.SetContextType(t);
+            }
+
+            
+
             if (partActivation.ActivateDbContext)
             {
                 var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
-                if (t != null)
+                AspNetCoreTenants.WebPartInit.DependencyInit.UseDbIdentities(services, (services, options) =>
                 {
-                    services.UseDbIdentities(t, (services,options) =>
+                    options.UseNpgsql(partActivation.ConnectionStringName);
+                    manager.CustomObjectConfig(options, services);
+                });
+
+                /*if (t != null)
+                {
+                    services.UseDbIdentities(t, (services, options) =>
                     {
                         options.UseNpgsql(partActivation.ConnectionStringName);
                         manager.CustomObjectConfig(options, services);
@@ -73,7 +89,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         options.UseNpgsql(partActivation.ConnectionStringName);
                         manager.CustomObjectConfig(options, services);
                     });
-                }
+                }*/
             }
         }
     }

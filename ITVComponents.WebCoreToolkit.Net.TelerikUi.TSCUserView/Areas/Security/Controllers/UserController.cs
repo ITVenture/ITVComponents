@@ -113,7 +113,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 return Json((from p in db.Users
                     join tu in db.TenantUsers on p.UserId equals tu.UserId
                     join ro in db.SecurityRoles on tu.TenantId equals ro.TenantId
-                    join r in db.TenantUserRoles on new {tu.TenantUserId, ro.RoleId} equals new {r.TenantUserId, r.RoleId} into lj
+                    join r in db.TenantUserRoles/*.Where(n => n.TenantUserId != null && n.RoleId != null)*/ on new {tu.TenantUserId, ro.RoleId} equals new {TenantUserId= r.TenantUserId.Value, RoleId = r.RoleId.Value} into lj
                     from s in lj.DefaultIfEmpty()
                     where ro.RoleId == roleId.Value && tu.TenantId == tenantId
                     

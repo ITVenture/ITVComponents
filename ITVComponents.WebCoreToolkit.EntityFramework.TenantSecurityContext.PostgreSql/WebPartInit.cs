@@ -56,10 +56,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                 services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
             }
 
+            if (!TenantSecurityContext.WebPartInit.ContextTypeInitialized)
+            {
+                TenantSecurityContext.WebPartInit.SetContextType(t);
+            }
+
             if (partActivation.ActivateDbContext)
             {
                 var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
-                if (t != null)
+                TenantSecurityContext.WebPartInit.DependencyInit.UseDbIdentities(services, (services, options) =>
+                {
+                    options.UseNpgsql(partActivation.ConnectionStringName);
+                    manager.CustomObjectConfig(options, services);
+                });
+                /*if (t != null)
                 {
                     services.UseDbIdentities(t, (services, options) =>
                     {
@@ -75,8 +85,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                         manager.CustomObjectConfig(options, services);
                     });
 
-                    services.ConfigureComputedColumns<SecurityContext>();
-                }
+                    //services.ConfigureComputedColumns<SecurityContext>();
+                }*/
 
             }
         }

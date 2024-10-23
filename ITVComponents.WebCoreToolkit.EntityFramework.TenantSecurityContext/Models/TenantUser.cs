@@ -6,7 +6,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class TenantUser: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.TenantUser<int,User,Role,Permission,UserRole,RolePermission,TenantUser>
+    public class TenantUser: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.TenantUser<Tenant, int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole>
     {
     }
 }

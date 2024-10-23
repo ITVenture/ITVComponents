@@ -54,11 +54,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Loca
 
 
         private IEnumerable<LocalizedString> WithContext(
-            Func<IBaseTenantContext, IEnumerable<LocalizedString>> contextAction)
+            Func<ICoreSystemContext, IEnumerable<LocalizedString>> contextAction)
         {
             using (var sc = services.CreateScope())
             {
-                var ctx = sc.ServiceProvider.GetService<IBaseTenantContext>();
+                var ctx = sc.ServiceProvider.GetService<ICoreSystemContext>();
                 return contextAction(ctx).ToList();
             }
         }

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>4.0.0-PRE016</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+    <RazorCompileOnPublish>true</RazorCompileOnPublish>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <!--Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" /-->
+  </Target>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />
+    <ProjectReference Include="..\ITVComponents.Decisions.Entities\ITVComponents.Decisions.Entities.csproj" />
+    <ProjectReference Include="..\ITVComponents.DuckTyping\ITVComponents.DuckTyping.csproj" />
+    <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
+    <ProjectReference Include="..\ITVComponents.Formatting\ITVComponents.Formatting.csproj" />
+    <ProjectReference Include="..\ITVComponents.ParallelProcessing.TaskSchedulers\ITVComponents.ParallelProcessing.TaskSchedulers.csproj" />
+    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
+    <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Models\TreeModels\" />
+  </ItemGroup>
+</Project>

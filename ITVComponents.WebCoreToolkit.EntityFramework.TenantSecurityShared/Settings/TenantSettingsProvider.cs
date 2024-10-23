@@ -7,18 +7,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
     /// <summary>
     /// Tenant-capable settings-provider
     /// </summary>
-    internal class TenantSettingsProvider:IScopedSettingsProvider
+    internal class TenantSettingsProvider<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> :IScopedSettingsProvider
+    where TTenant: Tenant 
+    where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TWebPluginConstant : WebPluginConstant<TTenant>
+    where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TSequence : Sequence<TTenant>
+    where TTenantSetting : TenantSetting<TTenant>, new()
+    where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
     {
         /// <summary>
         /// Holds the db-context with the tenant-settings
         /// </summary>
-        private readonly IBaseTenantContext dbContext;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> dbContext;
 
         /// <summary>
         /// Initializes a new instance of the TenantSettinsgProvider class
         /// </summary>
         /// <param name="dbContext"></param>
-        public TenantSettingsProvider(IBaseTenantContext dbContext)
+        public TenantSettingsProvider(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> dbContext)
         {
             this.dbContext = dbContext;
         }
@@ -83,7 +90,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
                 n.SettingsKey == key && n.JsonSetting && n.Tenant.TenantName == explicitUserScope);
             if (original == null)
             {
-                original = new TenantSetting
+                original = new TTenantSetting()
                 {
                     JsonSetting = true,
                     SettingsKey = key,
@@ -102,7 +109,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
                 n.SettingsKey == key && !n.JsonSetting && n.Tenant.TenantName == explicitUserScope);
             if (original == null)
             {
-                original = new TenantSetting
+                original = new TTenantSetting()
                 {
                     JsonSetting = false,
                     SettingsKey = key,

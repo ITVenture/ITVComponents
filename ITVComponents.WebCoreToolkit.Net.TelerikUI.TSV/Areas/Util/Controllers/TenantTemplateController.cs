@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
+using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
@@ -18,13 +19,20 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(Sysadmin),HasFeature(ITVAdminViews)"), Area("Util")]
-    public class TenantTemplateController:Controller
+    [Authorize("HasPermission(Sysadmin),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
+    public class TenantTemplateController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> : Controller 
+        where TTenant : Tenant 
+        where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPluginConstant : WebPluginConstant<TTenant>
+        where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TSequence : Sequence<TTenant>
+        where TTenantSetting : TenantSetting<TTenant>
+        where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
     {
-        public IBaseTenantContext db;
-        private readonly ITenantTemplateHelper templateHelper;
+        public IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> db;
+        private readonly ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> templateHelper;
 
-        public TenantTemplateController(IBaseTenantContext db, ITenantTemplateHelper templateHelper)
+        public TenantTemplateController(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> db, ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> templateHelper)
         {
             this.db = db;
             this.templateHelper = templateHelper;

@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -27,7 +28,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
         private readonly IStringLocalizer<IdentityMessages> localizer;
         private readonly ISecurityContextWithOnboarding dbContext;
         private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
-        private readonly ITenantTemplateHelper tenantInitializer;
+        private readonly ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation> tenantInitializer;
         //private readonly ITenantTemplateHelper<ISecurityContextWithOnboarding> tenantInitializer;
 
         public CreateTenantModel(
@@ -36,7 +37,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
             IStringLocalizer<IdentityMessages> localizer,
             ISecurityContextWithOnboarding dbContext,
             IGlobalSettings<TenantSetupOptions> setupOptions,
-            ITenantTemplateHelper tenantInitializer)
+            ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation> tenantInitializer)
         {
             _userManager = userManager;
             _signInManager = signInManager;

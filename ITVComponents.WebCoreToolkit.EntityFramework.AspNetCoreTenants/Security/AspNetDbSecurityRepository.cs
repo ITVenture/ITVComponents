@@ -4,7 +4,9 @@ using System.Linq;
 using System.Linq.Expressions;
 using Castle.Core.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
@@ -15,7 +17,7 @@ using Role = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Mode
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Security
 {
-    internal class AspNetDbSecurityRepository<TImpl>:TenantSecurityShared.Security.DbSecurityRepository<string, Models.User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
+    internal class AspNetDbSecurityRepository<TImpl>:TenantSecurityShared.Security.DbSecurityRepository<Tenant, string, Models.User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation>
     where TImpl:AspNetSecurityContext<TImpl>
     {
         private const string default1 = "Identity.Application";

@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.ExtendedFormatting;
+using ITVComponents.Helpers;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Config;
 using ITVComponents.Plugins.Helpers;
@@ -159,15 +160,36 @@ namespace ITVComponents.GenericService
                     }
                 }));
                 var tmp = ServiceConfigHelper.GenericTypeInformation[e.PluginUniqueName];
-                var impl = (from t in e.GenericTypes
+                /*var impl = (from t in e.GenericTypes
                     join j in tmp on t.GenericTypeName equals j.TypeParameterName
-                    select new { Param = t, Result = ExpressionParser.Parse(j.TypeExpression.ApplyFormat(e), dic) });
-                foreach (var item in impl)
+                    select new { Param = t, Result = ExpressionParser.Parse(j.TypeExpression.ApplyFormat(e), dic) });*/
+                List<(string name, Type type)> fixTypes = new List<(string name, Type type)>();
+                Type argumentProvider = null;
+                foreach (var item in tmp)
                 {
-                    item.Param.TypeResult = (Type)item.Result;
+                    var t = (Type)ExpressionParser.Parse(item.TypeExpression.ApplyFormat(e), dic);
+                    if (item.TypeParameterName!= "$$genericArgumentProvider")
+                    {
+                        fixTypes.Add((name: item.TypeParameterName,
+                            type: t));
+                    }
+                    else
+                    {
+                        argumentProvider = t;
+                    }
                 }
 
-                e.Handled = true;
+                if (argumentProvider == null)
+                {
+                    var rawTypes = typeof(object).GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                    e.Handled = e.GenericTypes.FinalizeTypeArguments(rawTypes);
+                }
+                else
+                {
+                    var rawTypes = argumentProvider.GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                    e.Handled = e.GenericTypes.FinalizeTypeArguments(rawTypes);
+                }
+                //e.Handled = true;
             }
         }
 

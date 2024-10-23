@@ -8,7 +8,8 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models
 {
-    public class TenantFeatureActivation
+    public class TenantFeatureActivation<TTenant>
+    where TTenant : Tenant
     {
         [Key]
         public int TenantFeatureActivationId { get; set; }
@@ -25,6 +26,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         public virtual Feature Feature { get; set; }
 
         [ForeignKey(nameof(TenantId))]
-        public virtual Tenant Tenant { get; set; }
+        public virtual TTenant Tenant { get; set; }
     }
 }

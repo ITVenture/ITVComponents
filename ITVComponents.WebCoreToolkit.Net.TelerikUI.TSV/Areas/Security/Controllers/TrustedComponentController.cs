@@ -22,10 +22,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
     [Authorize("HasPermission(Sysadmin),HasFeature(ITVAdminViews)"), Area("Security")]
     public class TrustedComponentController:Controller
     {
-       private readonly IBaseTenantContext db;
+       private readonly ICoreSystemContext db;
        private bool isSysAdmin;
 
-        public TrustedComponentController(IBaseTenantContext db, IServiceProvider services)
+        public TrustedComponentController(ICoreSystemContext db, IServiceProvider services)
         {
             this.db = db;
             if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))

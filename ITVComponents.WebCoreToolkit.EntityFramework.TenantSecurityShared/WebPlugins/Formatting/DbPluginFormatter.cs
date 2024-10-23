@@ -7,11 +7,21 @@ using ITVComponents.Formatting;
 using ITVComponents.Formatting.Extensions;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Security;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Formatting
 {
-    public class DbPluginFormatter:IStringFormatProvider
+    public class DbPluginFormatter<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> :IStringFormatProvider 
+        where TTenant : Tenant 
+        where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPluginConstant : WebPluginConstant<TTenant>
+        where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TSequence : Sequence<TTenant>
+        where TTenantSetting : TenantSetting<TTenant>
+        where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+
     {
         private Dictionary<string, object> formatPrototype = new Dictionary<string, object>();
 
@@ -30,7 +40,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// Initializes a new instance of the DbPluginFormatter class
         /// </summary>
         /// <param name="context">the database containing formatting-hints</param>
-        public DbPluginFormatter(IBaseTenantContext context, IWebPluginsSelector plugInSelector)
+        public DbPluginFormatter(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> context, IWebPluginsSelector plugInSelector)
         {
             if (context.FilterAvailable && !context.ShowAllTenants)
             {

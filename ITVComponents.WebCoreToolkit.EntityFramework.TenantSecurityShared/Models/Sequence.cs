@@ -10,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models
 {
     [Index(nameof(SequenceName), nameof(TenantId), IsUnique=true, Name="UQ_SequenceName")]
-    public class Sequence
+    public class Sequence<TTenant>
+    where TTenant:Tenant
     {
         [Key]
         public int SequenceId { get; set; }
@@ -30,6 +31,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         public int CurrentValue { get; set; } = -1;
 
         [ForeignKey(nameof(TenantId))]
-        public virtual Tenant Tenant { get; set; }
+        public virtual TTenant Tenant { get; set; }
     }
 }

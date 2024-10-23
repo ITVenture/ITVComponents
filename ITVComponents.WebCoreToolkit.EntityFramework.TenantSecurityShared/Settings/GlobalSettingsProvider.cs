@@ -8,13 +8,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
         /// <summary>
         /// Holds the db-context with the tenant-settings
         /// </summary>
-        private readonly IBaseTenantContext dbContext;
+        private readonly ICoreSystemContext dbContext;
 
         /// <summary>
         /// Initializes a new instance of the TenantSettinsgProvider class
         /// </summary>
         /// <param name="dbContext"></param>
-        public GlobalSettingsProvider(IBaseTenantContext dbContext)
+        public GlobalSettingsProvider(ICoreSystemContext dbContext)
         {
             this.dbContext = dbContext;
         }

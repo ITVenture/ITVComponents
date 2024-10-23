@@ -17,12 +17,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(Sequences.View,Sequences.Write),HasFeature(ITVAdminViews)"), Area("Util")]
-    public class SequenceController:Controller
+    [Authorize("HasPermission(Sequences.View,Sequences.Write),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
+    public class SequenceController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> : Controller where TTenant : Tenant where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter> where TWebPluginConstant : WebPluginConstant<TTenant> where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter> where TSequence : Sequence<TTenant>, new() where TTenantSetting : TenantSetting<TTenant> where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
     {
-        private readonly IBaseTenantContext db;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> db;
 
-        public SequenceController(IBaseTenantContext db)
+        public SequenceController(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> db)
         {
             this.db = db;
             db.ShowAllTenants = true;
@@ -47,24 +47,24 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             }
 
             return Json(db.Sequences.Where(n => n.TenantId == (tenantId??db.CurrentTenantId)).ToDataSourceResult(request,
-                n => n.ToViewModel<Sequence, SequenceViewModel>()));
+                n => n.ToViewModel<TSequence, SequenceViewModel>()));
         }
 
         [HttpPost]
         [Authorize("HasPermission(Sequences.Write)")]
         public async Task<IActionResult> Create([DataSourceRequest] DataSourceRequest request, int? tenantId)
         {
-            var model = new Sequence();
+            var model = new TSequence();
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<SequenceViewModel, Sequence>(model);
+                await this.TryUpdateModelAsync<SequenceViewModel, TSequence>(model);
                 model.TenantId = tenantId ?? db.CurrentTenantId??-1;
                 model.CurrentValue = model.MinValue - 1;
                 db.Sequences.Add(model);
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] { model.ToViewModel<Sequence, SequenceViewModel>() }
+            return Json(await new[] { model.ToViewModel<TSequence, SequenceViewModel>() }
                 .ToDataSourceResultAsync(request, ModelState));
         }
 
@@ -91,12 +91,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             var model = db.Sequences.First(n => n.SequenceId == viewModel.SequenceId);
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<SequenceViewModel, Sequence>(model, "",
+                await this.TryUpdateModelAsync<SequenceViewModel, TSequence>(model, "",
                     m => { return m.ElementType == null; });
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] { model.ToViewModel<Sequence, SequenceViewModel>() }
+            return Json(await new[] { model.ToViewModel<TSequence, SequenceViewModel>() }
                 .ToDataSourceResultAsync(request, ModelState));
         }
     }

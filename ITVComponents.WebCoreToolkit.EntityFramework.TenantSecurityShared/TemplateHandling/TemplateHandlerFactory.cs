@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Transactions;
+using ITVComponents.Helpers;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
@@ -26,6 +27,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
         private readonly IServiceProvider services;
         private readonly IWebPluginHelper pluginProvider;
         private readonly IHttpContextAccessor httpContext;
+        private readonly ICoreSystemContext sysContext;
         private ConcurrentDictionary<Type, object> bufferedServices = new ConcurrentDictionary<Type, object>();
         private ConcurrentDictionary<string, IPlugin> bufferedPlugins = new ConcurrentDictionary<string, IPlugin>();
 
@@ -35,11 +37,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
         private PluginFactory factory;
 
         public TemplateHandlerFactory(IServiceProvider services, IWebPluginHelper pluginProvider,
-            IHttpContextAccessor httpContext)
+            IHttpContextAccessor httpContext, ICoreSystemContext sysContext)
         {
             this.services = services;
             this.pluginProvider = pluginProvider;
             this.httpContext = httpContext;
+            this.sysContext = sysContext;
         }
 
         private PluginFactory Factory => factory ??= pluginProvider.GetFactory();
@@ -49,7 +52,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
             using (var session = SetupScripting(out var sc))
             {
                 var type = ProcessScript<Type>(session, configurator.ConfiguratorTypeBack);
-                
+                if (type.IsGenericTypeDefinition)
+                {
+                    type = sysContext.GetType().FinalizeType(type);
+                }
+
                 arguments = BuildArguments(session, configurator.ViewComponentParameters, sc);
 
                 return bufferedHandlers.GetOrAdd(type, BuildHandler);

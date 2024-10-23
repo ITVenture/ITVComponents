@@ -27,7 +27,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             trustfulTarget.RegisterSecurityRollback(this);
         }
 
-        public static FullSecurityAccessHelper<TTrustConfig> CreateForCaller<T>(IBaseTenantContext securityDb,
+        public static FullSecurityAccessHelper<TTrustConfig> CreateForCaller<T>(ICoreSystemContext securityDb,
             T trustingObject, TTrustConfig desiredTrust = null) where T : ITrustfulComponent<TTrustConfig>
         {
             var stack = new StackTrace(new StackFrame(1, false));
@@ -41,7 +41,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             return CreateForCallerInternal(securityDb, trustingObject, desiredTrust);
         }
 
-        private static FullSecurityAccessHelper<TTrustConfig> CreateForCallerInternal<T>(IBaseTenantContext securityDb, T trustingObject, TTrustConfig desiredTrust) where T: ITrustfulComponent<TTrustConfig>
+        private static FullSecurityAccessHelper<TTrustConfig> CreateForCallerInternal<T>(ICoreSystemContext securityDb, T trustingObject, TTrustConfig desiredTrust) where T: ITrustfulComponent<TTrustConfig>
         {
             var stack = new StackTrace(new StackFrame(2, false));
             var type = stack.GetFrame(0).GetMethod().DeclaringType;

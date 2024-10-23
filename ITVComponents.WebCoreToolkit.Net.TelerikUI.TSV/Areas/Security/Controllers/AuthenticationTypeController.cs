@@ -15,9 +15,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
     [Authorize("HasPermission(AuthenticationTypes.View,AuthenticationTypes.Write),HasFeature(ITVAdminViews)"), Area("Security")]
     public class AuthenticationTypeController : Controller
     {
-       private readonly IBaseTenantContext db;
+       private readonly ICoreSystemContext db;
 
-        public AuthenticationTypeController(IBaseTenantContext db)
+        public AuthenticationTypeController(ICoreSystemContext db)
         {
             this.db = db;
         }

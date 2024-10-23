@@ -80,15 +80,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
                 //services.AddSingleton(typeof(IStringLocalizerFactory), typeof(ContextStringLocalizer));
             }
         }
-
-        [CustomConfigurator(typeof(DbContextOptionsBuilder))]
-        public static void ConfigureDbInterceptors(DbContextOptionsBuilder optionsBuilder, IServiceProvider services,
-            [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
-        {
-            if (partOptions.ActivateCreateModifyAttributes)
-            {
-                optionsBuilder.AddInterceptors(new ModCreateInterceptor(services, partOptions.UseUTCForCreateModifyAttributes));
-            }
-        }
     }
 }

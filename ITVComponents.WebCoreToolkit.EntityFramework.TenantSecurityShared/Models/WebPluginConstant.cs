@@ -5,8 +5,9 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models
 {
     [Index(nameof(NameUniqueness), IsUnique=true, Name="IX_UniquePluginConst")]
-    public class WebPluginConstant
+    public class WebPluginConstant<TTenant> where TTenant : Tenant
     {
+        [Key]
         public int WebPluginConstantId { get; set; }
 
         [Required, MaxLength(128)]
@@ -21,6 +22,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         public int? TenantId { get;set; }
         
         [ForeignKey(nameof(TenantId))]
-        public virtual Tenant Tenant { get; set; }
+        public virtual TTenant Tenant { get; set; }
     }
 }

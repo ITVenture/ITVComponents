@@ -1,2 +1,2 @@
 ﻿@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
-@await Component.InvokeAsync(typeof(ShowTable),new{customViewData = new Dictionary<string,object>{{"tenantId", ViewData["tenantId"] },{"permissionId",ViewData["permissionId"]}, { "tenantUserId", ViewData["tenantUserId"] } }})
+@await Component.InvokeAsync(typeof(ShowTable),new{customViewData = new Dictionary<string,object>{{"tenantId", ViewData["tenantId"] },{"permissionId",ViewData["permissionId"]}, { "tenantUserId", ViewData["tenantUserId"] }, {"roleId", ViewData["roleId"]} }})

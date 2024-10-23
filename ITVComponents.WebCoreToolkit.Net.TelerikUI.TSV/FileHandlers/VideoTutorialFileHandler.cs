@@ -14,9 +14,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHan
 {
     public class VideoTutorialFileHandler : IAsyncFileHandler, IPlugin
     {
-        private readonly IBaseTenantContext db;
+        private readonly ICoreSystemContext db;
 
-        public VideoTutorialFileHandler(IBaseTenantContext db)
+        public VideoTutorialFileHandler(ICoreSystemContext db)
         {
             this.db = db;
         }

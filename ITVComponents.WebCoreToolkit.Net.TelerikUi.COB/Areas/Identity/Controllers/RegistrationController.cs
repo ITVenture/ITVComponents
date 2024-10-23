@@ -16,6 +16,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.DTO;
 using ITVComponents.WebCoreToolkit.Options;
@@ -35,7 +36,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
 {
     [Area("Identity"), AllowAnonymous, ConstructedGenericControllerConvention]
     public class RegistrationController<TContext> : Controller
-    where TContext: DbContext, ISecurityContextWithOnboarding
+    where TContext: DbContext, ISecurityContextWithOnboarding 
     {
         private readonly UserManager<User> userManager;
         private readonly SignInManager<User> signInManager;
@@ -44,7 +45,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
         private readonly IStringLocalizer<IdentityMessages> localizer;
         private readonly TContext dbContext;
         private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
-        private readonly ITenantTemplateHelper tenantInitializer;
+        private readonly ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation> tenantInitializer;
         private readonly IOptions<AuthenticationHandlerOptions> availableAuthenticators;
         private readonly ISecurityRepository securityRepo;
 
@@ -55,7 +56,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
             IStringLocalizer<IdentityMessages> localizer,
             TContext dbContext,
             IGlobalSettings<TenantSetupOptions> setupOptions,
-            ITenantTemplateHelper tenantInitializer,
+            ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation> tenantInitializer,
             IOptions<AuthenticationHandlerOptions> availableAuthenticators,
             ISecurityRepository securityRepo)
         {

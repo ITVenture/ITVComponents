@@ -6,9 +6,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Logg
 {
     internal class DbLogOutputAdapter:ILogOutputAdapter
     {
-        private readonly IBaseTenantContext db;
+        private readonly ICoreSystemContext db;
 
-        public DbLogOutputAdapter(IBaseTenantContext db)
+        public DbLogOutputAdapter(ICoreSystemContext db)
         {
             this.db = db;
         }

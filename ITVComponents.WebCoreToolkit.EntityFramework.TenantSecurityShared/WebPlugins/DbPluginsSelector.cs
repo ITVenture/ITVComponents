@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 using ITVComponents.WebCoreToolkit.Models;
@@ -11,20 +12,27 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins
 {
-    internal class DbPluginsSelector:IWebPluginsSelector
+    internal class DbPluginsSelector<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> :IWebPluginsSelector
+    where TTenant : Tenant 
+    where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
+    where TWebPluginConstant : WebPluginConstant<TTenant>
+    where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TSequence : Sequence<TTenant>
+    where TTenantSetting : TenantSetting<TTenant>
+    where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
     {
-        private readonly IBaseTenantContext securityContext;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> securityContext;
         private readonly IPermissionScope scopeProvider;
         private readonly WebPluginBufferingOptions bufferConfig;
 
-        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo>>
-            bufferedPlugins = new ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo>>();
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>>>
+            bufferedPlugins = new ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>>>();
 
         /// <summary>
         /// Initializes a new instance of hte DbPluginsSelector class
         /// </summary>
         /// <param name="securityContext">the injected security-db-context</param>
-        public DbPluginsSelector(IBaseTenantContext securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
+        public DbPluginsSelector(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
         {
             this.securityContext = securityContext;
             this.scopeProvider = scopeProvider;
@@ -105,14 +113,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
             return securityContext.WebPlugins.FirstOrDefault(n => (n.TenantId == null || n.Tenant.TenantName == ExplicitPluginPermissionScope) && n.UniqueName == uniqueName);
         }
 
-        private WebPlugin TryRegisterPlugin(string uniqueName, Models.WebPlugin pluginData)
+        private WebPlugin TryRegisterPlugin(string uniqueName, TWebPlugin pluginData)
         {
             var dc = bufferedPlugins.GetOrAdd(scopeProvider.PermissionPrefix,
-                n => new ConcurrentDictionary<string, DbPluginBufferInfo>());
-            dc.TryAdd(uniqueName, new DbPluginBufferInfo
+                n => new ConcurrentDictionary<string, DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>>());
+            dc.TryAdd(uniqueName, new DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>
             {
                 Created = DateTime.Now,
-                Plugin = pluginData!=null?new WebPlugin
+                Plugin = pluginData!=null?new TWebPlugin
                 {
                     AutoLoad = pluginData.AutoLoad,
                     Constructor = pluginData.Constructor,
@@ -124,10 +132,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
             return pluginData;
         }
 
-        private bool PluginBuffered(string uniqueName, out DbPluginBufferInfo bufferInfo)
+        private bool PluginBuffered(string uniqueName, out DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter> bufferInfo)
         {
             var dc = bufferedPlugins.GetOrAdd(scopeProvider.PermissionPrefix,
-                n => new ConcurrentDictionary<string, DbPluginBufferInfo>());
+                n => new ConcurrentDictionary<string, DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>>());
             var retVal = dc.TryGetValue(uniqueName, out bufferInfo);
             if (retVal && bufferConfig.BufferDuration != 0 &&
                 DateTime.Now.Subtract(bufferInfo.Created).TotalSeconds > bufferConfig.BufferDuration)

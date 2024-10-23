@@ -6,7 +6,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class AssetTemplate: AssetTemplate<int, User, Role, Permission, UserRole, RolePermission, TenantUser, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature>
+    public class AssetTemplate: AssetTemplate<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature>
     {
     }
 }

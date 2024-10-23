@@ -8,6 +8,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.DiagnosticsQueries;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using Microsoft.AspNetCore.Http;
 using DashboardParam = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DashboardParam;
 using DashboardWidget = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.DashboardWidget;
@@ -17,7 +19,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Dia
     /// <summary>
     /// DiagnosticsQueryStore that is bound to the Security Db-Context
     /// </summary>
-    public class DbDiagnosticsQueryStore<TImpl>: DbDiagnosticsQueryStore<int, User, Role, Permission, UserRole, RolePermission, TenantUser, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
+    public class DbDiagnosticsQueryStore<TImpl>: DbDiagnosticsQueryStore<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation>
         where TImpl:SecurityContext<TImpl>
     {
         public DbDiagnosticsQueryStore(TImpl dbContext):base(dbContext)

@@ -36,9 +36,7 @@ using SystemEvent = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityS
 using Tenant = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant;
 using TenantDiagnosticsQuery = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.TenantDiagnosticsQuery;
 using TenantNavigationMenu = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.TenantNavigationMenu;
-using TenantSetting = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting;
 using TutorialStream = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream;
-using WebPlugin = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin;
 using AppPermission = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.AppPermission;
 using AppPermissionSet = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.AppPermissionSet;
 using ClientAppTemplatePermission = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.ClientAppTemplatePermission;
@@ -51,11 +49,12 @@ using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Expressions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class AspNetSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider, ISecurityContext<string, User, Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
+    public class AspNetSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider, ISecurityContext<Tenant, string, User, Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser,FlatWebPlugin,FlatWebPluginConstant,FlatWebPluginGenericParameter,FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation>
                                                 where TImpl:AspNetSecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -276,6 +275,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
         public DbSet<RolePermission> RolePermissions { get;set; }
 
+        public DbSet<RoleRole> RoleRoles { get; set; }
+
         public DbSet<HealthScript> HealthScripts { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View")]
@@ -292,9 +293,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Sysadmin")]
         public DbSet<TenantTemplate> TenantTemplates { get; set; }
 
-        public DbSet<TenantSetting> TenantSettings { get; set; }
+        public DbSet<TenantType> TenantTypes { get; set; }
 
-        public DbSet<TenantFeatureActivation> TenantFeatureActivations { get; set; }
+        public DbSet<FlatTenantSetting> TenantSettings { get; set; }
+
+        public DbSet<FlatTenantFeatureActivation> TenantFeatureActivations { get; set; }
 
         public DbSet<TenantUser> TenantUsers { get; set; }
 
@@ -302,11 +305,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
         public DbSet<TenantNavigationMenu> TenantNavigation { get;set; }
 
-        public DbSet<WebPlugin> WebPlugins{get;set;}
+        public DbSet<FlatWebPlugin> WebPlugins{get;set;}
 
-        public DbSet<WebPluginGenericParameter> GenericPluginParams { get; set; }
+        public DbSet<FlatWebPluginGenericParameter> GenericPluginParams { get; set; }
 
-        public DbSet<WebPluginConstant> WebPluginConstants { get; set; }
+        public DbSet<FlatWebPluginConstant> WebPluginConstants { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DashboardWidgets.Write", "DashboardWidgets.View")]
         public DbSet<DiagnosticsQuery> DiagnosticsQueries { get; set; }
@@ -339,7 +342,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
 
-        public DbSet<Sequence> Sequences { get; set; }
+        public DbSet<FlatSequence> Sequences { get; set; }
         public DbSet<Culture> Cultures { get; set; }
         public DbSet<TenantSecurityShared.Models.Localization> Localizations { get; set; }
         public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
@@ -369,9 +372,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             base.OnModelCreating(modelBuilder);
             modelBuilder.TableNamesFromProperties(this);
 
-            modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
+            /*modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
             modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
+            modelBuilder.Entity<TenantUser>(b => b.Property(n => n.Enabled).HasDefaultValue(true));*/
+            modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.PermittedRoles).WithOne(pr => pr.PermissiveRole).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.PermissiveRoles).WithOne(pr => pr.PermittedRole).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<TenantUser>(b => b.Property(n => n.Enabled).HasDefaultValue(true));
+            modelBuilder.Entity<TenantUser>().HasMany(n => n.Roles).WithOne(n => n.User).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<RolePermission>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<RolePermission>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingLinks).OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }
 

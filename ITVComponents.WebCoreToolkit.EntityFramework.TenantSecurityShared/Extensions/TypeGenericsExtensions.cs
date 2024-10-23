@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         public static Dictionary<string, Type> GetSecurityContextArguments(this Type type)
         {
             var secDefinition = type.GetInterfaces().FirstOrDefault(
-                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>));
+                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>));
             if (secDefinition != null)
             {
                 var types = secDefinition.GenericTypeArguments;

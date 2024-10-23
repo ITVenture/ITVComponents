@@ -49,6 +49,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
             [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
+            /*Type t = null;
+            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            {
+                var dic = new Dictionary<string, object>();
+                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
+            }*/
+
             Type t = null;
             if (!string.IsNullOrEmpty(contextOptions.ContextType))
             {
@@ -57,13 +65,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
                 services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
             }
 
+            if (!AspNetCoreTenants.WebPartInit.ContextTypeInitialized)
+            {
+                AspNetCoreTenants.WebPartInit.SetContextType(t);
+            }
+
             if (partActivation.ActivateDbContext)
             {
                 var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
-                if (t != null)
+                AspNetCoreTenants.WebPartInit.DependencyInit.UseDbIdentities(services, (services, options) =>
+                {
+                    options.UseSqlServer(partActivation.ConnectionStringName);
+                    manager.CustomObjectConfig(options, services);
+                });
+                /*if (t != null)
                 {
                     //services.AddDbContext<>()
-                    services.UseDbIdentities(t, (services,options) =>
+                    AspNetCoreTenants.WebPartInit.DependencyInit.UseDbIdentities(services, (services,options) =>
                     {
                         options.UseSqlServer(partActivation.ConnectionStringName);
                         manager.CustomObjectConfig(options, services);
@@ -76,7 +94,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
                         options.UseSqlServer(partActivation.ConnectionStringName);
                         manager.CustomObjectConfig(options, services);
                     });
-                }
+                }*/
             }
         }
     }

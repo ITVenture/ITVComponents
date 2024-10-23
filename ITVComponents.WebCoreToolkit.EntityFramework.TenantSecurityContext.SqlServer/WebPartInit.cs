@@ -58,10 +58,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sql
                 services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
             }
 
+            if (!TenantSecurityContext.WebPartInit.ContextTypeInitialized)
+            {
+                TenantSecurityContext.WebPartInit.SetContextType(t);
+            }
+
             if (partActivation.ActivateDbContext)
             {
                 var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
-                if (t != null)
+                TenantSecurityContext.WebPartInit.DependencyInit.UseDbIdentities(services, (services, options) =>
+                {
+                    options.UseSqlServer(partActivation.ConnectionStringName);
+                    manager.CustomObjectConfig(options, services);
+                });
+
+                /*if (t != null)
                 {
                     services.UseDbIdentities(t, (services, options) =>
                     {
@@ -77,7 +88,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sql
                         options.UseSqlServer(partActivation.ConnectionStringName);
                         manager.CustomObjectConfig(options, services);
                     });
-                }
+                }*/
 
             }
         }
