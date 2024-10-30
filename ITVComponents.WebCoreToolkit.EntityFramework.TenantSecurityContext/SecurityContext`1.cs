@@ -387,6 +387,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             modelBuilder.Entity<TenantUser>().HasMany(n => n.Roles).WithOne(n => n.User).OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<RolePermission>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren).OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<RolePermission>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingLinks).OnDelete(DeleteBehavior.ClientSetNull);
+            
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }
 

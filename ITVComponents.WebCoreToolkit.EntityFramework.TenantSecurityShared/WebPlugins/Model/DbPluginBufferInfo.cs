@@ -8,12 +8,13 @@ using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Model
 {
-    internal class DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    public class DbPluginBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>
     where TTenant : Tenant 
     where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
-    where TWebPlugin: WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TWebPlugin: WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>*/
     {
-        public TWebPlugin Plugin { get; set; }
+        public int? WebPluginId { get; set; }
+        public WebPlugin Plugin { get; set; }
         public DateTime Created { get; set; }
     }
 }

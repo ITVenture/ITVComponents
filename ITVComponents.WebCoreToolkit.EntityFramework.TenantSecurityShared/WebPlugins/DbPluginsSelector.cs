@@ -3,12 +3,16 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.Comparers;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins
 {
@@ -25,8 +29,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         private readonly IPermissionScope scopeProvider;
         private readonly WebPluginBufferingOptions bufferConfig;
 
-        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>>>
-            bufferedPlugins = new ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>>>();
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>
+            bufferedPlugins = new ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>();
 
         /// <summary>
         /// Initializes a new instance of hte DbPluginsSelector class
@@ -64,7 +68,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// <returns></returns>
         public IEnumerable<WebPlugin> GetStartupPlugins()
         {
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            /*if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
                 return from p in securityContext.WebPlugins
                     where !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
@@ -73,18 +77,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
             }
 
             if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
-            {
+            {*/
                 return from p in securityContext.WebPlugins
                     where p.TenantId == null && !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
                     orderby p.UniqueName
                     select p;
-            }
+            /*}
 
             return from p in securityContext.WebPlugins
                 where (p.TenantId == null || p.Tenant.TenantName == ExplicitPluginPermissionScope) &&
                       !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
                 orderby p.UniqueName
-                select p;
+                select p;*/
         }
 
         /// <summary>
@@ -94,48 +98,64 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// <returns>a WebPlugin definition that can be processed by the underlying factory</returns>
         public WebPlugin GetPlugin(string uniqueName)
         {
+            return GetPlugin(uniqueName, out _);
+        }
+
+        private WebPlugin GetPlugin(string uniqueName, out int? webPluginId)
+        {
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && PluginBuffered(uniqueName, out var bufferInfo))
             {
+                webPluginId = bufferInfo.WebPluginId;
                 return bufferInfo.Plugin;
             }
 
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
-                return TryRegisterPlugin(uniqueName, securityContext.WebPlugins.FirstOrDefault(n => n.UniqueName == uniqueName && n.TenantId != null) ??
-                                         securityContext.WebPlugins.FirstOrDefault(n => n.UniqueName == uniqueName && n.TenantId == null));
+                var pi = securityContext.WebPlugins.FirstOrDefault(
+                             n => n.UniqueName == uniqueName && n.TenantId != null) ??
+                         securityContext.WebPlugins.FirstOrDefault(
+                             n => n.UniqueName == uniqueName && n.TenantId == null);
+                webPluginId = pi?.WebPluginId;
+                return TryRegisterPlugin(uniqueName, pi);
             }
 
             if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
             {
-                return securityContext.WebPlugins.FirstOrDefault(n => n.TenantId == null && n.UniqueName == uniqueName);
+                var pi = securityContext.WebPlugins.FirstOrDefault(n => n.TenantId == null && n.UniqueName == uniqueName);
+                webPluginId = pi?.WebPluginId;
+                return pi;
             }
 
-            return securityContext.WebPlugins.FirstOrDefault(n => (n.TenantId == null || n.Tenant.TenantName == ExplicitPluginPermissionScope) && n.UniqueName == uniqueName);
+            var pret = securityContext.WebPlugins.FirstOrDefault(n => n.Tenant.TenantName == ExplicitPluginPermissionScope && n.UniqueName == uniqueName) ??
+                   securityContext.WebPlugins.FirstOrDefault(n => n.TenantId == null && n.UniqueName == uniqueName);
+            webPluginId = pret?.WebPluginId;
+            return pret;
         }
 
         private WebPlugin TryRegisterPlugin(string uniqueName, TWebPlugin pluginData)
         {
             var dc = bufferedPlugins.GetOrAdd(scopeProvider.PermissionPrefix,
-                n => new ConcurrentDictionary<string, DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>>());
-            dc.TryAdd(uniqueName, new DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>
+                n => new ConcurrentDictionary<string, DbPluginBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());
+            dc.TryAdd(uniqueName, new DbPluginBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/
             {
                 Created = DateTime.Now,
-                Plugin = pluginData!=null?new TWebPlugin
+                Plugin = pluginData!=null?new WebPlugin()
                 {
                     AutoLoad = pluginData.AutoLoad,
                     Constructor = pluginData.Constructor,
                     StartupRegistrationConstructor = pluginData.StartupRegistrationConstructor,
                     UniqueName = pluginData.UniqueName  
-                }:null
+                }:null,
+                WebPluginId = pluginData?.WebPluginId
             });
 
             return pluginData;
         }
 
-        private bool PluginBuffered(string uniqueName, out DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter> bufferInfo)
+        private bool PluginBuffered(string uniqueName, out DbPluginBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/ bufferInfo)
         {
             var dc = bufferedPlugins.GetOrAdd(scopeProvider.PermissionPrefix,
-                n => new ConcurrentDictionary<string, DbPluginBufferInfo<TTenant, TWebPlugin, TWebPluginGenericParameter>>());
+                n => new ConcurrentDictionary<string, DbPluginBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());
             var retVal = dc.TryGetValue(uniqueName, out bufferInfo);
             if (retVal && bufferConfig.BufferDuration != 0 &&
                 DateTime.Now.Subtract(bufferInfo.Created).TotalSeconds > bufferConfig.BufferDuration)
@@ -156,10 +176,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         {
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
-                return from p in securityContext.WebPlugins
-                    where !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad
-                       orderby p.UniqueName
-                    select p;
+                return (from p in securityContext.WebPlugins
+                    where p.TenantId != null
+                    select new WebPlugin
+                    {
+                        AutoLoad = p.AutoLoad, Constructor = p.Constructor,
+                        StartupRegistrationConstructor = p.StartupRegistrationConstructor, UniqueName = p.UniqueName
+                    }).AsEnumerable().Union((from p in securityContext.WebPlugins
+                    where p.TenantId == null
+                    select new WebPlugin
+                    {
+                        AutoLoad = p.AutoLoad, Constructor = p.Constructor,
+                        StartupRegistrationConstructor = p.StartupRegistrationConstructor, UniqueName = p.UniqueName
+                    }).AsEnumerable(),
+                    new WebPluginComparer()).Where(n => !string.IsNullOrEmpty(n.Constructor) && n.AutoLoad);
             }
 
             if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
@@ -170,11 +200,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
                     select p;
             }
 
-            return from p in securityContext.WebPlugins
+            return (from p in securityContext.WebPlugins
+                where p.Tenant.TenantName == ExplicitPluginPermissionScope
+                select new WebPlugin
+                {
+                    AutoLoad = p.AutoLoad,
+                    Constructor = p.Constructor,
+                    StartupRegistrationConstructor = p.StartupRegistrationConstructor,
+                    UniqueName = p.UniqueName
+                }).AsEnumerable().Union((from p in securityContext.WebPlugins
+                where p.TenantId == null
+                select new WebPlugin
+                {
+                    AutoLoad = p.AutoLoad,
+                    Constructor = p.Constructor,
+                    StartupRegistrationConstructor = p.StartupRegistrationConstructor,
+                    UniqueName = p.UniqueName
+                }).AsEnumerable(),
+                new WebPluginComparer()).Where(p => !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad);
+
+            /*return from p in securityContext.WebPlugins
                 where (p.TenantId == null || p.Tenant.TenantName == ExplicitPluginPermissionScope) &&
                       !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad
                    orderby p.UniqueName
-                select p;
+                select p;*/
         }
 
         /// <summary>
@@ -193,22 +242,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// <returns>a list of parametetrs for this plugin</returns>
         public IEnumerable<WebPluginGenericParam> GetGenericParameters(string uniqueName)
         {
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
-            {
-                return from p in securityContext.GenericPluginParams
-                    where p.Plugin.UniqueName == uniqueName
-                    select p;
-            }
-
-            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
-            {
-                return from p in securityContext.GenericPluginParams
-                    where p.Plugin.TenantId == null &&  p.Plugin.UniqueName == uniqueName
-                    select p;
-            }
-
+            var plug = GetPlugin(uniqueName, out var id);
             return from p in securityContext.GenericPluginParams
-                where (p.Plugin.TenantId == null || p.Plugin.Tenant.TenantName == ExplicitPluginPermissionScope) && p.Plugin.UniqueName == uniqueName
+                where p.WebPluginId == id
                 select p;
         }
     }
