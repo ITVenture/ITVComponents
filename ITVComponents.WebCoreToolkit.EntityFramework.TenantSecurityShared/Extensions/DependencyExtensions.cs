@@ -54,7 +54,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseTenantSettings<TContext>(this IServiceCollection services) where TContext : DbContext
         {
-            var tff = typeof(TContext).FinalizeType(typeof(TenantSettingsProvider<,,,,,,>));
+            var tff = typeof(TContext).FinalizeType(typeof(TenantSettingsProvider<,,,,,,,>));
             return services.AddScoped(typeof(IScopedSettingsProvider), tff);
         }
 

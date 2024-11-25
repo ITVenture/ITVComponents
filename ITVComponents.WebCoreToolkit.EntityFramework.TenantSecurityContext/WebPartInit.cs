@@ -13,6 +13,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Extensi
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Helpers.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Interceptors;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
@@ -173,7 +175,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
                     if (apply)
                     {
-                        builder.AddScriptedCheck(item.Label);
+                        builder.AddScriptedCheck<ScriptedHealthCheck<BaseTenantContextSecurityTrustConfig>,BaseTenantContextSecurityTrustConfig>(item.Label);
                     }
                 }
             }

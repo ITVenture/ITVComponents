@@ -33,7 +33,4 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Models\TreeModels\" />
-  </ItemGroup>
 </Project>

@@ -2,12 +2,11 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.Comparers;
@@ -15,9 +14,9 @@ using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.Extensions.Options;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugins
 {
-    internal class DbPluginsSelector<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> :IWebPluginsSelector
+    internal class DbPluginsSelector<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IWebPluginsSelector
     where TTenant : HierarchyTenant
     where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
     where TWebPluginConstant : WebPluginConstant<TTenant>
@@ -25,8 +24,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins
     where TSequence : Sequence<TTenant>
     where TTenantSetting : TenantSetting<TTenant>
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+    where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
     {
-        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> securityContext;
+        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext;
         private readonly IPermissionScope scopeProvider;
         private readonly WebPluginBufferingOptions bufferConfig;
 
@@ -37,7 +37,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins
         /// Initializes a new instance of hte DbPluginsSelector class
         /// </summary>
         /// <param name="securityContext">the injected security-db-context</param>
-        public DbPluginsSelector(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
+        public DbPluginsSelector(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
         {
             this.securityContext = securityContext;
             this.scopeProvider = scopeProvider;
@@ -133,6 +133,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins
 
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
+                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                    new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
                 var pi = (from p in securityContext.UpwardsTenantTreeView
                         join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
                         where pin.UniqueName == uniqueName
@@ -204,6 +206,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins
         {
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
+                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                    new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
                 return 
                     (from rprot in (from t in securityContext.UpwardsTenantTreeView
                                 join p in securityContext.WebPlugins on t.ParentTenantId equals p.TenantId
@@ -264,6 +268,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins
         {
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
+                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                    new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
                 return from p in securityContext.GenericPluginParams
                     where p.Plugin.UniqueName == uniqueName
                     select p;

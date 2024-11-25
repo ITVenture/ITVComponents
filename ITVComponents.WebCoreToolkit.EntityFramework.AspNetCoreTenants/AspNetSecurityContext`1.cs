@@ -54,7 +54,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.F
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class AspNetSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider, ISecurityContext<Tenant, string, User, Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser,FlatWebPlugin,FlatWebPluginConstant,FlatWebPluginGenericParameter,FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation>
+    public class AspNetSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider, ISecurityContext<Tenant, string, User, Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser,FlatWebPlugin,FlatWebPluginConstant,FlatWebPluginGenericParameter,FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig>
                                                 where TImpl:AspNetSecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -290,7 +290,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View", "DiagnosticsQueries.View", "DiagnosticsQueries.Write", "Tenants.SelectFK")]
         public DbSet<Tenant> Tenants { get; set; }
 
-        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Sysadmin")]
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<TenantTemplate> TenantTemplates { get; set; }
 
         public DbSet<TenantType> TenantTypes { get; set; }

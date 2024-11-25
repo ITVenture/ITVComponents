@@ -32,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers
         /// <response code="200">a Json-Array containing the foreign-key data with custom search-arguments applied</response>
         /// <response code="401">if access to the desired connection or table is denied</response>
         /// <response code="404">a not-found when the requested connection or table does not exist</response>
-        public static async Task<IResult> FkWithAuth(HttpContext context, string area, string connection, string table, /*[FromForm]*/ SearchForm form)
+        public static async Task<IResult> FkWithAuth(HttpContext context, string area, string connection, string table, SearchForm form)
         {
             return await ReadForeignKey(context, true, area, connection, table, form);
         }
@@ -48,7 +48,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers
         /// <response code="200">a Json-Array containing the foreign-key data with custom search-arguments applied</response>
         /// <response code="401">if access to the desired connection or table is denied</response>
         /// <response code="404">a not-found when the requested connection or table does not exist</response>
-        public static async Task<IResult> FkNoAuth(HttpContext context, string area, string connection, string table, /*[FromForm]*/SearchForm form)
+        public static async Task<IResult> FkNoAuth(HttpContext context, string area, string connection, string table, SearchForm form)
         {
             return await ReadForeignKey(context, false, area, connection, table, form);
         }

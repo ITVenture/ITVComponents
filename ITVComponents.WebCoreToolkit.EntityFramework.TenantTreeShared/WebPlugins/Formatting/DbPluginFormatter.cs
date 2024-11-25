@@ -1,28 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Castle.DynamicProxy;
-using ITVComponents.DataAccess;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Extensions;
 using ITVComponents.Formatting;
 using ITVComponents.Formatting.Extensions;
-using ITVComponents.Helpers;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Security;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.HelperModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.HelperModels.Comparers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.HelperModels;
 using ITVComponents.WebCoreToolkit.WebPlugins;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins.Formatting
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugins.Formatting
 {
-    public class DbPluginFormatter<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> :IStringFormatProvider 
+    public class DbPluginFormatter<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IStringFormatProvider 
         where TTenant : HierarchyTenant 
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TWebPluginConstant : WebPluginConstant<TTenant>
@@ -30,6 +25,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins.
         where TSequence : Sequence<TTenant>
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+        where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
 
     {
         private Dictionary<string, object> formatPrototype = new Dictionary<string, object>();
@@ -45,10 +41,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Plugins.
         /// Initializes a new instance of the DbPluginFormatter class
         /// </summary>
         /// <param name="context">the database containing formatting-hints</param>
-        public DbPluginFormatter(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> context, IWebPluginsSelector plugInSelector)
+        public DbPluginFormatter(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context, IWebPluginsSelector plugInSelector)
         {
             if (context.FilterAvailable && !context.ShowAllTenants)
             {
+                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(context, context,
+                    new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
                 Dictionary<string, string> tenantPass = new Dictionary<string, string>();
                 (from rprot in (from c in context.UpwardsTenantTreeView
                     join m in context.WebPluginConstants on c.ParentTenantId equals m.TenantId

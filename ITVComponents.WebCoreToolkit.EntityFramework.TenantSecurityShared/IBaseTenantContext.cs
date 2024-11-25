@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
     [ExplicitlyExpose]
-    public interface IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> :IUserAwareContext, ICoreSystemContext 
+    public interface IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IUserAwareContext, ICoreSystemContext<TTrustConfig> 
     where TTenant: Tenant
     where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
     where TWebPluginConstant: WebPluginConstant<TTenant>
@@ -24,6 +24,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
     where TSequence:Sequence<TTenant>
     where TTenantSetting: TenantSetting<TTenant>
     where TTenantFeatureActivation: TenantFeatureActivation<TTenant>
+    where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
         /// <summary>
         /// Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.

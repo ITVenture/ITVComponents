@@ -25,7 +25,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health
 {
-    public class ScriptedHealthCheck : IHealthCheck
+    public class ScriptedHealthCheck<TTrustConfig> : IHealthCheck where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
         private readonly IServiceProvider services;
 
@@ -39,16 +39,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
         {
             using (var currentScope = services.CreateAsyncScope())
             {
-                var db = currentScope.ServiceProvider.GetService<ICoreSystemContext>();
+                var db = currentScope.ServiceProvider.GetService<ICoreSystemContext<TTrustConfig>>();
                 var pluginsAccess = currentScope.ServiceProvider.GetService<IWebPluginHelper>();
                 var check = await db.HealthScripts.FirstOrDefaultAsync(n =>
                     n.HealthScriptName == context.Registration.Name);
                 if (check != null)
                 {
-                    FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig> helper = null;
+                    FullSecurityAccessHelper<TTrustConfig> helper = null;
                     if (db.FilterAvailable)
                     {
-                        helper = new FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false });
+                        helper = new FullSecurityAccessHelper<TTrustConfig>(db, RequestFullAccess());
                     }
 
                     try
@@ -155,6 +155,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
 
                 return new HealthCheckResult(HealthStatus.Healthy, "Unchecked");
             }
+        }
+
+        protected virtual TTrustConfig RequestFullAccess()
+        {
+            return new() { ShowAllTenants = true, HideGlobals = false };
         }
     }
 }

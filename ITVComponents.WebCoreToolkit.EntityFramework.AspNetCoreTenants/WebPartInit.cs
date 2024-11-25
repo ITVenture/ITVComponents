@@ -12,6 +12,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Helpers.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Interceptors;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
@@ -164,7 +166,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
                     if (apply)
                     {
-                        builder.AddScriptedCheck(item.Label);
+                        builder.AddScriptedCheck<ScriptedHealthCheck<BaseTenantContextSecurityTrustConfig>, BaseTenantContextSecurityTrustConfig>(item.Label);
                     }
                 }
             }

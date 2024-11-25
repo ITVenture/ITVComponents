@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Models;
@@ -23,8 +24,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
         TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence,
         TTenantSetting,
-        TTenantFeatureActivation> : IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant,
-        TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation>
+        TTenantFeatureActivation, TTrustConfig> : IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant,
+        TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>
         where TTenant : Tenant
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser,
             TRoleRole>
@@ -102,6 +103,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser,
             TRoleRole>
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
         bool HideDisabledUsers { get; set; }
 

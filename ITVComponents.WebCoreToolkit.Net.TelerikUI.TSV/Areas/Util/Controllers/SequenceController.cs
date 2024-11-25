@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
@@ -18,11 +19,11 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
     [Authorize("HasPermission(Sequences.View,Sequences.Write),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
-    public class SequenceController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> : Controller where TTenant : Tenant where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter> where TWebPluginConstant : WebPluginConstant<TTenant> where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter> where TSequence : Sequence<TTenant>, new() where TTenantSetting : TenantSetting<TTenant> where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+    public class SequenceController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : Controller where TTenant : Tenant where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter> where TWebPluginConstant : WebPluginConstant<TTenant> where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter> where TSequence : Sequence<TTenant>, new() where TTenantSetting : TenantSetting<TTenant> where TTenantFeatureActivation : TenantFeatureActivation<TTenant> where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
-        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> db;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db;
 
-        public SequenceController(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> db)
+        public SequenceController(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db)
         {
             this.db = db;
             db.ShowAllTenants = true;

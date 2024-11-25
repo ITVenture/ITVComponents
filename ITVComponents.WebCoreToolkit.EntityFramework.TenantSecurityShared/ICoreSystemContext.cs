@@ -13,8 +13,9 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
+    
     [ExplicitlyExpose]
-    public interface ICoreSystemContext: ITrustfulComponent<BaseTenantContextSecurityTrustConfig>
+    public interface ICoreSystemContext
     {
         public DbSet<AuthenticationType> AuthenticationTypes { get; set; }
 
@@ -74,5 +75,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken));
 
         int SaveChanges();
+    }
+
+    public interface ICoreSystemContext<TTrustConfig> : ITrustfulComponent<TTrustConfig>, ICoreSystemContext
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+    {
     }
 }

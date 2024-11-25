@@ -9,6 +9,7 @@ using ITVComponents.Plugins;
 using ITVComponents.Plugins.PluginServices;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Net.PlugInServices;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Data;
@@ -19,7 +20,7 @@ using Kendo.Mvc.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ModuleConfigHandlers
 {
-    public class PluginConfigHandler<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> 
+    public class PluginConfigHandler<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> 
         where TTenant : Tenant 
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
         where TWebPluginConstant : WebPluginConstant<TTenant>, new()
@@ -27,13 +28,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ModuleC
         where TSequence : Sequence<TTenant>
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
-        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,TSequence,TTenantSetting, TTenantFeatureActivation> context;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,TSequence,TTenantSetting, TTenantFeatureActivation, TTrustConfig> context;
         private readonly IPermissionScope permissionScope;
         private readonly ISecurityRepository security;
         private readonly IInjectablePlugin<WebPluginAnalyzer> localLoader;
 
-        public PluginConfigHandler(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> context, IPermissionScope permissionScope, ISecurityRepository security, IInjectablePlugin<WebPluginAnalyzer> localLoader = null)
+        public PluginConfigHandler(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context, IPermissionScope permissionScope, ISecurityRepository security, IInjectablePlugin<WebPluginAnalyzer> localLoader = null)
         {
             this.context = context;
             this.permissionScope = permissionScope;
