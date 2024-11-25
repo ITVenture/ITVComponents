@@ -10,6 +10,7 @@
 @{
     var pk = (TableColumnDefinition) Model.First(n => n.IsPrimaryKey);
     var columnCustomize = ViewData["ColumnFinalCallback"] != null ? (Action<GridBoundColumnBuilder<object>, string>) ViewData["ColumnFinalCallback"] : new Action<GridBoundColumnBuilder<object>, string>((o, s) => { });
+    var pageableCb = ViewData["PageableCallback"] is Action<GridPageableSettingsBuilder> t ? t : new (cfg => cfg.Enabled(true));
 }
 @(Html.Kendo().Grid<object>
     ().Name((string)ViewData["name"])
@@ -110,7 +111,7 @@
             tb.Create();
         }
     })
-    .Pageable()
+    .Pageable(pageableCb)
     .Filterable()
     .Sortable(c => {
                        c.Enabled(true).AllowUnsort(false); })
