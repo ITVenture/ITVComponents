@@ -19,12 +19,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Bin
 
         public void ConfigureEntity(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<BinderUser>().ToTable(userTable);
-            modelBuilder.Entity<BinderTenantUser>().ToTable(tenantUserTable);
-            modelBuilder.Entity<UpwardsRoleUserPermissionsView<string>>()
-                .ToTable(GlobalDbObjectNaming.UpwardsPermissionTreeView);
-            modelBuilder.Entity<DownwardsUserPermissionView<string>>()
-                .ToTable(GlobalDbObjectNaming.DownwardsPermissionTreeView);
+            modelBuilder.Entity<BinderUser>().ToTable(userTable, b => b.ExcludeFromMigrations());
+            modelBuilder.Entity<BinderTenantUser>().ToTable(tenantUserTable, b => b.ExcludeFromMigrations());
 
         }
     }

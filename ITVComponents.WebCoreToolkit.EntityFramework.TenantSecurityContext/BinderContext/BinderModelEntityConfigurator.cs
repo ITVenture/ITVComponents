@@ -17,8 +17,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Bin
 
         public void ConfigureEntity(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<BinderUser>().ToTable(userTable);
-            modelBuilder.Entity<BinderTenantUser>().ToTable(tenantUserTable);
+            modelBuilder.Entity<BinderUser>().ToTable(userTable, b => b.ExcludeFromMigrations());
+            modelBuilder.Entity<BinderTenantUser>().ToTable(tenantUserTable, b => b.ExcludeFromMigrations());
         }
     }
 }

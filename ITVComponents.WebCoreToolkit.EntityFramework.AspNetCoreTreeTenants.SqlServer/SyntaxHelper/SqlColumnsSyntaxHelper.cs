@@ -19,20 +19,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
     {
         public static void ConfigureComputedColumns<TContext>(DbContextModelBuilderOptions<TContext> builderOptions)
         {
-            builderOptions.ConfigureComputedColumn<NavigationMenu, string>(n => n.UrlUniqueness, "case when isnull(Url,'')='' and isnull(RefTag,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) when isnull(Url,'')='' then RefTag else Url end persisted");
-            builderOptions.ConfigureComputedColumn<Role,string>(r => r.RoleNameUniqueness, "'__T'+convert(varchar(10),TenantId)+'##'+RoleName persisted");
-            builderOptions.ConfigureComputedColumn<Permission, string>(p => p.PermissionNameUniqueness, "case when TenantId is null then PermissionName else '__T'+convert(varchar(10),TenantId)+'##'+PermissionName end persisted");
-            builderOptions.ConfigureComputedColumn<HierarchyWebPlugin, string>(w => w.PluginNameUniqueness, "case when TenantId is null then UniqueName else '__T'+convert(varchar(10),TenantId)+'##'+UniqueName end persisted");
-            builderOptions.ConfigureComputedColumn<HierarchyWebPluginConstant, string>(c => c.NameUniqueness, "case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted");
+            builderOptions.ConfigureComputedColumn<NavigationMenu, string>(n => n.UrlUniqueness,
+                "case when isnull(Url,'')='' and isnull(RefTag,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) when isnull(Url,'')='' then RefTag else Url end persisted");
+            builderOptions.ConfigureComputedColumn<Role, string>(r => r.RoleNameUniqueness,
+                "'__T'+convert(varchar(10),TenantId)+'##'+RoleName persisted");
+            builderOptions.ConfigureComputedColumn<Permission, string>(p => p.PermissionNameUniqueness,
+                "case when TenantId is null then PermissionName else '__T'+convert(varchar(10),TenantId)+'##'+PermissionName end persisted");
+            builderOptions.ConfigureComputedColumn<HierarchyWebPlugin, string>(w => w.PluginNameUniqueness,
+                "case when TenantId is null then UniqueName else '__T'+convert(varchar(10),TenantId)+'##'+UniqueName end persisted");
+            builderOptions.ConfigureComputedColumn<HierarchyWebPluginConstant, string>(c => c.NameUniqueness,
+                "case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted");
             ConfigureVirtualTables(builderOptions);
         }
 
         public static void ConfigureVirtualTables<TContext>(DbContextModelBuilderOptions<TContext> builderOptions)
         {
-            builderOptions.ConfigureEntity<UpwardsTenantView>(uu => uu.ToTable(GlobalDbObjectNaming.UpwardsTenantTreeView, b => b.ExcludeFromMigrations()));
-            builderOptions.ConfigureEntity<DownwardsTenantView>(dd => dd.ToTable(GlobalDbObjectNaming.DownwardsTenantTreeView, b => b.ExcludeFromMigrations()));
-            builderOptions.ConfigureEntity<UpwardsRoleUserPermissionsView<string>>(pp => pp.ToTable(GlobalDbObjectNaming.UpwardsPermissionTreeView, b => b.ExcludeFromMigrations()));
-            builderOptions.ConfigureEntity<DownwardsUserPermissionView<string>>(puv => puv.ToTable(GlobalDbObjectNaming.DownwardsPermissionTreeView));
+            builderOptions.ConfigureEntity<UpwardsTenantView>(uu =>
+                uu.ToTable(GlobalDbObjectNaming.UpwardsTenantTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
+            builderOptions.ConfigureEntity<DownwardsTenantView>(dd =>
+                dd.ToTable(GlobalDbObjectNaming.DownwardsTenantTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
+            builderOptions.ConfigureEntity<UpwardsRoleUserPermissionsView<string>>(pp =>
+                pp.ToTable(GlobalDbObjectNaming.UpwardsPermissionTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
+            builderOptions.ConfigureEntity<DownwardsUserPermissionView<string>>(puv =>
+                puv.ToTable(GlobalDbObjectNaming.DownwardsPermissionTreeView, b => b.ExcludeFromMigrations())
+                    .HasNoKey());
         }
 
         public static void ConfigureMethods(IContextModelBuilderOptions bld)
@@ -58,11 +68,21 @@ select * from @vld", new SqlParameter("@name", name),
                 (DbContext c, string userId, string currentTenant, string[] requiredPermissions) =>
                 {
                     var tmpRet = c.Set<DownwardsUserPermissionView<string>>()
-                        .Join(c.Set<HierarchyTenant>(), l => l.ChildTenantId, r => r.TenantId, (l, r) => new { Left = l, Right = r })
+                        .Join(c.Set<HierarchyTenant>(), l => l.ChildTenantId, r => r.TenantId,
+                            (l, r) => new { Left = l, Right = r })
                         .Where(n => n.Left.UserId == userId && n.Left.ViewpointTenantName == currentTenant)
-                        .GroupBy(n => new { n.Left.UserId, n.Left.TopmostParentLevel, n.Left.ChildTenantName, n.Left.ChildTenantId, n.Right })
+                        .GroupBy(n => new
+                        {
+                            n.Left.UserId, n.Left.TopmostParentLevel, n.Left.ChildTenantName, n.Left.ChildTenantId,
+                            n.Right
+                        })
                         .OrderBy(g => g.Key.ChildTenantName).ThenBy(g => g.Key.TopmostParentLevel)
-                        .Select(g => new { g.Key.ChildTenantName, g.Key.ChildTenantId, g.Key.UserId, HasRequiredPermissions = g.Any(p => requiredPermissions.Contains(p.Left.PermissionName)), Tenant = g.Key.Right });
+                        .Select(g => new
+                        {
+                            g.Key.ChildTenantName, g.Key.ChildTenantId, g.Key.UserId,
+                            HasRequiredPermissions = g.Any(p => requiredPermissions.Contains(p.Left.PermissionName)),
+                            Tenant = g.Key.Right
+                        });
                     var st = new List<string>();
                     var retVal = new List<HierarchyTenant>();
                     foreach (var tmp in tmpRet)
@@ -83,8 +103,16 @@ select * from @vld", new SqlParameter("@name", name),
                 });
         }
 
-        public static void ConfigureViews(MigrationBuilder migrationBuilder, string schema="dbo")
+        public static void ConfigureViews(MigrationBuilder migrationBuilder, string schema = "dbo", bool dropFirst = false)
         {
+            if (dropFirst)
+            {
+                migrationBuilder.Sql($@"DROP VIEW [{schema}].[UpwardsTenantTree]");
+                migrationBuilder.Sql($@"DROP VIEW [{schema}].[DownwardsTenantTree]");
+                migrationBuilder.Sql($@"DROP VIEW [{schema}].[UpwardsPermissionTree]");
+                migrationBuilder.Sql($@"DROP VIEW [{schema}].[DownwardsPermissionTree]");
+
+            }
             migrationBuilder.Sql($@"CREATE VIEW [{schema}].[UpwardsTenantTree]
 AS
 WITH r AS (SELECT   TenantId AS OutermostLeafTenantId, TenantName AS OutermostLeafTenantName, TenantId AS ParentTenantId, TenantName AS ParentTenantName, 1 AS ParentLevel, 
@@ -132,8 +160,7 @@ inner join users u on u.id = tu.UserId
 inner join rolepermissions trp on trp.roleid = cr.RoleId
 inner join permissions p on p.permissionid = trp.permissionid");
 
-            migrationBuilder.Sql(
-                $@"CREATE VIEW [{schema}].[DownwardsPermissionTree]
+            migrationBuilder.Sql($@"CREATE VIEW [{schema}].[DownwardsPermissionTree]
 as
 WITH z AS (SELECT   t.TenantId AS TopmostTenantId, TenantName AS TopmostTenantName, t.TenantId AS ChildTenantId, TenantName AS ChildTenantName, 1 AS ChildLevel, 
                            sr.roleid as topmostRoleId, sr.roleid as currentrole, t.TenantId as currentTenant

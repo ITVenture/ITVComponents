@@ -26,10 +26,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Bin
         protected override void Configure(DbContextModelBuilderOptions<TContext> options)
         {
             options.AddCustomConfigurator(new BinderModelEntityConfigurator(userTable, tenantUserTable));
-            if (mapProcedures)
-            {
-                options.ConfigureMethod(GlobalDbObjectNaming.ChildTenantsWithProc, );
-            }
         }
     }
 }

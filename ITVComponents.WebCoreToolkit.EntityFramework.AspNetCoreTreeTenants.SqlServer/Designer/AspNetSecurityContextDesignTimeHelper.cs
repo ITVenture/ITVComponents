@@ -1,5 +1,4 @@
 ﻿using ITVComponents.EFRepo.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.SqlServer.SyntaxHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;

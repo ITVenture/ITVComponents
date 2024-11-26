@@ -2,11 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Security.Principal;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
-using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Expressions;
+using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
@@ -17,7 +16,6 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
@@ -33,29 +31,38 @@ using Microsoft.Extensions.Options;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class AspNetTreeSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider, IHierarchySecurityContext<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting, HierarchyTenantFeatureActivation, HierarchyTenantContextSecurityTrustConfig>
-    where TImpl:AspNetTreeSecurityContext<TImpl>
+    public class AspNetTreeSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider,
+        IHierarchySecurityContext<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission,
+            HierarchyTenantUser, RoleRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery,
+            DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam,
+            DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath,
+            AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
+            ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp,
+            ClientAppPermission, ClientAppUser, HierarchyWebPlugin, HierarchyWebPluginConstant,
+            HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting,
+            HierarchyTenantFeatureActivation, HierarchyTenantContextSecurityTrustConfig>
+        where TImpl : AspNetTreeSecurityContext<TImpl>
     {
-        private readonly DbContextModelBuilderOptions<TImpl> modelBuilderOptions;
+        protected readonly DbContextModelBuilderOptions<TImpl> modelBuilderOptions;
         private readonly ILogger<TImpl> logger;
         private readonly IPermissionScope tenantProvider;
-        private readonly IContextUserProvider userProvider;
         private readonly bool useFilters = false;
-        private bool showAllTenants = false;
-        private bool hideGlobals = false;
+        private readonly IContextUserProvider userProvider;
         private bool hideDisabledUsers = true;
-        private bool includeParentTree = false;
+        private bool hideGlobals = false;
         private bool includeChildTree = false;
+        private bool includeParentTree = false;
+        private bool showAllTenants = false;
 
-        Stack<FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>> ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.securityStateStack { get; } =
-            new Stack<FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>>();
-
-        public AspNetTreeSecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions, DbContextOptions<TImpl> options) : base(options)
+        public AspNetTreeSecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions,
+            DbContextOptions<TImpl> options) : base(options)
         {
             this.modelBuilderOptions = modelBuilderOptions;
         }
 
-        public AspNetTreeSecurityContext(IPermissionScope tenantProvider, IContextUserProvider userProvider, ILogger<TImpl> logger, IOptions<DbContextModelBuilderOptions<TImpl>> modelBuilderOptions, DbContextOptions<TImpl> options) : base(options)
+        public AspNetTreeSecurityContext(IPermissionScope tenantProvider, IContextUserProvider userProvider,
+            ILogger<TImpl> logger, IOptions<DbContextModelBuilderOptions<TImpl>> modelBuilderOptions,
+            DbContextOptions<TImpl> options) : base(options)
         {
             this.logger = logger;
             this.tenantProvider = tenantProvider;
@@ -77,142 +84,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantId);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantTree);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => IncludeParentTree);
-                this.modelBuilderOptions.ConfigureExpressionProperty(()=> IncludeChildTree);
+                this.modelBuilderOptions.ConfigureExpressionProperty(() => IncludeChildTree);
                 //logger.LogDebug($@"SecurityContext initialized. useFilters={useFilters}, CurrentTenant: {tenantProvider?.PermissionPrefix}, ShowAllTenants: {showAllTenants}, HideGlobals: {hideGlobals}");
             }
             catch
             {
-
-            }
-        }
-
-        public bool IncludeChildTree
-        {
-            get { return includeChildTree; }
-            set
-            {
-                if (value != includeChildTree)
-                {
-                    var tmp = includeChildTree;
-                    includeChildTree = true;
-                    if (value && !userProvider.Services.VerifyUserPermissions(new string[]
-                            { ToolkitPermission.Sysadmin, TenantTreeShared.Helpers.ToolkitPermission.BranchAdmin, TenantTreeShared.Helpers.ToolkitPermission.BranchViewer }))
-                    {
-                        includeParentTree = tmp;
-                    }
-                    else
-                    {
-                        includeParentTree = value;
-                    }
-                }
-            }
-        }
-
-        public bool IncludeParentTree
-        {
-            get => includeParentTree;
-            set
-            {
-                if (value != includeParentTree)
-                {
-                    var tmp = includeParentTree;
-                    includeParentTree = true;
-                    if (value && !userProvider.Services.VerifyUserPermissions(new string[]
-                            { ToolkitPermission.Sysadmin, TenantTreeShared.Helpers.ToolkitPermission.BranchAdmin }))
-                    {
-                        includeParentTree = tmp;
-                    }
-                    else
-                    {
-                        includeParentTree = value;
-                    }
-                }
-            }
-        }
-
-        [ExpressionPropertyRedirect("CurrentTenantTree")]
-        public IQueryable<int> CurrentTenantTree => IncludeParentTree
-            ? (from t in UpwardsTenantTreeView
-                where t.OutermostLeafTenantName == CurrentTenant
-                orderby t.ParentLevel
-                select t.ParentTenantId)
-            : Array.Empty<int>().AsQueryable();
-
-        /// <summary>
-        /// Indicates whether to switch off tenant filtering
-        /// </summary>
-        [ExpressionPropertyRedirect("ShowAllTenants")]
-        public bool ShowAllTenants
-        {
-            get => showAllTenants;
-            set
-            {
-                if (value != showAllTenants)
-                {
-                    var tmp = showAllTenants;
-                    showAllTenants = true;
-                    if (value && FilterAvailable &&
-                        !userProvider.Services.VerifyUserPermissions(new string[] { ToolkitPermission.Sysadmin }))
-                    {
-                        showAllTenants = tmp;
-                    }
-                    else
-                    {
-                        showAllTenants = value;
-                    }
-                }
             }
         }
 
         /// <summary>
-        /// When tenant filtering is used, this hides tenant-relevant records that are NOT bound to a specific tenant
+        ///     Gets the user that currently uses this Context
         /// </summary>
-        [ExpressionPropertyRedirect("HideGlobals")]
-        public bool HideGlobals
-        {
-            get => hideGlobals;
-            set
-            {
-                if (value != hideGlobals)
-                {
-                    var tmp = hideGlobals;
-                    hideGlobals = value;
-                    if (!value && FilterAvailable &&
-                        !userProvider.Services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin }))
-                    {
-                        hideGlobals = tmp;
-                    }
-                }
-            }
-        }
+        protected IPrincipal Me => userProvider?.User;
 
         /// <summary>
-        /// Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
+        ///     Gets a value indicating whetherthe context is configured to work with query-filters
         /// </summary>
-        [ExpressionPropertyRedirect("CurrentTenantId")]
-        public int? CurrentTenantId
-        {
-            get
-            {
-                if (tenantProvider == null)
-                {
-                    return null;
-                }
-
-                if (string.IsNullOrEmpty(tenantProvider.PermissionPrefix))
-                {
-                    return null;
-                }
-
-                return Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())?.TenantId;
-            }
-        }
-
-        [ExpressionPropertyRedirect("FilterAvailable")]
-        public bool FilterAvailable => userProvider?.User != null && (userProvider.User.Identities.Any(i => i.IsAuthenticated));
-
-        [ExpressionPropertyRedirect("CurrentUserName")]
-        public string CurrentUserName => userProvider.User?.Identity?.Name;
+        protected bool UseFilters => useFilters;
 
         [ExpressionPropertyRedirect("CurrentTenant")]
         private string CurrentTenant
@@ -230,63 +118,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether to select disabled users
+        ///     Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
         /// </summary>
-        [ExpressionPropertyRedirect("HideDisabledUsers")]
-        public bool HideDisabledUsers
+        [ExpressionPropertyRedirect("CurrentTenantId")]
+        public int? CurrentTenantId
         {
-            get => hideDisabledUsers;
-            set
+            get
             {
-                if (value != hideDisabledUsers)
+                if (tenantProvider == null)
                 {
-
-                    if (FilterAvailable &&
-                        userProvider.Services.VerifyUserPermissions(new string[]
-                            { ToolkitPermission.Sysadmin, ToolkitPermission.TenantAdmin }))
-                    {
-                        hideDisabledUsers = value;
-                    }
-                    else
-                    {
-                        hideDisabledUsers = true;
-                    }
+                    return null;
                 }
+
+                if (string.IsNullOrEmpty(tenantProvider.PermissionPrefix))
+                {
+                    return null;
+                }
+
+                return Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())
+                    ?.TenantId;
             }
         }
 
-        /// <summary>
-        /// Gets a value indicating whetherthe context is configured to work with query-filters
-        /// </summary>
-        protected bool UseFilters => useFilters;
-
-        public IQueryable<Tenant> ChildTenantsWith(string userId, string currentTenant, string[] requiredPermissions)
-        {
-            var trust = new HierarchyTenantContextSecurityTrustConfig
-            {
-                HideGlobals = false,
-                IncludeParentTree = true,
-                IncludeChildTree=true,
-                ShowAllTenants = showAllTenants
-            };
-
-            using (FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(this, this,
-                       trust))
-            {
-                var mth = modelBuilderOptions.GetMethod<Func<DbContext, string, string, string[], IQueryable<Tenant>>>("ChildTenantsWith");
-                if (mth == null)
-                {
-                    throw new InvalidOperationException("ChildTenantsWith was not implemented for this Database-Type");
-                }
-
-                if (!string.IsNullOrEmpty(CurrentTenant))
-                {
-                    return mth(this, userId, currentTenant, requiredPermissions);
-                }
-
-                return Array.Empty<Tenant>().AsQueryable();
-            }
-        }
+        public DbSet<HierarchyWebPluginGenericParameter> GenericPluginParams { get; set; }
 
         public int SequenceNextVal(string sequenceName)
         {
@@ -323,100 +177,105 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             }
         }
 
-        void ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.ApplyTrust(HierarchyTenantContextSecurityTrustConfig trust)
-        {
-            includeParentTree = trust.IncludeParentTree;
-            showAllTenants = trust.ShowAllTenants;
-            hideGlobals = trust.HideGlobals;
-            includeChildTree = trust.IncludeChildTree;
-        }
+        public DbSet<HierarchySequence> Sequences { get; set; }
 
-        HierarchyTenantContextSecurityTrustConfig ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.GetReverseTrust(HierarchyTenantContextSecurityTrustConfig forwardTrustConfig)
-        {
-            return new HierarchyTenantContextSecurityTrustConfig
-            {
-                HideGlobals = hideGlobals,
-                IncludeParentTree = includeParentTree,
-                ShowAllTenants = showAllTenants,
-                IncludeChildTree = includeChildTree
-            };
-        }
+        public DbSet<HierarchyTenantFeatureActivation> TenantFeatureActivations { get; set; }
+
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View",
+            "DiagnosticsQueries.View", "DiagnosticsQueries.Write", "Tenants.SelectFK")]
+        public DbSet<HierarchyTenant> Tenants { get; set; }
+
+        public DbSet<HierarchyTenantSetting> TenantSettings { get; set; }
+        public DbSet<HierarchyWebPluginConstant> WebPluginConstants { get; set; }
+        public DbSet<HierarchyWebPlugin> WebPlugins { get; set; }
+
+        public DbSet<AuthenticationClaimMapping> AuthenticationClaimMappings { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<AuthenticationType> AuthenticationTypes { get; set; }
-        public DbSet<AuthenticationClaimMapping> AuthenticationClaimMappings { get; set; }
-        public DbSet<HealthScript> HealthScripts { get; set; }
-        public DbSet<GlobalSetting> GlobalSettings { get; set; }
-        public DbSet<SystemEvent> SystemLog { get; set; }
+
         public DbSet<Culture> Cultures { get; set; }
-        public DbSet<TenantSecurityShared.Models.Localization> Localizations { get; set; }
-        public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
-        public DbSet<LocalizationString> LocalizationCultureStrings { get; set; }
-        public DbSet<VideoTutorial> Tutorials { get; set; }
-        public DbSet<TutorialStream> TutorialStreams { get; set; }
-        public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
-        public DbSet<TemplateModule> TemplateModules { get; set; }
-        
+
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View")]
         public DbSet<Feature> Features { get; set; }
-        public DbSet<TemplateModuleConfigurator> TemplateModuleConfigurators { get; set; }
+
+        [ExpressionPropertyRedirect("FilterAvailable")]
+        public bool FilterAvailable =>
+            userProvider?.User != null && (userProvider.User.Identities.Any(i => i.IsAuthenticated));
+
+        public DbSet<GlobalSetting> GlobalSettings { get; set; }
+        public DbSet<HealthScript> HealthScripts { get; set; }
+
+        /// <summary>
+        ///     When tenant filtering is used, this hides tenant-relevant records that are NOT bound to a specific tenant
+        /// </summary>
+        [ExpressionPropertyRedirect("HideGlobals")]
+        public bool HideGlobals
+        {
+            get => hideGlobals;
+            set
+            {
+                if (value != hideGlobals)
+                {
+                    var tmp = hideGlobals;
+                    hideGlobals = value;
+                    if (!value && FilterAvailable &&
+                        !userProvider.Services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin }))
+                    {
+                        hideGlobals = tmp;
+                    }
+                }
+            }
+        }
+
+        public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
+        public DbSet<LocalizationString> LocalizationCultureStrings { get; set; }
+        public DbSet<TenantSecurityShared.Models.Localization> Localizations { get; set; }
+
+        /// <summary>
+        ///     Indicates whether to switch off tenant filtering
+        /// </summary>
+        [ExpressionPropertyRedirect("ShowAllTenants")]
+        public bool ShowAllTenants
+        {
+            get => showAllTenants;
+            set
+            {
+                if (value != showAllTenants)
+                {
+                    var tmp = showAllTenants;
+                    showAllTenants = true;
+                    if (value && FilterAvailable &&
+                        !userProvider.Services.VerifyUserPermissions(new string[] { ToolkitPermission.Sysadmin }))
+                    {
+                        showAllTenants = tmp;
+                    }
+                    else
+                    {
+                        showAllTenants = value;
+                    }
+                }
+            }
+        }
+
+        public DbSet<SystemEvent> SystemLog { get; set; }
         public DbSet<TemplateModuleConfiguratorParameter> TemplateModuleConfiguratorParameters { get; set; }
+
+        public DbSet<TemplateModuleConfigurator> TemplateModuleConfigurators { get; set; }
+        public DbSet<TemplateModule> TemplateModules { get; set; }
         public DbSet<TemplateModuleScript> TemplateModuleScripts { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<TenantTemplate> TenantTemplates { get; set; }
+
         public DbSet<TenantType> TenantTypes { get; set; }
+        public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
+        public DbSet<VideoTutorial> Tutorials { get; set; }
+        public DbSet<TutorialStream> TutorialStreams { get; set; }
 
-        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View", "DiagnosticsQueries.View", "DiagnosticsQueries.Write", "Tenants.SelectFK")]
-        public DbSet<HierarchyTenant> Tenants { get; set; }
-        public DbSet<HierarchyTenantFeatureActivation> TenantFeatureActivations { get; set; }
-        public DbSet<HierarchyTenantSetting> TenantSettings { get; set; }
-        public DbSet<HierarchyWebPlugin> WebPlugins { get; set; }
-        public DbSet<HierarchyWebPluginConstant> WebPluginConstants { get; set; }
-        public DbSet<HierarchyWebPluginGenericParameter> GenericPluginParams { get; set; }
-        public DbSet<HierarchySequence> Sequences { get; set; }
-
-        [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
-        public DbSet<User> Users { get; set; }
-        public DbSet<DashboardWidget> Widgets { get; set; }
-        public DbSet<DashboardParam> WidgetParams { get; set; }
-        public DbSet<DashboardWidgetLocalization> WidgetLocales { get; set; }
-        public DbSet<UserWidget> UserWidgets { get; set; }
-        public DbSet<CustomUserProperty> UserProperties { get; set; }
-        public DbSet<Role> SecurityRoles { get; set; }
-        
-        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View", "DiagnosticsQueries.View", "DiagnosticsQueries.Write", "Permissions.SelectFK")]
-        public DbSet<Permission> Permissions { get; set; }
-        public DbSet<UserRole> TenantUserRoles { get; set; }
-        public DbSet<RoleRole> RoleRoles { get; set; }
-        public DbSet<RolePermission> RolePermissions { get; set; }
-        public DbSet<HierarchyTenantUser> TenantUsers { get; set; }
-        public DbSet<NavigationMenu> Navigation { get; set; }
-        public DbSet<TenantNavigationMenu> TenantNavigation { get; set; }
-
-        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DashboardWidgets.Write", "DashboardWidgets.View")]
-        public DbSet<DiagnosticsQuery> DiagnosticsQueries { get; set; }
-        public DbSet<DiagnosticsQueryParameter> DiagnosticsQueryParameters { get; set; }
-        public DbSet<TenantDiagnosticsQuery> TenantDiagnosticsQueries { get; set; }
-        public DbSet<AssetTemplate> AssetTemplates { get; set; }
-        public DbSet<AssetTemplateFeature> AssetTemplateFeatures { get; set; }
-        public DbSet<AssetTemplateGrant> AssetTemplateGrants { get; set; }
-        public DbSet<AssetTemplatePath> AssetTemplatePathFilters { get; set; }
-        public DbSet<SharedAsset> SharedAssets { get; set; }
-        public DbSet<SharedAssetTenantFilter> SharedAssetTenantFilters { get; set; }
-        public DbSet<SharedAssetUserFilter> SharedAssetUserFilters { get; set; }
-        public DbSet<AppPermission> AppPermissions { get; set; }
-        public DbSet<AppPermissionSet> AppPermissionSets { get; set; }
-        public DbSet<ClientAppTemplatePermission> ClientAppTemplatePermissions { get; set; }
-        public DbSet<ClientAppTemplate> ClientAppTemplates { get; set; }
-        public DbSet<ClientAppPermission> ClientAppPermissions { get; set; }
-        public DbSet<ClientApp> ClientApps { get; set; }
-        public DbSet<ClientAppUser> ClientAppUsers { get; set; }
-        public DbSet<DownwardsTenantView> DownwardsTenantTreeView { get; set; }
-        public DbSet<UpwardsTenantView> UpwardsTenantTreeView { get; set; }
-        public DbSet<UpwardsRoleUserPermissionsView<string>> UpwardsRoleUserPermissionsView { get; set; }
         /// <summary>
-        /// Gets the filter Linq-Query for the given table-name. If you implement this interface, form a query that uses the db-context as [db] and the search-string as [filter]
+        ///     Gets the filter Linq-Query for the given table-name. If you implement this interface, form a query that uses the
+        ///     db-context as [db] and the search-string as [filter]
         /// </summary>
         /// <param name="tableName">the table-name for which to get the foreign-key data</param>
         /// <returns>the query that will be executed go get the foreignkey-data</returns>
@@ -424,7 +283,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         {
             if (tableName == "TenantSelectionFk")
             {
-                return (from t in Tenants orderby t.DisplayName select new ForeignKeyData<string> { Key = t.TenantName, Label = t.DisplayName, FullRecord = t.ToDictionary(true) }).ToList().Where(n => userProvider.Services.VerifyUserPermissions(new[] { n.Key }));
+                return (from t in Tenants
+                        orderby t.DisplayName
+                        select new ForeignKeyData<string>
+                            { Key = t.TenantName, Label = t.DisplayName, FullRecord = t.ToDictionary(true) }).ToList()
+                    .Where(n => userProvider.Services.VerifyUserPermissions(new[] { n.Key }));
             }
 
             if (tableName == "AuthorizedWidgets")
@@ -432,15 +295,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 if (userProvider?.User != null)
                 {
                     var ret = (from t in Widgets.ToArray()
-                               where userProvider.Services.VerifyUserPermissions(new[]
-                                   { t.DiagnosticsQuery.Permission.PermissionName })
-                               orderby t.DisplayName
-                               select new ForeignKeyData<int>
-                               {
-                                   Key = t.DashboardWidgetId,
-                                   Label = t.DisplayName,
-                                   FullRecord = t.ToDictionary(true)
-                               });
+                        where userProvider.Services.VerifyUserPermissions(new[]
+                            { t.DiagnosticsQuery.Permission.PermissionName })
+                        orderby t.DisplayName
+                        select new ForeignKeyData<int>
+                        {
+                            Key = t.DashboardWidgetId,
+                            Label = t.DisplayName,
+                            FullRecord = t.ToDictionary(true)
+                        });
                 }
             }
 
@@ -453,7 +316,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         }
 
         /// <summary>
-        /// Gets the filter Linq-Query for the given table-name. If you implement this interface, form a query that uses the db-context as [db] and the search-string as [filter]
+        ///     Gets the filter Linq-Query for the given table-name. If you implement this interface, form a query that uses the
+        ///     db-context as [db] and the search-string as [filter]
         /// </summary>
         /// <param name="tableName">the table-name for which to get the foreign-key data</param>
         /// <param name="postedFilter">a filter that was posted when a Foreignkey was queried with POST</param>
@@ -483,7 +347,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                     }));
                 }
 
-                return (from t in ts orderby t.DisplayName select new ForeignKeyData<string> { Key = t.TenantName, Label = t.DisplayName, FullRecord = t.ToDictionary(true) }).ToList().Where(n => userProvider.Services.VerifyUserPermissions(new[] { n.Key }));
+                return (from t in ts
+                        orderby t.DisplayName
+                        select new ForeignKeyData<string>
+                            { Key = t.TenantName, Label = t.DisplayName, FullRecord = t.ToDictionary(true) }).ToList()
+                    .Where(n => userProvider.Services.VerifyUserPermissions(new[] { n.Key }));
             }
 
             if (tableName == "AuthorizedWidgets")
@@ -506,15 +374,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                     }
 
                     var ret = (from t in wigs.ToArray()
-                               where userProvider.Services.VerifyUserPermissions(new[]
-                                   { t.DiagnosticsQuery.Permission.PermissionName })
-                               orderby t.DisplayName
-                               select new ForeignKeyData<int>
-                               {
-                                   Key = t.DashboardWidgetId,
-                                   Label = t.DisplayName,
-                                   FullRecord = t.ToDictionary(true)
-                               });
+                        where userProvider.Services.VerifyUserPermissions(new[]
+                            { t.DiagnosticsQuery.Permission.PermissionName })
+                        orderby t.DisplayName
+                        select new ForeignKeyData<int>
+                        {
+                            Key = t.DashboardWidgetId,
+                            Label = t.DisplayName,
+                            FullRecord = t.ToDictionary(true)
+                        });
                 }
             }
 
@@ -531,7 +399,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             if (tableName == "TenantSelectionFk")
             {
                 int tid = Convert.ToInt32(id);
-                return (from t in Tenants where t.TenantId == tid select new ForeignKeyData<string> { Key = t.TenantName, Label = t.DisplayName, FullRecord = t.ToDictionary(true) }).ToList().Where(n => userProvider.Services.VerifyUserPermissions(new[] { n.Key }));
+                return (from t in Tenants
+                        where t.TenantId == tid
+                        select new ForeignKeyData<string>
+                            { Key = t.TenantName, Label = t.DisplayName, FullRecord = t.ToDictionary(true) }).ToList()
+                    .Where(n => userProvider.Services.VerifyUserPermissions(new[] { n.Key }));
             }
 
             if (tableName == "AuthorizedWidgets")
@@ -539,22 +411,210 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 if (userProvider?.User != null)
                 {
                     var ret = (from t in Widgets.ToArray()
-                               where userProvider.Services.VerifyUserPermissions(new[]
-                                         { t.DiagnosticsQuery.Permission.PermissionName })
-                                     && t.DashboardWidgetId == Convert.ToInt32(id)
-                               orderby t.DisplayName
-                               select new ForeignKeyData<int>
-                               {
-                                   Key = t.DashboardWidgetId,
-                                   Label = t.DisplayName,
-                                   FullRecord = t.ToDictionary(true)
-                               });
+                        where userProvider.Services.VerifyUserPermissions(new[]
+                                  { t.DiagnosticsQuery.Permission.PermissionName })
+                              && t.DashboardWidgetId == Convert.ToInt32(id)
+                        orderby t.DisplayName
+                        select new ForeignKeyData<int>
+                        {
+                            Key = t.DashboardWidgetId,
+                            Label = t.DisplayName,
+                            FullRecord = t.ToDictionary(true)
+                        });
                     return ret;
                 }
             }
 
             return null;
         }
+
+        public IQueryable<Tenant> ChildTenantsWith(string userId, string currentTenant, string[] requiredPermissions)
+        {
+            var trust = new HierarchyTenantContextSecurityTrustConfig
+            {
+                HideGlobals = false,
+                IncludeParentTree = true,
+                IncludeChildTree = true,
+                ShowAllTenants = showAllTenants
+            };
+
+            using (FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(this, this,
+                       trust))
+            {
+                var mth =
+                    modelBuilderOptions.GetMethod<Func<DbContext, string, string, string[], IQueryable<Tenant>>>(
+                        "ChildTenantsWith");
+                if (mth == null)
+                {
+                    throw new InvalidOperationException("ChildTenantsWith was not implemented for this Database-Type");
+                }
+
+                if (!string.IsNullOrEmpty(CurrentTenant))
+                {
+                    return mth(this, userId, currentTenant, requiredPermissions);
+                }
+
+                return Array.Empty<Tenant>().AsQueryable();
+            }
+        }
+
+        public DbSet<UpwardsRoleUserPermissionsView<string>> UpwardsRoleUserPermissionsView { get; set; }
+
+        [ExpressionPropertyRedirect("CurrentTenantTree")]
+        public IQueryable<int> CurrentTenantTree => IncludeParentTree
+            ? (from t in UpwardsTenantTreeView
+                where t.OutermostLeafTenantName == CurrentTenant
+                orderby t.ParentLevel
+                select t.ParentTenantId)
+            : Array.Empty<int>().AsQueryable();
+
+        public DbSet<DownwardsTenantView> DownwardsTenantTreeView { get; set; }
+
+        public bool IncludeChildTree
+        {
+            get { return includeChildTree; }
+            set
+            {
+                if (value != includeChildTree)
+                {
+                    var tmp = includeChildTree;
+                    includeChildTree = true;
+                    if (value && !userProvider.Services.VerifyUserPermissions(new string[]
+                        {
+                            ToolkitPermission.Sysadmin, TenantTreeShared.Helpers.ToolkitPermission.BranchAdmin,
+                            TenantTreeShared.Helpers.ToolkitPermission.BranchViewer
+                        }))
+                    {
+                        includeParentTree = tmp;
+                    }
+                    else
+                    {
+                        includeParentTree = value;
+                    }
+                }
+            }
+        }
+
+        public bool IncludeParentTree
+        {
+            get => includeParentTree;
+            set
+            {
+                if (value != includeParentTree)
+                {
+                    var tmp = includeParentTree;
+                    includeParentTree = true;
+                    if (value && !userProvider.Services.VerifyUserPermissions(new string[]
+                            { ToolkitPermission.Sysadmin, TenantTreeShared.Helpers.ToolkitPermission.BranchAdmin }))
+                    {
+                        includeParentTree = tmp;
+                    }
+                    else
+                    {
+                        includeParentTree = value;
+                    }
+                }
+            }
+        }
+
+        public DbSet<UpwardsTenantView> UpwardsTenantTreeView { get; set; }
+        public DbSet<AppPermission> AppPermissions { get; set; }
+        public DbSet<AppPermissionSet> AppPermissionSets { get; set; }
+        public DbSet<AssetTemplateFeature> AssetTemplateFeatures { get; set; }
+        public DbSet<AssetTemplateGrant> AssetTemplateGrants { get; set; }
+        public DbSet<AssetTemplatePath> AssetTemplatePathFilters { get; set; }
+        public DbSet<AssetTemplate> AssetTemplates { get; set; }
+        public DbSet<ClientAppPermission> ClientAppPermissions { get; set; }
+        public DbSet<ClientApp> ClientApps { get; set; }
+        public DbSet<ClientAppTemplatePermission> ClientAppTemplatePermissions { get; set; }
+        public DbSet<ClientAppTemplate> ClientAppTemplates { get; set; }
+        public DbSet<ClientAppUser> ClientAppUsers { get; set; }
+
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DashboardWidgets.Write", "DashboardWidgets.View")]
+        public DbSet<DiagnosticsQuery> DiagnosticsQueries { get; set; }
+
+        public DbSet<DiagnosticsQueryParameter> DiagnosticsQueryParameters { get; set; }
+
+        /// <summary>
+        ///     Gets or sets a value indicating whether to select disabled users
+        /// </summary>
+        [ExpressionPropertyRedirect("HideDisabledUsers")]
+        public bool HideDisabledUsers
+        {
+            get => hideDisabledUsers;
+            set
+            {
+                if (value != hideDisabledUsers)
+                {
+                    if (FilterAvailable &&
+                        userProvider.Services.VerifyUserPermissions(new string[]
+                            { ToolkitPermission.Sysadmin, ToolkitPermission.TenantAdmin }))
+                    {
+                        hideDisabledUsers = value;
+                    }
+                    else
+                    {
+                        hideDisabledUsers = true;
+                    }
+                }
+            }
+        }
+
+        public DbSet<NavigationMenu> Navigation { get; set; }
+
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View",
+            "DiagnosticsQueries.View", "DiagnosticsQueries.Write", "Permissions.SelectFK")]
+        public DbSet<Permission> Permissions { get; set; }
+
+        public DbSet<RolePermission> RolePermissions { get; set; }
+        public DbSet<RoleRole> RoleRoles { get; set; }
+        public DbSet<Role> SecurityRoles { get; set; }
+        public DbSet<SharedAsset> SharedAssets { get; set; }
+        public DbSet<SharedAssetTenantFilter> SharedAssetTenantFilters { get; set; }
+        public DbSet<SharedAssetUserFilter> SharedAssetUserFilters { get; set; }
+        public DbSet<TenantDiagnosticsQuery> TenantDiagnosticsQueries { get; set; }
+        public DbSet<TenantNavigationMenu> TenantNavigation { get; set; }
+
+        public DbSet<UserRole> TenantUserRoles { get; set; }
+        public DbSet<HierarchyTenantUser> TenantUsers { get; set; }
+        public DbSet<CustomUserProperty> UserProperties { get; set; }
+
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
+        public override DbSet<User> Users { get; set; }
+
+        public DbSet<UserWidget> UserWidgets { get; set; }
+        public DbSet<DashboardWidgetLocalization> WidgetLocales { get; set; }
+        public DbSet<DashboardParam> WidgetParams { get; set; }
+
+        public DbSet<DashboardWidget> Widgets { get; set; }
+
+        void ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.ApplyTrust(
+            HierarchyTenantContextSecurityTrustConfig trust)
+        {
+            includeParentTree = trust.IncludeParentTree;
+            showAllTenants = trust.ShowAllTenants;
+            hideGlobals = trust.HideGlobals;
+            includeChildTree = trust.IncludeChildTree;
+        }
+
+        HierarchyTenantContextSecurityTrustConfig ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.
+            GetReverseTrust(HierarchyTenantContextSecurityTrustConfig forwardTrustConfig)
+        {
+            return new HierarchyTenantContextSecurityTrustConfig
+            {
+                HideGlobals = hideGlobals,
+                IncludeParentTree = includeParentTree,
+                ShowAllTenants = showAllTenants,
+                IncludeChildTree = includeChildTree
+            };
+        }
+
+        Stack<FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>>
+            ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.securityStateStack { get; } =
+            new Stack<FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>>();
+
+        [ExpressionPropertyRedirect("CurrentUserName")]
+        public string CurrentUserName => userProvider.User?.Identity?.Name;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -570,14 +630,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             /*modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
             modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
             modelBuilder.Entity<TenantUser>(b => b.Property(n => n.Enabled).HasDefaultValue(true));*/
-            modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientSetNull);
-            modelBuilder.Entity<Role>().HasMany(n => n.PermittedRoles).WithOne(pr => pr.PermissiveRole).OnDelete(DeleteBehavior.ClientSetNull);
-            modelBuilder.Entity<Role>().HasMany(n => n.PermissiveRoles).WithOne(pr => pr.PermittedRole).OnDelete(DeleteBehavior.ClientSetNull);
-            modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.PermittedRoles).WithOne(pr => pr.PermissiveRole)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.PermissiveRoles).WithOne(pr => pr.PermittedRole)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role)
+                .OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<HierarchyTenantUser>(b => b.Property(n => n.Enabled).HasDefaultValue(true));
-            modelBuilder.Entity<HierarchyTenantUser>().HasMany(n => n.Roles).WithOne(n => n.User).OnDelete(DeleteBehavior.ClientSetNull);
-            modelBuilder.Entity<RolePermission>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren).OnDelete(DeleteBehavior.ClientSetNull);
-            modelBuilder.Entity<RolePermission>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingLinks).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<HierarchyTenantUser>().HasMany(n => n.Roles).WithOne(n => n.User)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<RolePermission>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<RolePermission>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingLinks)
+                .OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }
     }
