@@ -10,10 +10,10 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Helpers.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Interceptors;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -78,16 +78,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
-            Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (contextOptions.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
-            }
+                Type t = null;
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                }
 
-            if (!ContextTypeInitialized)
-            {
-                SetContextType(t);
+                if (!ContextTypeInitialized)
+                {
+                    SetContextType(t);
+                }
             }
 
             if (partActivation.ActivateDbContext)

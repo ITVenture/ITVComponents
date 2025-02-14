@@ -9,10 +9,10 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Helpers.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Interceptors;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -80,7 +80,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
-            if (!ContextTypeInitialized)
+            if (!ContextTypeInitialized && contextOptions.ConfigureContext)
             {
                 Type t = null;
                 if (!string.IsNullOrEmpty(contextOptions.ContextType))

@@ -175,6 +175,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.SqlServer", "ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.SqlServer\ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.SqlServer.csproj", "{17DF2BBD-F619-4F27-96B0-D25A1134E9E3}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTreeTenantSecurityUserView", "ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCTTUserView\ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTreeTenantSecurityUserView.csproj", "{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages", "ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCIP\ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.csproj", "{57C3739D-994D-4B74-B414-FB0D3784FF61}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -871,11 +875,28 @@ Global
 		{17DF2BBD-F619-4F27-96B0-D25A1134E9E3}.Release|Any CPU.Build.0 = Release|Any CPU
 		{17DF2BBD-F619-4F27-96B0-D25A1134E9E3}.Release|x86.ActiveCfg = Release|Any CPU
 		{17DF2BBD-F619-4F27-96B0-D25A1134E9E3}.Release|x86.Build.0 = Release|Any CPU
+		{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}.Debug|x86.Build.0 = Debug|Any CPU
+		{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}.Release|x86.ActiveCfg = Release|Any CPU
+		{A68DBA41-99F5-4F35-8608-5CA3F5CB1B88}.Release|x86.Build.0 = Release|Any CPU
+		{57C3739D-994D-4B74-B414-FB0D3784FF61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57C3739D-994D-4B74-B414-FB0D3784FF61}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57C3739D-994D-4B74-B414-FB0D3784FF61}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{57C3739D-994D-4B74-B414-FB0D3784FF61}.Debug|x86.Build.0 = Debug|Any CPU
+		{57C3739D-994D-4B74-B414-FB0D3784FF61}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57C3739D-994D-4B74-B414-FB0D3784FF61}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57C3739D-994D-4B74-B414-FB0D3784FF61}.Release|x86.ActiveCfg = Release|Any CPU
+		{57C3739D-994D-4B74-B414-FB0D3784FF61}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
+		RESX_CodeReferences = {"Items":[{"Expression":"\\W($File.$Key)\\W","Extensions":".cs,.xaml,.cshtml","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"\\W($File.$Key)\\W","Extensions":".vbhtml","IsCaseSensitive":false,"SingleLineComment":null},{"Expression":"ResourceManager.GetString\\(\"($Key)\"\\)","Extensions":".cs","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"typeof\\((\\w+\\.)*($File)\\).+\"($Key)\"|\"($Key)\".+typeof\\((\\w+\\.)*($File)\\)","Extensions":".cs","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"\\W($Key)\\W","Extensions":".vb","IsCaseSensitive":false,"SingleLineComment":"'"},{"Expression":"\\W($File::$Key)\\W","Extensions":".cpp,.c,.hxx,.h","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"&lt;%\\$\\s+Resources:\\s*($File)\\s*,\\s*($Key)\\s*%&gt;","Extensions":".aspx,.ascx,.master","IsCaseSensitive":true,"SingleLineComment":null},{"Expression":"StringResourceKey\\.($Key)","Extensions":".cs","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"\\.($Key)","Extensions":".ts,.html","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"\\w+\\[\"($Key)\"(\\]|\\,[^\\]]+)","Extensions":".cs,.xaml,.cshtml","IsCaseSensitive":true,"SingleLineComment":"\/\/"}]}
 		SolutionGuid = {59B2EC7C-8ADB-4070-A165-6B52F6B04012}
 	EndGlobalSection
 EndGlobal

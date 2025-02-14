@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
@@ -15,6 +16,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Mode
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
 {
+    [ExplicitlyExpose]
     public interface IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
         TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget,
         TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath,
@@ -71,7 +73,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
         where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
         where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
     {
-        public DbSet<UpwardsRoleUserPermissionsView<TUserId>> UpwardsRoleUserPermissionsView { get; set; }
+        public DbSet<UpwardsRoleUserView<TUserId>> UpwardsTenantUserRoles { get; set; }
+
+        public DbSet<DownwardsUserRoleView<TUserId>> DownwardsTenantUserRoles { get; set; }
 
         public IQueryable<Tenant> ChildTenantsWith(string userId, string currentTenant, string[] requiredPermissions);
     }

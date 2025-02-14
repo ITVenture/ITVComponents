@@ -49,10 +49,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
             [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
         {
             Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (contextOptions.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                }
             }
 
             if (partOptions.ActivateTemplateFactory)
@@ -60,14 +63,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
                 services.AddScoped<ITemplateHandlerFactory, TemplateHandlerFactory>();
             }
 
-            if (partOptions.ActivateFilters && t != null)
+            if (contextOptions.ConfigureContext)
             {
-                services.ConfigureGlobalFilters(t);
-            }
+                if (partOptions.ActivateFilters && t != null)
+                {
+                    services.ConfigureGlobalFilters(t);
+                }
 
-            if (partOptions.ActivateDefaultContextUserProvider && t != null)
-            {
-                services.ConfigureDefaultContextUserProvider(t);
+                if (partOptions.ActivateDefaultContextUserProvider && t != null)
+                {
+                    services.ConfigureDefaultContextUserProvider(t);
+                }
             }
 
             if (partOptions.UseContextLocalizationServices)

@@ -135,11 +135,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
             {
                 using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
-                var pi = (from p in securityContext.UpwardsTenantTreeView
-                        join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                        where pin.UniqueName == uniqueName
-                        orderby p.ParentLevel
-                        select pin).FirstOrDefault() ??
+
+                var phase1 = from p in securityContext.UpwardsTenantTreeView
+                    join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
+                    where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value
+                    select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
+                var phase2 = from gj in phase1
+                    group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
+                    into g
+                    select new
+                    {
+                        TenantId = g.Key.OutermostLeafTenantId,
+                        UniqueName = g.Key.UniqueName,
+                        Level = g.Min(n => n.ParentLevel)
+                    };
+                    var phase3 = from p in phase2
+                        join t in securityContext.UpwardsTenantTreeView on new { p.TenantId, p.Level } equals
+                            new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
+                        join pg in securityContext.WebPlugins on new { p.UniqueName, TenantId = t.ParentTenantId }
+                            equals new { pg.UniqueName, TenantId = pg.TenantId.Value }
+                        where pg.UniqueName == uniqueName
+                        select pg;
+                              var pi = phase3.FirstOrDefault() ??
                     securityContext.WebPlugins.FirstOrDefault(n => n.TenantId == null && n.UniqueName == uniqueName);
                 webPluginId = pi?.WebPluginId;
                 return TryRegisterPlugin(uniqueName, pi);
@@ -152,11 +169,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                 return pi;
             }
 
-            var pret = (from p in securityContext.UpwardsTenantTreeView
-                         join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                         where pin.UniqueName == uniqueName && p.OutermostLeafTenantName == ExplicitPluginPermissionScope
-                         orderby p.ParentLevel
-                         select pin).FirstOrDefault() ??
+            var xPhase1 = from p in securityContext.UpwardsTenantTreeView
+                join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
+                where p.OutermostLeafTenantName == ExplicitPluginPermissionScope
+                select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
+            var xPhase2 = from gj in xPhase1
+                group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
+                into g
+                select new
+                {
+                    TenantId = g.Key.OutermostLeafTenantId,
+                    UniqueName = g.Key.UniqueName,
+                    Level = g.Min(n => n.ParentLevel)
+                };
+            var xPhase3 = from p in xPhase2
+                join t in securityContext.UpwardsTenantTreeView on new { p.TenantId, p.Level } equals
+                    new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
+                join pg in securityContext.WebPlugins on new { p.UniqueName, TenantId = t.ParentTenantId }
+                    equals new { pg.UniqueName, TenantId = pg.TenantId.Value }
+                where pg.UniqueName == uniqueName
+                select pg;
+            var pret = xPhase3.FirstOrDefault() ??
                      securityContext.WebPlugins.FirstOrDefault(n => n.TenantId == null && n.UniqueName == uniqueName);
             webPluginId = pret?.WebPluginId;
             return pret;
@@ -208,7 +241,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
             {
                 using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
-                return 
+
+                var phase1 = from p in securityContext.UpwardsTenantTreeView
+                    join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
+                    where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value
+                    select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
+                var phase2 = from gj in phase1
+                    group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
+                    into g
+                    select new
+                    {
+                        TenantId = g.Key.OutermostLeafTenantId,
+                        UniqueName = g.Key.UniqueName,
+                        Level = g.Min(n => n.ParentLevel)
+                    };
+                var phase3 = from p in phase2
+                    join t in securityContext.UpwardsTenantTreeView on new { p.TenantId, p.Level } equals
+                        new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
+                    join pg in securityContext.WebPlugins on new { p.UniqueName, TenantId = t.ParentTenantId }
+                        equals new { pg.UniqueName, TenantId = pg.TenantId.Value }
+                             where !string.IsNullOrEmpty(pg.Constructor) && pg.AutoLoad
+                             select new WebPlugin { AutoLoad = pg.AutoLoad, Constructor = pg.Constructor, StartupRegistrationConstructor = pg.StartupRegistrationConstructor, UniqueName = pg.UniqueName };
+                var phase4 = from t in securityContext.WebPlugins
+                    where t.TenantId == null
+                          && !string.IsNullOrEmpty(t.Constructor) && t.AutoLoad
+                    select new WebPlugin
+                    {
+                        AutoLoad = t.AutoLoad, Constructor = t.Constructor,
+                        StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName
+                    };
+                return phase3.AsEnumerable().Union(phase4.AsEnumerable(), new WebPluginComparer());
+
+                /*return 
                     (from rprot in (from t in securityContext.UpwardsTenantTreeView
                                 join p in securityContext.WebPlugins on t.ParentTenantId equals p.TenantId
                                 select new { t.ParentTenantId, t.ParentLevel, p.UniqueName, p.WebPluginId } into gprot
@@ -220,7 +284,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                     .AsEnumerable()
                     .Union((from t in securityContext.WebPlugins where t.TenantId == null select new WebPlugin { AutoLoad = t.AutoLoad, Constructor = t.Constructor, StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName }).AsEnumerable(),
                         new WebPluginComparer())
-                    .Where(n => !string.IsNullOrEmpty(n.Constructor) && n.AutoLoad);
+                    .Where(n => !string.IsNullOrEmpty(n.Constructor) && n.AutoLoad);*/
                 /*return from p in securityContext.WebPlugins
                     where !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad
                        orderby p.UniqueName
@@ -235,7 +299,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                     select p;
             }
 
-            return
+            var xPhase1 = from p in securityContext.UpwardsTenantTreeView
+                join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
+                where p.OutermostLeafTenantName == ExplicitPluginPermissionScope
+                select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
+            var xPhase2 = from gj in xPhase1
+                group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
+                into g
+                select new
+                {
+                    TenantId = g.Key.OutermostLeafTenantId,
+                    UniqueName = g.Key.UniqueName,
+                    Level = g.Min(n => n.ParentLevel)
+                };
+            var xPhase3 = from p in xPhase2
+                join t in securityContext.UpwardsTenantTreeView on new { p.TenantId, p.Level } equals
+                    new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
+                join pg in securityContext.WebPlugins on new { p.UniqueName, TenantId = t.ParentTenantId }
+                    equals new { pg.UniqueName, TenantId = pg.TenantId.Value }
+                where !string.IsNullOrEmpty(pg.Constructor) && pg.AutoLoad
+                select new WebPlugin { AutoLoad = pg.AutoLoad, Constructor = pg.Constructor, StartupRegistrationConstructor = pg.StartupRegistrationConstructor, UniqueName = pg.UniqueName };
+            var xPhase4 = from t in securityContext.WebPlugins
+                where t.TenantId == null
+                      && !string.IsNullOrEmpty(t.Constructor) && t.AutoLoad
+                select new WebPlugin
+                {
+                    AutoLoad = t.AutoLoad,
+                    Constructor = t.Constructor,
+                    StartupRegistrationConstructor = t.StartupRegistrationConstructor,
+                    UniqueName = t.UniqueName
+                };
+            return xPhase3.AsEnumerable().Union(xPhase4.AsEnumerable(), new WebPluginComparer());
+            /*return
                 (from rprot in (from t in securityContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == ExplicitPluginPermissionScope)
                             join p in securityContext.WebPlugins on t.ParentTenantId equals p.TenantId
                             select new { t.ParentTenantId, t.ParentLevel, p.UniqueName, p.WebPluginId } into gprot
@@ -247,7 +342,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                 .AsEnumerable()
                 .Union((from t in securityContext.WebPlugins where t.TenantId == null select new WebPlugin { AutoLoad = t.AutoLoad, Constructor = t.Constructor, StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName }).AsEnumerable(),
                     new WebPluginComparer())
-                .Where(n => !string.IsNullOrEmpty(n.Constructor) && n.AutoLoad);
+                .Where(n => !string.IsNullOrEmpty(n.Constructor) && n.AutoLoad);*/
         }
 
         /// <summary>

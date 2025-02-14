@@ -4,6 +4,7 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.Extensions;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
@@ -28,17 +29,20 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
         }
 
         [MvcRegistrationMethod]
-        public static void RegisterTenantViewAssemblyPart(ApplicationPartManager manager, SecurityContextOptions options)
+        public static void RegisterTenantViewAssemblyPart(ApplicationPartManager manager, [WebPartConfig] SecurityContextOptions options, [WebPartConfig(WebCoreToolkit.Global.PartTypeLoadBehaviorOption)]AssemblyPartTypeLoadBehaviorOptions loadingOptions)
         {
-            if (!string.IsNullOrEmpty(options?.ContextType))
+            if (options.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                var t = (Type)ExpressionParser.Parse(options.ContextType, dic);
-                manager.EnableItvUserView(t);
-            }
-            else
-            {
-                manager.EnableItvUserView();
+                if (!string.IsNullOrEmpty(options?.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    var t = (Type)ExpressionParser.Parse(options.ContextType, dic);
+                    manager.EnableItvUserView(t, loadingOptions);
+                }
+                else
+                {
+                    manager.EnableItvUserView(loadingOptions);
+                }
             }
         }
     }

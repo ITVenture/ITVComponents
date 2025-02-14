@@ -56,18 +56,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
                 t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
                 services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
             }*/
-
-            Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (contextOptions.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
-                services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
-            }
+                Type t = null;
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                    services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
+                }
 
-            if (!AspNetCoreTenants.WebPartInit.ContextTypeInitialized)
-            {
-                AspNetCoreTenants.WebPartInit.SetContextType(t);
+                if (!AspNetCoreTenants.WebPartInit.ContextTypeInitialized)
+                {
+                    AspNetCoreTenants.WebPartInit.SetContextType(t);
+                }
             }
 
             if (partActivation.ActivateDbContext)

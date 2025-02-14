@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.AspExtensions.Factories;
+using ITVComponents.WebCoreToolkit.AspExtensions.Options;
+using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler;
 using ITVComponents.WebCoreToolkit.BackgroundProcessing;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Configuration.Impl;
@@ -333,10 +336,18 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         {
             var impl = typeof(TImpl);
             var svc = typeof(TService);
-            foreach (var ifs in impl.GetInterfaces().Union(impl.GetBaseTypes()).Where(it =>
-                         Attribute.IsDefined(impl, typeof(ExplicitlyExposeAttribute)) && it != svc && it != impl && !it.IsGenericTypeDefinition))
+            if (Attribute.IsDefined(impl, typeof(ExplicitlyExposeAttribute)) || Attribute.IsDefined(svc, typeof(ExplicitlyExposeAttribute)))
             {
-                lifetimeCallback(services, ifs, services => services.GetService(svc));
+                var att = (ExplicitlyExposeAttribute)(Attribute.GetCustomAttribute(impl, typeof(ExplicitlyExposeAttribute)) ??
+                          Attribute.GetCustomAttribute(svc, typeof(ExplicitlyExposeAttribute)));
+                var exposeAnyway = att.ExposeEntireTree;
+                foreach (var ifs in impl.GetInterfaces().Union(impl.GetBaseTypes()).Where(it =>
+                             (exposeAnyway || Attribute.IsDefined(it, typeof(ExplicitlyExposeAttribute))) &&
+                             it != svc && it != impl && !it.IsGenericTypeDefinition))
+                {
+                    lifetimeCallback(services, ifs, sp => sp.GetService(svc));
+                    Console.WriteLine($"Registering {ifs} for {svc}");
+                }
             }
 
             return services;
@@ -409,6 +420,27 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         public static IServiceCollection RegisterExplicityInterfacesScoped<TService>(this IServiceCollection services)
         {
             return RegisterExplicityInterfacesScoped<TService, TService>(services);
+        }
+
+        /// <summary>
+        /// Registers a factory object that enables Pages to load custom implementations of their pageModel by exposing the logic via an IPageHandlerInstance implementation
+        /// </summary>
+        /// <param name="services">the serviceCollection where the required services are being injected</param>
+        /// <returns>the provided ServiceCollection for method chaining</returns>
+        public static IServiceCollection UsePageModelHandlerFactory(this IServiceCollection services, Action<PageHandlerFactoryOptions> configure = null)
+        {
+            return services.AddSingleton<IPageModelFactory, PageModelFactory>()
+                .AddScoped(typeof(IPageHandlerProvider<,>), typeof(FinalPageHandler<,>));
+            if (configure != null)
+            {
+                ConfigurePageModelHandlerFactory(services, configure);
+            }
+        }
+
+        public static IServiceCollection ConfigurePageModelHandlerFactory(this IServiceCollection services,
+            Action<PageHandlerFactoryOptions> configure)
+        {
+            return services.Configure(configure);
         }
     }
 }

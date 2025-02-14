@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using ITVComponents.DataAccess;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
+using ITVComponents.WebCoreToolkit.AspExtensions.Attributes;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
@@ -28,8 +30,8 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Security.Controllers
 {
-    [Authorize("HasPermission(Tenants.View,Tenants.Write,Tenants.AssignUser,Tenants.WriteSettings,Tenants.AssignNav,Tenants.AssignQuery),HasFeature(ITVAdminViews)"), Area("Security"), ConstructedGenericControllerConvention(ControllerName = "TenantController")]
-    public class TenantControllerClass<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig, TContext> : Controller
+    [Authorize("HasPermission(Tenants.View,Tenants.Write,Tenants.AssignUser,Tenants.WriteSettings,Tenants.AssignNav,Tenants.AssignQuery),HasFeature(ITVAdminViews)"), Area("Security"), ConstructedGenericControllerConvention(ControllerName = "TenantController"), CustomGenericTypeArg("TTenantViewModel",typeof(TenantViewModel))]
+    public class TenantControllerClass<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig, TContext, TTenantViewModel> : Controller
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
         where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
@@ -71,6 +73,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
         where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        where TTenantViewModel: TenantViewModel, new()
     {
         private readonly TContext db;
 
@@ -140,7 +143,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         {
             if (userId == null && navigationMenuId == null && diagnosticsQueryId == null)
             {
-                return Json(db.Tenants.ToDataSourceResult(request, n => n.ToViewModel<TTenant, TenantViewModel>()));
+                return Json(db.Tenants.ToDataSourceResult(request, n => n.ToViewModel<TTenant, TTenantViewModel>()));
             }
 
             if (userId != null)
@@ -149,7 +152,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                     join r in db.TenantUsers on new { p.TenantId, UserId = userId } equals new { r.TenantId, r.UserId }
                         into lj
                     from s in lj.DefaultIfEmpty()
-                    select new TenantViewModel
+                    select new TTenantViewModel
                     {
                         TenantId = p.TenantId,
                         UserId = userId,
@@ -168,7 +171,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                         new { n.TenantId, n.NavigationMenuId }
                         into lj
                     from s in lj.DefaultIfEmpty()
-                    select new TenantViewModel()
+                    select new TTenantViewModel()
                     {
                         TenantId = p.TenantId,
                         Assigned = s != null,
@@ -186,7 +189,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                         new { n.TenantId, n.DiagnosticsQueryId}
                         into lj
                     from s in lj.DefaultIfEmpty()
-                    select new TenantViewModel()
+                    select new TTenantViewModel()
                     {
                         TenantId = p.TenantId,
                         Assigned = s != null,
@@ -206,7 +209,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
             var model = new TTenant();
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<TenantViewModel,TTenant>(model);
+                await this.TryUpdateModelAsync<TTenantViewModel, TTenant>(model);
                 if (options.Value.UseExplicitTenantPasswords)
                 {
                     model.TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey());
@@ -217,12 +220,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<TTenant, TenantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TTenant, TTenantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
         [Authorize("HasPermission(Tenants.Write)")]
-        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel)
+        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, TTenantViewModel viewModel)
         {
             var model = db.Tenants.First(n => n.TenantId== viewModel.TenantId);
             if (ModelState.IsValid)
@@ -237,24 +240,24 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         [HttpPost]
         [Authorize("HasPermission(Tenants.Write,Tenants.AssignUser)")]
         public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request,
-            TenantViewModel viewModel)
+            TTenantViewModel viewModel)
         {
             var model = db.Tenants.First(n => n.TenantId == viewModel.TenantId);
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<TenantViewModel, TTenant>(model, "",
+                await this.TryUpdateModelAsync<TTenantViewModel, TTenant>(model, "",
                     m => { return m.ElementType == null; });
                 await db.SaveChangesAsync();
             }
 
             return Json(
-                await new[] { model.ToViewModel<TTenant, TenantViewModel>() }.ToDataSourceResultAsync(request,
+                await new[] { model.ToViewModel<TTenant, TTenantViewModel>() }.ToDataSourceResultAsync(request,
                     ModelState));
         }
 
         [HttpPost]
         [Authorize("HasPermission(Tenants.AssignUser)")]
-        public async Task<IActionResult> UpdateTU([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel, TUserId userId)
+        public async Task<IActionResult> UpdateTU([DataSourceRequest] DataSourceRequest request, TTenantViewModel viewModel, TUserId userId)
         {
             var user = db.Users.First(expressionHelper.EqualsUserId(userId));
             var model = db.TenantUsers.FirstOrDefault(expressionHelper.EqualsUserTenantId(userId, viewModel.TenantId));
@@ -281,7 +284,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
 
         [HttpPost]
         [Authorize("HasPermission(Tenants.AssignNav)")]
-        public async Task<IActionResult> UpdateTN([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel, int navigationMenuId)
+        public async Task<IActionResult> UpdateTN([DataSourceRequest] DataSourceRequest request, TTenantViewModel viewModel, int navigationMenuId)
         {
             var nav = db.Navigation.First(n => n.NavigationMenuId == navigationMenuId);
             var model = db.TenantNavigation.FirstOrDefault(n => n.NavigationMenuId == nav.NavigationMenuId && n.TenantId == viewModel.TenantId);
@@ -308,7 +311,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
 
         [HttpPost]
         [Authorize("HasPermission(Tenants.AssignQuery)")]
-        public async Task<IActionResult> UpdateTQ([DataSourceRequest] DataSourceRequest request, TenantViewModel viewModel, int diagnosticsQueryId)
+        public async Task<IActionResult> UpdateTQ([DataSourceRequest] DataSourceRequest request, TTenantViewModel viewModel, int diagnosticsQueryId)
         {
             var qry = db.DiagnosticsQueries.First(n => n.DiagnosticsQueryId == diagnosticsQueryId);
             var model = db.TenantDiagnosticsQueries.FirstOrDefault(n => n.DiagnosticsQueryId == qry.DiagnosticsQueryId && n.TenantId == viewModel.TenantId);

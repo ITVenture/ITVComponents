@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -13,6 +14,7 @@ using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions.Helpers;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Authentication;
@@ -226,10 +228,17 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                     {
                         foreach (var tmp in cfgPaths)
                         {
-                            dic.Add(tmp.Key, method.Invoke(null,
-                                BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod,
-                                null,
-                                new object[] { config, tmp.Key, tmp.Value }, null));
+                            if (tmp.Key != Global.PartTypeLoadBehaviorOption)
+                            {
+                                dic.Add(tmp.Key, method.Invoke(null,
+                                    BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod,
+                                    null,
+                                    new object[] { config, tmp.Key, tmp.Value }, null));
+                            }
+                            else
+                            {
+                                dic.Add(tmp.Key, config.GetSection<AssemblyPartTypeLoadBehaviorOptions>(tmp.Value));
+                            }
                         }
                     }
 
@@ -369,6 +378,10 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                     if (options != null && options.TryGetValue(name, out var v))
                     {
                         l.Add(v);
+                    }
+                    else if (name == Global.PartTypeLoadBehaviorOption)
+                    {
+                        l.Add(new AssemblyPartTypeLoadBehaviorOptions());
                     }
                     else
                     {

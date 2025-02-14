@@ -10,6 +10,8 @@ namespace ITVComponents.WebCoreToolkit.Options
     {
         public List<AuthenticationHandlerDefinition> AuthenticationHandlers { get; set; } =
             new List<AuthenticationHandlerDefinition>();
+
+        public string LogoPattern { get; set; } = "/images/logo/login-logo[DisplayName].png";
     }
 
     public class AuthenticationHandlerDefinition

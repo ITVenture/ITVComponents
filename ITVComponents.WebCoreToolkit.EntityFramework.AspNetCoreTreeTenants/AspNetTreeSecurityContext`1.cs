@@ -9,7 +9,9 @@ using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
+using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
+using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
@@ -386,6 +388,125 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 }
             }
 
+            if (tableName == "Tenants")
+            {
+                postedFilter.TryGetValue("CurrentTenantId", out var currentTenant);
+                int cti = 0;
+                if (TypeConverter.TryConvert(currentTenant, typeof(int), out var ctt))
+                {
+                    cti = (int)ctt;
+                }
+
+                int[] excludes = Array.Empty<int>();
+                if (cti != 0)
+                {
+                    var ict = includeChildTree;
+                    var sat = showAllTenants;
+                    includeChildTree = true;
+                    showAllTenants = true;
+                    try
+                    {
+                        excludes = (from t in DownwardsTenantTreeView
+                            where t.TopmostTenantId == cti
+                            select t.ChildTenantId).ToArray();
+                    }
+                    finally
+                    {
+                        includeChildTree = ict;
+                        showAllTenants = sat;
+                    }
+                }
+
+                var rt = (from t in Tenants where !excludes.Contains(t.TenantId) select t);
+                if (clientFilter != null)
+                {
+                    rt = rt.Where(ExpressionBuilder.BuildExpression<HierarchyTenant>(clientFilter, c =>
+                    {
+                        if (c == "Label")
+                        {
+                            return new[] { "TenantName", "DisplayName" };
+                        }
+
+                        return null;
+                    }));
+                }
+
+                return rt.Select(t => new ForeignKeyData<int>
+                    { Key = t.TenantId, Label = t.DisplayName, FullRecord = t.ToDictionary(true) });
+            }
+
+            if (tableName == nameof(SecurityRoles))
+            {
+                var icpt = includeParentTree;
+                var sat = showAllTenants;
+                includeParentTree= true;
+                showAllTenants = true;
+                IEnumerable<ForeignKeyData<int>> resultingRoles; 
+                try
+                {
+                    int main = 0;
+                    int par = 0;
+                    resultingRoles = (SecurityRoles.Include(n => n.Tenant).Where(ExpressionBuilder.BuildExpression<Role>(clientFilter, c =>
+                    {
+                        if (c == "Label")
+                        {
+                            return new[] { nameof(Role.RoleName) };
+                        }
+
+                        return null;
+                    }, reconfigureFilter: f =>
+                    {
+                        if (f.ProcessingInfo is not FilterProcessingHelper { Processed: true } && f is CompareFilter
+                            {
+                                PropertyName: nameof(Role.TenantId), Operator: CompareOperator.Equal
+                            } cff)
+                        {
+                            var mainTenant = Convert.ToInt32(cff.Value);
+                            var ct = Tenants.First(n => n.TenantId == mainTenant);
+                            main = mainTenant;
+                            if (ct.ParentTenantId != null)
+                            {
+                                par = ct.ParentTenantId.Value;
+                                return new CompositeFilter()
+                                {
+                                    ProcessingInfo = new FilterProcessingHelper { Processed = true },
+                                    Children =
+                                    [
+                                        new CompareFilter
+                                        {
+                                            Value = main,
+                                            Operator = CompareOperator.Equal,
+                                            ProcessingInfo = new FilterProcessingHelper { Processed = true },
+                                            PropertyName = nameof(Role.TenantId)
+                                        },
+                                        new CompareFilter
+                                        {
+                                            Value = par,
+                                            Operator = CompareOperator.Equal,
+                                            ProcessingInfo = new FilterProcessingHelper { Processed = true },
+                                            PropertyName = nameof(Role.TenantId)
+                                        }
+                                    ],
+                                    Operator = BoolOperator.Or
+                                };
+                            }
+                        }
+
+                        return null;
+                    })).Select(r => new ForeignKeyData<int>
+                    {
+                        FullRecord = r.ToDictionary(true),
+                        Key = r.RoleId,
+                        Label = (r.TenantId == main)?r.RoleName:$"{r.Tenant.DisplayName} -- {r.RoleName}"
+                    })).ToArray();
+                }
+                finally
+                {
+                    includeParentTree= icpt;
+                    showAllTenants = sat;
+                }
+            }
+
             /*if (tableName == "Permissions")
             {
                 return from t in Permissions orderby t.PermissionName select new ForeignKeyData<int> {Key = t.PermissionId, Label = t.PermissionName};
@@ -458,7 +579,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             }
         }
 
-        public DbSet<UpwardsRoleUserPermissionsView<string>> UpwardsRoleUserPermissionsView { get; set; }
+        public DbSet<UpwardsRoleUserView<string>> UpwardsTenantUserRoles { get; set; }
+
+        public DbSet<DownwardsUserRoleView<string>> DownwardsTenantUserRoles { get; set; }
 
         [ExpressionPropertyRedirect("CurrentTenantTree")]
         public IQueryable<int> CurrentTenantTree => IncludeParentTree

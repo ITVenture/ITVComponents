@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
 using ITVComponents.EFRepo.Options;
+using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -81,20 +82,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.GlobalFi
                 o.ConfigureGlobalFilter<TClientAppUser>(ca => ShowAllTenants || !FilterAvailable || ca.TenantUser.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TSequence>(sq => ShowAllTenants || !FilterAvailable || !IncludeParentTree && sq.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && CurrentTenantTree.Contains(sq.TenantId));
                 o.ConfigureGlobalFilter<UpwardsTenantView>(u => FilterAvailable && !ShowAllTenants && (IncludeParentTree && u.OutermostLeafTenantName == CurrentTenant || !IncludeParentTree && u.ParentTenantName == u.OutermostLeafTenantName && u.ParentTenantName == CurrentTenant));
-                o.ConfigureGlobalFilter<UpwardsRoleUserPermissionsView<TUserId>>(u => true);
+                o.ConfigureGlobalFilter<UpwardsRoleUserView<TUserId>>(u => true);
                 o.ConfigureGlobalFilter<DownwardsTenantView>(d => FilterAvailable && !ShowAllTenants && IncludeChildTree && d.TopmostTenantName == CurrentTenant);
-                o.ConfigureGlobalFilter<DownwardsUserPermissionView<TUserId>>(d => FilterAvailable && !ShowAllTenants && IncludeChildTree && d.ViewpointTenantName == CurrentTenant);
+                o.ConfigureGlobalFilter<DownwardsUserRoleView<TUserId>>(d => FilterAvailable && !ShowAllTenants && IncludeChildTree && d.ViewpointTenantName == CurrentTenant);
             });
         }
 
-        public static MethodInfo GetConfigureMethod(Dictionary<string, Type> genericArguments)
+        public static MethodInfo GetConfigureMethod(Dictionary<Type,Dictionary<string, Type>> genericArguments)
         {
-            var t = typeof(GlobalFilterBuilder)
-                .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.InvokeMethod)
-                .First(n => n.IsGenericMethod && n.Name == "ConfigureGlobalFilters");
-            var p = t.GetGenericArguments();
-            var p2 = (from n in p join a in genericArguments on n.Name equals a.Key select a.Value).ToArray();
-            return t.MakeGenericMethod(p2);
+            return typeof(GlobalFilterBuilder).ImplementGenericMethods(genericArguments)
+                .First(n => n.Name == "ConfigureGlobalFilters");
+            /*.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.InvokeMethod)
+            .First(n => n.IsGenericMethod && n.Name == "ConfigureGlobalFilters");
+        var p = t.GetGenericArguments();
+        var p2 = (from n in p join a in genericArguments on n.Name equals a.Key select a.Value).ToArray();
+        return t.MakeGenericMethod(p2);*/
         }
 
         [ExpressionPropertyRedirect("ShowAllTenants")]

@@ -439,7 +439,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                     .Join(securityContext.TenantUsers, UserId, tr => tr.UserId, (tu,tt) => tt)
                 join ur in securityContext.TenantUserRoles/*.Where(n => n.TenantUserId != null && n.RoleId != null)*/ on tr.TenantUserId equals ur.TenantUserId.Value
                     join r in securityContext.SecurityRoles on new {RoleId=ur.RoleId.Value, tr.TenantId} equals new { r.RoleId, r.TenantId }
-                    join rp in securityContext.RolePermissions/*.Where(n => n.RoleId != null)*/ on new {r.RoleId, r.TenantId} equals new {RoleId=rp.RoleId.Value, rp.TenantId}
+                    join rp in securityContext.RolePermissions/*.Where(n => n.RoleId != null)*/ on new {r.RoleId, r.TenantId} equals new {RoleId=rp.RoleId, rp.TenantId}
                     join rt in securityContext.Tenants on rp.TenantId equals rt.TenantId
                     join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
                     select new Permission

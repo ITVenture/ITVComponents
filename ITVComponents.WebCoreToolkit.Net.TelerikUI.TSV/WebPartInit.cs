@@ -4,6 +4,7 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
@@ -43,17 +44,33 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews
         }
 
         [MvcRegistrationMethod]
-        public static void RegisterTenantViewAssemblyPart(ApplicationPartManager manager, [WebPartConfig("ContextSettings")] SecurityContextOptions options)
+        public static void RegisterTenantViewAssemblyPart(ApplicationPartManager manager, [WebPartConfig("ContextSettings")] SecurityContextOptions options,
+            [WebPartConfig("ViewConfig")] SecurityViewsOptions viewOptions,[WebPartConfig(WebCoreToolkit.Global.PartTypeLoadBehaviorOption)] AssemblyPartTypeLoadBehaviorOptions loadingOptions)
         {
-            if (!string.IsNullOrEmpty(options?.ContextType))
+            if (options.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                var t = (Type)ExpressionParser.Parse(options.ContextType, dic);
-                manager.EnableItvTenantViews(t);
-            }
-            else
-            {
-                throw new InvalidOperationException("Unable to register Views without a Context-Type");
+                if (!string.IsNullOrEmpty(options?.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    var t = (Type)ExpressionParser.Parse(options.ContextType, dic);
+                    var customTypes = new Dictionary<string, Type>();
+                    if (viewOptions != null)
+                    {
+                        if (viewOptions.CustomViewGenericArgs != null)
+                        {
+                            foreach (var tmp in viewOptions.CustomViewGenericArgs)
+                            {
+                                customTypes.Add(tmp.Key, (Type)ExpressionParser.Parse(tmp.Value, dic));
+                            }
+                        }
+                    }
+
+                    manager.EnableItvTenantViews(t, customTypes, loadingOptions);
+                }
+                else
+                {
+                    throw new InvalidOperationException("Unable to register Views without a Context-Type");
+                }
             }
         }
         

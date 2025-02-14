@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.8")
+                .HasAnnotation("ProductVersion", "8.0.11")
                 .HasAnnotation("Proxies:ChangeTracking", false)
                 .HasAnnotation("Proxies:CheckEquality", false)
                 .HasAnnotation("Proxies:LazyLoading", true)
@@ -653,7 +653,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                     b.Property<int>("PermissionId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("RoleId")
+                    b.Property<int>("RoleId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("RoleRoleId")
@@ -2016,7 +2016,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Role", "Role")
                         .WithMany("RolePermissions")
-                        .HasForeignKey("RoleId");
+                        .HasForeignKey("RoleId")
+                        .IsRequired();
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.RoleRole", "LinkedBy")
                         .WithMany("ResultingLinks")

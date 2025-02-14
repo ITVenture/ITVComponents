@@ -13,7 +13,7 @@ using ILoggerFactory = Microsoft.Extensions.Logging.ILoggerFactory;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Localization
 {
-    internal class ContextLocalizerFactory:IStringLocalizerFactory
+    public class ContextLocalizerFactory:IStringLocalizerFactory
     {
         private readonly IStringLocalizerFactory defaultFactory;
         private readonly IServiceProvider services;

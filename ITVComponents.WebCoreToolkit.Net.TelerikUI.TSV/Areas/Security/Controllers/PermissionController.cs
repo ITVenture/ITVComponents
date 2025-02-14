@@ -138,7 +138,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 }
 
                 return Json((from p in db.Permissions
-                    join r in db.RolePermissions/*.Where(n => n.RoleId != null)*/ on new {p.PermissionId, TenantId = p.TenantId ?? tenantId.Value, RoleId = roleId.Value} equals new {r.PermissionId, r.TenantId, RoleId=r.RoleId.Value} into lj
+                    join r in db.RolePermissions/*.Where(n => n.RoleId != null)*/ on new {p.PermissionId, TenantId = p.TenantId ?? tenantId.Value, RoleId = roleId.Value} equals new {r.PermissionId, r.TenantId, RoleId=r.RoleId} into lj
                     from s in lj.DefaultIfEmpty()
                     where (p.TenantId == null && isSysAdmin) || p.TenantId == tenantId
                     select new PermissionViewModel

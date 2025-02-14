@@ -181,6 +181,23 @@ namespace ITVComponents.WebCoreToolkit
                     }
                 });
             }
+
+            if (options.UsePageModelHandlerFactory)
+            {
+                services.UsePageModelHandlerFactory();
+                if (options.PageHandlers.Count != 0)
+                {
+                    services.ConfigurePageModelHandlerFactory(c =>
+                    {
+                        foreach (var opt in options.PageHandlers)
+                        {
+                            c.ConfigureHandlerType(Type.GetType(opt.PageModelTypeName),
+                                Type.GetType(opt.HandlerInterfaceTypeName),
+                                Type.GetType(opt.HandlerImplementationTypeName), opt.UpdateExisting);
+                        }
+                    });
+                }
+            }
         }
     }
 }

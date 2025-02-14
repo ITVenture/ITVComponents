@@ -48,17 +48,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
             [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
-            Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (contextOptions.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
-                services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
-            }
+                Type t = null;
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                    services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
+                }
 
-            if (!TenantSecurityContext.WebPartInit.ContextTypeInitialized)
-            {
-                TenantSecurityContext.WebPartInit.SetContextType(t);
+                if (!TenantSecurityContext.WebPartInit.ContextTypeInitialized)
+                {
+                    TenantSecurityContext.WebPartInit.SetContextType(t);
+                }
             }
 
             if (partActivation.ActivateDbContext)

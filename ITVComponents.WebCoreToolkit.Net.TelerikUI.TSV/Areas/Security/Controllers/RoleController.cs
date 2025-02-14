@@ -108,65 +108,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         }
 
         [HttpPost]
-        public IActionResult Read([DataSourceRequest] DataSourceRequest request, int tenantId, [FromQuery]int? permissionId, [FromQuery]int? tenantUserId, [FromQuery]int? roleId)
+        public IActionResult Read([DataSourceRequest] DataSourceRequest request, int tenantId,
+            [FromQuery] int? permissionId, [FromQuery] int? tenantUserId, [FromQuery] int? roleId)
         {
             if (!isSysAdmin)
             {
                 tenantId = db.CurrentTenantId.Value;
             }
-            
-            if (tenantUserId == null && permissionId == null && roleId == null)
-            {
-                return Json(db.SecurityRoles.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, n => n.ToViewModel<TRole, RoleViewModel>((m,v) => v.Editable = !m.IsSystemRole || isSysAdmin)));
-            }
-            else if (permissionId != null)
-            {
-                return Json((from p in db.SecurityRoles
-                    join r in db.RolePermissions/*.Where(n => n.RoleId != null)*/ on new {p.RoleId, p.TenantId, PermissionId = permissionId.Value} equals new {RoleId=r.RoleId.Value, r.TenantId, r.PermissionId} into lj
-                    from s in lj.DefaultIfEmpty()
-                    where p.TenantId == tenantId && (!p.IsSystemRole || isSysAdmin)
-                    select new RoleViewModel
-                    {
-                        RoleId = p.RoleId,
-                        TenantId = tenantId,
-                        PermissionId = permissionId,
-                        Assigned = s != null,
-                        UniQUID = $"{p.RoleId}_{tenantId}_{permissionId}",
-                        RoleName=p.RoleName
-                    }).ToDataSourceResult(request, ModelState));
-            }
-            else if (tenantUserId != null)
-            {
-                return Json((from p in db.SecurityRoles
-                    join r in db.TenantUserRoles/*.Where(n => n.TenantUserId != null && n.RoleId != null)*/ on new {p.RoleId, TenantUserId = tenantUserId.Value} equals new {RoleId=r.RoleId.Value, TenantUserId=r.TenantUserId.Value} into lj
-                    from s in lj.DefaultIfEmpty()
-                    where p.TenantId == tenantId
-                    select new RoleViewModel
-                    {
-                        RoleId = p.RoleId,
-                        UserId = tenantUserId,
-                        RoleName = p.RoleName,
-                        Assigned = s != null,
-                        TenantId = tenantId,
-                        UniQUID = $"{p.RoleId}_{tenantUserId}"
-                    }).ToDataSourceResult(request, ModelState));
-            }
-            else
-            {
-                return Json((from p in db.SecurityRoles
-                    join r in db.RoleRoles/*.Where(n => n.PermissiveRoleId != null && n.PermittedRoleId != null)*/ on new { p.RoleId, PermissiveRoleId = roleId.Value } equals new { RoleId=r.PermittedRoleId.Value, PermissiveRoleId=r.PermissiveRoleId.Value } into lj
-                    from s in lj.DefaultIfEmpty()
-                    where p.TenantId == tenantId
-                    select new RoleViewModel
-                    {
-                        RoleId = p.RoleId,
-                        PermissiveRoleId = roleId,
-                        RoleName = p.RoleName,
-                        Assigned = s != null,
-                        TenantId = tenantId,
-                        UniQUID = $"{p.RoleId}_{roleId}"
-                    }).ToArray().Where(n => !db.IsCyclicRoleInheritance(roleId.Value, n.RoleId)).ToDataSourceResult(request, ModelState));
-            }
+
+            return Json(db.SecurityRoles.Where(n => n.TenantId == tenantId).ToDataSourceResult(request,
+                n => n.ToViewModel<TRole, RoleViewModel>((m, v) => v.Editable = !m.IsSystemRole || isSysAdmin)));
         }
 
         [HttpPost]
@@ -238,96 +189,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 return Json(
                     await new[] { model.ToViewModel<TRole, RoleViewModel>() }.ToDataSourceResultAsync(request,
                         ModelState));
-            }
-            else if (viewModel.PermissionId != null &&
-                     HttpContext.RequestServices.VerifyUserPermissions(new[] { "Roles.AssignPermission" }))
-            {
-                var role = db.SecurityRoles.First(n =>
-                    n.RoleId == viewModel.RoleId && n.TenantId == viewModel.TenantId);
-                if (role.IsSystemRole && !isSysAdmin)
-                {
-                    return BadRequest(TextsAndMessagesHelper.IWCN_RC_Must_Be_Sysadmin_To_Edit_Or_Create_SysRole);
-                }
-
-                var model = db.RolePermissions.FirstOrDefault(n =>
-                    n.PermissionId == viewModel.PermissionId && n.RoleId == viewModel.RoleId &&
-                    n.TenantId == viewModel.TenantId);
-                if ((model == null) == viewModel.Assigned)
-                {
-                    if (model == null)
-                    {
-                        db.RolePermissions.Add(new TRolePermission
-                        {
-                            PermissionId = viewModel.PermissionId.Value,
-                            RoleId = viewModel.RoleId,
-                            TenantId = viewModel.TenantId
-                        });
-                    }
-                    else
-                    {
-                        db.RolePermissions.Remove(model);
-                    }
-
-                    await db.SaveChangesAsync();
-                }
-
-                return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
-            }
-            else if (viewModel.UserId != null &&
-                     HttpContext.RequestServices.VerifyUserPermissions(new[] { "Roles.AssignUser" }))
-            {
-                var model = db.TenantUserRoles.FirstOrDefault(n =>
-                    n.TenantUserId == viewModel.UserId && n.RoleId == viewModel.RoleId &&
-                    n.User.TenantId == viewModel.TenantId);
-                var role = db.SecurityRoles.First(n =>
-                    n.RoleId == viewModel.RoleId && n.TenantId == viewModel.TenantId);
-                if ((model == null) == viewModel.Assigned)
-                {
-                    if (model == null)
-                    {
-                        db.TenantUserRoles.Add(new TUserRole
-                        {
-                            TenantUserId = viewModel.UserId.Value,
-                            RoleId = viewModel.RoleId
-                        });
-                    }
-                    else
-                    {
-                        db.TenantUserRoles.Remove(model);
-                    }
-
-                    await db.SaveChangesAsync();
-                }
-
-                return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
-            }
-            else if (viewModel.PermissiveRoleId != null &&
-                     HttpContext.RequestServices.VerifyUserPermissions(new[] { "Roles.AssignRole" }))
-            {
-                var model = db.RoleRoles.FirstOrDefault(n =>
-                    n.PermissiveRoleId == viewModel.PermissiveRoleId && n.PermittedRoleId == viewModel.RoleId &&
-                    n.PermissiveRole.TenantId == viewModel.TenantId);
-                var role = db.SecurityRoles.First(n =>
-                    n.RoleId == viewModel.RoleId && n.TenantId == viewModel.TenantId);
-                if ((model == null) == viewModel.Assigned)
-                {
-                    if (model == null)
-                    {
-                        db.RoleRoles.Add(new TRoleRole()
-                        {
-                            PermissiveRoleId= viewModel.PermissiveRoleId.Value,
-                            PermittedRoleId= viewModel.RoleId
-                        });
-                    }
-                    else
-                    {
-                        db.RoleRoles.Remove(model);
-                    }
-
-                    await db.SaveChangesAsync();
-                }
-
-                return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
             return Unauthorized();

@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.8")
+                .HasAnnotation("ProductVersion", "8.0.11")
                 .HasAnnotation("Proxies:ChangeTracking", false)
                 .HasAnnotation("Proxies:CheckEquality", false)
                 .HasAnnotation("Proxies:LazyLoading", true)
@@ -655,7 +655,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
                     b.Property<int>("PermissionId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("RoleId")
+                    b.Property<int>("RoleId")
                         .HasColumnType("int");
 
                     b.Property<int?>("RoleRoleId")
@@ -676,7 +676,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasIndex(new[] { "RoleId", "PermissionId", "TenantId", "OriginId" }, "IX_UniqueRolePermission")
                         .IsUnique()
-                        .HasFilter("[RoleId] IS NOT NULL AND [OriginId] IS NOT NULL");
+                        .HasFilter("[OriginId] IS NOT NULL");
 
                     b.ToTable("RolePermissions", (string)null);
                 });
@@ -2024,7 +2024,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Mig
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.Role", "Role")
                         .WithMany("RolePermissions")
-                        .HasForeignKey("RoleId");
+                        .HasForeignKey("RoleId")
+                        .IsRequired();
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.RoleRole", "LinkedBy")
                         .WithMany("ResultingLinks")

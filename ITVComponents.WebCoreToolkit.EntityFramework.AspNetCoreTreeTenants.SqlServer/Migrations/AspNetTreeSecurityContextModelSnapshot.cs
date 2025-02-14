@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.8")
+                .HasAnnotation("ProductVersion", "8.0.11")
                 .HasAnnotation("Proxies:ChangeTracking", false)
                 .HasAnnotation("Proxies:CheckEquality", false)
                 .HasAnnotation("Proxies:LazyLoading", true)
@@ -684,7 +684,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
                     b.Property<int>("PermissionId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("RoleId")
+                    b.Property<int>("RoleId")
                         .HasColumnType("int");
 
                     b.Property<int?>("RoleRoleId")
@@ -705,7 +705,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
 
                     b.HasIndex(new[] { "RoleId", "PermissionId", "TenantId", "OriginId" }, "IX_UniqueRolePermission")
                         .IsUnique()
-                        .HasFilter("[RoleId] IS NOT NULL AND [OriginId] IS NOT NULL");
+                        .HasFilter("[OriginId] IS NOT NULL");
 
                     b.ToTable("RolePermissions", (string)null);
                 });
@@ -1836,7 +1836,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
                         });
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels.DownwardsUserPermissionView<string>", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels.DownwardsUserRoleView<string>", b =>
                 {
                     b.Property<int>("ChildLevel")
                         .HasColumnType("int");
@@ -1845,9 +1845,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
                         .HasColumnType("int");
 
                     b.Property<string>("ChildTenantName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PermissionName")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ResultingChildRoleId")
@@ -1874,19 +1871,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
                     b.Property<string>("ViewpointTenantName")
                         .HasColumnType("nvarchar(max)");
 
-                    b.ToTable("DownwardsPermissionTree", null, t =>
+                    b.ToTable("DownwardsRoleTree", null, t =>
                         {
                             t.ExcludeFromMigrations();
                         });
                 });
 
-            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels.UpwardsRoleUserPermissionsView<string>", b =>
+            modelBuilder.Entity("ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels.UpwardsRoleUserView<string>", b =>
                 {
                     b.Property<int>("OutermostLeafTenantId")
                         .HasColumnType("int");
 
                     b.Property<string>("OutermostLeafTenantName")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OutermostRoleId")
+                        .HasColumnType("int");
 
                     b.Property<int>("ParentLevel")
                         .HasColumnType("int");
@@ -1897,16 +1897,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
                     b.Property<string>("ParentTenantName")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("PermissionName")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("TenantUserId")
                         .HasColumnType("int");
 
                     b.Property<string>("UserId")
                         .HasColumnType("nvarchar(max)");
 
-                    b.ToTable("UpwardsPermissionTree", null, t =>
+                    b.ToTable("UpwardsRoleTree", null, t =>
                         {
                             t.ExcludeFromMigrations();
                         });
@@ -2344,7 +2341,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Role", "Role")
                         .WithMany("RolePermissions")
-                        .HasForeignKey("RoleId");
+                        .HasForeignKey("RoleId")
+                        .IsRequired();
 
                     b.HasOne("ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RoleRole", "LinkedBy")
                         .WithMany("ResultingLinks")

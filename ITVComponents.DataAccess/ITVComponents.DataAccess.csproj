@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>4.0.0-PRE018</Version>
+    <Version>4.0.0-PRE054</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -15,7 +15,7 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="SkiaSharp" version="2.88.8" />
+    <PackageReference Include="SkiaSharp" version="2.88.9" />
   </ItemGroup>
   <ItemGroup>
     <!-- Resources -->

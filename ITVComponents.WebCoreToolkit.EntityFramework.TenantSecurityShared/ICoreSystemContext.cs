@@ -77,6 +77,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         int SaveChanges();
     }
 
+    [ExplicitlyExpose]
     public interface ICoreSystemContext<TTrustConfig> : ITrustfulComponent<TTrustConfig>, ICoreSystemContext
         where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {

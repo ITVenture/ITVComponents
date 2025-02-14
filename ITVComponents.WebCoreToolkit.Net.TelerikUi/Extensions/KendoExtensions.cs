@@ -462,7 +462,7 @@
                 if (customFilterData != null)
                 {
                     dataCallback =
-                        $"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{HtmlExtensions.CreateDataScriptFor(repoName, tableName, columnName, customFilterData, out dataCallbackBody)}";
+                        $"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{HtmlExtensions.CreateDataScriptFor(repoName, tableName, columnName, customFilterData, target.Container.Name, out dataCallbackBody)}";
                 }
 
                 if (filterable)

@@ -1,0 +1,39 @@
+﻿@page
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Localization.Model
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Services
+@using Kendo.Mvc.TagHelpers
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage.Disable2faModel
+@inject IManageNavigator manageNavigator
+@inject IStringLocalizer<IdentityMessages> localizer
+@{
+    ViewData["Title"] = localizer["Disable two-factor authentication (2FA)"];
+    manageNavigator.ActivePage = "twoFactor";
+}
+@{
+    Layout = "_Layout.cshtml";
+}
+
+<partial name="_StatusMessage" for="StatusMessage" />
+<h2>@ViewData["Title"]</h2>
+
+<div class="alert alert-warning" role="alert">
+    @{
+        var disableBlockInfo = localizer.FromJson<PrePostValLocalizationBlock>("Disable2FaMsg");
+    }
+    <p>
+        <strong>@disableBlockInfo.Title</strong>
+    </p>
+    <p>
+        @disableBlockInfo.Pre
+        <a asp-page="./ResetAuthenticator">@disableBlockInfo.TagTx</a>@disableBlockInfo.Post
+    </p>
+</div>
+
+<div>
+    <form method="post" class="form-group">
+        <button class="btn btn-danger" type="submit">@localizer["Disable 2FA"]</button>
+    </form>
+</div>

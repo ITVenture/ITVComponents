@@ -24,6 +24,7 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.Formatting;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
 using Newtonsoft.Json.Linq;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
@@ -241,20 +242,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             if (t != null)
             {
                 var ti = t.Value;
-                IQueryable<TUser> tenantUsers;
+                IQueryable<UserTenantLevel<TUser>> tenantUsers;
                 var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
                 using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = false });
                 if (isUser)
                 {
                     //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
-                    tenantUsers = (from tu in securityContext.TenantUsers
-                            join j in securityContext.UpwardsRoleUserPermissionsView on tu.TenantUserId equals j.TenantUserId
-                            where j.OutermostLeafTenantId == securityContext.CurrentTenantId
-                            select new { tu.UserId, tu.User, j.ParentLevel } into gj
-                            group gj by gj.UserId into g
-                            select new { UserId = g.Key, Level = g.Min(us => us.ParentLevel), Users = g.Select(uu => new { uu.ParentLevel, uu.User }) }).AsEnumerable()
-                        .Select(tu => tu.Users.First(n => n.ParentLevel == tu.Level).User).AsQueryable();
+                    tenantUsers = GetRawUserQuery();
                 }
                 else
                 {
@@ -264,10 +259,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                     var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
                     tenantUsers = appUsers
                         .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
-                        .Select(n => n.TenantUser.User);
+                        .Select(n => new UserTenantLevel<TUser>{User=n.TenantUser.User,TenantId = ti, Level=1});
                 }
 
-                return tenantUsers.Any(UserFilter(userLabels, userAuthenticationType));
+                return tenantUsers.Select(n => n.User).Any(UserFilter(userLabels, userAuthenticationType));
             }
 
             return false;
@@ -280,16 +275,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
                 securityContext,
                 new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser});
-            IQueryable<TUser> tenantUsers;
+            IQueryable<UserTenantLevel<TUser>> tenantUsers;
             if (isUser)
             {
-                tenantUsers = (from t in securityContext.TenantUsers
-                        join j in securityContext.UpwardsRoleUserPermissionsView on t.TenantUserId equals j.TenantUserId
-                        where j.OutermostLeafTenantId == securityContext.CurrentTenantId
-                        select new { t.UserId, t.User, j.ParentLevel } into gj
-                        group gj by gj.UserId into g
-                        select new { UserId = g.Key, Level = g.Min(us => us.ParentLevel), Users = g.Select(uu => new { uu.ParentLevel, uu.User }) }).AsEnumerable()
-                    .Select(t => t.Users.First(n => n.ParentLevel == t.Level).User).AsQueryable();
+                tenantUsers= GetRawUserQuery();
+                /*tenantUsers =  phase2.AsEnumerable()
+                    .Select(t => t.Users.First(n => n.ParentLevel == t.Level).User).AsQueryable();*/
             }
             else
             {
@@ -299,9 +290,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 var appUsers = securityContext.ClientAppUsers;
                 tenantUsers = appUsers
                     .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
-                    .Select(n => n.TenantUser.User);
+                    .Select(n => new UserTenantLevel<TUser> { User = n.TenantUser.User, TenantId = n.TenantUser.TenantId, Level = 1 });
             }
-            return (from u in tenantUsers.Where(UserFilter(userLabels, userAuthenticationType))
+            return (from u in tenantUsers.Select(n => n.User).Where(UserFilter(userLabels, userAuthenticationType))
                     .Join(securityContext.UserProperties, UserId, p => p.UserId, (tu, tp) => tp)
                 where u.PropertyType == propertyType
                 select u).ToArray();
@@ -316,15 +307,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
             var isUser = userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern));
             using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser}));
-            IQueryable<TUser> tenantUsers;
+            IQueryable<UserTenantLevel<TUser>> tenantUsers;
             if (isUser)
             {
-                tenantUsers = (from t in securityContext.TenantUsers join j in securityContext.UpwardsRoleUserPermissionsView on t.TenantUserId equals j.TenantUserId
-                               where j.OutermostLeafTenantId == securityContext.CurrentTenantId
-                    select new {t.UserId, t.User, j.ParentLevel} into gj
-                                   group gj by gj.UserId into g
-                               select new {UserId=g.Key, Level = g.Min(us => us.ParentLevel), Users = g.Select(uu => new {uu.ParentLevel, uu.User})}).AsEnumerable()
-                    .Select(t => t.Users.First(n => n.ParentLevel == t.Level).User).AsQueryable();
+                tenantUsers = GetRawUserQuery();
             }
             else
             {
@@ -334,10 +320,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 var appUsers = securityContext.ClientAppUsers;
                 tenantUsers = appUsers
                     .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
-                    .Select(n => n.TenantUser.User);
+                    .Select(n => new UserTenantLevel<TUser> { User = n.TenantUser.User, TenantId = n.TenantUser.TenantId, Level = 1 });
             }
 
-            return tenantUsers.Where(UserFilter(userLabels, userAuthenticationType)).Select(UserId).Cast<T>().ToList();
+            return tenantUsers.Select(n => n.User).Where(UserFilter(userLabels, userAuthenticationType)).Select(UserId).Cast<T>().ToList();
         }
 
         public T GetUserId<T>(string[] userLabels, string userAuthenticationType)
@@ -397,7 +383,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
             if (isUser)
             {
-                var preFiltered = (from t in securityContext.TenantUsers
+                var preFiltered = GetRawUserQuery();
+                /*(from t in securityContext.TenantUsers
                         join u in securityContext.UpwardsRoleUserPermissionsView on t.TenantUserId equals u
                             .TenantUserId
                         select new { t.TenantId, t.TenantUserId, t.UserId, u.ParentLevel, u.PermissionName }
@@ -411,24 +398,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                             Perms = gpp.Select(g => new
                                 { g.UserId, g.TenantUserId, g.PermissionName, g.ParentLevel }).ToArray()
                         })
-                    .AsEnumerable();
-                
-                    var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(preFiltered.AsQueryable(),
-                            UserId, j => j.UserId, (l, r) => new {r.Level, Perms=r.Perms})
-                        .OrderBy(n => n.Level)
-                        .FirstOrDefault();
-                    if (tmptu != null)
-                    {
-                        var retVal = tmptu.Perms.Distinct().AsQueryable()
-                        .Join(
-                            from p in securityContext.Permissions
-                            where p.TenantId == null || p.TenantId == securityContext.CurrentTenantId
-                            select p, s => s.PermissionName, pm => pm.PermissionName, (l, r) => r);
-                    return retVal;
-                }
+                    .AsEnumerable();*/
 
-                    return Array.Empty<TPermission>();
-                    //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
+                var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
+                    preFiltered,
+                    UserId, IdOfUserLevelRecord, (l, r) => new { r.Level, r.TenantId, r.RoleId, User=l });
+                var pr = (from t in tmptu
+                    join r in securityContext.RolePermissions on t.RoleId equals r.RoleId
+                    join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
+                    select new { t.TenantId, t.User, t.Level, Permission=p })
+                    .Where(n => n.TenantId == securityContext.CurrentTenantId)
+                    .Select(n => n.Permission).Distinct();
+                return pr;
+                //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
             }
 
             var filteredLabels = (from ul in userLabels
@@ -450,7 +432,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 join r in securityContext.SecurityRoles on new { RoleId = ur.RoleId.Value, tr.TenantId } equals new
                     { r.RoleId, r.TenantId }
                 join rp in securityContext.RolePermissions /*.Where(n => n.RoleId != null)*/
-                    on new { r.RoleId, r.TenantId } equals new { RoleId = rp.RoleId.Value, rp.TenantId }
+                    on new { r.RoleId, r.TenantId } equals new { RoleId = rp.RoleId, rp.TenantId }
                 join rt in securityContext.Tenants on rp.TenantId equals rt.TenantId
                 join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
                 select new Permission
@@ -509,7 +491,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
             return (from d in (from t in securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
                         .Join(securityContext.TenantUsers, UserId, u => u.UserId, (tu, tt) => new{tt.TenantUserId})
-                        .Join(securityContext.UpwardsRoleUserPermissionsView, l => l.TenantUserId, r => r.TenantUserId, (l,r)=>new{l.TenantUserId, r.OutermostLeafTenantId})
+                        .Join(securityContext.UpwardsTenantUserRoles, l => l.TenantUserId, r => r.TenantUserId, (l,r)=>new{l.TenantUserId, r.OutermostLeafTenantId})
                         .Join(securityContext.Tenants, l => l.OutermostLeafTenantId, r => r.TenantId, (l,r)=> r)
                     select t).Distinct()
                 orderby d.DisplayName
@@ -644,6 +626,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         protected abstract Expression<Func<TUser, TUserId>> UserId { get; }
 
+        protected abstract Expression<Func<UserTenantLevel<TUser>,TUserId>> IdOfUserLevelRecord { get; }
+
         protected abstract TTrustConfig ConfigureTrustConfigImpl(TTrustConfig trustConfig, string callingMethod);
 
         /// <summary>
@@ -684,6 +668,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             }
 
             return TimeZoneInfo.Local;
+        }
+
+        private IQueryable<UserTenantLevel<TUser>> GetRawUserQuery()
+        {
+            int currentTenant = securityContext.CurrentTenantId ?? 0;
+            var phase1 = (from t in securityContext.TenantUsers
+                join j in securityContext.UpwardsTenantUserRoles on t.TenantUserId equals j.TenantUserId
+                where securityContext.CurrentTenantId != null && j.OutermostLeafTenantId == securityContext.CurrentTenantId
+                select new { t.UserId, t.User, j.ParentLevel });
+            var phase2 = (from gj in phase1
+                group gj by gj.UserId
+                into g
+                select new
+                {
+                    TenantId=currentTenant,
+                    UserId = g.Key,
+                    Level = g.Min(us => us.ParentLevel)
+                });
+            return (from p in phase2
+                join t in securityContext.UpwardsTenantUserRoles on new { p.Level, p.UserId, p.TenantId } equals new
+                    { Level = t.ParentLevel, t.UserId, TenantId=t.OutermostLeafTenantId }
+                join tn in securityContext.TenantUsers on t.TenantUserId equals tn.TenantUserId
+                select new UserTenantLevel<TUser>{User= tn.User, Level=t.ParentLevel, TenantId=t.OutermostLeafTenantId, RoleId=t.OutermostRoleId});
         }
 
         public event EventHandler Disposed;

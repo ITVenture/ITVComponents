@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>4.0.0-PRE018</Version>
+    <Version>4.0.0-PRE054</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Copyright>2020 by IT-Venture GmbH</Copyright>
@@ -39,8 +39,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.extensions.configuration" Version="8.0.0" />
     <PackageReference Include="Microsoft.extensions.configuration.binder" Version="8.0.2" />
-    <PackageReference Include="Microsoft.extensions.configuration.json" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.extensions.configuration.json" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="microsoft.extensions.primitives" Version="8.0.0" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

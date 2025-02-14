@@ -105,7 +105,7 @@ ITVenture.Tools.Uploader.fileTokenMode=""query"";
 
             if (customFilterData != null)
             {
-                dataCallback = $"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{CreateDataScriptFor(repoName, tableName, columnName, customFilterData, out dataCallbackBody)}";
+                dataCallback = $"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{CreateDataScriptFor(repoName, tableName, columnName, customFilterData, null, out dataCallbackBody)}";
             }
             
             target.Raw($@"<script>
@@ -212,13 +212,25 @@ $(""#{uniqueDummyId}"").replaceWith(result);
             }
         
         
-        internal static string CreateDataScriptFor(string repoName, string tableName, string memberName, object customDataFilter, out string dataFilter)
+        internal static string CreateDataScriptFor(string repoName, string tableName, string memberName, object customDataFilter, string listRef, out string dataFilter)
         {
+            //var ditm = gg.dataItem(gg.wrapper.find("[data-uid='".concat($(gg._editContainer).attr("data-uid")).concat("']")) )
             string filterFunction = CustomActionHelper.RandomName($"dataCbFx_{repoName}_{tableName}_{memberName}");
             dataFilter = $@"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{filterFunction} = function(dataRequest){{
             var obj = {JsonHelper.ToJson(customDataFilter)};
+            {(!string.IsNullOrEmpty(listRef)?$@"var list = $(""#{listRef}"").data(""kendoGrid"");
+            var ditm = list.dataItem($(list._editContainer));
+            var tpp = obj;
+            obj={{}};
+            for (var nam in tpp){{
+                if (tpp.hasOwnProperty(nam)){{
+                    try{{
+                        obj[nam] = kendo.template(tpp[nam])(ditm);
+                    }}
+                    catch{{}}
+                }}
+            }}" :"")}
             var retVal = $.extend({{}},dataRequest,obj);
-
             return retVal;
 }};";
             return filterFunction;
