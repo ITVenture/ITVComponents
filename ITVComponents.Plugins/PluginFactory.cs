@@ -443,6 +443,32 @@ namespace ITVComponents.Plugins
         }
 
         /// <summary>
+        /// Gets all loaded plugins of the specified type or interface
+        /// </summary>
+        /// <typeparam name="T">the desired plugin type</typeparam>
+        /// <returns>an enumerable that contains all matching plugins</returns>
+        public IEnumerable<T> GetPlugins<T>() where T : class, IPlugin
+        {
+            foreach (var t in plugins)
+            {
+                if (t.Value is T r)
+                {
+                    yield return r;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the first Plugin that implements the specified type or interface
+        /// </summary>
+        /// <typeparam name="T">the desired plugin type</typeparam>
+        /// <returns>the first occurrence of the specified plugin-Type or null if none was found</returns>
+        public T GetPlugin<T>() where T: class, IPlugin
+        {
+            return GetPlugins<T>().FirstOrDefault();
+        }
+
+        /// <summary>
         /// Verifies a given constructor and returns a boolean value indicating whether the plugin-string is processable in a running environment
         /// </summary>
         /// <param name="uniqueName">the uniquename of the plugin</param>
