@@ -2,16 +2,10 @@
 const TerserPlugin = require("terser-webpack-plugin");
 const path = require("path");
 const webpack = require('webpack');
-const MiniCssExtractPlugin = require("mini-css-extract-plugin");
-const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
-var baseTools = glob.sync("./Lib/**/*.js").concat(glob.sync("./Areas/**/*.js"));
-function exf(files) {
-    for (var i = 0; i < files.length; i++) {
-        files[i] = "./".concat(files[i]);
-    }
+var files = glob.sync("./wwwroot/js/ViewScripts/**/*.js").concat(glob.sync("./Areas/**/*.js"));
+for (var i = 0; i < files.length; i++) {
+    files[i] = "./".concat(files[i]);
 }
-
-exf(baseTools);
 
 module.exports = [
     {
@@ -21,7 +15,7 @@ module.exports = [
             filename: "[name].min.js"
         },
         entry: {
-            viewScripts: baseTools
+            viewScripts: files
         },
         optimization: {
             minimize: true,
