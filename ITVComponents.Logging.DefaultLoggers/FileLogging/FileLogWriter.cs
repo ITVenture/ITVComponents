@@ -71,7 +71,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="contextFilter">an expression that will be used to filter logMessages before they are logged</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int minSeverity,
                              int maxSeverity, string contextFilter)
-            : this(logName, archiveCount, maxLogSize, initialLogStatus, minSeverity, maxSeverity, contextFilter, false)
+            : this(logName, archiveCount, maxLogSize, initialLogStatus, minSeverity, maxSeverity, contextFilter, false, false)
         {
         }
 
@@ -86,7 +86,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int minSeverity,
                              int maxSeverity)
-            : this(logName,archiveCount,maxLogSize,initialLogStatus, minSeverity, maxSeverity,false)
+            : this(logName,archiveCount,maxLogSize,initialLogStatus, minSeverity, maxSeverity,false, false)
         {
         }
 
@@ -102,7 +102,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus,
                              LogSeverity minSeverity, LogSeverity maxSeverity)
-            : this(logName,archiveCount,maxLogSize, initialLogStatus, minSeverity,maxSeverity, false)
+            : this(logName,archiveCount,maxLogSize, initialLogStatus, minSeverity,maxSeverity, false, false)
         {
         }
 
@@ -115,7 +115,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="initialLogStatus">the initial enabled state of this logger</param>
         /// <param name="severity">the initial severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int severity)
-            : this(logName, archiveCount, maxLogSize, initialLogStatus, severity, -1, false)
+            : this(logName, archiveCount, maxLogSize, initialLogStatus, severity, -1, false, false)
         {
         }
 
@@ -129,13 +129,13 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="severity">the initial severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus,
                              LogSeverity severity)
-            : this(logName, archiveCount, maxLogSize, initialLogStatus, (int) severity, -1, false)
+            : this(logName, archiveCount, maxLogSize, initialLogStatus, (int) severity, -1, false, false)
         {
         }
 
         //--
 
-                /// <summary>
+        /// <summary>
         /// Initializes a new instance of the FileLogWriter class
         /// </summary>
         /// <param name="logName">the full-qualified location of the logfile</param>
@@ -146,8 +146,25 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         /// <param name="contextFilter">an expression that will be used to filter logMessages before they are logged</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int minSeverity,
-                             int maxSeverity, string contextFilter, bool debugEnabled)
-            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, debugEnabled, true)
+            int maxSeverity, string contextFilter, bool debugEnabled) : this(logName,archiveCount, maxLogSize, initialLogStatus, minSeverity, maxSeverity, contextFilter, debugEnabled, false)
+        {
+
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the FileLogWriter class
+        /// </summary>
+        /// <param name="logName">the full-qualified location of the logfile</param>
+        /// <param name="archiveCount">the number of archived logs</param>
+        /// <param name="maxLogSize">the maximum size of logs</param>
+        /// <param name="initialLogStatus">the initial enabled state of this logger</param>
+        /// <param name="minSeverity">the minimal severity of this logger</param>
+        /// <param name="maxSeverity">the maximal severity of this logger</param>
+        /// <param name="contextFilter">an expression that will be used to filter logMessages before they are logged</param>
+        /// <param name="logWithContext">indicates whether to include the logging-context in the log</param>
+        public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int minSeverity,
+        int maxSeverity, string contextFilter, bool debugEnabled, bool logWithContext)
+            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, debugEnabled, true, logWithContext)
         {
             InitializeLog(logName, archiveCount, maxLogSize);
         }
@@ -162,8 +179,23 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="minSeverity">the minimal severity of this logger</param>
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int minSeverity,
-                             int maxSeverity, bool debugEnabled)
-            : base(minSeverity, maxSeverity, null, initialLogStatus, debugEnabled, true)
+            int maxSeverity, bool debugEnabled) : this(logName, archiveCount, maxLogSize, initialLogStatus, minSeverity, maxSeverity, debugEnabled, false)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the FileLogWriter class
+        /// </summary>
+        /// <param name="logName">the full-qualified location of the logfile</param>
+        /// <param name="archiveCount">the number of archived logs</param>
+        /// <param name="maxLogSize">the maximum size of logs</param>
+        /// <param name="initialLogStatus">the initial enabled state of this logger</param>
+        /// <param name="minSeverity">the minimal severity of this logger</param>
+        /// <param name="maxSeverity">the maximal severity of this logger</param>
+        /// <param name="logWithContext">indicates whether to include the logging-context in the log</param>
+        public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int minSeverity,
+                             int maxSeverity, bool debugEnabled, bool logWithContext)
+            : base(minSeverity, maxSeverity, null, initialLogStatus, debugEnabled, true, logWithContext)
         {
             InitializeLog(logName, archiveCount, maxLogSize);
         }
@@ -179,8 +211,23 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="minSeverity">the initial severity of this logger</param>
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus,
-                             LogSeverity minSeverity, LogSeverity maxSeverity, bool debugEnabled)
-            : base(minSeverity, maxSeverity,null, initialLogStatus,debugEnabled, true)
+            LogSeverity minSeverity, LogSeverity maxSeverity, bool debugEnabled) : this(logName, archiveCount, maxLogSize, initialLogStatus, minSeverity, maxSeverity, debugEnabled, false)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the FileLogWriter class
+        /// </summary>
+        /// <param name="logName">the full-qualified location of the logfile</param>
+        /// <param name="archiveCount">the number of archived logs</param>
+        /// <param name="maxLogSize">the maximum size of logs</param>
+        /// <param name="initialLogStatus">the initial enabled state of this logger</param>
+        /// <param name="minSeverity">the initial severity of this logger</param>
+        /// <param name="maxSeverity">the maximal severity of this logger</param>
+        /// <param name="logWithContext">indicates whether to include the logging-context in the log</param>
+        public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus,
+                             LogSeverity minSeverity, LogSeverity maxSeverity, bool debugEnabled, bool logWithContext)
+            : base(minSeverity, maxSeverity,null, initialLogStatus,debugEnabled, true, logWithContext)
         {
             InitializeLog(logName, archiveCount, maxLogSize);
         }
@@ -194,7 +241,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="initialLogStatus">the initial enabled state of this logger</param>
         /// <param name="severity">the initial severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus, int severity, bool debugEnabled)
-            : this(logName, archiveCount, maxLogSize, initialLogStatus, severity, -1, debugEnabled)
+            : this(logName, archiveCount, maxLogSize, initialLogStatus, severity, -1, debugEnabled, false)
         {
         }
 
@@ -208,7 +255,7 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="severity">the initial severity of this logger</param>
         public FileLogWriter(string logName, int archiveCount, int maxLogSize, bool initialLogStatus,
                              LogSeverity severity, bool debugEnabled)
-            : this(logName, archiveCount, maxLogSize, initialLogStatus, (int) severity, -1, debugEnabled)
+            : this(logName, archiveCount, maxLogSize, initialLogStatus, (int) severity, -1, debugEnabled, false)
         {
         }
 
