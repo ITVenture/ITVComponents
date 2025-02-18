@@ -50,7 +50,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="contextFilter">an expression that will be used to filter logMessages before they are logged</param>
         public SqLiteLogger(string logName, bool initialLogStatus, int minSeverity,
                              int maxSeverity, string contextFilter)
-            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, false)
+            : base(minSeverity, maxSeverity, contextFilter, initialLogStatus, false, false)
         {
             this.logName = logName;
             InitWriter();
@@ -65,7 +65,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public SqLiteLogger(string logName, bool initialLogStatus, int minSeverity,
                              int maxSeverity)
-            : base(minSeverity, maxSeverity, initialLogStatus, false)
+            : base(minSeverity, maxSeverity, initialLogStatus, false, false)
         {
             this.logName = logName;
             InitWriter();
@@ -81,7 +81,7 @@ namespace ITVComponents.Logging.SqlLite
         /// <param name="maxSeverity">the maximal severity of this logger</param>
         public SqLiteLogger(string logName, bool initialLogStatus,
                              LogSeverity minSeverity, LogSeverity maxSeverity)
-            : base(minSeverity, maxSeverity, initialLogStatus, false)
+            : base(minSeverity, maxSeverity, initialLogStatus, false, false)
         {
             this.logName = logName;
             InitWriter();
