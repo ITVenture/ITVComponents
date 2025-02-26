@@ -5,7 +5,6 @@ using System.Text;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.ParallelProcessing.TaskSchedulers.Requests;
 //using ITVComponents.Plugins.SelfRegistration;
-using ITVComponents.Serialization;
 using ITVComponents.Threading;
 
 namespace ITVComponents.ParallelProcessing.TaskSchedulers

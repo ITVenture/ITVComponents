@@ -13,6 +13,7 @@ namespace ITVComponents.Helpers
 {
     public static class SerializationInfoExtensions
     {
+        [Obsolete("Use polymorphic serialization instead", true)]
         public static object GetObject(this SerializationInfo info, string name)
         {
             object value = info.GetValue(name, typeof(object));

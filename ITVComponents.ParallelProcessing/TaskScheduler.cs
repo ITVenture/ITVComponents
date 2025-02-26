@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.SelfRegistration;
-using ITVComponents.Serialization;
 using Microsoft.Win32;
 
 namespace ITVComponents.ParallelProcessing

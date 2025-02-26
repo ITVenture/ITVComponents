@@ -7,7 +7,6 @@ using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Management;
-using ITVComponents.Serialization;
 
 namespace ITVComponents.InterProcessCommunication.ManagementExtensions
 {

@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
-using ITVComponents.Serialization;
 using ITVComponents.Threading;
 
 namespace ITVComponents.ParallelProcessing

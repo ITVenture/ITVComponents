@@ -7,7 +7,6 @@ using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Logging;
 using ITVComponents.ParallelProcessing.TaskSchedulers.Requests;
 using ITVComponents.Plugins.SelfRegistration;
-using ITVComponents.Serialization;
 using ITVComponents.Threading;
 
 namespace ITVComponents.ParallelProcessing.TaskSchedulers

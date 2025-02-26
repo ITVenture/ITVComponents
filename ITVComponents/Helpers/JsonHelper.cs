@@ -4,11 +4,16 @@ using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 using ITVComponents.Cloning;
 using ITVComponents.Settings;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using JsonConverter = System.Text.Json.Serialization.JsonConverter;
+using JsonSerializer = Newtonsoft.Json.JsonSerializer;
 
 namespace ITVComponents.Helpers
 {
