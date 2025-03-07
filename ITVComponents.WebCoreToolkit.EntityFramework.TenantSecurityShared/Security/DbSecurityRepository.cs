@@ -390,8 +390,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                     },
                     Map = i
                 };
-            return (from t in preMapped where string.IsNullOrEmpty(t.Map.Condition) || (ExpressionParser.Parse(t.Map.Condition, t.Original) is bool b && b)
-                   select TryGetClaim(t.Map,t.Original)).SelectMany(n => n).Where(n => n != null);
+            return (from t in preMapped where string.IsNullOrEmpty(t.Map.Condition) || ExpressionParser.Parse(t.Map.Condition, t.Original) is bool and true
+                   select TryGetClaim(t.Map,t.Original)).Where(n => n is { Length: > 0 }).SelectMany(n => n).Where(n => n != null);
         }
 
         /// <summary>
@@ -693,7 +693,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                     };
                 }
 
-                var tmp = ExpressionParser.Parse(map.OutgoingClaimValue, original,
+                var tmp = ExpressionParser.Parse(map.OutgoingClaimValue.Substring(3), original,
                     d => DefaultCallbacks.PrepareDefaultCallbacks(d.Scope, d.ReplSession));
                 if (tmp is IEnumerable<string> tenu)
                 {
