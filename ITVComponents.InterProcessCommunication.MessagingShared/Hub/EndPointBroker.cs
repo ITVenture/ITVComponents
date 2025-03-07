@@ -5,12 +5,12 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Internal;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using Exception = System.Exception;
 

@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using Castle.Core.Logging;
 using ITVComponents.Formatting;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;

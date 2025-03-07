@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers

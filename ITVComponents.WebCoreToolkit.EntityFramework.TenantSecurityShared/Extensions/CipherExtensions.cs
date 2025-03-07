@@ -9,7 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions
 {

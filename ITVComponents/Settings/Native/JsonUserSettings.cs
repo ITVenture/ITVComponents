@@ -2,8 +2,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using ITVComponents.Helpers;
-using Newtonsoft.Json.Linq;
+using ITVComponents.Json;
+
 
 namespace ITVComponents.Settings.Native
 {
@@ -11,7 +15,7 @@ namespace ITVComponents.Settings.Native
     {
         private string fileName;
 
-        private Dictionary<string, JToken> rootSettings;
+        private Dictionary<string, JsonNode> rootSettings;
 
         private Dictionary<string, object> bufferedObjects = new Dictionary<string, object>();
 
@@ -24,7 +28,7 @@ namespace ITVComponents.Settings.Native
                 return new JsonUserSettings
                 {
                     fileName = fileName,
-                    rootSettings = JsonHelper.ReadObject<Dictionary<string, JToken>>(fileName)
+                    rootSettings = JsonHelper.ReadObject<Dictionary<string, JsonNode>>(fileName)
                 };
             }
 
@@ -37,7 +41,7 @@ namespace ITVComponents.Settings.Native
             return new JsonUserSettings
             {
                 fileName = fileName,
-                rootSettings = new Dictionary<string, JToken>()
+                rootSettings = new Dictionary<string, JsonNode>()
             };
         }
 
@@ -53,7 +57,7 @@ namespace ITVComponents.Settings.Native
             JsonUserSettings retVal;
             if (!bufferedObjects.ContainsKey(name) && rootSettings.TryGetValue(name, out var setting))
             {
-                var tmp = setting.ToObject<Dictionary<string,JToken>>();
+                var tmp = setting.GetValue<Dictionary<string,JsonNode>>();
                 retVal = new JsonUserSettings
                 {
                     parent = this,
@@ -84,7 +88,7 @@ namespace ITVComponents.Settings.Native
             T retVal;
             if (!bufferedObjects.ContainsKey(name) && rootSettings.TryGetValue(name, out var setting))
             {
-                retVal = setting.ToObject<T>();
+                retVal = setting.GetValue<T>();
                 bufferedObjects.Add(name, retVal);
             }
             else if (bufferedObjects.TryGetValue(name, out var o))
@@ -124,17 +128,24 @@ namespace ITVComponents.Settings.Native
                 if (tmp.Value is JsonUserSettings jse)
                 {
                     jse.Persist();
-                    var jt = JObject.FromObject(jse.rootSettings);
+                    var jt = new JsonObject(jse.rootSettings);//JsonObject.Create(jse.rootSettings);
                     rootSettings[tmp.Key] =jt;
                     CleanupObject(jt);
                 }
                 else if (tmp.Value != null)
                 {
-                    var jt = JToken.FromObject(tmp.Value);
-                    rootSettings[tmp.Key] = jt;
-                    if (jt is JObject jo)
+                    ;
+                    var jt = JsonSerializer.SerializeToNode(tmp.Value); //jsonnodeJsonNode.FromObject(tmp.Value);
+                    
+                    if (jt.GetValueKind() == JsonValueKind.Object)
                     {
+                        var jo = jt.AsObject();
                         CleanupObject(jo);
+                        rootSettings[tmp.Key] = jo;
+                    }
+                    else
+                    {
+                        rootSettings[tmp.Key] = jt;
                     }
                 }
                 else
@@ -147,14 +158,13 @@ namespace ITVComponents.Settings.Native
             }
         }
 
-        private void CleanupObject(JObject jo)
+        private void CleanupObject(JsonObject jo)
         {
-            var items = jo.Properties().ToArray();
-            foreach (var prop in items)
+            foreach (var prop in jo.ToArray()) 
             {
-                if (prop.Value == null || prop.Value.Type == JTokenType.Null)
+                if (prop.Value == null || prop.Value.GetValueKind() == JsonValueKind.Null)
                 {
-                    jo.Remove(prop.Name);
+                    jo.Remove(prop.Key);
                 }
             }
         }

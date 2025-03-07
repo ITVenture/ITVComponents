@@ -4,7 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.Configuration;

@@ -1,5 +1,5 @@
 ﻿using System;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Security;
 
 namespace ITVComponents.WebCoreToolkit.Configuration.Impl

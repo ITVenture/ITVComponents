@@ -6,8 +6,10 @@ using System.Runtime.Serialization;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.SelfRegistration;
@@ -238,8 +240,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// A Request for Scheduling
         /// </summary>
-        [Serializable]
-        public class ScheduleRequest:ISerializable
+        public class ScheduleRequest:IManualSerializer
         {
             /// <summary>
             /// sha object used to calculate task request ids
@@ -285,20 +286,9 @@ namespace ITVComponents.ParallelProcessing
                                               targetProcessor.GetHashCode(), task.Description, LastExecution,metaInfo))));
             }
 
-            /// <summary>
-            /// Initializes a ScheduleRequest from its serialization representation
-            /// </summary>
-            /// <param name="info">the serialization info containing the objects that have been serialized</param>
-            /// <param name="context">the current streaming context</param>
-            public ScheduleRequest(SerializationInfo info, StreamingContext context)
+            [JsonConstructor]
+            private ScheduleRequest()
             {
-                Target = ParallelTaskProcessor.GetInstance(info.GetString("TargetName"));
-                Task = info.GetValue("Task",typeof(ITask)) as ITask;
-                LastExecution = info.GetDateTime("LastExecution");
-                instructions = new List<string>((string[]) info.GetValue("Instructions", typeof (string[])));
-                Remarks = info.GetString("Remarks");
-                RequestId = info.GetString("RequestId");
-                SchedulerName = info.GetString("SchedulerName");
             }
 
             /// <summary>
@@ -346,21 +336,6 @@ namespace ITVComponents.ParallelProcessing
             }
 
             /// <summary>
-            /// Füllt eine <see cref="T:System.Runtime.Serialization.SerializationInfo"/> mit den Daten, die zum Serialisieren des Zielobjekts erforderlich sind.
-            /// </summary>
-            /// <param name="info">Die mit Daten zu füllende <see cref="T:System.Runtime.Serialization.SerializationInfo"/>. </param><param name="context">Das Ziel (siehe <see cref="T:System.Runtime.Serialization.StreamingContext"/>) dieser Serialisierung. </param><exception cref="T:System.Security.SecurityException">Der Aufrufer verfügt nicht über die erforderliche Berechtigung. </exception>
-            public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
-            {
-                info.AddValue("TargetName", Target.Identifier);
-                info.AddValue("Task", Task);
-                info.AddValue("LastExecution", LastExecution);
-                info.AddValue("Instructions", instructions.ToArray());
-                info.AddValue("Remarks", Remarks);
-                info.AddValue("RequestId", RequestId);
-                info.AddValue("SchedulerName",SchedulerName);
-            }
-
-            /// <summary>
             /// Adds the instruction to the list of schedule-instructions and sets the remarks if requested
             /// </summary>
             /// <param name="instruction">the instruction that is used for this schedule-request</param>
@@ -373,6 +348,30 @@ namespace ITVComponents.ParallelProcessing
                     Remarks = string.Format("Execution-Condition: {0}",
                         string.Join(" OR ", instructions));
                 }
+            }
+
+            public IList<ManualSerializationData> Data { get; set; }
+            public virtual void GetObjectData()
+            {
+                Data.Add(ManualSerializationData.FromValue("TargetName", Target.Identifier));
+                Data.Add(ManualSerializationData.FromValue("Task", Task));
+                Data.Add(ManualSerializationData.FromValue("LastExecution", LastExecution));
+                Data.Add(ManualSerializationData.FromValue("Instructions", instructions.ToArray()));
+                Data.Add(ManualSerializationData.FromValue("Remarks", Remarks));
+                Data.Add(ManualSerializationData.FromValue("RequestId", RequestId));
+                Data.Add(ManualSerializationData.FromValue("SchedulerName", SchedulerName));
+            }
+
+            public virtual void ApplyObjectData()
+            {
+                var target = Data.GetDeserializedValue<string>("TargetName");
+                Target = ParallelTaskProcessor.GetInstance(target);
+                Task = Data.GetDeserializedValue<ITask>("Task");
+                LastExecution = Data.GetDeserializedValue<DateTime>(nameof(LastExecution));
+                instructions = new List<string>(Data.GetDeserializedValue<string[]>("Instructions"));
+                Remarks = Data.GetDeserializedValue<string>("Remarks");
+                RequestId = Data.GetDeserializedValue<string>("RequestId");
+                SchedulerName = Data.GetDeserializedValue<string>("SchedulerName");
             }
         }
     }

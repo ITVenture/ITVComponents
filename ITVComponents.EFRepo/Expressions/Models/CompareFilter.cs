@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 
 namespace ITVComponents.EFRepo.Expressions.Models
 {

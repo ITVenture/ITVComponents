@@ -8,10 +8,8 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Formatting = Newtonsoft.Json.Formatting;
 
 namespace ITVComponents.Settings
 {

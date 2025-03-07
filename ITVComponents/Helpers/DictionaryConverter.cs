@@ -1,10 +1,11 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using ITVComponents.Logging;
 
 namespace ITVComponents.Helpers
@@ -71,26 +72,27 @@ namespace ITVComponents.Helpers
         /// <param name="object">the object to convert</param>
         /// <returns>a dictionary containing the contents of the JToken</returns>
 
-        public static Dictionary<string, object> ToDictionary(this JToken @object)
+        public static Dictionary<string, object> ToDictionary(this JsonNode @object)
         {
             LogEnvironment.LogDebugEvent($"Entered JToken2Dictionary for {@object}", LogSeverity.Report);
-            if (@object is JObject jObj)
+            if (@object.GetValueKind() == JsonValueKind.Object)// is JObject jObj)
             {
+                var jObj = @object.AsObject();
                 LogEnvironment.LogDebugEvent($"{@object} is an object", LogSeverity.Report);
                 return jObj.ToDictionary();
             }
 
 
             Dictionary<string,object> retVal = new Dictionary<string, object>();
-            if (@object.Type == JTokenType.Array)
+            if (@object.GetValueKind() == JsonValueKind.Array)
             {
                 LogEnvironment.LogDebugEvent($"{@object} is an array", LogSeverity.Report);
-                retVal.Add(".",ToArray((JArray) @object));
+                retVal.Add(".",ToArray(@object.AsArray()));
             }
             else
             {
-                LogEnvironment.LogDebugEvent($"{@object} is {@object.Type}", LogSeverity.Report);
-                retVal.Add(".",@object.ToObject(typeof(object)));
+                LogEnvironment.LogDebugEvent($"{@object} is {@object.GetValueKind()}", LogSeverity.Report);
+                retVal.Add(".",@object.GetValue<object>());
             }
 
             return retVal;
@@ -101,27 +103,32 @@ namespace ITVComponents.Helpers
         /// </summary>
         /// <param name="object">the object to convert</param>
         /// <returns>a dictionary containing the contents of the JObject</returns>
-        public static Dictionary<string, object> ToDictionary(this JObject @object)
+        public static Dictionary<string, object> ToDictionary(this JsonObject @object)
         {
+            if (@object == null)
+            {
+                return null;
+            }
+
             LogEnvironment.LogDebugEvent($"Entered JObject2Dictionary for {@object}", LogSeverity.Report);
             Dictionary<string,object> retVal = new Dictionary<string, object>();
-            foreach (var k in @object.Properties())
+            foreach (var k in @object)
             {
                 var v = k.Value;
-                if (v.Type == JTokenType.Array)
+                if (v.GetValueKind() == JsonValueKind.Array)
                 {
-                    LogEnvironment.LogDebugEvent($"Property {k.Name } is Array", LogSeverity.Report);
-                    retVal[k.Name] = ToArray((JArray) k.Value);
+                    LogEnvironment.LogDebugEvent($"Property {k.Key} is Array", LogSeverity.Report);
+                    retVal[k.Key] = ToArray(k.Value?.AsArray());
                 }
-                else if (v.Type == JTokenType.Object)
+                else if (v.GetValueKind() == JsonValueKind.Object)
                 {
-                    LogEnvironment.LogDebugEvent($"Property {k.Name } is object", LogSeverity.Report);
-                    retVal[k.Name] = ToDictionary((JObject) k.Value);
+                    LogEnvironment.LogDebugEvent($"Property {k.Key} is object", LogSeverity.Report);
+                    retVal[k.Key] = ToDictionary(k.Value?.AsObject());
                 }
                 else
                 {
-                    LogEnvironment.LogDebugEvent($"Property {k.Name } is {k.Type}", LogSeverity.Report);
-                    retVal[k.Name] = k.Value?.ToObject(typeof(object));
+                    LogEnvironment.LogDebugEvent($"Property {k.Key } is {k.Value?.GetValueKind()}", LogSeverity.Report);
+                    retVal[k.Key] = k.Value?.GetValue<object>();
                 }
             }
 
@@ -133,26 +140,31 @@ namespace ITVComponents.Helpers
         /// </summary>
         /// <param name="array">the JArray containing the objects to convert</param>
         /// <returns>a list of converted objects</returns>
-        private static List<object> ToArray(JArray array)
+        private static List<object> ToArray(JsonArray array)
         {
+            if (array == null)
+            {
+                return null;
+            }
+
             LogEnvironment.LogDebugEvent($"Entered JArray2Array for {array}", LogSeverity.Report);
             List<object> retVal = new List<object>();
             foreach (var item in array)
             {
-                if (item.Type == JTokenType.Array)
+                if (item.GetValueKind() == JsonValueKind.Array)
                 {
                     LogEnvironment.LogDebugEvent($"found Array", LogSeverity.Report);
-                    retVal.Add(ToArray((JArray) item));
+                    retVal.Add(ToArray(item.AsArray()));
                 }
-                else if (item.Type == JTokenType.Object)
+                else if (item.GetValueKind() == JsonValueKind.Object)
                 {
                     LogEnvironment.LogDebugEvent($"found Object", LogSeverity.Report);
-                    retVal.Add(ToDictionary((JObject) item));
+                    retVal.Add(ToDictionary( item.AsObject()));
                 }
                 else
                 {
-                    LogEnvironment.LogDebugEvent($"found {item.Type}", LogSeverity.Report);
-                    retVal.Add(item.ToObject(typeof(object)));
+                    LogEnvironment.LogDebugEvent($"found {item.GetValueKind()}", LogSeverity.Report);
+                    retVal.Add(item.GetValue<object>());
                 }
             }
 

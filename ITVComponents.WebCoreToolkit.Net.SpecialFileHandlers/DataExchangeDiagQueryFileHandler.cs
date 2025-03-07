@@ -10,6 +10,7 @@ using ITVComponents.DataExchange.Configuration;
 using ITVComponents.DataExchange.Interfaces;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
 using ITVComponents.WebCoreToolkit.Net.FileHandling.Special;

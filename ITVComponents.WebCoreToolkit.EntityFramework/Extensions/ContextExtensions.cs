@@ -28,7 +28,6 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
 using Microsoft.VisualBasic;
-using Newtonsoft.Json.Serialization;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 {

@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Channels;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Factory;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.ProtoExtensions;
@@ -12,6 +11,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security.PrincipalProviders;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 

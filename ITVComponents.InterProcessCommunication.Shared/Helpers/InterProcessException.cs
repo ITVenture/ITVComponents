@@ -4,7 +4,6 @@ using ITVComponents.Helpers;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 {
-    [Serializable]
     public class InterProcessException : Exception, ExceptionHelper.IAutoOutline
     {
         /// <summary>
@@ -25,17 +24,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
         /// Initializes a new instance of the InterProcessException class
         /// </summary>
         /// <param name="message">the errormessage</param>
-        /// <param name="serverException">the server Exception that was generated from by an interprocess call</param>
-        public InterProcessException(string message, SerializedException serverException)
-            : base(message)
-        {
-            this.serverException = serverException;
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the InterProcessException class
-        /// </summary>
-        /// <param name="message">the errormessage</param>
         /// <param name="inner">the exception that caused this error</param>
         /// <param name="serverException">the server Exception that was generated from by an interprocess call</param>
         public InterProcessException(string message, Exception inner)
@@ -43,19 +31,15 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
         {
         }
 
-
-
         /// <summary>
         /// Initializes a new instance of the InterProcessException class
         /// </summary>
-        /// <param name="info">the serialized object data</param>
-        /// <param name="context">the serialization context</param>
-        protected InterProcessException(
-            SerializationInfo info,
-            StreamingContext context)
-            : base(info, context)
+        /// <param name="message">the errormessage</param>
+        /// <param name="serverException">the server Exception that was generated from by an interprocess call</param>
+        public InterProcessException(string message, SerializedException serverException)
+            : base(message)
         {
-            this.serverException = (SerializedException)info.GetValue("serverException", typeof (SerializedException));
+            this.serverException = serverException;
         }
 
         #region Overrides of Exception
@@ -70,16 +54,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
         public SerializedException ServerException
         {
             get { return serverException; }
-        }
-
-        /// <summary>
-        /// Legt beim Überschreiben in einer abgeleiteten Klasse die <see cref="T:System.Runtime.Serialization.SerializationInfo"/> mit Informationen über die Ausnahme fest.
-        /// </summary>
-        /// <param name="info">Die <see cref="T:System.Runtime.Serialization.SerializationInfo"/>-Klasse, die die serialisierten Objektdaten für die ausgelöste Ausnahme enthält. </param><param name="context">Der <see cref="T:System.Runtime.Serialization.StreamingContext"/>, der die Kontextinformationen über die Quelle oder das Ziel enthält. </param><exception cref="T:System.ArgumentNullException">Der <paramref name="info"/>-Parameter ist ein NULL-Verweis (Nothing in Visual Basic). </exception><filterpriority>2</filterpriority><PermissionSet><IPermission class="System.Security.Permissions.FileIOPermission, mscorlib, Version=2.0.3600.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" version="1" Read="*AllFiles*" PathDiscovery="*AllFiles*"/><IPermission class="System.Security.Permissions.SecurityPermission, mscorlib, Version=2.0.3600.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" version="1" Flags="SerializationFormatter"/></PermissionSet>
-        public override void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            base.GetObjectData(info, context);
-            info.AddValue("serverException", serverException);
         }
 
         /// <summary>

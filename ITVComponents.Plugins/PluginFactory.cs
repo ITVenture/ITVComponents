@@ -28,7 +28,6 @@ using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Settings;
 using ITVComponents.Threading;
-using Newtonsoft.Json.Linq;
 
 namespace ITVComponents.Plugins
 {

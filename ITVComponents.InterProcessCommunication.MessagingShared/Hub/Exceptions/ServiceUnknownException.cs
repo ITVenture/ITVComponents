@@ -12,9 +12,5 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions
         public ServiceUnknownException(string message) : base(message)
         {
         }
-
-        public ServiceUnknownException(SerializationInfo info, StreamingContext context) : base(info, context)
-        {
-        }
     }
 }

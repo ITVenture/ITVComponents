@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Localization;
 using Microsoft.Extensions.Localization;

@@ -5,6 +5,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json.Contracts;
 using ITVComponents.ParallelProcessing;
 using ITVComponents.Threading;
 
@@ -13,7 +14,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
     public abstract class ProcessTaskBase<TMe, TParent> : TaskBase, IProcessTask where TParent : ProcessPackageBase<TMe, TParent>
                                                                                 where TMe : ProcessTaskBase<TMe, TParent>
     {
-        private readonly int priority;
+        private int priority;
 
         /// <summary>
         /// Indicates whether this task is currently executing unsafe code
@@ -40,21 +41,9 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
             this.priority = priority;
         }
 
-        private ProcessTaskBase()
+        protected ProcessTaskBase()
         {
 
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the ReleaseTask class after deserialization
-        /// </summary>
-        /// <param name="info">the serialization info</param>
-        /// <param name="context">the streaming context</param>
-        protected ProcessTaskBase(SerializationInfo info, StreamingContext context) : base(info, context)
-        {
-            Done = (bool)info.GetValue("Done", typeof(bool));
-            FailCount = (int)info.GetValue("FailCount", typeof(int));
-            priority = (int)info.GetValue("MyPriority", typeof(int));
         }
 
         /// <summary>
@@ -171,11 +160,19 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         {
         }
 
-        protected override void CompleteObjectData(SerializationInfo info, StreamingContext context)
+        protected override void CompleteObjectData()
         {
-            info.AddValue("Done", Done);
-            info.AddValue("FailCount", FailCount);
-            info.AddValue("MyPriority", Priority);
+            Data.Add(ManualSerializationData.FromValue("Done", Done));
+            Data.Add(ManualSerializationData.FromValue("FailCount", FailCount));
+            Data.Add(ManualSerializationData.FromValue("MyPriority", Priority));
+        }
+
+        public override void ApplyObjectData()
+        {
+            base.ApplyObjectData();
+            Done = Data.GetDeserializedValue<bool>("Done");
+            FailCount = Data.GetDeserializedValue<int>("FailCount");
+            priority = Data.GetDeserializedValue<int>("MyPriority");
         }
     }
 }

@@ -3,7 +3,6 @@ using System.Runtime.Serialization;
 
 namespace ITVComponents.Scripting.CScript.Exceptions
 {
-    [Serializable]
     public class ScriptException : Exception
     {
         //
@@ -22,12 +21,6 @@ namespace ITVComponents.Scripting.CScript.Exceptions
         }
 
         public ScriptException(string message, Exception inner) : base(message, inner)
-        {
-        }
-
-        protected ScriptException(
-            SerializationInfo info,
-            StreamingContext context) : base(info, context)
         {
         }
     }

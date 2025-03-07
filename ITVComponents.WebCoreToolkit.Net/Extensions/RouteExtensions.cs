@@ -51,7 +51,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
-using Newtonsoft.Json;
 namespace ITVComponents.WebCoreToolkit.Net.Extensions
 {
     public static class RouteExtensions

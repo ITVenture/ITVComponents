@@ -4,7 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Text.Encodings.Web;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;

@@ -25,7 +25,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Mode
 using ITVComponents.Formatting;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
-using Newtonsoft.Json.Linq;
+using ITVComponents.Json;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 {

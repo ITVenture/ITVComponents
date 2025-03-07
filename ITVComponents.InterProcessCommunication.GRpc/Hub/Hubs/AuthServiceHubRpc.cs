@@ -14,6 +14,7 @@ using ITVComponents.InterProcessCommunication.Grpc.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
 using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Authorization;

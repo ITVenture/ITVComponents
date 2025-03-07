@@ -6,12 +6,12 @@ using System.Runtime.Serialization;
 using System.Text;
 using ITVComponents.DataAccess.Remote.RemoteInterface;
 using ITVComponents.Helpers;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 
 namespace ITVComponents.DataAccess.Remote.ProxyObjects
 {
-    [Serializable]
-    public class RemoteDataParameter:IDbDataParameter, ISerializable
+    public class RemoteDataParameter:IDbDataParameter, IManualSerializer
     {
         private long objectId;
 
@@ -48,19 +48,8 @@ namespace ITVComponents.DataAccess.Remote.ProxyObjects
             Size = src.Size;
         }
 
-        public RemoteDataParameter(SerializationInfo info, StreamingContext context)
+        public RemoteDataParameter()
         {
-            dbType = (DbType) info.GetValue(nameof(dbType),typeof(DbType));
-            direction= (ParameterDirection)info.GetValue(nameof(direction),typeof(ParameterDirection));
-            isNullable = (bool)info.GetValue(nameof(isNullable),typeof(bool));
-            parameterName=(string)info.GetValue(nameof(parameterName),typeof(string));
-            sourceColumn = (string)info.GetValue(nameof(sourceColumn),typeof(string));
-            sourceVersion = (DataRowVersion) info.GetValue(nameof(sourceVersion), typeof(DataRowVersion));
-            value= info.GetObject(nameof(value));
-            precision=(byte)info.GetValue(nameof(precision),typeof(byte));
-            scale = (byte)info.GetValue(nameof(scale),typeof(byte));
-            size = (int) info.GetValue(nameof(size), typeof(int));
-            objectId = (long) info.GetValue(nameof(objectId), typeof(long));
         }
 
         ~RemoteDataParameter()
@@ -160,19 +149,35 @@ namespace ITVComponents.DataAccess.Remote.ProxyObjects
             set { size = value; }
         }
 
-        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        public IList<ManualSerializationData> Data { get; set; }
+        public void GetObjectData()
         {
-            info.AddValue(nameof(dbType), dbType);
-            info.AddValue(nameof(direction),direction);
-            info.AddValue(nameof(isNullable),isNullable);
-            info.AddValue(nameof(parameterName),parameterName);
-            info.AddValue(nameof(sourceColumn),sourceColumn);
-            info.AddValue(nameof(sourceVersion),sourceVersion);
-            info.AddValue(nameof(value),value);
-            info.AddValue(nameof(precision),precision);
-            info.AddValue(nameof(scale),scale);
-            info.AddValue(nameof(size),size);
-            info.AddValue(nameof(objectId), objectId);
+            Data.Add(ManualSerializationData.FromValue(nameof(dbType), dbType));
+            Data.Add(ManualSerializationData.FromValue(nameof(direction), direction));
+            Data.Add(ManualSerializationData.FromValue(nameof(isNullable), isNullable));
+            Data.Add(ManualSerializationData.FromValue(nameof(parameterName), parameterName));
+            Data.Add(ManualSerializationData.FromValue(nameof(sourceColumn), sourceColumn));
+            Data.Add(ManualSerializationData.FromValue(nameof(sourceVersion), sourceVersion));
+            Data.Add(ManualSerializationData.FromValue(nameof(value), value));
+            Data.Add(ManualSerializationData.FromValue(nameof(precision), precision));
+            Data.Add(ManualSerializationData.FromValue(nameof(scale), scale));
+            Data.Add(ManualSerializationData.FromValue(nameof(size), size));
+            Data.Add(ManualSerializationData.FromValue(nameof(objectId), objectId));
+        }
+
+        public void ApplyObjectData()
+        {
+            dbType = Data.GetDeserializedValue<DbType>(nameof(dbType));
+            direction = Data.GetDeserializedValue<ParameterDirection>(nameof(direction));
+            isNullable = Data.GetDeserializedValue<bool>(nameof(isNullable));
+            parameterName = Data.GetDeserializedValue<string>(nameof(parameterName));
+            sourceColumn = Data.GetDeserializedValue<string>(nameof(sourceColumn));
+            sourceVersion = Data.GetDeserializedValue<DataRowVersion>(nameof(sourceVersion));
+            value = Data.GetDeserializedValue<object>(nameof(value));
+            precision = Data.GetDeserializedValue<byte>(nameof(precision));
+            scale = Data.GetDeserializedValue<byte>(nameof(scale));
+            size = Data.GetDeserializedValue<int>(nameof(size));
+            objectId = Data.GetDeserializedValue<long>(nameof(objectId));
         }
     }
 }

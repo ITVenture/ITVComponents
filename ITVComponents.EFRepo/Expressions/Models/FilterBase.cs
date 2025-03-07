@@ -12,7 +12,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
         /// <summary>
         /// Gets or sets a value that can be used during processing. this value is ignored by any serializers
         /// </summary>
-        [Newtonsoft.Json.JsonIgnore,JsonIgnore]
+        [JsonIgnore]
         public object ProcessingInfo { get; set; }
 
         protected abstract string DescribeFilter();

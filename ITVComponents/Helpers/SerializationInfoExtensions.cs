@@ -7,7 +7,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Logging;
-using Newtonsoft.Json.Linq;
+//using Newtonsoft.Json.Linq;
 
 namespace ITVComponents.Helpers
 {
@@ -16,7 +16,7 @@ namespace ITVComponents.Helpers
         [Obsolete("Use polymorphic serialization instead", true)]
         public static object GetObject(this SerializationInfo info, string name)
         {
-            object value = info.GetValue(name, typeof(object));
+            /*object value = info.GetValue(name, typeof(object));
             if (value is JObject job)
             {
                 value = GetJObjectValue(job);
@@ -26,10 +26,11 @@ namespace ITVComponents.Helpers
                 value = jav.Value;
             }
 
-            return value;
+            return value;*/
+            return null;
         }
 
-        private static object GetJArrayValue(JArray jay, Type type)
+        /*private static object GetJArrayValue(JArray jay, Type type)
         {
             bool makeArray = false;
             if (type.IsArray)
@@ -89,6 +90,6 @@ namespace ITVComponents.Helpers
             }
 
             return value;
-        }
+        }*/
     }
 }

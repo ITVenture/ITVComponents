@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
+using ITVComponents.Json.Contracts;
 
 namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
 {
-    [Serializable]
-    public class LogMessageEventArgs:EventArgs, ISerializable
+    public class LogMessageEventArgs:EventArgs, IManualSerializer
     {
         /// <summary>
         /// Initializes a new instance of the LogMessageEventArgs class
@@ -19,11 +21,10 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
             Context = context;
         }
 
-        public LogMessageEventArgs(SerializationInfo info, StreamingContext context)
+        [JsonConstructor]
+        private LogMessageEventArgs()
         {
-            Message = (string)info.GetValue(nameof(Message), typeof(string));
-            Severity = (int) info.GetValue(nameof(Severity), typeof(int));
-            Context = (string) info.GetValue(nameof(Context), typeof(string));
+
         }
 
         /// <summary>
@@ -41,11 +42,19 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
         /// </summary>
         public string Context { get; private set; }
 
-        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        public IList<ManualSerializationData> Data { get; set; }
+        public void GetObjectData()
         {
-            info.AddValue(nameof(Message), Message);
-            info.AddValue(nameof(Severity), Severity);
-            info.AddValue(nameof(Context), Context);
+            Data.Add(ManualSerializationData.FromValue(nameof(Message), Message));
+            Data.Add(ManualSerializationData.FromValue(nameof(Severity), Severity));
+            Data.Add(ManualSerializationData.FromValue(nameof(Context), Context));
+        }
+
+        public void ApplyObjectData()
+        {
+            Message = Data.GetDeserializedValue<string>(nameof(Message));
+            Severity = Data.GetDeserializedValue<int>(nameof(Severity));
+            Context = Data.GetDeserializedValue<string>(nameof(Context));
         }
     }
 

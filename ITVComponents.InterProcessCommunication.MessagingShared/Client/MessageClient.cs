@@ -9,6 +9,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Base;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Threading;
 

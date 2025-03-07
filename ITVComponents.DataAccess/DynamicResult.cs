@@ -10,17 +10,18 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using ITVComponents.DataAccess.Resources;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using SkiaSharp;
 using TypeConverter = ITVComponents.TypeConversion.TypeConverter;
 
 namespace ITVComponents.DataAccess
 {
-    [Serializable]
-    public class DynamicResult:DynamicObject, INotifyPropertyChanged, ISerializable, IBasicKeyValueProvider
+    public class DynamicResult:DynamicObject, INotifyPropertyChanged, IManualSerializer, IBasicKeyValueProvider
     {
         /// <summary>
         /// the controller object used to write changes in this item into the database
@@ -149,36 +150,9 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
         }
 
         /// <summary>
-        /// Initialiezs a new isntance of the DynamicResult class
-        /// </summary>
-        /// <param name="info">serialization info</param>
-        /// <param name="context">streaming info</param>
-        protected DynamicResult(SerializationInfo info, StreamingContext context)
-            : this()
-        {
-            foreach (SerializationEntry ent in info)
-            {
-                object val = ent.Value ?? DBNull.Value;
-                object postSet = null;
-                string name = ent.Name;//.ToUpper();
-                if (val is INotifyPropertyChanged || val is INotifyCollectionChanged)
-                {
-                    postSet = val;
-                    val = null;
-                }
-
-                values.Add(name, val);
-                types.Add(name, typeof(object));
-                if (postSet != null)
-                {
-                    SetValue(name, postSet);
-                }
-            }
-        }
-
-        /// <summary>
         /// Prevents a default instance of the DynamicResult class from being created
         /// </summary>
+        [JsonConstructor]
         private DynamicResult()
         {
         }
@@ -615,21 +589,40 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
         /// </summary>
         public event PropertyChangedEventHandler PropertyChanged;
 
-        /// <summary>
-        /// Populates a <see cref="T:System.Runtime.Serialization.SerializationInfo"/> with the data needed to serialize the target object.
-        /// </summary>
-        /// <param name="info">The <see cref="T:System.Runtime.Serialization.SerializationInfo"/> to populate with data. </param><param name="context">The destination (see <see cref="T:System.Runtime.Serialization.StreamingContext"/>) for this serialization. </param><exception cref="T:System.Security.SecurityException">The caller does not have the required permission. </exception>
-        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
+        public IList<ManualSerializationData> Data { get; set; }
+        public void GetObjectData()
         {
             foreach (KeyValuePair<string, object> value in values)
             {
-                if (!(value.Value is SmartProperty))
+                if (value.Value is not SmartProperty smp)
                 {
-                    info.AddValue(value.Key, value.Value);
+                    Data.Add(ManualSerializationData.FromValue(value.Key, value.Value));
                 }
                 else
                 {
-                    info.AddValue(value.Key, ((SmartProperty) value.Value).Value);
+                    Data.Add(ManualSerializationData.FromValue(value.Key, smp.Value));
+                }
+            }
+        }
+
+        public virtual void ApplyObjectData()
+        {
+            foreach (ManualSerializationData ent in Data)
+            {
+                object val = ent.Data ?? DBNull.Value;
+                object postSet = null;
+                string name = ent.PropertyName;//.ToUpper();
+                if (val is INotifyPropertyChanged || val is INotifyCollectionChanged)
+                {
+                    postSet = val;
+                    val = null;
+                }
+
+                values.Add(name, val);
+                types.Add(name, typeof(object));
+                if (postSet != null)
+                {
+                    SetValue(name, postSet);
                 }
             }
         }

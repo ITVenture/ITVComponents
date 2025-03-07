@@ -10,6 +10,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels

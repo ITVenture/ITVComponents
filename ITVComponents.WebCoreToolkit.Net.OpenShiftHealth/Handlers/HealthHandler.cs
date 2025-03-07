@@ -5,7 +5,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Formatters;
 using ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Options;
 using Microsoft.AspNetCore.Http;
@@ -85,7 +85,7 @@ namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Handlers
         {
             var appInfoOptions = context.RequestServices.GetService<IOptions<AppInfoOptions>>();
             var appInfoFormatter = context.RequestServices.GetService<IAppInfoFormatter<TAppInfo>>();
-            JsonHelper.WriteObject(appInfoFormatter.FormatAppInfo(appInfoOptions.Value, report), Encoding.UTF8,
+            JsonHelper.WriteObject(appInfoFormatter.FormatAppInfo(appInfoOptions.Value, report),
                 context.Response.Body, useCamelCase:appInfoOptions.Value.UseCamelCase);
         }
 
@@ -93,7 +93,7 @@ namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Handlers
         {
             var appInfoOptions = context.RequestServices.GetService<IOptions<AppInfoOptions>>();
             var appReadyFormatter = context.RequestServices.GetService<IAppInfoFormatter<TReadynessInfo>>();
-            JsonHelper.WriteObject(appReadyFormatter.FormatAppInfo(appInfoOptions.Value, report), Encoding.UTF8,
+            JsonHelper.WriteObject(appReadyFormatter.FormatAppInfo(appInfoOptions.Value, report),
                 context.Response.Body, useCamelCase: appInfoOptions.Value.UseCamelCase);
         }
 
@@ -101,7 +101,7 @@ namespace ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.Handlers
         {
             var appInfoOptions = context.RequestServices.GetService<IOptions<AppInfoOptions>>();
             var appLiveFormatter = context.RequestServices.GetService<IAppInfoFormatter<TLivenessInfo>>();
-            JsonHelper.WriteObject(appLiveFormatter.FormatAppInfo(appInfoOptions.Value, report), Encoding.UTF8,
+            JsonHelper.WriteObject(appLiveFormatter.FormatAppInfo(appInfoOptions.Value, report),
                 context.Response.Body, useCamelCase: appInfoOptions.Value.UseCamelCase);
         }
     }

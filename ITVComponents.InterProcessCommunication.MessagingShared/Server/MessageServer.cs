@@ -10,6 +10,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnections
 using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
 using ITVComponents.InterProcessCommunication.Shared.Base;
 using ITVComponents.InterProcessCommunication.Shared.Security;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 

@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Grpc.Net.Client;
-using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.Grpc.Extensions;
 using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
 using ITVComponents.InterProcessCommunication.Grpc.Security;
@@ -13,6 +12,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Security;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Security;
 

@@ -3,29 +3,50 @@ using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 using ITVComponents.Cloning;
+using ITVComponents.Json.Contracts;
+using ITVComponents.Json.Converters;
+using ITVComponents.Logging;
 using ITVComponents.Settings;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using JsonConverter = System.Text.Json.Serialization.JsonConverter;
-using JsonSerializer = Newtonsoft.Json.JsonSerializer;
 
-namespace ITVComponents.Helpers
+namespace ITVComponents.Json
 {
     public static class JsonHelper
     {
         private static readonly Encoding Utf8NoBom = new UTF8Encoding(false);
 
+        private static readonly DynamicContractResolver strongContract = new DynamicContractResolver();
+
+        static JsonHelper()
+        {
+            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(SimpleContract), "SimpleContract");
+        }
+
         /// <summary>
         /// Serializer-settings configuring newtonsoft to type-full-qualify each serialized object
         /// </summary>
-        private static readonly JsonSerializerSettings strongTypedSerializerSettings = new JsonSerializerSettings
+        private static readonly JsonSerializerOptions strongTypedSerializerSettings = new JsonSerializerOptions
         {
+            AllowTrailingCommas = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+            IgnoreReadOnlyFields = true,
+            IgnoreReadOnlyProperties = true,
+            //ReferenceHandler = 
+            TypeInfoResolver = strongContract,
+            UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
+            WriteIndented = true,
+        };
+        /*{
             CheckAdditionalContent = true,
             ConstructorHandling = ConstructorHandling.Default,
             Formatting = Formatting.Indented,
@@ -34,26 +55,48 @@ namespace ITVComponents.Helpers
             NullValueHandling = NullValueHandling.Include,
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full,
             TypeNameHandling = TypeNameHandling.All
-        };
+        };*/
 
         /// <summary>
         /// Serializer settings configuring newtonsoft to serialize with the default-settings
         /// </summary>
-        private static readonly JsonSerializerSettings simpleSerializerSettings = new JsonSerializerSettings()
+        private static readonly JsonSerializerOptions simpleSerializerSettings = new JsonSerializerOptions()
         {
+            AllowTrailingCommas = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+            IgnoreReadOnlyFields = true,
+            IgnoreReadOnlyProperties = true,
+            //ReferenceHandler = 
+            //TypeInfoResolver = strongContract,
+            UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
+            WriteIndented = true
+        };
+        /*{
             CheckAdditionalContent = true,
             ConstructorHandling = ConstructorHandling.Default,
             Formatting = Formatting.Indented,
             MissingMemberHandling = MissingMemberHandling.Ignore,
             ObjectCreationHandling = ObjectCreationHandling.Auto,
             NullValueHandling = NullValueHandling.Include,
-        };
+        };*/
 
         /// <summary>
         /// Serializer-settings configuring newtonsoft to type-full-qualify each serialized object
         /// </summary>
-        private static readonly JsonSerializerSettings strongTypedSerializerSettingsWithReferences = new JsonSerializerSettings
+        private static readonly JsonSerializerOptions strongTypedSerializerSettingsWithReferences = new JsonSerializerOptions
         {
+            AllowTrailingCommas = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+            IgnoreReadOnlyFields = true,
+            IgnoreReadOnlyProperties = true,
+            ReferenceHandler = ReferenceHandler.Preserve,
+            TypeInfoResolver = strongContract,
+            UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
+            WriteIndented = true,
+        };
+        /*{
             CheckAdditionalContent = true,
             ConstructorHandling = ConstructorHandling.Default,
             Formatting = Formatting.Indented,
@@ -63,13 +106,24 @@ namespace ITVComponents.Helpers
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full,
             TypeNameHandling = TypeNameHandling.All,
             PreserveReferencesHandling = PreserveReferencesHandling.Objects,
-        };
+        };*/
 
         /// <summary>
         /// Serializer settings configuring newtonsoft to serialize with the default-settings
         /// </summary>
-        private static readonly JsonSerializerSettings simpleSerializerSettingsWithReferences = new JsonSerializerSettings
+        private static readonly JsonSerializerOptions simpleSerializerSettingsWithReferences = new JsonSerializerOptions
         {
+            AllowTrailingCommas = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+            IgnoreReadOnlyFields = true,
+            IgnoreReadOnlyProperties = true,
+            ReferenceHandler = ReferenceHandler.Preserve,
+            //TypeInfoResolver = strongContract,
+            UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
+            WriteIndented = true,
+        };
+        /*{
             CheckAdditionalContent = true,
             ConstructorHandling = ConstructorHandling.Default,
             Formatting = Formatting.Indented,
@@ -77,11 +131,13 @@ namespace ITVComponents.Helpers
             ObjectCreationHandling = ObjectCreationHandling.Auto,
             NullValueHandling = NullValueHandling.Include,
             PreserveReferencesHandling = PreserveReferencesHandling.Objects
-        };
+        };*/
 
         public static string EncryptJsonValues(this string jsonString, string password = null)
         {
-            var settings = simpleSerializerSettingsWithReferences.Copy();/*new JsonSerializerSettings
+            var setng = new JsonSerializerOptions(simpleSerializerSettingsWithReferences);
+            //var settings = simpleSerializerSettingsWithReferences.Copy();
+            /*new JsonSerializerSettings
             {
                 CheckAdditionalContent = true,
                 ConstructorHandling = ConstructorHandling.Default,
@@ -92,14 +148,14 @@ namespace ITVComponents.Helpers
                 PreserveReferencesHandling = PreserveReferencesHandling.Objects,
             }*/;
 
-            settings.Converters.Add(new JsonStringEncryptConverter(password));
-            var tmp = DeserializeObject(jsonString, settings);
-            return Serialize(tmp, settings);
+            setng.Converters.Add(new JsonStringEncryptConverter(password));
+            var tmp = DeserializeObject(jsonString, setng);
+            return Serialize(tmp, setng, false);
         }
 
         public static string EncryptJsonValues(this object rawObject, string password = null)
         {
-            var settings = simpleSerializerSettingsWithReferences.Copy();/*new JsonSerializerSettings
+            var settings = new JsonSerializerOptions(simpleSerializerSettingsWithReferences);/*new JsonSerializerSettings
             {
                 CheckAdditionalContent = true,
                 ConstructorHandling = ConstructorHandling.Default,
@@ -112,12 +168,12 @@ namespace ITVComponents.Helpers
             ;
 
             settings.Converters.Add(new JsonStringEncryptConverter(password));
-            return Serialize(rawObject, settings);
+            return Serialize(rawObject, settings, false);
         }
 
         public static string EncryptJsonValues(this object rawObject, byte[] encryptionKey = null)
         {
-            var settings = simpleSerializerSettingsWithReferences.Copy();/*new JsonSerializerSettings
+            var settings = new JsonSerializerOptions(simpleSerializerSettingsWithReferences);/*new JsonSerializerSettings
             {
                 CheckAdditionalContent = true,
                 ConstructorHandling = ConstructorHandling.Default,
@@ -130,69 +186,7 @@ namespace ITVComponents.Helpers
             ;
 
             settings.Converters.Add(new JsonStringEncryptConverter(encryptionKey));
-            return Serialize(rawObject, settings);
-        }
-
-        /// <summary>
-        /// Writes an object to a stream using strong-typed json settings
-        /// </summary>
-        /// <param name="value">the value to serialize</param>
-        /// <param name="encoding">the encoding to use on the file</param>
-        /// <param name="targetStream">the target stream where the content is written to</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        public static void WriteObjectStrongTyped(object value, Encoding encoding, Stream targetStream, bool preserveReferences = false, bool useCamelCase = false)
-        {
-            using (var tw = new StreamWriter(targetStream, encoding, 1024, true))
-            {
-                WriteObjectStrongTyped(value, tw, preserveReferences, useCamelCase);
-                //tw.Write(serialized);
-            }
-        }
-
-        /// <summary>
-        /// Writes an object to a stream using strong-typed json settings
-        /// </summary>
-        /// <param name="value">the value to serialize</param>
-        /// <param name="writer">the text-writer that is used for writing the target object</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        public static void WriteObjectStrongTyped(object value, TextWriter writer, bool preserveReferences = false,
-            bool useCamelCase = false)
-        {
-            var serializer = GetSerializer(true, preserveReferences, useCamelCase);
-            Serialize(value, serializer, writer);
-        }
-
-        /// <summary>
-        /// Reads an object from a stream. Uses the strong-typed json settings
-        /// </summary>
-        /// <typeparam name="T">the target type to convert the data into</typeparam>
-        /// <param name="sourceStream">the source-stream from which the data is read</param>
-        /// <param name="encoding">the encoding to use on the file</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        /// <returns>the deserialized object</returns>
-        public static T ReadStrongTypedObject<T>(Stream sourceStream, Encoding encoding, bool preserveReferences = false, bool useCamelCase = false)
-        {
-            using (var tr = new StreamReader(sourceStream, encoding,false, 1024,true))
-            {
-                return ReadStrongTypedObject<T>(tr, preserveReferences, useCamelCase);
-            }
-        }
-
-        /// <summary>
-        /// Reads an object from a stream. Uses the strong-typed json settings
-        /// </summary>
-        /// <typeparam name="T">the target type to convert the data into</typeparam>
-        /// <param name="reader">the text-reader that points to a stream containing a json-object</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        /// <returns>the deserialized object</returns>
-        public static T ReadStrongTypedObject<T>(TextReader reader, bool preserveReferences = false, bool useCamelCase = false)
-        {
-            var serializer = GetSerializer(true, preserveReferences, useCamelCase);
-            return DeserializeObject<T>(serializer, reader);
+            return Serialize(rawObject, settings, false);
         }
 
         /// <summary>
@@ -204,7 +198,8 @@ namespace ITVComponents.Helpers
         /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
         public static void WriteObjectStrongTyped(object value, Stream targetStream, bool preserveReferences = false, bool useCamelCase = false)
         {
-            WriteObjectStrongTyped(value, Encoding.UTF8, targetStream, preserveReferences, useCamelCase);
+            var serializer = GetSerializer(true, preserveReferences, useCamelCase);
+            Serialize(value, serializer, targetStream, true);
         }
 
         /// <summary>
@@ -217,7 +212,8 @@ namespace ITVComponents.Helpers
         /// <returns>the deserialized object</returns>
         public static T ReadStrongTypedObject<T>(Stream sourceStream, bool preserveReferences = false, bool useCamelCase= false)
         {
-            return ReadStrongTypedObject<T>(sourceStream, Encoding.UTF8, preserveReferences, useCamelCase);
+            var serializer = GetSerializer(true, preserveReferences, useCamelCase);
+            return DeserializeObject<T>(serializer, sourceStream, true);
         }
 
         /// <summary>
@@ -232,7 +228,7 @@ namespace ITVComponents.Helpers
             using (FileStream targetStream = File.OpenWrite(fileName))
             {
                 targetStream.SetLength(0);
-                WriteObjectStrongTyped(value, Encoding.UTF8, targetStream, preserveReferences, useCamelCase);
+                WriteObjectStrongTyped(value, targetStream, preserveReferences, useCamelCase);
             }
         }
 
@@ -248,75 +244,8 @@ namespace ITVComponents.Helpers
         {
             using (FileStream sourceStream = File.OpenRead(fileName))
             {
-                return ReadStrongTypedObject<T>(sourceStream, Encoding.UTF8, preserveReferences, useCamelCase);
+                return ReadStrongTypedObject<T>(sourceStream, preserveReferences, useCamelCase);
             }
-        }
-
-        /// <summary>
-        /// Writes an object to a stream using strong-typed json settings
-        /// </summary>
-        /// <param name="value">the value to serialize</param>
-        /// <param name="encoding">the encoding to use on the file</param>
-        /// <param name="fileName">the name of the file where the content is written to</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        public static void WriteObjectStrongTyped(object value, Encoding encoding, string fileName, bool preserveReferences = false, bool useCamelCase = false)
-        {
-            using (FileStream targetStream = File.OpenWrite(fileName))
-            {
-                targetStream.SetLength(0);
-                WriteObjectStrongTyped(value, encoding, targetStream, preserveReferences, useCamelCase);
-            }
-        }
-
-        /// <summary>
-        /// Reads an object from a stream. Uses the strong-typed json settings
-        /// </summary>
-        /// <typeparam name="T">the target type to convert the data into</typeparam>
-        /// <param name="fileName">the name of the source-file from which the data is read</param>
-        /// <param name="encoding">the encoding to use on the file</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        /// <returns>the deserialized object</returns>
-        public static T ReadStrongTypedObject<T>(string fileName, Encoding encoding, bool preserveReferences = false, bool useCamelCase = false)
-        {
-            using (FileStream sourceStream = File.OpenRead(fileName))
-            {
-                return ReadStrongTypedObject<T>(sourceStream, encoding, preserveReferences, useCamelCase);
-            }
-        }
-
-
-        /// <summary>
-        /// Writes an object to a stream using strong-typed json settings
-        /// </summary>
-        /// <param name="value">the value to serialize</param>
-        /// <param name="encoding">the encoding to use on the file</param>
-        /// <param name="targetStream">the target stream where the content is written to</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        public static void WriteObject(object value, Encoding encoding, Stream targetStream, bool preserveReferences = false, bool useCamelCase = false)
-        {
-            //string serialized = ToJson(value, preserveReferences, useCamelCase);
-            using (var tw = new StreamWriter(targetStream, encoding,1024, true))
-            {
-                WriteObject(value, tw, preserveReferences, useCamelCase);
-                //tw.Write(serialized);
-            }
-        }
-
-        /// <summary>
-        /// Writes an object to a stream using strong-typed json settings
-        /// </summary>
-        /// <param name="value">the value to serialize</param>
-        /// <param name="writer">the text-writer that is used for writing the target object</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        public static void WriteObject(object value, TextWriter writer, bool preserveReferences = false,
-            bool useCamelCase = false)
-        {
-            var serializer = GetSerializer(false, preserveReferences, useCamelCase);
-            Serialize(value, serializer, writer);
         }
 
         /// <summary>
@@ -330,24 +259,8 @@ namespace ITVComponents.Helpers
         /// <returns>the deserialized object</returns>
         public static T ReadObject<T>(Stream sourceStream, Encoding encoding, bool preserveReferences = false, bool useCamelCase = false)
         {
-            using (var tr = new StreamReader(sourceStream, encoding,false, 1024,true))
-            {
-                return ReadObject<T>(tr, preserveReferences, useCamelCase); //s = tr.ReadToEnd();
-            }
-        }
-
-        /// <summary>
-        /// Reads an object from a stream. Uses the strong-typed json settings
-        /// </summary>
-        /// <typeparam name="T">the target type to convert the data into</typeparam>
-        /// <param name="reader">the text-reader that points to a stream containing a json-object</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        /// <returns>the deserialized object</returns>
-        public static T ReadObject<T>(TextReader reader, bool preserveReferences = false, bool useCamelCase = false)
-        {
             var serializer = GetSerializer(false, preserveReferences, useCamelCase);
-            return DeserializeObject<T>(serializer, reader);
+            return DeserializeObject<T>(serializer, sourceStream, false);
         }
 
         /// <summary>
@@ -359,7 +272,9 @@ namespace ITVComponents.Helpers
         /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
         public static void WriteObject(object value, Stream targetStream, bool preserveReferences = false, bool useCamelCase = false)
         {
-            WriteObject(value, Encoding.UTF8, targetStream, preserveReferences, useCamelCase);
+            var serializer = GetSerializer(false, preserveReferences, useCamelCase);
+            //serializer.Encoder = JavaScriptEncoder.;
+            Serialize(value, serializer, targetStream, false);
         }
 
         /// <summary>
@@ -387,7 +302,7 @@ namespace ITVComponents.Helpers
             using (FileStream targetStream = File.OpenWrite(fileName))
             {
                 targetStream.SetLength(0);
-                WriteObject(value, Encoding.UTF8, targetStream, preserveReferences, useCamelCase);
+                WriteObject(value, targetStream, preserveReferences, useCamelCase);
             }
         }
 
@@ -404,23 +319,6 @@ namespace ITVComponents.Helpers
             using (FileStream sourceStream = File.OpenRead(fileName))
             {
                 return ReadObject<T>(sourceStream, Encoding.UTF8, preserveReferences, useCamelCase);
-            }
-        }
-
-        /// <summary>
-        /// Writes an object to a stream using strong-typed json settings
-        /// </summary>
-        /// <param name="value">the value to serialize</param>
-        /// <param name="encoding">the encoding to use on the file</param>
-        /// <param name="fileName">the name of the file where the content is written to</param>
-        /// <param name="preserveReferences">indicates whether to keep the object references in the serialized string</param>
-        /// <param name="useCamelCase">indicates whether to use camelCase notation for properties</param>
-        public static void WriteObject(object value, Encoding encoding, string fileName, bool preserveReferences = false, bool useCamelCase = false)
-        {
-            using (FileStream targetStream = File.OpenWrite(fileName))
-            {
-                targetStream.SetLength(0);
-                WriteObject(value, encoding, targetStream, preserveReferences, useCamelCase);
             }
         }
 
@@ -451,8 +349,8 @@ namespace ITVComponents.Helpers
         public static string ToJson(object value, bool preserveReferences = false, bool useCamelCase = false)
         {
             var basicSettings =
-                (!preserveReferences ? simpleSerializerSettings : simpleSerializerSettingsWithReferences).Copy();
-            return ToJson(value, basicSettings, useCamelCase);
+                new JsonSerializerOptions(!preserveReferences ? simpleSerializerSettings : simpleSerializerSettingsWithReferences);
+            return ToJson(value, basicSettings, useCamelCase, false);
         }
 
         /// <summary>
@@ -466,8 +364,8 @@ namespace ITVComponents.Helpers
         public static T FromJsonString<T>(string json, bool preserveReferences = false, bool useCamelCase = false)
         {
             var basicSettings =
-                (!preserveReferences ? simpleSerializerSettings : simpleSerializerSettingsWithReferences).Copy();
-            return FromJson<T>(json, basicSettings, useCamelCase);
+                new JsonSerializerOptions(!preserveReferences ? simpleSerializerSettings : simpleSerializerSettingsWithReferences);
+            return FromJson<T>(json, basicSettings, useCamelCase, false);
         }
 
         /// <summary>
@@ -481,8 +379,9 @@ namespace ITVComponents.Helpers
         public static object FromJsonString(Type t, string json, bool preserveReferences = false,
             bool useCamelCase = false)
         {
-            var basicSettings =
-                (!preserveReferences ? simpleSerializerSettings : simpleSerializerSettingsWithReferences).Copy();
+            var basicSettings = new JsonSerializerOptions(!preserveReferences
+                ? simpleSerializerSettings
+                : simpleSerializerSettingsWithReferences);
             return FromJson(t, json, basicSettings, useCamelCase);
         }
 
@@ -494,10 +393,10 @@ namespace ITVComponents.Helpers
         /// <returns>the json-string representation of the given object</returns>
         public static string ToJsonStrongTyped(object value, bool preserveReferences = false, bool useCamelCase = false)
         {
-            var basicSettings = (!preserveReferences
+            JsonSerializerOptions basicSettings = new JsonSerializerOptions(!preserveReferences
                 ? strongTypedSerializerSettings
-                : strongTypedSerializerSettingsWithReferences).Copy();
-            return ToJson(value, basicSettings, useCamelCase);
+                : strongTypedSerializerSettingsWithReferences);
+            return ToJson(value, basicSettings, useCamelCase, true);
         }
 
         /// <summary>
@@ -510,10 +409,10 @@ namespace ITVComponents.Helpers
         /// <returns>the deserialized object</returns>
         public static T FromJsonStringStrongTyped<T>(string json, bool preserveReferences = false, bool useCamelCase = false)
         {
-            var basicSettings = (!preserveReferences
+            var basicSettings = new JsonSerializerOptions(!preserveReferences
                 ? strongTypedSerializerSettings
-                : strongTypedSerializerSettingsWithReferences).Copy();
-            return FromJson<T>(json, basicSettings, useCamelCase);
+                : strongTypedSerializerSettingsWithReferences);
+            return FromJson<T>(json, basicSettings, useCamelCase, true);
         }
 
         /// <summary>
@@ -523,14 +422,14 @@ namespace ITVComponents.Helpers
         /// <param name="basicSettings">the estimated basic-settings</param>
         /// <param name="useCamelCase">indicates whether to use camelCase-naming convention</param>
         /// <returns>a string representing the json-notation of the given object</returns>
-        private static string ToJson(object value, JsonSerializerSettings basicSettings, bool useCamelCase)
+        private static string ToJson(object value, JsonSerializerOptions basicSettings, bool useCamelCase, bool strongTyped)
         {
             if (useCamelCase)
             {
-                basicSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+                basicSettings.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             }
 
-            return Serialize(value, basicSettings);
+            return Serialize(value, basicSettings, strongTyped);
         }
 
         /// <summary>
@@ -541,37 +440,35 @@ namespace ITVComponents.Helpers
         /// <param name="basicSettings">the estimated basic-settings</param>
         /// <param name="useCamelCase">indicates whether to use camelCase-naming convention</param>
         /// <returns>the deserialized object</returns>
-        private static T FromJson<T>(string json, JsonSerializerSettings basicSettings, bool useCamelCase)
+        private static T FromJson<T>(string json, JsonSerializerOptions basicSettings, bool useCamelCase, bool strongTyped)
         {
             if (useCamelCase)
             {
-                basicSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+                basicSettings.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             }
 
-            return DeserializeObject<T>(json, basicSettings);
+            return DeserializeObject<T>(json, basicSettings, strongTyped);
         }
 
-        private static object FromJson(Type t, string json, JsonSerializerSettings basicSettings, bool useCamelCase)
+        private static object FromJson(Type t, string json, JsonSerializerOptions basicSettings, bool useCamelCase)
         {
             if (useCamelCase)
             {
-                basicSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+                basicSettings.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                //basicSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
             }
 
             return DeserializeObject(json, basicSettings, t);
         }
 
-        private static T DeserializeObject<T>(string json, JsonSerializerSettings settings)
+        private static T DeserializeObject<T>(string json, JsonSerializerOptions settings, bool strongTyped)
         {
             var data = Utf8NoBom.GetBytes(json);
             using MemoryStream mst = new MemoryStream(data);
-            using (TextReader r = new StreamReader(mst, Utf8NoBom))
-            {
-                return DeserializeObject<T>(r, settings);
-            }
+            return DeserializeObject<T>(mst, settings, strongTyped);
         }
 
-        private static object DeserializeObject(string json, JsonSerializerSettings settings, Type t = null)
+        private static object DeserializeObject(string json, JsonSerializerOptions settings, Type t = null)
         {
             var data = Utf8NoBom.GetBytes(json);
             using MemoryStream mst = new MemoryStream(data);
@@ -581,24 +478,73 @@ namespace ITVComponents.Helpers
             }
         }
 
-        private static T DeserializeObject<T>(TextReader r, JsonSerializerSettings settings)
+        private static T DeserializeObject<T>(Stream r, JsonSerializerOptions settings, bool strongTyped)
         {
-            JsonSerializer s = JsonSerializer.Create(settings);
-            return DeserializeObject<T>(s, r);
+            return DeserializeObject<T>(settings, r, strongTyped);
         }
 
-        private static object DeserializeObject(TextReader r, JsonSerializerSettings settings, Type t = null)
+        private static object DeserializeObject(TextReader r, JsonSerializerOptions settings, Type t = null)
         {
-            JsonSerializer s = JsonSerializer.Create(settings);
-            return DeserializeObject(s, r, t);
+            /*JsonTypeInfo ty = null;
+            if (t != null)
+            {
+                ty = settings.GetTypeInfo(t);
+            }*/
+
+            if (t == null)
+            {
+                var nd = JsonNode.Parse(r.ReadToEnd());
+                var k = nd.GetValueKind();
+                if (k == JsonValueKind.Array)
+                {
+                    return nd.AsArray();
+                }
+                
+                if (k == JsonValueKind.Object)
+                {
+                    return nd.AsObject();
+                }
+
+                if (k == JsonValueKind.String || k == JsonValueKind.Number || k == JsonValueKind.False || k == JsonValueKind.True || k == JsonValueKind.Null)
+                {
+                    return nd.AsValue();
+                }
+
+                return null;
+            }
+            //System.Text.Json.JsonDocument.Parse(r.ReadToEnd(), t, settings);
+            //JsonSerializer s = JsonSerializer.Create(settings);
+            return System.Text.Json.JsonSerializer.Deserialize(r.ReadToEnd(), t, settings);
+            //return DeserializeObject(s, r, t);
         }
 
-        private static T DeserializeObject<T>(JsonSerializer serializer, TextReader r)
+        private static T DeserializeObject<T>(JsonSerializerOptions serializer, Stream r, bool strongTyped)
         {
-            return serializer.Deserialize<T>(new JsonTextReader(r));
+            if (strongTyped)
+            {
+                var tmp = System.Text.Json.JsonSerializer
+                    .Deserialize<IManualSerializer>(r, serializer);
+                //tmp.OnDeserialized(serializer);
+                object ret = tmp;
+                if (tmp is SimpleContract sc)
+                {
+                    ret = sc.Value;
+                }
+
+                if (ret is T retVal)
+                {
+                    return retVal;
+                }
+
+                LogEnvironment.LogDebugEvent("Deserialization for StrongType-Formatted JSON failed.", LogSeverity.Warning);
+            }
+
+            return
+                System.Text.Json.JsonSerializer
+                    .Deserialize<T>(r, serializer); //serializer.Deserialize<T>(new JsonTextReader(r));
         }
 
-        private static object DeserializeObject(JsonSerializer serializer, TextReader r, Type t = null)
+        /*private static object DeserializeObject(JsonSerializer serializer, TextReader r, Type t = null)
         {
             using var jr = new JsonTextReader(r);
             if (t != null)
@@ -607,34 +553,42 @@ namespace ITVComponents.Helpers
             }
 
             return serializer.Deserialize(jr);
-        }
+        }*/
 
-        private static string Serialize(object value, JsonSerializerSettings settings)
+        private static string Serialize(object value, JsonSerializerOptions settings, bool strongTyped)
         {
             using MemoryStream mst = new MemoryStream();
-            using (TextWriter w = new StreamWriter(mst, Utf8NoBom, -1, false))
-            {
-                Serialize(value, settings, w);
-            }
-
+            Serialize(value, settings, mst, strongTyped);
             var data = mst.ToArray();
             return Utf8NoBom.GetString(data);
         }
 
-        private static void Serialize(object value, JsonSerializerSettings settings, TextWriter writer)
+        private static void Serialize(object value, JsonSerializerOptions settings, Stream writer, bool strongTyped)
         {
-            var serializer = GetSerializer(settings);
-            Serialize(value, serializer, writer);
+            if (value is IManualSerializer mas)
+            {
+                //var serializer = GetSerializer(settings);
+                //Serialize(value, serializer, writer);
+                System.Text.Json.JsonSerializer.Serialize(writer, mas, settings);
+            }
+            else if (strongTyped)
+            {
+                System.Text.Json.JsonSerializer.Serialize(writer, new SimpleContract{Value = value}, settings);
+            }
+            else
+            {
+                System.Text.Json.JsonSerializer.Serialize(writer, value, settings);
+            }
         }
 
-        private static void Serialize(object value, JsonSerializer serializer, TextWriter writer)
+        /*private static void Serialize(object value, JsonSerializer serializer, TextWriter writer)
         {
             serializer.Serialize(writer, value);
-        }
+        }*/
 
-        private static JsonSerializer GetSerializer(bool strongTyped, bool preserveReferences, bool useCamelCase)
+        private static JsonSerializerOptions GetSerializer(bool strongTyped, bool preserveReferences, bool useCamelCase)
         {
-            JsonSerializerSettings tmp;
+            JsonSerializerOptions tmp;
             if (strongTyped)
             {
                 tmp = preserveReferences
@@ -646,18 +600,18 @@ namespace ITVComponents.Helpers
                 tmp = preserveReferences ? simpleSerializerSettingsWithReferences : simpleSerializerSettings;
             }
 
-            tmp = tmp.Copy();
+            tmp = new JsonSerializerOptions(tmp);
             if (useCamelCase)
             {
-                tmp.ContractResolver = new CamelCasePropertyNamesContractResolver();
+                tmp.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             }
 
-            return GetSerializer(tmp);
+            return tmp;
         }
 
-        private static JsonSerializer GetSerializer(JsonSerializerSettings settings)
+        /*private static JsonSerializer GetSerializer(JsonSerializerSettings settings)
         {
             return JsonSerializer.Create(settings);
-        }
+        }*/
     }
 }

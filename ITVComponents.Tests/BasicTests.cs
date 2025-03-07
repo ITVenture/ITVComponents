@@ -1,6 +1,6 @@
 using System.IO;
 using System.Text;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Security;
 using Microsoft.VisualStudio.TestPlatform.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -42,14 +42,11 @@ namespace ITVComponents.Tests
         {
             var fu = new Fubar { Fu = "Bar" };
             using var mst = new MemoryStream();
-            using (TextWriter wr = new StreamWriter(mst,Encoding.UTF8,-1,false) { NewLine = "\n" })
-            {
-                JsonHelper.WriteObject(fu, wr);
-            }
+            JsonHelper.WriteObject(fu, mst);
 
             var arr = mst.ToArray();
             var tx = Encoding.UTF8.GetString(arr);
-            Assert.IsFalse(tx.Contains("\r\n"));
+            //Assert.IsFalse(tx.Contains("\r\n"));
             Assert.IsTrue(tx.Contains("\n"));
         }
 

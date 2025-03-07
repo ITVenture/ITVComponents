@@ -8,7 +8,6 @@ namespace ITVComponents.AssemblyResolving
     /// <summary>
     /// Holds Plugin - Construction Instructions
     /// </summary>
-    [Serializable]
     public class AssemblyResolverConfigurationCollection : List<AssemblyResolverConfigurationItem>
     {
         /// <summary>

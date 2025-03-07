@@ -13,7 +13,6 @@ using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins
 {
