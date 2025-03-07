@@ -11,6 +11,7 @@ using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
 using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
@@ -390,7 +391,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                     Map = i
                 };
             return (from t in preMapped where string.IsNullOrEmpty(t.Map.Condition) || (ExpressionParser.Parse(t.Map.Condition, t.Original) is bool b && b)
-                   select TryGetClaim(t.Map,t.Original)).Where(n => n != null);
+                   select TryGetClaim(t.Map,t.Original)).SelectMany(n => n).Where(n => n != null);
         }
 
         /// <summary>
@@ -678,24 +679,51 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         /// <param name="map">the mapping instruction for estimating a new claim</param>
         /// <param name="original">the original claim-value</param>
         /// <returns>a new claim that must be added to the currently logged on user</returns>
-        private ClaimData TryGetClaim(AuthenticationClaimMapping map, ClaimData original)
+        private ClaimData[] TryGetClaim(AuthenticationClaimMapping map, ClaimData original)
         {
             try
             {
-                return new ClaimData
+                if (!map.OutgoingClaimValue.StartsWith("^^#"))
                 {
-                    Type = original.FormatText(map.OutgoingClaimName),
-                    ValueType = !string.IsNullOrEmpty(map.OutgoingValueType) ? original.FormatText(map.OutgoingValueType) : "",
-                    Issuer = !string.IsNullOrEmpty(map.OutgoingIssuer) ? original.FormatText(map.OutgoingIssuer) : "",
-                    OriginalIssuer = !string.IsNullOrEmpty(map.OutgoingOriginalIssuer) ? original.FormatText(map.OutgoingOriginalIssuer) : "",
-                    Value = !string.IsNullOrEmpty(map.OutgoingClaimValue) ? original.FormatText(map.OutgoingClaimValue) : ""
-                };
+                    return new[]
+                    {
+                        MakeClaim(map,original,!string.IsNullOrEmpty(map.OutgoingClaimValue)
+                            ? original.FormatText(map.OutgoingClaimValue)
+                            : "")
+                    };
+                }
+
+                var tmp = ExpressionParser.Parse(map.OutgoingClaimValue, original,
+                    d => DefaultCallbacks.PrepareDefaultCallbacks(d.Scope, d.ReplSession));
+                if (tmp is IEnumerable<string> tenu)
+                {
+                    return (from s in tenu
+                        select MakeClaim(map, original, s)).ToArray();
+                }
             }
             catch
             {
             }
 
             return null;
+        }
+
+        private ClaimData MakeClaim(AuthenticationClaimMapping map, ClaimData original, string value)
+        {
+            return new ClaimData
+            {
+                Type = original.FormatText(map.OutgoingClaimName),
+                ValueType = !string.IsNullOrEmpty(map.OutgoingValueType)
+                    ? original.FormatText(map.OutgoingValueType)
+                    : "",
+                Issuer = !string.IsNullOrEmpty(map.OutgoingIssuer)
+                    ? original.FormatText(map.OutgoingIssuer)
+                    : "",
+                OriginalIssuer = !string.IsNullOrEmpty(map.OutgoingOriginalIssuer)
+                    ? original.FormatText(map.OutgoingOriginalIssuer)
+                    : "",
+                Value = value
+            };
         }
 
         /// <summary>
