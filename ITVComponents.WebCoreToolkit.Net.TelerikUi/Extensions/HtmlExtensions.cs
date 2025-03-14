@@ -217,7 +217,7 @@ $(""#{uniqueDummyId}"").replaceWith(result);
             //var ditm = gg.dataItem(gg.wrapper.find("[data-uid='".concat($(gg._editContainer).attr("data-uid")).concat("']")) )
             string filterFunction = CustomActionHelper.RandomName($"dataCbFx_{repoName}_{tableName}_{memberName}");
             dataFilter = $@"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{filterFunction} = function(dataRequest){{
-            var obj = {JsonHelper.ToJson(customDataFilter)};
+            var obj = {JsonHelper.ToJson(customDataFilter, SerializationTypingMode.StaticTyping, null)};
             {(!string.IsNullOrEmpty(listRef)?$@"var list = $(""#{listRef}"").data(""kendoGrid"");
             var ditm = list.dataItem($(list._editContainer));
             var tpp = obj;

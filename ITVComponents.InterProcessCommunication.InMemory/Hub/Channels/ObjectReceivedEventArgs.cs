@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
 {
@@ -11,8 +12,8 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
     {
         public DataTransferContext Context { get; set; }
 
-        public object Value { get; set; }
+        public IProtocolMessage Value { get; set; }
 
-        public object Result { get; set; }
+        public IProtocolMessage Result { get; set; }
     }
 }

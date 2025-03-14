@@ -34,7 +34,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
         {
             if (string.IsNullOrEmpty(message.HubUser) && authenticatedUser is ClaimsIdentity cli)
             {
-                message.HubUser = JsonHelper.ToJsonStrongTyped(cli.ForTransfer());
+                message.HubUser = JsonHelper.ToJson(cli.ForTransfer(), SerializationTypingMode.StaticTyping, null);
             }
 
             return serviceHubProvider.Broker.SendMessageToServer(message, services);

@@ -8,7 +8,6 @@ namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Schedulin
     /// <summary>
     /// Describes a scheduled Task
     /// </summary>
-    [Serializable]
     public class ScheduledTaskDescription
     {
         /// <summary>

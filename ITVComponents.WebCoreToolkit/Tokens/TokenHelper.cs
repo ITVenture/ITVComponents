@@ -16,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.Tokens
             using var mst = new MemoryStream();
             using (var dst = new DeflateStream(mst, CompressionLevel.Optimal))
             {
-                JsonHelper.WriteObject(token, dst);
+                JsonHelper.WriteObject(token, SerializationTypingMode.StaticTyping, dst);
             }
 
             byte[] ret = mst.ToArray();
@@ -61,7 +61,7 @@ namespace ITVComponents.WebCoreToolkit.Tokens
             {
                 using (DeflateStream dfs = new DeflateStream(mst, CompressionMode.Decompress))
                 {
-                    return JsonHelper.ReadObject<T>(dfs, Encoding.Default);
+                    return JsonHelper.ReadObject<T>(dfs, SerializationTypingMode.StaticTyping);
                 }
             }
         }

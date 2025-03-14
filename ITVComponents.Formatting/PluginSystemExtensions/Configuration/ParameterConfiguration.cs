@@ -8,7 +8,6 @@ using ITVComponents.Json.Converters;
 
 namespace ITVComponents.Formatting.PluginSystemExtensions.Configuration
 {
-    [Serializable]
     public class ParameterConfiguration
     {
         public string ConstIdentifier { get; set; }

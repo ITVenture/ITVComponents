@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.DataExchange.TextImport.Config
 {
-    [Serializable]
     public class RegexConfigurationCollection : List<RegexConfiguration>
     {
     }

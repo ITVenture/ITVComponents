@@ -47,21 +47,25 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 
         public virtual void ApplyObjectData()
         {
-            value = Data.GetDeserializedValue<object>(nameof(value));
             NullType = Data.GetDeserializedValue<TypeDescriptor>(nameof(NullType));
-            if (NullType != null)
+            try
             {
-                Type t = null;
-                try
+                if (NullType != null)
                 {
-                    t = NullType;
-                    value = TypeConverter.Convert(value, t);
-
+                    var meth = LambdaHelper
+                        .GetMethodInfo(() =>
+                            SerializationDataExtensions.GetDeserializedValue<object>(Data, nameof(value)))
+                        .GetGenericMethodDefinition().MakeGenericMethod(NullType);
+                    value = meth.Invoke(null, new object[] { Data, nameof(value) });
                 }
-                catch (Exception ex)
+                else
                 {
-                    LogEnvironment.LogEvent($"Error converting Value to {t} ({ex.Message})", LogSeverity.Error);
+                    value = Data.GetDeserializedValue<object>(nameof(value));
                 }
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"Error converting Value to {NullType} ({ex.Message})", LogSeverity.Error);
             }
         }
     }

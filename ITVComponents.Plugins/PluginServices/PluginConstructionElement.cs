@@ -5,7 +5,6 @@ using System.Text;
 
 namespace ITVComponents.Plugins.PluginServices
 {
-    [Serializable]
     public class PluginConstructionElement
     {
         /// <summary>

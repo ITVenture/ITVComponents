@@ -26,7 +26,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
                 Value2,
                 Operator = Operator.ToString(),
                 Type = "Comparer"
-            });
+            }, SerializationTypingMode.StaticTyping, null);
         }
     }
 

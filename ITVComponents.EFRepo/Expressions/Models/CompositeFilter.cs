@@ -38,7 +38,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
                 Operator = Operator.ToString(),
                 Type = "Composite",
                 Children = (from t in Children select t.ToString()).ToArray()
-            });
+            }, SerializationTypingMode.StaticTyping, null);
         }
 
         public void AddFilter(FilterBase filter)

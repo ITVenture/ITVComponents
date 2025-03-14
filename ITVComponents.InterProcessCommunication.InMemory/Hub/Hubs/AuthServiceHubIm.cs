@@ -37,7 +37,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Hubs
             try
             {
                 CheckAuth(context, "ConnectAnyService", request.TargetService);
-                request.HubUser = JsonHelper.ToJsonStrongTyped(((ClaimsIdentity)context.Identity).ForTransfer());
+                request.HubUser = JsonHelper.ToJson(((ClaimsIdentity)context.Identity).ForTransfer(), SerializationTypingMode.StaticTyping, null);
                 return base.ConsumeService(request, context);
             }
             catch (Exception ex)

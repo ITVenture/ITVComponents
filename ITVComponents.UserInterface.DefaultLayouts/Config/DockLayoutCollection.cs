@@ -5,7 +5,6 @@ using System.Linq;
 
 namespace ITVComponents.UserInterface.DefaultLayouts.Config
 {
-    [Serializable]
     public class DockLayoutCollection : List<DockLayoutDefinition>
     {
         /// <summary>

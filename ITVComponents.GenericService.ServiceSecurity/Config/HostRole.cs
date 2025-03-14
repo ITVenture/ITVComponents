@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace ITVComponents.GenericService.ServiceSecurity.Config
 {
-    [Serializable]
     public class HostRole
     {
         public string RoleName { get; set; }

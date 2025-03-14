@@ -18,6 +18,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
 {
@@ -162,7 +163,8 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
                 OperationId = $"{serviceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
-                TickBack = false
+                TickBack = false,
+                Timeout = TimeSpan.FromSeconds(300)
             });
 
             return cmt.ResponsePayload;
@@ -181,7 +183,8 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
                 OperationId = $"{serviceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
                 OperationPayload = serviceMessage,
                 TargetService = serviceName,
-                TickBack = false
+                TickBack = false,
+                Timeout = TimeSpan.FromSeconds(300)
             });
 
             return cmt.ResponsePayload;
@@ -376,7 +379,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
 
                                     if (!string.IsNullOrEmpty(c.HubUser))
                                     {
-                                        msg.HubUser = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(c.HubUser)
+                                        msg.HubUser = JsonHelper.FromJsonString<TransferIdentity>(c.HubUser, SerializationTypingMode.StaticTyping)
                                             .ToIdentity(customServerSecurity);
                                     }
 
@@ -399,7 +402,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
                                             ret = new ServiceOperationResponseMessage
                                             {
                                                 OperationId = c.OperationId,
-                                                ResponsePayload = JsonHelper.ToJsonStrongTyped(msg.Error, true),
+                                                ResponsePayload = msg.Error,
                                                 TargetService = c.TargetService,
                                                 Ok = false
                                             };
@@ -411,9 +414,8 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.HubConnections
                                         {
                                             OperationId = c.OperationId,
                                             TargetService = c.TargetService,
-                                            ResponsePayload = JsonHelper.ToJsonStrongTyped(
-                                                new SerializedException("Message was not processed!",
-                                                    new SerializedException[0]), true),
+                                            ResponsePayload = JsonHelper.ToJson(new ErrorResponse{
+                                                SerializedException = new SerializedException("Message was not processed!", Array.Empty<SerializedException>())}, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true),
                                             Ok = false
                                         };
                                     }

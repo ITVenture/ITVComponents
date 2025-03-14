@@ -70,7 +70,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
         {
             initialChannel
                 .Write(new ConnectionRequest
-                    { ProposedGuid = name, Ttl = ttl, User = JsonHelper.ToJsonStrongTyped(provider.CurrentIdentity) });
+                    { ProposedGuid = name, Ttl = ttl, User = JsonHelper.ToJson(provider.CurrentIdentity, SerializationTypingMode.StaticTyping, null) });
             Task.Delay(1500).GetAwaiter().GetResult();
         }
 

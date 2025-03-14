@@ -2,7 +2,7 @@
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Messages
 {
-    public abstract class AuthenticatedRequestMessage
+    public abstract class AuthenticatedRequestMessage: IRequestMessage
     {
         public TransferIdentity AuthenticatedUser { get; set; }
     }

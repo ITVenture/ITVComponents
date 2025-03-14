@@ -80,6 +80,12 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
             return retVal;
         }
 
+        public override string ToString()
+        {
+            return
+                $"{fullName} ({typeName}){{IsGeneric:{isGeneric}, GenericArgumentCount:{genericArguments?.Length ?? 0}}}";
+        }
+
         public static void RegisterReverseType(string assemblyQualifiedName, Type concreteType)
         {
             lock (reverseTypes)

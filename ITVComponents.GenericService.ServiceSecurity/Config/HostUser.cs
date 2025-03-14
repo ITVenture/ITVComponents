@@ -4,7 +4,6 @@ using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.GenericService.ServiceSecurity.Config
 {
-    [Serializable]
     public class HostUser
     {
         public string UserName { get; set; }

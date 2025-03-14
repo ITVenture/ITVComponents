@@ -153,7 +153,7 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
                 }
                 else
                 {
-                    retVal = JsonHelper.FromJsonString<T>(tmpVal);
+                    retVal = JsonHelper.FromJsonString<T>(tmpVal, SerializationTypingMode.StaticTyping);
                 }
             }
 

@@ -28,7 +28,7 @@ namespace ITVComponents.Settings.Native
                 return new JsonUserSettings
                 {
                     fileName = fileName,
-                    rootSettings = JsonHelper.ReadObject<Dictionary<string, JsonNode>>(fileName)
+                    rootSettings = JsonHelper.ReadObject<Dictionary<string, JsonNode>>(fileName, SerializationTypingMode.StaticTyping)
                 };
             }
 
@@ -113,7 +113,7 @@ namespace ITVComponents.Settings.Native
             else if (!string.IsNullOrEmpty(fileName))
             {
                 Persist();
-                JsonHelper.WriteObject(rootSettings, fileName);
+                JsonHelper.WriteObject(rootSettings, SerializationTypingMode.StaticTyping, fileName);
             }
             else
             {

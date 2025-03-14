@@ -7,7 +7,6 @@ using ITVComponents.DataExchange.Configuration;
 
 namespace ITVComponents.DataExchange.KeyValueImport.Config
 {
-    [Serializable]
     public class KeyValueConfiguration
     {
         public string TableName { get; set; }

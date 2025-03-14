@@ -58,7 +58,7 @@
                 else
                 {
                     <text>
-                        var customCfg = @(JsonHelper.ToJson(item.CustomConfig));                    
+                        var customCfg = @JsonHelper.ToJson(item.CustomConfig, SerializationTypingMode.StaticTyping, null);                    
                     </text>
                 }
 

@@ -63,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers
             DiagQueryDumpConfig cfg = null;
             if (!string.IsNullOrEmpty(setting))
             {
-                cfg = JsonHelper.FromJsonString<DiagQueryDumpConfig>(setting);
+                cfg = JsonHelper.FromJsonString<DiagQueryDumpConfig>(setting, SerializationTypingMode.StaticTyping);
             }
             else
             {

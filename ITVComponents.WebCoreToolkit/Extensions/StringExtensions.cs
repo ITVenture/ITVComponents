@@ -16,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 try
                 {
                     var ok = false;
-                    var op = JsonHelper.FromJsonString<Dictionary<string, string>>(original);
+                    var op = JsonHelper.FromJsonString<Dictionary<string, string>>(original, SerializationTypingMode.StaticTyping);
                     original = op.Translate(jsonLanguageRecord, original);
                 }
                 catch

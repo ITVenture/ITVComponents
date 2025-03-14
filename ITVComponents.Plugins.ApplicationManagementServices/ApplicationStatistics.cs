@@ -96,7 +96,6 @@ namespace ITVComponents.Plugins.ApplicationManagementServices
         /// <summary>
         /// Module Information for a loaded module
         /// </summary>
-        [Serializable]
         public class ModuleInfo
         {
             /// <summary>

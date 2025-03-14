@@ -71,7 +71,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         {
             value = null;
             valueOrDefault = null;
-            var tmp = JsonHelper.ToJson(newValue);
+            var tmp = JsonHelper.ToJson(newValue, SerializationTypingMode.StaticTyping, null);
             settingsProvider.UpdateJsonSetting(typeName, permissionScope.PermissionPrefix, tmp);
         }
 
@@ -91,7 +91,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
 
         public void Update(string explicitSettingName, TSettings newValue)
         {
-            var tmp = JsonHelper.ToJson(newValue);
+            var tmp = JsonHelper.ToJson(newValue, SerializationTypingMode.StaticTyping, null);
             settingsProvider.UpdateJsonSetting(explicitSettingName, permissionScope.PermissionPrefix, tmp);
         }
 
@@ -111,7 +111,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
             var tmp = settingsProvider.GetJsonSetting(explicitSettingName??typeName);
             if (!string.IsNullOrEmpty(tmp))
             {
-                var retVal = JsonHelper.FromJsonString<TSettings>(tmp);
+                var retVal = JsonHelper.FromJsonString<TSettings>(tmp, SerializationTypingMode.StaticTyping);
                 return retVal;
             }
 

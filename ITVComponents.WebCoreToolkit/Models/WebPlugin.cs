@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.Models
 {
-    [Serializable]
     public class WebPlugin
     {
         [MaxLength(300)]

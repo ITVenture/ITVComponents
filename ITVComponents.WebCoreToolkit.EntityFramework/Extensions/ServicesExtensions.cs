@@ -132,7 +132,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                                              globalOptions?.GetJsonSetting(contextSettingsName);
                     if (!string.IsNullOrEmpty(contextSettingsRaw))
                     {
-                        fkpc.DefaultFkOptions = JsonHelper.FromJsonString<ForeignKeyOptions>(contextSettingsRaw);
+                        fkpc.DefaultFkOptions = JsonHelper.FromJsonString<ForeignKeyOptions>(contextSettingsRaw, SerializationTypingMode.StaticTyping);
                     }
                 }
 

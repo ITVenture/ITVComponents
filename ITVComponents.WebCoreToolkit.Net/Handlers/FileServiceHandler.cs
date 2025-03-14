@@ -158,7 +158,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 var options = new UploadOptions();
                 if (!string.IsNullOrEmpty(finalSettingsRaw))
                 {
-                    options = JsonHelper.FromJsonString<UploadOptions>(finalSettingsRaw);
+                    options = JsonHelper.FromJsonString<UploadOptions>(finalSettingsRaw, SerializationTypingMode.StaticTyping);
                 }
 
                 var maxSize = context.Features.Get<IHttpMaxRequestBodySizeFeature>();

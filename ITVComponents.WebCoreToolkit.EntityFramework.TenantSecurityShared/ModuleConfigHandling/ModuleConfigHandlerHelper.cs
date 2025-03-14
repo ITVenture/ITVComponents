@@ -39,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Modu
                         }
                         else if (raw is string js)
                         {
-                            methArg[i] = JsonHelper.FromJsonString(p.ParameterType, js);
+                            methArg[i] = JsonHelper.FromJsonString(js, p.ParameterType, SerializationTypingMode.StaticTyping);
                         }
                         else if (p.HasDefaultValue)
                         {

@@ -8,9 +8,12 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Factory;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnections;
 using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
+using ITVComponents.InterProcessCommunication.MessagingShared.Messages.ProtocolHelper;
 using ITVComponents.InterProcessCommunication.Shared.Base;
+using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.Json;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 
@@ -70,6 +73,11 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
         {
             hubClient = new LocalServiceHubConsumer(serviceName, serviceHub, null, security);
             hubClient.MessageArrived += ClientInvokation;
+        }
+
+        static MessageServer()
+        {
+             MessageTranslator.RegisterMessages();
         }
 
         private void TryReconnect(object state)
@@ -186,11 +194,17 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
         /// <param name="arguments">the arguments for the raised event</param>
         protected override async Task RaiseEvent(string eventName, string sessionId, object[] arguments)
         {
-            var response = await hubClient.InvokeServiceAsync(sessionId, JsonHelper.ToJsonStrongTyped(new EventNotificationMessage
+            var msgStr = JsonHelper.ToJson(new EventNotificationMessage
             {
                 EventName = eventName,
-                Arguments = arguments
-            }));
+                Arguments = arguments.PackArguments()
+            }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage));
+            var response = await hubClient.InvokeServiceAsync(sessionId, msgStr);
+            var unwrapped = JsonHelper.FromJsonString<IServerResponse>(response, SerializationTypingMode.NativePolymorphism, true);
+            if (unwrapped is ErrorResponse rep)
+            {
+                throw new InterProcessException(rep.SerializedException);
+            }
         }
 
         /// <summary>
@@ -240,7 +254,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
 
         private void ClientInvokation(object? sender, MessageArrivedEventArgs e)
         {
-            var msg = JsonHelper.FromJsonStringStrongTyped<object>(e.Message);
+            var msg = JsonHelper.FromJsonString<IRequestMessage>(e.Message, SerializationTypingMode.NativePolymorphism, true);
             LogEnvironment.LogDebugEvent($"Message is {msg}", LogSeverity.Report);
             LogEnvironment.LogDebugEvent(e.Message, LogSeverity.Report);
             IServiceProvider services = e.Services;
@@ -249,59 +263,59 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 if (msg is AbandonExtendedProxyRequestMessage aeprm)
                 {
                     var ok = AbandonExtendedProxy(aeprm.ObjectName, aeprm.AuthenticatedUser?.ToIdentity()??e.HubUser);
-                    e.Response = JsonHelper.ToJsonStrongTyped(new AbandonExtendedProxyResponseMessage {Result = ok}, true);
+                    e.Response = JsonHelper.ToJson(new AbandonExtendedProxyResponseMessage {Result = ok}, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
                 }
                 else if (msg is ObjectAvailabilityRequestMessage oarm)
                 {
                     var avail = CheckForAvailableProxy(oarm.UniqueName, oarm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
-                    e.Response = JsonHelper.ToJsonStrongTyped(new ObjectAvailabilityResponseMessage
+                    e.Response = JsonHelper.ToJson(new ObjectAvailabilityResponseMessage
                     {
                         Message = avail.Message,
                         Available = avail.Available
-                    }, true);
+                    }, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
                     LogEnvironment.LogDebugEvent($"Response: {e.Response}.", LogSeverity.Report);
                 }
                 else if (msg is SetPropertyRequestMessage sprm)
                 {
-                    SetProperty(sprm.TargetObject, sprm.TargetMethod, sprm.MethodArguments, sprm.Value, sprm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
-                    e.Response = JsonHelper.ToJsonStrongTyped(new SetPropertyResponseMessage
+                    SetProperty(sprm.TargetObject, sprm.TargetMethod, sprm.MethodArguments.UnpackArguments(), sprm.Value, sprm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    e.Response = JsonHelper.ToJson(new SetPropertyResponseMessage
                     {
                         Ok = true
-                    }, true);
+                    }, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
                 }
                 else if (msg is GetPropertyRequestMessage gprm)
                 {
-                    var retVal = GetProperty(gprm.TargetObject, gprm.TargetMethod, gprm.MethodArguments, gprm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
-                    e.Response = JsonHelper.ToJsonStrongTyped(new GetPropertyResponseMessage
+                    var retVal = GetProperty(gprm.TargetObject, gprm.TargetMethod, gprm.MethodArguments.UnpackArguments(), gprm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    e.Response = JsonHelper.ToJson(new GetPropertyResponseMessage
                     {
-                        Result = retVal,
+                        Result = new []{retVal}.PackArguments(),
                         Arguments = gprm.MethodArguments
-                    }, true);
+                    }, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
                 }
                 else if (msg is InvokeMethodRequestMessage imrm)
                 {
-                    var result = ExecuteMethod(imrm.TargetObject, imrm.TargetMethod, imrm.MethodArguments, imrm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
-                    e.Response = JsonHelper.ToJsonStrongTyped(new InvokeMethodResponseMessage
+                    var result = ExecuteMethod(imrm.TargetObject, imrm.TargetMethod, imrm.MethodArguments.UnpackArguments(), imrm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    e.Response = JsonHelper.ToJson(new InvokeMethodResponseMessage
                     {
-                        Arguments = result.Parameters,
-                        Result = result.Result
-                    }, true);
+                        Arguments = imrm.MethodArguments,
+                        Result = new []{result.Result}.PackArguments()
+                    }, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
                 }
                 else if (msg is UnRegisterEventRequestMessage urerm)
                 {
                     var ok = UnSubscribeEvent(urerm.TargetObject, urerm.EventName, urerm.RespondChannel, urerm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
-                    e.Response = JsonHelper.ToJsonStrongTyped(new UnRegisterEventResponseMessage
+                    e.Response = JsonHelper.ToJson(new UnRegisterEventResponseMessage
                     {
                         Ok = ok
-                    }, true);
+                    }, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
                 }
                 else if (msg is RegisterEventRequestMessage rerm)
                 {
                     var ok = SubscribeForEvent(rerm.TargetObject, rerm.EventName, rerm.RespondChannel, rerm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
-                    e.Response = JsonHelper.ToJsonStrongTyped(new RegisterEventResponseMessage
+                    e.Response = JsonHelper.ToJson(new RegisterEventResponseMessage
                     {
                         Ok = ok
-                    }, true);
+                    }, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
                 }
                 else
                 {
@@ -310,7 +324,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
             }
             catch (Exception ex)
             {
-                e.Error = ex;
+                e.Error = JsonHelper.ToJson<IServerResponse>(new ErrorResponse{SerializedException = ex}, SerializationTypingMode.NativePolymorphism);
             }
             finally
             {

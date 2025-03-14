@@ -100,8 +100,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     {
                         var sys = DescribeSystem();
                         var upSys =
-                            JsonHelper.FromJsonStringStrongTyped<SystemTemplateMarkup>(
-                                Encoding.UTF8.GetString(content));
+                            JsonHelper.FromJsonString<SystemTemplateMarkup>(
+                                Encoding.UTF8.GetString(content), SerializationTypingMode.StaticTyping);
                         ComparePlugIns(sys.PlugIns, upSys.PlugIns);
                         CompareConstants(sys.Constants, upSys.Constants);
                         ComparePermissions(sys.Permissions, upSys.Permissions);

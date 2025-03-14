@@ -5,7 +5,6 @@ using System.Text;
 
 namespace ITVComponents.InterProcessCommunication.ManagementExtensions
 {
-    [Serializable]
     public class PluginInformation
     {
         /// <summary>

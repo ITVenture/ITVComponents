@@ -9,6 +9,7 @@ using ITVComponents.InterProcessCommunication.Grpc.Hub.Protos;
 using ITVComponents.InterProcessCommunication.Grpc.Security;
 using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
+using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Security;
@@ -346,7 +347,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
 
                                     if (!string.IsNullOrEmpty(c.HubUser))
                                     {
-                                        msg.HubUser = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(c.HubUser).ToIdentity(customServerSecurity);
+                                        msg.HubUser = JsonHelper.FromJsonString<TransferIdentity>(c.HubUser, SerializationTypingMode.StaticTyping).ToIdentity(customServerSecurity);
                                     }
 
                                     OnMessageArrived(msg);
@@ -368,7 +369,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                                             ret = new ServiceOperationResponseMessage
                                             {
                                                 OperationId = c.OperationId,
-                                                ResponsePayload = JsonHelper.ToJsonStrongTyped(msg.Error, true),
+                                                ResponsePayload = msg.Error,
                                                 TargetService = c.TargetService,
                                                 Ok = false
                                             };
@@ -380,7 +381,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.HubConnections
                                         {
                                             OperationId = c.OperationId,
                                             TargetService = c.TargetService,
-                                            ResponsePayload = JsonHelper.ToJsonStrongTyped(new SerializedException("Message was not processed!", new SerializedException[0]), true),
+                                            ResponsePayload = JsonHelper.ToJson(new SerializedException("Message was not processed!", new SerializedException[0]), SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true),
                                             Ok = false
                                         };
                                     }

@@ -211,7 +211,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                 }
                 else
                 {
-                    retVal = JsonHelper.FromJsonString<T>(tmpVal);
+                    retVal = JsonHelper.FromJsonString<T>(tmpVal, SerializationTypingMode.StaticTyping);
                 }
             }
 
@@ -259,7 +259,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             }
             else if (value != null)
             {
-                stringVal = JsonHelper.ToJson(value);
+                stringVal = JsonHelper.ToJson(value, SerializationTypingMode.StaticTyping, null);
             }
 
             return SetCustomProperty(user, propertyName, propertyType, stringVal);

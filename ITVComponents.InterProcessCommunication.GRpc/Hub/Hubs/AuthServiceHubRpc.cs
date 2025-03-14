@@ -33,7 +33,7 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             try
             {
                 CheckAuth(context, "ConnectAnyService", request.TargetService);
-                request.HubUser = JsonHelper.ToJsonStrongTyped(((ClaimsIdentity)context.GetHttpContext().User.Identity).ForTransfer());
+                request.HubUser = JsonHelper.ToJson(((ClaimsIdentity)context.GetHttpContext().User.Identity).ForTransfer(), SerializationTypingMode.StaticTyping, null);
                 return base.ConsumeService(request, context);
             }
             catch (Exception ex)

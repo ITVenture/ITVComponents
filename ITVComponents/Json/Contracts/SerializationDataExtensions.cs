@@ -11,13 +11,14 @@ namespace ITVComponents.Json.Contracts
     {
         public static T GetDeserializedValue<T>(this IList<ManualSerializationData> list, string name)
         {
-            var retVal = list.FirstOrDefault(n => n.PropertyName == name)?.Data;
+            var ser = list.FirstOrDefault(n => n.PropertyName == name);
+            var retVal = ser?.Data;
             if (retVal is T r)
             {
                 return r;
             }
 
-            LogEnvironment.LogEvent("Failed to get deserialized value.", LogSeverity.Error);
+            LogEnvironment.LogEvent($"Failed to get deserialized value. Expected type: {typeof(T).FullName}, effective type: {retVal?.GetType().FullName??"null"}. Type of ManualSerializationData-Object: {ser?.TypeName??"null"}", LogSeverity.Error);
             return default;
         }
     }

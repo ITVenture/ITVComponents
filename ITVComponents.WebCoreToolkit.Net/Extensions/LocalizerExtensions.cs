@@ -18,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 dic.Add(s.Name, s.Value);
             }
 
-            var json = JsonHelper.ToJson(dic);
+            var json = JsonHelper.ToJson(dic, SerializationTypingMode.StaticTyping, null);
             StringBuilder bld = new StringBuilder();
             bld.AppendLine($"var __loca{localObjectName}={json};");
             bld.AppendLine($@"for (var name in __loca{localObjectName}){{

@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ITVComponents.Scripting.CScript.Helpers
+namespace ITVComponents.Helpers
 {
     public static class LambdaHelper
     {
@@ -25,7 +25,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
         /// </summary>
         /// <param name="expression">The expression.</param>
         /// <returns></returns>
-        public static MethodInfo GetMethodInfo<T>(Expression<Func<T,object>> call)
+        public static MethodInfo GetMethodInfo<T>(Expression<Func<T, object>> call)
         {
             return GetMethodInfoInt(call);
         }
@@ -48,6 +48,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
         public static MethodInfo GetMethodInfo(Expression<Func<object>> call)
         {
             return GetMethodInfoInt(call);
+
         }
 
         /// <summary>
@@ -59,7 +60,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
         /// <returns></returns>
         public static EventInfo GetEventInfo(Type t, string eventName, bool instance)
         {
-            return t.GetEvent(eventName, BindingFlags.Public | (instance?BindingFlags.Instance:BindingFlags.Static));
+            return t.GetEvent(eventName, BindingFlags.Public | (instance ? BindingFlags.Instance : BindingFlags.Static));
         }
 
         /// <summary>
@@ -108,7 +109,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
         {
             MethodCallExpression outermostExpression = expression.Body as MethodCallExpression;
 
-            if (expression.Body is MethodCallExpression{Method: MethodInfo me})
+            if (expression.Body is MethodCallExpression { Method: MethodInfo me })
             {
                 return me;
             }
@@ -141,14 +142,14 @@ namespace ITVComponents.Scripting.CScript.Helpers
 
         private static MemberExpression GetPropertyExpressionInt(LambdaExpression expression)
         {
-            if (expression.Body is MemberExpression { Member: PropertyInfo} pr)
+            if (expression.Body is MemberExpression { Member: PropertyInfo } pr)
             {
                 return pr;
             }
 
             if (expression.Body is UnaryExpression
                 {
-                    NodeType: ExpressionType.Convert, Operand: MemberExpression { Member: PropertyInfo} pro
+                    NodeType: ExpressionType.Convert, Operand: MemberExpression { Member: PropertyInfo } pro
                 })
             {
                 return pro;

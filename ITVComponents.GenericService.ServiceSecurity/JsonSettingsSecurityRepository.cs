@@ -127,7 +127,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
                 }
                 else
                 {
-                    retVal = JsonHelper.FromJsonString<T>(tmpVal);
+                    retVal = JsonHelper.FromJsonString<T>(tmpVal, SerializationTypingMode.StaticTyping);
                 }
             }
 

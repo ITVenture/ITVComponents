@@ -58,13 +58,11 @@ namespace ITVComponents.Json.Contracts
                                 Data = je.AsObject().Deserialize(t, serializationOptions);
                                 break;
                             case JsonValueKind.Array:
-                                Data = je.AsArray().Deserialize(tarr);
+                                Data = je.AsArray().Deserialize(tarr, serializationOptions);
                                 break;
                             case JsonValueKind.String:
-                                Data = je.GetValue<string>();
-                                break;
                             case JsonValueKind.Number:
-                                Data = je.Deserialize(t);
+                                Data = je.Deserialize(t, serializationOptions);
                                 break;
                             case JsonValueKind.True:
                                 Data = true;

@@ -25,10 +25,10 @@ namespace ITVComponents.Json.Contracts
 
         void OnDeserialized(JsonSerializerOptions serializationOptions)
         {
-            foreach (var msd in Data)
+            /*foreach (var msd in Data)
             {
                 msd.ReadValues(serializationOptions);
-            }
+            }*/
 
             ApplyObjectData();
             Data = null;

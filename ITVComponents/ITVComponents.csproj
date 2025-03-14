@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>4.0.0-PRE054</Version>
+    <Version>4.0.0-PRE066</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <Authors>mw</Authors>
@@ -26,7 +26,7 @@
     <PackageReference Include="microsoft.extensions.configuration.binder" Version="8.0.2" />
     <PackageReference Include="microsoft.extensions.configuration.Json" Version="8.0.1" />
     <PackageReference Include="microsoft.extensions.primitives" Version="8.0.0" />
-			<!--PackageReference Include="newtonsoft.json" Version="13.0.3" /-->
+    <!--PackageReference Include="newtonsoft.json" Version="13.0.3" /-->
     <PackageReference Include="system.directoryservices" Version="8.0.0" />
     <PackageReference Include="system.directoryservices.accountmanagement" Version="8.0.1" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />

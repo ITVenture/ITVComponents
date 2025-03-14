@@ -266,7 +266,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             {
                 try
                 {
-                    retVal = JsonHelper.FromJsonString<string[]>(jsonSerializedArray);
+                    retVal = JsonHelper.FromJsonString<string[]>(jsonSerializedArray, SerializationTypingMode.StaticTyping);
                 }
                 catch (Exception ex)
                 {

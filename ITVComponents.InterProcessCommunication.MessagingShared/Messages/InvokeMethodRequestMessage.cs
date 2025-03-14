@@ -4,6 +4,8 @@
     {
         public string TargetObject { get; set; }
         public string TargetMethod { get; set; }
-        public object[] MethodArguments { get; set; }
+
+        public string MethodArguments { get; set; }
+        //public object[] MethodArguments { get; set; }
     }
 }

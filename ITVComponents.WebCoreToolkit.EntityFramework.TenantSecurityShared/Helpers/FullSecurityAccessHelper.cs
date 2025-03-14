@@ -51,7 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             if (cmp != null)
             {
                 TTrustConfig trustConfig =
-                    desiredTrust ?? JsonHelper.FromJsonString<TTrustConfig>(cmp.TrustLevelConfig);
+                    desiredTrust ?? JsonHelper.FromJsonString<TTrustConfig>(cmp.TrustLevelConfig, SerializationTypingMode.StaticTyping);
                 return new FullSecurityAccessHelper<TTrustConfig>(trustingObject, trustConfig);
             }
 

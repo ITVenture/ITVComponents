@@ -50,10 +50,23 @@ namespace ITVComponents.Json.Contracts
             }
             else
             {
-                LogEnvironment.LogDebugEvent($"No custom mapping info found for Type '{type.AssemblyQualifiedName}'.", LogSeverity.Report);
+                if (type != typeof(ManualSerializationData))
+                {
+                    LogEnvironment.LogDebugEvent(
+                        $"No custom mapping info found for Type '{type.AssemblyQualifiedName}'.", LogSeverity.Report);
+                    retVal = null;
+                }
+                else
+                {
+                    retVal.OnDeserialized = o =>
+                    {
+                        var m = o as ManualSerializationData;
+                        m?.ReadValues(options);
+                    };
+                }
             }
 
-            if (type.GetInterfaces().Contains(typeof(IManualSerializer)))
+            if (retVal != null && type.GetInterfaces().Contains(typeof(IManualSerializer)))
             {
                 var datProp = retVal.Properties.First(n => n.Name == nameof(IManualSerializer.Data));
                 retVal.Properties.Clear();

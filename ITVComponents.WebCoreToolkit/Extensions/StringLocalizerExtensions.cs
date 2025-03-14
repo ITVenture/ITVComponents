@@ -24,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var raw = localizer[name];
             try
             {
-                return JsonHelper.FromJsonString<T>(raw);
+                return JsonHelper.FromJsonString<T>(raw, SerializationTypingMode.StaticTyping);
             }
             catch (Exception ex)
             {
@@ -48,7 +48,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var raw = !isformattable ? localizer[name, arguments] : localizer[name];
             try
             {
-                T retVal = JsonHelper.FromJsonString<T>(raw);
+                T retVal = JsonHelper.FromJsonString<T>(raw, SerializationTypingMode.StaticTyping);
                 if (isformattable && retVal is IFormattableLocalizationObject flo)
                 {
                     flo.FormatProperties(arguments);

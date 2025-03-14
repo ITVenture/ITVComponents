@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.DataExchange.KeyValueImport.Config
 {
-    [Serializable]
     public class SubstitutionRule
     {
         public string GroupTag { get; set; }

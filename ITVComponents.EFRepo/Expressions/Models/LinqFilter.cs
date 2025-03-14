@@ -34,7 +34,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
             {
                 Type = "Lambda",
                 Filter = Filter?.ToString()
-            });
+            }, SerializationTypingMode.StaticTyping, null);
         }
     }
 }

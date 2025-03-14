@@ -118,7 +118,7 @@ namespace ITVComponents.EFRepo.DataSync
                         if (change.ChangeType != ChangeType.Delete)
                         {
                             LogEnvironment.LogDebugEvent(null,
-                                $"Updating the Entity of type '{rawType.FullName}' in {change.ChangeType}-Mode.\r\nProperties:\r\n{JsonHelper.ToJson(change.Details)}",
+                                $"Updating the Entity of type '{rawType.FullName}' in {change.ChangeType}-Mode.\r\nProperties:\r\n{JsonHelper.ToJson(change.Details,SerializationTypingMode.StaticTyping, null)}",
                                 (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                             bool any = false;
                             foreach (var detail in change.Details.Where(n => n.Apply))
