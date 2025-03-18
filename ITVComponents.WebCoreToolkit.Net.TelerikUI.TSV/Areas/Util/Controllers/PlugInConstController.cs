@@ -3,9 +3,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Security;
+using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options;
@@ -18,14 +21,22 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(PlugInConstants.Write,PlugInConstants.View),HasFeature(ITVAdminViews)"), Area("Util")]
-    public class PlugInConstController : Controller
+    [Authorize("HasPermission(PlugInConstants.Write,PlugInConstants.View),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
+    public class PlugInConstController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : Controller 
+        where TTenant : Tenant 
+        where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPluginConstant : WebPluginConstant<TTenant>, new()
+        where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TSequence : Sequence<TTenant>
+        where TTenantSetting : TenantSetting<TTenant>
+        where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
-        private readonly IBaseTenantContext db;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db;
         private readonly IOptions<SecurityViewsOptions> options;
         private bool isSysAdmin;
 
-        public PlugInConstController(IBaseTenantContext db, IServiceProvider services, IOptions<SecurityViewsOptions> options)
+        public PlugInConstController(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db, IServiceProvider services, IOptions<SecurityViewsOptions> options)
         {
             this.db = db;
             this.options = options;
@@ -71,7 +82,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 tenantId = db.CurrentTenantId;
             }
             
-            return Json(db.WebPluginConstants.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<WebPluginConstant, WebPluginConstantViewModel>()));
+            return Json(db.WebPluginConstants.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TWebPluginConstant, WebPluginConstantViewModel>()));
         }
 
         [HttpPost]
@@ -82,10 +93,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             {
                 tenantId = db.CurrentTenantId;
             }
-            var model = new WebPluginConstant();
+            var model = new TWebPluginConstant();
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<WebPluginConstantViewModel,WebPluginConstant>(model);
+                await this.TryUpdateModelAsync<WebPluginConstantViewModel, TWebPluginConstant>(model);
                 model.TenantId = tenantId;
                 db.WebPluginConstants.Add(model);
                 if (model.Value.StartsWith("encrypt:"))
@@ -112,7 +123,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<WebPluginConstant, WebPluginConstantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TWebPluginConstant, WebPluginConstantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
@@ -148,7 +159,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             var model = db.WebPluginConstants.First(n => n.TenantId == tenantId && n.WebPluginConstantId == viewModel.WebPluginConstantId);
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<WebPluginConstantViewModel,WebPluginConstant>(model, "", m => { return m.ElementType == null; });
+                await this.TryUpdateModelAsync<WebPluginConstantViewModel, TWebPluginConstant>(model, "", m => { return m.ElementType == null; });
                 if (model.Value.StartsWith("encrypt:"))
                 {
                     if (tenantId == null || !options.Value.UseExplicitTenantPasswords)
@@ -173,7 +184,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<WebPluginConstant, WebPluginConstantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TWebPluginConstant, WebPluginConstantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
     }
 }

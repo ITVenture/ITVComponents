@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Channels;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Client;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Communication;
@@ -13,6 +12,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security.PrincipalProviders;
+using ITVComponents.Json;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
 {
@@ -70,7 +70,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
         {
             initialChannel
                 .Write(new ConnectionRequest
-                    { ProposedGuid = name, Ttl = ttl, User = JsonHelper.ToJsonStrongTyped(provider.CurrentIdentity) });
+                    { ProposedGuid = name, Ttl = ttl, User = JsonHelper.ToJson(provider.CurrentIdentity, SerializationTypingMode.StaticTyping, null) });
             Task.Delay(1500).GetAwaiter().GetResult();
         }
 

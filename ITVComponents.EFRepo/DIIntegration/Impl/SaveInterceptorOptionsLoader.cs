@@ -22,7 +22,7 @@ namespace ITVComponents.EFRepo.DIIntegration.Impl
         }
         protected override void ConfigureOptionsBuilder(DbContextOptionsBuilder<TContext> builder)
         {
-            builder.AddInterceptors(new ModCreateInterceptor(userProvider,useUtc));
+            builder.AddInterceptors(new ModCreateInterceptor(userProvider, useUtc));
         }
     }
 }

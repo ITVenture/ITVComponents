@@ -8,7 +8,7 @@ using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Decisions.Entities;
 using ITVComponents.Decisions.Entities.Results;
 using ITVComponents.EFRepo.DynamicData;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataSources;
@@ -132,7 +132,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                                              globalOptions?.GetJsonSetting(contextSettingsName);
                     if (!string.IsNullOrEmpty(contextSettingsRaw))
                     {
-                        fkpc.DefaultFkOptions = JsonHelper.FromJsonString<ForeignKeyOptions>(contextSettingsRaw);
+                        fkpc.DefaultFkOptions = JsonHelper.FromJsonString<ForeignKeyOptions>(contextSettingsRaw, SerializationTypingMode.StaticTyping);
                     }
                 }
 

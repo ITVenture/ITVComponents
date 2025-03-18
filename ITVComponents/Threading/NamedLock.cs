@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using ITVComponents.Logging;
 
 namespace ITVComponents.Threading
 {
@@ -46,17 +47,28 @@ namespace ITVComponents.Threading
         /// </summary>
         public IResourceLock InnerLock { get; }
 
-        public void Exclusive(Action action)
+        public void Exclusive(bool autoLock, Action action)
         {
             if (InnerLock != null)
             {
-                InnerLock.Exclusive(() =>
+                InnerLock.Exclusive(autoLock, () =>
                 {
                     if (lockedObject != null)
                     {
-                        lock (lockedObject)
+                        if (autoLock)
+                        {
+                            Monitor.Enter(lockedObject);
+                        }
+                        try
                         {
                             action();
+                        }
+                        finally
+                        {
+                            if (autoLock && Monitor.IsEntered(lockedObject))
+                            {
+                                Monitor.Exit(lockedObject);
+                            }
                         }
                     }
                     else
@@ -69,9 +81,20 @@ namespace ITVComponents.Threading
             {
                 if (lockedObject != null)
                 {
-                    lock (lockedObject)
+                    if (autoLock)
+                    {
+                        Monitor.Enter(lockedObject);
+                    }
+                    try
                     {
                         action();
+                    }
+                    finally
+                    {
+                        if (autoLock && Monitor.IsEntered(lockedObject))
+                        {
+                            Monitor.Exit(lockedObject);
+                        }
                     }
                 }
                 else
@@ -81,17 +104,28 @@ namespace ITVComponents.Threading
             }
         }
 
-        public T Exclusive<T>(Func<T> action)
+        public T Exclusive<T>(bool autoLock, Func<T> action)
         {
             if (InnerLock != null)
             {
-                return InnerLock.Exclusive(() =>
+                return InnerLock.Exclusive(autoLock, () =>
                 {
                     if (lockedObject != null)
                     {
-                        lock (lockedObject)
+                        if (autoLock)
+                        {
+                            Monitor.Enter(lockedObject);
+                        }
+                        try
                         {
                             return action();
+                        }
+                        finally
+                        {
+                            if (autoLock && Monitor.IsEntered(lockedObject))
+                            {
+                                Monitor.Exit(lockedObject);
+                            }
                         }
                     }
 
@@ -102,14 +136,48 @@ namespace ITVComponents.Threading
             {
                 if (lockedObject != null)
                 {
-                    lock (lockedObject)
+                    if (autoLock)
+                    {
+                        Monitor.Enter(lockedObject);
+                    }
+                    try
                     {
                         return action();
+                    }
+                    finally
+                    {
+                        if (autoLock && Monitor.IsEntered(lockedObject))
+                        {
+                            Monitor.Exit(lockedObject);
+                        }
                     }
                 }
 
                 return action();
             }
+        }
+
+        public void SynchronizeContext()
+        {
+            InnerLock?.SynchronizeContext();
+            if (lockedObject != null)
+            {
+                Monitor.Enter(lockedObject);
+            }
+        }
+
+        public void LeaveSynchronizeContext()
+        {
+            if (lockedObject != null && Monitor.IsEntered(lockedObject))
+            {
+                Monitor.Exit(lockedObject);
+            }
+            else
+            {
+                LogEnvironment.LogEvent("LeaveSynchronized was called without a synchronized context!", LogSeverity.Warning);
+            }
+
+            InnerLock?.LeaveSynchronizeContext();
         }
 
         public IDisposable PauseExclusive()

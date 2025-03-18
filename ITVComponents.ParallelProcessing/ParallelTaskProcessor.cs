@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
-using ITVComponents.Serialization;
 using ITVComponents.Threading;
 
 namespace ITVComponents.ParallelProcessing
@@ -462,7 +461,7 @@ namespace ITVComponents.ParallelProcessing
                 new Dictionary<string, TaskScheduler.ScheduleRequest>();
                 using (var lk = task.DemandExclusive())
                 {
-                    lk.Exclusive(() =>
+                    lk.Exclusive(true, () =>
                     {
                         foreach (SchedulerPolicy policy in task.Schedules)
                         {

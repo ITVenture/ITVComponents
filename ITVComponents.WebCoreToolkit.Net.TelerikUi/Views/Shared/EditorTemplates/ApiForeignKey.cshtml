@@ -8,7 +8,7 @@
         .DataSource(d => d.Ajax().Read(ra =>
         {
             var tmp = (string)ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_DataCallback"];
-            var area = (string) ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_Area"];
+            var area = (string)ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_Area"];
             var url = new StringBuilder();
             url.Append(urlFormat != null ?
                 urlFormat.FormatUrl($"~[SlashPermissionScope]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}") :

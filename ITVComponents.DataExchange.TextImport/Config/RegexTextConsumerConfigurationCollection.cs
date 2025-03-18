@@ -14,7 +14,6 @@ namespace ITVComponents.DataExchange.TextImport.Config
 
     namespace ITVComponents.DataExchange.Configuration
     {
-        [Serializable]
         public class RegexTextConsumerConfigurationCollection : List<RegexTextConsumerConfiguration>
         {
             /// <summary>

@@ -9,7 +9,6 @@ namespace ITVComponents.Plugins.Config
     /// <summary>
     /// Holds Plugin - Construction Instructions
     /// </summary>
-    [Serializable]
     public class PluginConfigurationCollection : List<PluginConfigurationItem>
     {
         /// <summary>

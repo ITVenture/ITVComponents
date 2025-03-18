@@ -239,6 +239,11 @@ namespace ITVComponents.ParallelProcessing
         void ITaskProcessor.StartupThread()
         {
             workerThread = new Thread(Work);
+            if (useAffineThread)
+            {
+                workerThread.TrySetApartmentState(ApartmentState.STA);
+            }
+
             workerThread.Start();
             startupWait.WaitOne();
             currentState = TaskProcessorState.Running;

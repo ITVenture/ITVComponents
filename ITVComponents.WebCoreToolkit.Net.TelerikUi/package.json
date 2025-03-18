@@ -3,13 +3,24 @@
   "version": "1.0.0",
   "private": true,
   "devDependencies": {
-    "del": "^6.0.0",
-    "gulp": "^4.0.2",
-    "gulp-concat": "^2.6.1",
-    "gulp-cssmin": "^0.2.0",
-    "gulp-htmlmin": "^5.0.1",
-    "gulp-terser": "^2.0.0",
-    "gulp-uglify": "^3.0.2",
-    "merge-stream": "^2.0.0"
+    "clean-css": "^5.3.3",
+    "css-loader": "^5.2.0",
+    "css-minimizer-webpack-plugin": "^6.0.0",
+    "file-loader": "^6.2.0",
+    "mini-css-extract-plugin": "^2.8.1",
+    "source-map-loader": "^5.0.0",
+    "style-loader": "^2.0.0",
+    "terser-webpack-plugin": "^5.3.10",
+    "url-loader": "^4.1.1",
+    "webpack": "5.90.3",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "glob": "^10.3.10",
+    "node-sass": "^9.0.0",
+    "popper.js": "^1.16.1"
+  },
+  "scripts": {
+    "build": "webpack"
   }
 }

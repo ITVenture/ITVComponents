@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Settings
 {
-    [Serializable]
     public abstract class JsonSettingsSection
     {
         public void Save()

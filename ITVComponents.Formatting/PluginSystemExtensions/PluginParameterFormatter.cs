@@ -20,9 +20,30 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
         private Dictionary<string, object> formatPrototype = new Dictionary<string, object>();
 
         /// <summary>
+        /// indicates whether to include an object identifying the current environment in the format-prototype
+        /// </summary>
+        private bool includeEnvironment = false;
+
+        /// <summary>
         /// Locks the format-object while it is rebuilt
         /// </summary>
         private ManualResetEvent configLock = new ManualResetEvent(true);
+
+        /// <summary>
+        /// Initializes a default instance of the PluginParameterFormatter class
+        /// </summary>
+        public PluginParameterFormatter()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the PluginParameterFormatter class
+        /// </summary>
+        /// <param name="includeEnvironment">indicates whether to include the Environment object of the System-Namespace</param>
+        public PluginParameterFormatter(bool includeEnvironment)
+        {
+            this.includeEnvironment = includeEnvironment;
+        }
 
         /// <summary>
         /// Processes a raw-string and uses it as format-string of the configured const-collection
@@ -127,6 +148,10 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
         private void LoadConfig()
         {
             formatPrototype.Clear();
+            if (includeEnvironment)
+            {
+                formatPrototype.Add("$$Environment", typeof(Environment));
+            }
             foreach (var item in from t in PluginConstSection.Helper.Parameters select new {t.ConstIdentifier,t.ConstValue})
             {
                 formatPrototype.Add(item.ConstIdentifier, item.ConstValue);

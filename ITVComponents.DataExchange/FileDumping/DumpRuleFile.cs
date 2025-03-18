@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using ITVComponents.DataExchange.Configuration;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
-using Newtonsoft.Json;
 
 namespace ITVComponents.DataExchange.FileDumping
 {
@@ -41,7 +41,7 @@ namespace ITVComponents.DataExchange.FileDumping
             T retVal = default(T);
             try
             {
-                retVal = JsonConvert.DeserializeObject<T>(FileText);
+                retVal = JsonSerializer.Deserialize<T>(FileText);
             }
             catch (Exception ex)
             {

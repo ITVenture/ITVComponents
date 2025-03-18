@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Transactions;
+using ITVComponents.Helpers;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
@@ -18,14 +19,16 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.TemplateHandling
 {
-    internal class TemplateHandlerFactory : ITemplateHandlerFactory, IDisposable
+    public class TemplateHandlerFactory : ITemplateHandlerFactory, IDisposable
     {
         private readonly IServiceProvider services;
         private readonly IWebPluginHelper pluginProvider;
         private readonly IHttpContextAccessor httpContext;
+        private readonly ICoreSystemContext sysContext;
         private ConcurrentDictionary<Type, object> bufferedServices = new ConcurrentDictionary<Type, object>();
         private ConcurrentDictionary<string, object> bufferedPlugins = new ConcurrentDictionary<string, object>();
 
@@ -35,11 +38,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
         private IPluginFactory factory;
 
         public TemplateHandlerFactory(IServiceProvider services, IWebPluginHelper pluginProvider,
-            IHttpContextAccessor httpContext)
+            IHttpContextAccessor httpContext, ICoreSystemContext sysContext)
         {
             this.services = services;
             this.pluginProvider = pluginProvider;
             this.httpContext = httpContext;
+            this.sysContext = sysContext;
         }
 
         private IPluginFactory Factory => factory ??= pluginProvider.GetFactory();
@@ -49,7 +53,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
             using (var session = SetupScripting(out var sc))
             {
                 var type = ProcessScript<Type>(session, configurator.ConfiguratorTypeBack);
-                
+                if (type.IsGenericTypeDefinition)
+                {
+                    type = sysContext.GetType().FinalizeType(type);
+                }
+
                 arguments = BuildArguments(session, configurator.ViewComponentParameters, sc);
 
                 return bufferedHandlers.GetOrAdd(type, BuildHandler);
@@ -79,7 +87,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
 
         private object BuildHandler(Type handlerType)
         {
-            var constructors = handlerType.GetConstructors();
+            return ActivatorUtilities.CreateInstance(services, handlerType);
+            /*var constructors = handlerType.GetConstructors();
             var ct = (from t in constructors
                 orderby t.GetParameters().Length
                 select t
@@ -87,7 +96,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
                 where o.GetParameters().All(p => bufferedServices.GetOrAdd(p.ParameterType, y => services.GetService(y)) != null)
                 select o).First();
             var pa = (from t in ct.GetParameters() select bufferedServices[t.ParameterType]).ToArray();
-            return ct.Invoke(pa);
+            return ct.Invoke(pa);*/
         }
 
         private IDictionary<string, object> BuildArguments(IDisposable session,

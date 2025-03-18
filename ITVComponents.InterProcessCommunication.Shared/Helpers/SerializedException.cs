@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using ITVComponents.DataAccess.Extensions;
 namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 {
@@ -68,7 +69,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
         /// </summary>
         /// <param name="informationKey">the name of the demanded original-Property</param>
         /// <returns>the value of the demanded property</returns>
-        [IgnoreDataMember]
+        [JsonIgnore]
         public object this[string informationKey]
         {
             get
@@ -86,7 +87,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
         /// <summary>
         /// Gets an array containing all additional information that was collected for this serialized exception
         /// </summary>
-        [IgnoreDataMember]
+        [JsonIgnore]
         public string[] InformationKeys { get { return collectedInformation.Keys.ToArray(); } }
 
         /// <summary>

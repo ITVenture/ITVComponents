@@ -5,12 +5,14 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Internal;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy;
+using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
+using ITVComponents.InterProcessCommunication.MessagingShared.Messages.ProtocolHelper;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using Exception = System.Exception;
 
@@ -29,6 +31,11 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
         {
             tickOpenWaits = new Timer(TickOpenWaits, null, Timeout.Infinite, Timeout.Infinite);
             tickOpenWaits.Change(0, 5000);
+        }
+
+        static EndPointBroker()
+        {
+            MessageTranslator.RegisterMessages();
         }
 
         public Task<ServiceOperationResponseMessage> SendMessageToServer(ServerOperationMessage message, IServiceProvider services)
@@ -85,7 +92,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                 {
                     OperationId = message.OperationId,
                     TargetService = message.TargetService,
-                    ResponsePayload = JsonHelper.ToJsonStrongTyped((SerializedException)ex, true),
+                    ResponsePayload = JsonHelper.ToJson(new ErrorResponse { SerializedException = ex }, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true),
                     Ok = false
                 });
             }

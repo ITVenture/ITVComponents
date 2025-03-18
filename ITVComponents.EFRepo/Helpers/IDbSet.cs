@@ -2,14 +2,19 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Expressions.Models;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace ITVComponents.EFRepo.Helpers
 {
     public interface IDbSet
     {
+        Type EntityType { get; }
+        public PropertyInfo PropertyInfo { get; }
+
         /// <summary>
         /// Begins tracking the given entity, and any other reachable entities that are not
         /// already being tracked, in the Microsoft.EntityFrameworkCore.EntityState.Added
@@ -150,6 +155,8 @@ namespace ITVComponents.EFRepo.Helpers
         /// <param name="query">the query that describes the requested record uniquely</param>
         /// <returns>the requested value</returns>
         object FindWithQuery(Dictionary<string, object> query, bool ignoreNotFound);
+
+        public IQueryableWrapper QueryAndSort(FilterBase filter, Sort[] sorts, Func<string, string[]> redirectColumn = null);
         //
         // Zusammenfassung:
         //     Begins tracking the given entity in the Microsoft.EntityFrameworkCore.EntityState.Deleted

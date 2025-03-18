@@ -112,7 +112,17 @@ namespace ITVComponents.Logging
         public static void LogDebugEvent(string eventText, LogSeverity severity)
         {
             LogDebugEvent(TryGetLoggingZone(), eventText, (int) severity, null);
-            Debug.WriteLine(eventText);
+        }
+
+        /// <summary>
+        /// Logs a debug-message to a specific target
+        /// </summary>
+        /// <param name="eventText">the event text to log</param>
+        /// <param name="severity">the severity of the event</param>
+        /// <param name="context">the logger-context that can be used to filter messages by context</param>
+        public static void LogDebugEvent(string eventText, LogSeverity severity, string context)
+        {
+            LogDebugEvent(TryGetLoggingZone(), eventText, (int)severity, context);
         }
 
         /// <summary>
@@ -214,6 +224,26 @@ namespace ITVComponents.Logging
             return LogSeverity.Error;
         }
 
+        private static string AutoLogContext(bool forDebug = false)
+        {
+            var mt = typeof(LogEnvironment);
+            for (var i = !forDebug ? 3 : 1; i <= 7; i++)
+            {
+                var frame = new StackFrame(i, false);
+                var mth = frame.GetMethod();
+                if (mth != null)
+                {
+                    var tp = mth.DeclaringType;
+                    if (tp != mt)
+                    {
+                        return $"{tp?.FullName}::{mth.Name}";
+                    }
+                }
+            }
+
+            return "--unknown--";
+        }
+
         /// <summary>
         /// Logs a message to a specific target
         /// </summary>
@@ -239,6 +269,11 @@ namespace ITVComponents.Logging
 
                 foreach (var n in targets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
                 {
+                    if (string.IsNullOrEmpty(context))
+                    {
+                        context = AutoLogContext(isDebugMessage);
+                    }
+
                     n.LogEvent(eventText, severity, context);
                 }
 
@@ -254,6 +289,11 @@ namespace ITVComponents.Logging
 
                         foreach (var n in targets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
                         {
+                            if (string.IsNullOrEmpty(context))
+                            {
+                                context = AutoLogContext(isDebugMessage);
+                            }
+
                             n.LogEvent(eventText, severity, context);
                         }
                     }

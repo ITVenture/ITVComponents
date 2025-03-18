@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.JwtAuth.Config
 {
-    [Serializable]
     public   class JwtAuthConfig
     {
         public string Name { get; set; }

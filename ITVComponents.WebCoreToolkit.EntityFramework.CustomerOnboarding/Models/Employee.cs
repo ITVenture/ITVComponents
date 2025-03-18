@@ -28,6 +28,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models
         [ForeignKey(nameof(CompanyInfoId))]
         public virtual CompanyInfo Company { get; set; }
 
+        [ForeignKey(nameof(UserId))]
         public virtual User User { get; set; }
 
         [ForeignKey(nameof(TenantUserId))]

@@ -38,16 +38,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
             [WebPartConfig("ContextSettings")] SecurityContextOptions contextOptions
             , [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
         {
-            Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (contextOptions.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
-            }
+                Type t = null;
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                }
 
-            if (t != null && partOptions.ActivateFilters)
-            {
-                services.ActivateGlobalCobFilters(t);
+                if (t != null && partOptions.ActivateFilters)
+                {
+                    services.ActivateGlobalCobFilters(t);
+                }
             }
         }
     }

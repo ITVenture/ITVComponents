@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.BackgroundProcessing;
+using ITVComponents.WebCoreToolkit.ScheduledBackgroundProcessing.Options;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.ScheduledBackgroundProcessing.Extensions
 {
@@ -20,8 +22,10 @@ namespace ITVComponents.WebCoreToolkit.ScheduledBackgroundProcessing.Extensions
             services.AddHostedService<BackgroundTaskProcessorService<ITimeTableBackgroundTaskQueue,TimeTableBackgroundTask>>();
             services.AddSingleton<ITimeTableBackgroundTaskQueue>(ctx =>
             {
+                var op = ctx.GetService<IOptions<ScheduledTasksOption>>();
                 var retVal = new TimeTableBackgroundTaskQueue();
                 setDefaultTasks?.Invoke(retVal);
+                op.Value.Configure(retVal);
                 return retVal;
             });
             return services;

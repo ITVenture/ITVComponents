@@ -1,13 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
   <PropertyGroup>
-    <TargetFrameworks>net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.7-PRE023</Version>
+    <Version>4.0.0-PRE069</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
     <RazorCompileOnPublish>true</RazorCompileOnPublish>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <LangVersion>11</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <Content Remove="package.json" />
@@ -22,7 +23,7 @@
     <Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" />
   </Target>
   <Target Name="MyPreCompileTarget" BeforeTargets="Build">
-    <Exec Command="gulp min" />
+    <Exec Command="npx webpack" />
   </Target>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
@@ -30,12 +31,12 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net\ITVComponents.WebCoreToolkit.Net.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Telerik.UI.for.AspNet.Core" Version="2020.2.617" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.5.0" />
+    <PackageReference Include="Telerik.UI.for.AspNet.Core" Version="2024.1.319" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="4.9.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="4.9.2" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\js\" />
-    <Folder Include="wwwroot\css\" />
   </ItemGroup>
   <ItemGroup>
     <None Include="package.json" />

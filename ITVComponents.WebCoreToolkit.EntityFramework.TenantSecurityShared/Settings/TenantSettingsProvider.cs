@@ -1,5 +1,7 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Settings
@@ -7,18 +9,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
     /// <summary>
     /// Tenant-capable settings-provider
     /// </summary>
-    internal class TenantSettingsProvider:IScopedSettingsProvider
+    internal class TenantSettingsProvider<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IScopedSettingsProvider
+    where TTenant: Tenant 
+    where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TWebPluginConstant : WebPluginConstant<TTenant>
+    where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TSequence : Sequence<TTenant>
+    where TTenantSetting : TenantSetting<TTenant>, new()
+    where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+    where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
         /// <summary>
         /// Holds the db-context with the tenant-settings
         /// </summary>
-        private readonly IBaseTenantContext dbContext;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation,TTrustConfig> dbContext;
 
         /// <summary>
         /// Initializes a new instance of the TenantSettinsgProvider class
         /// </summary>
         /// <param name="dbContext"></param>
-        public TenantSettingsProvider(IBaseTenantContext dbContext)
+        public TenantSettingsProvider(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> dbContext)
         {
             this.dbContext = dbContext;
         }
@@ -79,15 +89,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
 
         public void UpdateJsonSetting(string key, string explicitUserScope, string value)
         {
+            var tenantId = dbContext.CurrentTenantId ?? 0;
+            if (!string.IsNullOrEmpty(explicitUserScope))
+            {
+                tenantId = dbContext.Tenants.First(n => n.TenantName == explicitUserScope).TenantId;
+            }
+
+            if (tenantId == 0)
+            {
+                throw new InvalidOperationException("A valid tenant is required for this operation!");
+            }
+
             var original = dbContext.TenantSettings.FirstOrDefault(n =>
-                n.SettingsKey == key && n.JsonSetting && n.Tenant.TenantName == explicitUserScope);
+                n.SettingsKey == key && n.JsonSetting && n.TenantId == tenantId);
             if (original == null)
             {
-                original = new TenantSetting
+                original = new TTenantSetting()
                 {
                     JsonSetting = true,
                     SettingsKey = key,
-                    TenantId = dbContext.CurrentTenantId.Value
+                    TenantId = tenantId
                 };
                 dbContext.TenantSettings.Add(original);
             }
@@ -98,15 +119,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Sett
 
         public void UpdateLiteralSetting(string key, string explicitUserScope, string value)
         {
+            var tenantId = dbContext.CurrentTenantId ?? 0;
+            if (!string.IsNullOrEmpty(explicitUserScope))
+            {
+                tenantId = dbContext.Tenants.First(n => n.TenantName == explicitUserScope).TenantId;
+            }
+
+            if (tenantId == 0)
+            {
+                throw new InvalidOperationException("A valid tenant is required for this operation!");
+            }
+
+
             var original = dbContext.TenantSettings.FirstOrDefault(n =>
-                n.SettingsKey == key && !n.JsonSetting && n.Tenant.TenantName == explicitUserScope);
+                n.SettingsKey == key && !n.JsonSetting && n.TenantId == tenantId);
             if (original == null)
             {
-                original = new TenantSetting
+                original = new TTenantSetting()
                 {
                     JsonSetting = false,
                     SettingsKey = key,
-                    TenantId = dbContext.CurrentTenantId.Value
+                    TenantId = tenantId
                 };
                 dbContext.TenantSettings.Add(original);
             }

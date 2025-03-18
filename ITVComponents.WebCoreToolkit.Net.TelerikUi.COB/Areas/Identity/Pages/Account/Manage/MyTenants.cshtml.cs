@@ -4,6 +4,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -74,7 +75,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
         private void AcceptInvitation(Employee tmp, User usr)
         {
 
-            using var a =FullSecurityAccessHelper.CreateForCaller(dbContext, true, true);
+            using var a =FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>.CreateForCaller(dbContext, dbContext, new (){ShowAllTenants= true, HideGlobals=true});
             var tenant = tmp.Tenant;
             if (!dbContext.TenantUsers.Any(n => n.UserId == usr.Id))
             {

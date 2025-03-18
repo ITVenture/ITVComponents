@@ -1,6 +1,6 @@
 ﻿namespace ITVComponents.InterProcessCommunication.MessagingShared.Messages
 {
-    public class UnRegisterEventResponseMessage
+    public class UnRegisterEventResponseMessage:IServerResponse
     {
         public bool Ok { get; set; }
     }

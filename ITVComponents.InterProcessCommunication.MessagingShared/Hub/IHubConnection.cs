@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.Plugins;
 
@@ -80,7 +81,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
         /// <summary>
         /// If processing lead to an exception, set this property
         /// </summary>
-        public SerializedException Error { get; set; }
+        public string Error { get; set; }
 
         /// <summary>
         /// Gets or sets the Identity of the HubConsumer that sent this message

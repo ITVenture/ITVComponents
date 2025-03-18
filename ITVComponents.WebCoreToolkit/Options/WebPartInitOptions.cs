@@ -28,12 +28,15 @@ namespace ITVComponents.WebCoreToolkit.Options
         public bool UseBackgroundTasks { get; set; }
         public int TaskQueueCapacity { get; set; } = 100;
         public bool UseLocalization { get; set; }
+        public bool UsePageModelHandlerFactory { get; set; }
         public bool UseSharedAssets { get; set; }
         public List<CultureConfigOption> CultureConfig { get; set; } = new();
         public List<LocalizationMappingOption> CultureMapping { get; set; } = new();
         public List<LocalizationMappingOption> UiCultureMapping { get; set; } = new();
 
         public List<PlugInDependencyOption> PlugInDependencies { get; set; } = new();
+
+        public List<PageHandlerOptions> PageHandlers { get; set; } = new();
 
         public Dictionary<string, string> GroupClaims { get; set; } = new();
     }

@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.DataSync;
 using ITVComponents.EFRepo.DataSync.Models;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
@@ -91,7 +91,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
             string fileType = colon != -1 ? fileIdentifier.Substring(0, colon) : fileIdentifier;
             var filterDic = colon != -1 ? ReadFilterDic(fileIdentifier.Substring(colon + 1)) : new Dictionary<string, int>();
             object desc = handler.DescribeConfig(fileType, filterDic, out var name);
-            var descString = JsonHelper.ToJsonStrongTyped(desc);
+            var descString = JsonHelper.ToJson(desc, SerializationTypingMode.AssistedPolymorphism, null);
             fileContent = Encoding.UTF8.GetBytes(descString);
             downloadName = $"{name}.json";
             contentType = "application/json";
@@ -107,7 +107,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
         {
             var tmp = changes.ToArray();
             changes.Clear();
-            return Results.Content(JsonHelper.ToJson(tmp), "application/json");
+            return Results.Content(JsonHelper.ToJson(tmp, SerializationTypingMode.StaticTyping, null), "application/json");
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

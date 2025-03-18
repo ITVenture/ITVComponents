@@ -9,7 +9,6 @@ using System.Text;
 
 namespace ITVComponents.DataExchange.TextImport.Config
 {
-    [Serializable]
     public class ColumnConfiguration 
     {
         /// <summary>

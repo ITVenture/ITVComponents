@@ -1,5 +1,5 @@
 ﻿using System;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 
 namespace ITVComponents.WebCoreToolkit.Configuration.Impl
 {
@@ -71,7 +71,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
             var tmp = settingsProvider.GetJsonSetting(typeName);
             if (!string.IsNullOrEmpty(tmp))
             {
-                var retVal = JsonHelper.FromJsonString<TSettings>(tmp);
+                var retVal = JsonHelper.FromJsonString<TSettings>(tmp, SerializationTypingMode.StaticTyping);
                 return retVal;
             }
 

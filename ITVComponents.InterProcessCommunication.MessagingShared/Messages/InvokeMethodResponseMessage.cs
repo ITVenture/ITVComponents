@@ -1,8 +1,8 @@
 ﻿namespace ITVComponents.InterProcessCommunication.MessagingShared.Messages
 {
-    public class InvokeMethodResponseMessage
+    public class InvokeMethodResponseMessage:IServerResponse
     {
-        public object[] Arguments { get; set; }
-        public object Result { get; set; }
+        public string Arguments { get; set; }
+        public string Result { get; set; }
     }
 }

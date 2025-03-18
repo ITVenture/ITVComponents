@@ -91,6 +91,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// </summary>
         private string threadsOwner;
 
+        static BaseClient()
+        {
+            ContractRegistration.RegisterContracts();
+        }
+
 
         /// <summary>
         /// Initializes a default instance of the BaseClient class

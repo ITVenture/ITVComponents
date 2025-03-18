@@ -1,7 +1,7 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
@@ -16,9 +16,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     [Authorize("HasPermission(GlobalSettings.View,GlobalSettings.Write),HasFeature(ITVAdminViews)"),Area("Util")]
     public class GlobalSettingsController:Controller
     {
-        private readonly IBaseTenantContext db;
+        private readonly ICoreSystemContext db;
 
-        public GlobalSettingsController(IBaseTenantContext db)
+        public GlobalSettingsController(ICoreSystemContext db)
         {
             this.db = db;
             db.ShowAllTenants = true;

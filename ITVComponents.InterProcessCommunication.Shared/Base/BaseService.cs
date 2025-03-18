@@ -15,6 +15,7 @@ using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Proxying;
 using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrappers;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core.Methods;
@@ -119,6 +120,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             threadsOwner = string.Format("::{0}::", GetHashCode());
             eventSubscriptions = new ConcurrentDictionary<string, List<string>>();
             sessions = new ConcurrentDictionary<string, SessionStatus>();
+        }
+
+        static BaseServer()
+        {
+            ContractRegistration.RegisterContracts();
         }
 
         /// <summary>
@@ -414,7 +420,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                     }
 
                     retVal.Result = ret;
-                    if (targetMethod.ReturnType.IsInterface && useExtendedProxying && retVal.Result is not ISerializable)
+                    if (targetMethod.ReturnType.IsInterface && useExtendedProxying && retVal.Result is not IManualSerializer)
                     {
                         retVal.Result = GetBufferFor(retVal.Result, targetMethod.ReturnType, authenticatedUser);
                     }
@@ -873,7 +879,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 {
                     types[i] = types[i].GetElementType();
                     retVal[i] = arguments[i];
-                    if (types[i].IsInterface && useExtendedProxying && retVal[i] is not ISerializable)
+                    if (types[i].IsInterface && useExtendedProxying && retVal[i] is not IManualSerializer)
                     {
                         retVal[i] = GetBufferFor(retVal[i], types[i], owner);
                     }
@@ -901,8 +907,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             if (services != null)
             {
                 var retVal = services.GetService(typeof(ICustomServerSecurity)) as ICustomServerSecurity;
-                retVal.Attach(plugins);
-                return retVal;
+                if (retVal != null)
+                {
+                    retVal.Attach(plugins);
+                    return retVal;
+                }
             }
 
             return null;

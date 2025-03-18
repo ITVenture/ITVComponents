@@ -2,7 +2,7 @@
 using System.IO;
 using System.IO.Compression;
 using System.Text;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Security;
 using Microsoft.AspNetCore.WebUtilities;
@@ -16,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.Tokens
             using var mst = new MemoryStream();
             using (var dst = new DeflateStream(mst, CompressionLevel.Optimal))
             {
-                JsonHelper.WriteObject(token, Encoding.Default, dst);
+                JsonHelper.WriteObject(token, SerializationTypingMode.StaticTyping, dst);
             }
 
             byte[] ret = mst.ToArray();
@@ -61,7 +61,7 @@ namespace ITVComponents.WebCoreToolkit.Tokens
             {
                 using (DeflateStream dfs = new DeflateStream(mst, CompressionMode.Decompress))
                 {
-                    return JsonHelper.ReadObject<T>(dfs, Encoding.Default);
+                    return JsonHelper.ReadObject<T>(dfs, SerializationTypingMode.StaticTyping);
                 }
             }
         }

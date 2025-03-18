@@ -30,6 +30,26 @@
         i.Add().LoadContentFrom("HealthList", "AssemblyDiagnostics").Text("Health");
     }
 
+    if (viewOptions.Value.UseControllerView)
+    {
+        i.Add().LoadContentFrom("ControllerList", "AssemblyDiagnostics").Text("Controllers");
+    }
+
+    if (viewOptions.Value.UseViewComponentView)
+    {
+        i.Add().LoadContentFrom("ViewComponentList", "AssemblyDiagnostics").Text("ViewComponents");
+    }
+
+    if (viewOptions.Value.UseViewsView)
+    {
+        i.Add().LoadContentFrom("ViewList", "AssemblyDiagnostics").Text("Views");
+    }
+
+    if (viewOptions.Value.UseTagHelperView)
+    {
+        i.Add().LoadContentFrom("TagHelperList", "AssemblyDiagnostics").Text("Tag-Helpers");
+    }
+
     if ((bool)ViewData["UseConfigExchange"])
     {
         i.Add().LoadContentFrom("ConfigExchange", "AssemblyDiagnostics").Text("Configuration Exchange");

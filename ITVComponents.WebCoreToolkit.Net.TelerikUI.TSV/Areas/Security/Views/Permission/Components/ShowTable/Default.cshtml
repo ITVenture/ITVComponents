@@ -16,7 +16,7 @@
         {
             if (ViewData["tenantId"] != null && ViewData["roleId"] != null)
             {
-                columns.Bound(n => n.IsGlobal).ClientTemplate($"<span class=\"glyphSprite fad #=IsGlobal?'fa-globe':'fa-ball-pile'#\"></span>").Title(" ").Width(50);
+                columns.Bound(n => n.IsGlobal).ClientTemplate($"<span class=\"glyphSprite fa-duotone #=IsGlobal?'fa-globe':'fa-ball-pile'#\"></span>").Title(" ").Width(50);
             }
             columns.Bound(c => c.PermissionName).Filterable(true).Title(TextsAndMessagesHelper.IWCN_General_Name);
             columns.Bound(c => c.Description).Title(TextsAndMessagesHelper.IWCN_General_Description);

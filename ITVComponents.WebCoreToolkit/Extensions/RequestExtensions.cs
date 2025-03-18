@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Models.RequestConservation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 
@@ -12,13 +13,16 @@ namespace ITVComponents.WebCoreToolkit.Extensions
     {
         public static IQueryCollection GetRefererQuery(this HttpRequest request)
         {
-            var rff = request.GetTypedHeaders().Referer;
-            if (rff != null && !string.IsNullOrEmpty(rff.LocalPath))
+            if (request is not EmptyRequest)
             {
-                var q = QueryHelpers.ParseNullableQuery(rff.Query);
-                if (q != null)
+                var rff = request.GetTypedHeaders().Referer;
+                if (rff != null && !string.IsNullOrEmpty(rff.LocalPath))
                 {
-                    return new QueryCollection(q);
+                    var q = QueryHelpers.ParseNullableQuery(rff.Query);
+                    if (q != null)
+                    {
+                        return new QueryCollection(q);
+                    }
                 }
             }
 

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ITVComponents.Helpers;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,5 +19,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         [MaxLength(125),ExcludeFromDictionary]
         public string TenantPassword { get; set; }
+
+        [MaxLength(1024)]
+        public string TimeZone { get; set; }
+
+        public int? TenantTypeId { get; set; }
+
+        public bool? TenantDirty { get; set; }
+
+        [ForeignKey(nameof(TenantTypeId))]
+        public virtual TenantType? TenantType { get; set; }
     }
 }

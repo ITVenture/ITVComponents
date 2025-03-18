@@ -4,14 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Formatting = Newtonsoft.Json.Formatting;
 
 namespace ITVComponents.Settings
 {
@@ -20,6 +20,8 @@ namespace ITVComponents.Settings
         private static JsonSettings defaultInstance;
 
         private string configName;
+
+        private string typingName;
 
         private bool configReady = false;
 
@@ -51,6 +53,7 @@ namespace ITVComponents.Settings
             }
 
             configName = $"{entryAssembly.Location}.jsonConfig";
+            typingName = $"{entryAssembly.Location}.jsonCfgTyping";
             configReady = true;
         }
 
@@ -69,6 +72,8 @@ namespace ITVComponents.Settings
         {
             defaultInstance.configReady = true;
             defaultInstance.configName = settingsLocation;
+            defaultInstance.typingName = Path.Combine(Path.GetDirectoryName(settingsLocation),
+                $"{Path.GetFileNameWithoutExtension(settingsLocation)}.jsonCfgTyping");
             defaultInstance.Read(true);
         }
 
@@ -113,14 +118,12 @@ namespace ITVComponents.Settings
                     try
                     {
                         settings.Clear();
-                        if (File.Exists(configName))
+                        if (File.Exists(configName) && File.Exists(typingName))
                         {
                             string s;
-                            using (var fst = new FileStream(configName, FileMode.Open, FileAccess.Read))
-                            {
-                                settings = ReadSettingsFromStream(fst);
-                            }
-
+                            using var fst = new FileStream(configName, FileMode.Open, FileAccess.Read);
+                            using var tst = new FileStream(typingName, FileMode.Open, FileAccess.Read);
+                            settings = ReadSettingsFromStream(fst, tst);
                             lastReadingTime = DateTime.Now;
                         }
                     }
@@ -144,10 +147,9 @@ namespace ITVComponents.Settings
             {
                 if (configReady)
                 {
-                    using (var fst = new FileStream(configName, FileMode.Create, FileAccess.Write))
-                    {
-                        SaveSettingsToStream(settings, fst);
-                    }
+                    using var fst = new FileStream(configName, FileMode.Create, FileAccess.Write);
+                    using var tst = new FileStream(typingName, FileMode.Create, FileAccess.Write);
+                    SaveSettingsToStream(settings, fst, tst);
 
                     Read(false);
                 }
@@ -159,18 +161,39 @@ namespace ITVComponents.Settings
         /// </summary>
         /// <param name="settings">the custom settings object you want to save</param>
         /// <param name="targetStream">the target stream to write the settings to</param>
-        public static void SaveSettingsToStream(Dictionary<string, JsonSettingsSection> settings, Stream targetStream)
+        public static void SaveSettingsToStream(Dictionary<string, JsonSettingsSection> settings, Stream settingsStream, Stream typingStream)
         {
-            JsonHelper.WriteObjectStrongTyped(settings, targetStream);
+            Dictionary<string, string> typing = new Dictionary<string, string>(from t in settings
+                select new KeyValuePair<string, string>(t.Key, t.Value.GetType().AssemblyQualifiedName));
+            JsonHelper.WriteObject(typing, SerializationTypingMode.StaticTyping, typingStream);
+            var options = JsonHelper.WithStrongContract(new JsonSerializerOptions
+            {
+                IgnoreReadOnlyFields = true,
+                WriteIndented = true
+            });
+
+            options.TypeInfoResolverChain.Add(GetTypeResolver(typing));
+
+            JsonHelper.WriteObject(settings, options, settingsStream);
         }
 
         /// <summary>
         /// /Exposes the default-functions for reading a settings-collection from a file so that it can be used from elsewhere
         /// </summary>
         /// <param name="sourceStream">the source stream that is expected to contain json settings</param>
-        public static Dictionary<string,JsonSettingsSection> ReadSettingsFromStream(Stream sourceStream)
+        public static Dictionary<string,JsonSettingsSection> ReadSettingsFromStream(Stream sourceStream, Stream typingStream)
         {
-            return JsonHelper.ReadStrongTypedObject<Dictionary<string, JsonSettingsSection>>(sourceStream);
+            var typing =
+                JsonHelper.ReadObject<Dictionary<string, string>>(typingStream, SerializationTypingMode.StaticTyping);
+            var options = JsonHelper.WithStrongContract(new JsonSerializerOptions
+            {
+                IgnoreReadOnlyFields = true,
+                WriteIndented = true
+            });
+
+            options.TypeInfoResolverChain.Add(GetTypeResolver(typing));
+
+            return JsonHelper.ReadObject<Dictionary<string, JsonSettingsSection>>(sourceStream, options);
         }
 
         /// <summary>
@@ -296,6 +319,27 @@ namespace ITVComponents.Settings
                     component.LeaveConfigurationMode();
                 }
             }
+        }
+
+        private static IJsonTypeInfoResolver GetTypeResolver(Dictionary<string, string> typeMap)
+        {
+            var retVal = new DefaultJsonTypeInfoResolver();
+            var translatedTypeMap =
+                (from t in typeMap select new JsonDerivedType(Type.GetType(t.Value), t.Key)).ToArray();
+            retVal.Modifiers.Add(ti =>
+            {
+                if (ti.Type == typeof(JsonSettingsSection))
+                {
+                    ti.PolymorphismOptions ??= new JsonPolymorphismOptions();
+                    ti.PolymorphismOptions.TypeDiscriminatorPropertyName = "$$type";
+                    foreach (var jsonDerivedType in translatedTypeMap)
+                    {
+                        ti.PolymorphismOptions.DerivedTypes.Add(jsonDerivedType);
+                    }
+                }
+            });
+
+            return retVal;
         }
     }
 }

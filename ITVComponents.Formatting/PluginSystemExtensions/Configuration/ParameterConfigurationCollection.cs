@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Formatting.PluginSystemExtensions.Configuration
 {
-    [Serializable]
     public class ParameterConfigurationCollection:List<ParameterConfiguration>
     {
         public ParameterConfiguration this[string identifier]

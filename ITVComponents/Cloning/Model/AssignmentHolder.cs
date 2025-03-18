@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,5 +24,6 @@ namespace ITVComponents.Cloning.Model
         public bool UseConvert { get; set; }
 
         public bool SpecifyDateTimeAsUtc { get; set; }
+        public Expression ServiceDrivenValueTranslation { get; set; }
     }
 }

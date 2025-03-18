@@ -8,7 +8,6 @@ using ITVComponents.Settings.Native;
 
 namespace ITVComponents.AssemblyResolving
 {
-    [Serializable]
     public class ResolverConfig : JsonSettingsSection
     {
         /// <summary>

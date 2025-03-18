@@ -51,7 +51,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
-using Newtonsoft.Json;
 namespace ITVComponents.WebCoreToolkit.Net.Extensions
 {
     public static class RouteExtensions
@@ -165,6 +164,20 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
         }
 
         /// <summary>
+        /// Exposes Features of the current Tenant to the client application
+        /// </summary>
+        /// <param name="builder">the endpoint-convention builder that is used to create a presented endpoint</param>
+        /// <param name="explicitTenantParam">indicates whether to accept an explicit tenant parameter</param>
+        /// <returns>the endpoint-convention builder for further configuration</returns>
+        public static IEndpointConventionBuilder ExposeTenantFeatures(this WebApplication builder,
+            string explicitTenantParam)
+        {
+            var forExplicitTenants = !string.IsNullOrEmpty(explicitTenantParam);
+            var tmp = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/TenantFeatures", TenantHandler.ReadTenantFeatures).RequireAuthorization();
+            return tmp;
+        }
+
+        /// <summary>
         /// Exposes File-Services for Up-and Downloading files through a standardized interface
         /// </summary>
         /// <param name="builder">the endpoint-builder used for adding the route</param>
@@ -172,7 +185,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
         /// <param name="withAuthorization">indicates whether tho secure the endpoint</param>
         /// <param name="configureUpload">indicates whether to use upload-features</param>
         /// <param name="configureDownload">indicates whether to use download features</param>
-        public static void UseFileServices(this WebApplication builder, string explicitTenantParam, bool withAuthorization = true, Action<IEndpointConventionBuilder> configureUpload = null, Action<IEndpointConventionBuilder> configureDownload = null)
+        public static void UseFileServices(this WebApplication builder, string explicitTenantParam, bool withAuthorization = true, bool fromQuery=false, Action<IEndpointConventionBuilder> configureUpload = null, Action<IEndpointConventionBuilder> configureDownload = null)
         {
             var forExplicitTenants = !string.IsNullOrEmpty(explicitTenantParam);
 //            Func<HttpContext, Task> dlgP = ;
@@ -183,14 +196,39 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             {
                 upload = builder.MapPost($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/File/{{UploadModule:alpha}}/{{UploadReason:alpha}}", FileServiceHandler.PostWithAuth)
                     .Accepts<MultipartFileModel>("multipart/form-data").RequireAuthorization();
-                download = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/File/{{**FileToken}}", FileServiceHandler.GetWithAuth)
-                    .RequireAuthorization();
+                if (!fromQuery)
+                {
+                    download = builder
+                        .MapGet(
+                            $"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/File/{{**FileToken}}",
+                            FileServiceHandler.GetWithAuth)
+                        .RequireAuthorization();
+                }
+                else
+                {
+                    download = builder
+                        .MapGet(
+                            $"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/File",
+                            FileServiceHandler.GetQueryWithAuth)
+                        .RequireAuthorization();
+                }
             }
             else
             {
                 upload = builder.MapPost($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/File/{{UploadModule:alpha}}/{{UploadReason:alpha}}", FileServiceHandler.PostNoAuth)
                     .Accepts<MultipartFileModel>("multipart/form-data");
-                download = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/File/{{**FileToken}}", FileServiceHandler.GetNoAuth);
+                if (!fromQuery)
+                {
+                    download = builder.MapGet(
+                        $"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/File/{{**FileToken}}",
+                        FileServiceHandler.GetNoAuth);
+                }
+                else
+                {
+                    download = builder.MapGet(
+                        $"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/File",
+                        FileServiceHandler.GetQueryNoAuth);
+                }
             }
 
             configureUpload?.Invoke(upload);

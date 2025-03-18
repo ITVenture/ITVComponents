@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Localization;
 using Microsoft.Extensions.Localization;
@@ -24,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var raw = localizer[name];
             try
             {
-                return JsonHelper.FromJsonString<T>(raw);
+                return JsonHelper.FromJsonString<T>(raw, SerializationTypingMode.StaticTyping);
             }
             catch (Exception ex)
             {
@@ -48,7 +48,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var raw = !isformattable ? localizer[name, arguments] : localizer[name];
             try
             {
-                T retVal = JsonHelper.FromJsonString<T>(raw);
+                T retVal = JsonHelper.FromJsonString<T>(raw, SerializationTypingMode.StaticTyping);
                 if (isformattable && retVal is IFormattableLocalizationObject flo)
                 {
                     flo.FormatProperties(arguments);

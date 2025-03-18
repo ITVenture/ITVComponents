@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using Microsoft.Extensions.Localization;
 
 namespace ITVComponents.WebCoreToolkit.Net.Extensions
@@ -18,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
                 dic.Add(s.Name, s.Value);
             }
 
-            var json = JsonHelper.ToJson(dic);
+            var json = JsonHelper.ToJson(dic, SerializationTypingMode.StaticTyping, null);
             StringBuilder bld = new StringBuilder();
             bld.AppendLine($"var __loca{localObjectName}={json};");
             bld.AppendLine($@"for (var name in __loca{localObjectName}){{

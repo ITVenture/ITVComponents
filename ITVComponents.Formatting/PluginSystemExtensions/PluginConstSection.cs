@@ -9,7 +9,6 @@ using ITVComponents.Settings.Native;
 
 namespace ITVComponents.Formatting.PluginSystemExtensions
 {
-    [Serializable]
     public class PluginConstSection:JsonSettingsSection
     {
         public bool UseExtConfig { get; set; } = false;

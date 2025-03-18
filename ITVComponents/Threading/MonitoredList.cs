@@ -54,7 +54,7 @@ namespace ITVComponents.Threading
                                                    TContainerList l;
                                                    using (var lk = AcquireList(out l))
                                                    {
-                                                       lk.Exclusive(()=>this.monitor(l));
+                                                       lk.Exclusive(true, ()=>this.monitor(l));
                                                    }
                                                }
                                                finally

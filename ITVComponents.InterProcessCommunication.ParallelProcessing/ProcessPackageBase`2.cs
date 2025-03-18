@@ -6,11 +6,12 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 
 namespace ITVComponents.InterProcessCommunication.ParallelProcessing
 {
-    public abstract class ProcessPackageBase<TTask, TMe> : IProcessPackage, ISerializable where TTask : ProcessTaskBase<TTask, TMe>
+    public abstract class ProcessPackageBase<TTask, TMe> : IProcessPackage, IManualSerializer where TTask : ProcessTaskBase<TTask, TMe>
                                                                                         where TMe : ProcessPackageBase<TTask, TMe>
     {
         /// <summary>
@@ -35,21 +36,6 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         {
             Sync = new object();
             CreationTime = DateTime.Now;
-        }
-
-        protected ProcessPackageBase(SerializationInfo info, StreamingContext context)
-        {
-            Id = (int)info.GetValue("Id", typeof(int));
-            PackagePriority = (int)info.GetValue("PackagePriority", typeof(int));
-            RequestingSystem = (string)info.GetValue("RequestingSystem", typeof(string));
-            Successful = (bool)info.GetValue("Successful", typeof(bool));
-            CreationTime = (DateTime)info.GetValue("CreationTime", typeof(DateTime));
-            subTasks = (TTask[])info.GetValue("subTasks", typeof(TTask[]));
-            openTaskCount = (int)info.GetValue("openTaskCount", typeof(int));
-            if (subTasks != null)
-            {
-                subTasks.ForEach(n => n.SetParent((TMe)this));
-            }
         }
 
         /// <summary>
@@ -199,28 +185,36 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         [field: NonSerialized]
         public event DemandForRequeueEventHandler DemandForRequeue;
 
-        /// <summary>Populates a <see cref="T:System.Runtime.Serialization.SerializationInfo" /> with the data needed to serialize the target object.</summary>
-        /// <param name="info">The <see cref="T:System.Runtime.Serialization.SerializationInfo" /> to populate with data.</param>
-        /// <param name="context">The destination (see <see cref="T:System.Runtime.Serialization.StreamingContext" />) for this serialization.</param>
-        /// <exception cref="T:System.Security.SecurityException">The caller does not have the required permission.</exception>
-        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        protected virtual void CompleteObjectData()
         {
-            info.AddValue("Id", Id);
-            info.AddValue("PackagePriority", PackagePriority);
-            info.AddValue("RequestingSystem", RequestingSystem);
-            info.AddValue("Successful", Successful);
-            info.AddValue("CreationTime", CreationTime);
-            info.AddValue("subTasks", subTasks);
-            info.AddValue("openTaskCount", openTaskCount);
-            CompleteObjectData(info, context);
         }
 
-        /// <summary>Populates a <see cref="T:System.Runtime.Serialization.SerializationInfo" /> with the data needed to serialize the target object.</summary>
-        /// <param name="info">The <see cref="T:System.Runtime.Serialization.SerializationInfo" /> to populate with data.</param>
-        /// <param name="context">The destination (see <see cref="T:System.Runtime.Serialization.StreamingContext" />) for this serialization.</param>
-        /// <exception cref="T:System.Security.SecurityException">The caller does not have the required permission.</exception>
-        protected virtual void CompleteObjectData(SerializationInfo info, StreamingContext context)
+        public IList<ManualSerializationData> Data { get; set; }
+        public void GetObjectData()
         {
+            Data.Add(ManualSerializationData.FromValue("Id", Id));
+            Data.Add(ManualSerializationData.FromValue("PackagePriority", PackagePriority));
+            Data.Add(ManualSerializationData.FromValue("RequestingSystem", RequestingSystem));    
+            Data.Add(ManualSerializationData.FromValue("Successful", Successful));
+            Data.Add(ManualSerializationData.FromValue("CreationTime", CreationTime));
+            Data.Add(ManualSerializationData.FromValue("subTasks", subTasks));
+            Data.Add(ManualSerializationData.FromValue("openTaskCount", openTaskCount));
+            CompleteObjectData();
+        }
+
+        public void ApplyObjectData()
+        {
+            Id = Data.GetDeserializedValue<int>("Id");
+            PackagePriority = Data.GetDeserializedValue<int>("PackagePriority");
+            RequestingSystem = Data.GetDeserializedValue<string>("RequestingSystem");
+            Successful = Data.GetDeserializedValue<bool>("Successful");
+            CreationTime = Data.GetDeserializedValue<DateTime>("CreationTime");
+            subTasks = Data.GetDeserializedValue<TTask[]>("subTasks");
+            openTaskCount = Data.GetDeserializedValue<int>("openTaskCount");
+            if (subTasks != null)
+            {
+                subTasks.ForEach(n => n.SetParent((TMe)this));
+            }
         }
     }
 }

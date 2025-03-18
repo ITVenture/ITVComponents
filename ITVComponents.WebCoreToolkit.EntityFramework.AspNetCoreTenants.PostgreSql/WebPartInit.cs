@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using ITVComponents.DuckTyping.Extensions;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.SettingsExtensions;
@@ -13,6 +14,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using DependencyExtensions = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions.DependencyExtensions;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql
 {
@@ -47,20 +49,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
             [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
-            Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (contextOptions.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
-                services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
+                Type t = null;
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                    services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
+                }
+
+                if (!AspNetCoreTenants.WebPartInit.ContextTypeInitialized)
+                {
+                    AspNetCoreTenants.WebPartInit.SetContextType(t);
+                }
             }
 
             if (partActivation.ActivateDbContext)
             {
                 var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
-                if (t != null)
+                AspNetCoreTenants.WebPartInit.DependencyInit.UseDbIdentities(services, (services, options) =>
                 {
-                    services.UseDbIdentities(t, (services,options) =>
+                    options.UseNpgsql(partActivation.ConnectionStringName);
+                    manager.CustomObjectConfig(options, services);
+                });
+
+                /*if (t != null)
+                {
+                    services.UseDbIdentities(t, (services, options) =>
                     {
                         options.UseNpgsql(partActivation.ConnectionStringName);
                         manager.CustomObjectConfig(options, services);
@@ -73,7 +89,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Postgre
                         options.UseNpgsql(partActivation.ConnectionStringName);
                         manager.CustomObjectConfig(options, services);
                     });
-                }
+                }*/
             }
         }
     }

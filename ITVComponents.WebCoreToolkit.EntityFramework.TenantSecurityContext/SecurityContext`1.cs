@@ -5,6 +5,8 @@ using System.Linq;
 using System.Security.Principal;
 using ITVComponents.EFRepo.DataAnnotations;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
+using ITVComponents.EFRepo.Expressions;
+using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
@@ -37,10 +39,8 @@ using SystemEvent = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityS
 using Tenant = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Tenant;
 using TenantDiagnosticsQuery = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantDiagnosticsQuery;
 using TenantNavigationMenu = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.TenantNavigationMenu;
-using TenantSetting = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TenantSetting;
 using TutorialStream = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TutorialStream;
 using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User;
-using WebPlugin = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.WebPlugin;
 using Feature = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature;
 using AppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermission;
 using AppPermissionSet = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.AppPermissionSet;
@@ -50,11 +50,15 @@ using ClientApp = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityCon
 using ClientAppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppPermission;
 using ClientAppUser = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.ClientAppUser;
 using ITVComponents.EFRepo.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<int,User,Role,Permission,UserRole,RolePermission,TenantUser,NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser>
+    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig>
     where TImpl:SecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -64,7 +68,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         private readonly bool useFilters = false;
         private bool showAllTenants = false;
         private bool hideGlobals = false;
-        private Stack<FullSecurityAccessHelper> securityStateStack = new Stack<FullSecurityAccessHelper>();
+        Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.securityStateStack { get; }= new Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>();
         private bool hideDisabledUsers = true;
 
         public SecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions, DbContextOptions<TImpl> options) : base(options)
@@ -231,6 +235,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         /// </summary>
         protected IPrincipal Me => userProvider?.User;
 
+        public DbSet<LocalizationString> LocalizationCultureStrings { get; set; }
+
         public int SequenceNextVal(string sequenceName)
         {
             var mth = modelBuilderOptions.GetMethod<Func<DbContext, string, int, int>>("SequenceNextVal");
@@ -275,6 +281,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<RolePermission> RolePermissions { get;set; }
 
+        public DbSet<RoleRole> RoleRoles { get; set; }
+
         public DbSet<HealthScript> HealthScripts { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View")]
@@ -292,9 +300,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Sysadmin")]
         public DbSet<TenantTemplate> TenantTemplates { get; set; }
 
-        public DbSet<TenantSetting> TenantSettings { get; set; }
+        public DbSet<TenantType> TenantTypes { get; set; }
 
-        public DbSet<TenantFeatureActivation> TenantFeatureActivations { get; set; }
+        public DbSet<FlatTenantSetting> TenantSettings { get; set; }
+
+        public DbSet<FlatTenantFeatureActivation> TenantFeatureActivations { get; set; }
 
         public DbSet<TenantUser> TenantUsers { get; set; }
 
@@ -302,11 +312,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<TenantNavigationMenu> TenantNavigation { get;set; }
 
-        public DbSet<WebPlugin> WebPlugins{get;set;}
+        public DbSet<FlatWebPlugin> WebPlugins{get;set;}
 
-        public DbSet<WebPluginConstant> WebPluginConstants { get; set; }
+        public DbSet<FlatWebPluginConstant> WebPluginConstants { get; set; }
 
-        public DbSet<WebPluginGenericParameter> GenericPluginParams { get; set; }
+        public DbSet<FlatWebPluginGenericParameter> GenericPluginParams { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DashboardWidgets.Write", "DashboardWidgets.View")]
         public DbSet<DiagnosticsQuery> DiagnosticsQueries { get; set; }
@@ -339,32 +349,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
 
-        public DbSet<Sequence> Sequences { get; set; }
+        public DbSet<FlatSequence> Sequences { get; set; }
+        public DbSet<Culture> Cultures { get; set; }
+        public DbSet<TenantSecurityShared.Models.Localization> Localizations { get; set; }
+        public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
 
-        void IBaseTenantContext.RegisterSecurityRollback(FullSecurityAccessHelper fullSecurityAccessHelper)
+        BaseTenantContextSecurityTrustConfig ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.GetReverseTrust(BaseTenantContextSecurityTrustConfig desiredTrust)
         {
-            if (!fullSecurityAccessHelper.CreatedWithContext)
+            return new BaseTenantContextSecurityTrustConfig
             {
-                throw new InvalidOperationException("Use Constructor with context argument, to use this method.");
-            }
-
-            securityStateStack.Push(new FullSecurityAccessHelper{ForwardHelper=fullSecurityAccessHelper,HideGlobals=hideGlobals,ShowAllTenants = showAllTenants});
-            showAllTenants = fullSecurityAccessHelper.ShowAllTenants;
-            hideGlobals = fullSecurityAccessHelper.HideGlobals;
+                HideGlobals = hideGlobals,
+                ShowAllTenants = showAllTenants
+            };
         }
 
-        void IBaseTenantContext.RollbackSecurity(FullSecurityAccessHelper fullSecurityAccessHelper)
+        void ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.ApplyTrust(BaseTenantContextSecurityTrustConfig desiredTrust)
         {
-            var tmp = securityStateStack.Pop();
-            if (tmp.ForwardHelper == fullSecurityAccessHelper)
-            {
-                showAllTenants = tmp.ShowAllTenants;
-                hideGlobals = tmp.HideGlobals;
-            }
-            else
-            {
-                throw new InvalidOperationException("Invalid Disposal-order!");
-            }
+            showAllTenants = desiredTrust.ShowAllTenants;
+            hideGlobals = desiredTrust.HideGlobals;
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -377,9 +379,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         {
             base.OnModelCreating(modelBuilder);
             modelBuilder.TableNamesFromProperties(this);
-            modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
-            modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
+            modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.PermittedRoles).WithOne(pr => pr.PermissiveRole).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.PermissiveRoles).WithOne(pr => pr.PermittedRole).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<TenantUser>(b => b.Property(n => n.Enabled).HasDefaultValue(true));
+            modelBuilder.Entity<TenantUser>().HasMany(n => n.Roles).WithOne(n => n.User).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<RolePermission>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren).OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<RolePermission>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingLinks).OnDelete(DeleteBehavior.ClientSetNull);
+            
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }
 
@@ -428,16 +436,51 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         /// <returns>the query that will be executed go get the foreignkey-data</returns>
         public IEnumerable GetForeignKeyFilterQuery(string tableName, Dictionary<string,object> postedFilter)
         {
+            var hasPreFilter = postedFilter.TryGetValue("parsedfilter", out var clientQuery);
+            FilterBase clientFilter = null;
+            if (hasPreFilter && clientQuery is FilterBase fiba)
+            {
+                clientFilter = fiba;
+            }
+
             if (tableName == "TenantSelectionFk")
             {
-                return (from t in Tenants orderby t.DisplayName select new ForeignKeyData<string>{Key=t.TenantName,Label=t.DisplayName, FullRecord = t.ToDictionary(true)}).ToList().Where(n => userProvider.Services.VerifyUserPermissions(new []{n.Key}));
+                IQueryable<Tenant> ts = Tenants;
+                if (clientFilter != null)
+                {
+                    ts = ts.Where(ExpressionBuilder.BuildExpression<Tenant>(clientFilter, c =>
+                    {
+                        if (c == "Label")
+                        {
+                            return new[] { "TenantName", "DisplayName" };
+                        }
+
+                        return null;
+                    }));
+                }
+                return (from t in ts orderby t.DisplayName select new ForeignKeyData<string>{Key=t.TenantName,Label=t.DisplayName, FullRecord = t.ToDictionary(true)}).ToList().Where(n => userProvider.Services.VerifyUserPermissions(new []{n.Key}));
             }
 
             if (tableName == "AuthorizedWidgets")
             {
                 if (userProvider?.User!= null)
                 {
-                    var ret = (from t in Widgets.ToArray()
+                    IQueryable<DashboardWidget> wigs = Widgets;
+                    if (clientFilter != null)
+                    {
+                        wigs = wigs.Where(ExpressionBuilder.BuildExpression<DashboardWidget>(clientFilter,
+                            c =>
+                            {
+                                if (c == "Label")
+                                {
+                                    return new[] { "SystemName", "DisplayName" };
+                                }
+
+                                return null;
+                            }));
+                    }
+
+                    var ret = (from t in wigs.ToArray()
                         where userProvider.Services.VerifyUserPermissions(new[]
                             { t.DiagnosticsQuery.Permission.PermissionName })
                         orderby t.DisplayName

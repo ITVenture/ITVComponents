@@ -10,6 +10,7 @@ using ITVComponents.DataExchange.Configuration;
 using ITVComponents.DataExchange.Interfaces;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
 using ITVComponents.WebCoreToolkit.Net.FileHandling.Special;
@@ -65,7 +66,7 @@ namespace ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers
             DiagQueryDumpConfig cfg = null;
             if (!string.IsNullOrEmpty(setting))
             {
-                cfg = JsonHelper.FromJsonString<DiagQueryDumpConfig>(setting);
+                cfg = JsonHelper.FromJsonString<DiagQueryDumpConfig>(setting, SerializationTypingMode.StaticTyping);
             }
             else
             {

@@ -10,6 +10,7 @@ using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.Extensions;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.ReflectionHelpers;
@@ -117,7 +118,7 @@ namespace ITVComponents.EFRepo.DataSync
                         if (change.ChangeType != ChangeType.Delete)
                         {
                             LogEnvironment.LogDebugEvent(null,
-                                $"Updating the Entity of type '{rawType.FullName}' in {change.ChangeType}-Mode.\r\nProperties:\r\n{JsonHelper.ToJson(change.Details)}",
+                                $"Updating the Entity of type '{rawType.FullName}' in {change.ChangeType}-Mode.\r\nProperties:\r\n{JsonHelper.ToJson(change.Details,SerializationTypingMode.StaticTyping, null)}",
                                 (int)LogSeverity.Report, "EFRepo:SimpleDataApplyer");
                             bool any = false;
                             foreach (var detail in change.Details.Where(n => n.Apply))

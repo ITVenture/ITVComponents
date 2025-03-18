@@ -15,11 +15,11 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
         CancellationToken CancellationToken { get; }
         int Ttl { get; }
 
-        Task WriteAsync(object message);
+        Task WriteAsync(IProtocolMessage message);
 
-        void Write(object message);
+        void Write(IProtocolMessage message);
 
-        Task<object> Request(object requestMessage);
+        Task<IProtocolMessage> Request(IProtocolMessage requestMessage);
 
         event EventHandler ConnectionStatusChanged;
         

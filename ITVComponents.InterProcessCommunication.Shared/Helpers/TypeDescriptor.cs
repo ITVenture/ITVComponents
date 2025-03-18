@@ -2,13 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.ReflectionHelpers;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 {
-    [Serializable]
-    public class TypeDescriptor:ISerializable
+    public class TypeDescriptor:IManualSerializer
     {
         private static Dictionary<string, Type> reverseTypes = new Dictionary<string, Type>();
 
@@ -20,20 +21,10 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 
         private bool isGeneric;
 
+        [JsonConstructor]
         private TypeDescriptor()
         {
 
-        }
-
-        public TypeDescriptor(SerializationInfo info, StreamingContext context)
-        {
-            typeName = (string)info.GetValue(nameof(typeName),typeof(string));
-            
-            fullName = (string)info.GetValue(nameof(fullName),typeof(string));
-            
-            genericArguments = (TypeDescriptor[])info.GetValue(nameof(genericArguments),typeof(TypeDescriptor[]));
-
-            isGeneric = (bool)info.GetValue(nameof(isGeneric), typeof(bool));
         }
 
         public static implicit operator Type(TypeDescriptor desc)
@@ -89,6 +80,12 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
             return retVal;
         }
 
+        public override string ToString()
+        {
+            return
+                $"{fullName} ({typeName}){{IsGeneric:{isGeneric}, GenericArgumentCount:{genericArguments?.Length ?? 0}}}";
+        }
+
         public static void RegisterReverseType(string assemblyQualifiedName, Type concreteType)
         {
             lock (reverseTypes)
@@ -97,15 +94,27 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
             }
         }
 
-        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        public IList<ManualSerializationData> Data { get; set; }
+        public void GetObjectData()
         {
-            info.AddValue(nameof(typeName),typeName);
-            
-            info.AddValue(nameof(fullName),fullName);
-            
-            info.AddValue(nameof(genericArguments),genericArguments);
+            Data.Add(ManualSerializationData.FromValue(nameof(typeName), typeName));
 
-            info.AddValue(nameof(isGeneric), isGeneric);
+            Data.Add(ManualSerializationData.FromValue(nameof(fullName), fullName));
+
+            Data.Add(ManualSerializationData.FromValue(nameof(genericArguments), genericArguments));
+
+            Data.Add(ManualSerializationData.FromValue(nameof(isGeneric), isGeneric));
+        }
+
+        public void ApplyObjectData()
+        {
+            typeName = Data.GetDeserializedValue<string>(nameof(typeName));
+
+            fullName = Data.GetDeserializedValue<string>(nameof(fullName));
+
+            genericArguments = Data.GetDeserializedValue<TypeDescriptor[]>(nameof(genericArguments));
+
+            isGeneric = Data.GetDeserializedValue<bool>(nameof(isGeneric));
         }
     }
 }

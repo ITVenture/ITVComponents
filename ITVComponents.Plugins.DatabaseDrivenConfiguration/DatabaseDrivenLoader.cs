@@ -240,6 +240,11 @@ order by LoadOrder",
 
         private IEnumerable<GenericTypeDefinition> ReadGenericArguments(string name)
         {
+/*
+        public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables, IStringFormatProvider formatter)
+        {
+            //knownTypeUsed = false;
+*/
             if (!string.IsNullOrEmpty(genericParamTableName))
             {
 
@@ -257,15 +262,129 @@ order by LoadOrder",
                             $@"Select a.* from {tableName} p inner join {genericParamTableName} a on a.PlugInId = p.PlugInId where p.UniqueName = @uniqueName and isnull(disabled,0)=0 and
 (p.tenantId=@tenantId or (p.tenantId is null and @tenantId is null)) and
 (a.tenantId=@tenantId or (a.tenantId is null and @tenantId is null))"
+
                             , database.GetParameter("uniqueName", name),
                             database.GetParameter("tenantId", tenantName)).ToArray();
                     foreach (var item in data)
+/*
+                            ,null,db.GetParameter("uniqueName", uniqueName),
+                            db.GetParameter("tenantId",tenantName));
+                    var joined = data.Select(d => new { Target = (string)d["GenericTypeName"], Type = (string)d["TypeExpression"] }).ToArray();
+                    Dictionary<string, object> dic = new Dictionary<string, object>();
+                    customVariables ??= new Dictionary<string, object>();
+                    //bool kt = knownTypeUsed;
+                    customVariables.ForEach(n => dic.Add(n.Key, new SmartProperty
+*/
                     {
                         yield return new GenericTypeDefinition
                         {
                             TypeExpression = item.TypeExpression,
                             TypeParameterName = item.GenericTypeName
                         };
+/*
+                      //      kt = true;
+                            return n.Value;
+                        }
+                    }));
+                    //knownTypeUsed = kt;
+                    List<(string name, Type type)> fixTypes = new List<(string name, Type type)>();
+                    Type argumentProvider = null;
+                    foreach (var j in joined)
+                    {
+                        var t = (Type)ExpressionParser.Parse(j.Type.ApplyFormat(formatter), dic);
+                        if (j.Target != "$$genericArgumentProvider")
+                        {
+                            fixTypes.Add((name: j.Target,
+                                type: t));
+                        }
+                        else
+                        {
+                            argumentProvider = t;
+                        }
+                    }
+
+                    if (argumentProvider == null)
+                    {
+                        var rawTypes = typeof(object).GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        if (!genericTypeArguments.FinalizeTypeArguments(rawTypes))
+                        {
+                            throw new InvalidOperationException(
+                                $"Unable to finalize Type with given Information for Plugin {uniqueName}.");
+                        }
+                    }
+                    else
+                    {
+                        var rawTypes = argumentProvider.GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        if (!genericTypeArguments.FinalizeTypeArguments(rawTypes))
+                        {
+                            throw new InvalidOperationException(
+                                $"Unable to finalize Type with given Information for Plugin {uniqueName}.");
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks for plugins that are currently not loaded
+        /// </summary>
+        /// <param name="state">ignored</param>
+        private void CheckPlugins(object state)
+        {
+            refresher.Change(Timeout.Infinite, Timeout.Infinite);
+            try
+            {
+                var tmp = LoadPlugins().ToArray();
+                LogEnvironment.LogDebugEvent($"{tmp.Length} new PlugIns loaded..", LogSeverity.Report);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error);
+            }
+            finally
+            {
+                if (refreshCycle != 0)
+                {
+                    refresher.Change(refreshCycle, refreshCycle);
+                }
+            }
+        }
+
+        private IEnumerable<string> LoadPlugins()
+        {
+            using (database.AcquireConnection(false, out var db))
+            {
+                DynamicResult[] plugins =
+                    db.GetNativeResults($@"Select * from {tableName} where isnull(disabled,0)=0 and 
+(tenantId=@tenantId or (tenantId is null and @tenantId is null)) 
+order by LoadOrder",
+                        null, db.GetParameter("tenantId",tenantName));
+                foreach (DynamicResult plugin in plugins)
+                {
+                    if (factory[plugin["UniqueName"]] == null)
+                    {
+                        bool ok = false;
+                        try
+                        {
+                            factory.LoadPlugin<IPlugin>(plugin["UniqueName"], plugin["Constructor"]);
+                            ok = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            LogEnvironment.LogDebugEvent(ex.OutlineException(), LogSeverity.Error);
+                            db.ExecuteCommand(
+                                $@"Update {tableName} set disabled = 1, disabledreason = @reason where pluginid = @pluginId and
+(tenantId=@tenantId or (tenantId is null and @tenantId is null))",
+                                db.GetParameter("pluginid", plugin["pluginId"]),
+                                db.GetParameter("reason", ex.Message),
+                                db.GetParameter("tenantId", tenantName));
+                        }
+
+                        if (ok)
+                        {
+                            yield return plugin["UniqueName"];
+                        }
+*/
                     }
                 }
             }

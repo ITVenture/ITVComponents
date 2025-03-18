@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
   <PropertyGroup>
-    <TargetFrameworks>net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.7-PRE023</Version>
+    <Version>4.0.0-PRE069</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <!--TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeReferencedProjectInPackage</TargetsForTfmSpecificContentInPackage-->
@@ -21,8 +21,8 @@
     </ItemGroup>
   </Target-->
   <ItemGroup>
-    <PackageReference Include="Microsoft.IdentityModel.Tokens.Saml" Version="6.27.0" />
-    <PackageReference Include="Sustainsys.Saml2.AspNetCore2" Version="2.9.0" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens.Saml" Version="8.2.1" />
+    <PackageReference Include="Sustainsys.Saml2.AspNetCore2" Version="2.10.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />

@@ -44,6 +44,8 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication
                     return config.GetSection<FacebookConnectOptions>(path);
                 case "Bearer":
                     return config.GetSection<BearerConnectOptions>(path);
+                case "LogoConfig":
+                    return config.GetSection<OpenIdLogoConfig>(path);
             }
 
             return null;
@@ -56,6 +58,7 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication
             [WebPartConfig("Google")] GoogleConnectOptions googleConfig,
             [WebPartConfig("Facebook")] FacebookConnectOptions facebookConfig,
             [WebPartConfig("Bearer")] BearerConnectOptions bearerConfig,
+            [WebPartConfig("LogoConfig")] OpenIdLogoConfig logoConfig,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
             //--openid connect
@@ -112,6 +115,11 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication
             {
                 services.Configure<AuthenticationHandlerOptions>(o =>
                 {
+                    if (logoConfig != null && !string.IsNullOrEmpty(logoConfig.OpenIdLogoPathPattern))
+                    {
+                        o.LogoPattern = logoConfig.OpenIdLogoPathPattern;
+                    }
+
                     if (configureOpenId)
                     {
                         o.AuthenticationHandlers.Add(new AuthenticationHandlerDefinition

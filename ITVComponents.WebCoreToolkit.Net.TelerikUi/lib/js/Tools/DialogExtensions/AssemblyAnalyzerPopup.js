@@ -7,7 +7,7 @@
             cancelCallbacks: [],
             closedCallbacks: [],
             window: $('<div id="assemblyAnalyzerRoot" width="100%" height="100%">' +
-                '<i>Assembly Beschreiben: </i><input id="AssemblyBox" /><a class="k-button k-button-icontext" href="#" title="Abrufen" onclick="ITVenture.Tools.AssemblyAnalyzer.renderAssemblyInfo(this);"><span class="fad fa-eye"></span>&nbsp;Abrufen</a>' +
+                '<i>Assembly Beschreiben: </i><input id="AssemblyBox" /><a class="k-button k-button-md" href="#" title="Abrufen" onclick="ITVenture.Tools.AssemblyAnalyzer.renderAssemblyInfo(this);"><span class="fa-duotone fa-eye"></span><span class="k-button-text">Abrufen</span></a>' +
                 '<div id="PluginDetailInfo" />' +
                 '</div>')
         };

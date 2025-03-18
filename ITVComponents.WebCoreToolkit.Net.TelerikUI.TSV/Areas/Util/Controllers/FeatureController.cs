@@ -4,9 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.PlugInServices;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
@@ -15,15 +18,24 @@ using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Feature = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(Sysadmin),HasFeature(ITVAdminViews)"), Area("Util")]
-    public class FeatureController : Controller
+    [Authorize("HasPermission(Sysadmin),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
+    public class FeatureController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : Controller 
+        where TTenant : Tenant 
+        where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPluginConstant : WebPluginConstant<TTenant>
+        where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TSequence : Sequence<TTenant>
+        where TTenantSetting : TenantSetting<TTenant>
+        where TTenantFeatureActivation : TenantFeatureActivation<TTenant>, new()
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
-        private readonly IBaseTenantContext db;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db;
 
-        public FeatureController(IBaseTenantContext db)
+        public FeatureController(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db)
         {
             this.db = db;
             db.ShowAllTenants = true;
@@ -149,24 +161,24 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         [HttpPost]
         public IActionResult ReadActivations([DataSourceRequest] DataSourceRequest request, [FromQuery] int tenantId, [FromQuery]int featureId)
         {
-            return Json(db.TenantFeatureActivations.Where(n => n.TenantId == tenantId && n.FeatureId == featureId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TenantFeatureActivation, FeatureActivationViewModel>()));
+            return Json(db.TenantFeatureActivations.Where(n => n.TenantId == tenantId && n.FeatureId == featureId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TTenantFeatureActivation, FeatureActivationViewModel>()));
         }
 
         [HttpPost]
         [Authorize("HasPermission(Sysadmin)")]
         public async Task<IActionResult> CreateActivation([DataSourceRequest] DataSourceRequest request, [FromQuery] int tenantId, [FromQuery] int featureId)
         {
-            var model = new TenantFeatureActivation();
+            var model = new TTenantFeatureActivation();
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<FeatureActivationViewModel, TenantFeatureActivation>(model);
+                await this.TryUpdateModelAsync<FeatureActivationViewModel, TTenantFeatureActivation>(model);
                 model.TenantId = tenantId;
                 model.FeatureId = featureId;
                 db.TenantFeatureActivations.Add(model);
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] { model.ToViewModel<TenantFeatureActivation, FeatureActivationViewModel>() }.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] { model.ToViewModel<TTenantFeatureActivation, FeatureActivationViewModel>() }.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
@@ -191,11 +203,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             var model = db.TenantFeatureActivations.First(n => n.TenantFeatureActivationId == viewModel.TenantFeatureActivationId);
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<FeatureActivationViewModel, TenantFeatureActivation>(model, "", m => { return m.ElementType == null; });
+                await this.TryUpdateModelAsync<FeatureActivationViewModel, TTenantFeatureActivation>(model, "", m => { return m.ElementType == null; });
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] { model.ToViewModel<TenantFeatureActivation, FeatureActivationViewModel>() }.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] { model.ToViewModel<TTenantFeatureActivation, FeatureActivationViewModel>() }.ToDataSourceResultAsync(request, ModelState));
         }
 
         //templateModules

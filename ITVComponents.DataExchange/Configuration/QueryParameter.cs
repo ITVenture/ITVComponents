@@ -5,7 +5,6 @@ using System.Text;
 
 namespace ITVComponents.DataExchange.Configuration
 {
-    [Serializable]
     public class QueryParameter
     {
         /// <summary>

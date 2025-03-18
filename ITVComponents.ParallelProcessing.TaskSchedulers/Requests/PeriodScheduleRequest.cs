@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 
 namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
@@ -27,17 +28,6 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
         {
             deferredInstructions.ForEach(AddInstruction);
             deferredInstructions.Clear();
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the PeriodScheduleRequest
-        /// </summary>
-        /// <param name="info">the serialization info</param>
-        /// <param name="context">the serialization context</param>
-        public PeriodScheduleRequest(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        {
-            NextExecution = (DateTime?) info.GetValue("NextExecution", typeof (DateTime?));
         }
 
         /// <summary>
@@ -80,14 +70,16 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
             base.AddInstruction(instruction, setBaseRemarks);
         }
 
-        /// <summary>
-        /// Füllt eine <see cref="T:System.Runtime.Serialization.SerializationInfo"/> mit den Daten, die zum Serialisieren des Zielobjekts erforderlich sind.
-        /// </summary>
-        /// <param name="info">Die mit Daten zu füllende <see cref="T:System.Runtime.Serialization.SerializationInfo"/>. </param><param name="context">Das Ziel (siehe <see cref="T:System.Runtime.Serialization.StreamingContext"/>) dieser Serialisierung. </param><exception cref="T:System.Security.SecurityException">Der Aufrufer verfügt nicht über die erforderliche Berechtigung. </exception>
-        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        public override void GetObjectData()
         {
-            base.GetObjectData(info, context);
-            info.AddValue("NextExecution", NextExecution);
+            base.GetObjectData();
+            Data.Add(ManualSerializationData.FromValue("NextExecution", NextExecution));
+        }
+
+        public override void ApplyObjectData()
+        {
+            base.ApplyObjectData();
+            NextExecution = Data.GetDeserializedValue<DateTime?>("NextExecution");
         }
     }
 }

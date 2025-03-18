@@ -24,9 +24,9 @@
         .Columns(columns =>
         {
             columns.Bound(n => n.FullQualifiedTypeName);
+            columns.Bound(n => n.TargetQualifiedTypeName);
             columns.Bound(n => n.Description).ClientTemplate("<div style='white-space:pre-line;'>#=ITVenture.Tools.HtmlHelper.encode(Description!=null?Description:'')#</div>");
-            columns.InlineCheckbox(n => n.TrustedForAllTenants,"TrustedFullAccessComponentId");
-            columns.InlineCheckbox(n => n.TrustedForGlobals, "TrustedFullAccessComponentId");
+            columns.Bound(n => n.TrustLevelConfig).ClientTemplate("<div style='white-space:pre-line;'>#=ITVenture.Tools.HtmlHelper.encode(TrustLevelConfig!=null?TrustLevelConfig:'')#</div>");
             columns.Command(ga =>
             {
                 ga.Edit();

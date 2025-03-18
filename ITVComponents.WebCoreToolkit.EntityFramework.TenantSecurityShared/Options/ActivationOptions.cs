@@ -17,6 +17,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
 
 
         public bool UsePlugins { get; set; }
+
+        public int PluginBufferDuration { get; set; }
         
         public bool UseLogAdapter { get; set; }
 
@@ -31,9 +33,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
         public bool ActivateFilters { get; set; }
         public bool ActivateTemplateFactory { get; set; }
 
-        public bool ActivateCreateModifyAttributes { get; set; }
+        /*public bool ActivateCreateModifyAttributes { get; set; }
 
-        public bool UseUTCForCreateModifyAttributes { get; set; }
+        public bool UseUTCForCreateModifyAttributes { get; set; }*/
+
+        public bool UseRoleInheritance { get; set; } = false;
 
         public bool ActivateDefaultContextUserProvider { get; set; }
 
@@ -42,5 +46,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
 
         public bool UseApplicationTokens { get; set; }
         public bool UseApplicationIdentitySchema { get; set; } = true;
+
+        public bool UseContextLocalizationServices { get; set; } = false;
+        public bool UseDefaultInterceptors { get; set; } = true;
     }
 }

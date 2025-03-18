@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
+using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.ViewModel;
 using ITVComponents.WebCoreToolkit.Routing;
 using ITVComponents.WebCoreToolkit.Tokens;
@@ -17,6 +18,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Attributes;
 namespace ITVComponents.WebCoreToolkit.Net.Handlers
 {
@@ -34,6 +36,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
         /// <response code="404">a not-found when the given Diagnostics-Query does not exist</response>
         public static async Task<IResult> Process(HttpContext context, string area, string diagnosticsQueryName, string fileHandler)
         {
+            var op = context.RequestServices.GetService<IOptions<NetFileLinkOptions>>();
             var contextObj = new
             {
                 HttpContext = context,
@@ -68,7 +71,8 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                     HandlerModuleName = fileHandler
                 }.CompressToken();
                 var urlFormat = context.RequestServices.GetService<IUrlFormat>();
-                var url = urlFormat.FormatUrl($"[SlashPermissionScope]/File/{token}");
+                var url = (!op.Value.FileTokenAsQuery)?urlFormat.FormatUrl($"[SlashPermissionScope]/File/{token}"):
+                    urlFormat.FormatUrl($"[SlashPermissionScope]/File?FileToken={token}");
                 return Results.Redirect(url, false);
             }
 

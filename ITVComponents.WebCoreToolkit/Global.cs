@@ -20,5 +20,7 @@
         public const string AppUserKeyIndicatorFormat = "##APPUSER##{0}#";
 
         public const string AppUserKeyPattern = "^##APPUSER##(?<appUserKey>[^#]+)#$";
+
+        public const string PartTypeLoadBehaviorOption = "PartTypeLoadBehavior";
     }
 }

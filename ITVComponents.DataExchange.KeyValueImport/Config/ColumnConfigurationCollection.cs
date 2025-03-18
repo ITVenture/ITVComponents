@@ -5,7 +5,6 @@ using System.Linq;
 
 namespace ITVComponents.DataExchange.KeyValueImport.Config
 {
-    [Serializable]
     public class ColumnConfigurationCollection : List<ColumnConfiguration>
     {
         /// <summary>

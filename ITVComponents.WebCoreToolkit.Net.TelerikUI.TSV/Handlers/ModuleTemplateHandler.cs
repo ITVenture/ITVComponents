@@ -8,21 +8,27 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using ITVComponents.DuckTyping.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ModuleConfigHandling;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.TemplateHandling;
+using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Configuration;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Handlers
 {
     public static class ModuleTemplateHandler
     {
-        public static async Task<IResult> SaveModuleTemplateConfig(HttpContext context, string area, string moduleName,
-            [FromBody] Dictionary<string,string> configurationData, [FromServices] IBaseTenantContext db, [FromServices] ITemplateHandlerFactory handlerFactory)
+        public static async Task<IResult> SaveModuleTemplateConfig(HttpContext context, string area, string moduleName, [FromBody] Dictionary<string, string> configurationData, [FromServices] ICoreSystemContext db,
+            [FromServices] ITemplateHandlerFactory handlerFactory)
         {
-            var template = db.TemplateModules.FirstOrDefault(n => n.TemplateModuleName.ToLower() == moduleName.ToLower());
+            var template =
+                db.TemplateModules.FirstOrDefault(n => n.TemplateModuleName.ToLower() == moduleName.ToLower());
             if (template != null)
             {
                 var configurators = template.Configurators.OrderBy(n => n.Name);
@@ -35,11 +41,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Handler
             return Results.Ok("Ok");
         }
 
-        public static async Task<IResult> ReadModuleTemplateConfig(HttpContext context, string area, string moduleName, [FromServices] IBaseTenantContext db,
-            [FromServices]ITemplateHandlerFactory handlerFactory)
+        public static async Task<IResult> ReadModuleTemplateConfig(HttpContext context, string area, string moduleName,
+            [FromServices] ICoreSystemContext db,
+            [FromServices] ITemplateHandlerFactory handlerFactory)
         {
             var retVal = new Dictionary<string, object>();
-            var template = db.TemplateModules.FirstOrDefault(n => n.TemplateModuleName.ToLower() == moduleName.ToLower());
+            var template =
+                db.TemplateModules.FirstOrDefault(n => n.TemplateModuleName.ToLower() == moduleName.ToLower());
             if (template != null)
             {
                 var configurators = template.Configurators.OrderBy(n => n.Name);

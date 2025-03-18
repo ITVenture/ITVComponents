@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class Role: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.Role<int,User,Role,Permission,UserRole,RolePermission,TenantUser>
+    public class Role: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.Role<Tenant, int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole>
     {
     }
 }

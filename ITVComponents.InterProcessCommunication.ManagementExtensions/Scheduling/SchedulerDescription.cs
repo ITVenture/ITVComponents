@@ -5,7 +5,6 @@ using System.Text;
 
 namespace ITVComponents.InterProcessCommunication.ManagementExtensions.Scheduling
 {
-    [Serializable]
     public class SchedulerDescription
     {
         /// <summary>

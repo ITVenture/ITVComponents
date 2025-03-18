@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
 
 namespace ITVComponents.Threading
 {
@@ -24,12 +26,16 @@ namespace ITVComponents.Threading
                 this.obj = obj;
                 if (!Monitor.IsEntered(obj))
                 {
+                    LogEnvironment.LogEvent(
+                        $@"This can only be used when the current threads holds the lock on the given object!
+{new StackTrace()}", LogSeverity.Error);
                     throw new InvalidOperationException(
                         "This can only be used when the current threads holds the lock on the given object!");
                 }
 
                 Monitor.Exit(obj);
             }
+
             this.inner = inner();
         }
 

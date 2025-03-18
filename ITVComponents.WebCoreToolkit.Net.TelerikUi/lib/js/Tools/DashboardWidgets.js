@@ -134,7 +134,7 @@
     },
     kendoExt: {
         defaultHeader:
-            '<div class="k-tilelayout-item-header k-card-header k-cursor-grab" style="margin-right:25px;"><div class="k-card-title">{{!$this.DisplayName}}</div></div><a class="k-button k-button-icon k-flat k-close-button"><span class="k-icon k-i-close"></span></a></div>',
+            '<div class="k-tilelayout-item-header k-card-header k-cursor-grab" style="margin-right:25px;"><div class="k-card-title">{{!$this.DisplayName}}</div></div><a class="k-button k-button-md k-button-icon k-flat k-close-button"><span class="fa-thin fa-xmark"></span></a></div>',
         defaultBody: '<div id="{{!$this.LocalRef}}" dashboard-id="{{!$this.DashboardWidgetId}}" dashboard-name="{{!$this.SystemName}}"></div>',
         closeDashboardItem: function (e) {
             var currentTarget = $(e.currentTarget);

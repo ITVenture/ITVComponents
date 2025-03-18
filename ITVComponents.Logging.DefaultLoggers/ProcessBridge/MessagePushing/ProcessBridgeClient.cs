@@ -24,7 +24,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
         private bool active = false;
 
         public ProcessBridgeClient(IBaseClient simpleClient, string remoteLoggerName, int minSeverity, int maxSeverity, string contextFilter, bool initialStatus)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus, true)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, true, false)
         {
             this.simpleClient = simpleClient;
             try
@@ -42,7 +42,7 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessagePushing
         }
 
         public ProcessBridgeClient(IBaseClient simpleClient, string remoteLoggerName, LogSeverity minSeverity, LogSeverity maxSeverity, string contextFilter, bool initialStatus)
-            : base(minSeverity, maxSeverity, contextFilter, initialStatus, true)
+            : base(minSeverity, maxSeverity, contextFilter, initialStatus, true, false)
         {
             this.simpleClient = simpleClient;
             try

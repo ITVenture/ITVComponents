@@ -1,8 +1,11 @@
 ﻿@using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options
 @using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel.RoleViewModel
+@inject IOptions<SecurityViewsOptions> soc;
 
 @(Html.Kendo().TabStrip().Name($"RolesAssignment{Model.RoleId}")
     .SelectedIndex(0)
@@ -14,4 +17,8 @@
         }
 
         item.Add().Text("Benutzer").LoadContentFrom("UserTable", "User", new {roleId = Model.RoleId, tenantId = Model.TenantId});
+        if (soc.Value.UseRoleInheritance)
+        {
+            item.Add().Text("Rollen").LoadContentFrom("RoleTable", "Role", new { roleId = Model.RoleId, tenantId = Model.TenantId });
+        }
 }))

@@ -14,10 +14,14 @@ using ITVComponents.Scripting.CScript.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Configuration;
+
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Interceptors;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Localization;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
@@ -45,10 +49,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
             [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
         {
             Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (contextOptions.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                }
             }
 
             if (partOptions.ActivateTemplateFactory)
@@ -56,24 +63,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
                 services.AddScoped<ITemplateHandlerFactory, TemplateHandlerFactory>();
             }
 
-            if (partOptions.ActivateFilters && t != null)
+            if (contextOptions.ConfigureContext)
             {
-                services.ConfigureGlobalFilters(t);
+                if (partOptions.ActivateFilters && t != null)
+                {
+                    services.ConfigureGlobalFilters(t);
+                }
+
+                if (partOptions.ActivateDefaultContextUserProvider && t != null)
+                {
+                    services.ConfigureDefaultContextUserProvider(t);
+                }
             }
 
-            if (partOptions.ActivateDefaultContextUserProvider && t != null)
+            if (partOptions.UseContextLocalizationServices)
             {
-                services.ConfigureDefaultContextUserProvider(t);
-            }
-        }
-
-        [CustomConfigurator(typeof(DbContextOptionsBuilder))]
-        public static void ConfigureDbInterceptors(DbContextOptionsBuilder optionsBuilder, IServiceProvider services,
-            [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
-        {
-            if (partOptions.ActivateCreateModifyAttributes)
-            {
-                optionsBuilder.AddInterceptors(new ModCreateInterceptor(services, partOptions.UseUTCForCreateModifyAttributes));
+                services.AddSingleton<IStringLocalizerFactory>(services =>
+                {
+                    return new ContextLocalizerFactory(services, services.GetService<IOptions<LocalizationOptions>>(),
+                        services.GetService<ILoggerFactory>());
+                });
+                //services.AddSingleton(typeof(IStringLocalizerFactory), typeof(ContextStringLocalizer));
             }
         }
     }

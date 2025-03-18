@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 
 namespace ITVComponents.WebCoreToolkit.Extensions
 {
@@ -16,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 try
                 {
                     var ok = false;
-                    var op = JsonHelper.FromJsonString<Dictionary<string, string>>(original);
+                    var op = JsonHelper.FromJsonString<Dictionary<string, string>>(original, SerializationTypingMode.StaticTyping);
                     original = op.Translate(jsonLanguageRecord, original);
                 }
                 catch

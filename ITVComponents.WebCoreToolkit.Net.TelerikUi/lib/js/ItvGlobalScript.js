@@ -1,6 +1,6 @@
 ﻿kendo.culture("de-CH");
 
-var ITVenture = {
+window.ITVenture = {
     Lang: "de",
     Text: {
         setText: function (language, label, text) {
@@ -97,6 +97,7 @@ var ITVenture = {
     },
     Tools: {},
     Pages: {},
+    Classes: {},
     Helpers: {
         htmlEntities: function (raw) {
             return raw.replaceAll(/[&<>'\"]/g,
@@ -324,6 +325,52 @@ var ITVenture = {
                 message += "(" + e.status + ")";
             }
             ITVenture.Tools.Popup.Open("alert", message);
+        }
+    },
+    FrontendSecurity: {
+        activeFeatures: [],
+        activePermissions:[],
+        permissionsUsed: false,
+        featuresUsed: false,
+        permissionDownload: null,
+        featureDownload: null,
+        InitFeatures: function () {
+            var asyncFx = async function () {
+                ITVenture.FrontendSecurity.featuresUsed = true;
+                var tmp = await ITVenture.Ajax.ajaxGet("~/TenantFeatures");
+                for (var i = 0; i < tmp.length; i++) {
+                    ITVenture.FrontendSecurity.activeFeatures.push(tmp[i]);
+                }
+            };
+            $(document).ready(function () { ITVenture.FrontendSecurity.featureDownload = asyncFx(); });
+        },
+        InitPermissions: function () {
+            var asyncFx = async function () {
+                ITVenture.FrontendSecurity.permissionsUsed = true;
+                var tmp = await ITVenture.Ajax.ajaxGet("~/UserPermissions");
+                for (var i = 0; i < tmp.length; i++) {
+                    ITVenture.FrontendSecurity.activePermissions.push(tmp[i]);
+                }
+            };
+            $(document).ready(function () { ITVenture.FrontendSecurity.permissionDownload = asyncFx(); });
+        },
+        Init: function () {
+            ITVenture.FrontendSecurity.InitFeatures();
+            ITVenture.FrontendSecurity.InitPermissions();
+        },
+        CheckPermission: async function (permissionName) {
+            await ITVenture.FrontendSecurity.permissionDownload;
+            var lowerPerm = permissionName.toLowerCase();
+            var retVal = !ITVenture.FrontendSecurity.permissionsUsed
+                || ITVenture.FrontendSecurity.activePermissions.findIndex(n => n.PermissionName.toLowerCase() == lowerPerm) != -1;
+            return retVal;
+        },
+        CheckFeature: async function (featureName) {
+            await ITVenture.FrontendSecurity.featureDownload;
+            var lowerFeat = featureName.toLowerCase();
+            var retVal = !ITVenture.FrontendSecurity.featuresUsed
+                || ITVenture.FrontendSecurity.activeFeatures.findIndex(n => n.FeatureName.toLowerCase() == lowerFeat) != -1;
+            return retVal;
         }
     }
 };

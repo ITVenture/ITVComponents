@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
@@ -6,11 +7,15 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Factory;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnections;
 using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
+using ITVComponents.InterProcessCommunication.MessagingShared.Messages.ProtocolHelper;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Base;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Threading;
+using Microsoft.AspNetCore.StaticFiles;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 {
@@ -69,6 +74,11 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             ReConnectClient();
         }
 
+        static MessageClient()
+        {
+            MessageTranslator.RegisterMessages();
+        }
+
         public override bool IsBidirectional => isBidirectional && !string.IsNullOrEmpty(connection.ServiceName);
 
         /// <summary>
@@ -86,8 +96,10 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
                     AuthenticatedUser = identityProvider?.CurrentIdentity
                 };
 
-                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(msg, true));
-                var response = TestMessage<ObjectAvailabilityResponseMessage>(tk).ConfigureAwait(false).GetAwaiter()
+                var msgString = JsonHelper.ToJson(msg, SerializationTypingMode.NativePolymorphism,
+                    typeof(IRequestMessage), true);
+                var tk = connection.InvokeServiceAsync(targetService, msgString);
+                var response = tk.TestServerMessage<ObjectAvailabilityResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter()
                     .GetResult();
                 return new ObjectAvailabilityResult {Available = response.Available, Message = response.Message};
             }
@@ -108,13 +120,13 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
         {
             if (connected)
             {
-                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
-                    new AbandonExtendedProxyRequestMessage
-                    {
-                        ObjectName = uniqueName,
-                        AuthenticatedUser = identityProvider?.CurrentIdentity
-                    }, true));
-                return TestMessage<AbandonExtendedProxyResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult().Result;
+                var msgStr = JsonHelper.ToJson(new AbandonExtendedProxyRequestMessage
+                {
+                    ObjectName = uniqueName,
+                    AuthenticatedUser = identityProvider?.CurrentIdentity
+                }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage), true);
+                var tk = connection.InvokeServiceAsync(targetService, msgStr);
+                return tk.TestServerMessage<AbandonExtendedProxyResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult().Result;
             }
 
             throw new InterProcessException("Not connected!", null);
@@ -124,15 +136,15 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
         {
             if (connected)
             {
-                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
-                    new GetPropertyRequestMessage
-                    {
-                        TargetMethod = propertyName,
-                        TargetObject = uniqueName,
-                        MethodArguments = index,
-                        AuthenticatedUser = identityProvider?.CurrentIdentity
-                    }, true));
-                return TestMessage<GetPropertyResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult().Result;
+                var msgStr = JsonHelper.ToJson(new GetPropertyRequestMessage
+                {
+                    TargetMethod = propertyName,
+                    TargetObject = uniqueName,
+                    MethodArguments = index.PackArguments(),
+                    AuthenticatedUser = identityProvider?.CurrentIdentity
+                }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage), true);
+                var tk = connection.InvokeServiceAsync(targetService, msgStr);
+                return tk.TestServerMessage<GetPropertyResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult().Result;
             }
 
             throw new InterProcessException("Not connected!", null);
@@ -142,16 +154,16 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
         {
             if (connected)
             {
-                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
-                    new SetPropertyRequestMessage
-                    {
-                        TargetMethod = propertyName,
-                        TargetObject = uniqueName,
-                        MethodArguments = index,
-                        Value = value,
-                        AuthenticatedUser = identityProvider?.CurrentIdentity
-                    }, true));
-                var tmp = TestMessage<SetPropertyResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult();
+                var msgStr = JsonHelper.ToJson(new SetPropertyRequestMessage
+                {
+                    TargetMethod = propertyName,
+                    TargetObject = uniqueName,
+                    MethodArguments = index.PackArguments(),
+                    Value = value,
+                    AuthenticatedUser = identityProvider?.CurrentIdentity
+                }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage), true);
+                var tk = connection.InvokeServiceAsync(targetService, msgStr);
+                var tmp = tk.TestServerMessage<SetPropertyResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult();
                 if (!tmp.Ok)
                 {
                     throw new InterProcessException("Set-Property was not successful", null);
@@ -176,19 +188,21 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             {
                 try
                 {
+                    var msgStr = JsonHelper.ToJson(new InvokeMethodRequestMessage
+                    {
+                        MethodArguments = arguments.PackArguments(),
+                        TargetMethod = methodName,
+                        TargetObject = uniqueName,
+                        AuthenticatedUser = identityProvider?.CurrentIdentity
+                    }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage), true);
                     var tk = connection.InvokeServiceAsync(targetService,
-                        JsonHelper.ToJsonStrongTyped(
-                            new InvokeMethodRequestMessage
-                            {
-                                MethodArguments = arguments, TargetMethod = methodName, TargetObject = uniqueName,
-                                AuthenticatedUser = identityProvider?.CurrentIdentity
-                            }, true));
-                    var ret = TestMessage<InvokeMethodResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult();
+                        msgStr);
+                    var ret = tk.TestServerMessage<InvokeMethodResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult();
                     return new ExecutionResult
                     {
                         ActionName = methodName,
-                        Parameters = ret.Arguments,
-                        Result = ret.Result
+                        Parameters = ret.Arguments.UnpackArguments(),
+                        Result = ret.Result.UnpackArguments().FirstOrDefault()
                     };
                 }
                 catch (TimeoutException tex)
@@ -214,19 +228,21 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             {
                 try
                 {
+                    var msgStr = JsonHelper.ToJson(new InvokeMethodRequestMessage
+                    {
+                        MethodArguments = arguments.PackArguments(),
+                        TargetMethod = methodName,
+                        TargetObject = uniqueName,
+                        AuthenticatedUser = identityProvider?.CurrentIdentity
+                    }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage), true);
                     var tk = connection.InvokeServiceAsync(targetService,
-                        JsonHelper.ToJsonStrongTyped(
-                            new InvokeMethodRequestMessage
-                            {
-                                MethodArguments = arguments, TargetMethod = methodName, TargetObject = uniqueName,
-                                AuthenticatedUser = identityProvider?.CurrentIdentity
-                            }, true));
-                    var ret = await TestMessage<InvokeMethodResponseMessage>(tk);
+                        msgStr);
+                    var ret = await tk.TestServerMessage<InvokeMethodResponseMessage>(CheckConnected, CheckConnected);
                     return new ExecutionResult
                     {
                         ActionName = methodName,
-                        Parameters = ret.Arguments,
-                        Result = ret.Result
+                        Parameters = ret.Arguments.UnpackArguments(),
+                        Result = ret.Result.UnpackArguments().FirstOrDefault()
                     };
                 }
                 catch(TimeoutException tex)
@@ -253,16 +269,16 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
             if (connected)
             {
-                LogEnvironment.LogEvent($@"Subscribe {eventName} on {uniqueName} for {Target}", LogSeverity.Report);
-                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
-                    new RegisterEventRequestMessage
-                    {
-                        TargetObject = uniqueName,
-                        EventName = eventName,
-                        RespondChannel = connection.ServiceName,
-                        AuthenticatedUser = identityProvider?.CurrentIdentity
-                    }, true));
-                var ret = TestMessage<RegisterEventResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult();
+                LogEnvironment.LogEvent($@"Subscribe {eventName} on {UniqueName} for {connection.ServiceName}. TargetService: {targetService}", LogSeverity.Report);
+                var msgStr = JsonHelper.ToJson(new RegisterEventRequestMessage
+                {
+                    TargetObject = uniqueName,
+                    EventName = eventName,
+                    RespondChannel = connection.ServiceName,
+                    AuthenticatedUser = identityProvider?.CurrentIdentity
+                }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage));
+                var tk = connection.InvokeServiceAsync(targetService, msgStr);
+                var ret = tk.TestServerMessage<RegisterEventResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult();
                 if (!ret.Ok)
                 {
                     throw new InterProcessException("Register-Event was not successful", null);
@@ -288,15 +304,15 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
             if (connected)
             {
-                var tk = connection.InvokeServiceAsync(targetService, JsonHelper.ToJsonStrongTyped(
-                    new UnRegisterEventRequestMessage
-                    {
-                        TargetObject = uniqueName,
-                        EventName = eventName,
-                        RespondChannel = connection.ServiceName,
-                        AuthenticatedUser = identityProvider?.CurrentIdentity
-                    }, true));
-                var ret = TestMessage<UnRegisterEventResponseMessage>(tk).ConfigureAwait(false).GetAwaiter().GetResult();
+                var msgStr = JsonHelper.ToJson(new UnRegisterEventRequestMessage
+                {
+                    TargetObject = uniqueName,
+                    EventName = eventName,
+                    RespondChannel = connection.ServiceName,
+                    AuthenticatedUser = identityProvider?.CurrentIdentity
+                }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage), true);
+                var tk = connection.InvokeServiceAsync(targetService, msgStr);
+                var ret = tk.TestServerMessage<UnRegisterEventResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult();
                 if (!ret.Ok)
                 {
                     throw new InterProcessException("Un-Register-Event was not successful", null);
@@ -420,62 +436,20 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
         /// <param name="e">the event-arguments that werde constructed from the server-request</param>
         private void ProcessMessage(object? sender, MessageArrivedEventArgs e)
         {
-            var message = TestMessage<EventNotificationMessage>(Task.FromResult(e.Message)).ConfigureAwait(false).GetAwaiter().GetResult();
+            var message = Task.FromResult(e.Message).TestClientMessage<EventNotificationMessage>(CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult();
             try
             {
-                RaiseEvent(message.EventName, message.Arguments);
-                e.Response = JsonHelper.ToJsonStrongTyped(message, true);
+                RaiseEvent(message.EventName, message.Arguments.UnpackArguments());
+                e.Response = JsonHelper.ToJson(message, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
             }
             catch (Exception ex)
             {
-                e.Error = ex;
+                e.Error = JsonHelper.ToJson(new ErrorResponse{SerializedException =  ex}, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
             }
             finally
             {
                 e.Completed = true;
             }
-        }
-
-        /// <summary>
-        /// Tests the received message and returns it, if its the expected type or throws an exception otherwise
-        /// </summary>
-        /// <typeparam name="TExpectedType">the expected incoming type</typeparam>
-        /// <param name="message">the received message</param>
-        /// <returns>the parsed message</returns>
-        private async Task<TExpectedType> TestMessage<TExpectedType>(Task<string> msgFunc)where TExpectedType:class
-        {
-            object tmp = null;
-            string message = null;
-            try
-            {
-                message = await msgFunc.ConfigureAwait(false);
-                tmp = JsonHelper.FromJsonStringStrongTyped<object>(message, true);
-                var ret = tmp as TExpectedType;
-                if (tmp != null && ret != null)
-                {
-                    return ret;
-                }
-            }
-            catch(Exception exx)
-            {
-                LogEnvironment.LogDebugEvent(null, $"Error processing message: {exx.OutlineException()}",
-                    (int)LogSeverity.Error, "ITVComponents.IPC.MS.MessageClient");
-                tmp = exx;
-            }
-
-            if (tmp is SerializedException ex)
-            {
-                CheckConnected(ex);
-                throw new InterProcessException("Server-Operation failed!", ex);
-            }
-
-            if (tmp is Exception inex)
-            {
-                CheckConnected(inex);
-                throw new InterProcessException("Server-Operation failed!", inex);
-            }
-
-            throw new InterProcessException($"Unexpected Response: {message}", null);
         }
 
         private void CheckConnected(SerializedException ex)

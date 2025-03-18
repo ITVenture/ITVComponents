@@ -4,6 +4,7 @@
 @using System.Collections
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Models
+@using ITVComponents.WebCoreToolkit.Net.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
@@ -11,11 +12,20 @@
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using ITVComponents.WebCoreToolkit.Routing
 @using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
 @using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources.TextsAndMessagesHelper
 @inject IUrlFormat urlFormatter;
+@inject IOptions<NetFileLinkOptions> fileLinkOptions
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.Options.ConfigExchangeOptions
 
-<a href="@(urlFormatter.FormatUrl("[SlashPermissionScope]/File"))/@(ViewData["ConfigLink"])">Download Configuration</a>
+@if (!fileLinkOptions.Value.FileTokenAsQuery)
+{
+    <a href="@(urlFormatter.FormatUrl("[SlashPermissionScope]/File"))/@(ViewData["ConfigLink"])">Download Configuration</a>
+}
+else
+{
+    <a href="@(urlFormatter.FormatUrl("[SlashPermissionScope]/File"))?FileToken=@(ViewData["ConfigLink"])">Download Configuration</a>
+}
 
 
 @(await Component.InvokeAsync(typeof(ConfigurationDiffViewer), new { 

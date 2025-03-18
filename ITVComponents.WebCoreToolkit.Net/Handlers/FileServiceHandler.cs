@@ -6,6 +6,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
@@ -97,6 +98,32 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             return await GetFile(context, false, fileToken);
         }
 
+        /// <summary>
+        /// Upload-Endpoint for File-operations
+        /// </summary>
+        /// <param name="context">the http-context in which the query is being executed</param>
+        /// <param name="fileToken">A base64 token (encrypted or clear-text) holding information about the file to download.</param>
+        /// <response code="200">a file-result (streamable, if supported by the file-handler) of the requested file</response>
+        /// <response code="404">when the handler was unable to find the requested file</response>
+        /// <response code="401">when the handler denies access to the requested file</response>
+        public static async Task<IResult> GetQueryWithAuth(HttpContext context, [FromQuery(Name = "FileToken")] string fileToken)
+        {
+            return await GetFile(context, true, fileToken);
+        }
+
+        /// <summary>
+        /// Upload-Endpoint for File-operations
+        /// </summary>
+        /// <param name="context">the http-context in which the query is being executed</param>
+        /// <param name="fileToken">A base64 token (encrypted or clear-text) holding information about the file to download.</param>
+        /// <response code="200">a file-result (streamable, if supported by the file-handler) of the requested file</response>
+        /// <response code="404">when the handler was unable to find the requested file</response>
+        /// <response code="401">when the handler denies access to the requested file</response>
+        public static async Task<IResult> GetQueryNoAuth(HttpContext context, [FromQuery(Name = "FileToken")] string fileToken)
+        {
+            return await GetFile(context, false, fileToken);
+        }
+
         private static async Task<IResult> PostFile(HttpContext context, bool withAuthorization, string uploadModule, string reason, string uploadHint, MultipartFileModel fileData)
         {
             if (fileData == null)
@@ -131,7 +158,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 var options = new UploadOptions();
                 if (!string.IsNullOrEmpty(finalSettingsRaw))
                 {
-                    options = JsonHelper.FromJsonString<UploadOptions>(finalSettingsRaw);
+                    options = JsonHelper.FromJsonString<UploadOptions>(finalSettingsRaw, SerializationTypingMode.StaticTyping);
                 }
 
                 var maxSize = context.Features.Get<IHttpMaxRequestBodySizeFeature>();

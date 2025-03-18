@@ -1,0 +1,37 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Models
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources.TextsAndMessagesHelper
+
+
+@(Html.Kendo().Grid<ViewDataViewModel>().Name("ViewDataList")
+    //.HtmlAttributes(new { style = "width:50vw;" })
+            .Columns(columns =>
+            {
+                columns.Bound(n => n.Identifier);
+                columns.Bound(n => n.Kind);
+                columns.Bound(n => n.AssemblyLocation);
+                columns.Bound(n => n.Path);
+            })
+            .ToolBar(toolbar =>
+            {
+                toolbar.RefreshTable();
+            })
+            .DataSource(dataSource =>
+            {
+                var src = dataSource
+                    .Ajax()
+                    .Read(read => read.Action("ReadViewList", "AssemblyDiagnostics"))
+                    .Sort(n => n.Add(m => m.Identifier));
+            })
+            .Scrollable(s => s.Height("auto"))
+            .Sortable(c => c.Enabled(true))
+            .Resizable(c => c.Columns(true)))

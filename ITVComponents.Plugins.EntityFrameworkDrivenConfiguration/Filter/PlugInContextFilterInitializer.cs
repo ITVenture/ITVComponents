@@ -21,12 +21,17 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration.Filter
             this.customPluginParameterTable = customPluginParameterTable;
         }
 
-        public PlugInContextFilterInitializer():base()
+        public PlugInContextFilterInitializer(string customPluginsTable, string customPluginParameterTable, DbModelBuilderOptionsProvider<TContext> parent) : base(parent)
         {
-
+            this.customPluginsTable = customPluginsTable;
+            this.customPluginParameterTable = customPluginParameterTable;
         }
 
-        public PlugInContextFilterInitializer(DbModelBuilderOptionsProvider<TContext> innerBuilder) : base(innerBuilder) { }
+        public PlugInContextFilterInitializer():base()
+        {
+        }
+
+        public PlugInContextFilterInitializer(DbModelBuilderOptionsProvider<TContext> parent) : base(parent) { }
 
         protected override void Configure(DbContextModelBuilderOptions<TContext> options)
         {

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using ITVComponents.WebCoreToolkit.AspExtensions;
+using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.EntityFrameworkCore;
@@ -9,12 +10,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
 {
     public static class ApplicationPartExtensions
     {
-        public static ApplicationPartManager EnableItvUserView(this ApplicationPartManager manager)
+        public static ApplicationPartManager EnableItvUserView(this ApplicationPartManager manager, AssemblyPartTypeLoadBehaviorOptions loadingOptions)
         {
-            return manager.EnableItvUserView<AspNetSecurityContext>();
+            return manager.EnableItvUserView<AspNetSecurityContext>(loadingOptions);
         }
 
-        public static ApplicationPartManager EnableItvUserView<TContext>(this ApplicationPartManager manager)
+        public static ApplicationPartManager EnableItvUserView<TContext>(this ApplicationPartManager manager, AssemblyPartTypeLoadBehaviorOptions loadingOptions)
         where TContext:AspNetSecurityContext<TContext>
         {
             var dic = new Dictionary<string, Type>
@@ -22,12 +23,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 { "TContext", typeof(TContext)}
             };
 
-            AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic);
+            AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic, defaultBehavior:loadingOptions.DefaultBehavior, customBehaviors:loadingOptions.CustomLoadings);
             manager.ApplicationParts.Add(part);
             return manager;
         }
 
-        public static ApplicationPartManager EnableItvUserView(this ApplicationPartManager manager, Type contextType)
+        public static ApplicationPartManager EnableItvUserView(this ApplicationPartManager manager, Type contextType, AssemblyPartTypeLoadBehaviorOptions loadingOptions)
         {
             if (!typeof(DbContext).IsAssignableFrom(contextType))
             {
@@ -39,7 +40,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 { "TContext", contextType}
             };
 
-            AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic);
+            AssemblyPartWithGenerics part = new AssemblyPartWithGenerics(typeof(ApplicationPartExtensions).Assembly, dic, defaultBehavior:loadingOptions.DefaultBehavior, customBehaviors:loadingOptions.CustomLoadings);
             manager.ApplicationParts.Add(part);
             return manager;
         }

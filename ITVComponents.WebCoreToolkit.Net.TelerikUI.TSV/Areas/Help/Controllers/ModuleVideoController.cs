@@ -19,11 +19,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.H
     [Authorize("HasPermission(ModuleHelp.View,ModuleHelp.Write)"), Area("Help")]
     public class ModuleVideoController : Controller
     {
-        private readonly IBaseTenantContext db;
+        private readonly ICoreSystemContext db;
         private readonly IHierarchySettings<TutorialOptions> options;
         private string videoFileHandler;
 
-        public ModuleVideoController(IBaseTenantContext db, IHierarchySettings<TutorialOptions> options)
+        public ModuleVideoController(ICoreSystemContext db, IHierarchySettings<TutorialOptions> options)
         {
             this.db = db;
             this.options = options;

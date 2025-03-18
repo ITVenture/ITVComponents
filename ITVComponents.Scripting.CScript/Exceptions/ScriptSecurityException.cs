@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Exceptions
 {
-    [Serializable]
     public class ScriptSecurityException:ScriptException
     {
         public ScriptSecurityException()
@@ -19,12 +18,6 @@ namespace ITVComponents.Scripting.CScript.Exceptions
         }
 
         public ScriptSecurityException(string message, Exception inner) : base(message, inner)
-        {
-        }
-
-        protected ScriptSecurityException(
-            SerializationInfo info,
-            StreamingContext context) : base(info, context)
         {
         }
     }

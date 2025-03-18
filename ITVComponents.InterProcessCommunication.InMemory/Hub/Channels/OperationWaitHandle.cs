@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
 {
@@ -10,8 +11,8 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
     {
         public OperationWaitHandle()
         {
-            ServerResponse = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+            ServerResponse = new TaskCompletionSource<IProtocolMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         }
-        public TaskCompletionSource<object> ServerResponse{get;}
+        public TaskCompletionSource<IProtocolMessage> ServerResponse{get;}
     }
 }

@@ -19,8 +19,7 @@
 
 <script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
 
-<div class="row">
+
     @await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", Model }, { "permissionId", null }, { "userId", null } } })
-</div>
 
 @Html.DetailViewScript("RoleDetails","RasDummy#=RoleId#",$"~/Security/Role/RoleDetails?roleId=#=RoleId#&tenantId={Model}",false)

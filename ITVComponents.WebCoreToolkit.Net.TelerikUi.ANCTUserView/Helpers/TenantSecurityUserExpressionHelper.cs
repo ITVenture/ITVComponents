@@ -5,7 +5,7 @@ using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.Helpers
 {
-    public class TenantSecurityUserExpressionHelper:IUserExpressionHelper<string,User,TenantUser>
+    public class TenantSecurityUserExpressionHelper:IUserExpressionHelper<string,User,TenantUser, RoleRole>
     {
         public Expression<Func<User, bool>> EqualsUserId(string id)
         {

@@ -8,7 +8,6 @@ namespace ITVComponents.Plugins.PluginServices
     /// <summary>
     /// Describes a Plugin - Parameter
     /// </summary>
-    [Serializable]
     public class PluginParameterElement
     {
         /// <summary>

@@ -10,6 +10,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
@@ -76,6 +77,14 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
             Connected = true;
         }
 
+        static MemoryServiceChannel()
+        {
+            JsonHelper.ExtendNativeProtocolType<IProtocolMessage, Request>("InMemRequest");
+            JsonHelper.ExtendNativeProtocolType<IProtocolMessage, Response>("InMemResponse");
+            JsonHelper.ExtendNativeProtocolType<IProtocolMessage, ConnectionDispose>("InMemDisconnect");
+            JsonHelper.ExtendNativeProtocolType<IProtocolMessage, ConnectionRequest>("InMemConnect");
+        }
+
         public string Name { get; }
 
         public bool Connected { get; private set; }
@@ -124,13 +133,13 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
         }
 
         public CancellationToken CancellationToken => endTok;
-        public async Task WriteAsync(object message)
+        public async Task WriteAsync(IProtocolMessage message)
         {
             if (outgoing != null)
             {
                 try
                 {
-                    await outgoing.WriteAsync(JsonHelper.ToJsonStrongTyped(message), endTok);
+                    await outgoing.WriteAsync(JsonHelper.ToJson(message, SerializationTypingMode.NativePolymorphism, typeof(IProtocolMessage), true), endTok);
                     connected = true;
                     if (!Connected)
                     {
@@ -164,13 +173,13 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
             }
         }
 
-        public void Write(object message)
+        public void Write(IProtocolMessage message)
         {
             var awaiter = WriteAsync(message).ConfigureAwait(false).GetAwaiter();
             awaiter.GetResult();
         }
 
-        public Task<object> Request(object requestMessage)
+        public Task<IProtocolMessage> Request(IProtocolMessage requestMessage)
         {
             Hub.ProtoExtensions.Request r;
             lock (reqRnd)
@@ -179,7 +188,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
                 {
                     Payload = requestMessage,
                     RequestId = $"{mode}_{reqRnd.Next(25000)}_{DateTime.Now.Ticks}",
-                    Identity = (userProvider?.CurrentIdentity != null) ? JsonHelper.ToJsonStrongTyped(userProvider.CurrentIdentity) : null
+                    Identity = (userProvider?.CurrentIdentity != null) ? JsonHelper.ToJson(userProvider.CurrentIdentity, SerializationTypingMode.StaticTyping, null) : null
                 };
             }
 
@@ -201,7 +210,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
                 }
 
                 return wh.ServerResponse.Task;
-            }, TimeSpan.FromSeconds(10), t =>
+            }, requestMessage.Timeout??TimeSpan.FromSeconds(10), t =>
             {
                 waitingOperations.TryRemove(r.RequestId, out _);
             });
@@ -223,7 +232,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
             {
                 var context = new DataTransferContext();
                 string requestId = null;
-                var obj = JsonHelper.FromJsonStringStrongTyped<object>(e.Data);
+                var obj = JsonHelper.FromJsonString<IProtocolMessage>(e.Data, SerializationTypingMode.NativePolymorphism, true);
                 LogEnvironment.LogDebugEvent($"Message-Type: {obj.GetType()}", LogSeverity.Report);
                 if (obj is Request req)
                 {
@@ -231,7 +240,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
                     requestId = req.RequestId;
                     if (!string.IsNullOrEmpty(req.Identity))
                     {
-                        context.Identity = JsonHelper.FromJsonStringStrongTyped<TransferIdentity>(req.Identity).ToIdentity();
+                        context.Identity = JsonHelper.FromJsonString<TransferIdentity>(req.Identity, SerializationTypingMode.StaticTyping).ToIdentity();
                     }
                 }
                 else if (obj is Response rep)

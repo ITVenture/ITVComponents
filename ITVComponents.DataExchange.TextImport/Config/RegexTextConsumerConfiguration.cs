@@ -3,7 +3,6 @@ using ITVComponents.DataExchange.Configuration;
 
 namespace ITVComponents.DataExchange.TextImport.Config
 {
-    [Serializable]
     public class RegexTextConsumerConfiguration
     {
         /// <summary>

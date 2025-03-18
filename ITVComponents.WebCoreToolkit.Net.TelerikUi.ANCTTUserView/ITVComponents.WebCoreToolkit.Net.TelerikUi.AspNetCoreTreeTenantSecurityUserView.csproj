@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
+  <PropertyGroup>
+    <LangVersion>8.0</LangVersion>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>4.0.0-PRE069</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+    <RazorCompileOnPublish>true</RazorCompileOnPublish>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <LangVersion>12</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" />
+  </Target>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants\ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.InterProcessExtensions\ITVComponents.WebCoreToolkit.InterProcessExtensions.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUI.TSV\ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi\ITVComponents.WebCoreToolkit.Net.TelerikUi.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="4.9.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="4.9.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Areas\Security\Views\Tenant\Components\ShowTable\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="Areas\Security\Views\Tenant\Components\ShowTable\Default.cshtml">
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

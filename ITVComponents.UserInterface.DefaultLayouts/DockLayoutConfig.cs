@@ -10,7 +10,6 @@ using ITVComponents.UserInterface.DefaultLayouts.Config;
 
 namespace ITVComponents.UserInterface.DefaultLayouts
 {
-    [Serializable]
     public class DockLayoutConfig:JsonSettingsSection
     {
         /// <summary>

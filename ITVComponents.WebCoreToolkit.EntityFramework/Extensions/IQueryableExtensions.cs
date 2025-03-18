@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
     public static class QueryableExtensions
     {
         public static IQueryable<T> WithDefaultFilter<T>(this IQueryable<T> baseQuery, HttpRequest request,
-            Func<string, string> redirectProps = null,
+            Func<string, string[]> redirectProps = null,
             Func<Type, string, bool> useProperty = null, Func<string, string> unpackString = null, string nativeConfigurationName = null)
         {
             var t = typeof(T);

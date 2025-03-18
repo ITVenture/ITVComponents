@@ -6,7 +6,6 @@ using System.Text;
 
 namespace ITVComponents.CommandLineParser
 {
-    [Serializable]
     public class CommandLineSyntaxException : Exception
     {
         //
@@ -21,12 +20,6 @@ namespace ITVComponents.CommandLineParser
         }
 
         public CommandLineSyntaxException(string argumentName) : base(string.Format("The Argument {0} is missing or has an invalid value", argumentName))
-        {
-        }
-
-        protected CommandLineSyntaxException(
-            SerializationInfo info,
-            StreamingContext context) : base(info, context)
         {
         }
     }

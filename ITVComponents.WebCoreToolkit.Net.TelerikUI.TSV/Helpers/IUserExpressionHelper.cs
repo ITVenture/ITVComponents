@@ -8,7 +8,7 @@ using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
 {
-    public interface IUserExpressionHelper<TUserId, TUser, TTenantUser>
+    public interface IUserExpressionHelper<TUserId, TUser, TTenantUser, TRoleRole>
     {
         Expression<Func<TUser, bool>> EqualsUserId(TUserId id);
 

@@ -3,7 +3,6 @@ using System.Windows.Controls;
 
 namespace ITVComponents.UserInterface.DefaultLayouts.Config
 {
-    [Serializable]
     public class DockLayoutItem
     {
         /// <summary>

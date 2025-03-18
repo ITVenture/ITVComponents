@@ -3,6 +3,9 @@
 //     2009 by IT-Venture GmbH
 // </copyright>
 //-----------------------------------------------------------------------
+
+using System.Text.Json.Serialization;
+
 namespace ITVComponents
 {
     using System;
@@ -10,7 +13,6 @@ namespace ITVComponents
     /// <summary>
     /// Occurs when a IT-Venture Component produces an error
     /// </summary>
-    [Serializable]
     public class ComponentException : Exception
     {
         /// <summary>
@@ -61,17 +63,6 @@ namespace ITVComponents
         }
 
         /// <summary>
-        /// Initializes a new instance of the ComponentException class
-        /// </summary>
-        /// <param name="info">the serialization info required to deserialize the object</param>
-        /// <param name="context">the serialization context</param>
-        public ComponentException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
-        {
-            this.critical = info.GetBoolean("critical");
-        }
-
-        /// <summary>
         /// Prevents a default instance of the ComponentException class from being created
         /// </summary>
         private ComponentException()
@@ -87,17 +78,6 @@ namespace ITVComponents
             {
                 return this.critical;
             }
-        }
-
-        /// <summary>
-        /// Serializes the object
-        /// </summary>
-        /// <param name="info">the serialization info required to serialize the object</param>
-        /// <param name="context">the serialization context</param>
-        public override void GetObjectData(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-        {
-            base.GetObjectData(info, context);
-            info.AddValue("critical", this.critical);
         }
     }
 }

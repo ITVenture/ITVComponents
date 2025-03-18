@@ -22,7 +22,6 @@ using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 using ITVComponents.Scripting.CScript.Security.Restrictions;
-using Newtonsoft.Json.Linq;
 using ValueType = ITVComponents.Scripting.CScript.ScriptValues.ValueType;
 using Void = ITVComponents.Scripting.CScript.ScriptValues.Void;
 

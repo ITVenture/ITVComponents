@@ -89,12 +89,17 @@ namespace ITVComponents.Security
         /// <returns>an encrypted string that represents the provided value</returns>
         public static string Encrypt(this string input)
         {
-            if (!useAes)
+            if (!string.IsNullOrEmpty(input))
             {
-                return EncryptString(ToSecureString(input));
+                if (!useAes)
+                {
+                    return EncryptString(ToSecureString(input));
+                }
+
+                return AesEncryptor.Encrypt(input, entropy);
             }
 
-            return AesEncryptor.Encrypt(input, entropy);
+            return null;
         }
 
         /// <summary>
@@ -110,7 +115,12 @@ namespace ITVComponents.Security
                 throw new InvalidOperationException("Only available for AES encryption");
             }
 
-            return AesEncryptor.Encrypt(input, password);
+            if (!string.IsNullOrEmpty(input))
+            {
+                return AesEncryptor.Encrypt(input, password);
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -120,12 +130,17 @@ namespace ITVComponents.Security
         /// <returns>the cleartext representation of the provided encrypted string</returns>
         public static string Decrypt(this string input)
         {
-            if (!useAes)
+            if (!string.IsNullOrEmpty(input))
             {
-                return ToInsecureString(DecryptString(input));
+                if (!useAes)
+                {
+                    return ToInsecureString(DecryptString(input));
+                }
+
+                return AesEncryptor.Decrypt(input, entropy);
             }
 
-            return AesEncryptor.Decrypt(input, entropy);
+            return null;
             //return DecryptAes(input);
         }
 
@@ -142,7 +157,12 @@ namespace ITVComponents.Security
                 throw new InvalidOperationException("Only available for AES encryption");
             }
 
-            return AesEncryptor.Decrypt(input, password);
+            if (!string.IsNullOrEmpty(input))
+            {
+                return AesEncryptor.Decrypt(input, password);
+            }
+
+            return null;
         }
         
         /////////////

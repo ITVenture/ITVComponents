@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models
 {
     [Index(nameof(SettingsKey), nameof(TenantId), IsUnique=true, Name="UQ_SettingsKey")]
-    public class TenantSetting
+    public class TenantSetting<TTenant> where TTenant:Tenant
     {
         [Key]
         public int TenantSettingId { get; set; }
@@ -20,6 +20,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         public bool JsonSetting { get; set; }
 
         [ForeignKey(nameof(TenantId))]
-        public virtual Tenant Tenant { get; set; }
+        public virtual TTenant Tenant { get; set; }
     }
 }

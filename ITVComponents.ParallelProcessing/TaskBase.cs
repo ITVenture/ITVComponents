@@ -5,12 +5,13 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Threading;
 using ITVComponents.ParallelProcessing.Helpers;
 
 namespace ITVComponents.ParallelProcessing
 {
-    public abstract class TaskBase : ITask, ISerializable
+    public abstract class TaskBase : ITask, IManualSerializer
     {
         private IAsyncResult asyncHelper;
         private int priority;
@@ -22,18 +23,6 @@ namespace ITVComponents.ParallelProcessing
 
         protected TaskBase()
         {
-        }
-
-        protected TaskBase(SerializationInfo info, StreamingContext context) : this()
-        {
-            priority = (int)info.GetValue("TB##Priority", typeof(int));
-            schedules = (ICollection<SchedulerPolicy>)info.GetValue("TB##Schedules", typeof(ICollection<SchedulerPolicy>));
-            lastExecution = (DateTime)info.GetValue("TB##LastExecution", typeof(DateTime));
-            description = (string)info.GetValue("TB##Description", typeof(string));
-            Success = (bool)info.GetValue("Success", typeof(bool));
-            Error = (SerializedException)info.GetValue("Error", typeof(SerializedException));
-            active = (bool)info.GetValue("TB##Active", typeof(bool));
-            executingUnsafe = (bool)info.GetValue("TB##ExecutingUnsafe", typeof(bool));
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
@@ -170,24 +159,37 @@ namespace ITVComponents.ParallelProcessing
         /// <returns>a ResourceLock that resets the unsafe-flag when disposed</returns>
         public abstract IDisposable Unsafe();
 
-        public void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            info.AddValue("TB##Priority", priority);
-            info.AddValue("TB##Schedules", schedules);
-            info.AddValue("TB##LastExecution", lastExecution);
-            info.AddValue("TB##Description", description);
-            info.AddValue("Success", Success);
-            info.AddValue("Error", Error);
-            info.AddValue("TB##Active", active);
-            info.AddValue("TB##ExecutingUnsafe", executingUnsafe);
-            CompleteObjectData(info, context);
-        }
-
-        protected abstract void CompleteObjectData(SerializationInfo info, StreamingContext context);
+        protected abstract void CompleteObjectData();
 
         protected virtual void ResetTask()
         {
             asyncHelper = null;
+        }
+
+        public IList<ManualSerializationData> Data { get; set; }
+        public void GetObjectData()
+        {
+            Data.Add(ManualSerializationData.FromValue("TB##Priority", priority));
+            Data.Add(ManualSerializationData.FromValue("TB##Schedules", schedules));
+            Data.Add(ManualSerializationData.FromValue("TB##LastExecution", lastExecution));
+            Data.Add(ManualSerializationData.FromValue("TB##Description", description));
+            Data.Add(ManualSerializationData.FromValue("Success", Success));
+            Data.Add(ManualSerializationData.FromValue("Error", Error));
+            Data.Add(ManualSerializationData.FromValue("TB##Active", active));
+            Data.Add(ManualSerializationData.FromValue("TB##ExecutingUnsafe", executingUnsafe));
+            CompleteObjectData();
+        }
+
+        public virtual void ApplyObjectData()
+        {
+            priority = Data.GetDeserializedValue<int>("TB##Priority");
+            schedules = Data.GetDeserializedValue<ICollection<SchedulerPolicy>>("TB##Schedules");
+            lastExecution = Data.GetDeserializedValue<DateTime>("TB##LastExecution");
+            description = Data.GetDeserializedValue<string>("TB##Description");
+            Success = Data.GetDeserializedValue<bool>("Success");
+            Error = Data.GetDeserializedValue<SerializedException>("Error");
+            active = Data.GetDeserializedValue<bool>("TB##Active");
+            executingUnsafe = Data.GetDeserializedValue<bool>("TB##ExecutingUnsafe");
         }
     }
 }

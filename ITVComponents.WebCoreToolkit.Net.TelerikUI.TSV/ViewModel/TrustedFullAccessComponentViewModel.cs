@@ -14,11 +14,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         [Required, MaxLength(1024)]
         public string FullQualifiedTypeName { get; set; }
 
+        [MaxLength(1024)]
+        public string TargetQualifiedTypeName { get; set; }
+
         [DataType(DataType.MultilineText)]
         public string Description { get; set; }
 
-        public bool TrustedForGlobals { get; set; }
-
-        public bool TrustedForAllTenants { get; set; }
+        [DataType(DataType.MultilineText)]
+        public string TrustLevelConfig { get; set; }
     }
 }

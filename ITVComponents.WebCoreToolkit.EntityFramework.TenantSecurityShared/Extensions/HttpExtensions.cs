@@ -1,17 +1,20 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.DuckTyping.Extensions;
+using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions
 {
     public static class HttpExtensions
     {
-
         /// <summary>
         /// Indicates whether there are video-tutorials available for a specific module
         /// </summary>
@@ -26,12 +29,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             }
 
             var cult = httpContext.Features.Get<IRequestCultureFeature>();
-            var db = httpContext.RequestServices.GetRequiredService<IBaseTenantContext>();
+            var db = httpContext.RequestServices
+                .GetRequiredService<ICoreSystemContext>();
             var psc = httpContext.RequestServices.GetService<IPermissionScope>();
             string currentCulture = null;
             string baseLang = null;
             var ppf = $"/{psc?.PermissionPrefix}";
-            if (psc != null && psc.IsScopeExplicit && location.StartsWith(ppf,StringComparison.OrdinalIgnoreCase))
+            if (psc != null && psc.IsScopeExplicit && location.StartsWith(ppf, StringComparison.OrdinalIgnoreCase))
             {
                 location = location.Substring(ppf.Length);
             }
@@ -46,7 +50,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             }
 
             var loca = location;
-            var exists = db.Tutorials.Any(n => n.ModuleUrl.ToLower() == loca.ToLower() && n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang));
+            var exists = db.Tutorials.Any(n =>
+                n.ModuleUrl.ToLower() == loca.ToLower() &&
+                n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang));
             if (!exists)
             {
                 exists = db.Tutorials.Any(
@@ -65,7 +71,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         public static ICollection<TutorialStream> GetVideoStreams(this HttpContext httpContext, int tutorialId)
         {
             var cult = httpContext.Features.Get<IRequestCultureFeature>();
-            var db = httpContext.RequestServices.GetRequiredService<IBaseTenantContext>();
+            var db = httpContext.RequestServices.GetRequiredService<ICoreSystemContext>();
             string currentCulture = null;
             string baseLang = null;
             if (cult != null)
@@ -78,7 +84,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             }
 
             var allStreams = db.TutorialStreams.Where(n =>
-                n.VideoTutorialId == tutorialId && (n.LanguageTag == currentCulture || n.LanguageTag == baseLang)).OrderBy(n => n.ContentType).ThenByDescending(n => n.LanguageTag.Length)
+                    n.VideoTutorialId == tutorialId && (n.LanguageTag == currentCulture || n.LanguageTag == baseLang)).OrderBy(n => n.ContentType).ThenByDescending(n => n.LanguageTag.Length)
                 .Union(db.TutorialStreams.Where(
                     n => n.VideoTutorialId == tutorialId && n.LanguageTag == "Default").OrderBy(n => n.ContentType));
             var li = new List<TutorialStream>();

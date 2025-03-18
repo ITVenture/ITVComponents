@@ -17,19 +17,18 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
 {
     internal static class UserPermissionsHandler
     {
-
         /// <summary>
         /// Returns all permission of the current user
         /// </summary>
         /// <param name="context">the http-context in which the Widget is being executed</param>
         /// <response code="200">a list of permissions that are assigned to the current user</response>
-        public static async Task<IResult> ReadUserPermissions(HttpContext context)
+        public static async Task<IResult> ReadUserPermissions(HttpContext context, IServiceProvider services)
         {
             var retVal = Array.Empty<Models.Permission>();
             ISecurityRepository repo;
             IdentityInfo[] identities;
-            if ((context.RequestServices.IsLegitSharedAssetPath(out repo, out identities, out var denied) ||
-                 context.RequestServices.IsUserAuthenticated(out repo, out identities)) && !denied)
+            if ((services.IsLegitSharedAssetPath(out repo, out identities, out var denied) ||
+                 services.IsUserAuthenticated(out repo, out identities)) && !denied)
             {
                 //var repo = context.RequestServices.GetService<ISecurityRepository>();
                 //var mapper = context.RequestServices.GetService<IUserNameMapper>();

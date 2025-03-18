@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.DuckTyping.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
@@ -9,7 +10,13 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Initialization;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Interceptors;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Identity;
@@ -22,6 +29,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
     [WebPart]
     public static class WebPartInit
     {
+        private static IDependencyInitializer init;
+
+        public static IDependencyInitializer DependencyInit => init;
+
+        public static bool ContextTypeInitialized { get; private set; }
+
+        public static void SetContextType(Type contextType)
+        {
+            if (ContextTypeInitialized)
+            {
+                throw new InvalidOperationException("ContextType already initialized!");
+            }
+
+            var t = contextType ?? typeof(SecurityContext);
+            (string name, Type type)[] fxparam = [(name:"TContext", type:t), (name: "TImpl", type: t)];
+            init = typeof(Extensions.DependencyExtensions).WrapType<IDependencyInitializer>(t, fixParameters: fxparam);
+            init.ExtendWithStatic(typeof(EntityFramework.TenantSecurityShared.Extensions.DependencyExtensions), t,
+                fixParameters: fxparam);
+            ContextTypeInitialized = true;
+        }
+
         [LoadWebPartConfig]
         public static object LoadOptions(IConfiguration config, string settingsKey, string path)
         {
@@ -50,11 +78,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
-            Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
+            if (contextOptions.ConfigureContext)
             {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                Type t = null;
+                if (!string.IsNullOrEmpty(contextOptions.ContextType))
+                {
+                    var dic = new Dictionary<string, object>();
+                    t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
+                }
+
+                if (!ContextTypeInitialized)
+                {
+                    SetContextType(t);
+                }
             }
 
             if (partActivation.ActivateDbContext)
@@ -69,31 +105,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
             if (partActivation.UseNavigation)
             {
-                if (t != null)
+                DependencyInit.UseDbNavigation(services);
+                /*if (t != null)
                 {
                     services.UseDbNavigation(t);
                 }
                 else
                 {
                     services.UseDbNavigation();
-                }
+                }*/
             }
 
             if (partActivation.UseSharedAssets)
             {
-                if (t != null)
+                DependencyInit.UseDbSharedAssets(services);
+                /*if (t != null)
                 {
                     services.UseDbSharedAssets(t);
                 }
                 else
                 {
                     services.UseDbSharedAssets();
-                }
+                }*/
             }
 
             if (partActivation.UsePlugins)
             {
-                services.UseDbPlugins();
+                DependencyInit.UseDbPlugins(services, partActivation.PluginBufferDuration);
+                //services.UseDbPlugins(partActivation.PluginBufferDuration);
             }
 
             if (partActivation.UseGlobalSettings)
@@ -103,7 +142,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
             if (partActivation.UseTenantSettings)
             {
-                services.UseTenantSettings();
+                DependencyInit.UseTenantSettings(services);
+                //services.UseTenantSettings();
             }
 
             if (partActivation.UseLogAdapter)
@@ -138,9 +178,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
                     if (apply)
                     {
-                        builder.AddScriptedCheck(item.Label);
+                        builder.AddScriptedCheck<ScriptedHealthCheck<BaseTenantContextSecurityTrustConfig>,BaseTenantContextSecurityTrustConfig>(item.Label);
                     }
                 }
+            }
+        }
+
+        [CustomConfigurator(typeof(DbContextOptionsBuilder))]
+        public static void ConfigureDbInterceptors(DbContextOptionsBuilder optionsBuilder, IServiceProvider services,
+            [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
+        {
+
+            if (partOptions.UseDefaultInterceptors)
+            {
+                optionsBuilder.AddInterceptors(
+                    new SecurityModificationInterceptor<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole>(services));
             }
         }
     }

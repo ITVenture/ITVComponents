@@ -3,23 +3,31 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
 using Dynamitey.DynamicObjects;
+using ITVComponents.EFRepo.Expressions.Models;
+using ITVComponents.EFRepo.Expressions.Visitors;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.Formatting.PluginSystemExtensions.Configuration;
+using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core.Native;
+using ITVComponents.Scripting.CScript.Helpers;
+using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
+using ITVComponents.WebCoreToolkit.EntityFramework.Help.QueryExtenders;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
 using Microsoft.VisualBasic;
-using Newtonsoft.Json.Serialization;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 {
@@ -52,7 +60,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         {
         }
 
-        public static IEnumerable ReadForeignKey(this DbContext context, string tableName, IServiceProvider services, string id = null, Dictionary<string, object> postedFilter = null)
+        public static IEnumerable ReadForeignKey(this DbContext context, string tableName, IServiceProvider services,
+            string id = null, Dictionary<string, object> postedFilter = null)
         {
             if (context is IForeignKeyProvider provider)
             {
@@ -76,26 +85,149 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 }
             }
 
-            if (id == null)
+            var dbSet = context.Set(tableName);
+            if (IsFkSelectable(dbSet.PropertyInfo, services))
             {
-                var query = CreateRawQuery(context, tableName, postedFilter, services, out var filterDecl);
-                var typeName = context.GetType().Name;
-                query = $@"{typeName} db = Global.Db;
+                var firstStringCol = dbSet.EntityType.GetProperties()
+                    .FirstOrDefault(n => n.PropertyType == typeof(string));
+                var fkAttr =
+                    Attribute.GetCustomAttribute(dbSet.EntityType, typeof(ForeignKeySelectionAttribute), true);
+                IForeignKeySelectorHelper selector = null;
+                if (fkAttr is ForeignKeySelectionAttribute fsa)
+                {
+                    selector = fsa.CreateTypeInstance(dbSet.EntityType);
+                }
+
+                var keyProp = GetKey(context, dbSet.EntityType, out var isKeyless);
+                var keyType = !isKeyless ? keyProp.PropertyType : typeof(string);
+                FilterBase fib = null;
+                Sort[] so = null;
+                if (id == null)
+                {
+
+                    if (postedFilter == null || (postedFilter.ContainsKey("parsedfilter") &&
+                                                 postedFilter.ContainsKey("parsedsort") &&
+                                                 postedFilter["parsedfilter"] is FilterBase &&
+                                                 postedFilter["parsedsort"] is Sort[]))
+                    {
+
+                        if (postedFilter != null)
+                        {
+                            fib = postedFilter["parsedfilter"] as FilterBase;
+                            var customFib = selector?.GetCustomFilterAddition(postedFilter);
+                            if (customFib != null)
+                            {
+                                var afi = fib as CompositeFilter;
+                                if (afi == null || afi.Operator != BoolOperator.And)
+                                {
+                                    afi = new CompositeFilter
+                                    {
+                                        Operator = BoolOperator.And,
+                                        Children = new[] { fib, customFib }
+                                    };
+                                }
+                                else
+                                {
+                                    afi.Children = [.. afi.Children, customFib];
+                                }
+
+                                fib = afi;
+                            }
+
+                            so = postedFilter["parsedsort"] as Sort[];
+                        }
+                    }
+                }
+                else if (!isKeyless)
+                {
+                    fib = new CompositeFilter()
+                    {
+                        Operator = BoolOperator.And,
+                        Children = new FilterBase[]{new CompareFilter
+                        {
+                            Value = TypeConverter.Convert(id,keyType),
+                            Operator = CompareOperator.Equal,
+                            PropertyName = keyProp.Name
+                        }}
+                    };
+                }
+
+                if (fib == null)
+                {
+                    fib = selector?.GetCustomFilterAddition(postedFilter) ?? new CompositeFilter();
+                }
+
+                if (so == null)
+                {
+                    so = new Sort[] { new Sort { Direction = SortDirection.Ascending, MemberName = "Label" } };
+                }
+
+
+                var filteredOrdered = dbSet.QueryAndSort(fib, selector?.DefaultSorts ?? so, selector?.ColumnRedirects ??
+                    (s =>
+                    {
+                        if (s == "Label")
+                        {
+                            return new []{firstStringCol.Name};
+                        }
+
+                        return new []{s};
+                    }));
+
+                var method = LambdaHelper.GetMethodInfo(() => GetForeignKeySelection<object, object>(null, null, null))
+                    .GetGenericMethodDefinition();
+                method = method.MakeGenericMethod(dbSet.EntityType, keyType);
+
+                var selectCall = LambdaHelper.GetMethodInfo(() => filteredOrdered.Select<object>(null))
+                    .GetGenericMethodDefinition();
+                selectCall = selectCall.MakeGenericMethod(typeof(ForeignKeyData<>).MakeGenericType(keyType));
+                LogEnvironment.LogDebugEvent("Invoke selectCall to retrieve ForeignKey...", LogSeverity.Report);
+                return (IEnumerable)selectCall.Invoke(filteredOrdered,
+                    new[] { method.Invoke(null, new object[] { keyProp, firstStringCol, selector }) });
+            }
+            /*}
+
+            var query = CreateRawQuery(context, tableName, postedFilter, services, out var filterDecl);
+            var typeName = context.GetType().Name;
+            query = $@"{typeName} db = Global.Db;
 {filterDecl}
-            return {query}";
-                LogEnvironment.LogDebugEvent(query, LogSeverity.Report);
-                //query = string.Format(query, $"t.{labelColumn}.Contains(filter)");
-                return RunQuery(context, query, RosFkConfig, postedFilter);
-            }
-            else
+        return {query}";
+            LogEnvironment.LogDebugEvent(query, LogSeverity.Report);
+            //query = string.Format(query, $"t.{labelColumn}.Contains(filter)");
+            return RunQuery(context, query, RosFkConfig, postedFilter);
+        }
+        else
+        {
+            var query = CreateRawResolveQuery(context, tableName, services);
+            var typeName = context.GetType().Name;
+            query = $@"{typeName} db = Global.Db;
+        {query}";
+            //query = string.Format(query, $"t.{labelColumn}.Contains(filter)");
+            return RunQuery(context, query, RosFkConfig, new Dictionary<string, object> { { "Id", id } });
+        }*/
+
+            throw new SecurityException($"Access denied for Table {tableName}!");
+        }
+
+        private static Expression<Func<T, ForeignKeyData<TKey>>> GetForeignKeySelection<T, TKey>(
+            PropertyInfo keyProperty, PropertyInfo labelProperty, IForeignKeySelectorHelper selectionHelper)
+        {
+            var x = selectionHelper?.GetLabelExpression();
+            var y = selectionHelper?.GetKeyExpression();
+            var z = selectionHelper?.GetFullRecordExpression();
+            if (z == null)
             {
-                var query = CreateRawResolveQuery(context, tableName, services);
-                var typeName = context.GetType().Name;
-                query = $@"{typeName} db = Global.Db;
-            {query}";
-                //query = string.Format(query, $"t.{labelColumn}.Contains(filter)");
-                return RunQuery(context, query, RosFkConfig, new Dictionary<string, object> { { "Id", id } });
+                Expression<Func<T, IDictionary<string,object>>> tmp = (obj) => obj.ToDictionary(true);
+                z = tmp;
             }
+
+            return t => new ForeignKeyData<TKey>
+            {
+                FullRecord = new PropertyInitializer<IDictionary<string,object>>(null, "t", z).Value, //t.ToDictionary(true),
+                Key = new PropertyInitializer<TKey>(keyProperty, "t", y).Value,
+                Label = new PropertyInitializer<string>(labelProperty, "t", x).Value
+            };
+
         }
 
         public static IEnumerable RunDiagnosticsQuery(this DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
@@ -149,9 +281,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 }
 
                 StringBuilder where = new StringBuilder();
-                var selAttr = tableType.GetCustomAttributes(typeof(ForeignKeySelectionAttribute), true);
+                /*var selAttr = tableType.GetCustomAttributes(typeof(ForeignKeySelectionAttribute), true);
                 if (selAttr.Length == 0)
-                {
+                {*/
                     var firstStringCol = tableType.GetProperties().FirstOrDefault(n => n.PropertyType == typeof(string));
                     if (firstStringCol == null)
                     {
@@ -162,9 +294,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
                     //return $@"from t in db.{tableName} orderby t.{firstStringCol.Name} select new ForeignKeyData<{keyPropertyType}>{{{{Key=t.{keyColumn}, Label=t.{firstStringCol.Name}}}}};";
                     return $@"from t in db.{tableName} {where} orderby t.{firstStringCol.Name} select new ForeignKeyData<{keyPropertyType}>{{Key={(!isKeyless ? $"t.{keyColumn}" : "\"-\"")}, Label=t.{firstStringCol.Name}, FullRecord=t.ToDictionary(true)}};";
-                }
+                //
 
-                var att = (ForeignKeySelectionAttribute)selAttr[0];
+                /*var att = (ForeignKeySelectionAttribute)selAttr[0];
                 if (postedFilter != null && att.FilterKeys != null && att.FilterKeys.Length != 0)
                 {
                     var filterDcl = new StringBuilder();
@@ -194,7 +326,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                     where.Append(CreateWhereClause(tableType, postedFilter, out filterDecl));
                 }
 
-                return $"from t in db.{tableName} {where} {att.OrderByExpression} select {att.CompleteSelect};";
+                return $"from t in db.{tableName} {where} {att.OrderByExpression} select {att.CompleteSelect};";*/
             }
 
             throw new InvalidOperationException("Table-Type was not found!");
@@ -313,9 +445,9 @@ bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
 
             if (tableType != null)
             {
-                var selAttr = tableType.GetCustomAttributes(typeof(ForeignKeySelectionAttribute), true);
+                /*var selAttr = tableType.GetCustomAttributes(typeof(ForeignKeySelectionAttribute), true);
                 if (selAttr.Length == 0)
-                {
+                {*/
                     var firstStringCol = tableType.GetProperties().FirstOrDefault(n => n.PropertyType == typeof(string));
                     if (firstStringCol == null)
                     {
@@ -325,50 +457,48 @@ bool Var{index}NullExpected = Global.{prop.Name}==""##NULL##"";
                     //return $@"from t in db.{tableName} orderby t.{firstStringCol.Name} select new ForeignKeyData<{keyPropertyType}>{{{{Key=t.{keyColumn}, Label=t.{firstStringCol.Name}}}}};";
                     return $@"{keyPropertyType} Id = ValueConvertHelper.TryChangeType<{keyPropertyType}>((string)Global.Id)??default({keyPropertyType});
 return from t in db.{tableName} where t.{keyColumn} == Id select new ForeignKeyData<{keyPropertyType}>{{Key=t.{keyColumn}, Label=t.{firstStringCol.Name}, FullRecord=t.ToDictionary(true)}};";
-                }
+                //}
 
-                var att = (ForeignKeySelectionAttribute)selAttr[0];
+                /*var att = (ForeignKeySelectionAttribute)selAttr[0];
                 return $@"{keyPropertyType} Id = ValueConvertHelper.TryChangeType<{keyPropertyType}>((string)Global.Id)??default({keyPropertyType});
-return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSelect};";
+return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSelect};";*/
             }
 
             throw new InvalidOperationException("Table-Type was not found!");
         }
 
-        private static string GetKeyType(DbContext context, string tableName, IServiceProvider services, out string keyName, out Type tableType, out bool isKeyless, out bool isAccessible)
+        private static bool IsFkSelectable(PropertyInfo property, IServiceProvider services)
         {
             ForeignKeySecurityAttribute accessAttr = null;
-            ConfigureLinqForContext(context, RosFkConfig, out var contextType);
+            var contextType = property.DeclaringType;
             if (Attribute.IsDefined(contextType, typeof(ForeignKeySecurityAttribute)))
             {
                 accessAttr = (ForeignKeySecurityAttribute)Attribute.GetCustomAttribute(contextType, typeof(ForeignKeySecurityAttribute));
             }
 
             bool denied = Attribute.IsDefined(contextType, typeof(DenyForeignKeySelectionAttribute));
+            if (Attribute.IsDefined(property, typeof(ForeignKeySecurityAttribute)))
+            {
+                accessAttr = (ForeignKeySecurityAttribute)Attribute.GetCustomAttribute(property, typeof(ForeignKeySecurityAttribute));
+            }
+
+            var localDenied = Attribute.IsDefined(property, typeof(DenyForeignKeySelectionAttribute));
+            var retVal = !localDenied && ((!denied && accessAttr == null) || (accessAttr != null && services.VerifyUserPermissions(accessAttr.RequiredPermissions)));
+            return retVal;
+        }
+        private static string GetKeyType(DbContext context, string tableName, IServiceProvider services, out string keyName, out Type tableType, out bool isKeyless, out bool isAccessible)
+        {
+            ConfigureLinqForContext(context, RosFkConfig, out var contextType);
             var prop = contextType.GetProperty(tableName);
             tableType = null;
             isAccessible = true;
             if (prop != null)
             {
-                if (Attribute.IsDefined(prop, typeof(ForeignKeySecurityAttribute)))
-                {
-                    accessAttr = (ForeignKeySecurityAttribute)Attribute.GetCustomAttribute(prop,typeof(ForeignKeySecurityAttribute));
-                }
-
-                var localDenied = Attribute.IsDefined(prop, typeof(DenyForeignKeySelectionAttribute));
-                isAccessible = !localDenied && ((!denied && accessAttr == null) || (accessAttr != null && services.VerifyUserPermissions(accessAttr.RequiredPermissions)));
+                isAccessible = IsFkSelectable(prop, services);
                 tableType = prop.PropertyType.GetGenericArguments()[0];
-                isKeyless = Attribute.IsDefined(tableType, typeof(KeylessAttribute));
+                var keyProperty = GetKey(context, tableType, out isKeyless);
                 if (!isKeyless)
                 {
-                    var keys = context.GetKeyProperties(tableType);
-                    if (keys.Length != 1)
-                    {
-                        throw new InvalidOperationException(
-                            "Unable to process entities that have a composite Primary-Key!");
-                    }
-
-                    var keyProperty = tableType.GetProperty(keys[0]);
                     keyName = keyProperty.Name;
                     return GetTypeForKey(keyProperty.PropertyType);
                 }
@@ -377,6 +507,24 @@ return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSe
             isKeyless = true;
             keyName = "--";
             return "string";
+        }
+
+        private static PropertyInfo GetKey(DbContext context, Type tableType, out bool isKeyless)
+        {
+            isKeyless = Attribute.IsDefined(tableType, typeof(KeylessAttribute));
+            if (!isKeyless)
+            {
+                var keys = context.GetKeyProperties(tableType);
+                if (keys.Length != 1)
+                {
+                    throw new InvalidOperationException(
+                        "Unable to process entities that have a composite Primary-Key!");
+                }
+
+                return tableType.GetProperty(keys[0]);
+            }
+
+            return null;
         }
 
         private static void ConfigureLinqForContext(DbContext context, string configName, out Type contextType)

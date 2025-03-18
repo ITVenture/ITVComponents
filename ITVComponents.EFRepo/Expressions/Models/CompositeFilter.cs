@@ -1,6 +1,6 @@
 ﻿using ITVComponents.Helpers;
+using ITVComponents.Json;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -38,7 +38,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
                 Operator = Operator.ToString(),
                 Type = "Composite",
                 Children = (from t in Children select t.ToString()).ToArray()
-            });
+            }, SerializationTypingMode.StaticTyping, null);
         }
 
         public void AddFilter(FilterBase filter)

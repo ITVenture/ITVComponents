@@ -4,13 +4,16 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Text.Encodings.Web;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
+using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 {
@@ -44,13 +47,27 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
         /// <returns></returns>
         public static IHtmlContent ItvScriptRef(this IHtmlHelper html, string version = null)
         {
+            var opt = html.ViewContext.HttpContext.RequestServices.GetService<IOptions<NetFileLinkOptions>>();
+            var setLinkOptions = opt.Value.FileTokenAsQuery ? @"<script>
+ITVenture.Tools.Uploader.fileTokenMode=""query"";
+</script>" : "";
             return html.Raw($@"<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvComponents.min.js".ExtendUrlWithVersion()}""></script>
-<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvJqPlugs.min.js".ExtendUrlWithVersion()}""></script>");
+<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/js/itvJqPlugs.min.js".ExtendUrlWithVersion()}""></script>
+{setLinkOptions}");
         }
 
         public static IHtmlContent ItvCustomBootstrapV4(this IHtmlHelper html, string version= null)
         {
             return html.Raw($@"<link href=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi/css/itvComponentsBS4.min.css".ExtendUrlWithVersion()}"" type=""text/css"" rel=""stylesheet"">");
+        }
+
+        public static IHtmlContent UseFrontendSecurity(this IHtmlHelper html, bool useFeatures, bool usePermissions)
+        {
+            return html.Raw($"""
+<script>
+    {((useFeatures && usePermissions)?"ITVenture.FrontendSecurity.Init();":useFeatures? "ITVenture.FrontendSecurity.InitFeatures();" : usePermissions? "ITVenture.FrontendSecurity.InitPermissions();" : "")}
+</script>
+""");
         }
 
         public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule, string uploadReason, string callbackMethod, string errorCallbackMethod = null, int height = 0, int width = 0, Dictionary<string, string> customAttributes = null)
@@ -88,7 +105,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 
             if (customFilterData != null)
             {
-                dataCallback = $"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{CreateDataScriptFor(repoName, tableName, columnName, customFilterData, out dataCallbackBody)}";
+                dataCallback = $"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{CreateDataScriptFor(repoName, tableName, columnName, customFilterData, null, out dataCallbackBody)}";
             }
             
             target.Raw($@"<script>
@@ -167,7 +184,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 .concat(        ""if ($ori === null || $ori.trim() === \""\""){{"")
 .concat(""$(\""\\#{uniqueOrigId}\"").val(oriValue).change();"")
 .concat(""}}"")";
-                var additionalCallback = $@"""{(!string.IsNullOrEmpty(customUploadCallback)?$"{customUploadCallback}(value{(preserveOriginal ? ", oriValue" : "")});":"")}""";
+                var additionalCallback = $@"""{(!string.IsNullOrEmpty(customUploadCallback)?$"{customUploadCallback}.apply(this,arguments);" :"")}""";
                 string template = $@"<div id=""{uniqueDummyId}""></div>
 <script>
 var tmpl = ""\u003Cdiv purpose=\""{mode}\"" nameTarget=\""{uniqueDivId}\"" uploadModule=\""{uploaderModule}\"" uploadReason=\""{uploadReason}\"" uploadHint=\""{uploadHint}\"" class=\""dropzone\""\u003E""
@@ -195,13 +212,25 @@ $(""#{uniqueDummyId}"").replaceWith(result);
             }
         
         
-        internal static string CreateDataScriptFor(string repoName, string tableName, string memberName, object customDataFilter, out string dataFilter)
+        internal static string CreateDataScriptFor(string repoName, string tableName, string memberName, object customDataFilter, string listRef, out string dataFilter)
         {
+            //var ditm = gg.dataItem(gg.wrapper.find("[data-uid='".concat($(gg._editContainer).attr("data-uid")).concat("']")) )
             string filterFunction = CustomActionHelper.RandomName($"dataCbFx_{repoName}_{tableName}_{memberName}");
             dataFilter = $@"ITVenture.Tools.ListCallbackHelper.dataCallbacks.{filterFunction} = function(dataRequest){{
-            var obj = {JsonHelper.ToJson(customDataFilter)};
+            var obj = {JsonHelper.ToJson(customDataFilter, SerializationTypingMode.StaticTyping, null)};
+            {(!string.IsNullOrEmpty(listRef)?$@"var list = $(""#{listRef}"").data(""kendoGrid"");
+            var ditm = list.dataItem($(list._editContainer));
+            var tpp = obj;
+            obj={{}};
+            for (var nam in tpp){{
+                if (tpp.hasOwnProperty(nam)){{
+                    try{{
+                        obj[nam] = kendo.template(tpp[nam])(ditm);
+                    }}
+                    catch{{}}
+                }}
+            }}" :"")}
             var retVal = $.extend({{}},dataRequest,obj);
-
             return retVal;
 }};";
             return filterFunction;

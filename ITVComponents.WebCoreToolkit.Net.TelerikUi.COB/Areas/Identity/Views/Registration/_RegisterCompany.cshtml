@@ -6,11 +6,13 @@
 @using Kendo.Mvc.TagHelpers
 @using Kendo.Mvc.UI
 @using Microsoft.AspNetCore.Mvc.TagHelpers
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Resources
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.DTO.CompanyInputModel
 @inject IStringLocalizer<IdentityMessages> localizer
 @inject IWebHostEnvironment hostingEnvironment 
 @{
     var listOfTerms = localizer.FromJson<List<PrePostValLocalizationBlock>>("ListOfTerms");
+    var listOfZones = TimeZoneTranslationHelper.GetTranslatedTimeZoneList();
 }
 
 
@@ -79,6 +81,13 @@
                         <label asp-for="City"></label>
                         <input asp-for="City" class="form-control"/>
                         <span asp-validation-for="City" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-10">
+                        <label asp-for="TimeZone"></label>
+                        <kendo-dropdownlist for="TimeZone" bind-to="listOfZones" datavaluefield="Key" datatextfield="Label"></kendo-dropdownlist>
+                        <span asp-validation-for="TimeZone" class="text-danger"></span>
                     </div>
                 </div>
             </div>

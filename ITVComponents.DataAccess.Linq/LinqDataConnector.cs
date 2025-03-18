@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.DataAccess.Models;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.Threading;
 
@@ -40,6 +41,12 @@ namespace ITVComponents.DataAccess.Linq
         /// </summary>
         private LinqDataConnector()
         {
+        }
+
+        static LinqDataConnector()
+        {
+            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(LinqParameter),
+                "dal_LinqParameter");
         }
 
         /// <summary>

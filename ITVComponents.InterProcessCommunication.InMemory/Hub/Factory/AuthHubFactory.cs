@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.GenericService.ServiceSecurity;
-using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Channels;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Client;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Communication;
@@ -14,6 +13,7 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Exceptions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security.PrincipalProviders;
+using ITVComponents.Json;
 using ITVComponents.Threading;
 using ITVComponents.WebCoreToolkit.Security.UserMappers;
 
@@ -56,7 +56,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Factory
         public void ReConnectChannel(string name, int ttl, IMemoryChannel initialChannel)
         {
             initialChannel.Write(new ConnectionRequest
-                    { ProposedGuid = name, Ttl = ttl, User = JsonHelper.ToJsonStrongTyped(provider.CurrentIdentity) });
+                    { ProposedGuid = name, Ttl = ttl, User = JsonHelper.ToJson(provider.CurrentIdentity, SerializationTypingMode.StaticTyping,null) });
             Task.Delay(1500).GetAwaiter().GetResult();
         }
     }

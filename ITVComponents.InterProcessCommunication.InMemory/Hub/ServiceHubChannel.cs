@@ -4,14 +4,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Channels;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Factory;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.ProtoExtensions;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
+using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security.PrincipalProviders;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 
@@ -138,7 +139,7 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub
                         {
                             Ok = false,
                             OperationId = som.OperationId,
-                            ResponsePayload = JsonHelper.ToJsonStrongTyped((SerializedException)ex),
+                            ResponsePayload = JsonHelper.ToJson(new ErrorResponse{SerializedException = ex},SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true),
                             TargetService = som.TargetService
                         };
                     }

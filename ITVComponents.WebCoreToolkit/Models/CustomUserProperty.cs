@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.Models
 {
-    [Serializable]
     public class CustomUserProperty
     {
         [MaxLength(150),Required]

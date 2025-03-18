@@ -45,6 +45,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi
                 {
                     o.LayoutPage = options.LayoutPage;
                     o.UseHealthView = options.UseHealthView;
+                    o.UseViewsView = options.UseViewsView;
+                    o.UseControllerView = options.UseControllerView;
+                    o.UseTagHelperView = options.UseTagHelperView;
+                    o.UseViewComponentView = options.UseViewComponentView;
                 });
             }
         }

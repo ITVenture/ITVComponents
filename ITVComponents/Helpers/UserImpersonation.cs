@@ -12,7 +12,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace ITVComponents.Helpers
 {
-    [PermissionSet(SecurityAction.Demand, Name = "FullTrust")]
+    //[PermissionSet(PermissionState.Unrestricted/* SecurityAction.Demand Name = "FullTrust"*/)]
     public class UserImpersonation : System.IDisposable
     {
         protected const int LOGON32_PROVIDER_DEFAULT = 0;

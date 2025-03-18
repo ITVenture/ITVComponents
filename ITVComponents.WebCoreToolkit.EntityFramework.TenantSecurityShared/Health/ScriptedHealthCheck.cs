@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Logging;
@@ -13,6 +14,8 @@ using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
 using ITVComponents.WebCoreToolkit.WebPlugins;
@@ -22,7 +25,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health
 {
-    public class ScriptedHealthCheck : IHealthCheck
+    public class ScriptedHealthCheck<TTrustConfig> : IHealthCheck where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
         private readonly IServiceProvider services;
 
@@ -36,16 +39,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
         {
             using (var currentScope = services.CreateAsyncScope())
             {
-                var db = currentScope.ServiceProvider.GetService<IBaseTenantContext>();
+                var db = currentScope.ServiceProvider.GetService<ICoreSystemContext<TTrustConfig>>();
                 var pluginsAccess = currentScope.ServiceProvider.GetService<IWebPluginHelper>();
                 var check = await db.HealthScripts.FirstOrDefaultAsync(n =>
                     n.HealthScriptName == context.Registration.Name);
                 if (check != null)
                 {
-                    FullSecurityAccessHelper helper = null;
+                    FullSecurityAccessHelper<TTrustConfig> helper = null;
                     if (db.FilterAvailable)
                     {
-                        helper = new FullSecurityAccessHelper(db, true, false);
+                        helper = new FullSecurityAccessHelper<TTrustConfig>(db, RequestFullAccess());
                     }
 
                     try
@@ -152,6 +155,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Heal
 
                 return new HealthCheckResult(HealthStatus.Healthy, "Unchecked");
             }
+        }
+
+        protected virtual TTrustConfig RequestFullAccess()
+        {
+            return new() { ShowAllTenants = true, HideGlobals = false };
         }
     }
 }

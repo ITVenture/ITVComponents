@@ -1,6 +1,5 @@
-﻿using ITVComponents.Helpers;
+﻿using ITVComponents.Json;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,7 +20,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
             {
                 Type = "Lambda",
                 Filter = Filter?.ToString()
-            });
+            }, SerializationTypingMode.StaticTyping, null);
         }
     }
 }

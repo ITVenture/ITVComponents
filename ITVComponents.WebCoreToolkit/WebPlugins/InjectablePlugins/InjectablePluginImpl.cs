@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl;
@@ -39,15 +40,25 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
 
         private T GetInstance()
         {
-            var opt = options.Value;
-            var retVal = opt.GetPlugIn<T>(services);
-            if (retVal == null)
+            var start = DateTime.Now;
+            string name = "";
+            try
             {
-                var defaultInjector = new DefaultPluginInjector<T>();
-                retVal = defaultInjector.GetPluginInstance(services, opt.CheckForAreaPrefixedNames);
-            }
+                var opt = options.Value;
+                var retVal = opt.GetPlugIn<T>(services);
+                if (retVal == null)
+                {
+                    var defaultInjector = new DefaultPluginInjector<T>();
+                    retVal = defaultInjector.GetPluginInstance(services, opt.CheckForAreaPrefixedNames);
+                    name = retVal.UniqueName;
+                }
 
-            return retVal;
+                return retVal;
+            }
+            finally
+            {
+                LogEnvironment.LogDebugEvent($"Total-Duration for {name}: {DateTime.Now.Subtract(start).TotalSeconds}", LogSeverity.Report);
+            }
         }
 
         public void Dispose()

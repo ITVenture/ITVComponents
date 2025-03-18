@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
   <PropertyGroup>
-    <TargetFrameworks>net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.7-PRE023</Version>
+    <Version>4.0.0-PRE069</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -22,17 +22,19 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding\ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.InterProcessExtensions\ITVComponents.WebCoreToolkit.InterProcessExtensions.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCIP\ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUI.TSV\ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi\ITVComponents.WebCoreToolkit.Net.TelerikUi.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="6.0.15" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.5.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.11" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="4.9.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="4.9.2" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\js\" />
   </ItemGroup>
   <Target Name="MyPreCompileTarget" BeforeTargets="Build">
-    <Exec Command="gulp min" />
+    <Exec Command="npx webpack" />
   </Target>
 </Project>

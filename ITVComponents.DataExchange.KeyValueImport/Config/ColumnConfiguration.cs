@@ -2,7 +2,6 @@
 
 namespace ITVComponents.DataExchange.KeyValueImport.Config
 {
-    [Serializable]
     public class ColumnConfiguration 
     {
         /// <summary>

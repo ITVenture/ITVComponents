@@ -87,6 +87,99 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
                        }
                        where pio.Ok
                        select pio.item;
+/*
+            try
+            {
+                return LoadPlugins();
+            }
+            finally
+            {
+                if (refreshCycle != 0)
+                {
+                    refresher.Change(refreshCycle, refreshCycle);
+                }
+            }
+        }
+
+        public bool HasParamsFor(string uniqueName)
+        {
+            if (!useGenericParams)
+            {
+                return false;
+            }
+
+            using (database.AcquireContext<TContext>(out var db))
+            {
+                return (from t in db.PluginGenericParameters
+                    join p in db.Plugins on t.PluginId equals p.PluginId
+                    where p.UniqueName == uniqueName
+                    select t.TypeParamId).Any();
+            }
+        }
+
+        public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables,
+            IStringFormatProvider formatter)
+        {
+            //knownTypeUsed = false;
+            if (useGenericParams)
+            {
+                using (database.AcquireContext<TContext>(out var db))
+                {
+                    var data = (from t in db.PluginGenericParameters
+                        join p in db.Plugins on t.PluginId equals p.PluginId
+                        where p.UniqueName == uniqueName
+                        select t).ToArray();
+                    /*var joined = from t in genericTypeArguments
+                        join d in data on t.GenericTypeName equals d.GenericTypeName
+                        select new { Target = t, Type = d.TypeExpression };*/
+                    Dictionary<string, object> dic = new Dictionary<string, object>();
+                    customVariables ??= new Dictionary<string, object>();
+                    //bool kt = knownTypeUsed;
+                    customVariables.ForEach(n => dic.Add(n.Key, new SmartProperty
+                    {
+                        GetterMethod = t =>
+                        {
+                      //      kt = true;
+                            return n.Value;
+                        }
+                    }));
+                    //knownTypeUsed = kt;
+                    List<(string name, Type type)> fixTypes = new List<(string name, Type type)>();
+                    Type argumentProvider = null;
+                    foreach (var j in data)
+                    {
+                        var t = (Type)ExpressionParser.Parse(j.TypeExpression.ApplyFormat(formatter), dic);
+                        if (j.GenericTypeName!= "$$genericArgumentProvider")
+                        {
+                            fixTypes.Add((name: j.GenericTypeName,
+                                type: t));
+                        }
+                        else
+                        {
+                            argumentProvider = t;
+                        }
+                    }
+
+                    if (argumentProvider == null)
+                    {
+                        var rawTypes = typeof(object).GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        if (!genericTypeArguments.FinalizeTypeArguments(rawTypes))
+                        {
+                            throw new InvalidOperationException(
+                                $"Unable to finalize Type with given Information for Plugin {uniqueName}.");
+                        }
+                    }
+                    else
+                    {
+                        var rawTypes = argumentProvider.GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        if (!genericTypeArguments.FinalizeTypeArguments(rawTypes))
+                        {
+                            throw new InvalidOperationException(
+                                $"Unable to finalize Type with given Information for Plugin {uniqueName}.");
+                        }
+                    }
+                }
+*/
             }
 
             return Array.Empty<PluginInfoModel>();

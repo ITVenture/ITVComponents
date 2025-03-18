@@ -16,9 +16,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
     [Authorize("HasPermission(HealthChecks.View,HealthChecks.Write,Sysadmin),HasFeature(ITVAdminViews)"),Area("Util")]
     public class ScriptedHealthCheckController : Controller
     {
-        private readonly IBaseTenantContext db;
+        private readonly ICoreSystemContext db;
 
-        public ScriptedHealthCheckController(IBaseTenantContext db)
+        public ScriptedHealthCheckController(ICoreSystemContext db)
         {
             this.db = db;
             //db.ShowAllTenants = true;

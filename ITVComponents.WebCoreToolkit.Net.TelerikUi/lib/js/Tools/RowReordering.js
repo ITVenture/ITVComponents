@@ -44,10 +44,7 @@
                 }
             },
             reorderHint: function (element) {
-                var grid = element.parentsUntil("div").parent();
-                if (retVal.withDetails) {
-                    grid = grid.parent();
-                }
+                var grid = element.closest("div.k-grid");
                 grid = grid.data().kendoGrid;
                 var table = grid.table.clone(), //clone Grid's table
                 wrapperWidth = grid.wrapper.width(), //get Grid's width
@@ -80,7 +77,7 @@
                 }
             },
             styleDraggers: function () {
-                retVal.sortableTable.find(".sort-dragger").replaceWith("<span class='sort-dragger k-icon k-i-reorder'></span>");
+                retVal.sortableTable.find(".sort-dragger").replaceWith("<span class='sort-dragger fa-solid fa-bars'></span>");
             },
             invalid: function () {
                 try {
@@ -109,7 +106,7 @@
                  end: retVal.reorderEnd,
                  placeholder: retVal.reorderPlaceholder,
                  hint: retVal.reorderHint,
-                 filter: withDetails ? ">div.k-grid-content>table >tbody >tr:not(.k-detail-row)" : ">table >tbody >tr:not(.k-detail-row)",
+                 filter: withDetails ? ">div.k-grid-container>div.k-grid-content>table >tbody >tr:not(.k-detail-row)" : ">table >tbody >tr:not(.k-detail-row)",
                  handler: ".sort-dragger",
                  ignore: ":not(.sort-dragger)"
              });

@@ -6,7 +6,6 @@ using ITVComponents.Settings;
 
 namespace ITVComponents.GenericService.Shared
 {
-    [Serializable]
     public class ServiceConfig:JsonSettingsSection
     {
         /// <summary>

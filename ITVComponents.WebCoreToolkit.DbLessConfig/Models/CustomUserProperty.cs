@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.DbLessConfig.Models
 {
-    [Serializable]
     public class CustomUserProperty
     {
         public string PropertyName { get; set; }

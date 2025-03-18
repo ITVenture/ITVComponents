@@ -14,7 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
     public static class DynamicExtensions
     {
         public static DummyDataSourceResult ToDummyDataSourceResult<T>(this IEnumerable<T> raw, RequestModel<T> request,
-            Func<T, object> modelSelect, Func<string,string> redirectColumnName = null, Func<string, CustomFilter<T>> customFilterCallback = null) where T : class
+            Func<T, object> modelSelect, Func<string, string[]> redirectColumnName = null, Func<string, CustomFilter<T>> customFilterCallback = null) where T : class
         {
             var filter = GetFilter(request);
             if (request.CustomFilters != null && request.CustomFilters.Length != 0 && customFilterCallback != null)
@@ -50,19 +50,23 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
             {
                 foreach (var sort in request.Sorts)
                 {
-                    var ordx = ExpressionBuilder.BuildPropertyAccessExpression<T>(sort.ColumnName, redirectColumnName);
-                    if (ordx != null)
+                    var cols = redirectColumnName?.Invoke(sort.ColumnName) ?? new[] { sort.ColumnName };
+                    foreach (var c in cols)
                     {
-                        if (sort.SortOrder == SortOrder.Asc)
+                        var ordx = ExpressionBuilder.BuildPropertyAccessExpression<T>(c);
+                        if (ordx != null)
                         {
+                            if (sort.SortOrder == SortOrder.Asc)
+                            {
 
-                            preFiltered =
-                                preFiltered.OrderBy(ordx);
-                        }
-                        else
-                        {
-                            preFiltered =
-                                preFiltered.OrderByDescending(ordx);
+                                preFiltered =
+                                    preFiltered.OrderBy(ordx);
+                            }
+                            else
+                            {
+                                preFiltered =
+                                    preFiltered.OrderByDescending(ordx);
+                            }
                         }
                     }
                 }

@@ -14,6 +14,7 @@ using ITVComponents.WebCoreToolkit.Routing;
 using ITVComponents.WebCoreToolkit.Tokens;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
 {
@@ -23,6 +24,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
         private IRequestCultureFeature cult = null;
         private IUrlFormat formatter;
         private readonly ITutorialSource tutorialSource;
+        private readonly IOptions<NetFileLinkOptions> fileLinkOptions;
 
         private string CurrentCulture
         {
@@ -47,11 +49,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
         }
 
         public HelpButton(IHierarchySettings<TutorialOptions> options,
-            IUrlFormat formatter, ITutorialSource tutorialSource)
+            IUrlFormat formatter, ITutorialSource tutorialSource,
+            IOptions<NetFileLinkOptions> fileLinkOptions)
         {
             videoHandler = options.Value.VideoFileHandler;
             this.formatter = formatter;
             this.tutorialSource = tutorialSource;
+            this.fileLinkOptions = fileLinkOptions;
         }
 
         public async Task<IViewComponentResult> InvokeAsync(string customStyle = null, string customClass = null)
@@ -90,9 +94,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
             for (var i = 0; i < item.Streams.Length; i++)
             {
                 var str = item.Streams[i];
+                var fileRaw = !fileLinkOptions.Value.FileTokenAsQuery ? $"/{str.DownloadToken}" : $"?FileToken={str.DownloadToken}";
                 string url = formatter == null
-                    ? $"/File/{str.DownloadToken}"
-                    : formatter.FormatUrl($"[SlashPermissionScope]/File/{str.DownloadToken}");
+                    ? $"/File{fileRaw}"
+                    : formatter.FormatUrl($"[SlashPermissionScope]/File{fileRaw}");
                 ctrl.AppendLine($@"<source src='{url}' type='{str.ContentType}' />");
             }
 

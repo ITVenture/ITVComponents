@@ -5,11 +5,11 @@ using System.Security.Claims;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.InterProcessCommunication.MessagingShared.Security;
 using ITVComponents.InterProcessCommunication.MessagingShared.Extensions;
 using ITVComponents.Plugins;
+using ITVComponents.Json;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
 {
@@ -32,7 +32,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy
         {
             if (string.IsNullOrEmpty(message.HubUser) && authenticatedUser is ClaimsIdentity cli)
             {
-                message.HubUser = JsonHelper.ToJsonStrongTyped(cli.ForTransfer());
+                message.HubUser = JsonHelper.ToJson(cli.ForTransfer(), SerializationTypingMode.StaticTyping, null);
             }
 
             return serviceHubProvider.Broker.SendMessageToServer(message, services);

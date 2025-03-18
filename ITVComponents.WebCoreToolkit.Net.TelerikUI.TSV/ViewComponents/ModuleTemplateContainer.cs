@@ -9,9 +9,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewCom
 {
     public class ModuleTemplateContainer: ViewComponent
     {
-        private readonly IBaseTenantContext db;
+        private readonly ICoreSystemContext db;
 
-        public ModuleTemplateContainer(IBaseTenantContext db)
+        public ModuleTemplateContainer(ICoreSystemContext db)
         {
             this.db = db;
         }

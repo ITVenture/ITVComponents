@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.PowerShell
 {
-    [Serializable]
     public class PowerShellApiException<T> : Exception
     {
         //

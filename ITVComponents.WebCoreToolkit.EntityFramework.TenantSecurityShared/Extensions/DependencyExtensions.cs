@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Options;
+using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
@@ -13,10 +14,12 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.GlobalFi
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Settings;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using SkiaSharp;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions
 {
@@ -37,9 +40,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         /// </summary>
         /// <param name="services">the services-collection where to inject the DB-Plugin Selector instance</param>
         /// <returns>the ServicesCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseDbPlugins(this IServiceCollection services)
+        public static IServiceCollection UseDbPlugins<TContext>(this IServiceCollection services, int bufferDuration) where TContext : DbContext
         {
-            return services.AddScoped<IWebPluginsSelector, DbPluginsSelector>();
+            var tff = typeof(TContext).FinalizeType(typeof(DbPluginsSelector<,,,,,,>));
+            services.Configure<WebPluginBufferingOptions>(n => n.BufferDuration = bufferDuration);
+            return services.AddScoped(typeof(IWebPluginsSelector), tff);
         }
 
         /// <summary>
@@ -47,9 +52,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         /// </summary>
         /// <param name="services">the Services-collection where to inject the DB-Navigation builder instance</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
-        public static IServiceCollection UseTenantSettings(this IServiceCollection services)
+        public static IServiceCollection UseTenantSettings<TContext>(this IServiceCollection services) where TContext : DbContext
         {
-            return services.AddScoped<IScopedSettingsProvider, TenantSettingsProvider>();
+            var tff = typeof(TContext).FinalizeType(typeof(TenantSettingsProvider<,,,,,,,>));
+            return services.AddScoped(typeof(IScopedSettingsProvider), tff);
         }
 
         /// <summary>

@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Decisions.Entities.Helpers
 {
-    [Serializable]
     public class DeciderResult
     {
         public DecisionResult Result { get; set; }

@@ -10,7 +10,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
         public static IServiceCollection UseSecurityContextUserExtensions(this IServiceCollection services)
         {
             return services
-                .AddSingleton<IUserExpressionHelper<string, User, TenantUser>, TenantSecurityUserExpressionHelper>();
+                .AddSingleton<IUserExpressionHelper<string, User, TenantUser, RoleRole>, TenantSecurityUserExpressionHelper>();
         }
     }
 }

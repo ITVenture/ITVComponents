@@ -4,7 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
-using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.Configuration;
@@ -16,6 +16,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.DTO;
 using ITVComponents.WebCoreToolkit.Options;
@@ -26,6 +27,7 @@ using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -35,7 +37,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
 {
     [Area("Identity"), AllowAnonymous, ConstructedGenericControllerConvention]
     public class RegistrationController<TContext> : Controller
-    where TContext: DbContext, ISecurityContextWithOnboarding
+    where TContext: DbContext, ISecurityContextWithOnboarding 
     {
         private readonly UserManager<User> userManager;
         private readonly SignInManager<User> signInManager;
@@ -44,7 +46,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
         private readonly IStringLocalizer<IdentityMessages> localizer;
         private readonly TContext dbContext;
         private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
-        private readonly ITenantTemplateHelper tenantInitializer;
+        private readonly ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig> tenantInitializer;
         private readonly IOptions<AuthenticationHandlerOptions> availableAuthenticators;
         private readonly ISecurityRepository securityRepo;
 
@@ -55,7 +57,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
             IStringLocalizer<IdentityMessages> localizer,
             TContext dbContext,
             IGlobalSettings<TenantSetupOptions> setupOptions,
-            ITenantTemplateHelper tenantInitializer,
+            ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig> tenantInitializer,
             IOptions<AuthenticationHandlerOptions> availableAuthenticators,
             ISecurityRepository securityRepo)
         {
@@ -335,7 +337,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controll
                     if (!string.IsNullOrEmpty(cfg.BasicTenantTemplate))
                     {
                         var tmpl = dbContext.TenantTemplates.First(n => n.Name == cfg.BasicTenantTemplate);
-                        var mku = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup);
+                        var mku = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup, SerializationTypingMode.StaticTyping);
                         tenantInitializer.ApplyTemplate(tenant, mku, ct =>
                         {
                             var ctx = ct as ISecurityContextWithOnboarding;

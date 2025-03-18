@@ -2,7 +2,6 @@
 
 namespace ITVComponents.AssemblyResolving
 {
-    [Serializable]
     public class AssemblyResolverConfigurationItem
     {
         public string Name { get; set; }
