@@ -541,6 +541,18 @@ namespace ITVComponents.Json
 
         private static void Serialize<T>(T value, JsonSerializerOptions settings, Stream writer)
         {
+            if (writer.CanSeek && writer.CanWrite)
+            {
+                try
+                {
+                    writer.SetLength(0);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogDebugEvent($"Failed to truncate existing Stream: {ex.Message}", LogSeverity.Error);
+                }
+            }
+
             JsonSerializer.Serialize(writer, value, settings);
         }
 
