@@ -269,7 +269,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
             if (connected)
             {
-                LogEnvironment.LogEvent($@"Subscribe {eventName} on {UniqueName} for {connection.ServiceName}. TargetService: {targetService}", LogSeverity.Report);
+                LogEnvironment.LogEvent($@"Subscribe {eventName} on {uniqueName} for {connection.ServiceName}. TargetService: {targetService}", LogSeverity.Report);
                 var msgStr = JsonHelper.ToJson(new RegisterEventRequestMessage
                 {
                     TargetObject = uniqueName,

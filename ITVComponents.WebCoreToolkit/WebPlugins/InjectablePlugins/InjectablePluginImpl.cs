@@ -41,7 +41,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         private T GetInstance()
         {
             var start = DateTime.Now;
-            string name = "";
+            //string name = "";
             try
             {
                 var opt = options.Value;
@@ -50,14 +50,14 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
                 {
                     var defaultInjector = new DefaultPluginInjector<T>();
                     retVal = defaultInjector.GetPluginInstance(services, opt.CheckForAreaPrefixedNames);
-                    name = retVal.UniqueName;
+                   //name = retVal.UniqueName;
                 }
 
                 return retVal;
             }
             finally
             {
-                LogEnvironment.LogDebugEvent($"Total-Duration for {name}: {DateTime.Now.Subtract(start).TotalSeconds}", LogSeverity.Report);
+                //LogEnvironment.LogDebugEvent($"Total-Duration for {name}: {DateTime.Now.Subtract(start).TotalSeconds}", LogSeverity.Report);
             }
         }
 

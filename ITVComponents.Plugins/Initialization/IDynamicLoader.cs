@@ -45,7 +45,7 @@ namespace ITVComponents.Plugins.Initialization
         /// <param name="genericTypeArguments">get generic arguments defined in the plugin-type</param>
         /// <param name="formatter">Exposes constants that are available also for constructors in the calling factory</param>
         /// <returns>a value indicating whether the loader contains generic arguments for the requested plugin</returns>
-        void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables, IStringFormatProvider formatter, out bool knownTypeUsed);
+        void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables, IStringFormatProvider formatter);
 
         /// <summary>
         /// When known and accurate for the given initialization-phase, true is returned and the pluginInfoModel is given for initialization

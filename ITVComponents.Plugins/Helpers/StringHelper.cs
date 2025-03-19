@@ -2,6 +2,7 @@
 using ITVComponents.Plugins.Initialization;
 using System.Linq;
 using System;
+using ITVComponents.Json;
 
 namespace ITVComponents.Plugins.Helpers
 {
@@ -45,7 +46,7 @@ namespace ITVComponents.Plugins.Helpers
             {
                 if (list.Contains("["))
                 {
-                    retVal = JsonHelper.FromJsonString<string[]>(list);
+                    retVal = JsonHelper.FromJsonString<string[]>(list, SerializationTypingMode.StaticTyping);
                 }
                 else
                 {

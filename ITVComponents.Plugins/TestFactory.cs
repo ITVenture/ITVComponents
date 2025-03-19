@@ -21,6 +21,7 @@ using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Settings;
 using System.IO;
 using System.Threading;
+using ITVComponents.Plugins.Helpers;
 
 namespace ITVComponents.Plugins
 {
@@ -164,7 +165,8 @@ namespace ITVComponents.Plugins
         /// <returns>a value indicating whether the plugin-test was successful</returns>
         public bool VerifyConstructor(string uniqueName, string constructor, bool? buffer = null)
         {
-            return TryLoadPlugin(uniqueName, constructor);
+            var uq = new UniqueNameHelper(uniqueName, null, null);
+            return TryLoadPlugin(uq, constructor);
         }
 
         /// <summary>
@@ -293,7 +295,7 @@ namespace ITVComponents.Plugins
             return retVal;
         }
 
-        /*public IEnumerator<object> GetEnumerator()
+        public IEnumerator<object> GetEnumerator()
         {
             return plugins.Values.GetEnumerator();
         }
@@ -301,7 +303,7 @@ namespace ITVComponents.Plugins
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
-        }*/
+        }
 
         /// <summary>
         /// Releases all resources used by this instance
@@ -378,7 +380,7 @@ namespace ITVComponents.Plugins
         /// <param name="plugin">the loaded plugin</param>
         /// <param name="testOnly">indicates whether to load the plugin or to only verify the constructor</param>
         /// <returns>a value indicating whether the plugin could be successfully loaded</returns>
-        private bool TryLoadPlugin(string uniqueName, string pluginConstructor)
+        private bool TryLoadPlugin(UniqueNameHelper uniqueName, string pluginConstructor)
         {
             Type pluginType;
             object[] constructor;
@@ -388,7 +390,7 @@ namespace ITVComponents.Plugins
                 var inf = MethodHelper.GetCapableConstructor(pluginType, constructor, out var ct);
                 if (inf != null)
                 {
-                    return plugins.TryAdd(uniqueName, pluginType);
+                    return plugins.TryAdd(uniqueName.UniqueName, pluginType);
                 }
 
                 LogEnvironment.LogDebugEvent(null,
@@ -409,7 +411,7 @@ namespace ITVComponents.Plugins
         /// <param name="loggerType">the Type of the logger</param>
         /// <param name="constructor">the parsed result of the construction parameters</param>
         /// <param name="reflectOnly">indicates whether to only validate if the provided constructor string is valid</param>
-        private void ParsePluginString(string uniqueName, string loggerString, out Type loggerType, out object[] constructor)
+        private void ParsePluginString(UniqueNameHelper uniqueName, string loggerString, out Type loggerType, out object[] constructor)
         {
             try
             {
@@ -423,12 +425,11 @@ namespace ITVComponents.Plugins
                     var t = new List<GenericTypeArgument>();
                     t.AddRange(from p in loggerType.GetGenericArguments()
                                select new GenericTypeArgument { GenericTypeName = p.Name });
-                }
-
+                } 
                 constructor = this.ParseConstructor(parsed.Parameters, new PluginRef
                 {
                     PluginType = loggerType,
-                    UniqueName = uniqueName
+                     UQ = uniqueName
                 }, null);
                 LogEnvironment.LogDebugEvent(null, $"found {loggerType}...", (int)LogSeverity.Report, "PluginSystem");
             }

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.ExtendedFormatting;
+using ITVComponents.Helpers;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Helpers;
 using ITVComponents.Plugins.Initialization;
@@ -52,9 +53,9 @@ namespace ITVComponents.GenericService.PluginLoader
         }
 
         public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables,
-            IStringFormatProvider formatter, out bool knownTypeUsed)
+            IStringFormatProvider formatter)
         {
-            knownTypeUsed = false;
+            //knownTypeUsed = false;
             var plug = ServiceConfigHelper.PlugIns.FirstOrDefault(n => !n.Disabled && n.Name == uniqueName);
             if (plug != null && ServiceConfigHelper.GenericTypeInformation.TryGetValue(uniqueName, out var l) && l.Length != 0)
             {
@@ -64,16 +65,16 @@ namespace ITVComponents.GenericService.PluginLoader
                     select new { Target = t, Type = d.TypeExpression };
                 Dictionary<string, object> dic = new Dictionary<string, object>();
                 customVariables ??= new Dictionary<string, object>();
-                bool kt = knownTypeUsed;
+                //bool kt = knownTypeUsed;
                 customVariables.ForEach(n => dic.Add(n.Key, new SmartProperty
                 {
                     GetterMethod = t =>
                     {
-                        kt = true;
+                  //      kt = true;
                         return n.Value;
                     }
                 }));
-                knownTypeUsed = kt;
+                //knownTypeUsed = kt;
                 foreach (var j in joined)
                 {
                     j.Target.TypeResult = (Type)ExpressionParser.Parse(j.Type.ApplyFormat(formatter), dic);

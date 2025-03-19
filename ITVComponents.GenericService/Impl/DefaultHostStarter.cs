@@ -42,7 +42,7 @@ namespace ITVComponents.GenericService.Impl
 
         public Task RunAsync(CancellationToken cancellation)
         {
-            ServiceCollection.add
+            //ServiceCollection.add
             hostBuilder.ConfigureServices(c =>
             {
                 var oriSvc = ServiceCollection;

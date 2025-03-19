@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Helpers;
@@ -107,13 +108,12 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         }
 
         public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables,
-            IStringFormatProvider formatter, out bool knownTypeUsed)
+            IStringFormatProvider formatter)
         {
             //IPluginFactory pi = (IPluginFactory)sender;
             IWebPluginsSelector availablePlugins = pluginProvider;
             var impl = availablePlugins.GetGenericParameters(uniqueName);
             bool kno = false;
-            knownTypeUsed = false;
             if (impl != null)
             {
                 var dic = new Dictionary<string, object>();
@@ -126,7 +126,6 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                         return n.Value;
                     }
                 }));
-                knownTypeUsed = kno;
                 var assignments = (from t in genericTypeArguments
                                    join a in impl on t.GenericTypeName equals a.GenericTypeName
                                    select new { Arg = t, Type = a.TypeExpression });
@@ -137,7 +136,6 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                         GenericTypes = genericTypeArguments,
                         Handled = true,
                         KnownArguments = knownTypes,
-                        KnownArgumentsUsed = knownTypeUsed,
                         PluginUniqueName = uniqueName
                     };
                     item.Arg.TypeResult = (Type)ExpressionParser.Parse(item.Type.ApplyFormat(args), dic);
@@ -186,7 +184,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             {
                 try
                 {
-                    retVal = JsonHelper.FromJsonString<string[]>(jsonSerializedArray);
+                    retVal = JsonHelper.FromJsonString<string[]>(jsonSerializedArray, SerializationTypingMode.StaticTyping);
                 }
                 catch (Exception ex)
                 {

@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
-using ITVComponents.Plugins.SelfRegistration;
+//using ITVComponents.Plugins.SelfRegistration;
 using Microsoft.Win32;
 
 namespace ITVComponents.ParallelProcessing

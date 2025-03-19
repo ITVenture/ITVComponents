@@ -22,6 +22,7 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Plugins.Model;
 using ITVComponents.Plugins.DatabaseDrivenConfiguration.Models;
 using System.Xml.Linq;
+using ITVComponents.Json;
 
 namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
 {
@@ -131,7 +132,7 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
                         select t).ToArray();
                     /*var joined = from t in genericTypeArguments
                         join d in data on t.GenericTypeName equals d.GenericTypeName
-                        select new { Target = t, Type = d.TypeExpression };*/
+                        select new { Target = t, Type = d.TypeExpression };
                     Dictionary<string, object> dic = new Dictionary<string, object>();
                     customVariables ??= new Dictionary<string, object>();
                     //bool kt = knownTypeUsed;
@@ -220,9 +221,9 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
         /// <param name="uniqueName">the unique-name for which to get the generic arguments</param>
         /// <param name="genericTypeArguments">get generic arguments defined in the plugin-type</param>
         public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments,
-            Dictionary<string, object> customVariables, IStringFormatProvider formatter, out bool knownTypeUsed)
+            Dictionary<string, object> customVariables, IStringFormatProvider formatter)
         {
-            knownTypeUsed = false;
+            //knownTypeUsed = false;
             var plug = pluginData.FirstOrDefault(n => !n.PluginDefinition.Disabled && n.PluginDefinition.Name == uniqueName);
             if (plug != null && plug.GenericArguments.Count != 0)
             {
@@ -232,16 +233,16 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
                              select new { Target = t, Type = d.TypeExpression };
                 Dictionary<string, object> dic = new Dictionary<string, object>();
                 customVariables ??= new Dictionary<string, object>();
-                bool kt = knownTypeUsed;
+              //  bool kt = knownTypeUsed;
                 customVariables.ForEach(n => dic.Add(n.Key, new SmartProperty
                 {
                     GetterMethod = t =>
                     {
-                        kt = true;
+                //        kt = true;
                         return n.Value;
                     }
                 }));
-                knownTypeUsed = kt;
+                //knownTypeUsed = kt;
                 foreach (var j in joined)
                 {
                     j.Target.TypeResult = (Type)ExpressionParser.Parse(j.Type.ApplyFormat(formatter), dic);
@@ -333,7 +334,7 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             {
                 if (list.Contains("["))
                 {
-                    retVal = JsonHelper.FromJsonString<string[]>(list);
+                    retVal = JsonHelper.FromJsonString<string[]>(list, SerializationTypingMode.StaticTyping);
                 }
                 else
                 {

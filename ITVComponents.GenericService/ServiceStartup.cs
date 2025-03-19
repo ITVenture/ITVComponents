@@ -63,7 +63,9 @@ namespace ITVComponents.GenericService
             {
                 var r = new PluginFactory(PluginInitializationPhase.SingletonStatic, false, s,
                     new ConfigFilePluginLoader());
+                r.AllowFactoryParameter = true;
                 r.Start();
+                r.InitializeDeferrables();
                 return r;
             });
             Startup.ServiceCollection.AddScoped<IPluginFactory>(s =>
@@ -71,6 +73,9 @@ namespace ITVComponents.GenericService
                 var sf = s.GetService<ISingletonFactory>();
                 var r = new PluginFactory(PluginInitializationPhase.ScopeStatic, false, s,sf,
                     new ConfigFilePluginLoader());
+                r.AllowFactoryParameter = true;
+                r.Start();
+                r.InitializeDeferrables();
                 return r; 
 
             });

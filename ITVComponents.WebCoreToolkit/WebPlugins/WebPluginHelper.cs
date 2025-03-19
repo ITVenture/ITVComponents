@@ -139,138 +139,13 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             {
                 factoryOptions.ApplyOptions(factory);
             }
-                /*PluginFactory pi = (PluginFactory) sender;
-                IWebPluginsSelector availablePlugins = pluginProvider;
-                var globalProvider = serviceProvider.GetService<IGlobalSettingsProvider>();
-                var tenantProvider = serviceProvider.GetService<IScopedSettingsProvider>();
-                var preInitializationSequence = tenantProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}", explicitUserScope)
-                                                ?? globalProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}");
-                var postInitializationSequence = tenantProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}", explicitUserScope)
-                                                ?? globalProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}");
-                var preInitSequence = DeserializeInitArray(preInitializationSequence);
-                var postInitSequence = DeserializeInitArray(postInitializationSequence);
-                WebPlugin plugin =
-                    availablePlugins.GetPlugin(args.RequestedName);
-                if (plugin != null)
-                {
-                    if (!checkSecurity || serviceProvider.VerifyUserPermissions(new []{args.RequestedName},true))
-                    {
-                        if (preInitSequence.Length != 0)
-                        {
-                            foreach (var s in preInitSequence)
-                            {
-                                var tmp = pi[s, true, args.PluginType];
-                            }
-                        }
 
-                        if (!string.IsNullOrEmpty(plugin.Constructor))
-                        {
-                            if (args.PluginType != null)
-                            {
-                                args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
-                                                        new Dictionary<string,object>{{"CallingPlugin",args.PluginType}});
-                            }
-                            else
-                            {
-                                args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
-                            }
-
-                            args.Handled = true;
-                        }
-
-                        if (postInitSequence.Length != 0)
-                        {
-                            foreach (var s in postInitSequence)
-                            {
-                                var tmp = pi[s, true, args.PluginType];
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    var tmp = factoryOptions?.GetDependency(args.RequestedName, serviceProvider);
-                    args.Handled = tmp != null;
-                    args.Value = tmp;
-                }
-            };*/
-            
-            void Initializer(object sender, PluginInitializedEventArgs args)
-            {
-                PluginLoadInterceptHelper.RunInterceptors(retVal, args.Plugin);
-            }
-
-            void Finalizer(object sender, EventArgs e)
-            {
-                LogEnvironment.DisposeRegistrationTicket(sender);
-                var pi = (IPluginFactory) sender ;
-                var dp = (IServiceProvider) pi[Global.ServiceProviderName];
-                if (dp != null)
-                {
-                    factory = null;
-                }
-                pi.Disposed -= Finalizer;
-                pi.PluginInitialized -= Initializer;
-            }
-
-            void Implementer(object sender, ImplementGenericTypeEventArgs args)
-            {
-                PluginFactory pi = (PluginFactory)sender;
-                IWebPluginsSelector availablePlugins = pluginProvider;
-                var impl = availablePlugins.GetGenericParameters(args.PluginUniqueName);
-                if (impl != null)
-                {
-                    var dic = new Dictionary<string, object>();
-                    var knownTypes = args.KnownArguments ?? new Dictionary<string, object>();
-                    knownTypes.ForEach(n => dic.Add(n.Key, new SmartProperty
-                    {
-                        GetterMethod = t =>
-                        {
-                            //args.KnownArgumentsUsed = true;
-                            return n.Value;
-                        }
-                    }));
-                    /*var assignments = (from t in args.GenericTypes
-                        join a in impl on t.GenericTypeName equals a.GenericTypeName
-                        select new { Arg = t, Type = a.TypeExpression });*/
-                    List<(string name, Type type)> fixTypes = new List<(string name, Type type)>();
-                    Type argumentProvider = null;
-                    foreach (var item in impl)
-                    {
-                        var t = (Type)ExpressionParser.Parse(item.TypeExpression.ApplyFormat(args), dic);
-                        if (item.GenericTypeName != "$$genericArgumentProvider")
-                        {
-                            fixTypes.Add((name: item.GenericTypeName,
-                                type: t));
-                        }
-                        else
-                        {
-                            argumentProvider = t;
-                        }
-                    }
-
-                    if (argumentProvider == null)
-                    {
-                        var rawTypes = typeof(object).GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
-                        args.Handled = args.GenericTypes.FinalizeTypeArguments(rawTypes);
-                    }
-                    else
-                    {
-                        var rawTypes = argumentProvider.GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
-                        args.Handled = args.GenericTypes.FinalizeTypeArguments(rawTypes);
-                    }
-                }
-            }
-
-            retVal.UnknownConstructorParameter += handler;
-            retVal.PluginInitialized += Initializer;
-            retVal.Disposed += Finalizer;
             retVal.Start();
             retVal.InitializeDeferrables();
             return retVal;
         }
 
-        private string[] DeserializeInitArray(string jsonSerializedArray)
+        /*private string[] DeserializeInitArray(string jsonSerializedArray)
         {
             string[] retVal = Array.Empty<string>();
             if (!string.IsNullOrEmpty(jsonSerializedArray))
@@ -301,7 +176,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 {
                     if (!testPermissions || serviceProvider.VerifyUserPermissions(new []{pi.UniqueName}, true))
                     {
-                        factory.LoadPlugin<IPlugin>(pi.UniqueName, pi.Constructor);
+                        factory.LoadPlugin<object>(pi.UniqueName, pi.Constructor, null);
                     }
                 }
                 catch (Exception ex)
@@ -314,7 +189,7 @@ Error:
 Section: Plugins", ex, "Plugins");
                 }
             }
-        }
+        }*/
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         /// <filterpriority>2</filterpriority>

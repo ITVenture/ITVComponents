@@ -6,7 +6,7 @@ using ITVComponents.Plugins.PluginServices;
 
 namespace ITVComponents.Plugins;
 
-public interface IPluginFactory: IDelayedDisposable//, IEnumerable<object>
+public interface IPluginFactory: IDelayedDisposable, IEnumerable<object>
 {
     /// <summary>
     /// Gets or sets a value indicating whether to allow plugins to request this factory object by having a constructor parameter called $factory
