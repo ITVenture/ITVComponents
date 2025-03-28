@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.1.4</Version>
+    <Version>3.1.6</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Copyright>2020 by IT-Venture GmbH</Copyright>
@@ -37,11 +37,11 @@
     <Compile Update="ServiceStartup.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.extensions.configuration" Version="6.0.1" />
-    <PackageReference Include="Microsoft.extensions.configuration.binder" Version="6.0.0" />
-    <PackageReference Include="Microsoft.extensions.configuration.json" Version="6.0.0" />
+    <PackageReference Include="Microsoft.extensions.configuration" Version="6.0.2" />
+    <PackageReference Include="Microsoft.extensions.configuration.binder" Version="6.0.1" />
+    <PackageReference Include="Microsoft.extensions.configuration.json" Version="6.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
-    <PackageReference Include="microsoft.extensions.primitives" Version="6.0.0" />
+    <PackageReference Include="microsoft.extensions.primitives" Version="6.0.1" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <!--Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" /-->

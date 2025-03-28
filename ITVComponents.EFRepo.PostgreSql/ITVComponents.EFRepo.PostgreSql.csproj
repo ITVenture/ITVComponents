@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.1.4</Version>
+    <Version>3.1.6</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <LangVersion>9.0</LangVersion>
@@ -16,10 +16,10 @@
     <None Remove="Properties\**" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="microsoft.entityframeworkcore" Version="6.0.27" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="6.0.27" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.27" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="6.0.8" />
+    <PackageReference Include="microsoft.entityframeworkcore" Version="6.0.36" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="6.0.36" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.36" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="6.0.29" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
