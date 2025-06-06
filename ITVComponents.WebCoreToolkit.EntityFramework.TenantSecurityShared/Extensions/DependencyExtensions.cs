@@ -9,9 +9,12 @@ using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.GlobalFiltering;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Logging;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Settings;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
@@ -131,6 +134,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
                 .GetGenericMethodDefinition();
             method = method.MakeGenericMethod(contextType);
             return (IServiceCollection)method.Invoke(null, new object[] { services });
+        }
+
+        public static IServiceCollection UseServerCookies(this IServiceCollection services,
+            Action<ServerCookieOptions> configure)
+        {
+            services.AddScoped<ICookieService, DbCookieService>();
+            if (configure != null)
+            {
+                services.Configure<ServerCookieOptions>(configure);
+            }
+
+            return services;
         }
     }
 }

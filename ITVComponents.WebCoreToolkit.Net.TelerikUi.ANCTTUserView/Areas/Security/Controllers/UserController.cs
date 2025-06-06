@@ -167,7 +167,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] {model.ToViewModel<User, UserViewModel>()}.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
 
@@ -269,7 +269,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         /*************************************
@@ -283,7 +283,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(db.UserProperties.Where(n => n.UserId == userId).ToDataSourceResult(request, ModelState, p => p.ToViewModel<CustomUserProperty, CustomUserPropertyViewModel>()));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -304,7 +304,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] { model.ToViewModel<CustomUserProperty, CustomUserPropertyViewModel>() }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -323,7 +323,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -342,7 +342,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] {model.ToViewModel<CustomUserProperty, CustomUserPropertyViewModel>()}.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         /*************************************
@@ -356,7 +356,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(db.UserLogins.Where(n => n.UserId == userId).ToDataSourceResult(request, ModelState, p => p.ToViewModel<IdentityUserLogin<string>, UserLoginViewModel>()));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -375,7 +375,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         /*************************************
@@ -389,7 +389,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(db.UserTokens.Where(n => n.UserId == userId).ToDataSourceResult(request, ModelState, p => p.ToViewModel<IdentityUserToken<string>, UserTokenViewModel>()));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -408,7 +408,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         /*************************************
@@ -422,7 +422,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(db.UserClaims.Where(n => n.UserId == userId).ToDataSourceResult(request, ModelState, p => p.ToViewModel<IdentityUserClaim<string>, UserClaimViewModel>()));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -443,7 +443,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] { model.ToViewModel<IdentityUserClaim<string>, UserClaimViewModel>() }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -462,7 +462,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -481,7 +481,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
                 return Json(await new[] { model.ToViewModel<IdentityUserClaim<string>, UserClaimViewModel>() }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
     }
 }

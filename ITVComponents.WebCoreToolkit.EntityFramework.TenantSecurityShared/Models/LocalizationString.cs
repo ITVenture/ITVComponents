@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,5 +21,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         [Required]
         public string LocalizationValue { get; set; }
+
+        [ForeignKey(nameof(LocalizationCultureId))]
+        public virtual LocalizationCulture Culture { get; set; }
     }
 }

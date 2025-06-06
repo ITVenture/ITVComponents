@@ -312,14 +312,14 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         /// </summary>
         /// <param name="uniqueObjectName">the objectName to remove from the list of extension.proxies</param>
         /// <returns>a value indicating whether the object could be removed successfully</returns>
-        protected bool AbandonExtendedProxy(string uniqueObjectName, IIdentity authenticatedUser)
+        protected bool AbandonExtendedProxy(string uniqueObjectName, RequestContext context)
         {
             if (extendedProxies.ContainsKey(uniqueObjectName))
             {
                 lock (extendedProxies)
                 {
-                    if (authenticatedUser == null || extendedProxies[uniqueObjectName].Owner == authenticatedUser)
-                    return extendedProxies.Remove(uniqueObjectName);
+                    if (context.User == null || extendedProxies[uniqueObjectName].Owner == context.User)
+                        return extendedProxies.Remove(uniqueObjectName);
                 }
             }
 

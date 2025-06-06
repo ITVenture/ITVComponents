@@ -1,14 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.AccessControl;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.DIServices;
 using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.RequestConservation;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
+using ITVComponents.WebCoreToolkit.WebPlugins.ServiceModels;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -146,6 +150,23 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             return permissions ?? Array.Empty<string>();
         }
 
+        public static string[] GetUserPermissions(this IServiceProvider provider,
+            string forScope, out ISecurityRepository securityRepository, out bool isAuthenticated)
+        {
+            string[] permissions = null;
+            IdentityInfo[] identities;
+            isAuthenticated = provider.IsUserAuthenticated(forScope, out securityRepository, out identities);
+            if (isAuthenticated)
+            {
+                var rp = securityRepository;
+                permissions = identities.SelectMany(i => rp.GetPermissions(i.Labels, forScope, i.AuthenticationType)).Select(n => n.PermissionName)
+                    .Distinct()
+                    .ToArray();
+            }
+
+            return permissions ?? [];
+        }
+
         public static T[] GetUserIds<T>(this IServiceProvider provider, out bool isAuthenticated)
         {
             ISecurityRepository securityRepository;
@@ -258,6 +279,28 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         }
 
         /// <summary>
+        /// Indicates whether the current logged-in user is considered authenticated
+        /// </summary>
+        /// <param name="provider">the service-provider for the current http-context</param>
+        /// <param name="forScope">the scope, for which to check whether the user is authenticated</param>
+        /// <param name="securityRepository">the security-context responsible for all authorization-tasks</param>
+        /// <param name="labels">the user-labels of the current user</param>
+        /// <param name="authType">the authentication-type that was used to log this user in</param>
+        /// <returns>a value indicating whether the current user is correlctly authenticated</returns>
+        public static bool IsUserAuthenticated(this IServiceProvider provider, string forScope, out ISecurityRepository securityRepository, out IdentityInfo[] identities)
+        {
+            var userProvider = provider.GetService<IContextUserProvider>();
+            var userMapper = provider.GetService<IUserNameMapper>();
+            var currentUser = userProvider.User;
+            identities = (from t in currentUser.Identities
+                where t.IsAuthenticated
+                select new IdentityInfo
+                    { AuthenticationType = t.AuthenticationType, Labels = userMapper.GetUserLabels(t) }).ToArray();
+            var rp = securityRepository = provider.GetService<ISecurityRepository>();
+            return identities.Any(a => rp.IsAuthenticated(a.Labels, forScope, a.AuthenticationType));
+        }
+
+        /// <summary>
         /// Gets the assigned permissions for the current user
         /// </summary>
         /// <param name="provider">the service-provider for the current scope</param>
@@ -265,6 +308,12 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         public static string[] GetUserPermissions(this IServiceProvider provider, out bool isAuthenticated)
         {
             return provider.GetUserPermissions(out _, out isAuthenticated);
+        }
+
+        public static string[] GetUserPermissions(this IServiceProvider provider, string forScope,
+            out bool isAuthenticated)
+        {
+            return provider.GetUserPermissions(forScope, out _, out isAuthenticated);
         }
 
         /// <summary>
@@ -335,6 +384,36 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             {
                 psb.SetFixedScope(crd.CurrentScope);
             }
+        }
+
+        public static IObjectProvider GetObjectProvider(this IServiceProvider serviceProvider, string objectName,
+            Func<IObjectProvider> defaultProvider)
+        {
+            IObjectProvider retVal;
+            var mc = serviceProvider.GetService<IMemoryCache>();
+            if (!(mc?.TryGetValue<IObjectProvider>(objectName, out retVal) ?? false))
+            {
+                if (mc == null)
+                {
+                    retVal = defaultProvider?.Invoke();
+                }
+                else
+                {
+                    lock (mc)
+                    {
+                        mc.Set(objectName, retVal = new TimedObjectProvider(),
+                            DateTimeOffset.Now.AddDays(1));
+                    }
+                }
+            }
+
+            return retVal;
+        }
+
+        public static IObjectProvider GetObjectProvider(this IServiceProvider serviceProvider, string scopeName)
+        {
+            var objectName = $"{scopeName}_WPHObjects";
+            return serviceProvider.GetObjectProvider(objectName, () => new DummyObjectProvider());
         }
     }
 }

@@ -6,9 +6,7 @@ using System.Dynamic;
 using System.Linq;
 using System.Text;
 using ImpromptuInterface;
-#if !Community
 using ITVComponents.ExtendedFormatting;
-#endif
 using ITVComponents.Scripting.CScript.Core.Invokation;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Security;

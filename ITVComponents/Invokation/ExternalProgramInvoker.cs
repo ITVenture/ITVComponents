@@ -292,11 +292,7 @@ namespace ITVComponents.Invokation
                 waits.Add(ReadStream(proc.StandardOutput, con, false, proc.StartInfo.FileName, OnConsoleOutput, proc, token));
             }
 
-#if NETCOREAPP3_1
-                waits.Add(WaitForExit(proc, timeout));
-#else
             waits.Add(proc.WaitForExitAsync(token));
-#endif
             waits.ForEach(n => n.ConfigureAwait(false));
             await Task.WhenAll(waits);
             return waits.All(n => n.IsCompletedSuccessfully);

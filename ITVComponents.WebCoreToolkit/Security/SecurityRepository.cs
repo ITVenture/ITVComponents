@@ -113,6 +113,9 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType) => Current.IsAuthenticated(userLabels,userAuthenticationType);
 
+        public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType) =>
+            rootRepo.IsAuthenticated(userLabels, forScope, userAuthenticationType);
+
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType) => Current.GetCustomProperties(userLabels,userAuthenticationType, propertyType);
 
         public IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType) => Current.GetUserIds<T>(userLabels, userAuthenticationType);
@@ -124,6 +127,7 @@ namespace ITVComponents.WebCoreToolkit.Security
         public IEnumerable<Permission> GetPermissions(User user) => Current.GetPermissions(user);
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType) => Current.GetPermissions(userLabels,userAuthenticationType);
+        public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType) => rootRepo.GetPermissions(userLabels, forScope, userAuthenticationType);
 
         public IEnumerable<Permission> GetPermissions(Role role) => Current.GetPermissions(role);
 
@@ -167,6 +171,7 @@ namespace ITVComponents.WebCoreToolkit.Security
             Current.GetEncryptStream(baseStream, permissionScopeName);
 
         public string EncryptJsonObject(object value, string permissionScopeName) => Current.EncryptJsonObject(value, permissionScopeName);
+        public Permission[] GetKnownPermissions(string permissionScope) => Current.GetKnownPermissions(permissionScope);
 
         private void OnDisposed()
         {

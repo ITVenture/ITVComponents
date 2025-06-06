@@ -12,6 +12,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         public string UniqueKey { get; set; }
 
-        public PermissionTemplateMarkup CustomPermission { get; set; }
+        public string CustomPermission { get; set; }
     }
 }

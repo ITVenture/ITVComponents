@@ -32,9 +32,12 @@ namespace ITVComponents.Json
 
         private static readonly DefaultJsonTypeInfoResolver defaultContract = new DefaultJsonTypeInfoResolver();
 
+        private static readonly List<Action<JsonTypeInfo>> protocolTypeExtensions = new List<Action<JsonTypeInfo>>();
+
         static JsonHelper()
         {
             DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(SimpleContract), "SimpleContract");
+            defaultContract.Modifiers.Add(ProcessTypeExtensions);
         }
 
         /// <summary>
@@ -147,13 +150,16 @@ namespace ITVComponents.Json
 
         public static void ExtendNativeProtocolType<TProto, TExt>(string discriminator) where TExt:TProto
         {
-            defaultContract.Modifiers.Add(t =>
+            lock (protocolTypeExtensions)
             {
-                if (t.Type == typeof(TProto))
+                protocolTypeExtensions.Add(t =>
                 {
-                    t.PolymorphismOptions.DerivedTypes.Add(new JsonDerivedType(typeof(TExt), discriminator));
-                }
-            });
+                    if (t.Type == typeof(TProto))
+                    {
+                        t.PolymorphismOptions.DerivedTypes.Add(new JsonDerivedType(typeof(TExt), discriminator));
+                    }
+                });
+            }
         }
 
         public static string EncryptJsonValues(this string jsonString, string password = null)
@@ -604,6 +610,23 @@ namespace ITVComponents.Json
             }
 
             return retVal;
+        }
+
+        private static void ProcessTypeExtensions(JsonTypeInfo obj)
+        {
+            var extensions = Array.Empty<Action<JsonTypeInfo>>();
+            lock (protocolTypeExtensions)
+            {
+                if (protocolTypeExtensions.Count != 0)
+                {
+                    extensions = protocolTypeExtensions.ToArray();
+                }
+            }
+
+            foreach (var ext in extensions)
+            {
+                ext(obj);
+            }
         }
     }
 

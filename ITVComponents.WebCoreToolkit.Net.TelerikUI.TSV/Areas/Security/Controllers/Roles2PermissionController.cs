@@ -145,7 +145,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
     }
 }

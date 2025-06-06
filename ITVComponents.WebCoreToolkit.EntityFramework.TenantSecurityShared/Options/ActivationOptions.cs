@@ -49,5 +49,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
 
         public bool UseContextLocalizationServices { get; set; } = false;
         public bool UseDefaultInterceptors { get; set; } = true;
+
+        public bool UseServerCookies { get; set; }
+
+        public int DefaultServerCookieValidity { get; set; } = 1;
+
+        public int CookieLengthThreshold { get; set; } = 2048;
     }
 }

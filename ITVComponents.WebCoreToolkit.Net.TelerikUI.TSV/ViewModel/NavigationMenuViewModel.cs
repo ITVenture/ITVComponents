@@ -25,6 +25,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         [DataType(DataType.MultilineText)]
         public string SpanClass { get; set; }
 
+        public bool IsPublic { get; set; } = false;
+
         public int[] Tenants { get; set; }
     }
 }

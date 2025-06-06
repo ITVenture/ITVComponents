@@ -183,17 +183,17 @@
   <data name="IWCN_Titles_Tenants" xml:space="preserve">
     <value>Locataires</value>
   </data>
+  <data name="IWCN_Titles_TenantTypes" xml:space="preserve">
+    <value>Types de clients</value>
+  </data>
   <data name="IWCN_Titles_Users" xml:space="preserve">
     <value>Utilisateurs</value>
   </data>
   <data name="IWCN_TST_JsonParam" xml:space="preserve">
     <value>JSON</value>
   </data>
-  <data name="IWCN_TST_ParameterName" xml:space="preserve">
+  <data name="IWCN_General_ParameterName" xml:space="preserve">
     <value>Nom du paramètre</value>
-  </data>
-  <data name="IWCN_DQP_Type" xml:space="preserve">
-    <value>Type</value>
   </data>
   <data name="IWCN_Titles_GlobalSettings" xml:space="preserve">
     <value>paramètres globaux</value>
@@ -203,6 +203,12 @@
   </data>
   <data name="IWCN_DQP_DateFormat" xml:space="preserve">
     <value>Format (pour la date uniquement)</value>
+  </data>
+  <data name="IWCN_DQP_Type" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="IWCN_Tenant_Type" xml:space="preserve">
+    <value>Type</value>
   </data>
   <data name="IWCN_Titles_PlugInConstants" xml:space="preserve">
     <value>Constantes</value>
@@ -245,9 +251,6 @@
   </data>
   <data name="IWCN_Titles_TutorialVideos" xml:space="preserve">
     <value>Tutoriels</value>
-  </data>
-  <data name="IWCN_General_Cancel" xml:space="preserve">
-    <value>Anuller</value>
   </data>
   <data name="IWCN_Tutorials_SortableName" xml:space="preserve">
     <value>Nom de tri</value>
@@ -300,6 +303,12 @@
   <data name="IWCN_TT_Apply" xml:space="preserve">
     <value>Appliquer</value>
   </data>
+  <data name="IWCN_TT_MetaData" xml:space="preserve">
+    <value>Metadonnées</value>
+  </data>
+  <data name="IWCN_TT_Template" xml:space="preserve">
+    <value>Modèle</value>
+  </data>
   <data name="IWCN_TT_Create" xml:space="preserve">
     <value>Nouveau modèle basé sur ce client</value>
   </data>
@@ -326,5 +335,23 @@
   </data>
   <data name="IWCN_Titles_Sequences" xml:space="preserve">
     <value>Sequences</value>
+  </data>
+  <data name="IWCN_General_Cancel" xml:space="preserve">
+    <value>Anuller</value>
+  </data>
+  <data name="IWCN_TST_ParameterName" xml:space="preserve">
+    <value>Nom du paramètre</value>
+  </data>
+  <data name="IWCN_Titles_DbResources" xml:space="preserve">
+    <value>Ressources de la base de données</value>
+  </data>
+  <data name="IWCN_Titles_DbCultures" xml:space="preserve">
+    <value>Langues de traduction</value>
+  </data>
+  <data name="IWCN_DRI_ResetFactory" xml:space="preserve">
+    <value>réinitialiser les traductions</value>
+  </data>
+  <data name="IWCN_DRI_CopyFromOrigin" xml:space="preserve">
+    <value>copier à partir de la ressource originale</value>
   </data>
 </root>

@@ -55,6 +55,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         private bool includeChildTree = false;
         private bool includeParentTree = false;
         private bool showAllTenants = false;
+        private int? currentTenantId;
+        private string bufferedTenantName;
 
         public AspNetTreeSecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions,
             DbContextOptions<TImpl> options) : base(options)
@@ -77,13 +79,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             ShowAllTenants = true;*/
             try
             {
-                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenant);
+                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantForFiltering);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => ShowAllTenants);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => FilterAvailable);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => HideGlobals);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => HideDisabledUsers);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentUserName);
-                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantId);
+                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantIdForFiltering);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantTree);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => IncludeParentTree);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => IncludeChildTree);
@@ -104,8 +106,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         /// </summary>
         protected bool UseFilters => useFilters;
 
-        [ExpressionPropertyRedirect("CurrentTenant")]
         private string CurrentTenant
+        {
+            get
+            {
+                string retVal = null;
+                retVal = tenantProvider.PermissionPrefix?.ToLower();
+                return retVal;
+            }
+        }
+
+        [ExpressionPropertyRedirect("CurrentTenant")]
+        private string CurrentTenantForFiltering
         {
             get
             {
@@ -123,6 +135,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         ///     Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
         /// </summary>
         [ExpressionPropertyRedirect("CurrentTenantId")]
+        private int? CurrentTenantIdForFiltering
+        {
+            get
+            {
+                if (tenantProvider == null)
+                {
+                    return null;
+                }
+
+                if (string.IsNullOrEmpty(CurrentTenantForFiltering))
+                {
+                    return null;
+                }
+
+                return CurrentTenantId;
+            }
+        }
+
+        /// <summary>
+        ///     Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
+        /// </summary>
         public int? CurrentTenantId
         {
             get
@@ -132,12 +165,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                     return null;
                 }
 
-                if (string.IsNullOrEmpty(tenantProvider.PermissionPrefix))
+                if (string.IsNullOrEmpty(CurrentTenant))
                 {
                     return null;
                 }
 
-                return Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())
+                if (currentTenantId != null && bufferedTenantName == CurrentTenant)
+                {
+                    return currentTenantId;
+                }
+
+                bufferedTenantName = tenantProvider.PermissionPrefix;
+                return currentTenantId =Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())
                     ?.TenantId;
             }
         }
@@ -196,6 +235,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<AuthenticationType> AuthenticationTypes { get; set; }
 
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DbResources.View", "DbResources.Write")]
         public DbSet<Culture> Cultures { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View")]
@@ -271,6 +311,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         public DbSet<TenantTemplate> TenantTemplates { get; set; }
 
         public DbSet<TenantType> TenantTypes { get; set; }
+        public DbSet<ServerCookie> ServerCookies { get; set; }
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
         public DbSet<VideoTutorial> Tutorials { get; set; }
         public DbSet<TutorialStream> TutorialStreams { get; set; }
@@ -549,33 +590,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             return null;
         }
 
-        public IQueryable<Tenant> ChildTenantsWith(string userId, string currentTenant, string[] requiredPermissions)
+        public IEnumerable<HierarchyTenant> ChildTenantsWith(string userId, string currentTenant, string[] requiredPermissions)
         {
             var trust = new HierarchyTenantContextSecurityTrustConfig
             {
                 HideGlobals = false,
                 IncludeParentTree = true,
                 IncludeChildTree = true,
-                ShowAllTenants = showAllTenants
+                ShowAllTenants = true
             };
 
             using (FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(this, this,
                        trust))
             {
                 var mth =
-                    modelBuilderOptions.GetMethod<Func<DbContext, string, string, string[], IQueryable<Tenant>>>(
+                    modelBuilderOptions.GetMethod<Func<DbContext, string, string, string[], IQueryable<HierarchyTenant>>>(
                         "ChildTenantsWith");
                 if (mth == null)
                 {
                     throw new InvalidOperationException("ChildTenantsWith was not implemented for this Database-Type");
                 }
 
-                if (!string.IsNullOrEmpty(CurrentTenant))
+                if (!string.IsNullOrEmpty(currentTenant))
                 {
-                    return mth(this, userId, currentTenant, requiredPermissions);
+                    return mth(this, userId, currentTenant, requiredPermissions).ToArray();
                 }
 
-                return Array.Empty<Tenant>().AsQueryable();
+                return Array.Empty<HierarchyTenant>();
             }
         }
 
@@ -608,11 +649,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                             TenantTreeShared.Helpers.ToolkitPermission.BranchViewer
                         }))
                     {
-                        includeParentTree = tmp;
+                        includeChildTree = tmp;
                     }
                     else
                     {
-                        includeParentTree = value;
+                        includeChildTree = value;
                     }
                 }
             }

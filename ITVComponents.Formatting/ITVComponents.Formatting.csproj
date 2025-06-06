@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>4.0.0-PRE069</Version>
+    <Version>4.0.0-PRE157</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -13,6 +13,7 @@
     <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
     <ProjectReference Include="..\ITVComponents.Scripting.CScript\ITVComponents.Scripting.CScript.csproj" />
+    <ProjectReference Include="..\ITVComponents.StateMachine\ITVComponents.StateMachine.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -10,6 +10,7 @@ using ITVComponents.DataAccess.Parallel;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.Plugins.Config;
 using ITVComponents.Plugins.Helpers;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Plugins.PluginServices;
@@ -93,17 +94,20 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
         /// <summary>
         /// Loads dynamic assemblies that are required for a specific application
         /// </summary>
-        public IEnumerable<string> LoadDynamicAssemblies()
+        public IEnumerable<string> LoadDynamicAssemblies(PluginLoadType currentLoadType)
         {
             try
             {
-                return LoadPlugins();
+                return LoadPlugins(currentLoadType);
             }
             finally
             {
-                if (refreshCycle != 0)
+                if (currentLoadType == PluginLoadType.Singleton)
                 {
-                    refresher.Change(refreshCycle, refreshCycle);
+                    if (refreshCycle != 0)
+                    {
+                        refresher.Change(refreshCycle, refreshCycle);
+                    }
                 }
             }
         }
@@ -137,7 +141,7 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
         /// </summary>
         /// <param name="uniqueName">the unique-name for which to get the generic arguments</param>
         /// <param name="genericTypeArguments">get generic arguments defined in the plugin-type</param>
-        public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables, IStringFormatProvider formatter/*, out bool knownTypeUsed*/)
+        public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables, StringFormatProvider formatter/*, out bool knownTypeUsed*/)
         {
             //knownTypeUsed = false;
             if (!string.IsNullOrEmpty(genericParamTableName))
@@ -201,6 +205,42 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
             }
         }
 
+        public bool HasScopedPlugin(string pluginName)
+        {
+            using (database.AcquireConnection(false, out var db))
+            {
+                return 
+                    db.GetNativeResults($@"Select PluginId from {tableName} where isnull(disabled,0)=0 and 
+(tenantId=@tenantId or (tenantId is null and @tenantId is null)) and (LoadType=@loadType) and UniqueName=@uniqueName",
+                        null, db.GetParameter("tenantId", tenantName),
+                        db.GetParameter("loadType", (int)PluginLoadType.Scope),
+                        db.GetParameter("uniqueName", pluginName)).Any();
+            }
+        }
+
+        public PluginConfigurationItem GetScopedPlugin(string pluginName)
+        {
+            using (database.AcquireConnection(false, out var db))
+            {
+                var plug = db.GetNativeResults($@"Select * from {tableName} where isnull(disabled,0)=0 and 
+(tenantId=@tenantId or (tenantId is null and @tenantId is null)) and (LoadType=@loadType) and UniqueName=@uniqueName",
+                    null, db.GetParameter("tenantId", tenantName),
+                    db.GetParameter("loadType", (int)PluginLoadType.Scope),
+                    db.GetParameter("uniqueName", pluginName)).FirstOrDefault();
+                if (plug != null)
+                {
+                    return new PluginConfigurationItem
+                    {
+                        Disabled = false,
+                        ConstructionString = plug["Constructor"],
+                        Name = plug["UniqueName"]
+                    };
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Checks for plugins that are currently not loaded
         /// </summary>
@@ -210,7 +250,7 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
             refresher.Change(Timeout.Infinite, Timeout.Infinite);
             try
             {
-                var tmp = LoadPlugins().ToArray();
+                var tmp = LoadPlugins(PluginLoadType.Singleton).ToArray();
                 LogEnvironment.LogDebugEvent($"{tmp.Length} new PlugIns loaded..", LogSeverity.Report);
             }
             catch (Exception ex)
@@ -226,15 +266,16 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
             }
         }
 
-        private IEnumerable<string> LoadPlugins()
+        private IEnumerable<string> LoadPlugins(PluginLoadType loadType)
         {
             using (database.AcquireConnection(false, out var db))
             {
                 DynamicResult[] plugins =
                     db.GetNativeResults($@"Select * from {tableName} where isnull(disabled,0)=0 and 
-(tenantId=@tenantId or (tenantId is null and @tenantId is null)) 
+(tenantId=@tenantId or (tenantId is null and @tenantId is null)) and (LoadType=@loadType) 
 order by LoadOrder",
-                        null, db.GetParameter("tenantId",tenantName));
+                        null, db.GetParameter("tenantId", tenantName),
+                        db.GetParameter("loadType", (int)loadType));
                 foreach (DynamicResult plugin in plugins)
                 {
                     if (factory[plugin["UniqueName"]] == null)

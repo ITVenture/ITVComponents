@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.AspExtensions.Attributes;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Extensions;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Models;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Identity;
@@ -13,12 +14,17 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Pag
     {
         private readonly SignInManager<TUser> signInManager;
         private readonly IOptions<AuthenticationHandlerOptions> availableAuthenticators;
+        private readonly IOptions<LoginOptions> loginOptions;
 
         public LoginHandler(SignInManager<TUser> signInManager,
-            IOptions<AuthenticationHandlerOptions> availableAuthenticators)
+            IOptions<AuthenticationHandlerOptions> availableAuthenticators,
+            IOptions<LoginOptions> loginOptions)
         {
             this.signInManager = signInManager;
             this.availableAuthenticators = availableAuthenticators;
+            this.loginOptions = loginOptions;
+            RegistrationInfo = loginOptions.Value.RegistrationPage;
+            ExternalLoginConfig = loginOptions.Value.ExternalLoginPage;
         }
 
         public async Task<AuthenticationHandlerDefinition[]> FetchExternalProviders()
@@ -32,23 +38,24 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Pag
             return await signInManager.PasswordSignInAsync(email, password, rememberMe, lockoutOnFailure: lockoutOnFailure);
         }
 
-        public UserRegistrationInfo RegistrationInfo { get; } = new UserRegistrationInfo
+        public UserRegistrationInfo RegistrationInfo { get; } /*new UserRegistrationInfo
         {
             AllowRegister = true,
             Area = "Identity",
             Action = "Index",
             Controller = "Registration",
             ControllerLink = true
-        };
+        };*/
 
-        public ExternalLoginConfig ExternalLoginConfig { get; } = new ExternalLoginConfig()
+        public ExternalLoginConfig ExternalLoginConfig { get; } /*= new ExternalLoginConfig()
         {
             UseExternalLogins = true,
             Area="Identity",
-            Controller="Registration",
-            Action= "LoginExternal",
-            PostToController = true
-        };
+            Page = "Account/ExternalLogin",
+            //Controller="Registration",
+            //Action= "LoginExternal",
+            PostToController = false
+        };*/
 
         public bool UsePage => true;
     }

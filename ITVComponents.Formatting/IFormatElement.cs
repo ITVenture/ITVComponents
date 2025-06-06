@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Formatting
 {
-    internal interface IFormatElement
+    public interface IFormatElement
     {
         int Start { get; set; }
 

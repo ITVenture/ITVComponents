@@ -39,6 +39,7 @@ namespace ITVComponents.WebCoreToolkit.Options
         public List<PageHandlerOptions> PageHandlers { get; set; } = new();
 
         public Dictionary<string, string> GroupClaims { get; set; } = new();
+        public bool UseDefaultCookies { get; set; } = true;
     }
 
     public class LocalizationMappingOption

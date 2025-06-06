@@ -27,6 +27,7 @@
         //columns.ForeignKey(p => p.PermissionId, (IEnumerable) ViewData["Permissions"], "Key", "Label").Title("Modul-Berechtigung");
         columns.AjaxFk(p => p.PermissionId, "sys", "Permissions", "NavigationMenuId", minSearchLength: 2, filterable: true, customFilterData: new {TenantId = "##NULL##"}).Filterable(true);
         columns.AjaxFk(p => p.FeatureId, "sys", "Features", "NavigationMenuId", minSearchLength: 2, filterable: true).Filterable(true);
+        columns.InlineCheckbox(c => c.IsPublic, "NavigationMenuId", readOnly: true);
     /*columns.ForeignKey(p => p.PermissionId, ds =>
     {
         ds.Read(cfg =>

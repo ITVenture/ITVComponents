@@ -14,10 +14,22 @@ namespace ITVComponents.WebCoreToolkit.Logging
     internal class GlobalLogConfiguration:IGlobalLogConfiguration
     {
         private int globalDisable = 0;
-        private int[] enabledLogLevels = new int[]{(int)LogLevel.Information,(int)LogLevel.Warning, (int)LogLevel.Error, (int)LogLevel.Critical};
+        private int[] enabledLogLevels;
         private ConcurrentDictionary<LogLevel, string[]> logFilters = new ConcurrentDictionary<LogLevel, string[]>();
 
         private object modLock = new object();
+
+        public GlobalLogConfiguration(bool includeDebugMessages)
+        {
+            if (!includeDebugMessages)
+            {
+                enabledLogLevels = new int[] { (int)LogLevel.Information, (int)LogLevel.Warning, (int)LogLevel.Error, (int)LogLevel.Critical };
+            }
+            else
+            {
+                enabledLogLevels = new int[] { (int)LogLevel.Information, (int)LogLevel.Warning, (int)LogLevel.Error, (int)LogLevel.Critical, (int)LogLevel.Debug, (int)LogLevel.Trace };
+            }
+        }
 
         /// <summary>
         /// Indicates whether debug-messages are processed by this log-Configuration

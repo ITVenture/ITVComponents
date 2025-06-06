@@ -27,12 +27,6 @@ namespace ITVComponents.WebCoreToolkit.Localization
             return primary.GetAllStrings(includeParentCultures);
         }
 
-#if NETCOREAPP3_1
-        public IStringLocalizer WithCulture(CultureInfo culture)
-        {
-            return new FallbackLocalizer(primary.WithCulture(culture), factory, options);
-        }
-#endif
         public LocalizedString this[string name]
         {
             get

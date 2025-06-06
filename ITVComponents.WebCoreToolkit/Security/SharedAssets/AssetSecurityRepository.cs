@@ -114,6 +114,11 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             return false;
         }
 
+        public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
+        {
+            throw new NotImplementedException();
+        }
+
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType)
         {
             return Array.Empty<CustomUserProperty>();
@@ -155,6 +160,11 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             }
 
             return Array.Empty<Permission>();
+        }
+
+        public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
+        {
+            throw new NotImplementedException();
         }
 
         public IEnumerable<Permission> GetPermissions(Role role)
@@ -263,6 +273,11 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         public string EncryptJsonObject(object value, string permissionScopeName)
         {
             return decoratedRepo.EncryptJsonObject(value, permissionScopeName);
+        }
+
+        public Permission[] GetKnownPermissions(string permissionScope)
+        {
+            throw new NotImplementedException();
         }
     }
 }

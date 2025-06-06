@@ -12,6 +12,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 
         public bool IsSystemRole { get; set; }
 
-        public PermissionTemplateMarkup[] Permissions { get; set; }
+        public string[] Permissions { get; set; }
+
+        public string[] RoleGrants { get; set; }
     }
 }

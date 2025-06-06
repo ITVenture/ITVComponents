@@ -9,834 +9,143 @@ namespace ITVComponents.Scripting.CScript.Operating
     {
         public static object Add(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
-#if TypeSave
-            switch (typ)
-            {
-                case TypeInfo.Decimal:
-                    {
-                        return (decimal) v1 + (decimal) v2;
-                    }
-                case TypeInfo.Double:
-                    {
-                        return (double) v1 + (double) v2;
-                    }
-                case TypeInfo.Float:
-                    {
-                        return (float) v1 + (float) v2;
-                    }
-                case TypeInfo.Int:
-                    {
-                        return (int) v1 + (int) v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long) v1 + (long) v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short) v1 + (short) v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte) v1 + (sbyte) v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint) v1 + (uint) v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong) v1 + (ulong) v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort) v1 + (ushort) v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte) v1 + (byte) v2;
-                    }
-                case TypeInfo.String:
-                    {
-                        return v1.ToString() + v2;
-                    }
-            }
 
-            throw new ScriptException(string.Format("Add is not supported for Type {0}", typ));
-#else
             return v1 + v2;
-#endif
         }
 
         public static object Subtract(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
-#if TypeSave
-            switch (typ)
-            {
-                case TypeInfo.Decimal:
-                    {
-                        return (decimal)v1 - (decimal)v2;
-                    }
-                case TypeInfo.Double:
-                    {
-                        return (double)v1 - (double)v2;
-                    }
-                case TypeInfo.Float:
-                    {
-                        return (float)v1 - (float)v2;
-                    }
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 - (int)v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 - (long)v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 - (short)v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 - (sbyte)v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 - (uint)v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 - (ulong)v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 - (ushort)v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 - (byte)v2;
-                    }
-            }
 
-            throw new ScriptException(string.Format("Subtract is not supported for Type {0}", typ));
-#else
             return v1 - v2;
-#endif
         }
 
         public static object Multiply(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
-#if TypeSave
-            switch (typ)
-            {
-                case TypeInfo.Decimal:
-                    {
-                        return (decimal)v1 * (decimal)v2;
-                    }
-                case TypeInfo.Double:
-                    {
-                        return (double)v1 * (double)v2;
-                    }
-                case TypeInfo.Float:
-                    {
-                        return (float)v1 * (float)v2;
-                    }
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 * (int)v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 * (long)v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 * (short)v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 * (sbyte)v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 * (uint)v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 * (ulong)v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 * (ushort)v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 * (byte)v2;
-                    }
-            }
 
-            throw new ScriptException(string.Format("Multiply is not supported for Type {0}", typ));
-#else
             return v1 * v2;
-#endif
         }
 
         public static object Divide(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
-#if TypeSave
-            switch (typ)
-            {
-                case TypeInfo.Decimal:
-                    {
-                        return (decimal)v1 / (decimal)v2;
-                    }
-                case TypeInfo.Double:
-                    {
-                        return (double)v1 / (double)v2;
-                    }
-                case TypeInfo.Float:
-                    {
-                        return (float)v1 / (float)v2;
-                    }
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 / (int)v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 / (long)v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 / (short)v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 / (sbyte)v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 / (uint)v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 / (ulong)v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 / (ushort)v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 / (byte)v2;
-                    }
-            }
 
-            throw new ScriptException(string.Format("Divide is not supported for Type {0}", typ));
-#else
             return v1 / v2;
-#endif
         }
 
         public static object Modulus(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
-#if TypeSave
-            switch (typ)
-            {
-                case TypeInfo.Decimal:
-                    {
-                        return (decimal)v1 % (decimal)v2;
-                    }
-                case TypeInfo.Double:
-                    {
-                        return (double)v1 % (double)v2;
-                    }
-                case TypeInfo.Float:
-                    {
-                        return (float)v1 % (float)v2;
-                    }
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 % (int)v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 % (long)v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 % (short)v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 % (sbyte)v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 % (uint)v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 % (ulong)v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 % (ushort)v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 % (byte)v2;
-                    }
-            }
 
-            throw new ScriptException(string.Format("Modulus is not supported for Type {0}", typ));
-#else
             return v1 % v2;
-#endif
         }
 
         public static object Xor(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
-#if TypeSave
-            switch (typ)
-            {
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 ^ (int)v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 ^ (long)v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 ^ (short)v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 ^ (sbyte)v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 ^ (uint)v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 ^ (ulong)v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 ^ (ushort)v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 ^ (byte)v2;
-                    }
-            }
 
-            throw new ScriptException(string.Format("XOR is not supported for Type {0}", typ));
-#else
             return v1 ^ v2;
-#endif
         }
 
         public static object Or(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
-#if TypeSave
-            switch (typ)
-            {
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 | (int)v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 | (long)v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 | (short)v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 | (sbyte)v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 | (uint)v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 | (ulong)v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 | (ushort)v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 | (byte)v2;
-                    }
-            }
 
-            throw new ScriptException(string.Format("OR is not supported for Type {0}", typ));
-#else
             return v1 | v2;
-#endif
         }
 
         public static object And(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);
                 Cast(typ, value1, value2, out v1, out v2);
             }
-#if TypeSave
-            switch (typ)
-            {
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 & (int)v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 & (long)v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 & (short)v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 & (sbyte)v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 & (uint)v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 & (ulong)v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 & (ushort)v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 & (byte)v2;
-                    }
-            }
 
-            throw new ScriptException(string.Format("AND is not supported for Type {0}", typ));
-#else
             return v1 & v2;
-#endif
         }
 
         public static object Increment(object value)
         {
-#if TypeSave
-            TypeInfo typ = GetAppropriateType(value, value);
-            object typedObj = value;
-            switch (typ)
-            {
-                case TypeInfo.Decimal:
-                    {
-                        return (decimal)typedObj + 1;
-                    }
-                case TypeInfo.Double:
-                    {
-                        return (double)typedObj + 1;
-                    }
-                case TypeInfo.Float:
-                    {
-                        return (float)typedObj + 1;
-                    }
-                case TypeInfo.Int:
-                    {
-                        return (int)typedObj + 1;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)typedObj + 1;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)typedObj + 1;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)typedObj + 1;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)typedObj + 1;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)typedObj + 1;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)typedObj + 1;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)typedObj + 1;
-                    }
-            }
-
-            throw new ScriptException(string.Format("Increment is not supported for Type {0}", typ));
-#else
             dynamic val = value;
             return val + 1;
-#endif
         }
 
         public static object Decrement(object value)
         {
-#if TypeSave
-            TypeInfo typ = GetAppropriateType(value, value);
-            object typedObj = value;
-            switch (typ)
-            {
-                case TypeInfo.Decimal:
-                    {
-                        return (decimal) typedObj - 1;
-                    }
-                case TypeInfo.Double:
-                    {
-                        return (double) typedObj - 1;
-                    }
-                case TypeInfo.Float:
-                    {
-                        return (float) typedObj - 1;
-                    }
-                case TypeInfo.Int:
-                    {
-                        return (int) typedObj - 1;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long) typedObj - 1;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short) typedObj - 1;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte) typedObj - 1;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint) typedObj - 1;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong) typedObj - 1;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort) typedObj - 1;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte) typedObj - 1;
-                    }
-            }
-
-            throw new ScriptException(string.Format("Decrement is not supported for Type {0}", typ));
-#else
             dynamic val = value;
             return val - 1;
-#endif
         }
 
         public static object UnaryMinus(object value)
         {
-#if TypeSave
-            TypeInfo typ = GetAppropriateType(value, value);
-            //dynamic v1, v2;
-            object typedObj = value;
-            switch (typ)
-            {
-                case TypeInfo.Decimal:
-                    {
-                        return -(decimal) typedObj;
-                    }
-                case TypeInfo.Double:
-                    {
-                        return -(double) typedObj;
-                    }
-                case TypeInfo.Float:
-                    {
-                        return -(float) typedObj;
-                    }
-                case TypeInfo.Int:
-                    {
-                        return -(int) typedObj;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return -(long) typedObj;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return -(short) typedObj;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return -(sbyte) typedObj;
-                    }
-            }
-
-            throw new ScriptException(string.Format("Unary Minus is not supported for Type {0}", typ));
-#else
             dynamic val = value;
             return -val;
-#endif
         }
 
         public static object Negate(object value)
         {
-#if TypeSave
-            TypeInfo typ = GetAppropriateType(value, value);
-            object typedObj = value;
-            switch (typ)
-            {
-                case TypeInfo.Int:
-                    {
-                        return ~(int)typedObj;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return ~(long)typedObj;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return ~(short)typedObj;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return ~(sbyte)typedObj;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return ~(uint)typedObj;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return ~(ulong)typedObj;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return ~(ushort)typedObj;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return ~(byte)typedObj;
-                    }
-            }
-
-            throw new ScriptException(string.Format("Decrement is not supported for Type {0}", typ));
-#else
             dynamic val = value;
             return ~val;
-#endif
         }
 
         public static object LShift(object value1, object value2, bool fooTsIgnored=false)
         {
-#if TypeSave
-            object v1;
-            int v2;
-            TypeInfo typ = GetAppropriateType(value1, value1);
-            v1 = value1;
-            v2 = (int)Cast(TypeInfo.Int, value2);
-            switch (typ)
-            {
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 << v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 << v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 << v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 << v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 << v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 << v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 << v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 << v2;
-                    }
-            }
-
-            throw new ScriptException(string.Format("LeftShift is not supported for Type {0}", typ));
-#else
             dynamic v1, v2;
             v1 = value1;
             v2 = value2;
             return v1 << v2;
-#endif
         }
 
         public static object RShift(object value1, object value2, bool fooTsIgnored=false)
         {
-#if TypeSave
-            object v1;
-            int v2;
-            TypeInfo typ = GetAppropriateType(value1, value1);
-            v1 = value1;
-            v2 = (int)Cast(TypeInfo.Int, value2);
-            switch (typ)
-            {
-                case TypeInfo.Int:
-                    {
-                        return (int)v1 >> v2;
-                    }
-                case TypeInfo.LongInt:
-                    {
-                        return (long)v1 >> v2;
-                    }
-                case TypeInfo.ShortInt:
-                    {
-                        return (short)v1 >> v2;
-                    }
-                case TypeInfo.SignedByte:
-                    {
-                        return (sbyte)v1 >> v2;
-                    }
-                case TypeInfo.UnsignedInt:
-                    {
-                        return (uint)v1 >> v2;
-                    }
-                case TypeInfo.UnsignedLongInt:
-                    {
-                        return (ulong)v1 >> v2;
-                    }
-                case TypeInfo.UnsignedShortInt:
-                    {
-                        return (ushort)v1 >> v2;
-                    }
-                case TypeInfo.Byte:
-                    {
-                        return (byte)v1 >> v2;
-                    }
-            }
-
-            throw new ScriptException(string.Format("RightShift is not supported for Type {0}", typ));
-#else
             dynamic v1, v2;
             v1 = value1;
             v2 = value2;
             return v1 >> v2;
-#endif
         }
 
         public static int Compare(object value1, object value2, bool safe)
         {
-#if TypeSave
-            object v1, v2;
-#else
             dynamic v1 = value1, v2 = value2;
-#endif
             if (safe)
             {
                 TypeInfo typ = GetAppropriateType(value1, value2);

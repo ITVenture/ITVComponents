@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.GenericsHelperInterfaces.Impl
 {
@@ -28,6 +29,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public bool IsCyclicRoleInheritance(TContext dbContext, int parentRole, int newChildRole)
         {
             return decorated.IsCyclicRoleInheritance((TWrapped)dbContext, parentRole, newChildRole);
+        }
+
+        public void ApplyTenantTemplates(IServiceProvider services, TenantType tenantType)
+        {
+            decorated.ApplyTenantTemplates(services, tenantType);
         }
     }
 }

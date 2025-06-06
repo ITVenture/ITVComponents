@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.DIServices;
 using ITVComponents.Formatting;
 using ITVComponents.Formatting.Extensions;
+using ITVComponents.Plugins;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
@@ -16,7 +18,7 @@ using ITVComponents.WebCoreToolkit.WebPlugins;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Formatting
 {
-    public class DbPluginFormatter<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IStringFormatProvider 
+    public class DbPluginFormatter<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : StringFormatProvider, IDeferredInit
         where TTenant : Tenant 
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TWebPluginConstant : WebPluginConstant<TTenant>
@@ -27,109 +29,46 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
 
     {
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context;
+        private readonly IWebPluginsSelector plugInSelector;
+        private readonly IObjectProvider objectProvider;
         private Dictionary<string, object> formatPrototype = new Dictionary<string, object>();
 
-        private Dictionary<string, WebPluginConstant> metadata = new Dictionary<string, WebPluginConstant>();
+        private Dictionary<string, WebPluginConstant> metadata;
 
         //private int? tenantId;
-
-        /// <summary>
-        /// Gets or sets the UniqueName of this Plugin
-        /// </summary>
-        public string UniqueName { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the DbPluginFormatter class
         /// </summary>
         /// <param name="context">the database containing formatting-hints</param>
-        public DbPluginFormatter(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context, IWebPluginsSelector plugInSelector)
+        public DbPluginFormatter(
+            IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence,
+                TTenantSetting, TTenantFeatureActivation, TTrustConfig> context,
+            IWebPluginsSelector plugInSelector) : this(context, plugInSelector, null)
         {
-            int? tenantId = null;
-            if (context.FilterAvailable && !context.ShowAllTenants)
-            {
-                string encryptedPassword = null;
-                if ((tenantId = context.CurrentTenantId) != null)
-                {
-                    var t = context.Tenants.First(n => n.TenantId == tenantId);
-                    if (!string.IsNullOrEmpty(t.TenantPassword))
-                    {
-                        encryptedPassword = t.TenantPassword.Encrypt();
-                    }
-                }
-
-                context.WebPluginConstants.Where(n => n.TenantId != null).Select(n => new WebPluginConstant
-                {
-                    Value = n.Value,
-                    IsGlobal=false,
-                    Name = n.Name
-                }).AsEnumerable().Union(context.WebPluginConstants.Where(n => n.TenantId == null).Select(n => new WebPluginConstant
-                {
-                    Value = n.Value,
-                    IsGlobal = true,
-                    Name=n.Name
-                }).AsEnumerable(), new WebPluginConstantComparer()).ForEach(n =>
-                {
-                    if (!n.IsGlobal && !string.IsNullOrEmpty(encryptedPassword))
-                    {
-                        n.DecryptKey = encryptedPassword;
-                    }
-
-                    formatPrototype.Add(n.Name, n.Value);
-                    metadata.Add(n.Name, n);
-                });
-            }
-            else if (!string.IsNullOrEmpty(plugInSelector.ExplicitPluginPermissionScope))
-            {
-                var tenant = context.Tenants.First(n => n.TenantName == plugInSelector.ExplicitPluginPermissionScope);
-                string encryptedPassword = null;
-                if (!string.IsNullOrEmpty(tenant.TenantPassword))
-                {
-                    encryptedPassword = tenant.TenantPassword.Encrypt();
-                }
-                tenantId = tenant.TenantId;
-                context.WebPluginConstants.Where(n => n.TenantId == tenantId).Select(n => new WebPluginConstant
-                {
-                    Value = n.Value,
-                    IsGlobal = false,
-                    Name = n.Name
-                }).AsEnumerable().Union(context.WebPluginConstants.Where(n => n.TenantId == null).Select(n => new WebPluginConstant
-                {
-                    Value = n.Value,
-                    IsGlobal = true,
-                    Name = n.Name
-                }).AsEnumerable(), new WebPluginConstantComparer()).ForEach(n =>
-                {
-                    if (!n.IsGlobal && !string.IsNullOrEmpty(encryptedPassword))
-                    {
-                        n.DecryptKey = encryptedPassword;
-                    }
-
-                    formatPrototype.Add(n.Name, n.Value);
-                    metadata.Add(n.Name, n);
-                });
-
-            }
-            else
-            {
-                context.WebPluginConstants.Where(n => n.TenantId == null)
-                    .ForEach(n =>
-                    {
-                        formatPrototype.Add(n.Name, n.Value);
-                        metadata.Add(n.Name, new WebPluginConstant{Name = n.Name, DecryptKey = null, IsGlobal = true, Value = n.Value});
-                    });
-            }
         }
 
         /// <summary>
-        /// Processes a raw-string and uses it as format-string of the configured const-collection
+        /// Initializes a new instance of the DbPluginFormatter class
         /// </summary>
-        /// <param name="rawString">the raw-string that was read from a plugin-configuration string</param>
-        /// <returns>the format-result of the raw-string</returns>
-        public string ProcessLiteral(string rawString, Dictionary<string,object> customStringFormatArguments)
+        /// <param name="context">the database containing formatting-hints</param>
+        public DbPluginFormatter(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context, IWebPluginsSelector plugInSelector, IObjectProvider objectProvider)
         {
-            customStringFormatArguments ??= new();
-            customStringFormatArguments = formatPrototype.ExtendDictionary(customStringFormatArguments);
+            this.context = context;
+            this.plugInSelector = plugInSelector;
+            this.objectProvider = objectProvider;
+        }
+
+        protected override string FormatStringInternal(string rawString, Dictionary<string, object> customStringFormatArguments)
+        {
             return customStringFormatArguments.FormatText(rawString, EncryptSupport, TextFormat.DefaultFormatPolicyWithPrimitives);
+        }
+
+
+        protected override void FillDictionary(IDictionary<string, object> values)
+        {
+            formatPrototype.ForEach(values.Add);
         }
 
         private object EncryptSupport(string constName, string formatterName, string argumentName)
@@ -157,23 +96,105 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
             return null;
         }
 
-        /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
-        public void Dispose()
+        public bool Initialized { get; private set; }
+        public bool ForceImmediateInitialization => true;
+        public void Initialize()
         {
-            OnDisposed();
-        }
+            var fx = (string k) =>
+            {
+                var dic = new Dictionary<string, WebPluginConstant>();
+                int? tenantId = null;
+                if (context.FilterAvailable && !context.ShowAllTenants)
+                {
+                    string encryptedPassword = null;
+                    if ((tenantId = context.CurrentTenantId) != null)
+                    {
+                        var t = context.Tenants.First(n => n.TenantId == tenantId);
+                        if (!string.IsNullOrEmpty(t.TenantPassword))
+                        {
+                            encryptedPassword = t.TenantPassword.Encrypt();
+                        }
+                    }
 
-        /// <summary>
-        /// Raises the Disposed event
-        /// </summary>
-        protected virtual void OnDisposed()
-        {
-            Disposed?.Invoke(this, EventArgs.Empty);
-        }
+                    context.WebPluginConstants.Where(n => n.TenantId != null).Select(n => new WebPluginConstant
+                    {
+                        Value = n.Value,
+                        IsGlobal = false,
+                        Name = n.Name
+                    }).AsEnumerable().Union(context.WebPluginConstants.Where(n => n.TenantId == null).Select(n =>
+                        new WebPluginConstant
+                        {
+                            Value = n.Value,
+                            IsGlobal = true,
+                            Name = n.Name
+                        }).AsEnumerable(), new WebPluginConstantComparer()).ForEach(n =>
+                        {
+                            if (!n.IsGlobal && !string.IsNullOrEmpty(encryptedPassword))
+                            {
+                                n.DecryptKey = encryptedPassword;
+                            }
 
-        /// <summary>
-        /// Informs a calling class of a Disposal of this Instance
-        /// </summary>
-        public event EventHandler Disposed;
+                            dic.Add(n.Name, n);
+                        });
+                }
+                else if (!string.IsNullOrEmpty(plugInSelector.ExplicitPluginPermissionScope))
+                {
+                    var tenant =
+                        context.Tenants.First(n => n.TenantName == plugInSelector.ExplicitPluginPermissionScope);
+                    string encryptedPassword = null;
+                    if (!string.IsNullOrEmpty(tenant.TenantPassword))
+                    {
+                        encryptedPassword = tenant.TenantPassword.Encrypt();
+                    }
+
+                    tenantId = tenant.TenantId;
+                    context.WebPluginConstants.Where(n => n.TenantId == tenantId).Select(n => new WebPluginConstant
+                    {
+                        Value = n.Value,
+                        IsGlobal = false,
+                        Name = n.Name
+                    }).AsEnumerable().Union(context.WebPluginConstants.Where(n => n.TenantId == null).Select(n =>
+                        new WebPluginConstant
+                        {
+                            Value = n.Value,
+                            IsGlobal = true,
+                            Name = n.Name
+                        }).AsEnumerable(), new WebPluginConstantComparer()).ForEach(n =>
+                        {
+                            if (!n.IsGlobal && !string.IsNullOrEmpty(encryptedPassword))
+                            {
+                                n.DecryptKey = encryptedPassword;
+                            }
+
+                            dic.Add(n.Name, n);
+                        });
+
+                }
+                else
+                {
+                    context.WebPluginConstants.Where(n => n.TenantId == null)
+                        .ForEach(n =>
+                        {
+                            dic.Add(n.Name,
+                                new WebPluginConstant
+                                { Name = n.Name, DecryptKey = null, IsGlobal = true, Value = n.Value });
+                        });
+                }
+
+                return dic;
+            };
+
+            if (objectProvider == null)
+            {
+                metadata = fx(null);
+            }
+            else
+            {
+                metadata = objectProvider.GetBufferedValue($"pifConstants#{UniqueName}", fx, null);
+            }
+
+            metadata.ForEach(n => formatPrototype.Add(n.Value.Name, n.Value.Value));
+            Initialized = true;
+        }
     }
 }

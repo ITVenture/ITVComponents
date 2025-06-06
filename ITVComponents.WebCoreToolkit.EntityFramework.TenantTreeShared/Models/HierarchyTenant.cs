@@ -14,5 +14,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models
 
         [ForeignKey(nameof(ParentTenantId))]
         public virtual HierarchyTenant? ParentTenant { get; set; }
+
+        [InverseProperty(nameof(ParentTenant))]
+        public virtual ICollection<HierarchyTenant> Children { get; set; }
     }
 }

@@ -8,6 +8,8 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DuckTyping.Extensions;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
+using ITVComponents.Logging;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.GenericsHelperInterfaces;
@@ -18,6 +20,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 using ITVComponents.WebCoreToolkit.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
+using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions
@@ -228,7 +231,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             return false;*/
         }
 
-        public static void EnsureNavUniqueness<TContext, TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>(this TContext dbContext)
+        public static bool EnsureNavUniqueness<TContext, TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>(this TContext dbContext)
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
         where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
@@ -270,21 +273,185 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
         where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
         {
-            using (new FullSecurityAccessHelper<TTrustConfig>(dbContext, new() { ShowAllTenants = true, HideGlobals = false }))
+            try
             {
-                var menus = dbContext.Navigation.Where(n => string.IsNullOrEmpty(n.RefTag)).ToArray();
-                foreach (var menu in menus)
+                using (new FullSecurityAccessHelper<TTrustConfig>(dbContext,
+                           new() { ShowAllTenants = true, HideGlobals = false }))
                 {
-                    menu.RefTag = Guid.NewGuid().ToString("D");
-                }
+                    var menus = dbContext.Navigation.Where(n => string.IsNullOrEmpty(n.RefTag)).ToArray();
+                    foreach (var menu in menus)
+                    {
+                        menu.RefTag = Guid.NewGuid().ToString("D");
+                    }
 
-                dbContext.SaveChanges();
+                    dbContext.SaveChanges();
+                    return true;
+                }
             }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(ex.OutlineException(), LogSeverity.Error);
+            }
+
+            return false;
         }
 
         public static async Task CleanupSystemLog(this ICoreSystemContext context, DateTime minLogTime)
         {
             context.Database.ExecuteSqlInterpolated($"delete from Systemlog where EventTime < {minLogTime}");
+        }
+
+        public static async Task CleanupOutdatedCookies(this ICoreSystemContext context)
+        {
+            var td = DateTime.Now.ToUniversalTime();
+            await context.ServerCookies.Where(n => n.ValidThrough < td)
+                .ExecuteDeleteAsync();
+        }
+
+        public static void ApplyTenantTemplates(this IServiceProvider services, object dbContext, TenantType tenantType)
+        {
+            GetWrapper(dbContext).ApplyTenantTemplates(services, tenantType);
+            /*var dlg = typeof(ContextExtensions).GetMethod<Action<TContext>>(dbContext.GetType(), nameof(EnsureNavUniqueness));
+            if (dlg != null)
+            {
+                dlg(dbContext);
+                return true;
+            }
+
+            return false;*/
+        }
+
+        public static void ApplyTenantTemplates<TContext, TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+            TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter,
+            TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate,
+            TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter,
+            TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet,
+            TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin,
+            TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation,
+            TTrustConfig>(this IServiceProvider services, TenantType tenantType)
+            where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser,
+                TRoleRole>
+            where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole>
+            where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole>
+            where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole>
+            where TTenantUser : TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole>
+            where TNavigationMenu : NavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation>
+            where TTenantNavigation : TenantNavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation>
+            where TQuery : DiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
+            where TTenantQuery : TenantDiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
+            where TQueryParameter : DiagnosticsQueryParameter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
+            where TWidget : DashboardWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam,
+                TWidgetLocalization>
+            where TWidgetParam : DashboardParam<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam,
+                TWidgetLocalization>
+            where TWidgetLocalization : DashboardWidgetLocalization<TTenant, TUserId, TUser, TRole, TPermission,
+                TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget,
+                TWidgetParam, TWidgetLocalization>
+            where TUserWidget : UserWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam,
+                TWidgetLocalization>
+            where TUserProperty : CustomUserProperty<TUserId, TUser>
+            where TUser : class
+            where TAssetTemplate : AssetTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission
+                , TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
+                TAssetTemplateFeature>
+            where TAssetTemplatePath : AssetTemplatePath<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
+                TAssetTemplateFeature>
+            where TAssetTemplateGrant : AssetTemplateGrant<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
+                TAssetTemplateFeature>
+            where TAssetTemplateFeature : AssetTemplateFeature<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
+                TAssetTemplateFeature>
+            where TSharedAsset : SharedAsset<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature,
+                TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+            where TSharedAssetUserFilter : SharedAssetUserFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
+                TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+            where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission,
+                TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath,
+                TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter,
+                TSharedAssetTenantFilter>
+            where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission
+                , TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet>
+            where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet>
+            where TClientAppTemplatePermission : ClientAppTemplatePermission<TTenant, TUserId, TUser, TRole, TPermission
+                , TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet,
+                TClientAppTemplate, TClientAppTemplatePermission>
+            where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppTemplate,
+                TClientAppTemplatePermission>
+            where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission,
+                TClientApp, TClientAppUser>
+            where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp,
+                TClientAppUser>
+            where TClientAppUser : ClientAppUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission
+                , TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp,
+                TClientAppUser>
+            where TTenant : Tenant
+            where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+            where TWebPluginConstant : WebPluginConstant<TTenant>
+            where TWebPluginGenericParameter :
+            WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+            where TSequence : Sequence<TTenant>
+            where TTenantSetting : TenantSetting<TTenant>
+            where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+            where TContext : DbContext, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole,
+                TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter,
+                TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate,
+                TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter,
+                TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet,
+                TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin,
+                TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation,
+                TTrustConfig>
+            where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
+                TTenantUser, TRoleRole>
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        {
+            var tth = services
+                .GetService<ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
+                    TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>>();
+            var ctx = services.GetService<TContext>();
+            using (new FullSecurityAccessHelper<TTrustConfig>(ctx,
+                       new() { ShowAllTenants = true, HideGlobals = false }))
+            {
+                if (tenantType.TenantTemplateId != null)
+                {
+                    var tp = ctx.TenantTemplates.First(n => n.TenantTemplateId == tenantType.TenantTemplateId);
+                    var tpi = JsonHelper.FromJsonString<TenantTemplateMarkup>(tp.Markup,
+                        SerializationTypingMode.StaticTyping);
+                    var tenants = (from t in ctx.Tenants where t.TenantTypeId == tenantType.TenantTypeId select t).ToList();
+                    foreach (var tenant in tenants)
+                    {
+                        tth.ApplyTemplate(tenant, tpi);
+                    }
+                }
+            }
+        }
+
+        private static IContextExtensions GetWrapper(object wrapper)
+        {
+            var act = wrapper.GetType();
+            var dc = act.ImplementGenericMethods(typeof(ContextExtensions), methodFlags: BindingFlags.Static | BindingFlags.InvokeMethod | BindingFlags.NonPublic, fixTypeEntries: [(name: "TContext", type: act)]);
+            var fx = dc.First(n => n.GetParameters().Length == 0 && n.Name == nameof(GetWrapper));
+            var tmpWrapper = fx.Invoke(null, null) as IContextExtensions;
+            return tmpWrapper;
         }
 
         private static IContextExtensions<TContext> GetWrapper<TContext>(TContext wrapper)

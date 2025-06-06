@@ -13,6 +13,6 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
 
         public Func<HttpContext, ScopeInfo[], string> DefaultScopeExpression { get;set; }
         
-        public int CookieRenewalDays { get; set; } = 5;
+        public int CoookieRenewalMinutes { get; set; } = 30;
     }
 }

@@ -12,10 +12,10 @@ namespace ITVComponents.Plugins.Helpers
         private string uniqueName;
         private string uniqueNameRaw;
         private Dictionary<string, object> customVariables;
-        private IStringFormatProvider stringLiteralFormatter;
+        private StringFormatProvider stringLiteralFormatter;
 
         public UniqueNameHelper(string uniqueNameRaw, Dictionary<string, object> customVariables,
-            IStringFormatProvider stringLiteralFormatter)
+            StringFormatProvider stringLiteralFormatter)
         {
             this.uniqueNameRaw = uniqueNameRaw;
             this.customVariables = customVariables;

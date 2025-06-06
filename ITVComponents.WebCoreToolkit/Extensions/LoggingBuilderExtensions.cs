@@ -20,20 +20,20 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// </summary>
         /// <param name="builder">the used log-builder</param>
         /// <returns>the provided logbuilder object</returns>
-        public static ILoggingBuilder UseToolkitLogging(this ILoggingBuilder builder)
+        public static ILoggingBuilder UseToolkitLogging(this ILoggingBuilder builder, bool includeDebugMessages = false)
         {
-            builder.Services.AddSingleton<IGlobalLogConfiguration, GlobalLogConfiguration>();
+            builder.Services.AddSingleton<IGlobalLogConfiguration, GlobalLogConfiguration>(s => new GlobalLogConfiguration(includeDebugMessages));
             builder.Services.AddSingleton<ILoggerProvider, ToolkitLogProvider>();
             builder.Services.AddSingleton(typeof(ILogger<>), typeof(CollectingLoggerDecorator<>));
             toolkitLoggingRegistered = true;
             return builder;
         }
 
-        public static ILoggingBuilder UseToolkitConsoleLog(this ILoggingBuilder builder)
+        public static ILoggingBuilder UseToolkitConsoleLog(this ILoggingBuilder builder, bool includeDebugMessages = false)
         {
             if (!toolkitLoggingRegistered)
             {
-                builder.UseToolkitLogging();
+                builder.UseToolkitLogging(includeDebugMessages);
             }
 
             builder.Services.AddSingleton<ILoggerProvider, ToolkitConsoleProvider>();

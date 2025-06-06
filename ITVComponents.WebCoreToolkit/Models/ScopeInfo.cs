@@ -11,5 +11,13 @@ namespace ITVComponents.WebCoreToolkit.Models
         public string ScopeName{get;set;}
         
         public string ScopeDisplayName { get;set; }
+
+        public ScopeAccessMode AccessMode { get; set; } = ScopeAccessMode.Direct;
+    }
+
+    public enum ScopeAccessMode
+    {
+        Direct,
+        Inherited
     }
 }

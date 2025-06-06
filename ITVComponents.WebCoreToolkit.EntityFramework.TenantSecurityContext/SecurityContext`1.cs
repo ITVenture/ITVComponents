@@ -70,6 +70,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         private bool hideGlobals = false;
         Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.securityStateStack { get; }= new Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>();
         private bool hideDisabledUsers = true;
+        private int? currentTenantId;
+        private string bufferedTenantName;
 
         public SecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions, DbContextOptions<TImpl> options) : base(options)
         {
@@ -90,13 +92,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             try
             {
                 //logger.LogDebug($@"SecurityContext initialized. useFilters={useFilters}, CurrentTenant: {tenantProvider?.PermissionPrefix}, ShowAllTenants: {showAllTenants}, HideGlobals: {hideGlobals}");
-                this.modelBuilderOptions.ConfigureExpressionProperty(()=>CurrentTenant);
+                this.modelBuilderOptions.ConfigureExpressionProperty(()=>CurrentTenantForFiltering);
                 this.modelBuilderOptions.ConfigureExpressionProperty(()=>ShowAllTenants);
                 this.modelBuilderOptions.ConfigureExpressionProperty(()=>FilterAvailable);
                 this.modelBuilderOptions.ConfigureExpressionProperty(()=>HideGlobals);
                 this.modelBuilderOptions.ConfigureExpressionProperty(()=>HideDisabledUsers);
                 this.modelBuilderOptions.ConfigureExpressionProperty(()=>CurrentUserName);
-                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantId);
+                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantIdForFiltering);
             }
             catch
             {
@@ -186,7 +188,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         /// <summary>
         /// Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
         /// </summary>
-        [ExpressionPropertyRedirect("CurrentTenantId")]
         public int? CurrentTenantId
         {
             get
@@ -196,12 +197,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                     return null;
                 }
 
-                if (string.IsNullOrEmpty(tenantProvider.PermissionPrefix))
+                if (string.IsNullOrEmpty(CurrentTenant))
                 {
                     return null;
                 }
 
-                return Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())?.TenantId;
+                if (currentTenantId != null && bufferedTenantName == CurrentTenant)
+                {
+                    return currentTenantId;
+                }
+
+                bufferedTenantName = tenantProvider.PermissionPrefix;
+                return currentTenantId = Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())?.TenantId;
             }
         }
 
@@ -215,8 +222,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         [ExpressionPropertyRedirect("CurrentUserName")]
         public string CurrentUserName => userProvider.User?.Identity?.Name;
 
-        [ExpressionPropertyRedirect("CurrentTenant")]
         private string CurrentTenant
+        {
+            get
+            {
+                string retVal = null;
+                retVal = tenantProvider.PermissionPrefix?.ToLower();
+                return retVal;
+            }
+        }
+
+        [ExpressionPropertyRedirect("CurrentTenant")]
+        private string CurrentTenantForFiltering
         {
             get
             {
@@ -227,6 +244,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 }
 
                 return retVal;
+            }
+        }
+
+        /// <summary>
+        ///     Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
+        /// </summary>
+        [ExpressionPropertyRedirect("CurrentTenantId")]
+        private int? CurrentTenantIdForFiltering
+        {
+            get
+            {
+                if (tenantProvider == null)
+                {
+                    return null;
+                }
+
+                if (string.IsNullOrEmpty(CurrentTenantForFiltering))
+                {
+                    return null;
+                }
+
+                return CurrentTenantId;
             }
         }
 
@@ -301,6 +340,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<TenantTemplate> TenantTemplates { get; set; }
 
         public DbSet<TenantType> TenantTypes { get; set; }
+        public DbSet<ServerCookie> ServerCookies { get; set; }
 
         public DbSet<FlatTenantSetting> TenantSettings { get; set; }
 
@@ -350,6 +390,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
 
         public DbSet<FlatSequence> Sequences { get; set; }
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DbResources.View", "DbResources.Write")]
         public DbSet<Culture> Cultures { get; set; }
         public DbSet<TenantSecurityShared.Models.Localization> Localizations { get; set; }
         public DbSet<LocalizationCulture> LocalizationCultures { get; set; }

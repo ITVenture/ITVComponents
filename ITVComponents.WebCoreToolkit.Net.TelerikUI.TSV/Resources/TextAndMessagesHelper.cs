@@ -81,11 +81,19 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string IWCN_Titles_Properties => GetString(nameof(IWCN_Titles_Properties));
         public static string IWCN_Titles_DiagnosticsQueries => GetString(nameof(IWCN_Titles_DiagnosticsQueries));
         public static string IWCN_Titles_DashboardWidgets => GetString(nameof(IWCN_Titles_DashboardWidgets));
+
+        public static string IWCN_Titles_DbResources => GetString(nameof(IWCN_Titles_DbResources));
+        public static string IWCN_Titles_DbCultures => GetString(nameof(IWCN_Titles_DbCultures));
+
+        public static string IWCN_Titles_TenantTypes => GetString(nameof(IWCN_Titles_TenantTypes));
+
         public static string IWCN_DQ_DbContext => GetString(nameof(IWCN_DQ_DbContext));
         public static string IWCN_DQ_ImplicitReturn => GetString(nameof(IWCN_DQ_ImplicitReturn));
         public static string IWCN_Titles_GlobalSettings => GetString(nameof(IWCN_Titles_GlobalSettings));
         public static string IWCN_Titles_HealthCheckScripts => GetString(nameof(IWCN_Titles_HealthCheckScripts));
         public static string IWCN_DQP_Type => GetString(nameof(IWCN_DQP_Type));
+
+        public static string IWCN_Tenant_Type => GetString(nameof(IWCN_Tenant_Type));
         public static string IWCN_DQP_DateFormat => GetString(nameof(IWCN_DQP_DateFormat));
         public static string IWCN_DPQ_DefaultValue => GetString(nameof(IWCN_DPQ_DefaultValue));
         public static string IWCN_Titles_PlugInConstants => GetString(nameof(IWCN_Titles_PlugInConstants));
@@ -133,6 +141,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
 
         public static string IWCN_TT_Create => GetString(nameof(IWCN_TT_Create));
 
+        public static string IWCN_TT_MetaData => GetString(nameof(IWCN_TT_MetaData));
+
+        public static string IWCN_TT_Template => GetString(nameof(IWCN_TT_Template));
+
         public static string IWCN_Titles_AssetTemplates => GetString(nameof(IWCN_Titles_AssetTemplates));
 
         public static string IWCN_AT_SystemKey => GetString(nameof(IWCN_AT_SystemKey));
@@ -144,6 +156,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string IWCN_AT_ShareFeatures => GetString(nameof(IWCN_AT_ShareFeatures));
 
         public static string IWCN_Titles_Sequences => GetString(nameof(IWCN_Titles_Sequences));
+
+        public static string IWCN_DRI_ResetFactory => GetString(nameof(IWCN_DRI_ResetFactory));
+
+        public static string IWCN_DRI_CopyFromOrigin => GetString(nameof(IWCN_DRI_CopyFromOrigin));
         //--
 
         public static string GetIWCN_General_DisplayName(this IRequestCultureFeature requestCulture)
@@ -299,6 +315,15 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
             return GetString(nameof(IWCN_Titles_DashboardWidgets), requestCulture.RequestCulture.UICulture);
         }
 
+        public static string GetIWCN_Titles_DbResources(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_Titles_DbResources), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_Titles_DbCultures(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_Titles_DbCultures), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_Titles_TenantTypes(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_Titles_TenantTypes), requestCulture.RequestCulture.UICulture);
+
         public static string GetIWCN_DQ_DbContext(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_DQ_DbContext), requestCulture.RequestCulture.UICulture);
@@ -319,6 +344,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string GetIWCN_DQP_Type(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_DQP_Type), requestCulture.RequestCulture.UICulture);
+        }
+
+        public static string GetIWCN_Tenant_Type(this IRequestCultureFeature requestCulture)
+        {
+            return GetString(nameof(IWCN_Tenant_Type), requestCulture.RequestCulture.UICulture);
         }
 
         public static string GetIWCN_DQP_DateFormat(this IRequestCultureFeature requestCulture)
@@ -450,6 +480,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
             return GetString(nameof(IWCN_TT_Create), requestCulture.RequestCulture.UICulture);
         }
 
+        public static string GetIWCN_TT_MetaData(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_TT_MetaData), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_TT_Template(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_TT_Template), requestCulture.RequestCulture.UICulture);
+
         public static string GetIWCN_Titles_AssetTemplates(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_Titles_AssetTemplates), requestCulture.RequestCulture.UICulture);
@@ -465,5 +501,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
 
         public static string GetIWCN_Titles_Sequences(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_Titles_Sequences), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_DRI_ResetFactory(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_DRI_ResetFactory), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_DRI_CopyFromOrigin(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_DRI_CopyFromOrigin), requestCulture.RequestCulture.UICulture);
     }
 }

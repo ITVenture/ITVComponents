@@ -183,6 +183,9 @@
   <data name="IWCN_Titles_Tenants" xml:space="preserve">
     <value>Mandanten</value>
   </data>
+  <data name="IWCN_Titles_TenantTypes" xml:space="preserve">
+    <value>Mandanten-Typen</value>
+  </data>
   <data name="IWCN_Titles_Users" xml:space="preserve">
     <value>Benutzer</value>
   </data>
@@ -202,6 +205,9 @@
     <value>Format nur für Datum)</value>
   </data>
   <data name="IWCN_DQP_Type" xml:space="preserve">
+    <value>Typ</value>
+  </data>
+  <data name="IWCN_Tenant_Type" xml:space="preserve">
     <value>Typ</value>
   </data>
   <data name="IWCN_Titles_PlugInConstants" xml:space="preserve">
@@ -245,9 +251,6 @@
   </data>
   <data name="IWCN_Titles_TutorialVideos" xml:space="preserve">
     <value>Tutorials</value>
-  </data>
-  <data name="IWCN_General_Cancel" xml:space="preserve">
-    <value>Abbrechen</value>
   </data>
   <data name="IWCN_Tutorials_SortableName" xml:space="preserve">
     <value>Name für Sortierung</value>
@@ -300,6 +303,12 @@
   <data name="IWCN_TT_Apply" xml:space="preserve">
     <value>Vorlage anwenden</value>
   </data>
+  <data name="IWCN_TT_MetaData" xml:space="preserve">
+    <value>Metadaten</value>
+  </data>
+  <data name="IWCN_TT_Template" xml:space="preserve">
+    <value>Vorlage</value>
+  </data>
   <data name="IWCN_TT_Create" xml:space="preserve">
     <value>Neues Template basierend auf diesem Mandanten</value>
   </data>
@@ -326,5 +335,23 @@
   </data>
   <data name="IWCN_Titles_Sequences" xml:space="preserve">
     <value>Sequenzen</value>
+  </data>
+  <data name="IWCN_General_Cancel" xml:space="preserve">
+    <value>Abbrechen</value>
+  </data>
+  <data name="IWCN_TST_ParameterName" xml:space="preserve">
+    <value>Parametername</value>
+  </data>
+  <data name="IWCN_Titles_DbResources" xml:space="preserve">
+    <value>Datenbank-Ressourcen</value>
+  </data>
+  <data name="IWCN_Titles_DbCultures" xml:space="preserve">
+    <value>Übersetzte Sprachen</value>
+  </data>
+  <data name="IWCN_DRI_ResetFactory" xml:space="preserve">
+    <value>Übersetzungen zurücksetzen</value>
+  </data>
+  <data name="IWCN_DRI_CopyFromOrigin" xml:space="preserve">
+    <value>Von Original Ressource kopieren</value>
   </data>
 </root>

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
@@ -68,7 +69,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Loca
             return strings.Select(n => new LocalizedString(n.LocalizationKey, n.LocalizationValue));
         }
 
-        private List<LocalizedString> GetStringsFor(CultureInfo targetCulture, bool încludeParent)
+        private List<LocalizedString> GetStringsFor(CultureInfo targetCulture, bool includeParent)
         {
             if (DateTime.Now.Subtract(lastReset).TotalHours > 12)
             {
@@ -76,7 +77,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Loca
                 collectedStrings.Clear();
             }
 
-            var includeParentCultures = încludeParent;
+            var includeParentCultures = includeParent;
             return collectedStrings.GetOrAdd($"{targetCulture.Name}_{includeParentCultures}", ct =>
             {
                 var cc = targetCulture;
@@ -99,7 +100,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Loca
                     foreach (var c in culture)
                     {
                         var stringsRaw = ctx.Localizations.FirstOrDefault(n => n.Identifier == resourceGroupName)
-                            ?.Cultures.FirstOrDefault(n => n.Culture.Name == c)?.Strings;
+                            ?.Cultures.FirstOrDefault(n => (n.Culture.Name == c))?.Strings;
                         if (stringsRaw != null)
                         {
                             var tmp = SelectLocales(stringsRaw);
@@ -112,7 +113,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Loca
                         }
                     }
 
-                    var bas = baseLocalizer.GetAllStrings(includeParentCultures);
+                    var bas = Array.Empty<LocalizedString>();
+
+                    try
+                    {
+                        bas = baseLocalizer.GetAllStrings(includeParentCultures).ToArray();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogEnvironment.LogEvent(
+                            $@"No Resource found for '{resourceGroupName}'. Culture: '{targetCulture.Name}', IncludeParent: {includeParent}.
+Message:
+{ex.Message}", LogSeverity.Error);
+                    }
+
                     var tmp3 = (from t in bas
                         join r in retVal on t.Name equals r.Name into no
                         from n in no.DefaultIfEmpty()
@@ -123,6 +137,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Loca
                 }) as List<LocalizedString>;
                 return locaStrings;
             });
+        }
+
+        internal void ResetStrings()
+        {
+            lastReset = DateTime.Now;
+            collectedStrings.Clear();
         }
     }
 }

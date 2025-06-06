@@ -55,6 +55,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 
         public DbSet<TenantType> TenantTypes { get; set; }
 
+        public DbSet<ServerCookie> ServerCookies { get; set; }
+
         DatabaseFacade Database { get; }
 
         /// <summary>

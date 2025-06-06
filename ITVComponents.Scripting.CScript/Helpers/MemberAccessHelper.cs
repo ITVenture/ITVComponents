@@ -5,9 +5,7 @@ using System.Reflection;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
-#if (!Community)
 using ITVComponents.ExtendedFormatting;
-#endif
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;

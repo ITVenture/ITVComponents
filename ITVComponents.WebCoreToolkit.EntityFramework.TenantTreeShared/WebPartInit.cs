@@ -79,6 +79,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
                 });
                 //services.AddSingleton(typeof(IStringLocalizerFactory), typeof(ContextStringLocalizer));
             }
+
+            if (partOptions.UseServerCookies)
+            {
+                services.UseServerCookies(o =>
+                {
+                    o.DefaultCookieValidDays = partOptions.DefaultServerCookieValidity;
+                    o.CookieLengthThreshold = partOptions.CookieLengthThreshold;
+                });
+            }
         }
     }
 }

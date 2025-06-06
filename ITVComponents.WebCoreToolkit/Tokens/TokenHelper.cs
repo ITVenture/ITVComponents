@@ -11,10 +11,10 @@ namespace ITVComponents.WebCoreToolkit.Tokens
 {
     public static class TokenHelper
     {
-        public static string CompressToken<T>(this T token, bool forUrl = true, bool encrypt=true, string password = null)
+        public static string CompressToken<T>(this T token, bool forUrl = true, bool encrypt=true, string password = null, bool useHighCompression = false)
         {
             using var mst = new MemoryStream();
-            using (var dst = new DeflateStream(mst, CompressionLevel.Optimal))
+            using (var dst = new DeflateStream(mst, !useHighCompression?CompressionLevel.Optimal:CompressionLevel.SmallestSize))
             {
                 JsonHelper.WriteObject(token, SerializationTypingMode.StaticTyping, dst);
             }

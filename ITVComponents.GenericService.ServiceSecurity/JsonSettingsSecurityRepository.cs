@@ -155,6 +155,11 @@ namespace ITVComponents.GenericService.ServiceSecurity
             return Users.Any(n => (string.IsNullOrEmpty(n.AuthenticationType) || n.AuthenticationType == userAuthenticationType) && userLabels.Contains(n.UserName));
         }
 
+        public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
+        {
+            return Users.Any(n => (string.IsNullOrEmpty(n.AuthenticationType) || n.AuthenticationType == userAuthenticationType) && userLabels.Contains(n.UserName));
+        }
+
         /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
@@ -285,6 +290,11 @@ namespace ITVComponents.GenericService.ServiceSecurity
             throw new NotImplementedException();
         }
 
+        public Permission[] GetKnownPermissions(string permissionScope)
+        {
+            return Permissions.ToArray();
+        }
+
         /// <summary>
         /// Gets an enumeration of Permissions for a set of user-labels that is appropriate for the given user
         /// </summary>
@@ -296,6 +306,17 @@ namespace ITVComponents.GenericService.ServiceSecurity
             return (from ur in (from t in userLabels
                                 join u in HostConfiguration.Helper.HostUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
                                 select u.Roles).SelectMany(r => r).Distinct()
+                    join hr in HostConfiguration.Helper.HostRoles on ur equals hr.RoleName
+                    select hr.Permissions).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Union(TemporaryGrants.GetTemporaryPermissions(userLabels)).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(p => new Permission { PermissionName = p });
+        }
+
+        public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
+        {
+            return (from ur in (from t in userLabels
+                        join u in HostConfiguration.Helper.HostUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
+                        select u.Roles).SelectMany(r => r).Distinct()
                     join hr in HostConfiguration.Helper.HostRoles on ur equals hr.RoleName
                     select hr.Permissions).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Union(TemporaryGrants.GetTemporaryPermissions(userLabels)).Distinct(StringComparer.OrdinalIgnoreCase)

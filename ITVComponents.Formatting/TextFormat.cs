@@ -213,6 +213,11 @@ namespace ITVComponents.Formatting
             customFormatHints.TryAdd(formatter.Hint, formatter);
         }
 
+        internal static ICustomFormatter GetCustomFormatter(string hint)
+        {
+            return customFormatHints.GetValueOrDefault(hint);
+        }
+
         private static IDisposable CreateScriptingSession(object target, ScriptingPolicy policy = null)
         {
             var pol = policy ?? DefaultFormatPolicy;
@@ -759,6 +764,8 @@ namespace ITVComponents.Formatting
         FormatterHint,
         FormatterHintString,
         FormatterLength,
-        RecursionDepth
+        RecursionDepth,
+        UpFromSubStatus,
+        Eof
     }
 }

@@ -47,7 +47,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                     return Results.Ok();
                 }
 
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             return Results.NotFound();

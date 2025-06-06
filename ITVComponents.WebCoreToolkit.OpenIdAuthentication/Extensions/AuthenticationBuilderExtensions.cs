@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Dynamitey;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.OpenIdAuthentication.Options;
@@ -80,11 +81,11 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
                 {
                     o.CallbackPath = $"{o.CallbackPath}-{options.AuthSchemeExtension}";
                     o.SignedOutCallbackPath= $"{o.SignedOutCallbackPath}-{options.AuthSchemeExtension}";
+                    LogEnvironment.LogDebugEvent($@"Sign-In-Path: {o.CallbackPath}
+Sign-Out-Path: {o.SignedOutCallbackPath}", LogSeverity.Report);
                 }
 
-#if NET5_0_OR_GREATER
                 o.AutomaticRefreshInterval = TimeSpan.FromMinutes(20);
-#endif
                 if (options.Scope != null)
                 {
                     options.Scope.ForEach(o.Scope.Add);
@@ -99,10 +100,17 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
                     };
                 }
 
-                o.Events.OnUserInformationReceived = context =>
+                if (options.IncludeRawObjectsInProperties)
                 {
-                    return Task.CompletedTask;
-                };
+                    o.Events.OnUserInformationReceived = context =>
+                    {
+
+                        context.Properties.SetString("UserJson", context.User.RootElement.GetRawText());
+                        context.Properties.SetString("RawMessage",
+                            JsonHelper.ToJson(context.ProtocolMessage, SerializationTypingMode.StaticTyping));
+                        return Task.CompletedTask;
+                    };
+                }
 
                 if (options.ShrinkStatus)
                 {

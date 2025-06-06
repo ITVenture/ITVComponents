@@ -6,6 +6,7 @@ using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
+using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Options;
 using Microsoft.AspNetCore.Authorization;
@@ -142,6 +143,11 @@ namespace ITVComponents.WebCoreToolkit
             if (options.UseBackgroundTasks)
             {
                 services.UseBackgroundTasks(options.TaskQueueCapacity);
+            }
+
+            if (options.UseDefaultCookies)
+            {
+                services.AddScoped<ICookieService, DefaultCookieService>();
             }
 
             if (options.UseLocalization)

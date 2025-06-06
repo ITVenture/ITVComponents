@@ -77,6 +77,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         private bool hideDisabledUsers = true;
         private bool hideGlobals = false;
         private bool showAllTenants = false;
+        private int? currentTenantId;
+        private string bufferedTenantName;
 
         public AspNetSecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions,
             DbContextOptions<TImpl> options) : base(options)
@@ -99,13 +101,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             ShowAllTenants = true;*/
             try
             {
-                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenant);
+                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantForFiltering);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => ShowAllTenants);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => FilterAvailable);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => HideGlobals);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => HideDisabledUsers);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentUserName);
-                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantId);
+                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantIdForFiltering);
                 //logger.LogDebug($@"SecurityContext initialized. useFilters={useFilters}, CurrentTenant: {tenantProvider?.PermissionPrefix}, ShowAllTenants: {showAllTenants}, HideGlobals: {hideGlobals}");
             }
             catch
@@ -123,8 +125,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         /// </summary>
         protected bool UseFilters => useFilters;
 
-        [ExpressionPropertyRedirect("CurrentTenant")]
         private string CurrentTenant
+        {
+            get
+            {
+                string retVal = null;
+                retVal = tenantProvider.PermissionPrefix?.ToLower();
+                return retVal;
+            }
+        }
+
+        [ExpressionPropertyRedirect("CurrentTenant")]
+        private string CurrentTenantForFiltering
         {
             get
             {
@@ -142,6 +154,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         ///     Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
         /// </summary>
         [ExpressionPropertyRedirect("CurrentTenantId")]
+        private int? CurrentTenantIdForFiltering
+        {
+            get
+            {
+                if (tenantProvider == null)
+                {
+                    return null;
+                }
+
+                if (string.IsNullOrEmpty(CurrentTenantForFiltering))
+                {
+                    return null;
+                }
+
+                return CurrentTenantId;
+            }
+        }
+
         public int? CurrentTenantId
         {
             get
@@ -151,12 +181,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                     return null;
                 }
 
-                if (string.IsNullOrEmpty(tenantProvider.PermissionPrefix))
+                if (string.IsNullOrEmpty(CurrentTenant))
                 {
                     return null;
                 }
 
-                return Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())
+                if (currentTenantId != null && bufferedTenantName == CurrentTenant)
+                {
+                    return currentTenantId;
+                }
+
+                bufferedTenantName = tenantProvider.PermissionPrefix;
+                return currentTenantId = Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())
                     ?.TenantId;
             }
         }
@@ -199,6 +235,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<AuthenticationType> AuthenticationTypes { get; set; }
 
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DbResources.View", "DbResources.Write")]
         public DbSet<Culture> Cultures { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View")]
@@ -279,6 +316,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         public DbSet<TenantTemplate> TenantTemplates { get; set; }
 
         public DbSet<TenantType> TenantTypes { get; set; }
+        public DbSet<ServerCookie> ServerCookies { get; set; }
 
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
 

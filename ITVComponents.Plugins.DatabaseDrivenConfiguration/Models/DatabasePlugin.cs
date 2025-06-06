@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Xml.Linq;
+using ITVComponents.Plugins.Initialization;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.Plugins.DatabaseDrivenConfiguration.Models
@@ -17,6 +18,8 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration.Models
         public virtual string Constructor { get; set; }
 
         public virtual int LoadOrder { get; set; }
+
+        public PluginLoadType LoadType { get; set; } = PluginLoadType.Singleton;
 
         public virtual string? TenantId { get; set; }
 

@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.ServiceModel;
+using System.Threading;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.Plugins;
 
@@ -30,6 +31,8 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// </summary>
         private ConcurrentDictionary<string, IServiceDecorator> serviceDecorators = new();
 
+        private AsyncLocal<IPluginFactory> currentScope;
+
         /// <summary>
         /// Initializes a new instance of the FactoryWrapper class
         /// </summary>
@@ -40,6 +43,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         {
             wrapped = factory;
             this.hasSecurity = hasSecurity;
+            currentScope = new AsyncLocal<IPluginFactory>();
         }
 
         /// <summary>
@@ -145,6 +149,14 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         public void AttachProxyDictionary(IDictionary<string, ProxyWrapper> proxies)
         {
             extendedProxies = proxies;
+        }
+
+        public IPluginFactory OpenScope(Dictionary<string, object> dictionary, IServiceProvider services)
+        {
+            var retVal = wrapped.NewScope(dictionary, services);
+            currentScope.Value = retVal;
+            retVal.Disposed += (s, e) => currentScope.Value = null; 
+            return retVal;
         }
     }
 }

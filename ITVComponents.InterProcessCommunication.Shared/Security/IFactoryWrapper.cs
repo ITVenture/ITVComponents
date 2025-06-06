@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using ITVComponents.Plugins;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Security
 {
@@ -27,5 +28,12 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         /// </summary>
         /// <param name="proxies">the dictionary containing proxy-objects</param>
         void AttachProxyDictionary(IDictionary<string, ProxyWrapper> proxies);
+
+        /// <summary>
+        /// Initializes a new scope inside the wrapped pluginFactory
+        /// </summary>
+        /// <param name="dictionary">Objects that can not be provided by the factory directly, but may be required by some plugins</param>
+        /// <returns>a scopeFactory for the current request-context</returns>
+        IPluginFactory OpenScope(Dictionary<string, object> dictionary, IServiceProvider services);
     }
 }

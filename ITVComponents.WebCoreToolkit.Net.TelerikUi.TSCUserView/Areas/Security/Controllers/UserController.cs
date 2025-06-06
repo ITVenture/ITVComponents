@@ -137,7 +137,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 return Json(db.UserProperties.Where(n => n.UserId == userId).ToDataSourceResult(request, ModelState, p => p.ToViewModel<CustomUserProperty, CustomUserPropertyViewModel>()));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -157,7 +157,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 return Json(await new[] {model.ToViewModel<User, UserViewModel>()}.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -178,7 +178,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 return Json(await new[] {model.ToViewModel<CustomUserProperty, CustomUserPropertyViewModel>()}.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -228,7 +228,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 return Json(await new[] {viewModel}.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -292,7 +292,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         [HttpPost]
@@ -311,7 +311,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
                 return Json(await new[] {model.ToViewModel<CustomUserProperty, CustomUserPropertyViewModel>()}.ToDataSourceResultAsync(request, ModelState));
             }
 
-            return Unauthorized();
+            return Forbid();
         }
     }
 }

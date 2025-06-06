@@ -14,6 +14,8 @@
 
         public const string PlugInSelectorName = "plugInProvider";
 
+        public const string TenantObjectCacheName = "residentObjectCache";
+
         public const string FixedAssetRequestQueryParameter = "SharedAssetKey";
 
 

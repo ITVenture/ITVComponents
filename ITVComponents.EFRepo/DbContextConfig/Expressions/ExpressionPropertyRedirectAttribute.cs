@@ -12,4 +12,15 @@ namespace ITVComponents.EFRepo.DbContextConfig.Expressions
             ReplacerName = replacerName;
         }
     }
+
+    [AttributeUsage(AttributeTargets.Method)]
+    public class ExpressionMethodRedirectAttribute : Attribute
+    {
+        public string ReplacerName { get; }
+
+        public ExpressionMethodRedirectAttribute(string replacerName)
+        {
+            ReplacerName = replacerName;
+        }
+    }
 }

@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.Models
 {
-    public class UserScope
+    public class AuthTypeUserLabels
     {
-        public DateTime Created { get; set; } = DateTime.Now;
+        public string AuthenticationType { get; set; }
 
-        public string ScopeName { get; set; }
+        public string[] UserLabels { get; set; }
     }
 }

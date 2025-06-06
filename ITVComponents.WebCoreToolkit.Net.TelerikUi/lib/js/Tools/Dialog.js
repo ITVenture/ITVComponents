@@ -226,10 +226,10 @@
             minHeight: 110,
             modal: true,
             scrollable: false,
-            position: {
+            /*position: {
                 top: "30%",
                 left: "30%"
-            }
+            }*/
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
         obj.onPressedEnter(function (event) {
@@ -281,10 +281,10 @@
             minHeight: 110,
             modal: true,
             scrollable: false,
-            position: {
+            /*position: {
                 top: "30%",
                 left: "30%"
-            }
+            }*/
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
         obj.onShow(function (window, dialog, refObj) {
@@ -371,10 +371,10 @@
             minHeight: 140,
             modal: true,
             scrollable: false,
-            position: {
+            /*position: {
                 top: "30%",
                 left: "30%"
-            }
+            }*/
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
         obj.onPressedEnter(function (event) {
@@ -495,10 +495,10 @@
             height: 500,
             modal: true,
             scrollable: false,
-            position: {
+            /*position: {
                 top: "30%",
                 left: "30%"
-            }
+            }*/
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj);
         obj.onShow(function (window, dialog, refObj) {
@@ -543,10 +543,10 @@
                 minWidth: 300,
                 minHeight: 100,
                 modal: true,
-                position: {
+                /*position: {
                     top: "30%",
                     left: "30%"
-                }
+                }*/
             };
         }
 
@@ -589,6 +589,9 @@
         obj.Open.oldOpen = oldOpen;
 
         obj.onShow(function (window, dialog, refObj) {
+            var centerAfterLoad = function () {
+                dialog.center();
+            };
             if (typeof (refObj) === "object") {
                 if (typeof (refObj.contentUrl) === "string") {
                     ITVenture.Ajax.ajaxGet(refObj.contentUrl, "text").done(
@@ -597,7 +600,7 @@
                             if (typeof (refObj.contentReady) === "function") {
                                 refObj.contentReady(window, dialog);
                             }
-                        }).fail(function (err) {
+                        }, centerAfterLoad).fail(function (err) {
                             if (typeof (refObj.contentFailed) === "function") {
                                 refObj.contentFailed(window, dialog, err);
                             }
@@ -607,6 +610,8 @@
                     if (typeof (refObj.contentReady) === "function") {
                         refObj.contentReady(window, dialog);
                     }
+
+                    centerAfterLoad();
                 } else {
                     throw "property contentUrl expected!";
                 }

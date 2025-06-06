@@ -24,15 +24,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
                                          n.GetGenericArguments().Length == rawTypes.Length);
                 if (meth != null)
                 {
-#if NET5_0_OR_GREATER
                     var impl = meth.MakeGenericMethod(rawTypes);
                     var fx = impl.CreateDelegate<TMethod>();
                     return fx;
-#else
-                    var impl = meth.MakeGenericMethod(rawTypes);
-                    var fx = impl.CreateDelegate(typeof(TMethod));
-                    return (TMethod)fx;
-#endif
                 }
             }
 

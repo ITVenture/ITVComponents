@@ -16,6 +16,7 @@ using ITVComponents.Json;
 using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
 {
@@ -254,15 +255,20 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
 
         private void ClientInvokation(object? sender, MessageArrivedEventArgs e)
         {
+            
             var msg = JsonHelper.FromJsonString<IRequestMessage>(e.Message, SerializationTypingMode.NativePolymorphism, true);
             LogEnvironment.LogDebugEvent($"Message is {msg}", LogSeverity.Report);
             LogEnvironment.LogDebugEvent(e.Message, LogSeverity.Report);
             IServiceProvider services = e.Services;
             try
             {
+                var requestContext = new RequestContext(msg, (msg as AuthenticatedRequestMessage)?.AuthenticatedUser?.ToIdentity() ?? e.HubUser, services);
+                using var scopeFactory = plugins.OpenScope(new Dictionary<string, object>
+                    { { "requestContext", requestContext } }, services);
+                requestContext.ScopeFactory = scopeFactory;
                 if (msg is AbandonExtendedProxyRequestMessage aeprm)
                 {
-                    var ok = AbandonExtendedProxy(aeprm.ObjectName, aeprm.AuthenticatedUser?.ToIdentity()??e.HubUser);
+                    var ok = AbandonExtendedProxy(aeprm.ObjectName, requestContext);
                     e.Response = JsonHelper.ToJson(new AbandonExtendedProxyResponseMessage {Result = ok}, SerializationTypingMode.NativePolymorphism, typeof(IServerResponse), true);
                 }
                 else if (msg is ObjectAvailabilityRequestMessage oarm)

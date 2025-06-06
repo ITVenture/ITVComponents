@@ -90,7 +90,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                                 LogEnvironment.LogEvent($"ForeignKey failed: {ex.Message}",LogSeverity.Error);
                             }
 
-                            return Results.Unauthorized();
+                            return Results.Forbid();
                         }
                     }
                 }

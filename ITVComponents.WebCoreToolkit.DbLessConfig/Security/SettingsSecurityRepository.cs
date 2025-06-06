@@ -182,6 +182,12 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
                 n.AuthenticationType == userAuthenticationType && userLabels.Contains(n.UserName, StringComparer.OrdinalIgnoreCase));
         }
 
+        public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
+        {
+            return options.Users.Any(n =>
+                n.AuthenticationType == userAuthenticationType && userLabels.Contains(n.UserName, StringComparer.OrdinalIgnoreCase));
+        }
+
         /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
@@ -262,6 +268,11 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
                 .Select(p => new Permission {PermissionName = p});
         }
 
+        public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
+        {
+            return GetPermissions(userLabels, userAuthenticationType);
+        }
+
         /// <summary>
         /// Gets an enumeration of Permissions that are assigned to the given Role
         /// </summary>
@@ -337,6 +348,11 @@ namespace ITVComponents.WebCoreToolkit.DbLessConfig.Security
         public string EncryptJsonObject(object value, string permissionScopeName)
         {
             throw new NotImplementedException();
+        }
+
+        public Permission[] GetKnownPermissions(string permissionScope)
+        {
+            return Permissions.ToArray();
         }
 
         /// <summary>

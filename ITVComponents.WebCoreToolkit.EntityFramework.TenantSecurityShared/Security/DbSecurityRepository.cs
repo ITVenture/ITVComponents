@@ -293,6 +293,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             return false;
         }
 
+        public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
+        {
+            using var tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
+            var t = securityContext.Tenants.FirstOrDefault(n => n.TenantName == forScope)?.TenantId;
+            if (t != null)
+            {
+                var ti = t.Value;
+                IQueryable<TUser> tenantUsers;
+                if (userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern)))
+                {
+                    tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
+                }
+                else
+                {
+                    var filteredLabels = (from ul in userLabels
+                        where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                    var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
+                    tenantUsers = appUsers
+                        .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                        .Select(n => n.TenantUser.User);
+                }
+
+                return tenantUsers.Any(UserFilter(userLabels, userAuthenticationType));
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
@@ -305,7 +334,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             IQueryable<TUser> tenantUsers;
             if (userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern)))
             {
-                tenantUsers = securityContext.TenantUsers.Select(u => u.User);
+                tenantUsers = securityContext.Users;  //securityContext.TenantUsers.Select(u => u.User);
             }
             else
             {
@@ -458,6 +487,50 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             return permRaw;
         }
 
+        public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
+        {
+            using var tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
+            IQueryable<TUser> tenantUsers;
+            string[] preFilteredPerms = null;
+            if (userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern)))
+            {
+                tenantUsers = securityContext.TenantUsers.Where(tu => tu.Tenant.TenantName == forScope).Select(u => u.User);
+            }
+            else
+            {
+                var filteredLabels = (from ul in userLabels
+                                      where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                                      select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.Tenant.TenantName == forScope);
+                preFilteredPerms = appUsers.SelectMany(n => n.ClientApp.AppPermissions).SelectMany(n => n.PermissionSet.Permissions)
+                    .Select(n => n.Permission.PermissionName).Distinct().ToArray();
+                tenantUsers = appUsers
+                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Select(n => n.TenantUser.User);
+            }
+
+            var permRaw = (from tr in tenantUsers.Where(UserFilter(userLabels, userAuthenticationType))
+                    .Join(securityContext.TenantUsers, UserId, tr => tr.UserId, (tu, tt) => tt)
+                           join ur in securityContext.TenantUserRoles/*.Where(n => n.TenantUserId != null && n.RoleId != null)*/ on tr.TenantUserId equals ur.TenantUserId.Value
+                           join r in securityContext.SecurityRoles on new { RoleId = ur.RoleId.Value, tr.TenantId } equals new { r.RoleId, r.TenantId }
+                           join rp in securityContext.RolePermissions/*.Where(n => n.RoleId != null)*/ on new { r.RoleId, r.TenantId } equals new { RoleId = rp.RoleId, rp.TenantId }
+                           join rt in securityContext.Tenants on rp.TenantId equals rt.TenantId
+                           join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
+                           where tr.Tenant.TenantName == forScope
+                           select new Permission
+                           {
+                               //PermissionName = p.PermissionName != rt.TenantName?$"{(!p.IsGlobal?rt.TenantName:"")}{p.PermissionName}":p.PermissionName
+                               PermissionName = p.PermissionName
+                           }).Distinct().ToArray();
+            if (preFilteredPerms != null)
+            {
+                permRaw = (from t in permRaw join p in preFilteredPerms on t.PermissionName equals p select t)
+                    .ToArray();
+            }
+
+            return permRaw;
+        }
+
         /// <summary>
         /// Gets an enumeration of Permissions that are assigned to the given Role
         /// </summary>
@@ -535,15 +608,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             try
             {
                 bool useCurrentTenant = string.IsNullOrEmpty(permissionScopeName) && securityContext.CurrentTenantId != null;
-                if (!useCurrentTenant && !securityContext.Tenants.Any(n => n.TenantName == permissionScopeName))
+                int? tenantToUse = null;
+                if (!useCurrentTenant)
                 {
                     tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = true}));
                 }
+                else
+                {
+                    tenantToUse = securityContext.CurrentTenantId;
+                }
 
-                var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
+                    var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
                 var raw = (from t in securityContext.Features
                     join a in securityContext.TenantFeatureActivations.Where(ta =>
-                                ((!useCurrentTenant && ta.Tenant.TenantName == permissionScopeName) || (useCurrentTenant && ta.TenantId == securityContext.CurrentTenantId))
+                                ((!useCurrentTenant && ta.Tenant.TenantName == permissionScopeName) || (useCurrentTenant && ta.TenantId == tenantToUse))
                                 && (ta.ActivationStart== null || ta.ActivationStart <= dt)
                                 && (ta.ActivationEnd == null || ta.ActivationEnd >= dt))
                             .GroupBy(g => new {g.FeatureId, g.Tenant.TenantName})
@@ -623,6 +701,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         public string EncryptJsonObject(object value, string permissionScopeName)
         {
             return securityContext.EncryptJsonObjectForScope(value, permissionScopeName, n => ConfigureTrustConfig(n));
+        }
+
+        public Permission[] GetKnownPermissions(string permissionScope)
+        {
+            using var tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
+            return (from p in securityContext.Permissions where p.TenantId == null || p.Tenant.TenantName == permissionScope select new Permission{PermissionName = p.PermissionName}).ToArray();
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

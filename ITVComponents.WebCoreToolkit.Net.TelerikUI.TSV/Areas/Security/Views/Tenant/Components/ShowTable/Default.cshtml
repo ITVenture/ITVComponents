@@ -39,6 +39,7 @@
             if (ViewData["userId"] == null && ViewData["navigationMenuId"] == null && ViewData["diagnosticsQueryId"] == null)
             {
                 columns.ForeignKey(c => c.TimeZone, (IEnumerable<ForeignKeyData<string>>)ViewData["TimeZoneInfo"], "Key", "Label").Title(TextsAndMessagesHelper.IWCN_General_TimeZone);
+                columns.AjaxFk(c => c.TenantTypeId, "sys", "TenantTemplates", "TenantId").Title(TextsAndMessagesHelper.IWCN_Tenant_Type);
                 if (Context.RequestServices.VerifyUserPermissions(new[] {"Tenants.Write"}))
                 {
                     columns.Command(ga =>

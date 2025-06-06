@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.ComponentModel.Design;
 using System.Data.SqlClient;
 using System.Linq;
 using ITVComponents.EFRepo.Extensions;
@@ -12,8 +13,10 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Configuration;
 using TargetInterface = ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.IHierarchySecurityContext<ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.HierarchyTenant, string, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.User, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Role, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Permission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.UserRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RolePermission,
     ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.HierarchyTenantUser, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RoleRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.NavigationMenu, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.TenantNavigationMenu, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DiagnosticsQuery,
     ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DiagnosticsQueryParameter, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.TenantDiagnosticsQuery, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DashboardWidget, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DashboardParam,
@@ -45,12 +48,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
 
         public static void ConfigureVirtualTables(IContextModelBuilderOptions builderOptions)
         {
+            ConfigureUpwardsTree(builderOptions);
+            ConfigureDownwardsTree(builderOptions);
+            ConfigureUpwardsRoleTree(builderOptions);
+            ConfigureDownwardsRoleTree(builderOptions);
+        }
+
+        public static void ConfigureUpwardsTree(IContextModelBuilderOptions builderOptions)
+        {
             builderOptions.ConfigureEntity<UpwardsTenantView>(uu =>
                 uu.ToTable(GlobalDbObjectNaming.UpwardsTenantTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
-            builderOptions.ConfigureEntity<DownwardsTenantView>(dd =>
-                dd.ToTable(GlobalDbObjectNaming.DownwardsTenantTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
+        }
+
+        public static void ConfigureUpwardsRoleTree(
+            IContextModelBuilderOptions builderOptions)
+        {
             builderOptions.ConfigureEntity<UpwardsRoleUserView<string>>(pp =>
                 pp.ToTable(GlobalDbObjectNaming.UpwardsRoleTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
+        }
+
+        public static void ConfigureDownwardsTree(
+            IContextModelBuilderOptions builderOptions)
+        {
+            builderOptions.ConfigureEntity<DownwardsTenantView>(dd =>
+                dd.ToTable(GlobalDbObjectNaming.DownwardsTenantTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
+        }
+
+        public static void ConfigureDownwardsRoleTree(
+            IContextModelBuilderOptions builderOptions)
+        {
             builderOptions.ConfigureEntity<DownwardsUserRoleView<string>>(puv =>
                 puv.ToTable(GlobalDbObjectNaming.DownwardsRoleTreeView, b => b.ExcludeFromMigrations())
                     .HasNoKey());
@@ -87,9 +113,10 @@ select * from @vld", new SqlParameter("@name", name),
                             where requiredPermissions.Contains(p.PermissionName) && t.User.Id == userId
                             select new { t.TenantId, t.User.Id }
                         );
-                    return (from t in ctx.Tenants
+                    var rv = (from t in ctx.Tenants
                         join r in tmpRt on t.TenantId equals r.TenantId
                         select t).Distinct();
+                    return rv;
                     /*var tmpRet = c.Set<DownwardsUserRoleView<string>>()
                         .Join(c.Set<HierarchyTenant>(), l => l.ChildTenantId, r => r.TenantId,
                             (l, r) => new { Left = l, Right = r })
@@ -179,8 +206,7 @@ inner join securityroles pr on pr.roleid = r_1.currentrole
 inner join securityroles cr on cr.roleid = r_1.outermostrole
 inner join tenantuserroles tur on tur.roleid in (pr.roleid, cr.RoleId)
 inner join tenantusers tu on tu.tenantuserid = tur.TenantUserId
-inner join users u on u.id = tu.UserId
-inner join rolepermissions trp on trp.roleid = cr.RoleId");
+inner join users u on u.id = tu.UserId");
 
             migrationBuilder.Sql($@"CREATE VIEW [{schema}].[DownwardsRoleTree]
 as
@@ -196,7 +222,7 @@ WITH z AS (SELECT   t.TenantId AS TopmostTenantId, TenantName AS TopmostTenantNa
 						  inner join securityroles cr on (cr.tenantid = z_2.currentTenant and cr.roleid = z_2.currentrole) or cr.roleid = pr.RoleId
 						  inner join roleroles roro on roro.PermissiveRoleId = pr.roleid and roro.PermittedRoleId = cr.RoleId)
 
-SELECT   TopmostTenantId ViewPointTenantId, TopmostTenantName ViewPointTenantName, ChildTenantId, ChildTenantName, ChildLevel, r.TenantUserId,
+SELECT   TopmostTenantId ViewPointTenantId, TopmostTenantName ViewPointTenantName, ChildTenantId, ChildTenantName, ChildLevel, r.TenantUserId, u.id as UserId,
 cr.roleid ResultingChildRoleId, r.ParentTenantId TopmostTenantId, r.parentTenantName TopmostTenantName, r.ParentLevel as TopmostParentLevel
 FROM         z AS z_1  
 inner join [UpwardsRoleTree] r
@@ -205,8 +231,7 @@ inner join securityroles pr on pr.roleid = r.OutermostRoleId
 inner join securityroles cr on cr.roleid = z_1.currentrole
 inner join tenantuserroles tur on tur.roleid in (pr.roleid, cr.RoleId)
 inner join tenantusers tu on tu.tenantuserid = tur.TenantUserId and tu.tenantuserid = r.tenantuserid
-inner join users u on u.id = tu.UserId
-inner join rolepermissions trp on trp.roleid = cr.RoleId and trp.tenantid = Z_1.ChildTenantId");
+inner join users u on u.id = tu.UserId");
         }
 
         private static IQueryable<UserTenantLevel<User>> GetRawUserQuery(TargetInterface c, string currentTenant)
@@ -216,7 +241,7 @@ inner join rolepermissions trp on trp.roleid = cr.RoleId and trp.tenantid = Z_1.
                 where j.ViewpointTenantName == currentTenant
                 select new { t.UserId, t.User, j.ChildLevel, ParentLevel = j.TopmostParentLevel, TenantId = j.ViewPointTenantId });
             var phase2 = (from gj in phase1
-                group gj by new {gj.UserId, gj.TenantId}
+                group gj by new { gj.UserId, gj.TenantId }
                 into g
                 select new
                 {
@@ -228,6 +253,9 @@ inner join rolepermissions trp on trp.roleid = cr.RoleId and trp.tenantid = Z_1.
                 join t in c.DownwardsTenantUserRoles on new { p.Level, p.UserId, p.TenantId } equals new
                     { Level = t.TopmostParentLevel, t.UserId, TenantId = t.ViewPointTenantId }
                 join tn in c.TenantUsers on t.TenantUserId equals tn.TenantUserId
+
+
+
                 select new UserTenantLevel<User> { User = tn.User, Level = t.ChildLevel, TenantId = t.ChildTenantId, RoleId = t.ResultingChildRoleId });
         }
     }

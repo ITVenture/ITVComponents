@@ -89,6 +89,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             ViewData["ParameterTypes"] = new SelectList(EnumHelper.DescribeEnum<InputType>(), "Value", "Description");
             return View(dashboardWidgetId);
         }
+        
         [HttpPost]
         public IActionResult Read([DataSourceRequest] DataSourceRequest request)
         {

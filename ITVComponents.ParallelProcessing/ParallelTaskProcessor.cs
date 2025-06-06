@@ -234,7 +234,8 @@ namespace ITVComponents.ParallelProcessing
                         roundClock = true;
                     }
 
-                    lo = lo > highestPriority ? lo-1 : lo;
+                    //lo = lo > highestPriority ? lo-1 : lo;
+                    lo = lo > highestPriority ? lo - 1 : lowestPriority;
                     exclusiveCount = (lowestPriority - lo) + 1;
                 }
             }

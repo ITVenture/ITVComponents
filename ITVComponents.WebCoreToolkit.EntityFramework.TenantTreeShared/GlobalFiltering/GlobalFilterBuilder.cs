@@ -61,9 +61,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.GlobalFi
         {
             services.Configure<DbContextModelBuilderOptions<TContext>>(o =>
             {
-                o.ConfigureGlobalFilter<TPermission>(pr => ShowAllTenants || !FilterAvailable || !IncludeParentTree && pr.TenantId != null  && pr.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree  && pr.TenantId != null && pr.Tenant.TenantName.ToLower() == CurrentTenant || pr.TenantId == null && !HideGlobals);
+                o.ConfigureGlobalFilter<TPermission>(pr => ShowAllTenants || !FilterAvailable || !IncludeParentTree && pr.TenantId != null  && pr.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree  && pr.TenantId != null && CurrentTenantTree.Contains(pr.TenantId.Value) || pr.TenantId == null && !HideGlobals);
                 o.ConfigureGlobalFilter<TTenantNavigation>(nav => ShowAllTenants || !FilterAvailable || !IncludeParentTree && nav.Tenant.TenantName.ToLower() == CurrentTenant && (nav.PermissionId == null || nav.Permission.TenantId == null || nav.Permission.Tenant.TenantName.ToLower() == CurrentTenant) || IncludeParentTree && CurrentTenantTree.Contains(nav.TenantId) && (nav.PermissionId == null || nav.Permission.TenantId == null || nav.Permission.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TNavigationMenu>(nav => string.IsNullOrEmpty(nav.Url) || ShowAllTenants || !FilterAvailable || !IncludeParentTree && nav.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) && ((nav.PermissionId == null || nav.EntryPoint.TenantId == null || nav.EntryPoint.Tenant.TenantName.ToLower() == CurrentTenant)) || IncludeParentTree && nav.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId)) && ((nav.PermissionId == null || nav.EntryPoint.TenantId == null || nav.EntryPoint.Tenant.TenantName.ToLower() == CurrentTenant)));
+                o.ConfigureGlobalFilter<TNavigationMenu>(nav => string.IsNullOrEmpty(nav.Url) || ShowAllTenants || !FilterAvailable || !IncludeParentTree && (nav.IsPublic || nav.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant)) && ((nav.PermissionId == null || nav.EntryPoint.TenantId == null || nav.EntryPoint.Tenant.TenantName.ToLower() == CurrentTenant)) || IncludeParentTree && nav.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId)) && ((nav.PermissionId == null || nav.EntryPoint.TenantId == null || nav.EntryPoint.Tenant.TenantName.ToLower() == CurrentTenant)));
                 o.ConfigureGlobalFilter<TRolePermission>(perm => ShowAllTenants || !FilterAvailable || perm.Tenant.TenantName.ToLower() == CurrentTenant && perm.Permission != null);
                 o.ConfigureGlobalFilter<TQuery>(qry => ShowAllTenants || !FilterAvailable || !IncludeParentTree && qry.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) || IncludeParentTree && qry.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId)));
                 o.ConfigureGlobalFilter<TQueryParameter>(param => ShowAllTenants || !FilterAvailable || !IncludeParentTree && param.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) || IncludeParentTree && param.DiagnosticsQuery.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId)));
@@ -81,10 +81,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.GlobalFi
                 o.ConfigureGlobalFilter<TTenantFeatureActivation>(fa => ShowAllTenants || !FilterAvailable || fa.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TClientAppUser>(ca => ShowAllTenants || !FilterAvailable || ca.TenantUser.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TSequence>(sq => ShowAllTenants || !FilterAvailable || !IncludeParentTree && sq.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && CurrentTenantTree.Contains(sq.TenantId));
-                o.ConfigureGlobalFilter<UpwardsTenantView>(u => FilterAvailable && !ShowAllTenants && (IncludeParentTree && u.OutermostLeafTenantName == CurrentTenant || !IncludeParentTree && u.ParentTenantName == u.OutermostLeafTenantName && u.ParentTenantName == CurrentTenant));
-                o.ConfigureGlobalFilter<UpwardsRoleUserView<TUserId>>(u => true);
-                o.ConfigureGlobalFilter<DownwardsTenantView>(d => FilterAvailable && !ShowAllTenants && IncludeChildTree && d.TopmostTenantName == CurrentTenant);
-                o.ConfigureGlobalFilter<DownwardsUserRoleView<TUserId>>(d => FilterAvailable && !ShowAllTenants && IncludeChildTree && d.ViewpointTenantName == CurrentTenant);
+                ConfigureTrees<TContext, TUserId>(o);
             });
         }
 
@@ -97,6 +94,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.GlobalFi
         var p = t.GetGenericArguments();
         var p2 = (from n in p join a in genericArguments on n.Name equals a.Key select a.Value).ToArray();
         return t.MakeGenericMethod(p2);*/
+        }
+
+        public static void ConfigureTrees<TContext, TUserId>(DbContextModelBuilderOptions<TContext> modelBuilderOptions)
+        {
+            ConfigureUpwardsTree(modelBuilderOptions);
+            ConfigureUpwardsRoleTree<TContext,TUserId>(modelBuilderOptions);
+            ConfigureDownwardsTree(modelBuilderOptions);
+            ConfigureDownwardsRoleTree<TContext,TUserId>(modelBuilderOptions);
+        }
+
+        public static void ConfigureUpwardsTree<TContext>(
+            DbContextModelBuilderOptions<TContext> modelBuilderOptions)
+        {
+            modelBuilderOptions.ConfigureGlobalFilter<UpwardsTenantView>(u => FilterAvailable && !ShowAllTenants && (IncludeParentTree && u.OutermostLeafTenantName == CurrentTenant || !IncludeParentTree && u.ParentTenantName == u.OutermostLeafTenantName && u.ParentTenantName == CurrentTenant));
+        }
+
+        public static void ConfigureUpwardsRoleTree<TContext,TUserId>(
+            DbContextModelBuilderOptions<TContext> modelBuilderOptions)
+        {
+            modelBuilderOptions.ConfigureGlobalFilter<UpwardsRoleUserView<TUserId>>(u => true);
+        }
+
+        public static void ConfigureDownwardsTree<TContext>(
+            DbContextModelBuilderOptions<TContext> modelBuilderOptions)
+        {
+            modelBuilderOptions.ConfigureGlobalFilter<DownwardsTenantView>(d => !FilterAvailable || ShowAllTenants || (IncludeChildTree && d.TopmostTenantName == CurrentTenant));
+        }
+
+        public static void ConfigureDownwardsRoleTree<TContext, TUserId>(
+            DbContextModelBuilderOptions<TContext> modelBuilderOptions)
+        {
+            modelBuilderOptions.ConfigureGlobalFilter<DownwardsUserRoleView<TUserId>>(d => !FilterAvailable || ShowAllTenants || (IncludeChildTree && d.ViewpointTenantName == CurrentTenant));
         }
 
         [ExpressionPropertyRedirect("ShowAllTenants")]

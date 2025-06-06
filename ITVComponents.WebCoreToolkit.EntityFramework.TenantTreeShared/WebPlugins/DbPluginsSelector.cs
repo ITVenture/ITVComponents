@@ -270,7 +270,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                         AutoLoad = t.AutoLoad, Constructor = t.Constructor,
                         StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName
                     };
-                return phase3.AsEnumerable().Union(phase4.AsEnumerable(), new WebPluginComparer());
+                return phase3.AsEnumerable().Union(phase4.AsEnumerable(), new WebPluginComparer()).ToArray();
 
                 /*return 
                     (from rprot in (from t in securityContext.UpwardsTenantTreeView
@@ -293,10 +293,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
 
             if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
             {
-                return from p in securityContext.WebPlugins
+                return (from p in securityContext.WebPlugins
                     where p.TenantId == null && !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad
                        orderby p.UniqueName
-                    select p;
+                    select p).ToArray();
             }
 
             var xPhase1 = from p in securityContext.UpwardsTenantTreeView
@@ -329,7 +329,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                     StartupRegistrationConstructor = t.StartupRegistrationConstructor,
                     UniqueName = t.UniqueName
                 };
-            return xPhase3.AsEnumerable().Union(xPhase4.AsEnumerable(), new WebPluginComparer());
+            return xPhase3.AsEnumerable().Union(xPhase4.AsEnumerable(), new WebPluginComparer()).ToArray();
             /*return
                 (from rprot in (from t in securityContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == ExplicitPluginPermissionScope)
                             join p in securityContext.WebPlugins on t.ParentTenantId equals p.TenantId
@@ -365,21 +365,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
             {
                 using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
-                return from p in securityContext.GenericPluginParams
+                return (from p in securityContext.GenericPluginParams
                     where p.Plugin.UniqueName == uniqueName
-                    select p;
+                    select p).ToArray();
             }
 
             if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
             {
-                return from p in securityContext.GenericPluginParams
+                return (from p in securityContext.GenericPluginParams
                     where p.Plugin.TenantId == null &&  p.Plugin.UniqueName == uniqueName
-                    select p;
+                    select p).ToArray();
             }
 
-            return from p in securityContext.GenericPluginParams
+            return (from p in securityContext.GenericPluginParams
                 where (p.Plugin.TenantId == null || p.Plugin.Tenant.TenantName == ExplicitPluginPermissionScope) && p.Plugin.UniqueName == uniqueName
-                select p;
+                select p).ToArray();
         }
     }
 }

@@ -20,5 +20,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         public string UniQUID { get; set; }
 
         public bool Assigned { get; set; }
+
+        public int? TenantTypeId { get; set; }
     }
 }

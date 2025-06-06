@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using ITVComponents.Scripting.CScript.Security;
-#if !Community
 using ITVComponents.ExtendedFormatting;
-#endif
 
 namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
 {

@@ -8,6 +8,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
 {
     public class TenantTemplateMarkup
     {
+        public PermissionTemplateMarkup[] ExplicitPermissions { get; set; }
         public RoleTemplateMarkup[] Roles { get; set; }
 
         public SettingTemplateMarkup[] Settings { get; set; }

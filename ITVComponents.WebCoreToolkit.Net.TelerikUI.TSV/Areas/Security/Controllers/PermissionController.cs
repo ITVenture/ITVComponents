@@ -265,7 +265,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
                 }
             }
 
-            return Unauthorized();
+            return Forbid();
         }
     }
 }

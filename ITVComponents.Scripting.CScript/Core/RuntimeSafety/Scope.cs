@@ -7,9 +7,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-#if !Community
 using ITVComponents.ExtendedFormatting;
-#endif
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
@@ -24,42 +22,7 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         private readonly ScriptingPolicy policy;
 
         private ScriptingPolicy overridePolicy;
-        /// <summary>
-        /// holds all scopes that have been initialized
-        /// </summary>
-        /*#if UseVarList
-                private List<Dictionary<string, object>>  scopes;
-
-                /// <summary>
-                /// gets current maximum Scope Identity
-                /// </summary>
-                private int currentMaxScopeId = -1;
-        #else
-                private Stack<Dictionary<string, object>> scopes;
-        #endif*/
-
-        /*#if UseDummies
-               /// <summary>
-                /// indicates whether the next scope-closer will only be a dummy...
-                /// </summary>
-                private bool nextDummy = false;
-        #if UseList
-
-                /// <summary>
-                /// gets the current maximum dummy-indicator id
-                /// </summary>
-                private int currentMaxDummyId = -1;
-
-                /// <summary>
-                /// the dummy-stack that indicates for each current scope where the primary inner scope should be considered dummy
-                /// </summary>
-
-                private List<bool> dummyStack;
-        #else
-                private bool nextDummy = false;
-        #endif
-        #endif*/
-
+        
         /// <summary>
         /// the current catcher-count.
         /// </summary>
@@ -95,18 +58,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         {
             this.policy = policy??ScriptingPolicy.Default;
             layerRevisions = new List<int>();
-            /*#if UseVarList
-            scopes = new List<Dictionary<string, object>>();
-#else
-            scopes = new Stack<Dictionary<string, object>>();
-#endif
-#if UseDummies
-#if UseList
-            dummyStack = new List<bool>();
-#else
-            //dummyStack = new Stack<bool>();
-#endif
-#endif*/
             layerRevisions.Add(0);
             variables =
                 new Dictionary<string, ScopeVar>(ignoreCase
@@ -148,11 +99,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
                 return retVal;*/
                 return GetValue(key);
             }
-            /*#if UseVarList
-            set { (GetDictionaryForKey(key) ?? scopes[currentMaxScopeId])[key] = value; }
-#else
-            set { (GetDictionaryForKey(key) ?? scopes.Peek())[key] = value; }
-#endif*/
             set { SetValue(key, value); }
         }
 
@@ -168,20 +114,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         {
             get
             {
-                /*#if UseVarList
-                string[] retVal = new string[Count];
-                int id = 0;
-                Dictionary<string, object> tmp;
-                for (int i = currentMaxScopeId; i >= 0; i--)
-                {
-                    (tmp = scopes[i]).Keys.CopyTo(retVal, id);
-                    id += tmp.Count;
-                }
-
-                return retVal;
-#else
-                return scopes.SelectMany(n => n.Keys).ToArray();
-#endif*/
                 return (from t in variables where t.Value.Layer <= layer && t.Value.Revision == layerRevisions[t.Value.Layer] select t.Key).ToArray();
             }
         }
@@ -197,20 +129,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
 
             get
             {
-                /*#if UseVarList
-                object[] retVal = new object[Count];
-                int id = 0;
-                Dictionary<string, object> tmp;
-                for (int i = currentMaxScopeId; i>= 0; i--)
-                {
-                    (tmp=scopes[i]).Values.CopyTo(retVal, id);
-                    id += tmp.Count;
-                }
-
-                return retVal;
-#else
-                return scopes.SelectMany(n => n.Values).ToArray();
-#endif*/
                 return (from t in variables.Values where t.Layer <= layer && t.Revision == layerRevisions[t.Layer] select t.Value).ToArray();
             }
         }
@@ -224,17 +142,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         /// <filterpriority>1</filterpriority>
         public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
         {
-            /*#if UseVarList
-             for (int i = currentMaxScopeId; i >= 0; i-- )
-             {
-                 foreach (KeyValuePair<string, object> pair in scopes[currentMaxScopeId])
-                 {
-                     yield return pair;
-                 }
-             }
- #else
-             return scopes.SelectMany(n => n.Select(t=> t)).GetEnumerator();
- #endif*/
             return
                 (from t in variables
                  where t.Value.Layer <= layer && t.Value.Revision == layerRevisions[t.Value.Layer]
@@ -265,11 +172,7 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
             {
                 throw new ArgumentException("Tried to insert a Duplicate Key");
             }
-            /*#if UseVarList
-                        ((IDictionary<string,object>)scopes[currentMaxScopeId]).Add(item);
-            #else
-                        ((IDictionary<string,object>)scopes.Peek()).Add(item);
-            #endif*/
+            
             SetValue(item.Key, item.Value);
         }
 
@@ -296,16 +199,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         /// <exception cref="T:System.NotSupportedException"><see cref="T:System.Collections.Generic.ICollection`1"/> ist schreibgeschützt. </exception>
         public void Clear()
         {
-            /*#if UseVarList
-            currentMaxScopeId = -1;
-#else
-            scopes.Clear();
-#endif
-#if UseDummies
-            //dummyStack.Clear();
-            nextDummy = false;
-#endif
-            //scopes.Clear();*/
             ImplicitContext = null;
             variables.Clear();
             layer = 0;
@@ -334,28 +227,12 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         /// <param name="array">Das eindimensionale <see cref="T:System.Array"/>, das das Ziel der aus <see cref="T:System.Collections.Generic.ICollection`1"/> kopierten Elemente ist.Für <see cref="T:System.Array"/> muss eine nullbasierte Indizierung verwendet werden.</param><param name="arrayIndex">Der nullbasierte Index in <paramref name="array"/>, an dem das Kopieren beginnt.</param><exception cref="T:System.ArgumentNullException"><paramref name="array"/> hat den Wert null.</exception><exception cref="T:System.ArgumentOutOfRangeException"><paramref name="arrayIndex"/> ist kleiner als 0.</exception><exception cref="T:System.ArgumentException"><paramref name="array"/> ist mehrdimensional.- oder -Die Anzahl der Elemente in der Quelle <see cref="T:System.Collections.Generic.ICollection`1"/> ist größer als der verfügbare Speicherplatz ab <paramref name="arrayIndex"/> bis zum Ende des <paramref name="array"/>, das als Ziel festgelegt wurde.- oder -Typ <paramref name="T"/> kann nicht automatisch in den Typ des Ziel-<paramref name="array"/> umgewandelt werden.</exception>
         public void CopyTo(KeyValuePair<string, object>[] array, int arrayIndex)
         {
-#if UseVarList
-            int index = arrayIndex;
-            Dictionary<string, object> tmp;
-            for (int i = currentMaxScopeId; i >= 0; i--)
-            {
-                ((IDictionary<string, object>)(tmp=scopes[i])).CopyTo(array, index);
-                index += tmp.Count;
-            }
-#else
-            /*int id = arrayIndex;
-            foreach (var n in scopes)
-            {
-                ((IDictionary<string, object>) n).CopyTo(array, id);
-                id += n.Count;
-            }*/
             int id = arrayIndex;
             foreach (var t in this)
             {
                 array[id] = t;
                 id++;
             }
-#endif
         }
 
         /// <summary>
@@ -446,11 +323,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
                 throw new ArgumentException("Tried to insert a Duplicate Key");
             }
 
-            /*#if UseVarList
-            scopes[currentMaxScopeId].Add(key, value);
-#else
-            scopes.Peek().Add(key, value);
-#endif*/
             SetValue(key, value);
         }
 
@@ -505,19 +377,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
         /// </summary>
         public void OpenInnerScope(/*bool isCatch = false*/)
         {
-            /*#if UseDummies
-                        bool dummy = this.nextDummy;
-            #else
-                        bool dummy = false;
-            #endif*/
-            //ScopeDisposer retVal = new ScopeDisposer(this, false, isCatch);
-            /*if (!dummy)
-            {
-                Push();
-#if UseDummies
-                //PushDummy(this.nextDummy);
-#endif
-            }*/
             layer++;
             if (layerRevisions.Count <= layer)
             {
@@ -529,54 +388,14 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
             {
                 catchCount++;
             }*/
-#if UseDummies
-    //this.nextDummy = nextDummy;
-#endif
             //return retVal;
         }
-
-        /*#if UseDummies
-                /// <summary>
-                /// Handles all Dummy - Events
-                /// </summary>
-                /// <param name="isDummy"></param>
-                private void PushDummy(bool isDummy)
-                {
-        #if UseList
-                    currentMaxDummyId++;
-                    if (!(dummyStack.Count > currentMaxDummyId))
-                    {
-                        dummyStack.Add(isDummy);
-                    }
-                    else
-                    {
-                        dummyStack[currentMaxDummyId] = isDummy;
-                    }
-        #else
-                    dummyStack.Push(isDummy);
-        #endif
-                }
-        #endif*/
 
         /// <summary>
         /// Collapses an inner scope
         /// </summary>
         public void CollapseScope(/*bool isCatch = false*/)
         {
-            /*#if UseDummies
-            #if UseList
-                        nextDummy = dummyStack[currentMaxDummyId];
-                        currentMaxDummyId--;
-            #else
-                        //nextDummy = false; //dummyStack.Pop();
-            #endif
-            #endif
-                        #if UseVarList
-                        currentMaxScopeId--;
-            #else
-                        Dictionary<string, object> dict = scopes.Pop();
-                        dict.Clear();
-            #endif*/
             layer--;
             //OnLeaveLayer(layer);
             /*if (isCatch)
@@ -584,34 +403,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
                 catchCount--;
             }*/
         }
-
-        /*internal void DecreaseCatches()
-        {
-            catchCount--;
-        }*/
-
-        /* /// <summary>
-         /// Gets the dictionary that contains a specific key
-         /// </summary>
-         /// <param name="key">the demanded key</param>
-         /// <returns>the dictionary that contains the demanded key</returns>
-         private Dictionary<string, object> GetDictionaryForKey(string key)
-         {
-             #if UseVarList
-             Dictionary<string, object> retVal = null;
-             for (int i = currentMaxScopeId; i >= 0; i--)
-             {
-                 if ((retVal = scopes[i]).ContainsKey(key))
-                 {
-                     return retVal;
-                 }
-             }
-
-             return null;
- #else
-             return (from t in scopes where t.ContainsKey(key) select t).FirstOrDefault();
- #endif
-         }*/
 
         /// <summary>
         /// Copies the initial root of the current scope
@@ -639,7 +430,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
             return retVal;
         }
 
-#if !Community
         public SmartProperty GetSmartProperty(string name, bool rootOnly = false)
         {
             if (ContainsKeyInternal(name, rootOnly, true))
@@ -654,7 +444,6 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
 
             return null;
         }
-#endif
 
         void IScope.OverridePolicy(ScriptingPolicy newPolicy)
         {
@@ -717,29 +506,5 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
                 var.Revision = layerRevisions[var.Layer];
             }
         }
-
-        /*/// <summary>
-        /// Creates a new scope on the current scope-stack
-        /// </summary>
-        /// <returns>the created scope</returns>
-        private Dictionary<string, object> Push()
-        {
-#if UseVarList
-            currentMaxScopeId++;
-            while (scopes.Count <= currentMaxScopeId)
-            {
-                scopes.Add(new Dictionary<string, object>());
-            }
-
-
-            Dictionary<string,object> retVal = scopes[currentMaxScopeId];
-            retVal.Clear();
-            return retVal;
-#else
-            Dictionary<string, object> retVal = new Dictionary<string, object>();
-            scopes.Push(retVal);
-            return retVal;
-#endif
-        }*/
     }
 }

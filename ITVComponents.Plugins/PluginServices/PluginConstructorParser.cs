@@ -39,7 +39,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// </summary>
         /// <param name="constructorString">the constructor hint</param>
         /// <param name="formatProvider">a Plugin-instance that is capable for formatting custom strings (i.e. decrypting passwords, or buffering sql-server instance names)</param>
-        public static PluginConstructionElement ParsePluginString(string constructorString, Dictionary<string,object> customStringFormatArguments, IStringFormatProvider formatProvider)
+        public static PluginConstructionElement ParsePluginString(string constructorString, Dictionary<string,object> customStringFormatArguments, StringFormatProvider formatProvider)
         {
             try
             {
@@ -69,7 +69,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// <param name="constructor">the constructorparameter string</param>
         /// <param name="formatProvider">a Plugin-instance that is capable for formatting custom strings (i.e. decrypting passwords, or buffering sql-server instance names)</param>
         /// <returns>an object array containing the parsed objects</returns>
-        private static PluginParameterElement[] ParseConstructor(string constructor, Dictionary<string,object> customStringFormatArguments, IStringFormatProvider formatProvider)
+        private static PluginParameterElement[] ParseConstructor(string constructor, Dictionary<string,object> customStringFormatArguments, StringFormatProvider formatProvider)
         {
             List<PluginParameterElement> ls = new List<PluginParameterElement>();
             List<string> strings = new List<string>();

@@ -1,13 +1,16 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Plugins;
+using ITVComponents.Plugins.PluginServices;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrappers
 {
-    internal class DictionaryWrapper:IFactoryWrapper
+    internal class DictionaryWrapper:IFactoryWrapper, IPluginFactory
     {
         private readonly IDictionary<string, object> exposedObjects;
         private IDictionary<string, ProxyWrapper> extendedProxies;
@@ -81,6 +84,64 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrapper
         public void AttachProxyDictionary(IDictionary<string, ProxyWrapper> proxies)
         {
             extendedProxies = proxies;
+        }
+
+        public IPluginFactory OpenScope(Dictionary<string, object> dictionary, IServiceProvider services)
+        {
+            return this;
+        }
+
+        public void Dispose()
+        {
+            OnDisposed();
+        }
+
+        public IEnumerator<IPlugin> GetEnumerator()
+        {
+            return exposedObjects.Where(n => n.Value is IPlugin).Select(n => (IPlugin)n.Value).GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public IPlugin this[string pluginName] => exposedObjects[pluginName] as IPlugin;
+
+        public IPlugin this[string pluginName, bool triggerAsParameterRequest, PluginRef callingPluginRef] => exposedObjects[pluginName] as IPlugin;
+
+        public IPlugin this[string pluginName, bool triggerAsParameterRequest] => exposedObjects[pluginName] as IPlugin;
+
+        public T LoadPlugin<T>(string uniqueName, string pluginConstructor) where T : class, IPlugin
+        {
+            return exposedObjects[uniqueName] as T;
+        }
+
+        public T LoadPlugin<T>(string uniqueName, string pluginConstructor, Dictionary<string, object> customVariables, bool? doBuffer = null) where T : class, IPlugin
+        {
+            return exposedObjects[uniqueName] as T;
+        }
+
+        public T LoadPlugin<T>(string uniqueName, string pluginConstructor, bool buffer) where T : class, IPlugin
+        {
+            return exposedObjects[uniqueName] as T;
+        }
+
+        public IEnumerable<T> GetPlugins<T>() where T : class, IPlugin
+        {
+            return exposedObjects.Where(n => n.Value is T).Select(n => (T)n.Value);
+        }
+
+        public T GetPlugin<T>() where T : class, IPlugin
+        {
+            return GetPlugins<T>().FirstOrDefault();
+        }
+
+        public event EventHandler Disposed;
+
+        protected virtual void OnDisposed()
+        {
+            Disposed?.Invoke(this, EventArgs.Empty);
         }
     }
 }

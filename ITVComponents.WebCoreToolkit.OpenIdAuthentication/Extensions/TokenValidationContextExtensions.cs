@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.CodeAnalysis;
 
 namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
 {
@@ -25,6 +26,7 @@ namespace ITVComponents.WebCoreToolkit.OpenIdAuthentication.Extensions
             var identity = (ClaimsIdentity)context.Principal.Identity;
             foreach (var t in tok.Payload)
             {
+                context.Properties.SetString(t.Key,t.Value?.ToString());
                 identity.AddClaim(new Claim(t.Key, t.Value?.ToString()));
             }
 

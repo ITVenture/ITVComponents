@@ -59,7 +59,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages
             {
                 op.UserNameIsEmail = options.UserNameIsEmail;
                 op.UseLocalAccounts = options.UseLocalAccounts;
+                op.RegistrationPage = options.RegistrationPage;
+                if (options.UseExternalLogins)
+                {
+                    op.ExternalLoginPage = options.ExternalLoginPage;
+                }
             });
+
             if (!options.RegisterPageHandlers)
             {
                 services.ConfigurePageModelHandlerFactory(ha =>

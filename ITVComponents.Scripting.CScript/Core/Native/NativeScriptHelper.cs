@@ -15,9 +15,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.AssemblyResolving;
 using ITVComponents.Scripting.CScript.Core.Literals;
-#if !Community
 using ITVComponents.Helpers;
-#endif
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.Optimization;
@@ -28,9 +26,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.CodeAnalysis.Scripting.Hosting;
 using System.DirectoryServices.AccountManagement;
-#if !Community
 using ITVComponents.Logging;
-#endif
 using Microsoft.CSharp;
 
 namespace ITVComponents.Scripting.CScript.Core.Native

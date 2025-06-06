@@ -262,7 +262,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
             {
                 FeatureName = n.Feature?.FeatureName, PermissionName = n.EntryPoint?.PermissionName, RefTag = n.RefTag,
                 DisplayName = n.DisplayName, ParentRef = n.Parent?.RefTag, SortOrder = n.SortOrder,
-                SpanClass = n.SpanClass, Url = n.Url
+                SpanClass = n.SpanClass, Url = n.Url,
+                IsPublic = n.IsPublic
             }).ToArray();
         }
 
@@ -304,6 +305,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, multiline:true));
                     change.Details.Add(MakeDetail("SpanClass", c.New.SpanClass));
                     change.Details.Add(MakeDetail("Url", c.New.Url));
+                    change.Details.Add(MakeDetail("IsPublic", c.New.IsPublic.ToString(), "Entity.IsPublic=(NewValueRaw==\"True\")"));
                     change.Details.Add(MakeDetail("SortOrder", c.New.SortOrder.ToString()));
                     change.Details.Add(MakeDetail("Feature", c.New.FeatureName, MakeLinqAssign<TContext>("Feature", "Features", "FeatureName")));
                     change.Details.Add(MakeDetail("EntryPoint", c.New.PermissionName, MakeLinqAssign<TContext>("EntryPoint", "Permissions", "PermissionName")));
@@ -336,6 +338,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     if ((c.New.Url != c.Original.Url && !string.IsNullOrWhiteSpace(c.New.Url) && !string.IsNullOrWhiteSpace(c.Original.Url)) || (string.IsNullOrWhiteSpace(c.New.Url) != string.IsNullOrWhiteSpace(c.Original.Url)))
                     {
                         change.Details.Add(MakeDetail("Url", c.New.Url, currentValue:c.Original.Url));
+                    }
+
+                    if (c.New.IsPublic!= c.Original.IsPublic)
+                    {
+                        change.Details.Add(MakeDetail("IsPublic", c.New.IsPublic.ToString(), currentValue:c.Original.IsPublic.ToString(), valueExpression:"Entity.IsPublic=(NewValueRaw==\"True\")"));
                     }
 
                     if (c.New.SortOrder != c.Original.SortOrder)

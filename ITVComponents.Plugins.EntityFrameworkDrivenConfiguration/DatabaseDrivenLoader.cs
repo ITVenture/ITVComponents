@@ -15,6 +15,7 @@ using ITVComponents.EFRepo;
 using Microsoft.EntityFrameworkCore;
 using ITVComponents.DataAccess.Parallel;
 using ITVComponents.ExtendedFormatting;
+using ITVComponents.Plugins.Config;
 using ITVComponents.Plugins.Helpers;
 using ITVComponents.Scripting.CScript.Core;
 
@@ -58,17 +59,20 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             this.useGenericParams = useGenericParams;
         }
 
-        public IEnumerable<string> LoadDynamicAssemblies()
+        public IEnumerable<string> LoadDynamicAssemblies(PluginLoadType loadType)
         {
             try
             {
-                return LoadPlugins();
+                return LoadPlugins(loadType);
             }
             finally
             {
-                if (refreshCycle != 0)
+                if (loadType == PluginLoadType.Singleton)
                 {
-                    refresher.Change(refreshCycle, refreshCycle);
+                    if (refreshCycle != 0)
+                    {
+                        refresher.Change(refreshCycle, refreshCycle);
+                    }
                 }
             }
         }
@@ -90,7 +94,7 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
         }
 
         public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments, Dictionary<string, object> customVariables,
-            IStringFormatProvider formatter)
+            StringFormatProvider formatter)
         {
             //knownTypeUsed = false;
             if (useGenericParams)
@@ -154,6 +158,34 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             }
         }
 
+        public bool HasScopedPlugin(string pluginName)
+        {
+            using (database.AcquireContext<TContext>(out var db))
+            {
+                return db.Plugins.Any(n => n.UniqueName == pluginName && n.LoadType == PluginLoadType.Scope && (n.Disabled == null || !n.Disabled.Value));
+            }
+        }
+
+        public PluginConfigurationItem GetScopedPlugin(string pluginName)
+        {
+            using (database.AcquireContext<TContext>(out var db))
+            {
+                var plug = db.Plugins.FirstOrDefault(n =>
+                    n.UniqueName == pluginName && n.LoadType == PluginLoadType.Scope && (n.Disabled == null || !n.Disabled.Value));
+                if (plug != null)
+                {
+                    return new PluginConfigurationItem
+                    {
+                        ConstructionString = plug.Constructor,
+                        Disabled = false,
+                        Name = plug.UniqueName
+                    };
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Checks for plugins that are currently not loaded
         /// </summary>
@@ -163,7 +195,7 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             refresher.Change(Timeout.Infinite, Timeout.Infinite);
             try
             {
-                var tmp = LoadPlugins().ToArray();
+                var tmp = LoadPlugins(PluginLoadType.Singleton).ToArray();
                 LogEnvironment.LogDebugEvent($"{tmp.Length} new PlugIns loaded..", LogSeverity.Report);
             }
             catch (Exception ex)
@@ -179,11 +211,11 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             }
         }
 
-        private IEnumerable<string> LoadPlugins()
+        private IEnumerable<string> LoadPlugins(PluginLoadType loadType)
         {
             using (database.AcquireContext<TContext>(out var db))
             {
-                var plugins = db.Plugins.Where(n => !(n.Disabled ?? false)).ToArray();
+                var plugins = db.Plugins.Where(n => !(n.Disabled ?? false) && n.LoadType == loadType).ToArray();
                 foreach (var plugin in plugins)
                 {
                     if (factory[plugin.UniqueName] == null)

@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.Helpers;
 using ITVComponents.Json;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
@@ -136,6 +138,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             }
             catch (Exception ex)
             {
+                LogEnvironment.LogEvent(ex.OutlineException(), LogSeverity.Error);
                 retVal.Success = false;
                 retVal.Message = ex.Message;
             }

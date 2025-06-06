@@ -3,9 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-#if !Community
 using ITVComponents.Logging;
-#endif
 using ITVComponents.Scripting.CScript.Core.Invokation;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 
@@ -171,9 +169,7 @@ namespace ITVComponents.Scripting.CScript.Core.ExternalMethods
                             }
                             catch (Exception ex)
                             {
-#if !Community
                                 LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error, "Scripting");
-#endif
                                 return false;
                             }
                         }

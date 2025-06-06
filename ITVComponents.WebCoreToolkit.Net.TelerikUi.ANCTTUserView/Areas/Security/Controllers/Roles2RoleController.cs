@@ -147,7 +147,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTreeTenantSecurit
                 trustDisposable?.Dispose();
             }
 
-            return Unauthorized();
+            return Forbid();
         }
     }
 }

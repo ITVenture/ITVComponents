@@ -291,6 +291,10 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                         return Results.BadRequest(ex.Message);
                     }
                 }
+                else if (context.RequestServices.VerifyCurrentUser())
+                {
+                    return Results.Forbid();
+                }
             }
             finally
             {
@@ -387,6 +391,10 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                     }
 
                     return Results.NotFound();
+                }
+                else if (context.RequestServices.VerifyCurrentUser())
+                {
+                    return Results.Forbid();
                 }
 
                 return Results.Unauthorized();

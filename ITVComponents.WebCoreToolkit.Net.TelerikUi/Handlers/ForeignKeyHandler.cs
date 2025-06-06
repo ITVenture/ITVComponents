@@ -78,7 +78,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers
                         {
                         }
 
-                        return Results.Unauthorized();
+                        return Results.Forbid();
                     }
                 }
             }

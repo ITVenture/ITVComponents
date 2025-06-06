@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Models;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Services.Options;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Options
@@ -21,5 +22,24 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Opt
 
         public bool UserNameIsEmail { get; set; } = true;
         public bool UseLocalAccounts { get; set; } = true;
+
+        public UserRegistrationInfo RegistrationPage { get; set; } = new UserRegistrationInfo
+        {
+            AllowRegister = true,
+            Area = "Identity",
+            Action = "Index",
+            Controller = "Registration",
+            ControllerLink = true
+        };
+
+        public ExternalLoginConfig ExternalLoginPage { get; set; } = new ExternalLoginConfig()
+        {
+            UseExternalLogins = true,
+            Area = "Identity",
+            //Page = "Account/ExternalLogin",
+            Controller="Registration",
+            Action= "LoginExternal",
+            PostToController = true
+        };
     }
 }

@@ -34,5 +34,11 @@ ITVenture.Pages.Util.TenantTemplates =
                 "application/json");
             await ITVenture.Tools.Popup.OpenAsync("alert", result.Message);
         }
+    },
+    applyToAllTenants: async function (e) {
+
+    },
+    showApply: function (e) {
+        return e.Status === 1;
     }
 }

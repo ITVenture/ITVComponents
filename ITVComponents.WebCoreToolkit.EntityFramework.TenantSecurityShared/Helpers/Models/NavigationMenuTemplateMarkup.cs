@@ -23,5 +23,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public string RefTag { get; set; }
 
         public string ParentRef { get; set; }
+        public bool IsPublic { get; set; }
     }
 }

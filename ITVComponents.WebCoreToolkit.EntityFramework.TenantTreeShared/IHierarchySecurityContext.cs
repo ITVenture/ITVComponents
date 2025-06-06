@@ -77,6 +77,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
 
         public DbSet<DownwardsUserRoleView<TUserId>> DownwardsTenantUserRoles { get; set; }
 
-        public IQueryable<Tenant> ChildTenantsWith(string userId, string currentTenant, string[] requiredPermissions);
+        public IEnumerable<TTenant> ChildTenantsWith(string userId, string currentTenant, string[] requiredPermissions);
     }
 }

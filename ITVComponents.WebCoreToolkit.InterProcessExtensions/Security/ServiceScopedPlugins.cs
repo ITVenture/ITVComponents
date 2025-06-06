@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Security;
+using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -42,6 +43,18 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Security
         public void AttachProxyDictionary(IDictionary<string, ProxyWrapper> proxies)
         {
             extendedProxies = proxies;
+        }
+
+        public IPluginFactory OpenScope(Dictionary<string, object> dictionary, IServiceProvider services)
+        {
+            ResolveServices(services, out var selector, out var plugins);
+            var retVal = plugins.GetFactory();
+            foreach (var dc in dictionary)
+            {
+                retVal.RegisterObject(dc.Key, dc.Value);
+            }
+
+            return retVal;
         }
 
         private object FetchPlugin(string pluginName, IServiceProvider services)

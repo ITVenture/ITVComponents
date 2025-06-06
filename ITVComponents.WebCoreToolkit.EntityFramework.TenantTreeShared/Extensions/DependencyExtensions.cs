@@ -15,6 +15,9 @@ using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ITVComponents.WebCoreToolkit.Cookies;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cookies;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Extensions
 {
@@ -99,7 +102,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Extensio
         public static IServiceCollection ConfigureGlobalFilters<TContext>(this IServiceCollection services)
         {
             var contextArguments = typeof(TContext).GetInterfaceGenericArgumentsOf(fixTypeEntries:
-                [("TImpl", typeof(TContext))]);
+                [("TImpl", typeof(TContext)), ("TContext", typeof(TContext))]);
             var mth = GlobalFilterBuilder.GetConfigureMethod(contextArguments);
             mth.Invoke(null, new[] { services });
             return services;
@@ -127,6 +130,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Extensio
                 .GetGenericMethodDefinition();
             method = method.MakeGenericMethod(contextType);
             return (IServiceCollection)method.Invoke(null, new object[] { services });
+        }
+
+        public static IServiceCollection UseServerCookies(this IServiceCollection services,
+            Action<ServerCookieOptions> configure)
+        {
+            services.AddScoped<ICookieService, DbCookieService>();
+            if (configure != null)
+            {
+                services.Configure<ServerCookieOptions>(configure);
+            }
+
+            return services;
         }
     }
 }

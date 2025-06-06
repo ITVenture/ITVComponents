@@ -2,10 +2,12 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Security.AccessControl;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Annotations;
+using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
@@ -42,6 +44,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Loca
             return knownLocalizers.GetOrAdd(name, s => new ContextStringLocalizer(
                 defaultFactory.Create(baseName, location), services,
                 s));
+        }
+
+        public void ResetLocalizers()
+        {
+            knownLocalizers.ForEach(n => ResetDbValues(n.Value));
+        }
+
+        private void ResetDbValues(IStringLocalizer localizer)
+        {
+            if (localizer is ContextStringLocalizer ctx)
+            {
+                ctx.ResetStrings();
+            }
         }
     }
 }

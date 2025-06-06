@@ -46,12 +46,10 @@ namespace ITVComponents.Scripting.CScript.Core.RuntimeSafety
             innerScope = new Scope(initialScope, ((IScope)this).ScriptingPolicy);
             return retVal;
         }
-#if !Community
         public SmartProperty GetSmartProperty(string name, bool rootOnly = false)
         {
             throw new InvalidOperationException("GetSmartProperty is not supported in FunctionLiteral!");
         }
-#endif
 
         /// <summary>
         /// Gets the a base-value of this Scope

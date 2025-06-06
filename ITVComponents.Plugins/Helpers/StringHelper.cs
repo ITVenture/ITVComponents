@@ -24,7 +24,7 @@ namespace ITVComponents.Plugins.Helpers
         /// <param name="formatter">the formatter that is used to format strings inside the calling factory</param>
         /// <returns>a re-formatted string that provides a type expression</returns>
 
-        public static string ApplyFormat(this string typeExpression, IStringFormatProvider formatter)
+        public static string ApplyFormat(this string typeExpression, StringFormatProvider formatter)
         {
             var retVal = typeExpression;
             if (formatter != null && typeExpression.StartsWith("$"))

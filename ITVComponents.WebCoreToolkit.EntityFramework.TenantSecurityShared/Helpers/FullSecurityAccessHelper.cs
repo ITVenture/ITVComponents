@@ -46,8 +46,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             var stack = new StackTrace(new StackFrame(2, false));
             var type = stack.GetFrame(0).GetMethod().DeclaringType;
             var trustingType = trustingObject.GetType();
-            var cmp = securityDb.TrustedFullAccessComponents.FirstOrDefault(n =>
+            var cmp = securityDb.TrustedFullAccessComponents.Local.FirstOrDefault(n =>
                 n.FullQualifiedTypeName == type.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
+            if (cmp == null)
+            {
+                cmp = securityDb.TrustedFullAccessComponents.FirstOrDefault(n =>
+                    n.FullQualifiedTypeName == type.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
+            }
+
             if (cmp != null)
             {
                 TTrustConfig trustConfig =

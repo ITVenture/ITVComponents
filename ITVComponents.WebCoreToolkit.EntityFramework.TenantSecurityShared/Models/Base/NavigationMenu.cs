@@ -43,6 +43,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         public string SpanClass { get; set; }
 
+        public bool IsPublic { get; set; } = false;
+
         [MaxLength(1024)]
         public string RefTag { get; set; }
 

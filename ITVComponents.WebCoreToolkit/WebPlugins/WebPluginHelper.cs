@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.DIServices;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
@@ -15,7 +16,9 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins.Initialization;
+using ITVComponents.WebCoreToolkit.WebPlugins.ServiceModels;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -27,6 +30,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
     /// </summary>
     public class WebPluginHelper:IWebPluginHelper
     {
+        private readonly IPermissionScope scopeProvider;
         private readonly FactoryOptions factoryOptions;
         private IWebPluginsSelector pluginProvider;
        private IServiceProvider serviceProvider;
@@ -42,12 +46,13 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// <param name="serviceProvider">the dependencyInjection infrasturcture that can be used to log errors</param>
         /// <param name="autoPluginsInit"></param>
         /// <param name="logger">a logger instance that is used to log events of this PluginHelper instance</param>
-        public WebPluginHelper(IWebPluginsSelector pluginProvider, IServiceProvider serviceProvider, IOptions<PluginsInitOptions> autoPluginsInit, ILogger<WebPluginHelper> logger)
+        public WebPluginHelper(IWebPluginsSelector pluginProvider, IServiceProvider serviceProvider, IOptions<PluginsInitOptions> autoPluginsInit, IPermissionScope scopeProvider, ILogger<WebPluginHelper> logger)
         {
             this.pluginProvider = pluginProvider;
             this.serviceProvider = serviceProvider;
             this.logger = logger;
             var init = autoPluginsInit.Value;
+            this.scopeProvider = scopeProvider;
         }
 
         /// <summary>
@@ -58,8 +63,8 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// <param name="autoPluginsInit"></param>
         /// <param name="factoryOptions">the factory-options used for DI injection into plugins</param>
         /// <param name="logger">a logger instance that is used to log events of this PluginHelper instance</param>
-        public WebPluginHelper(IWebPluginsSelector pluginProvider, IServiceProvider serviceProvider, IOptions<PluginsInitOptions> autoPluginsInit, IOptions<FactoryOptions> factoryOptions, ILogger<WebPluginHelper> logger)
-        :this(pluginProvider, serviceProvider, autoPluginsInit , logger)
+        public WebPluginHelper(IWebPluginsSelector pluginProvider, IServiceProvider serviceProvider, IOptions<PluginsInitOptions> autoPluginsInit, IOptions<FactoryOptions> factoryOptions, IPermissionScope scopeProvider, ILogger<WebPluginHelper> logger)
+        :this(pluginProvider, serviceProvider, autoPluginsInit, scopeProvider, logger)
         {
             this.factoryOptions = factoryOptions.Value;
         }
@@ -72,8 +77,8 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         {
             if (factory == null)
             {
-                factory = CreateFactory(true, false);
-                SetupFactory(factory, true);
+                factory = CreateFactory(true, false, out var tenantObjects);
+                SetupFactory(factory, true, tenantObjects);
             }
 
             return factory;
@@ -97,8 +102,8 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             }
 
             pluginProvider.ExplicitPluginPermissionScope = explicitPluginScope;
-            factory = CreateFactory(false, true);
-            SetupFactory(factory, false);
+            factory = CreateFactory(false, true, out var tenantObjects);
+            SetupFactory(factory, false, tenantObjects);
             return factory;
         }
 
@@ -112,7 +117,8 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// Initializes a new i PluginFactory instance
         /// </summary>
         /// <returns>a Factory that can be used to load further plugins</returns>
-        private PluginFactory CreateFactory(bool checkSecurity, bool useExplicitTenants)
+        private PluginFactory CreateFactory(bool checkSecurity, bool useExplicitTenants,
+            out IObjectProvider objectProvider)
         {
             var retVal = new PluginFactory();
             LogEnvironment.OpenRegistrationTicket(retVal);
@@ -125,23 +131,34 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 explicitUserScope = pluginProvider.ExplicitPluginPermissionScope;
             }
 
+            var activeUserScope = explicitUserScope ?? scopeProvider.PermissionPrefix;
+            objectProvider = serviceProvider.GetObjectProvider(activeUserScope);
+
+            retVal.RegisterObject(Global.TenantObjectCacheName, objectProvider);
+            var tenantObjects = objectProvider;
+
             UnknownConstructorParameterEventHandler handler = (sender, args) =>
             {
-                PluginFactory pi = (PluginFactory) sender;
+                PluginFactory pi = (PluginFactory)sender;
                 IWebPluginsSelector availablePlugins = pluginProvider;
                 var globalProvider = serviceProvider.GetService<IGlobalSettingsProvider>();
                 var tenantProvider = serviceProvider.GetService<IScopedSettingsProvider>();
-                var preInitializationSequence = tenantProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}", explicitUserScope)
-                                                ?? globalProvider?.GetJsonSetting($"PreInitSequenceFor{args.RequestedName}");
-                var postInitializationSequence = tenantProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}", explicitUserScope)
-                                                ?? globalProvider?.GetJsonSetting($"PostInitSequenceFor{args.RequestedName}");
+
+                var preInitializationSequence = tenantObjects.GetBufferedValue(
+                    $"PreInitSequenceFor{args.RequestedName}", k => tenantProvider?.GetJsonSetting(k, explicitUserScope)
+                                                                    ?? globalProvider?.GetJsonSetting(k), null);
+                var postInitializationSequence = tenantObjects.GetBufferedValue(
+                    $"PostInitSequenceFor{args.RequestedName}", k =>
+                        tenantProvider?.GetJsonSetting(k, explicitUserScope)
+                        ?? globalProvider?.GetJsonSetting(k), null);
                 var preInitSequence = DeserializeInitArray(preInitializationSequence);
                 var postInitSequence = DeserializeInitArray(postInitializationSequence);
                 WebPlugin plugin =
-                    availablePlugins.GetPlugin(args.RequestedName);
+                    tenantObjects.GetBufferedValue($"TenantPI#{args.RequestedName}",
+                        _ => availablePlugins.GetPlugin(args.RequestedName), null);
                 if (plugin != null)
                 {
-                    if (!checkSecurity || serviceProvider.VerifyUserPermissions(new []{args.RequestedName},true))
+                    if (!checkSecurity || serviceProvider.VerifyUserPermissions(new[] { args.RequestedName }, true))
                     {
                         if (preInitSequence.Length != 0)
                         {
@@ -156,7 +173,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                             if (args.PluginType != null)
                             {
                                 args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
-                                                        new Dictionary<string,object>{{"CallingPlugin",args.PluginType}});
+                                    new Dictionary<string, object> { { "CallingPlugin", args.PluginType } });
                             }
                             else
                             {
@@ -182,7 +199,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                     args.Value = tmp;
                 }
             };
-            
+
             void Initializer(object sender, PluginInitializedEventArgs args)
             {
                 PluginLoadInterceptHelper.RunInterceptors(retVal, args.Plugin);
@@ -191,12 +208,13 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             void Finalizer(object sender, EventArgs e)
             {
                 LogEnvironment.DisposeRegistrationTicket(sender);
-                var pi = (PluginFactory) sender ;
-                var dp = (IServiceProvider) pi.GetRegisteredObject(Global.ServiceProviderName);
+                var pi = (PluginFactory)sender;
+                var dp = (IServiceProvider)pi.GetRegisteredObject(Global.ServiceProviderName);
                 if (dp != null)
                 {
                     factory = null;
                 }
+
                 pi.Disposed -= Finalizer;
                 pi.UnknownConstructorParameter -= handler;
                 pi.PluginInitialized -= Initializer;
@@ -207,7 +225,8 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             {
                 PluginFactory pi = (PluginFactory)sender;
                 IWebPluginsSelector availablePlugins = pluginProvider;
-                var impl = availablePlugins.GetGenericParameters(args.PluginUniqueName);
+                var impl = tenantObjects.GetBufferedValue($"PIArgs4#{args.PluginUniqueName}",
+                    _ => availablePlugins.GetGenericParameters(args.PluginUniqueName).ToArray(), null);
                 if (impl != null)
                 {
                     var dic = new Dictionary<string, object>();
@@ -241,12 +260,14 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
 
                     if (argumentProvider == null)
                     {
-                        var rawTypes = typeof(object).GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        var rawTypes =
+                            typeof(object).GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
                         args.Handled = args.GenericTypes.FinalizeTypeArguments(rawTypes);
                     }
                     else
                     {
-                        var rawTypes = argumentProvider.GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
+                        var rawTypes =
+                            argumentProvider.GetInterfaceGenericArgumentsOf(fixTypeEntries: fixTypes.ToArray());
                         args.Handled = args.GenericTypes.FinalizeTypeArguments(rawTypes);
                     }
                 }
@@ -282,13 +303,13 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// <summary>
         /// Sets up the factory and loads autoload-configured plugins
         /// </summary>
-        private void SetupFactory(PluginFactory factory, bool testPermissions)
+        private void SetupFactory(PluginFactory factory, bool testPermissions, IObjectProvider tenantObjects)
         {
-            foreach (WebPlugin pi in pluginProvider.GetAutoLoadPlugins())
+            foreach (WebPlugin pi in tenantObjects.GetBufferedValue("PISetup#AutoPlugs", _ => pluginProvider.GetAutoLoadPlugins().ToArray(), null))
             {
                 try
                 {
-                    if (!testPermissions || serviceProvider.VerifyUserPermissions(new []{pi.UniqueName}, true))
+                    if (!testPermissions || serviceProvider.VerifyUserPermissions([pi.UniqueName], true))
                     {
                         factory.LoadPlugin<IPlugin>(pi.UniqueName, pi.Constructor);
                     }

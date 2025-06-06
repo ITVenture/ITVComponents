@@ -183,6 +183,9 @@
   <data name="IWCN_Titles_Tenants" xml:space="preserve">
     <value>Affittuari</value>
   </data>
+  <data name="IWCN_Titles_TenantTypes" xml:space="preserve">
+    <value>Tipi dei clienti</value>
+  </data>
   <data name="IWCN_Titles_Users" xml:space="preserve">
     <value>Utenti</value>
   </data>
@@ -202,6 +205,9 @@
     <value>Formato (solo per data)</value>
   </data>
   <data name="IWCN_DQP_Type" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="IWCN_Tenant_Type" xml:space="preserve">
     <value>Tipo</value>
   </data>
   <data name="IWCN_Titles_PlugInConstants" xml:space="preserve">
@@ -245,9 +251,6 @@
   </data>
   <data name="IWCN_Titles_TutorialVideos" xml:space="preserve">
     <value>Tutorials</value>
-  </data>
-  <data name="IWCN_General_Cancel" xml:space="preserve">
-    <value>Cancella</value>
   </data>
   <data name="IWCN_Tutorials_SortableName" xml:space="preserve">
     <value>Nome per ordinare</value>
@@ -300,6 +303,12 @@
   <data name="IWCN_TT_Apply" xml:space="preserve">
     <value>Applicare</value>
   </data>
+  <data name="IWCN_TT_MetaData" xml:space="preserve">
+    <value>Metadati</value>
+  </data>
+  <data name="IWCN_TT_Template" xml:space="preserve">
+    <value>Modello</value>
+  </data>
   <data name="IWCN_TT_Create" xml:space="preserve">
     <value>Nuovo modello basato su questo cliente</value>
   </data>
@@ -326,5 +335,23 @@
   </data>
   <data name="IWCN_Titles_Sequences" xml:space="preserve">
     <value>Sequences</value>
+  </data>
+  <data name="IWCN_General_Cancel" xml:space="preserve">
+    <value>Cancella</value>
+  </data>
+  <data name="IWCN_TST_ParameterName" xml:space="preserve">
+    <value>Nome del parametro</value>
+  </data>
+  <data name="IWCN_Titles_DbResources" xml:space="preserve">
+    <value>Risorse dal database</value>
+  </data>
+  <data name="IWCN_Titles_DbCultures" xml:space="preserve">
+    <value>Lingue per le traduzioni</value>
+  </data>
+  <data name="IWCN_DRI_ResetFactory" xml:space="preserve">
+    <value>Azzeramento delle traduzioni</value>
+  </data>
+  <data name="IWCN_DRI_CopyFromOrigin" xml:space="preserve">
+    <value>Copia dalla risorsa originale</value>
   </data>
 </root>

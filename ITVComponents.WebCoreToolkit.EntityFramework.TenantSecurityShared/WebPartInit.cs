@@ -19,6 +19,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Interceptors;
+using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Localization;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
@@ -84,6 +85,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
                         services.GetService<ILoggerFactory>());
                 });
                 //services.AddSingleton(typeof(IStringLocalizerFactory), typeof(ContextStringLocalizer));
+            }
+
+            if (partOptions.UseServerCookies)
+            {
+                services.UseServerCookies(o =>
+                {
+                    o.DefaultCookieValidDays = partOptions.DefaultServerCookieValidity;
+                    o.CookieLengthThreshold = partOptions.CookieLengthThreshold;
+                });
             }
         }
     }

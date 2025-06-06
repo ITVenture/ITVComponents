@@ -98,6 +98,15 @@ namespace ITVComponents.WebCoreToolkit.Security
         bool IsAuthenticated(string[] userLabels, string userAuthenticationType);
 
         /// <summary>
+        /// Get a value indicating, if the resulting userlables result to a user that is authenticated for the current user-scope
+        /// </summary>
+        /// <param name="forScope">the scope for which to check, if the user is authenticated</param>
+        /// <param name="userLabels">the user-labels that represent the currently logged on user</param>
+        /// <param name="userAuthenticationType">the authentication-type of the current user</param>
+        /// <returns>a value indicating whether this user is valid in the current scope</returns>
+        bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType);
+
+        /// <summary>
         /// Gets an enumeration of CustomUserProperties for a set of user-labels that is appropriate for the given user
         /// </summary>
         /// <param name="userLabels">the labels that describe the current user</param>
@@ -148,6 +157,15 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
         /// <returns>an enumerable of permissions for the given user-labels</returns>
         IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType);
+
+        /// <summary>
+        /// Gets an enumeration of Permissions for a set of user-labels that is appropriate for the given user
+        /// </summary>
+        /// <param name="userLabels">the labels that describe the current user</param>
+        /// <param name="forScope"></param>
+        /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
+        /// <returns>an enumerable of permissions for the given user-labels</returns>
+        IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType);
 
         /// <summary>
         /// Gets an enumeration of Permissions that are assigned to the given Role
@@ -280,5 +298,12 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <param name="permissionScopeName">the permission-scope that is permitted to access the data</param>
         /// <returns>the serialized and when demanded encrypted representation of the provided object</returns>
         string EncryptJsonObject(object value, string permissionScopeName);
+
+        /// <summary>
+        /// Gets all known Permissions that are known for the given permissionScope
+        /// </summary>
+        /// <param name="permissionScope">the permissionScope for which to get the known permissions</param>
+        /// <returns>an array containing all known permission definitions</returns>
+        Permission[] GetKnownPermissions(string permissionScope);
     }
 }

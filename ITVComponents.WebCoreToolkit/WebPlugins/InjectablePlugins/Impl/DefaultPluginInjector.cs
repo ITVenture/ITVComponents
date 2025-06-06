@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Formatting;
 using ITVComponents.Plugins;
+using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,11 +40,12 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
                 var userProvider = services.GetService<IContextUserProvider>();
                 if (userProvider!= null)
                 {
+                    var objectProvider = services.GetObjectProvider(scopeProvider.PermissionPrefix);
                     Dictionary<string, object> formatHints = new Dictionary<string, object>(userProvider.RouteData);
                     formatHints.Add("rawName",rawName);
                     var prefixed = prefixWithArea ? "[area][rawName]" : "[rawName]";
                     prefixed = formatHints.FormatText(prefixed);
-                    if (selector.GetPlugin(prefixed) != null)
+                    if (objectProvider.GetBufferedValue($"TenantPI#{prefixed}", _=> selector.GetPlugin(prefixed), null) != null)
                     {
                         rawName = prefixed;
                         return true;
