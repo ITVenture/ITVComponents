@@ -31,5 +31,7 @@ namespace ITVComponents.EFRepo.Options
         public void ConfigureMethod<T>(string name, T implementation) where T:Delegate;
 
         public T GetMethod<T>(string name) where T : Delegate;
+
+        public void ConfigureDbFunction(string name, Action<DbFunctionBuilder> configure = null);
     }
 }

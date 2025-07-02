@@ -22,17 +22,21 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Interceptors
 {
-    public class SecurityModificationInterceptor<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole> : SaveChangesInterceptor
-    where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-    where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-    where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-    where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>, new()
-    where TTenantUser: TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+    public class SecurityModificationInterceptor<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole> : SaveChangesInterceptor
+    where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+    where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+    where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+    where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>, new()
+    where TTenantUser: TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
     where TTenant : Tenant
-    where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+    where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+    where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+    where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+    where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>, new()
     {
         private List<TRoleRole> roros = new List<TRoleRole>();
         private List<TRolePermission> ropes = new List<TRolePermission>();
+        private List<TGRoleLRole> gloros = new List<TGRoleLRole>();
         private List<Action<DbContext>> contextActions = new List<Action<DbContext>>();
 
         private readonly IServiceProvider services;
@@ -91,7 +95,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
                 var l = eventData.Context.ChangeTracker.Entries().ToList();
                 //eventData.Context.ChangeTracker
                 foreach (var entry in l.Where(n => n.Metadata.ClrType == typeof(TRoleRole) ||
-                                                   n.Metadata.ClrType == typeof(TRolePermission)))
+                                                   n.Metadata.ClrType == typeof(TRolePermission) ||
+                                                   n.Metadata.ClrType == typeof(TRole) || 
+                                                   n.Metadata.ClrType == typeof(TTenantUser) ||
+                                                   n.Metadata.ClrType == typeof(TGRoleLRole)))
                 {
                     bool ableToProcess = true;
                     if (entry.Entity is TRoleRole rohi && (rohi.PermittedRoleId != null && rohi.PermissiveRoleId != null || rohi.PermittedRole != null && rohi.PermissiveRole != null))
@@ -122,6 +129,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
                             {
                                 ropes.Add(rope);
                             }
+                            else if (entry.Entity is TGRoleLRole gloro)
+                            {
+                                gloros.Add(gloro);
+                            }
                         }
                         else if (entry.State == EntityState.Deleted)
                         {
@@ -140,6 +151,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
                             else if (entry.Entity is TTenantUser us)
                             {
                                 LoadCascadeProxies(eventData.Context, us, contextActions, true);
+                            }
+                            else if (entry.Entity is TGRoleLRole gloro)
+                            {
+                                LoadCascadeProxies(eventData.Context, gloro, contextActions, true);
                             }
                         }
                     }
@@ -176,7 +191,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
             }
 
             tmp.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
+            var tmpGlo = context.Set<TGRoleLRole>().Where(n => n.RoleRoleId == roro.RoleRoleId).ToList();
+            if (addToEntity && roro.ResultingGlobalLinks is not List<TGRoleLRole>)
+            {
+                roro.ResultingGlobalLinks = tmpGlo;
+            }
             modifyActions.Add(db => db.Set<TRolePermission>().RemoveRange(tmp));
+            modifyActions.Add(db => db.Set<TGRoleLRole>().RemoveRange(tmpGlo));
         }
 
         protected virtual void LoadCascadeProxies(DbContext context, TRolePermission rope,
@@ -190,6 +211,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
 
             tmp.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
             modifyActions.Add(db => db.Set<TRolePermission>().RemoveRange(tmp));
+        }
+
+        protected virtual void LoadCascadeProxies(DbContext context, TGRoleLRole gloro,
+            List<Action<DbContext>> modifyActions, bool addToEntity)
+        {
+            var tmp = context.Set<TGRoleLRole>().Where(n => n.OriginId == gloro.GRoleLRoleId).ToList();
+            if (addToEntity && gloro.RoleInheritanceChildren is not List<TRolePermission>)
+            {
+                gloro.RoleInheritanceChildren = tmp;
+            }
+
+            tmp.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
+            modifyActions.Add(db => db.Set<TGRoleLRole>().RemoveRange(tmp));
         }
 
         protected virtual void LoadCascadeProxies(DbContext context, TRole ro, List<Action<DbContext>> modifyActions,
@@ -302,7 +336,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
                                     RoleRoleId = n.RoleRoleId
                                 })
                             }).SelectMany(itm => itm.Items);
+                        var tmpGloro = ctx.Set<TRoleRole>().Include(n => n.PermissiveRole)
+                            .ThenInclude(r => r.PermittedGlobalRoles)
+                            .Include(n => n.PermittedRole)
+                            .Where(n => ids.Contains(n.RoleRoleId))
+                            .Select(n => new
+                            {
+                                Items = n.PermissiveRole.PermittedGlobalRoles.Select(np => new TGRoleLRole()
+                                {
+                                    OriginId = np.GRoleLRoleId,
+                                    RoleRoleId = n.RoleRoleId,
+                                    GlobalRoleId = np.GlobalRoleId,
+                                    LocalRoleId = n.PermittedRole.RoleId
+                                })
+                            }).SelectMany(itm => itm.Items);
                         ctx.Set<TRolePermission>().AddRange(tmpRoro);
+                        ctx.Set<TGRoleLRole>().AddRange(tmpGloro);
+
                     }
                     finally
                     {

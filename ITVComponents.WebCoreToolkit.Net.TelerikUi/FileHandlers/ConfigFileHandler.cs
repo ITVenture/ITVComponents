@@ -96,7 +96,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
             string fileType = colon != -1 ? fileIdentifier.Substring(0, colon) : fileIdentifier;
             var filterDic = colon != -1 ? ReadFilterDic(fileIdentifier.Substring(colon + 1)) : new Dictionary<string, int>();
             object desc = handler.DescribeConfig(fileType, filterDic, out var name);
-            var descString = JsonHelper.ToJson(desc, SerializationTypingMode.AssistedPolymorphism, null);
+            var descString = JsonHelper.ToJson(desc, SerializationTypingMode.NativePolymorphism, null);
             fileContent = Encoding.UTF8.GetBytes(descString);
             downloadName = $"{name}.json";
             contentType = "application/json";

@@ -181,7 +181,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             {
                 optionsBuilder.AddInterceptors(
                     new SecurityModificationInterceptor<Tenant, string, User, Role, Permission, UserRole, RolePermission,
-                        TenantUser, RoleRole>(services));
+                        TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole>(services));
             }
         }
     }

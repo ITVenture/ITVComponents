@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class DiagnosticsQuery: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.DiagnosticsQuery<Tenant, int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery>
+    public class DiagnosticsQuery: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.DiagnosticsQuery<Tenant, int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery>
     {
     }
 }

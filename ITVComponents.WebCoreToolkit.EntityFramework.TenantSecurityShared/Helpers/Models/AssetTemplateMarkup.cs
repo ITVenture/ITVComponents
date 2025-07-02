@@ -3,10 +3,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models
 {
+    [JsonDerivedType(typeof(AssetTemplateMarkup), "base")]
     public class AssetTemplateMarkup
     {
         public string RequiredFeature { get; set; }
@@ -15,10 +17,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public string Name { get; set; }
         public string SystemKey { get; set; }
 
-        public string[] PathTemplates;
+        public string[] PathTemplates { get; set; }
 
-        public string[] Grants;
+        public string[] Grants { get; set; }
 
-        public string[] FeatureGrants;
+        public string[] FeatureGrants { get; set; }
     }
 }

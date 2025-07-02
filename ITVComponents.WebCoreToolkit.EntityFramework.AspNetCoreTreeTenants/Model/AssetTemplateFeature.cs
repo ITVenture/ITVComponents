@@ -9,7 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model
 {
-    public class AssetTemplateFeature : AssetTemplateFeature<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature>
+    public class AssetTemplateFeature : AssetTemplateFeature<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature>
     {
     }
 }

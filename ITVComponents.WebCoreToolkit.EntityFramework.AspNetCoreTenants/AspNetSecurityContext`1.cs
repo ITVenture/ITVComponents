@@ -58,7 +58,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
     public class AspNetSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider,
-        ISecurityContext<Tenant, string, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole,
+        ISecurityContext<Tenant, string, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole,
             NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery,
             DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,
             AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter,
@@ -171,6 +171,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                 return CurrentTenantId;
             }
         }
+
+        public string CurrentTenantName => CurrentTenant;
 
         public int? CurrentTenantId
         {
@@ -528,6 +530,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         public DbSet<Permission> Permissions { get; set; }
 
         public DbSet<RolePermission> RolePermissions { get; set; }
+        public DbSet<GlobalRole> GlobalRoles { get; set; }
+        public DbSet<GlobalRolePermission> GlobalRolePermissions { get; set; }
+        public DbSet<GRoleLRole> GlobalToLocalRoles { get; set; }
 
         public DbSet<RoleRole> RoleRoles { get; set; }
 
@@ -609,6 +614,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             modelBuilder.Entity<RolePermission>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren)
                 .OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<RolePermission>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingLinks)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<GRoleLRole>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<GRoleLRole>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingGlobalLinks)
                 .OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }

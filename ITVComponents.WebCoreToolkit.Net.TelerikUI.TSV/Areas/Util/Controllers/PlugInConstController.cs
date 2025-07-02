@@ -1,9 +1,7 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
-using ITVComponents.DataAccess.Extensions;
+﻿using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
+using ITVComponents.WebCoreToolkit.AspExtensions.Attributes;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -18,11 +16,14 @@ using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(PlugInConstants.Write,PlugInConstants.View),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
-    public class PlugInConstController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : Controller 
+    [Authorize("HasPermission(PlugInConstants.Write,PlugInConstants.View),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention, CustomGenericTypeArg("TWebPluginConstantViewModel", typeof(WebPluginConstantViewModel))]
+    public class PlugInConstController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TWebPluginConstantViewModel, TTrustConfig> : Controller 
         where TTenant : Tenant 
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TWebPluginConstant : WebPluginConstant<TTenant>, new()
@@ -30,6 +31,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         where TSequence : Sequence<TTenant>
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+        where TWebPluginConstantViewModel: WebPluginConstantViewModel, new()
         where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
         private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db;
@@ -82,7 +84,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 tenantId = db.CurrentTenantId;
             }
             
-            return Json(db.WebPluginConstants.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TWebPluginConstant, WebPluginConstantViewModel>()));
+            return Json(db.WebPluginConstants.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TWebPluginConstant, TWebPluginConstantViewModel>()));
         }
 
         [HttpPost]
@@ -96,7 +98,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             var model = new TWebPluginConstant();
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<WebPluginConstantViewModel, TWebPluginConstant>(model);
+                await this.TryUpdateModelAsync<TWebPluginConstantViewModel, TWebPluginConstant>(model);
                 model.TenantId = tenantId;
                 db.WebPluginConstants.Add(model);
                 if (model.Value.StartsWith("encrypt:"))
@@ -123,12 +125,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<TWebPluginConstant, WebPluginConstantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TWebPluginConstant, TWebPluginConstantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
         [Authorize("HasPermission(PlugInConstants.Write)")]
-        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, WebPluginConstantViewModel viewModel)
+        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, TWebPluginConstantViewModel viewModel)
         {
             var tenantId = viewModel.TenantId;
             if (!isSysAdmin)
@@ -148,7 +150,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
 
         [HttpPost]
         [Authorize("HasPermission(PlugInConstants.Write)")]
-        public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request, WebPluginConstantViewModel viewModel)
+        public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request, TWebPluginConstantViewModel viewModel)
         {
             var tenantId = viewModel.TenantId;
             if (!isSysAdmin)
@@ -159,7 +161,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             var model = db.WebPluginConstants.First(n => n.TenantId == tenantId && n.WebPluginConstantId == viewModel.WebPluginConstantId);
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<WebPluginConstantViewModel, TWebPluginConstant>(model, "", m => { return m.ElementType == null; });
+                await this.TryUpdateModelAsync<TWebPluginConstantViewModel, TWebPluginConstant>(model, "", m => { return m.ElementType == null; });
                 if (model.Value.StartsWith("encrypt:"))
                 {
                     if (tenantId == null || !options.Value.UseExplicitTenantPasswords)
@@ -184,7 +186,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<TWebPluginConstant, WebPluginConstantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TWebPluginConstant, TWebPluginConstantViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
     }
 }

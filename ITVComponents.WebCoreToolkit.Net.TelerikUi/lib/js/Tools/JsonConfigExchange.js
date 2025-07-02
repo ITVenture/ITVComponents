@@ -131,7 +131,7 @@
             });
         },
         ApplyConfigChanges: function () {
-            var allControls = $(comparer.tableId).find("[jccMode='dyn']");
+            var allControls = $("#".concat(comparer.resultTab)).find("[jccMode='dyn']");//$(comparer.tableId).find("[jccMode='dyn']");
             allControls.each(function(i, e) {
                 var ctl = $(e);
                 var tp = ctl.attr("jcctype");

@@ -20,5 +20,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Options
         public string DownloadName { get; set; } = "config.json";
         public string DownloadReason { get; set; } = "DownloadConfig";
         public string FileIdentifier { get; set; } = "SystemConfiguration";
+        public string ExplicitConfigHandler { get; set; }
     }
 }

@@ -8,7 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models
 {
-    public class RoleRole:RoleRole<Tenant, string, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole>
+    public class RoleRole:RoleRole<Tenant, string, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole>
     {
     }
 }

@@ -8,7 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model
 {
-    public class Permission : WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.Permission<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole>
+    public class Permission : WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.Permission<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole>
     {
     }
 }

@@ -19,6 +19,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         where TTenantFeatureActivation: TenantFeatureActivation<TTenant>
         where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
+        bool AutoSave { get; set; }
+
         TenantTemplateMarkup ExtractTemplate(TTenant tenant);
 
         void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template);
@@ -28,6 +30,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>> afterApply);
 
         void RevokeTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>> afterRevoke);
+
+        void Save();
     }
 
     /*public interface ITenantTemplateHelper<TContext>:ITenantTemplateHelper

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models
 {
-    public class NavigationMenu: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.NavigationMenu<Tenant, int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, NavigationMenu,TenantNavigationMenu>
+    public class NavigationMenu: WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.NavigationMenu<Tenant, int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu>
     {
     }
 }

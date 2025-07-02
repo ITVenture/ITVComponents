@@ -1,80 +1,85 @@
-﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+﻿using ITVComponents.Formatting;
+using ITVComponents.Helpers;
+using ITVComponents.Json;
+using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.TypeConversion;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
+using ITVComponents.WebCoreToolkit.Helpers;
+using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.Helpers;
-using ITVComponents.WebCoreToolkit.Models;
-using Feature = ITVComponents.WebCoreToolkit.Models.Feature;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
-using Microsoft.Extensions.Logging;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.RegularExpressions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
-using ITVComponents.Helpers;
-using ITVComponents.Scripting.CScript.Core;
-using ITVComponents.TypeConversion;
-using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
-using ITVComponents.Formatting;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
-using ITVComponents.Json;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Threading.Tasks;
+using Feature = ITVComponents.WebCoreToolkit.Models.Feature;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 {
-    public abstract class DbSecurityRepository<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : ISecurityRepository
-        where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TTenantUser : TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TNavigationMenu : NavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation>
-        where TTenantNavigation : TenantNavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation>
-        where TQuery : DiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
-        where TTenantQuery : TenantDiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
-        where TQueryParameter : DiagnosticsQueryParameter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
-        where TWidget : DashboardWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
-        where TWidgetParam : DashboardParam<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
-        where TWidgetLocalization : DashboardWidgetLocalization<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
-        where TUserWidget : UserWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+    public abstract class DbSecurityRepository<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : ISecurityRepository
+        where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TTenantUser : TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TNavigationMenu : NavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation>
+        where TTenantNavigation : TenantNavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation>
+        where TQuery : DiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
+        where TTenantQuery : TenantDiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
+        where TQueryParameter : DiagnosticsQueryParameter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
+        where TWidget : DashboardWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TWidgetParam : DashboardParam<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TWidgetLocalization : DashboardWidgetLocalization<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TUserWidget : UserWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
         where TUserProperty : CustomUserProperty<TUserId, TUser>, new()
-        where TAssetTemplate : AssetTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
-        where TAssetTemplatePath : AssetTemplatePath<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
-        where TAssetTemplateGrant : AssetTemplateGrant<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
-        where TAssetTemplateFeature : AssetTemplateFeature<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
-        where TSharedAsset : SharedAsset<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
-        where TSharedAssetUserFilter : SharedAssetUserFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
-        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
-        where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet>
-        where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet>
-        where TClientAppTemplatePermission : ClientAppTemplatePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
-        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
-        where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
-        where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
-        where TClientAppUser : ClientAppUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
+        where TAssetTemplate : AssetTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplatePath : AssetTemplatePath<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateGrant : AssetTemplateGrant<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateFeature : AssetTemplateFeature<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TSharedAsset : SharedAsset<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetUserFilter : SharedAssetUserFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>
+        where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>
+        where TClientAppTemplatePermission : ClientAppTemplatePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
+        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
+        where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
+        where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
+        where TClientAppUser : ClientAppUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
         where TUser : class
         where TTenant : HierarchyTenant
-        where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
-        where TWebPluginConstant : WebPluginConstant<TTenant>
-        where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPlugin : HierarchyWebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
+        where TWebPluginGenericParameter : HierarchyWebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TSequence : Sequence<TTenant>
-        where TTenantSetting : TenantSetting<TTenant>
+        where TTenantSetting : HierarchyTenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-        where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+        where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
+        where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
     {
-        private readonly IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext;
+        private readonly IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext;
         private readonly ILogger logger;
 
-        protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext,
+        protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext,
             ILogger logger)
         {
             this.securityContext = securityContext;
@@ -250,7 +255,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 if (isUser)
                 {
                     //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
-                    tenantUsers = GetRawUserQuery(out _);
+                    tenantUsers = GetRawUserQuery(out _, userLabels, securityContext.CurrentTenantName);
                 }
                 else
                 {
@@ -283,7 +288,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 if (isUser)
                 {
                     //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
-                    tenantUsers = GetRawUserQuery(out _, forScope);
+                    tenantUsers = GetRawUserQuery(out _,userLabels, forScope);
                 }
                 else
                 {
@@ -344,7 +349,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             IQueryable<UserTenantLevel<TUser>> tenantUsers;
             if (isUser)
             {
-                tenantUsers = GetRawUserQuery(out _);
+                tenantUsers = GetRawUserQuery(out _, userLabels);
             }
             else
             {
@@ -400,12 +405,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public IEnumerable<Permission> GetPermissions(User user)
         {
-            return (from p in (from r in AllRoles(securityContext.Users.First(UserFilter(user))) select r.Role.RolePermissions).SelectMany(rp => rp)
-                select new Permission
+            var tmpRr = (from r in AllRoles(securityContext.Users.First(UserFilter(user)))
+                select new
+                {
+                    rp = r.Role.RolePermissions,
+                    grp = r.Role.PermittedGlobalRoles.SelectMany(gpr => gpr.GlobalRole.RolePermissions)
+                }).ToArray();
+            var preRet = tmpRr
+                .SelectMany(rp => rp.rp).Select(p => new Permission
                 {
                     //PermissionName = $"{(!p.Permission.IsGlobal?p.Tenant.TenantName:"")}{p.Permission.PermissionName}"
                     PermissionName = p.Permission.PermissionName
-                }).Distinct().ToArray();
+                }).Union(tmpRr.SelectMany(grp => grp.grp).Select(p => new Permission
+                {
+                    //PermissionName = $"{(!p.Permission.IsGlobal?p.Tenant.TenantName:"")}{p.Permission.PermissionName}"
+                    PermissionName = p.Permission.PermissionName
+                })).Distinct();
+
+            var rett = preRet.ToArray();
+            return rett;
         }
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
@@ -417,7 +435,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
             if (isUser)
             {
-                var preFiltered = GetRawUserQuery(out var currentTenant);
+                var preFiltered = GetRawUserQuery(out var currentTenant, userLabels);
                 var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
                     preFiltered,
                     UserId, IdOfUserLevelRecord, (l, r) => new { r.Level, r.TenantId, r.RoleId, User=l });
@@ -426,8 +444,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                     join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
                     select new { t.TenantId, t.User, t.Level, Permission=p })
                     .Where(n => n.TenantId == currentTenant)
-                    .Select(n => n.Permission).Distinct();
-                return pr;
+                    .Select(n => n.Permission).Union(from t in tmptu
+                        join rj in securityContext.GlobalToLocalRoles on t.RoleId equals rj.LocalRoleId
+                        join rp in securityContext.GlobalRolePermissions on rj.GlobalRoleId equals rp.GlobalRoleId
+                        join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
+                                                     where t.TenantId == currentTenant
+                                                     select p).Distinct();
+                var parr = pr.ToArray();
+                return parr;
                 //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
             }
 
@@ -447,24 +471,37 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                     .Join(securityContext.TenantUsers, UserId, tr => tr.UserId, (tu, tt) => tt)
                 join ur in securityContext.TenantUserRoles /*.Where(n => n.TenantUserId != null && n.RoleId != null)*/
                     on tr.TenantUserId equals ur.TenantUserId.Value
-                join r in securityContext.SecurityRoles on new { RoleId = ur.RoleId.Value, tr.TenantId } equals new
-                    { r.RoleId, r.TenantId }
-                join rp in securityContext.RolePermissions /*.Where(n => n.RoleId != null)*/
-                    on new { r.RoleId, r.TenantId } equals new { RoleId = rp.RoleId, rp.TenantId }
-                join rt in securityContext.Tenants on rp.TenantId equals rt.TenantId
-                join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
-                select new Permission
+                join r in securityContext.SecurityRoles.Include(n => n.RolePermissions).ThenInclude(rp => rp.Permission) 
+                        .Include(n => n.PermittedGlobalRoles).ThenInclude(pgr => pgr.GlobalRole).ThenInclude(gr => gr.RolePermissions).ThenInclude(grp => grp.Permission)
+                    on new { RoleId = ur.RoleId.Value, tr.TenantId } equals new { r.RoleId, r.TenantId }
+                           select r
+                //join rp in securityContext.RolePermissions /*.Where(n => n.RoleId != null)*/
+                    //on new { r.RoleId, r.TenantId } equals new { RoleId = rp.RoleId, rp.TenantId }
+                //join rt in securityContext.Tenants on rp.TenantId equals rt.TenantId
+                //join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
+                /*select new Permission
                 {
                     //PermissionName = p.PermissionName != rt.TenantName?$"{(!p.IsGlobal?rt.TenantName:"")}{p.PermissionName}":p.PermissionName
                     PermissionName = p.PermissionName
-                }).Distinct().ToArray();
+                }*/);
+            var qLoc = permRaw.SelectMany(n => n.RolePermissions.Select(rp => new Permission
+            {
+                PermissionName = rp.Permission.PermissionName
+            }));
+            var qGlob = permRaw.SelectMany(n => n.PermittedGlobalRoles.SelectMany(gr => gr.GlobalRole.RolePermissions))
+                .Select(gp => new Permission
+                {
+                    PermissionName = gp.Permission.PermissionName
+                });
+            var permRaw2 = qLoc.Union(qGlob).Distinct();
+            var permRawArr = permRaw2.ToArray();
             if (preFilteredPerms != null)
             {
-                permRaw = (from t in permRaw join p in preFilteredPerms on t.PermissionName equals p select t)
+                permRawArr = (from t in permRawArr join p in preFilteredPerms on t.PermissionName equals p select t)
                     .ToArray();
             }
 
-            return permRaw;
+            return permRawArr;
         }
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
@@ -476,17 +513,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
             if (isUser)
             {
-                var preFiltered = GetRawUserQuery(out var currentTenantId, forScope);
+                var preFiltered = GetRawUserQuery(out var currentTenantId,userLabels, forScope);
                 var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
                     preFiltered,
                     UserId, IdOfUserLevelRecord, (l, r) => new { r.Level, r.TenantId, r.RoleId, User = l });
                 var pr = (from t in tmptu
-                          join r in securityContext.RolePermissions on t.RoleId equals r.RoleId
-                          join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
-                          select new { t.TenantId, t.User, t.Level, Permission = p })
+                        join r in securityContext.RolePermissions on t.RoleId equals r.RoleId
+                        join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
+                        select new { t.TenantId, t.User, t.Level, Permission = p })
                     .Where(n => n.TenantId == currentTenantId)
-                    .Select(n => n.Permission).Distinct();
-                return pr.ToArray();
+                    .Select(n => n.Permission).Union(from t in tmptu
+                        join rj in securityContext.GlobalToLocalRoles on t.RoleId equals rj.LocalRoleId
+                        join rp in securityContext.GlobalRolePermissions on rj.GlobalRoleId equals rp.GlobalRoleId
+                        join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
+                        where t.TenantId == currentTenantId
+                        select p).Distinct();
+                var parr = pr.ToArray();
+                return parr;
                 //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
             }
 
@@ -506,24 +549,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                     .Join(securityContext.TenantUsers, UserId, tr => tr.UserId, (tu, tt) => tt)
                            join ur in securityContext.TenantUserRoles /*.Where(n => n.TenantUserId != null && n.RoleId != null)*/
                                on tr.TenantUserId equals ur.TenantUserId.Value
-                           join r in securityContext.SecurityRoles on new { RoleId = ur.RoleId.Value, tr.TenantId } equals new
-                           { r.RoleId, r.TenantId }
-                           join rp in securityContext.RolePermissions /*.Where(n => n.RoleId != null)*/
-                               on new { r.RoleId, r.TenantId } equals new { RoleId = rp.RoleId, rp.TenantId }
-                           join rt in securityContext.Tenants on rp.TenantId equals rt.TenantId
-                           join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
-                           select new Permission
+                           join r in securityContext.SecurityRoles.Include(n => n.RolePermissions).ThenInclude(rp => rp.Permission)
+                               .Include(n => n.PermittedGlobalRoles).ThenInclude(pgr => pgr.GlobalRole).ThenInclude(gr => gr.RolePermissions).ThenInclude(grp => grp.Permission)
+                               on new { RoleId = ur.RoleId.Value, tr.TenantId } equals new { r.RoleId, r.TenantId }
+                           select r
+                           //join rp in securityContext.RolePermissions /*.Where(n => n.RoleId != null)*/
+                           //    on new { r.RoleId, r.TenantId } equals new { RoleId = rp.RoleId, rp.TenantId }
+                           //join rt in securityContext.Tenants on rp.TenantId equals rt.TenantId
+                           //join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
+                           /*select new Permission
                            {
                                //PermissionName = p.PermissionName != rt.TenantName?$"{(!p.IsGlobal?rt.TenantName:"")}{p.PermissionName}":p.PermissionName
                                PermissionName = p.PermissionName
-                           }).Distinct().ToArray();
+                           }*/).Distinct().ToArray();
+
+            var qLoc = permRaw.SelectMany(n => n.RolePermissions.Select(rp => new Permission
+            {
+                PermissionName = rp.Permission.PermissionName
+            }));
+            var qGlob = permRaw.SelectMany(n => n.PermittedGlobalRoles.SelectMany(gr => gr.GlobalRole.RolePermissions))
+                .Select(gp => new Permission
+                {
+                    PermissionName = gp.Permission.PermissionName
+                });
+            var permRaw2 = qLoc.Union(qGlob).Distinct();
+            var permRawArr = permRaw2.ToArray();
             if (preFilteredPerms != null)
             {
-                permRaw = (from t in permRaw join p in preFilteredPerms on t.PermissionName equals p select t)
+                permRawArr = (from t in permRawArr join p in preFilteredPerms on t.PermissionName equals p select t)
                     .ToArray();
             }
 
-            return permRaw;
+            return permRawArr;
         }
 
         public IEnumerable<Permission> GetPermissions(Role role)
@@ -568,7 +625,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
             return (from d in (from t in securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
                         .Join(securityContext.TenantUsers, UserId, u => u.UserId, (tu, tt) => new{tt.TenantUserId, tt.TenantId})
-                        .Join(securityContext.UpwardsTenantUserRoles, l => l.TenantUserId, r => r.TenantUserId, (l,r)=>new{l.TenantUserId, l.TenantId, r.OutermostLeafTenantId})
+                        .Join(securityContext.GetUpwardsTenantUserRoles(userLabels,null), l => l.TenantUserId, r => r.TenantUserId, (l,r)=>new{l.TenantUserId, l.TenantId, r.OutermostLeafTenantId})
                         .Join(securityContext.Tenants, l => l.OutermostLeafTenantId, r => r.TenantId, (l,r)=> new {l,r})
                     select new {t.r.TenantId, t.r.TenantName, t.r.DisplayName, DirectlyAssigned=t.l.TenantId==t.r.TenantId}).Distinct()
                 orderby d.DisplayName
@@ -762,7 +819,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             return TimeZoneInfo.Local;
         }
 
-        private IQueryable<UserTenantLevel<TUser>> GetRawUserQuery(out int currentTenantId, string forTenant = null)
+        private IQueryable<UserTenantLevel<TUser>> GetRawUserQuery(out int currentTenantId, string[] userLabels, string forTenant = null)
         {
             int currentTenant = 0;
             if (string.IsNullOrEmpty(forTenant))
@@ -776,7 +833,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
             currentTenantId = currentTenant;
             var phase1 = (from t in securityContext.TenantUsers
-                join j in securityContext.UpwardsTenantUserRoles on t.TenantUserId equals j.TenantUserId
+                join j in securityContext.GetUpwardsTenantUserRoles(userLabels,forTenant) on t.TenantUserId equals j.TenantUserId
                 where j.OutermostLeafTenantId == currentTenant
                 select new { t.UserId, t.User, j.ParentLevel });
             var phase2 = (from gj in phase1
@@ -789,7 +846,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                     Level = g.Min(us => us.ParentLevel)
                 });
             return (from p in phase2
-                join t in securityContext.UpwardsTenantUserRoles on new { p.Level, p.UserId, p.TenantId } equals new
+                join t in securityContext.GetUpwardsTenantUserRoles(userLabels, forTenant) on new { p.Level, p.UserId, p.TenantId } equals new
                     { Level = t.ParentLevel, t.UserId, TenantId = t.OutermostLeafTenantId }
                 join tn in securityContext.TenantUsers on t.TenantUserId equals tn.TenantUserId
                 select new UserTenantLevel<TUser>

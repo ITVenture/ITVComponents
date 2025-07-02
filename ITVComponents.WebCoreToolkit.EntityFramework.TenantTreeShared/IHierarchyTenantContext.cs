@@ -11,6 +11,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
 using Microsoft.EntityFrameworkCore;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
 {
@@ -18,11 +19,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
     public interface IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : 
         IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> 
         where TTenant : HierarchyTenant 
-        where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
-        where TWebPluginConstant : WebPluginConstant<TTenant>
-        where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPlugin : HierarchyWebPlugin<TTenant,TWebPlugin,TWebPluginGenericParameter>
+        where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
+        where TWebPluginGenericParameter : HierarchyWebPluginGenericParameter<TTenant, TWebPlugin,TWebPluginGenericParameter>
         where TSequence : Sequence<TTenant>
-        where TTenantSetting : TenantSetting<TTenant>
+        where TTenantSetting : HierarchyTenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
     {

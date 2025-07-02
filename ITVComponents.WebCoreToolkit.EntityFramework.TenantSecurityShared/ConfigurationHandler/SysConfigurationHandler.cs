@@ -17,40 +17,41 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 using ITVComponents.WebCoreToolkit.Models;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
+using Feature = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ConfigurationHandler
 {
-    public abstract class SysConfigurationHandler<TContext, TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : ConfigurationHandlerBase
-        where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TTenantUser : TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
-        where TNavigationMenu : NavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation>
-        where TTenantNavigation : TenantNavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation>
-        where TQuery : DiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
-        where TTenantQuery : TenantDiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
-        where TQueryParameter : DiagnosticsQueryParameter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery>
-        where TWidget : DashboardWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
-        where TWidgetParam : DashboardParam<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
-        where TWidgetLocalization : DashboardWidgetLocalization<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
-        where TUserWidget : UserWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+    public abstract class SysConfigurationHandler<TContext, TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : ConfigurationHandlerBase
+        where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TTenantUser : TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TNavigationMenu : NavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation>
+        where TTenantNavigation : TenantNavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation>
+        where TQuery : DiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
+        where TTenantQuery : TenantDiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
+        where TQueryParameter : DiagnosticsQueryParameter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
+        where TWidget : DashboardWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TWidgetParam : DashboardParam<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TWidgetLocalization : DashboardWidgetLocalization<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
+        where TUserWidget : UserWidget<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization>
         where TUserProperty : CustomUserProperty<TUserId, TUser>
         where TUser : class
-        where TAssetTemplate : AssetTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
-        where TAssetTemplatePath : AssetTemplatePath<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
-        where TAssetTemplateGrant : AssetTemplateGrant<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
-        where TAssetTemplateFeature : AssetTemplateFeature<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
-        where TSharedAsset : SharedAsset<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
-        where TSharedAssetUserFilter : SharedAssetUserFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
-        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
-        where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet>
-        where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet>
-        where TClientAppTemplatePermission : ClientAppTemplatePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
-        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
-        where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
-        where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
-        where TClientAppUser : ClientAppUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
+        where TAssetTemplate : AssetTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplatePath : AssetTemplatePath<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateGrant : AssetTemplateGrant<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TAssetTemplateFeature : AssetTemplateFeature<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature>
+        where TSharedAsset : SharedAsset<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetUserFilter : SharedAssetUserFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
+        where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>
+        where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>
+        where TClientAppTemplatePermission : ClientAppTemplatePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
+        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>
+        where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
+        where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
+        where TClientAppUser : ClientAppUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppUser>
         where TTenant : Tenant
         where TWebPlugin:WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TWebPluginConstant:WebPluginConstant<TTenant>
@@ -58,9 +59,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
         where TSequence:Sequence<TTenant>
         where TTenantSetting:TenantSetting<TTenant>
         where TTenantFeatureActivation:TenantFeatureActivation<TTenant>
-        where TContext:DbContext, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>
-        where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole>
+        where TContext:DbContext, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>
+        where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
     {
 
         public SysConfigurationHandler(TContext db)
@@ -101,13 +105,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         var sys = DescribeSystem();
                         var upSys =
                             JsonHelper.FromJsonString<SystemTemplateMarkup>(
-                                Encoding.UTF8.GetString(content), SerializationTypingMode.StaticTyping);
+                                Encoding.UTF8.GetString(content), SerializationTypingMode.NativePolymorphism);
                         ComparePlugIns(sys.PlugIns, upSys.PlugIns);
                         CompareConstants(sys.Constants, upSys.Constants);
                         ComparePermissions(sys.Permissions, upSys.Permissions);
+                        CompareGlobalRoles(sys.GlobalRoles, upSys.GlobalRoles);
                         CompareAuthenticationTypes(sys.AuthenticationTypes, upSys.AuthenticationTypes);
-                        CompareAuthenticationTypeClaims(sys.AuthenticationTypeClaimTemplates,
-                            upSys.AuthenticationTypeClaimTemplates);
+                        CompareAuthenticationTypeClaims(sys.AuthenticationTypeClaimTemplates, upSys.AuthenticationTypeClaimTemplates);
                         CompareGlobalSettings(sys.Settings, upSys.Settings);
                         CompareFeatures(sys.Features, upSys.Features);
                         CompareTenantTemplates(sys.TenantTemplates, upSys.TenantTemplates);
@@ -117,6 +121,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         CompareNavigation(sys.Navigation, upSys.Navigation);
                         CompareTrustedModules(sys.TrustedModules, upSys.TrustedModules);
                         CompareHealthScripts(sys.HealthScripts, upSys.HealthScripts);
+                        CompareAssetTemplates(sys.AssetTemplates, upSys.AssetTemplates);
                     }
 
                     break;
@@ -159,89 +164,195 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 DbContext.EnsureNavUniqueness();
                 SystemTemplateMarkup retVal = new SystemTemplateMarkup
                 {
-                    Permissions = DbContext.Permissions.Where(n => n.TenantId == null).Select(n =>
-                        new PermissionTemplateMarkup
-                            { Description = n.Description, Global = true, Name = n.PermissionName }).ToArray(),
-                    AuthenticationTypes = DbContext.AuthenticationTypes.Select(n => new AuthenticationTypeTemplateMarkup
-                        { AuthenticationTypeName = n.AuthenticationTypeName }).ToArray(),
-                    AuthenticationTypeClaimTemplates = DbContext.AuthenticationClaimMappings.Select(n =>
-                        new AuthenticationTypeClaimTemplateMarkup
-                        {
-                            AuthenticationTypeName = n.AuthenticationType.AuthenticationTypeName,
-                            Condition = n.Condition, IncomingClaimName = n.IncomingClaimName,
-                            OutgoingClaimName = n.OutgoingClaimName, OutgoingClaimValue = n.OutgoingClaimValue,
-                            OutgoingIssuer = n.OutgoingIssuer, OutgoingOriginalIssuer = n.OutgoingOriginalIssuer,
-                            OutgoingValueType = n.OutgoingValueType
-                        }).ToArray(),
-                    Constants = DbContext.WebPluginConstants.Where(n => n.TenantId == null)
-                        .Select(n => new ConstTemplateMarkup { Name = n.Name, Value = n.Value }).ToArray(),
-                    PlugIns = DbContext.WebPlugins.Where(n => n.TenantId == null).Select(n => new PlugInTemplateMarkup
-                    {
-                        AutoLoad = n.AutoLoad, Constructor = n.Constructor, UniqueName = n.UniqueName,
-                        GenericArguments = DbContext.GenericPluginParams.Where(c => c.WebPluginId == n.WebPluginId)
-                            .Select(c => new PlugInGenericArgumentTemplateMarkup
-                                { GenericTypeName = c.GenericTypeName, TypeExpression = c.TypeExpression }).ToArray()
-                    }).ToArray(),
-                    Settings = DbContext.GlobalSettings.Select(n => new SettingTemplateMarkup
-                            { Value = n.SettingsValue, IsJsonSetting = n.JsonSetting, ParamName = n.SettingsKey })
+                    Permissions = DbContext.Permissions.Where(n => n.TenantId == null).AsEnumerable().Select(n =>
+                        SelectPermissionTemplateMarkup(n)).ToArray(),
+                    GlobalRoles = DbContext.GlobalRoles.Include(n => n.RolePermissions).ThenInclude(n => n.Permission)
+                        .AsEnumerable()
+                        .Select(r => SelectGlobalRoleTemplateMarkup(r)).ToArray(),
+                    AuthenticationTypes = DbContext.AuthenticationTypes.AsEnumerable().Select(n => SelectAuthenticationTypeTemplateMarkup(n)).ToArray(),
+                    AuthenticationTypeClaimTemplates = DbContext.AuthenticationClaimMappings.AsEnumerable().Select(n => SelectAuthenticationTypeClaimTemplateMarkup(n)).ToArray(),
+                    Constants = DbContext.WebPluginConstants.Where(n => n.TenantId == null).AsEnumerable()
+                        .Select(n => SelectConstTemplateMarkup(n)).ToArray(),
+                    PlugIns = DbContext.WebPlugins.Include(n => n.Parameters).Where(n => n.TenantId == null).AsEnumerable().Select(n => SelectPlugInTemplateMarkup(n)).ToArray(),
+                    Settings = DbContext.GlobalSettings.AsEnumerable().Select(n => SelectSettingTemplateMarkup(n))
                         .ToArray(),
-                    TenantTemplates = DbContext.TenantTemplates.Select(n => new TenantTemplateDefinitionMarkup
-                        { Name = n.Name, Description = n.Description, Markup = n.Markup }).ToArray(),
-                    Features = DbContext.Features.Select(n => new SystemFeatureTemplateMarkup
-                        {
-                            FeatureName = n.FeatureName, Enabled = n.Enabled, FeatureDescription = n.FeatureDescription
-                        })
+                    TenantTemplates = DbContext.TenantTemplates.AsEnumerable().Select(n => SelectTenantTemplateDefinitionMarkup(n)).ToArray(),
+                    Features = DbContext.Features.AsEnumerable().Select(n => SelectSystemFeatureTemplateMarkup(n))
                         .ToArray(),
-                    DiagnosticsQueries = DbContext.DiagnosticsQueries.Select(n => new DiagnosticsQueryTemplateMarkup
-                    {
-                        Permission = n.Permission.PermissionName, DbContext = n.DbContext, AutoReturn = n.AutoReturn,
-                        DiagnosticsQueryName = n.DiagnosticsQueryName, QueryText = n.QueryText,
-                        Parameters = n.Parameters.Select(p => new DiagnosticsQueryParameterTemplateMarkup
-                        {
-                            DefaultValue = p.DefaultValue, Format = p.Format, Optional = p.Optional,
-                            ParameterName = p.ParameterName, ParameterType = p.ParameterType
-                        }).ToArray()
-                    }).ToArray(),
-                    DashboardWidgets = DbContext.Widgets.Select(n => new DashboardWidgetTemplateMarkup
-                    {
-                        SystemName = n.SystemName, TitleTemplate = n.TitleTemplate, Template = n.Template,
-                        Area = n.Area, CustomQueryString = n.CustomQueryString, DisplayName = n.DisplayName,
-                        DiagnosticsQueryName = n.DiagnosticsQuery.DiagnosticsQueryName,
-                        Parameters = n.Params.Select(p => new DashboardParamTemplateMarkup
-                            {
-                                InputConfig = p.InputConfig, InputType = p.InputType, ParameterName = p.ParameterName
-                            })
-                            .ToArray()
-                    }).ToArray(),
-                    DashboardWidgetLocales = DbContext.WidgetLocales.Select(l => new DashboardWidgetLocaleTemplateMarkup
-                        {
-                            LocaleName = l.LocaleName,
-                            DisplayName = l.DisplayName,
-                            SystemName = l.Widget.SystemName,
-                            Template = l.Template,
-                            TitleTemplate = l.TitleTemplate
-                        })
+                    DiagnosticsQueries = DbContext.DiagnosticsQueries.Include(n => n.Parameters).AsEnumerable().Select(n => SelectDiagnosticsQueryTemplateMarkup(n)).ToArray(),
+                    DashboardWidgets = DbContext.Widgets.AsEnumerable().Select(n => SelectDashboardWidgetTemplateMarkup(n)).ToArray(),
+                    DashboardWidgetLocales = DbContext.WidgetLocales.AsEnumerable().Select(l => SelectDashboardWidgetLocaleTemplateMarkup(l))
                         .ToArray(),
                     Navigation = GetSortedNav(),
-                    TrustedModules = DbContext.TrustedFullAccessComponents.Select(n =>
-                        new TrustedModuleTemplateMarkup
-                        {
-                            FullQualifiedTypeName = n.FullQualifiedTypeName,
-                            Description = n.Description,
-                            TrustLevelConfig = n.TrustLevelConfig,
-                            TargetQualifiedTypeName = n.TargetQualifiedTypeName
-                        }
+                    TrustedModules = DbContext.TrustedFullAccessComponents.AsEnumerable().Select(n =>
+                        SelectTrustedModuleTemplateMarkup(n)
                     ).ToArray(),
-                    HealthScripts = DbContext.HealthScripts.Select(n => new HealthScriptTemplateMarkup
-                    {
-                        HealthScriptName = n.HealthScriptName,
-                        Script = n.Script
-                    }).ToArray()
+                    HealthScripts = DbContext.HealthScripts.AsEnumerable().Select(n => SelectHealthScriptTemplateMarkup(n)).ToArray(),
+                    AssetTemplates = DbContext.AssetTemplates.Include(n => n.FeatureGrants).ThenInclude(n => n.Feature)
+                        .Include(n => n.Grants).ThenInclude(n => n.Permission)
+                        .Include(n => n.PathTemplates)
+                        .Include(n => n.RequiredFeature)
+                        .Include(n => n.RequiredPermission).AsEnumerable().Select(n => SelectAssetTemplateMarkup(n)).ToArray()
                 };
 
 
                 return retVal;
             }
+        }
+
+        protected virtual AssetTemplateMarkup SelectAssetTemplateMarkup(TAssetTemplate assetTemplateInst)
+        {
+            return new AssetTemplateMarkup
+            {
+                Name = assetTemplateInst.Name,
+                SystemKey = assetTemplateInst.SystemKey,
+                RequiredFeature = assetTemplateInst.RequiredFeature.FeatureName,
+                RequiredPermission = assetTemplateInst.RequiredPermission.PermissionName,
+                Grants = assetTemplateInst.Grants.Select(n => n.Permission.PermissionName).ToArray(),
+                FeatureGrants = assetTemplateInst.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray(),
+                PathTemplates = assetTemplateInst.PathTemplates.Select(n => n.PathTemplate).ToArray()
+            };
+        }
+
+        protected virtual HealthScriptTemplateMarkup SelectHealthScriptTemplateMarkup(HealthScript healtScriptInst)
+        {
+            return new HealthScriptTemplateMarkup
+            {
+                HealthScriptName = healtScriptInst.HealthScriptName,
+                Script = healtScriptInst.Script
+            };
+        }
+
+        protected virtual TrustedModuleTemplateMarkup SelectTrustedModuleTemplateMarkup(TrustedFullAccessComponent trustedModuleInst)
+        {
+            return new TrustedModuleTemplateMarkup
+            {
+                FullQualifiedTypeName = trustedModuleInst.FullQualifiedTypeName,
+                Description = trustedModuleInst.Description,
+                TrustLevelConfig = trustedModuleInst.TrustLevelConfig,
+                TargetQualifiedTypeName = trustedModuleInst.TargetQualifiedTypeName
+            };
+        }
+
+        protected virtual DashboardWidgetLocaleTemplateMarkup SelectDashboardWidgetLocaleTemplateMarkup(TWidgetLocalization dashboardWidgetLocaleInst)
+        {
+            return new DashboardWidgetLocaleTemplateMarkup
+            {
+                LocaleName = dashboardWidgetLocaleInst.LocaleName,
+                DisplayName = dashboardWidgetLocaleInst.DisplayName,
+                SystemName = dashboardWidgetLocaleInst.Widget.SystemName,
+                Template = dashboardWidgetLocaleInst.Template,
+                TitleTemplate = dashboardWidgetLocaleInst.TitleTemplate
+            };
+        }
+
+        protected virtual DashboardWidgetTemplateMarkup SelectDashboardWidgetTemplateMarkup(TWidget dashboardWidgetInst)
+        {
+            return new DashboardWidgetTemplateMarkup
+            {
+                SystemName = dashboardWidgetInst.SystemName, TitleTemplate = dashboardWidgetInst.TitleTemplate, Template = dashboardWidgetInst.Template,
+                Area = dashboardWidgetInst.Area, CustomQueryString = dashboardWidgetInst.CustomQueryString, DisplayName = dashboardWidgetInst.DisplayName,
+                DiagnosticsQueryName = dashboardWidgetInst.DiagnosticsQuery.DiagnosticsQueryName,
+                Parameters = dashboardWidgetInst.Params.Select(p => SelectDashboardParamTemplateMarkup(p))
+                    .ToArray()
+            };
+        }
+
+        protected virtual DashboardParamTemplateMarkup SelectDashboardParamTemplateMarkup(TWidgetParam dasboardParamInst)
+        {
+            return new DashboardParamTemplateMarkup
+            {
+                InputConfig = dasboardParamInst.InputConfig, InputType = dasboardParamInst.InputType, ParameterName = dasboardParamInst.ParameterName
+            };
+        }
+
+        protected virtual DiagnosticsQueryTemplateMarkup SelectDiagnosticsQueryTemplateMarkup(TQuery diagnosticsQueryInst)
+        {
+            return new DiagnosticsQueryTemplateMarkup
+            {
+                Permission = diagnosticsQueryInst.Permission.PermissionName, DbContext = diagnosticsQueryInst.DbContext, AutoReturn = diagnosticsQueryInst.AutoReturn,
+                DiagnosticsQueryName = diagnosticsQueryInst.DiagnosticsQueryName, QueryText = diagnosticsQueryInst.QueryText,
+                Parameters = diagnosticsQueryInst.Parameters.Select(p => SelectDiagnosticsQueryParameterTemplateMarkup(p)).ToArray()
+            };
+        }
+
+        protected virtual DiagnosticsQueryParameterTemplateMarkup SelectDiagnosticsQueryParameterTemplateMarkup(TQueryParameter diagnosticsQueryParameterInst)
+        {
+            return new DiagnosticsQueryParameterTemplateMarkup
+            {
+                DefaultValue = diagnosticsQueryParameterInst.DefaultValue, Format = diagnosticsQueryParameterInst.Format, Optional = diagnosticsQueryParameterInst.Optional,
+                ParameterName = diagnosticsQueryParameterInst.ParameterName, ParameterType = diagnosticsQueryParameterInst.ParameterType
+            };
+        }
+
+        protected virtual SystemFeatureTemplateMarkup SelectSystemFeatureTemplateMarkup(Feature featureInst)
+        {
+            return new SystemFeatureTemplateMarkup
+            {
+                FeatureName = featureInst.FeatureName, Enabled = featureInst.Enabled, FeatureDescription = featureInst.FeatureDescription
+            };
+        }
+
+        protected virtual TenantTemplateDefinitionMarkup SelectTenantTemplateDefinitionMarkup(TenantTemplate tenantTemplateInst)
+        {
+            return new TenantTemplateDefinitionMarkup
+                { Name = tenantTemplateInst.Name, Description = tenantTemplateInst.Description, Markup = tenantTemplateInst.Markup };
+        }
+
+        protected virtual SettingTemplateMarkup SelectSettingTemplateMarkup(GlobalSetting settingInst)
+        {
+            return new SettingTemplateMarkup
+                { Value = settingInst.SettingsValue, IsJsonSetting = settingInst.JsonSetting, ParamName = settingInst.SettingsKey };
+        }
+
+        protected virtual PlugInTemplateMarkup SelectPlugInTemplateMarkup(TWebPlugin plugInInst)
+        {
+            return new PlugInTemplateMarkup
+            {
+                AutoLoad = plugInInst.AutoLoad, Constructor = plugInInst.Constructor, UniqueName = plugInInst.UniqueName,
+                GenericArguments = DbContext.GenericPluginParams.Where(c => c.WebPluginId == plugInInst.WebPluginId)
+                    .Select(c => new PlugInGenericArgumentTemplateMarkup
+                        { GenericTypeName = c.GenericTypeName, TypeExpression = c.TypeExpression }).ToArray()
+            };
+        }
+
+        protected virtual ConstTemplateMarkup SelectConstTemplateMarkup(TWebPluginConstant constInst)
+        {
+            return new ConstTemplateMarkup { Name = constInst.Name, Value = constInst.Value };
+        }
+
+        protected virtual AuthenticationTypeClaimTemplateMarkup SelectAuthenticationTypeClaimTemplateMarkup(AuthenticationClaimMapping authenticationTypeClaimInst)
+        {
+            return new AuthenticationTypeClaimTemplateMarkup
+            {
+                AuthenticationTypeName = authenticationTypeClaimInst.AuthenticationType.AuthenticationTypeName,
+                Condition = authenticationTypeClaimInst.Condition, IncomingClaimName = authenticationTypeClaimInst.IncomingClaimName,
+                OutgoingClaimName = authenticationTypeClaimInst.OutgoingClaimName, OutgoingClaimValue = authenticationTypeClaimInst.OutgoingClaimValue,
+                OutgoingIssuer = authenticationTypeClaimInst.OutgoingIssuer, OutgoingOriginalIssuer = authenticationTypeClaimInst.OutgoingOriginalIssuer,
+                OutgoingValueType = authenticationTypeClaimInst.OutgoingValueType
+            };
+        }
+
+        protected virtual AuthenticationTypeTemplateMarkup SelectAuthenticationTypeTemplateMarkup(AuthenticationType authenticationInst)
+        {
+            return new AuthenticationTypeTemplateMarkup
+                { AuthenticationTypeName = authenticationInst.AuthenticationTypeName };
+        }
+
+        protected virtual GlobalRoleTemplateMarkup SelectGlobalRoleTemplateMarkup(TGlobalRole globalRoleInst)
+        {
+            return new GlobalRoleTemplateMarkup
+            {
+                RoleName = globalRoleInst.RoleName,
+                RoleDescription = globalRoleInst.RoleDescription,
+                Permissions = globalRoleInst.RolePermissions.Select(p => p.Permission.PermissionName).ToArray()
+            };
+        }
+
+        protected virtual PermissionTemplateMarkup SelectPermissionTemplateMarkup(TPermission permissionInst)
+        {
+            return new PermissionTemplateMarkup
+                { Description = permissionInst.Description, Global = true, Name = permissionInst.PermissionName };
         }
 
         private NavigationMenuTemplateMarkup[] GetSortedNav()
@@ -258,13 +369,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 tmp.ForEach(n => allNav.Remove(n));
             }
 
-            return sortedNav.Select(n => new NavigationMenuTemplateMarkup
+            return sortedNav.Select(n => SelectNavigationMenuTemplateMarkup(n)).ToArray();
+        }
+
+        protected virtual NavigationMenuTemplateMarkup SelectNavigationMenuTemplateMarkup(TNavigationMenu navigationMenuInst)
+        {
+            return new NavigationMenuTemplateMarkup
             {
-                FeatureName = n.Feature?.FeatureName, PermissionName = n.EntryPoint?.PermissionName, RefTag = n.RefTag,
-                DisplayName = n.DisplayName, ParentRef = n.Parent?.RefTag, SortOrder = n.SortOrder,
-                SpanClass = n.SpanClass, Url = n.Url,
-                IsPublic = n.IsPublic
-            }).ToArray();
+                FeatureName = navigationMenuInst.Feature?.FeatureName, PermissionName = navigationMenuInst.EntryPoint?.PermissionName, RefTag = navigationMenuInst.RefTag,
+                DisplayName = navigationMenuInst.DisplayName, ParentRef = navigationMenuInst.Parent?.RefTag, SortOrder = navigationMenuInst.SortOrder,
+                SpanClass = navigationMenuInst.SpanClass, Url = navigationMenuInst.Url,
+                IsPublic = navigationMenuInst.IsPublic
+            };
         }
 
         private void CompareNavigation(NavigationMenuTemplateMarkup[] sysNavigation, NavigationMenuTemplateMarkup[] upSysNavigation)
@@ -283,9 +399,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -300,7 +417,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.RefTag));
                     change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, multiline:true));
                     change.Details.Add(MakeDetail("SpanClass", c.New.SpanClass));
@@ -314,7 +431,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -370,6 +487,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessNavigationChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -393,9 +515,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -410,14 +533,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.HealthScriptName));
                     change.Details.Add(MakeDetail("Script", c.New.Script, multiline:true));
                     RegisterChange(change);
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -437,6 +560,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     {
                         RegisterChange(change);
                     }
+                }
+
+                if (change != null)
+                {
+                    PostProcessHealthScriptChange(change, c.New, c.Original);
                 }
             }
         }
@@ -461,9 +589,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -479,7 +608,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail("LocaleName", c.New.LocaleName));
                     change.Details.Add(MakeDetail("Widget", c.New.SystemName, MakeLinqAssign<TContext>("Widget", "Widgets", "SystemName")));
                     change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, multiline: true));
@@ -489,7 +618,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -521,6 +650,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessDashboardWidgetLocaleChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -540,9 +674,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -557,7 +692,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.SystemName));
                     change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, multiline: true));
                     change.Details.Add(MakeDetail("Area", c.New.Area));
@@ -570,7 +705,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -619,6 +754,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
                     RegisterWidgetParameters(c.New.SystemName, c.New.Parameters, c.Original.Parameters);
                 }
+
+                if (change != null)
+                {
+                    PostProcessDashboardWidgetChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -640,9 +780,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -658,7 +799,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.ParameterName));
                     change.Details.Add(MakeDetail(keyNames[1], dashboardName, MakeLinqAssign<TContext>(keyNames[1], "Widgets", "SystemName")));
                     change.Details.Add(MakeDetail("InputType", c.New.InputType.ToString()));
@@ -667,7 +808,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -694,6 +835,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessWidgetParameterChange(dashboardName, change, c.New, c.Original);
+                }
             }
         }
 
@@ -716,9 +862,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -733,7 +880,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.SystemKey));
                     change.Details.Add(MakeDetail("Name", c.New.Name));
                     change.Details.Add(MakeDetail("RequiredPermission", c.New.RequiredPermission, MakeLinqAssign<TContext>("RequiredPermission", "Permissions", "PermissionName", "n.TenantId==null")));
@@ -745,7 +892,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -779,6 +926,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     RegisterAssetFeatures(c.New.SystemKey, c.New.FeatureGrants, c.Original.FeatureGrants);
                     RegisterAssetPathFilters(c.New.SystemKey, c.New.PathTemplates, c.Original.PathTemplates);
                 }
+
+                if (change != null)
+                {
+                    PostProcessAssetTemplateChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -802,9 +954,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -820,10 +973,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
                     change.Details.Add(MakeDetail(keyNames[1], c.New, MakeLinqAssign<TContext>(keyNames[1], "Permissions", "PermissionName", "n.TenantId==null")));
                     RegisterChange(change);
+                }
+
+                if (change != null)
+                {
+                    PostProcessAssetPermissionChange(systemKey, change, c.New, c.Original);
                 }
             }
         }
@@ -847,9 +1005,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -865,10 +1024,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
                     change.Details.Add(MakeDetail(keyNames[1], c.New, MakeLinqAssign<TContext>(keyNames[1], "Permissions", "PermissionName", "n.TenantId==null")));
                     RegisterChange(change);
+                }
+
+                if (change != null)
+                {
+                    PostProcessAssetFeatureChange(systemKey, change, c.New, c.Original);
                 }
             }
         }
@@ -891,9 +1055,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -909,10 +1074,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
                     change.Details.Add(MakeDetail(keyNames[1], c.New));
                     RegisterChange(change);
+                }
+
+                if (change != null)
+                {
+                    PostProcessAssetPathFilterChange(systemKey, change, c.New, c.Original);
                 }
             }
         }
@@ -933,9 +1103,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -950,7 +1121,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.DiagnosticsQueryName ));
                     change.Details.Add(MakeDetail("DbContext", c.New.DbContext));
                     change.Details.Add(MakeDetail("QueryText", c.New.QueryText, multiline: true));
@@ -961,7 +1132,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -999,6 +1170,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
                     RegisterQueryParameters(c.New.DiagnosticsQueryName, c.New.Parameters, c.Original.Parameters);
                 }
+
+                if (change != null)
+                {
+                    PostProcessDiagnosticsQueryChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -1020,9 +1196,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -1038,7 +1215,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.ParameterName));
                     change.Details.Add(MakeDetail(keyNames[1], diagnosticsQueryName, MakeLinqAssign<TContext>(keyNames[1], "DiagnosticsQueries", "DiagnosticsQueryName")));
                     change.Details.Add(MakeDetail("ParameterType", c.New.ParameterType.ToString()));
@@ -1049,7 +1226,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -1086,6 +1263,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessQueryParameterChange(diagnosticsQueryName, change, c.New, c.Original);
+                }
             }
         }
 
@@ -1105,9 +1287,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -1122,7 +1305,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.Name));
                     change.Details.Add(MakeDetail("Description", c.New.Description, multiline: true));
                     change.Details.Add(MakeDetail("Markup", c.New.Markup, multiline: true));
@@ -1130,7 +1313,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -1156,6 +1339,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessTenantTemplateChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -1175,9 +1363,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -1193,7 +1382,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.FullQualifiedTypeName));
                     change.Details.Add(MakeDetail("Description", c.New.Description, multiline: true));
                     change.Details.Add(MakeDetail("TrustLevelConfig", c.New.TrustLevelConfig));
@@ -1202,7 +1391,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -1229,6 +1418,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessTrustedModuleChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -1248,9 +1442,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -1265,7 +1460,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.FeatureName));
                     change.Details.Add(MakeDetail("FeatureDescription", c.New.FeatureDescription, multiline: true));
                     change.Details.Add(MakeDetail("Enabled", c.New.Enabled.ToString(), "Entity.Enabled=(NewValueRaw==\"True\")"));
@@ -1273,7 +1468,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -1299,6 +1494,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessFeatureChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -1318,9 +1518,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -1335,7 +1536,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.ParamName));
                     change.Details.Add(MakeDetail("SettingsValue", c.New.Value, multiline: true));
                     change.Details.Add(MakeDetail("JsonSetting", c.New.IsJsonSetting.ToString(), "Entity.JsonSetting=(NewValueRaw==\"True\")"));
@@ -1343,7 +1544,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -1369,6 +1570,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessGlobalSettingChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -1389,9 +1595,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string>
+                    change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string>
                     {
                         { keyNames[0], $"{c.Original.AuthenticationTypeName}" },
                         {keyNames[1], c.Original.IncomingClaimName},
@@ -1402,7 +1609,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.AuthenticationTypeName, MakeLinqAssign<TContext>(keyNames[0], "AuthenticationTypes", "AuthenticationTypeName")));
                     change.Details.Add(MakeDetail(keyNames[1], c.New.IncomingClaimName));
                     change.Details.Add(MakeDetail(keyNames[2], c.New.OutgoingClaimName));
@@ -1415,7 +1622,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Update, 
+                    change = new Change { ChangeType = ChangeType.Update, 
                         Key = new Dictionary<string, string>
                         {
                             { keyNames[0], $"{c.Original.AuthenticationTypeName}" },
@@ -1448,6 +1655,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                         RegisterChange(change);
                     }
                 }
+
+                if (change != null)
+                {
+                    PostProcessAuthenticationTypeClaimChange(change, c.New, c.Original);
+                }
             }
         }
 
@@ -1467,16 +1679,123 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = na1?.AuthenticationTypeName ?? na2.AuthenticationTypeName, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> {{ keyNames[0],$"{c.Original.AuthenticationTypeName}" } }, EntityName = entityName, Apply = true, KeyExpression = keyExp };
+                    change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> {{ keyNames[0],$"{c.Original.AuthenticationTypeName}" } }, EntityName = entityName, Apply = true, KeyExpression = keyExp };
                     RegisterChange(change);
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.AuthenticationTypeName));
                     RegisterChange(change);
+                }
+
+                if (change != null)
+                {
+                    PostProcessAuthenticationTypeChange(change, c.New, c.Original);
+                }
+            }
+        }
+
+        private void CompareGlobalRoles(GlobalRoleTemplateMarkup[] sysRoles, GlobalRoleTemplateMarkup[] upSysRoles)
+        {
+            var keyName = "RoleName";
+            var entityName = "GlobalRoles";
+            var allRoles = (from t in sysRoles select t.RoleName.ToLower()).Union(from t in upSysRoles select t.RoleName.ToLower()).Distinct().ToArray();
+            var cmp = (from c in allRoles
+                       join a1 in sysRoles on c equals a1.RoleName.ToLower() into ja1
+                       from na1 in ja1.DefaultIfEmpty()
+                       join a2 in upSysRoles on c equals a2.RoleName.ToLower() into ja2
+                       from na2 in ja2.DefaultIfEmpty()
+                       select new { Name = na1?.RoleName ?? na2.RoleName, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                Change change = null;
+                if (c.Original != null && c.New == null)
+                {
+                    change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> { { keyName, $"{c.Original.RoleName}" }}, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{ } };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyName, c.New.RoleName));
+                    change.Details.Add(MakeDetail("RoleDescription", c.New.RoleDescription, multiline: true));
+                    RegisterChange(change);
+                    RegisterGlobalRolePerms(c.New.RoleName, c.New.Permissions);
+                }
+                else if (c.Original != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.RoleName}" }, { "TenantId", null } }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{} };
+                    if ((c.New.RoleDescription != c.Original.RoleDescription && !string.IsNullOrWhiteSpace(c.New.RoleDescription) && !string.IsNullOrWhiteSpace(c.Original.RoleDescription)) || (string.IsNullOrWhiteSpace(c.New.RoleDescription) != string.IsNullOrWhiteSpace(c.Original.RoleDescription)))
+                    {
+                        change.Details.Add(MakeDetail("RoleDescription", c.New.RoleDescription, currentValue: c.Original.RoleDescription, multiline: true));
+                    }
+                    
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+
+                    RegisterGlobalRolePerms(c.New.RoleName, c.New.Permissions, c.Original.Permissions);
+                }
+
+                if (change != null)
+                {
+                    PostProcessGlobalRoleChange(change, c.New, c.Original);
+                }
+            }
+        }
+
+        private void RegisterGlobalRolePerms(string roleName, string[] permissions, string[] originalPermissions = null)
+        {
+            originalPermissions ??= Array.Empty<string>();
+            var keyNames = new string[] { "GlobalRole", "Permission" };
+            var entityName = "GlobalRolePermissions";
+            var keyExp = new Dictionary<string, string>
+            {
+                {keyNames[0], MakeLinqQuery<TContext>("GlobalRoles", "RoleName", filterValueVariable: "Value")},
+                {keyNames[1], MakeLinqQuery<TContext>("Permissions","PermissionName", additionalWhere:"n.TenantId==null", filterValueVariable:"Value")}
+            };
+            var groups = (from t in originalPermissions select t.ToLower()).Union(from t in permissions select t.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                       join a1 in originalPermissions on c equals a1.ToLower() into ja1
+                       from na1 in ja1.DefaultIfEmpty()
+                       join a2 in permissions on c equals a2.ToLower() into ja2
+                       from na2 in ja2.DefaultIfEmpty()
+                       select new { Name = c, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                Change change = null;
+                if (c.Original != null && c.New == null)
+                {
+                    change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                    {
+                        { keyNames[1], $"{c.Original}" },
+                        {keyNames[0], roleName}
+                    },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[1], c.New, MakeLinqAssign<TContext>(keyNames[1], "Permissions", "PermissionName")));
+                    change.Details.Add(MakeDetail(keyNames[0], roleName, MakeLinqAssign<TContext>(keyNames[0], "GlobalRoles", "RoleName")));
+                    RegisterChange(change);
+                }
+
+                if (change != null)
+                {
+                    PostProcessGlobalRolePermissionChange(roleName, change, c.New, c.Original);
                 }
             }
         }
@@ -1500,21 +1819,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = na1?.Name ?? na2.Name, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, {"TenantId", null} }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{ } };
+                    change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, {"TenantId", null} }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{ } };
                     RegisterChange(change);
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyName, c.New.Name));
                     change.Details.Add(MakeDetail("Description", c.New.Description, multiline: true));
                     RegisterChange(change);
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, { "TenantId", null } }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{} };
+                    change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, { "TenantId", null } }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{} };
                     if ((c.New.Description != c.Original.Description && !string.IsNullOrWhiteSpace(c.New.Description) && !string.IsNullOrWhiteSpace(c.Original.Description)) || (string.IsNullOrWhiteSpace(c.New.Description) != string.IsNullOrWhiteSpace(c.Original.Description)))
                     {
                         change.Details.Add(MakeDetail("Description", c.New.Description, currentValue: c.Original.Description, multiline: true));
@@ -1524,6 +1844,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     {
                         RegisterChange(change);
                     }
+                }
+
+                if (change != null)
+                {
+                    PostProcessPermissionChange(change, c.New, c.Original);
                 }
             }
         }
@@ -1547,21 +1872,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 select new { Name = na1?.Name?? na2.Name, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, {"TenantId", null} }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string> {}};
+                    change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, {"TenantId", null} }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string> {}};
                     RegisterChange(change);
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyName, c.New.Name));
                     change.Details.Add(MakeDetail("Value", c.New.Value));
                     RegisterChange(change);
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, { "TenantId", null } }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{} };
+                    change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.Name}" }, { "TenantId", null } }, EntityName = entityName, Apply = true, KeyExpression = new Dictionary<string, string>{} };
                     if ((c.New.Value != c.Original.Value && !string.IsNullOrWhiteSpace(c.New.Value) && !string.IsNullOrWhiteSpace(c.Original.Value)) || (string.IsNullOrWhiteSpace(c.New.Value) != string.IsNullOrWhiteSpace(c.Original.Value)))
                     {
                         change.Details.Add(MakeDetail("Value", c.New.Value, currentValue: c.Original.Value));
@@ -1571,6 +1897,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     {
                         RegisterChange(change);
                     }
+                }
+
+                if (change != null)
+                {
+                    PostProcessConstantChange(change, c.New, c.Original);
                 }
             }
         }
@@ -1594,14 +1925,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = na1?.UniqueName ?? na2.UniqueName, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> {{keyName, $"{c.Original.UniqueName}" }, { "TenantId", null } }, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> {{keyName, $"{c.Original.UniqueName}" }, { "TenantId", null } }, EntityName = entityName, Apply = true };
                     RegisterChange(change);
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName  = "WebPlugins", Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName  = "WebPlugins", Apply = true };
                     change.Details.Add(MakeDetail(keyName, c.New.UniqueName));
                     change.Details.Add(MakeDetail("Constructor", c.New.Constructor));
                     change.Details.Add(MakeDetail("AutoLoad", c.New.AutoLoad.ToString(), "Entity.AutoLoad=(NewValueRaw==\"True\")"));
@@ -1610,7 +1942,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.UniqueName}" }, { "TenantId", null } }, EntityName = "WebPlugins", Apply = true };
+                    change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.UniqueName}" }, { "TenantId", null } }, EntityName = "WebPlugins", Apply = true };
                     if ((c.New.Constructor != c.Original.Constructor && !string.IsNullOrWhiteSpace(c.New.Constructor) && !string.IsNullOrWhiteSpace(c.Original.Constructor)) || (string.IsNullOrWhiteSpace(c.New.Constructor) != string.IsNullOrWhiteSpace(c.Original.Constructor)))
                     {
                         change.Details.Add(MakeDetail("Constructor", c.New.Constructor, currentValue: c.Original.Constructor));
@@ -1628,7 +1960,92 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
 
                     RegisterPluginParameters(c.New.UniqueName, c.New.GenericArguments, c.Original.GenericArguments);
                 }
+
+                if (change != null)
+                {
+                    PostProcessPlugInChange(change, c.New, c.Original);
+                }
             }
+        }
+
+        protected virtual void PostProcessPlugInChange(Change change, PlugInTemplateMarkup @new, PlugInTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessConstantChange(Change change, ConstTemplateMarkup @new, ConstTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessPermissionChange(Change change, PermissionTemplateMarkup @new, PermissionTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessGlobalRoleChange(Change change, GlobalRoleTemplateMarkup @new, GlobalRoleTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessAuthenticationTypeChange(Change change, AuthenticationTypeTemplateMarkup @new, AuthenticationTypeTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessAuthenticationTypeClaimChange(Change change, AuthenticationTypeClaimTemplateMarkup @new, AuthenticationTypeClaimTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessGlobalSettingChange(Change change, SettingTemplateMarkup @new, SettingTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessFeatureChange(Change change, SystemFeatureTemplateMarkup @new, SystemFeatureTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessTenantTemplateChange(Change change, TenantTemplateDefinitionMarkup @new, TenantTemplateDefinitionMarkup original)
+        {
+        }
+        protected virtual void PostProcessDiagnosticsQueryChange(Change change, DiagnosticsQueryTemplateMarkup @new, DiagnosticsQueryTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessDashboardWidgetChange(Change change, DashboardWidgetTemplateMarkup @new, DashboardWidgetTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessDashboardWidgetLocaleChange(Change change, DashboardWidgetLocaleTemplateMarkup @new, DashboardWidgetLocaleTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessNavigationChange(Change change, NavigationMenuTemplateMarkup @new, NavigationMenuTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessTrustedModuleChange(Change change, TrustedModuleTemplateMarkup @new, TrustedModuleTemplateMarkup original)
+        {
+        }
+        protected virtual void PostProcessHealthScriptChange(Change change, HealthScriptTemplateMarkup @new, HealthScriptTemplateMarkup original)
+        {
+        }
+
+        protected virtual void PostProcessAssetTemplateChange(Change change, AssetTemplateMarkup @new, AssetTemplateMarkup original)
+        {
+        }
+
+        protected virtual void PostProcessPluginParameterChange(string pluginUniqueName, Change change, PlugInGenericArgumentTemplateMarkup @new, PlugInGenericArgumentTemplateMarkup original)
+        {
+        }
+
+        protected virtual void PostProcessGlobalRolePermissionChange(string roleName, Change change, string @new, string original)
+        {
+
+        }
+
+        protected virtual void PostProcessQueryParameterChange(string diagnosticsQueryName, Change change, DiagnosticsQueryParameterTemplateMarkup @new, DiagnosticsQueryParameterTemplateMarkup original)
+        {
+        }
+
+        protected virtual void PostProcessAssetPathFilterChange(string systemKey, Change change, string @new, string original)
+        {
+        }
+
+        protected virtual void PostProcessAssetFeatureChange(string systemKey, Change change, string @new, string original)
+        {
+        }
+
+        protected virtual void PostProcessAssetPermissionChange(string systemKey, Change change, string @new, string original)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected virtual void PostProcessWidgetParameterChange(string dashboardName, Change change, DashboardParamTemplateMarkup @new, DashboardParamTemplateMarkup original)
+        {
         }
 
         private void RegisterPluginParameters(string pluginUniqueName, PlugInGenericArgumentTemplateMarkup[] parameters, PlugInGenericArgumentTemplateMarkup[] originalParameters = null)
@@ -1649,9 +2066,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                        select new { Name = c, Original = na1, New = na2 }).ToArray();
             foreach (var c in cmp)
             {
+                Change change = null;
                 if (c.Original != null && c.New == null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Delete,
                         Key = new Dictionary<string, string>
@@ -1667,7 +2085,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original == null && c.New != null)
                 {
-                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyNames[0], c.New.GenericTypeName));
                     change.Details.Add(MakeDetail(keyNames[1], pluginUniqueName, MakeLinqAssign<TContext>(keyNames[1], "WebPlugins", "UniqueName")));
                     change.Details.Add(MakeDetail("TypeExpression", c.New.TypeExpression));
@@ -1675,7 +2093,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                 }
                 else if (c.Original != null)
                 {
-                    var change = new Change
+                    change = new Change
                     {
                         ChangeType = ChangeType.Update,
                         Key = new Dictionary<string, string>
@@ -1696,6 +2114,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Conf
                     {
                         RegisterChange(change);
                     }
+                }
+
+                if (change != null)
+                {
+                    PostProcessPluginParameterChange(pluginUniqueName, change, c.New, c.Original);
                 }
             }
         }

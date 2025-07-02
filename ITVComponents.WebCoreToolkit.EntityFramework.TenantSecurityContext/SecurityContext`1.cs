@@ -58,7 +58,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig>
+    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig>
     where TImpl:SecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -184,6 +184,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                 }
             }
         }
+
+        public string CurrentTenantName => CurrentTenant;
 
         /// <summary>
         /// Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
@@ -319,6 +321,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<UserRole> TenantUserRoles { get; set; }
 
         public DbSet<RolePermission> RolePermissions { get;set; }
+        public DbSet<GlobalRole> GlobalRoles { get; set; }
+        public DbSet<GlobalRolePermission> GlobalRolePermissions { get; set; }
+        public DbSet<GRoleLRole> GlobalToLocalRoles { get; set; }
 
         public DbSet<RoleRole> RoleRoles { get; set; }
 
@@ -428,7 +433,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             modelBuilder.Entity<TenantUser>().HasMany(n => n.Roles).WithOne(n => n.User).OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<RolePermission>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren).OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<RolePermission>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingLinks).OnDelete(DeleteBehavior.ClientSetNull);
-            
+            modelBuilder.Entity<GRoleLRole>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<GRoleLRole>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingGlobalLinks)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }
 

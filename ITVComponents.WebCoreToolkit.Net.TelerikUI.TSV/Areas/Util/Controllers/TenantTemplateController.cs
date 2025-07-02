@@ -108,7 +108,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             {
                 var tn = db.Tenants.First(n => n.TenantId == data.TenantId);
                 var tm = db.TenantTemplates.First(n => n.TenantTemplateId == data.TemplateId);
-                var template = JsonHelper.FromJsonString<TenantTemplateMarkup>(tm.Markup, SerializationTypingMode.StaticTyping);
+                var template = JsonHelper.FromJsonString<TenantTemplateMarkup>(tm.Markup, SerializationTypingMode.NativePolymorphism);
                 templateHelper.ApplyTemplate(tn, template);
             }
             catch (Exception ex)
@@ -127,7 +127,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             {
                 var tn = db.Tenants.First(n => n.TenantId == data.TenantId);
                 var tm = templateHelper.ExtractTemplate(tn);
-                var template = JsonHelper.ToJson(tm, SerializationTypingMode.StaticTyping, null);
+                var template = JsonHelper.ToJson(tm, SerializationTypingMode.NativePolymorphism);
                 var tmp = new TenantTemplate
                 {
                     Name = data.Name,

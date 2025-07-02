@@ -1,8 +1,6 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
-using ITVComponents.DataAccess.Extensions;
+﻿using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
+using ITVComponents.WebCoreToolkit.AspExtensions.Attributes;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -17,11 +15,14 @@ using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(PlugIns.Write,PlugIns.View),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention]
-    public class PlugInController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : Controller 
+    [Authorize("HasPermission(PlugIns.Write,PlugIns.View),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention, CustomGenericTypeArg("TWebPluginViewModel", typeof(WebPluginViewModel))]
+    public class PlugInController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TWebPluginViewModel, TTrustConfig> : Controller 
         where TTenant : Tenant 
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
         where TWebPluginConstant : WebPluginConstant<TTenant>
@@ -29,6 +30,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         where TSequence : Sequence<TTenant>
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+        where TWebPluginViewModel: WebPluginViewModel, new()
         where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
     {
         private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db;
@@ -86,7 +88,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
                 tenantId = db.CurrentTenantId;
             }
 
-            return Json(db.WebPlugins.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TWebPlugin, WebPluginViewModel>()));
+            return Json(db.WebPlugins.Where(n => n.TenantId == tenantId).ToDataSourceResult(request, ModelState, n => n.ToViewModel<TWebPlugin, TWebPluginViewModel>()));
         }
 
         public IActionResult AnalyzeAssembly(string assemblyName)
@@ -108,19 +110,19 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             var model = new TWebPlugin();
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<WebPluginViewModel,TWebPlugin>(model);
+                await this.TryUpdateModelAsync<TWebPluginViewModel, TWebPlugin>(model);
                 model.TenantId = tenantId;
                 db.WebPlugins.Add(model);
 
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<TWebPlugin, WebPluginViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TWebPlugin, TWebPluginViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
 
         [HttpPost]
         [Authorize("HasPermission(PlugIns.Write)")]
-        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, WebPluginViewModel viewModel)
+        public async Task<IActionResult> Destroy([DataSourceRequest] DataSourceRequest request, TWebPluginViewModel viewModel)
         {
 
             var tenantId = viewModel.TenantId;
@@ -141,7 +143,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
 
         [HttpPost]
         [Authorize("HasPermission(PlugIns.Write)")]
-        public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request, WebPluginViewModel viewModel)
+        public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request, TWebPluginViewModel viewModel)
         {
             var tenantId = viewModel.TenantId;
             if (!isSysAdmin)
@@ -152,12 +154,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
             var model = db.WebPlugins.First(n => n.WebPluginId == viewModel.WebPluginId && n.TenantId == tenantId);
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<WebPluginViewModel, TWebPlugin>(model, "", m => { return m.ElementType == null; });
+                await this.TryUpdateModelAsync<TWebPluginViewModel, TWebPlugin>(model, "", m => { return m.ElementType == null; });
                 model.TenantId = tenantId;
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] {model.ToViewModel<TWebPlugin, WebPluginViewModel>()}.ToDataSourceResultAsync(request, ModelState));
+            return Json(await new[] {model.ToViewModel<TWebPlugin, TWebPluginViewModel>()}.ToDataSourceResultAsync(request, ModelState));
         }
 
         public IActionResult ReadArgs([DataSourceRequest] DataSourceRequest request, [FromQuery] int pluginId)

@@ -8,6 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugi
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.Comparers;
 using ITVComponents.WebCoreToolkit.Security;
@@ -18,11 +19,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
 {
     internal class DbPluginsSelector<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IWebPluginsSelector
     where TTenant : HierarchyTenant
-    where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
-    where TWebPluginConstant : WebPluginConstant<TTenant>
-    where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TWebPlugin : HierarchyWebPlugin<TTenant,TWebPlugin,TWebPluginGenericParameter>, new()
+    where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
+    where TWebPluginGenericParameter : HierarchyWebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
     where TSequence : Sequence<TTenant>
-    where TTenantSetting : TenantSetting<TTenant>
+    where TTenantSetting : HierarchyTenantSetting<TTenant>
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
     where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
     {
@@ -138,7 +139,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
 
                 var phase1 = from p in securityContext.UpwardsTenantTreeView
                     join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                    where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value
+                    where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value && (p.ParentLevel == 1 || pin.Inheritable)
                     select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
                 var phase2 = from gj in phase1
                     group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
@@ -171,8 +172,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
 
             var xPhase1 = from p in securityContext.UpwardsTenantTreeView
                 join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                where p.OutermostLeafTenantName == ExplicitPluginPermissionScope
-                select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
+                where p.OutermostLeafTenantName == ExplicitPluginPermissionScope && (p.ParentLevel == 1 || pin.Inheritable)
+                          select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
             var xPhase2 = from gj in xPhase1
                 group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
                 into g
@@ -244,7 +245,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
 
                 var phase1 = from p in securityContext.UpwardsTenantTreeView
                     join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                    where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value
+                    where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value && (p.ParentLevel == 1 || pin.Inheritable)
                     select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
                 var phase2 = from gj in phase1
                     group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
@@ -301,7 +302,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
 
             var xPhase1 = from p in securityContext.UpwardsTenantTreeView
                 join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                where p.OutermostLeafTenantName == ExplicitPluginPermissionScope
+                where p.OutermostLeafTenantName == ExplicitPluginPermissionScope && (p.ParentLevel == 1 || pin.Inheritable)
                 select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
             var xPhase2 = from gj in xPhase1
                 group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
@@ -361,25 +362,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
         /// <returns>a list of parametetrs for this plugin</returns>
         public IEnumerable<WebPluginGenericParam> GetGenericParameters(string uniqueName)
         {
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            var plug = GetPlugin(uniqueName, out var webPluginId);
+            if (plug != null)
             {
-                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
-                    new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
+                if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+                {
+                    using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
+                        securityContext,
+                        new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
+                    return (from p in securityContext.GenericPluginParams
+                        where p.WebPluginId == webPluginId
+                        select p).ToArray();
+                }
+
+                if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
+                {
+                    return (from p in securityContext.GenericPluginParams
+                        where p.WebPluginId == webPluginId
+                        select p).ToArray();
+                }
+
                 return (from p in securityContext.GenericPluginParams
-                    where p.Plugin.UniqueName == uniqueName
+                    where p.WebPluginId == webPluginId
                     select p).ToArray();
             }
 
-            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope))
-            {
-                return (from p in securityContext.GenericPluginParams
-                    where p.Plugin.TenantId == null &&  p.Plugin.UniqueName == uniqueName
-                    select p).ToArray();
-            }
-
-            return (from p in securityContext.GenericPluginParams
-                where (p.Plugin.TenantId == null || p.Plugin.Tenant.TenantName == ExplicitPluginPermissionScope) && p.Plugin.UniqueName == uniqueName
-                select p).ToArray();
+            return [];
         }
     }
 }

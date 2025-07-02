@@ -579,6 +579,11 @@ namespace ITVComponents.Json
                 tmp.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             }
 
+            if (strongTypeMode == SerializationTypingMode.StaticTyping)
+            {
+                tmp.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
+            }
+
             return tmp;
         }
 

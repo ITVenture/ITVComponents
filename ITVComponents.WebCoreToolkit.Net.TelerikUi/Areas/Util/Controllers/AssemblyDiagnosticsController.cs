@@ -161,7 +161,17 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Areas.Util.Controllers
         public IActionResult ApplyChanges([FromBody] ApplyConfigBaseViewModel configData)
         {
             var messages = new StringBuilder();
-            configurator.Instance.ApplyChanges(configData.Changes, messages);
+            IConfigurationHandler configuratorInstance;
+            if (string.IsNullOrEmpty(options.ExplicitConfigHandler))
+            {
+                configuratorInstance = configurator.Instance;
+            }
+            else
+            {
+                configuratorInstance = configurator.GetInstance(options.ExplicitConfigHandler);
+            }
+
+            configuratorInstance.ApplyChanges(configData.Changes, messages);
             var msg = messages.Length != 0 ? $"<pre>{messages}</pre>" : "OK";
             return new ContentResult() { Content = msg, ContentType = "text/plain" };
         }

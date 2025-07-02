@@ -1,0 +1,11 @@
+﻿@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Options
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.ViewComponents
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel.GlobalRoleViewModel
+@inject IOptions<SecurityViewsOptions> soc;
+
+@await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "globalRoleId", Model.GlobalRoleId} }, targetView = "PermissionRolesView" })

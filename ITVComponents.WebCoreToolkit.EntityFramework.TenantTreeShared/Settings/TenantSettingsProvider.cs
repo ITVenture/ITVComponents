@@ -6,6 +6,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
 {
@@ -14,11 +15,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
     /// </summary>
     internal class TenantSettingsProvider<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IScopedSettingsProvider
     where TTenant: HierarchyTenant 
-    where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
-    where TWebPluginConstant : WebPluginConstant<TTenant>
-    where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TWebPlugin : HierarchyWebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
+    where TWebPluginGenericParameter : HierarchyWebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
     where TSequence : Sequence<TTenant>
-    where TTenantSetting : TenantSetting<TTenant>, new()
+    where TTenantSetting : HierarchyTenantSetting<TTenant>, new()
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
     where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
     {
@@ -45,7 +46,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
         {
             return (from t in dbContext.UpwardsTenantTreeView
                 join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
-                where s.SettingsKey == key && s.JsonSetting
+                where s.SettingsKey == key && s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
                 orderby t.ParentLevel
                 select s).FirstOrDefault()?.SettingsValue;
         }
@@ -59,8 +60,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
         {
             return (from t in dbContext.UpwardsTenantTreeView
                 join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
-                where s.SettingsKey == key && !s.JsonSetting
-                orderby t.ParentLevel
+                where s.SettingsKey == key && !s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
+                    orderby t.ParentLevel
                 select s).FirstOrDefault()?.SettingsValue;
         }
 
@@ -76,7 +77,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
             {
                 return (from t in dbContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == explicitUserScope)
                     join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
-                    where s.SettingsKey == key && s.JsonSetting
+                    where s.SettingsKey == key && s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
                     orderby t.ParentLevel
                     select s).FirstOrDefault()?.SettingsValue;
             }
@@ -96,8 +97,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
             {
                 return (from t in dbContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == explicitUserScope)
                     join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
-                    where s.SettingsKey == key && !s.JsonSetting
-                    orderby t.ParentLevel
+                    where s.SettingsKey == key && !s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
+                        orderby t.ParentLevel
                     select s).FirstOrDefault()?.SettingsValue;
             }
 

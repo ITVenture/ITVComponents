@@ -34,6 +34,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
             get;
         }
 
+        /// <summary>
+        /// Gets the name of the current Tenant. If no TenantProvider was provided, this value is null.
+        /// </summary>
+        string CurrentTenantName 
+        {
+            get;
+        }
+
         public DbSet<TTenant> Tenants { get; set; }
 
         public DbSet<TTenantFeatureActivation> TenantFeatureActivations { get; set; }

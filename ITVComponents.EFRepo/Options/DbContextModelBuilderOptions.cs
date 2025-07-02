@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.DbContextConfig;
@@ -10,6 +11,7 @@ using ITVComponents.EFRepo.DbContextConfig.Expressions;
 using ITVComponents.EFRepo.DbContextConfig.Impl;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using DbFunctionAttribute = ITVComponents.EFRepo.DataAnnotations.DbFunctionAttribute;
 
 namespace ITVComponents.EFRepo.Options
 {
@@ -19,7 +21,7 @@ namespace ITVComponents.EFRepo.Options
 
         private ExpressionFixVisitor globalFilterVisitor = new ExpressionFixVisitor();
 
-        private ConcurrentDictionary<string, Delegate> methodImpl = new ConcurrentDictionary<string, Delegate>();
+        private ConcurrentDictionary<string, ConcurrentDictionary<Type, Delegate>> methodImpl = new ConcurrentDictionary<string, ConcurrentDictionary<Type, Delegate>>();
 
         public void ConfigureGlobalFilter<T>(Expression<Func<T, bool>> filter) where T : class
         {
@@ -68,18 +70,29 @@ namespace ITVComponents.EFRepo.Options
 
         public void ConfigureMethod<T>(string name, T implementation) where T:Delegate
         {
-            methodImpl.TryAdd(name, implementation);
+            var impList = methodImpl.GetOrAdd(name, k => new ConcurrentDictionary<Type, Delegate>());
+            if (!impList.TryAdd(typeof(T), implementation))
+            {
+                throw new InvalidOperationException($"A method with the name {name} and type {typeof(T).Name} is already registered!");
+            }
         }
 
         public T GetMethod<T>(string name) where T : Delegate
         {
             T retVal = default;
-            if (methodImpl.TryGetValue(name, out var tmp) && tmp is T r)
+            if (methodImpl.TryGetValue(name, out var tmp) && tmp.TryGetValue(typeof(T), out var mt) && mt is T r)
             {
                 retVal = r;
             }
 
             return retVal;
+        }
+
+        public void ConfigureDbFunction(string name, Action<DbFunctionBuilder> configure = null)
+        {
+            var fx = typeof(TContext).GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | BindingFlags.InvokeMethod)
+                .First(n => Attribute.IsDefined(n,typeof(DbFunctionAttribute), true) && ((DbFunctionAttribute)Attribute.GetCustomAttribute(n, typeof(DbFunctionAttribute)))?.FunctionName == name);
+            configurators.Add(new DbFunctionConfigurator(fx, configure));
         }
     }
 }

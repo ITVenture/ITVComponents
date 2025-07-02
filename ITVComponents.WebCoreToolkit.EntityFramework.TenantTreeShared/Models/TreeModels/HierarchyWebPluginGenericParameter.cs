@@ -3,7 +3,14 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.F
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels
 {
-    public class HierarchyWebPluginGenericParameter : WebPluginGenericParameter<HierarchyTenant, HierarchyWebPlugin, HierarchyWebPluginGenericParameter>
+    public class HierarchyWebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter> : WebPluginGenericParameter<TTenant,TWebPlugin,TWebPluginGenericParameter>
+        where TTenant : HierarchyTenant
+        where TWebPlugin : HierarchyWebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPluginGenericParameter : HierarchyWebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+    {
+    }
+
+    public class HierarchyWebPluginGenericParameter : HierarchyWebPluginGenericParameter<HierarchyTenant, HierarchyWebPlugin, HierarchyWebPluginGenericParameter>
     {
     }
 }

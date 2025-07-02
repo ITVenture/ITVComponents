@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using ITVComponents.Json;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Localization;
 //using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 //using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Localization;
@@ -11,6 +13,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.TemplateHandling;
 //using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.TemplateHandling;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.ConfigMarkupModels;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
@@ -22,6 +25,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
     [WebPart]
     public static class WebPartInit
     {
+        static WebPartInit()
+        {
+            JsonHelper.ExtendNativeProtocolType<PlugInTemplateMarkup,HierarchyPlugInTemplateMarkup>("treeCapable");
+            JsonHelper.ExtendNativeProtocolType<ConstTemplateMarkup, HierarchyWebPluginConstantTemplateMarkup>("treeCapable");
+            JsonHelper.ExtendNativeProtocolType<SettingTemplateMarkup, HierarchyTenantSettingTemplateMarkup>("treeCapable");
+        }
+
         [LoadWebPartConfig]
         public static object LoadOptions(IConfiguration config, string settingsKey, string path)
         {

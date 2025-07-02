@@ -192,7 +192,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
             if (partOptions.UseDefaultInterceptors)
             {
                 optionsBuilder.AddInterceptors(
-                    new SecurityModificationInterceptor<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole>(services));
+                    new SecurityModificationInterceptor<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole>(services));
             }
         }
     }

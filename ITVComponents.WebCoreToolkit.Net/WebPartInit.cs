@@ -36,7 +36,10 @@ namespace ITVComponents.WebCoreToolkit.Net
         [ServiceRegistrationMethod]
         public static void RegisterNetServiceConfigurations(IServiceCollection services, NetPartOptions options)
         {
-            services.Configure<NetFileLinkOptions>(n => n.FileTokenAsQuery = options.UseFileTokenFromQuery);
+            if (options.UseFileServices)
+            {
+                services.Configure<NetFileLinkOptions>(n => n.FileTokenAsQuery = options.UseFileTokenFromQuery);
+            }
         }
 
         [EndpointRegistrationMethod]

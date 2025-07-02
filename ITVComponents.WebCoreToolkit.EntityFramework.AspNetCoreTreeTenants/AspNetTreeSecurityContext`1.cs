@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Principal;
+using ITVComponents.EFRepo.DataAnnotations;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
 using ITVComponents.EFRepo.Expressions;
 using ITVComponents.EFRepo.Expressions.Models;
@@ -35,7 +36,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
     [ExplicitlyExpose, DenyForeignKeySelection]
     public class AspNetTreeSecurityContext<TImpl> : IdentityDbContext<User>, IForeignKeyProvider,
         IHierarchySecurityContext<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission,
-            HierarchyTenantUser, RoleRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery,
+            HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery,
             DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam,
             DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath,
             AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
@@ -152,6 +153,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 return CurrentTenantId;
             }
         }
+
+        public string CurrentTenantName => CurrentTenant;
 
         /// <summary>
         ///     Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.
@@ -604,7 +607,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                        trust))
             {
                 var mth =
-                    modelBuilderOptions.GetMethod<Func<DbContext, string, string, string[], IQueryable<HierarchyTenant>>>(
+                    modelBuilderOptions.GetMethod<Func<DbContext, string, string, string[], HierarchyTenant[]>>(
                         "ChildTenantsWith");
                 if (mth == null)
                 {
@@ -613,16 +616,58 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
 
                 if (!string.IsNullOrEmpty(currentTenant))
                 {
-                    return mth(this, userId, currentTenant, requiredPermissions).ToArray();
+                    var tmpRet = mth(this, userId, currentTenant, requiredPermissions);
+                    return tmpRet;
                 }
 
                 return Array.Empty<HierarchyTenant>();
             }
         }
 
-        public DbSet<UpwardsRoleUserView<string>> UpwardsTenantUserRoles { get; set; }
+        public IEnumerable<HierarchyTenant> ChildTenantsWith(string[] userLabels, string currentTenant, string[] requiredPermissions)
+        {
+            var trust = new HierarchyTenantContextSecurityTrustConfig
+            {
+                HideGlobals = false,
+                IncludeParentTree = true,
+                IncludeChildTree = true,
+                ShowAllTenants = true
+            };
 
-        public DbSet<DownwardsUserRoleView<string>> DownwardsTenantUserRoles { get; set; }
+            using (FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(this, this,
+                       trust))
+            {
+                var mth =
+                    modelBuilderOptions.GetMethod<Func<DbContext, string[], string, string[], HierarchyTenant[]>>(
+                        "ChildTenantsWith");
+                if (mth == null)
+                {
+                    throw new InvalidOperationException("ChildTenantsWith was not implemented for this Database-Type");
+                }
+
+                if (!string.IsNullOrEmpty(currentTenant))
+                {
+                    var tmpRet = mth(this, userLabels, currentTenant, requiredPermissions);
+                    return tmpRet;
+                }
+
+                return Array.Empty<HierarchyTenant>();
+            }
+        }
+
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTree")]
+        public IQueryable<UpwardsRoleUserView<string>> GetUpwardsTenantUserRoles(string userId, bool userIdIsLabels, string? leafTenant)
+        {
+            return FromExpression(() => GetUpwardsTenantUserRoles(userId, userIdIsLabels, leafTenant));
+        }
+
+        public IEnumerable<DownwardsUserRoleView<string>> GetDownwardsTenantUserRoles(string userId, bool userIdIsLabels, string viewpointTenant)
+        {
+            return
+                Set<DownwardsUserRoleView<string>>()
+                    .FromSqlInterpolated(
+                        $"EXEC [GetDownwardsRoleTreeProc] {userId}, {userIdIsLabels}, {viewpointTenant}").ToList(); //sql(() => GetDownwardsTenantUserRoles(userId, userIdIsLabels, viewpointTenant));
+        }
 
         [ExpressionPropertyRedirect("CurrentTenantTree")]
         public IQueryable<int> CurrentTenantTree => IncludeParentTree
@@ -731,6 +776,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         public DbSet<Permission> Permissions { get; set; }
 
         public DbSet<RolePermission> RolePermissions { get; set; }
+        public DbSet<GlobalRole> GlobalRoles { get; set; }
+        public DbSet<GlobalRolePermission> GlobalRolePermissions { get; set; }
+        public DbSet<GRoleLRole> GlobalToLocalRoles { get; set; }
         public DbSet<RoleRole> RoleRoles { get; set; }
         public DbSet<Role> SecurityRoles { get; set; }
         public DbSet<SharedAsset> SharedAssets { get; set; }
@@ -808,6 +856,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             modelBuilder.Entity<RolePermission>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren)
                 .OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<RolePermission>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingLinks)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<GRoleLRole>().HasOne(n => n.Origin).WithMany(o => o.RoleInheritanceChildren)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.Entity<GRoleLRole>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingGlobalLinks)
                 .OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }

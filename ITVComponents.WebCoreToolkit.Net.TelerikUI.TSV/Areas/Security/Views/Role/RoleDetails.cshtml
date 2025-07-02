@@ -7,7 +7,8 @@
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel.RoleViewModel
 @inject IOptions<SecurityViewsOptions> soc;
 
-@(Html.Kendo().TabStrip().Name($"RolesAssignment{Model.RoleId}")
+@(
+Html.Kendo().TabStrip().Name($"RolesAssignment{Model.RoleId}")
     .SelectedIndex(0)
     .Items(item =>
     {
@@ -21,4 +22,7 @@
         {
             item.Add().Text("Rollen").LoadContentFrom("RoleTable", "Role", new { roleId = Model.RoleId, tenantId = Model.TenantId });
         }
-}))
+
+        item.Add().Text("Globale Rollen").LoadContentFrom("GlobalRoleToRoleList", "GlobalRole", new { roleId = Model.RoleId });
+    })
+)

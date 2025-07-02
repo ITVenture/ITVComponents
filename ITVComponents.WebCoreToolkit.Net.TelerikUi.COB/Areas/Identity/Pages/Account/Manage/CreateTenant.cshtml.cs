@@ -180,7 +180,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
             if (!string.IsNullOrEmpty(cfg.BasicTenantTemplate))
             {
                 var tmpl = dbContext.TenantTemplates.First(n => n.Name == cfg.BasicTenantTemplate);
-                var mku = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup, SerializationTypingMode.StaticTyping);
+                var mku = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup, SerializationTypingMode.NativePolymorphism);
                 tenantInitializer.ApplyTemplate(tenant, mku, ct =>
                 {
                     var ctx = ct as ISecurityContextWithOnboarding;

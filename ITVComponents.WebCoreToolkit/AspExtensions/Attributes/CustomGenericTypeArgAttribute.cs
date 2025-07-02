@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.AspExtensions.Attributes
 {
+    [AttributeUsage(validOn:AttributeTargets.Class, AllowMultiple = true)]
     public class CustomGenericTypeArgAttribute:Attribute
     {
         public string Name { get; }

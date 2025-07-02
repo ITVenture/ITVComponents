@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model
 {
-    public class Role : WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.Role<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole>
+    public class Role : WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base.Role<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole>
     {
     }
 }

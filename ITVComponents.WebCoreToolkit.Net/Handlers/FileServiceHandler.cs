@@ -288,6 +288,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                     }
                     catch (Exception ex)
                     {
+                        logger.LogError(ex, $"An error occurred while processing the file upload upload-Module: {uploadModule}");
                         return Results.BadRequest(ex.Message);
                     }
                 }

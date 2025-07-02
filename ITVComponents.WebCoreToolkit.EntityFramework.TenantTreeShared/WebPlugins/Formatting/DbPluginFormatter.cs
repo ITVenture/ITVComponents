@@ -16,17 +16,18 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.H
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.HelperModels.Comparers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugins.Formatting
 {
     public class DbPluginFormatter<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : StringFormatProvider, IDeferredInit
         where TTenant : HierarchyTenant 
-        where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
-        where TWebPluginConstant : WebPluginConstant<TTenant>
-        where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPlugin : HierarchyWebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+        where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
+        where TWebPluginGenericParameter : HierarchyWebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TSequence : Sequence<TTenant>
-        where TTenantSetting : TenantSetting<TTenant>
+        where TTenantSetting : HierarchyTenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
 
@@ -109,6 +110,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                     Dictionary<string, string> tenantPass = new Dictionary<string, string>();
                     (from rprot in (from c in context.UpwardsTenantTreeView
                                     join m in context.WebPluginConstants on c.ParentTenantId equals m.TenantId
+                                    where c.ParentLevel == 1 || m.Inheritable
                                     select new { c.ParentTenantId, c.ParentLevel, m.Name, m.WebPluginConstantId }
                         into gprot
                                     group gprot by gprot.Name
