@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security;
-using System.Text;
-using System.Threading.Tasks;
-using ITVComponents.EFRepo.Extensions;
+﻿using ITVComponents.EFRepo.Extensions;
 using ITVComponents.Formatting;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.ParallelProcessing.TaskSchedulers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
@@ -18,6 +13,12 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers
 {
@@ -74,8 +75,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             this.db = db;
             this.logger = logger;
         }
-
-        public bool AutoSave { get; set; } = true;
 
         protected TContext Db => db;
         public TenantTemplateMarkup ExtractTemplate(TTenant tenant)
@@ -231,6 +230,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                 "Permitted Roles in different Tenant is not supported with this templateHelper instance.");
         }
 
+        public void ApplyAllTenantsFor(int tenantTemplateId, int tenantTypeId)
+        {
+            using (new FullSecurityAccessHelper<TTrustConfig>(db,
+                       new() { ShowAllTenants = true, HideGlobals = false }))
+            {
+                var tp = db.TenantTemplates.First(n => n.TenantTemplateId == tenantTemplateId);
+                var tpi = JsonHelper.FromJsonString<TenantTemplateMarkup>(tp.Markup,
+                    SerializationTypingMode.NativePolymorphism);
+                var tenants = (from t in db.Tenants where t.TenantTypeId == tenantTypeId select t).ToList();
+                var i = 0;
+                //PrepareAllEntities();
+                foreach (var tenant in tenants)
+                {
+                    ApplyTemplatePrivate(tenant, tpi, false);
+                    i++;
+                    if (i % 1000 == 0)
+                    {
+                        Console.WriteLine("Saving 1000...");
+                        db.SaveChanges();
+                        Console.WriteLine("jawoll...");
+                    }
+                }
+
+                db.SaveChanges();
+            }
+        }
+
         public void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template)
         {
             ApplyTemplate(tenant, template, null);
@@ -246,201 +272,207 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             db.EnsureNavUniqueness();
             using (new FullSecurityAccessHelper<TTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false }))
             {
-                var fmtRoot = new
-                {
-                    Now = DateTime.UtcNow,
-                    Tenant = tenant
-                };
-
-                var pns = new List<string>();
-                if (template.ExplicitPermissions != null)
-                {
-                    foreach (var perm in template.ExplicitPermissions)
-                    {
-                        var tmp = GetPermission(tenant.TenantId, perm, true);
-                        pns.Add(tmp.PermissionName);
-                    }
-                }
-
-                if (template.Roles != null)
-                {
-                    var rn = new List<string>();
-                    foreach (var role in template.Roles)
-                    {
-                        var tmp = GetRole(tenant.TenantId, role, true);
-                        rn.Add(tmp.RoleName);
-                        ApplyPermissions(tmp, role);
-                        ApplyRoleGrants(tenant, tmp, role);
-                        ApplyGlobalRoleGrants(tenant, tmp, role);
-                    }
-
-                    var rmRoles = (from t in db.SecurityRoles.Include(r => r.PermittedRoles).Include(r => r.PermissiveRoles).Include(r => r.RolePermissions).Where(n => n.TenantId == tenant.TenantId)
-                        join r in rn on t.RoleName.ToLower() equals r.ToLower() into lj
-                        from l in lj.DefaultIfEmpty()
-                        where string.IsNullOrEmpty(l)
-                        select t).ToArray();
-                    db.RolePermissions.RemoveRange(rmRoles.SelectMany(n => n.RolePermissions));
-                    db.RoleRoles.RemoveRange(rmRoles.SelectMany(n => n.PermissiveRoles).Union(rmRoles.SelectMany(n => n.PermittedRoles)));
-                    db.SecurityRoles.RemoveRange(rmRoles);
-                }
-
-                if (template.Settings != null)
-                {
-                    var settingsNames = new List<string>();
-                    foreach (var s in template.Settings)
-                    {
-                        var setting = new SettingTemplateMarkup { IsJsonSetting = s.IsJsonSetting };
-                        setting.ParamName = fmtRoot.FormatText(s.ParamName);
-                        settingsNames.Add(setting.ParamName);
-                        setting.Value = fmtRoot.FormatText(s.Value);
-                        var tmp = GetSetting(tenant.TenantId, setting, true);
-                        if (tmp.TenantSettingId != 0)
-                        {
-                            tmp.JsonSetting = setting.IsJsonSetting;
-                            tmp.SettingsValue = setting.Value;
-                        }
-                    }
-
-                    db.TenantSettings.RemoveRange(from t in db.TenantSettings.Where(n => n.TenantId == tenant.TenantId) join r in settingsNames
-                        on t.SettingsKey.ToLower() equals r.ToLower() into lj
-                            from l in lj.DefaultIfEmpty()
-                     where string.IsNullOrEmpty(l) select t);
-                }
-
-                if (template.Constants != null)
-                {
-                    var constNames = new List<string>();
-                    foreach (var c in template.Constants)
-                    {
-                        var constant = new ConstTemplateMarkup();
-                        constant.Name = fmtRoot.FormatText(c.Name);
-                        constant.Value = fmtRoot.FormatText(c.Value);
-                        constNames.Add(constant.Name);
-                        var tmp = GetConst(tenant.TenantId, constant, true);
-                        if (tmp.WebPluginConstantId != 0)
-                        {
-                            tmp.Value = constant.Value;
-                        }
-                    }
-
-                    db.WebPluginConstants.RemoveRange(from t in db.WebPluginConstants.Where(n => n.TenantId == tenant.TenantId)
-                        join r in constNames
-                            on t.Name.ToLower() equals r.ToLower() into lj
-                        from l in lj.DefaultIfEmpty()
-                        where string.IsNullOrEmpty(l)
-                        select t);
-                }
-
-                if (template.PlugIns != null)
-                {
-                    var piKeys = new List<string>();
-                    foreach (var p in template.PlugIns)
-                    {
-                        var plugIn = new PlugInTemplateMarkup
-                        {
-                            AutoLoad = p.AutoLoad,
-                            GenericArguments = (from t in p.GenericArguments
-                                    select new PlugInGenericArgumentTemplateMarkup
-                                        { GenericTypeName = t.GenericTypeName, TypeExpression = t.TypeExpression })
-                                .ToArray()
-                        };
-                        plugIn.UniqueName = fmtRoot.FormatText(plugIn.UniqueName);
-                        plugIn.Constructor = fmtRoot.FormatText(plugIn.Constructor);
-                        piKeys.Add(plugIn.UniqueName);
-                        var tmp = GetPlugIn(tenant.TenantId, plugIn, true);
-                        if (tmp.WebPluginId != 0)
-                        {
-                            tmp.AutoLoad = plugIn.AutoLoad;
-                            tmp.Constructor = plugIn.Constructor;
-                        }
-                    }
-
-                    var rems = (from t in db.WebPlugins.Include(p => p.Parameters)
-                            .Where(n => n.TenantId == tenant.TenantId)
-                        join r in piKeys
-                            on t.UniqueName.ToLower() equals r.ToLower() into lj
-                        from l in lj.DefaultIfEmpty()
-                        where string.IsNullOrEmpty(l)
-                        select t).ToArray();
-                    db.GenericPluginParams.RemoveRange(rems.SelectMany(n => n.Parameters));
-                    db.WebPlugins.RemoveRange(rems);
-                }
-
-                if (template.Navigation != null)
-                {
-                    var urlUqs = new List<string>();
-                    foreach (var menu in template.Navigation)
-                    {
-                        var tmp = GetNavigationMenu(tenant.TenantId, menu, true, urlUqs);
-                        if (tmp.TenantNavigationMenuId != 0)
-                        {
-                            tmp.Permission = menu.CustomPermission != null
-                                ? GetPermission(tenant.TenantId, menu.CustomPermission)
-                                : null;
-                        }
-                    }
-
-                    db.TenantNavigation.RemoveRange(from t in db.TenantNavigation.Include(n => n.NavigationMenu)
-                        join r in urlUqs on t.NavigationMenu.UrlUniqueness.ToLower() equals r.ToLower() into lj
-                        from j in lj.DefaultIfEmpty()
-                                                    where string.IsNullOrEmpty(j) && t.TenantId == tenant.TenantId
-                                                    select t);
-                }
-
-                if (template.Queries != null)
-                {
-                    var qn = new List<string>();
-                    foreach (var query in template.Queries)
-                    {
-                        qn.Add(query.Name);
-                        GetQuery(tenant.TenantId, query, true);
-                    }
-
-                    db.TenantDiagnosticsQueries.RemoveRange(
-                        from t in db.TenantDiagnosticsQueries.Include(n => n.DiagnosticsQuery)
-                        join
-                            r in qn on t.DiagnosticsQuery.DiagnosticsQueryName.ToLower() equals r.ToLower() into lj
-                        from j in lj.DefaultIfEmpty()
-                        where string.IsNullOrEmpty(j) && t.TenantId == tenant.TenantId
-                        select t);
-                }
-
-                if (template.Features != null)
-                {
-                    var fn = new List<string>();
-                    foreach (var feature in template.Features)
-                    {
-                        var tmp = GetFeature(tenant.TenantId, feature, true);
-                        fn.Add(feature.FeatureName);
-                        if (!string.IsNullOrEmpty(feature.DurationExpression) && !feature.InfiniteDuration && tmp.TenantFeatureActivationId == 0)
-                        {
-                            var timeEx = fmtRoot.FormatText(feature.DurationExpression);
-                            var tt = new TimeTable(timeEx);
-                            var nx = tt.GetNextExecutionTime(fmtRoot.Now);
-                            tmp.ActivationStart = fmtRoot.Now;
-                            tmp.ActivationEnd = nx;
-                        }
-                    }
-
-                    db.TenantFeatureActivations.RemoveRange(from t in db.TenantFeatureActivations.Include(a => a.Feature)
-                        join r in fn on t.Feature.FeatureName.ToLower() equals r.ToLower() into lj
-                        from l in lj.DefaultIfEmpty()
-                                                            where t.TenantId == tenant.TenantId && string.IsNullOrEmpty(l)
-                                                            select t);
-                }
-
-                db.Permissions.RemoveRange(from p in db.Permissions.Where(n => n.TenantId == tenant.TenantId)
-                    join
-                        r in pns on p.PermissionName.ToLower() equals r.ToLower() into lj
-                    from l in lj.DefaultIfEmpty()
-                    where string.IsNullOrEmpty(l)
-                    select p);
-                if (AutoSave)
-                {
-                    db.SaveChanges();
-                }
-
+                ApplyTemplatePrivate(tenant, template,true);
                 afterApply?.Invoke(db);
+            }
+        }
+
+        private void ApplyTemplatePrivate(TTenant tenant, TenantTemplateMarkup template, bool autoSave)
+        {
+            var fmtRoot = new
+            {
+                Now = DateTime.UtcNow,
+                Tenant = tenant
+            };
+
+            var pns = new List<string>();
+            if (template.ExplicitPermissions != null)
+            {
+                foreach (var perm in template.ExplicitPermissions)
+                {
+                    var tmp = GetPermission(tenant.TenantId, perm, true);
+                    pns.Add(tmp.PermissionName);
+                }
+            }
+
+            if (template.Roles != null)
+            {
+                var rn = new List<string>();
+                foreach (var role in template.Roles)
+                {
+                    var tmp = GetRole(tenant.TenantId, role, true);
+                    rn.Add(tmp.RoleName);
+                    ApplyPermissions(tmp, role);
+                    ApplyRoleGrants(tenant, tmp, role);
+                    ApplyGlobalRoleGrants(tenant, tmp, role);
+                }
+
+                var rmRoles = (from t in db.SecurityRoles.Include(r => r.PermittedRoles).Include(r => r.PermissiveRoles).Include(r => r.RolePermissions).Where(n => n.TenantId == tenant.TenantId)
+                               join r in rn on t.RoleName.ToLower() equals r.ToLower() into lj
+                               from l in lj.DefaultIfEmpty()
+                               where string.IsNullOrEmpty(l)
+                               select t).ToArray();
+                db.RolePermissions.RemoveRange(rmRoles.SelectMany(n => n.RolePermissions));
+                db.RoleRoles.RemoveRange(rmRoles.SelectMany(n => n.PermissiveRoles).Union(rmRoles.SelectMany(n => n.PermittedRoles)));
+                db.SecurityRoles.RemoveRange(rmRoles);
+            }
+
+            if (template.Settings != null)
+            {
+                var settingsNames = new List<string>();
+                foreach (var s in template.Settings)
+                {
+                    var setting = new SettingTemplateMarkup { IsJsonSetting = s.IsJsonSetting };
+                    setting.ParamName = fmtRoot.FormatText(s.ParamName);
+                    settingsNames.Add(setting.ParamName);
+                    setting.Value = fmtRoot.FormatText(s.Value);
+                    var tmp = GetSetting(tenant.TenantId, setting, true);
+                    if (tmp.TenantSettingId != 0)
+                    {
+                        tmp.JsonSetting = setting.IsJsonSetting;
+                        tmp.SettingsValue = setting.Value;
+                    }
+                }
+
+                db.TenantSettings.RemoveRange(from t in db.TenantSettings.Where(n => n.TenantId == tenant.TenantId)
+                                              join r in settingsNames
+                    on t.SettingsKey.ToLower() equals r.ToLower() into lj
+                                              from l in lj.DefaultIfEmpty()
+                                              where string.IsNullOrEmpty(l)
+                                              select t);
+            }
+
+            if (template.Constants != null)
+            {
+                var constNames = new List<string>();
+                foreach (var c in template.Constants)
+                {
+                    var constant = new ConstTemplateMarkup();
+                    constant.Name = fmtRoot.FormatText(c.Name);
+                    constant.Value = fmtRoot.FormatText(c.Value);
+                    constNames.Add(constant.Name);
+                    var tmp = GetConst(tenant.TenantId, constant, true);
+                    if (tmp.WebPluginConstantId != 0)
+                    {
+                        tmp.Value = constant.Value;
+                    }
+                }
+
+                db.WebPluginConstants.RemoveRange(from t in db.WebPluginConstants.Where(n => n.TenantId == tenant.TenantId)
+                                                  join r in constNames
+                                                      on t.Name.ToLower() equals r.ToLower() into lj
+                                                  from l in lj.DefaultIfEmpty()
+                                                  where string.IsNullOrEmpty(l)
+                                                  select t);
+            }
+
+            if (template.PlugIns != null)
+            {
+                var piKeys = new List<string>();
+                foreach (var p in template.PlugIns)
+                {
+                    var plugIn = new PlugInTemplateMarkup
+                    {
+                        AutoLoad = p.AutoLoad,
+                        GenericArguments = (from t in p.GenericArguments
+                                            select new PlugInGenericArgumentTemplateMarkup
+                                            { GenericTypeName = t.GenericTypeName, TypeExpression = t.TypeExpression })
+                            .ToArray()
+                    };
+                    plugIn.UniqueName = fmtRoot.FormatText(plugIn.UniqueName);
+                    plugIn.Constructor = fmtRoot.FormatText(plugIn.Constructor);
+                    piKeys.Add(plugIn.UniqueName);
+                    var tmp = GetPlugIn(tenant.TenantId, plugIn, true);
+                    if (tmp.WebPluginId != 0)
+                    {
+                        tmp.AutoLoad = plugIn.AutoLoad;
+                        tmp.Constructor = plugIn.Constructor;
+                    }
+                }
+
+                var rems = (from t in db.WebPlugins.Include(p => p.Parameters)
+                        .Where(n => n.TenantId == tenant.TenantId)
+                            join r in piKeys
+                                on t.UniqueName.ToLower() equals r.ToLower() into lj
+                            from l in lj.DefaultIfEmpty()
+                            where string.IsNullOrEmpty(l)
+                            select t).ToArray();
+                db.GenericPluginParams.RemoveRange(rems.SelectMany(n => n.Parameters));
+                db.WebPlugins.RemoveRange(rems);
+            }
+
+            if (template.Navigation != null)
+            {
+                var urlUqs = new List<string>();
+                foreach (var menu in template.Navigation)
+                {
+                    var tmp = GetNavigationMenu(tenant.TenantId, menu, true, urlUqs);
+                    if (tmp.TenantNavigationMenuId != 0)
+                    {
+                        tmp.Permission = menu.CustomPermission != null
+                            ? GetPermission(tenant.TenantId, menu.CustomPermission)
+                            : null;
+                    }
+                }
+
+                db.TenantNavigation.RemoveRange(from t in db.TenantNavigation.Include(n => n.NavigationMenu)
+                                                join r in urlUqs on t.NavigationMenu.UrlUniqueness.ToLower() equals r.ToLower() into lj
+                                                from j in lj.DefaultIfEmpty()
+                                                where string.IsNullOrEmpty(j) && t.TenantId == tenant.TenantId
+                                                select t);
+            }
+
+            if (template.Queries != null)
+            {
+                var qn = new List<string>();
+                foreach (var query in template.Queries)
+                {
+                    qn.Add(query.Name);
+                    GetQuery(tenant.TenantId, query, true);
+                }
+
+                db.TenantDiagnosticsQueries.RemoveRange(
+                    from t in db.TenantDiagnosticsQueries.Include(n => n.DiagnosticsQuery)
+                    join
+                        r in qn on t.DiagnosticsQuery.DiagnosticsQueryName.ToLower() equals r.ToLower() into lj
+                    from j in lj.DefaultIfEmpty()
+                    where string.IsNullOrEmpty(j) && t.TenantId == tenant.TenantId
+                    select t);
+            }
+
+            if (template.Features != null)
+            {
+                var fn = new List<string>();
+                foreach (var feature in template.Features)
+                {
+                    var tmp = GetFeature(tenant.TenantId, feature, true);
+                    fn.Add(feature.FeatureName);
+                    if (!string.IsNullOrEmpty(feature.DurationExpression) && !feature.InfiniteDuration && tmp.TenantFeatureActivationId == 0)
+                    {
+                        var timeEx = fmtRoot.FormatText(feature.DurationExpression);
+                        var tt = new TimeTable(timeEx);
+                        var nx = tt.GetNextExecutionTime(fmtRoot.Now);
+                        tmp.ActivationStart = fmtRoot.Now;
+                        tmp.ActivationEnd = nx;
+                    }
+                }
+
+                db.TenantFeatureActivations.RemoveRange(from t in db.TenantFeatureActivations.Include(a => a.Feature)
+                                                        join r in fn on t.Feature.FeatureName.ToLower() equals r.ToLower() into lj
+                                                        from l in lj.DefaultIfEmpty()
+                                                        where t.TenantId == tenant.TenantId && string.IsNullOrEmpty(l)
+                                                        select t);
+            }
+
+            db.Permissions.RemoveRange(from p in db.Permissions.Where(n => n.TenantId == tenant.TenantId)
+                                       join
+                                           r in pns on p.PermissionName.ToLower() equals r.ToLower() into lj
+                                       from l in lj.DefaultIfEmpty()
+                                       where string.IsNullOrEmpty(l)
+                                       select p);
+            if (autoSave)
+            {
+                db.SaveChanges();
             }
         }
 
@@ -647,22 +679,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                     }
                 }
 
-                if (AutoSave)
-                {
-                    db.SaveChanges();
-                    RemoveUnUsedPermissions(tenant.TenantId, permissionsToCheck);
-                    db.SaveChanges();
-                }
-
-                afterRevoke?.Invoke(db);
-            }
-        }
-
-        public void Save()
-        {
-            if (!AutoSave)
-            {
                 db.SaveChanges();
+                RemoveUnUsedPermissions(tenant.TenantId, permissionsToCheck);
+                db.SaveChanges();
+                afterRevoke?.Invoke(db);
             }
         }
 

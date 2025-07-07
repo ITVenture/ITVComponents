@@ -439,37 +439,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             var tth = services
                 .GetService<ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>>();
-            tth.AutoSave = false;
-            var ctx = services.GetService<TContext>();
-            ctx.ChangeTracker.AutoDetectChangesEnabled = false;
-            using (new FullSecurityAccessHelper<TTrustConfig>(ctx,
-                       new() { ShowAllTenants = true, HideGlobals = false }))
+            if (tenantType.TenantTemplateId != null)
             {
-                if (tenantType.TenantTemplateId != null)
-                {
-                    var tp = ctx.TenantTemplates.First(n => n.TenantTemplateId == tenantType.TenantTemplateId);
-                    var tpi = JsonHelper.FromJsonString<TenantTemplateMarkup>(tp.Markup,
-                        SerializationTypingMode.NativePolymorphism);
-                    var tenants = (from t in ctx.Tenants where t.TenantTypeId == tenantType.TenantTypeId select t).ToList();
-                    var i = 0;
-                    foreach (var tenant in tenants)
-                    {
-                        tth.ApplyTemplate(tenant, tpi);
-                        i++;
-                        if (i % 1000 == 0)
-                        {
-                            Console.WriteLine("Detecting...");
-                            ctx.ChangeTracker.DetectChanges();
-                            Console.WriteLine("Saving...");
-                            tth.Save();
-                            Console.WriteLine("Bummsfallerah...");
-                        }
-                    }
-
-                    ctx.ChangeTracker.DetectChanges();
-                    tth.Save();
-                }
+                tth.ApplyAllTenantsFor(tenantType.TenantTemplateId.Value);
             }
+            /* var ctx = services.GetService<TContext>();
+             ctx.ChangeTracker.AutoDetectChangesEnabled = false;*/
         }
 
         private static IContextExtensions GetWrapper(object wrapper)
