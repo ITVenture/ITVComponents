@@ -34,6 +34,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cook
             decorated = ActivatorUtilities.CreateInstance<DefaultCookieService>(services);
         }
 
+        public bool ServerCookiesSupported => true;
+
+        public bool Ready => httpContext.HttpContext != null;
+
         private ICoreSystemContext SystemContext => coreDb ??= services.GetService<ICoreSystemContext>();
 
         public bool TryGetCookie(string cookieKey, out string cookieValue)
@@ -49,6 +53,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cook
                 }
                 else if (isSvCookie)
                 {
+                    found = false;
                     cookieValue = null;
                 }
             }
@@ -56,12 +61,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cook
             return found;
         }
 
-        public void SetCookie(string cookieKey, string cookieValue, CookieOptions cookieOptions = null)
+        public void SetCookie(string cookieKey, string cookieValue, CookieOptions cookieOptions = null, CookieStrategy preferredStrategy = CookieStrategy.Client)
         {
             TryDropOldCookie(cookieKey);
             var opt = options.Value;
 
-            if (cookieValue.Length > opt.CookieLengthThreshold)
+            if ((preferredStrategy == CookieStrategy.Server && !decorated.ServerCookiesSupported) || cookieValue.Length > opt.CookieLengthThreshold)
             {
 
                 var replacementVal = CookieBufferHelper.CreateBufferCookieTag("SC", cookieOptions, opt.DefaultCookieValidDays, out var validity, out var gd);
@@ -70,9 +75,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cook
                 SystemContext.ServerCookies.Add(rec);
                 SystemContext.SaveChanges();
                 cookieValue = replacementVal;
+                if (preferredStrategy == CookieStrategy.Server)
+                {
+                    preferredStrategy = CookieStrategy.Client;
+                }
             }
 
-            decorated.SetCookie(cookieKey, cookieValue, cookieOptions);
+            decorated.SetCookie(cookieKey, cookieValue, cookieOptions, preferredStrategy);
         }
 
         private bool TryDropOldCookie(string cookieKey)

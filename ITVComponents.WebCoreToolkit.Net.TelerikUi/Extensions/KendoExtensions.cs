@@ -9,11 +9,14 @@
     using System.Web;
     using ITVComponents.DataAccess.Extensions;
     using ITVComponents.Helpers;
+    using ITVComponents.Logging;
     using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
     using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
     using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources;
     using ITVComponents.WebCoreToolkit.Routing;
     using Kendo.Mvc;
+    using Kendo.Mvc.Extensions;
+    using Kendo.Mvc.Infrastructure.Implementation;
     using Kendo.Mvc.UI;
     using Kendo.Mvc.UI.Fluent;
     using Microsoft.AspNetCore.Mvc.Routing;
@@ -597,70 +600,162 @@
             public static DataSourceRequest RemapRequestMembers(this DataSourceRequest dataSourceRequest,
                 Func<string, string> columnRedirects)
             {
-                dataSourceRequest.Aggregates.ForEach(n =>
+                return RemapRequestMembers(dataSourceRequest, n =>
+                {
+                    var tmp = columnRedirects(n);
+                    if (string.IsNullOrEmpty(tmp))
+                    {
+                        return null;
+                    }
+
+                    return new[] { tmp };
+                });
+            }
+
+            public static DataSourceRequest RemapRequestMembers(this DataSourceRequest dataSourceRequest,
+                Func<string, string[]> columnRedirects)
+            {
+                var tmpAgg = dataSourceRequest.Aggregates.ToArray();
+                dataSourceRequest.Aggregates.Clear();
+                tmpAgg.ForEach(n =>
                 {
                     var rd = columnRedirects(n.Member);
-                    if (!string.IsNullOrEmpty(rd))
+                    if (rd != null && rd.Length != 0)
                     {
-                        n.Member = rd;
+                        dataSourceRequest.Aggregates.AddRange(rd.Select(t =>
+                        {
+                            var ret = new AggregateDescriptor
+                            {
+                                Member = t
+                            };
+                            ret.Aggregates.AddRange(n.Aggregates);
+                            return ret;
+                        }));
+                    }
+                    else
+                    {
+                        dataSourceRequest.Aggregates.Add(n);
                     }
                 });
-            dataSourceRequest.Aggregates.Where(n => n.Member == UnapplyableFilterName).ToArray().ForEach(descriptor =>
-                dataSourceRequest.Aggregates.Remove(descriptor));
+                dataSourceRequest.Aggregates.Where(n => n.Member == UnapplyableFilterName).ToArray()
+                    .ForEach(descriptor =>
+                        dataSourceRequest.Aggregates.Remove(descriptor));
 
 
-
-                dataSourceRequest.Groups.ForEach(n =>
+                var tmpGrps = dataSourceRequest.Groups.ToArray();
+                dataSourceRequest.Groups.Clear();
+                tmpGrps.ForEach(n =>
                 {
                     var rd = columnRedirects(n.Member);
-                    if (!string.IsNullOrEmpty(rd))
+                    if (rd != null && rd.Length != 0)
                     {
-                        n.Member = rd;
+                        dataSourceRequest.Groups.AddRange(rd.Select(t =>
+                        {
+                            var ret = new GroupDescriptor
+                            {
+                                Member = t,
+                                DisplayContent = n.DisplayContent,
+                                MemberType = n.MemberType,
+                                SortCompare = n.SortCompare,
+                                SortDirection = n.SortDirection
+
+                            };
+
+                            ret.AggregateFunctions.AddRange(n.AggregateFunctions);
+                            return ret;
+                        }));
+                    }
+                    else
+                    {
+                        dataSourceRequest.Groups.Add(n);
                     }
                 });
+
                 dataSourceRequest.Groups.Where(n => n.Member == UnapplyableFilterName).ToArray().ForEach(descriptor =>
                     dataSourceRequest.Groups.Remove(descriptor));
 
-            dataSourceRequest.Sorts.ForEach(n =>
+                var tmpSorts = dataSourceRequest.Sorts.ToArray();
+                dataSourceRequest.Sorts.Clear();
+
+                tmpSorts.ForEach(n =>
                 {
                     var rd = columnRedirects(n.Member);
-                    if (!string.IsNullOrEmpty(rd))
+                    if (rd != null && rd.Length != 0)
                     {
-                        n.Member = rd;
+                        dataSourceRequest.Sorts.AddRange(rd.Select(t =>
+                        {
+                            var ret = new SortDescriptor
+                            {
+                                Member = t,
+                                SortDirection = n.SortDirection,
+                                SortCompare = n.SortCompare
+                            };
+
+                            return ret;
+                        }));
+                    }
+                    else
+                    {
+                        dataSourceRequest.Sorts.Add(n);
                     }
                 });
+
                 dataSourceRequest.Sorts.Where(n => n.Member == UnapplyableFilterName).ToArray().ForEach(descriptor =>
                     dataSourceRequest.Sorts.Remove(descriptor));
 
-            dataSourceRequest.Filters.ProcessFilters(columnRedirects);
+                dataSourceRequest.Filters.ProcessFilters(columnRedirects);
 
                 return dataSourceRequest;
             }
 
-            private static void ProcessFilters(this IList<IFilterDescriptor> descriptors, Func<string, string> columnRedirects)
+            private static void ProcessFilters(this IList<IFilterDescriptor> descriptors,
+                Func<string, string[]> columnRedirects)
             {
-                List<IFilterDescriptor> rems = new List<IFilterDescriptor>();
-                foreach (var descriptor in descriptors)
+                var descArr = descriptors.ToArray();
+                descriptors.Clear();
+                foreach (var descriptor in descArr)
                 {
                     if (descriptor is CompositeFilterDescriptor cfd)
                     {
                         cfd.FilterDescriptors.ProcessFilters(columnRedirects);
-                        if (cfd.FilterDescriptors.Count == 0)
+                        if (cfd.FilterDescriptors.Count != 0)
                         {
-                            rems.Add(cfd);
+                            descriptors.Add(descriptor);
                         }
                     }
                     else if (descriptor is FilterDescriptor fd)
                     {
                         var rd = columnRedirects(fd.Member);
-                        if (!string.IsNullOrEmpty(rd))
+                        if (rd != null && rd.Length != 0) // !string.IsNullOrEmpty(rd))
                         {
-                            fd.Member = rd;
-                        }
+                            var tmp = rd.Where(n => n != UnapplyableFilterName)
+                                .Select(n =>
+                                {
+                                    var ret = new FilterDescriptor(n, fd.Operator, fd.Value);
+                                    ret.MemberType = fd.MemberType;
+                                    ret.CaseSensitiveFilter = fd.CaseSensitiveFilter;
+                                    return ret;
+                                }).ToArray();
+                            if (tmp.Length > 1)
+                            {
+                                var cpi = new CompositeFilterDescriptor
+                                {
+                                    CaseSensitiveFilter = fd.CaseSensitiveFilter,
+                                    LogicalOperator = FilterCompositionLogicalOperator.Or
+                                };
 
-                        if (fd.Member == UnapplyableFilterName)
+                                cpi.FilterDescriptors.AddRange(tmp);
+                                descriptors.Add(cpi);
+                            }
+                            else if (tmp.Length == 1)
+                            {
+                                descriptors.Add(tmp.First());
+                            }
+                            //fd.Member = rd;
+                        }
+                        else
                         {
-                            rems.Add(fd);
+                            descriptors.Add(descriptor);
                         }
                     }
                     else
@@ -669,8 +764,6 @@
                             $"Unsupported descriptor-Type: {descriptor.GetType().FullName}");
                     }
                 }
-
-                rems.ForEach(descriptor => descriptors.Remove(descriptor));
             }
 
             private static string CreateFilterScriptFor(string repoName, string tableName, string memberName,

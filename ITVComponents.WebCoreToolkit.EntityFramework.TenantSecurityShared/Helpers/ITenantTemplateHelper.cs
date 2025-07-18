@@ -22,7 +22,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         
         TenantTemplateMarkup ExtractTemplate(TTenant tenant);
 
-        void ApplyAllTenantsFor(int tenantTemplateId);
+        void ApplyAllTenantsFor(int tenantTypeId);
 
         void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template);
 

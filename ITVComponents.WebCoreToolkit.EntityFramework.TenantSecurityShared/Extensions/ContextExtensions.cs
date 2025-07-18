@@ -441,7 +441,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
                     TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig>>();
             if (tenantType.TenantTemplateId != null)
             {
-                tth.ApplyAllTenantsFor(tenantType.TenantTemplateId.Value);
+                tth.ApplyAllTenantsFor(tenantType.TenantTypeId);
             }
             /* var ctx = services.GetService<TContext>();
              ctx.ChangeTracker.AutoDetectChangesEnabled = false;*/

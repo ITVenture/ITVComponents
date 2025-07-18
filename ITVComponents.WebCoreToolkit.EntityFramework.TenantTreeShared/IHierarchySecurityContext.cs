@@ -79,12 +79,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
         where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
     {
-        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTree")]
-        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string userId, bool userIdIsLabels, string? leafTenant);
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForId")]
+        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string userId, string? leafTenant);
 
-        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string[] userLabels, string leafTenant) =>
-            GetUpwardsTenantUserRoles(JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), true,
-                leafTenant);
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForLabels")]
+        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserLabelsRoles(string userLabelsJson,
+            string? leafTenant);
+
+        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string[] userLabels, string? leafTenant) =>
+            GetUpwardsTenantUserLabelsRoles(JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), leafTenant);
 
         public IEnumerable<DownwardsUserRoleView<TUserId>> GetDownwardsTenantUserRoles(string userId, bool userIdIsLabels,
             string viewpointTenant);

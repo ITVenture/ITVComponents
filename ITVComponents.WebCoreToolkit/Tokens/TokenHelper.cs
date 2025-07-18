@@ -11,12 +11,12 @@ namespace ITVComponents.WebCoreToolkit.Tokens
 {
     public static class TokenHelper
     {
-        public static string CompressToken<T>(this T token, bool forUrl = true, bool encrypt=true, string password = null, bool useHighCompression = false)
+        public static string CompressToken<T>(this T token, bool forUrl = true, bool encrypt=true, string password = null, bool useHighCompression = false, bool preserveObjectReferences = false)
         {
             using var mst = new MemoryStream();
             using (var dst = new DeflateStream(mst, !useHighCompression?CompressionLevel.Optimal:CompressionLevel.SmallestSize))
             {
-                JsonHelper.WriteObject(token, SerializationTypingMode.StaticTyping, dst);
+                JsonHelper.WriteObject(token, SerializationTypingMode.StaticTyping, dst, preserveReferences: preserveObjectReferences);
             }
 
             byte[] ret = mst.ToArray();
@@ -40,11 +40,13 @@ namespace ITVComponents.WebCoreToolkit.Tokens
             return $"{(encrypt?"c.":"")}{Convert.ToBase64String(ret)}";
         }
 
-        public static T DecompressToken<T>(this string compressedToken, string password = null)
+        public static T DecompressToken<T>(this string compressedToken, string password = null, bool preserveObjectReferences = false)
         {
             var encrypted = compressedToken.StartsWith("c.");
             var str = encrypted ? compressedToken.Substring(2) : compressedToken;
-            byte[] rawDoc = str.IndexOfAny(new[] {'-', '_'}) == -1 ? Convert.FromBase64String(str) : WebEncoders.Base64UrlDecode(str);
+            byte[] rawDoc = str.IndexOfAny(new[] { '+', '/' }) == -1
+                ? WebEncoders.Base64UrlDecode(str)
+                : Convert.FromBase64String(str);
             if (encrypted)
             {
                 if (!string.IsNullOrEmpty(password))
@@ -61,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Tokens
             {
                 using (DeflateStream dfs = new DeflateStream(mst, CompressionMode.Decompress))
                 {
-                    return JsonHelper.ReadObject<T>(dfs, SerializationTypingMode.StaticTyping);
+                    return JsonHelper.ReadObject<T>(dfs, SerializationTypingMode.StaticTyping, preserveObjectReferences);
                 }
             }
         }

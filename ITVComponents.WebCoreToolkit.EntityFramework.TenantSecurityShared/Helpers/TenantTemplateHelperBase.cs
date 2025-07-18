@@ -230,13 +230,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                 "Permitted Roles in different Tenant is not supported with this templateHelper instance.");
         }
 
-        public void ApplyAllTenantsFor(int tenantTemplateId, int tenantTypeId)
+        public void ApplyAllTenantsFor(int tenantTypeId)
         {
             using (new FullSecurityAccessHelper<TTrustConfig>(db,
                        new() { ShowAllTenants = true, HideGlobals = false }))
             {
-                var tp = db.TenantTemplates.First(n => n.TenantTemplateId == tenantTemplateId);
-                var tpi = JsonHelper.FromJsonString<TenantTemplateMarkup>(tp.Markup,
+                var tp = db.TenantTypes.Include(n => n.TenantTemplate).First(n => n.TenantTypeId == tenantTypeId);
+                if (tp.TenantTemplate != null){
+                var tpi = JsonHelper.FromJsonString<TenantTemplateMarkup>(tp.TenantTemplate.Markup,
                     SerializationTypingMode.NativePolymorphism);
                 var tenants = (from t in db.Tenants where t.TenantTypeId == tenantTypeId select t).ToList();
                 var i = 0;
@@ -254,6 +255,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                 }
 
                 db.SaveChanges();
+                }
             }
         }
 

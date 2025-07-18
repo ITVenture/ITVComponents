@@ -65,8 +65,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
         public static void ConfigureUpwardsRoleTree(
             IContextModelBuilderOptions builderOptions)
         {
-            builderOptions.ConfigureDbFunction("GetUpwardsRoleTree",
-                m => m.HasName("GetUpwardsRoleTree"));
+            builderOptions.ConfigureDbFunction("GetUpwardsRoleTreeForId",
+                m => m.HasName("GetUpwardsRoleTreeForId"));
+            builderOptions.ConfigureDbFunction("GetUpwardsRoleTreeForLabels",
+                m => m.HasName("GetUpwardsRoleTreeForLabels"));
             builderOptions.ConfigureEntity<UpwardsRoleUserView<string>>(b => b.HasNoKey());
             /*builderOptions.ConfigureEntity<UpwardsRoleUserView<string>>(pp =>
                 pp.ToTable(GlobalDbObjectNaming.UpwardsRoleTreeView, b => b.ExcludeFromMigrations()).HasNoKey());*/
@@ -155,10 +157,11 @@ select * from @vld", new SqlParameter("@name", name),
             {
                 migrationBuilder.Sql($@"DROP VIEW [{schema}].[UpwardsTenantTree]");
                 migrationBuilder.Sql($@"DROP VIEW [{schema}].[DownwardsTenantTree]");
-                migrationBuilder.Sql($@"DROP FUNCTION [{schema}].[GetUpwardsRoleTree]");
+                //migrationBuilder.Sql($@"DROP FUNCTION [{schema}].[GetUpwardsRoleTree]");
                 migrationBuilder.Sql($@"DROP FUNCTION [{schema}].[GetUpwardsRoleTreeForLabels]");
                 migrationBuilder.Sql($@"DROP FUNCTION [{schema}].[GetUpwardsRoleTreeForId]");
                 migrationBuilder.Sql($@"DROP PROCEDURE [{schema}].[GetDownwardsRoleTreeProc]");
+                migrationBuilder.Sql($@"DROP PROCEDURE [{schema}].[GetChildTenantsWithPermsProc]");
 
             }
             migrationBuilder.Sql($@"CREATE VIEW [{schema}].[UpwardsTenantTree]
@@ -296,6 +299,42 @@ inner join users u on u.id = tu.UserId");
                              
                              end
                              """;
+                var ctwp = """
+                           ALTER procedure [{{schema}}].[GetChildTenantsWithPermsProc]
+                           (
+                               @UserId nvarchar(100),
+                           	@UserIsLabels bit,
+                           	@ViewPointTenantName nvarchar(100),
+                           	@RequiredPermissionArray nvarchar(max)
+                           )
+                           AS
+                           BEGIN
+                               declare @rtQuery table (ViewpointTenantId int, ViewpointTenantName nvarchar(100), TopmostTenantId int, TopmostTenantName nvarchar(100), ChildTenantId int, ChildTenantName nvarchar(100), TenantUserId int, UserId nvarchar(100), ResultingChildRoleId int, ChildLevel int, TopmostParentLevel int)
+                           insert into @rtQuery
+                           exec GetDownwardsRoleTreeProc @pUserId=@userId, @pUserIsLabels=@UserIsLabels, @pViewPoint = @ViewpointTenantName
+                           declare @permRaw table([value] nvarchar(150))
+                           insert into @permRaw ([value]) select value from openjson(@RequiredPermissionArray) with ([value] nvarchar(150) '$')
+                           
+                           declare @perm2T table(permissionId int, tenantId int)
+                           insert into @perm2T select p.PermissionId, r.ChildTenantId TenantId from
+                           @rtQuery r
+                           inner join RolePermissions rp on rp.RoleId = r.ResultingChildRoleId
+                           inner join Permissions p on p.PermissionId = rp.PermissionId
+                           inner join @permRaw rqr on p.PermissionName = rqr.value
+                           union 
+                           select p.PermissionId, r.ChildTenantId TenantId from
+                           @rtQuery r
+                           inner join GlobalToLocalRoles rp on rp.LocalRoleId = r.ResultingChildRoleId
+                           inner join GlobalRolePermissions grp on grp.GlobalRoleId = rp.GlobalRoleId
+                           inner join Permissions p on p.PermissionId = grp.PermissionId
+                           inner join @permRaw rqr on p.PermissionName = rqr.value
+                           
+                           select t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, null TenantPassword, t.TimeZone, t.TenantTypeId, t.TenantDirty 
+                           from @perm2T r
+                           inner join Tenants t on t.TenantId = r.tenantId
+                           group by t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, t.TimeZone, t.TenantTypeId, t.TenantDirty
+                           END
+                           """;
                 var urtIdFunc = $$"""
                                   CREATE FUNCTION [{{schema}}].[GetUpwardsRoleTreeForId] 
                                   (
@@ -322,6 +361,7 @@ inner join users u on u.id = tu.UserId");
                                   inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
                                   inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
                                   where u.id = @userId  and (outermostleaftenantname = @FromLeaf or @FromLeaf is null)
+                                  )
                                   """;
                 var urtLblFunc = $$"""
                                    ALTER FUNCTION [{{schema}}].[GetUpwardsRoleTreeForLabels] 
@@ -350,8 +390,9 @@ inner join users u on u.id = tu.UserId");
                                    inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
                                    inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
                                    where @FromLeaf is null or @FromLeaf = OutermostLeafTenantName
+                                   )
                                    """;
-                var urt = $$"""
+                /*var urt = $$"""
                              CREATE FUNCTION [{{schema}}].[GetUpwardsRoleTree] 
                              (
                              	@UserId NVARCHAR(256),
@@ -369,11 +410,12 @@ inner join users u on u.id = tu.UserId");
                                 end
                                 return
                              end
-                             """;
+                             """;*/
                 migrationBuilder.Sql(urtIdFunc);
                 migrationBuilder.Sql(urtLblFunc);
-                migrationBuilder.Sql(urt);
+                //migrationBuilder.Sql(urt);
                 migrationBuilder.Sql(drt);
+                migrationBuilder.Sql(ctwp);
             }
         }
 

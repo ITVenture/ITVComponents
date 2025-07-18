@@ -1,14 +1,19 @@
 ﻿(function($){
-    $.fn.loadPartial = function(replace, whenDone) {
+    $.fn.loadPartial = function(replace, whenDone, extendViewSource) {
         $.each(this,
             function(index, item) {
                 var that = $(item);
                 var plug = {
                     target: that,
                     url: that.attr("viewSrc"),
-                    load: function() {
+                    extendViewSource: extendViewSource,
+                    load: function () {
+                        var url = plug.url;
+                        if (typeof (plug.extendViewSource) === "function") {
+                            url = plug.extendViewSource.apply(plug, [plug.url]);
+                        }
                         var request = {
-                            url: ITVenture.Helpers.ResolveUrl(plug.url),
+                            url: ITVenture.Helpers.ResolveUrl(url),
                             type: "GET",
                             dataType: "text",
                             success: function(data) {
@@ -32,7 +37,14 @@
                 };
 
                 that.data("viewLoader", plug);
-                plug.load();
+                var defer = false;
+                if (that.attr("deferLoad") != null) {
+                    defer = that.attr("deferLoad").toLowerCase() === "true";
+                }
+
+                if (!defer) {
+                    plug.load();
+                }
             });
         return this;
     }

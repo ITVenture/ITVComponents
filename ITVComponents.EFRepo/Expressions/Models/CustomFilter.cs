@@ -10,8 +10,9 @@ using static Antlr4.Runtime.Atn.SemanticContext;
 
 namespace ITVComponents.EFRepo.Expressions.Models
 {
-    public class CustomFilter<T> : FilterBase
+    public class CustomFilter<T> : FilterBase, IExpressionFilter
     {
+        public Expression FilterExpression => Filter;
         public Expression<Func<T, bool>> Filter { get; set; }
 
         protected override string DescribeFilter()

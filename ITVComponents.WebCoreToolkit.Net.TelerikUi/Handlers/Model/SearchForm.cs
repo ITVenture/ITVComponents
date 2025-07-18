@@ -85,10 +85,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers.Model
                 }).ToArray();
         }
 
-        private static FilterBase ToEfFilters(IList<IFilterDescriptor> filter)
+        public static FilterBase ToEfFilters(IList<IFilterDescriptor> filter, Type entityType = null)
         {
             var l = new List<FilterBase>();
-            l.AddRange(ToEfFilterList(filter));
+            l.AddRange(ToEfFilterList(filter, entityType));
             if (l.Count > 1)
             {
                 return new CompositeFilter
@@ -106,14 +106,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers.Model
             return null;
         }
 
-        private static FilterBase[] ToEfFilterList(IEnumerable<IFilterDescriptor> filter)
+        private static FilterBase[] ToEfFilterList(IEnumerable<IFilterDescriptor> filter, Type entityType)
         {
             var l = new List<FilterBase>();
             foreach (var tmp in filter)
             {
                 if (tmp is CompositeFilterDescriptor cfd)
                 {
-                    var c =  ToEfFilterList(cfd.FilterDescriptors);
+                    var c =  ToEfFilterList(cfd.FilterDescriptors, entityType);
                     if (c.Length > 1)
                     {
                         l.Add(new CompositeFilter
@@ -131,12 +131,20 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers.Model
                 }
                 else if (tmp is FilterDescriptor sfd)
                 {
-                    l.Add(new CompareFilter
+                    if (sfd.Value is not string s || !s.StartsWith("#LQ#"))
                     {
-                        Value = sfd.Value,
-                        Operator = TranslateOp(sfd.Operator),
-                        PropertyName = sfd.Member
-                    });
+                        l.Add(new CompareFilter
+                        {
+                            Value = sfd.Value,
+                            Operator = TranslateOp(sfd.Operator),
+                            PropertyName = sfd.Member
+                        });
+                    }
+                    else
+                    {
+                        var filterText = s.Substring(4);
+                        l.Add(new LinqFilter(filterText, entityType, null));
+                    }
                 }
                 else
                 {

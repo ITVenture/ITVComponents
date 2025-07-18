@@ -1,15 +1,11 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Principal;
-using ITVComponents.EFRepo.DataAnnotations;
+﻿using ITVComponents.EFRepo.DataAnnotations;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
 using ITVComponents.EFRepo.Expressions;
 using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Helpers;
@@ -30,6 +26,11 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Principal;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
 {
@@ -655,10 +656,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             }
         }
 
-        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTree")]
-        public IQueryable<UpwardsRoleUserView<string>> GetUpwardsTenantUserRoles(string userId, bool userIdIsLabels, string? leafTenant)
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForId")]
+        public IQueryable<UpwardsRoleUserView<string>> GetUpwardsTenantUserRoles(string userId, string? leafTenant)
         {
-            return FromExpression(() => GetUpwardsTenantUserRoles(userId, userIdIsLabels, leafTenant));
+            return FromExpression(() => GetUpwardsTenantUserRoles(userId, leafTenant));
+        }
+
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForLabels")]
+        public IQueryable<UpwardsRoleUserView<string>> GetUpwardsTenantUserLabelsRoles(string userLabelsJson, string? leafTenant)
+        {
+            return FromExpression(() => GetUpwardsTenantUserLabelsRoles(userLabelsJson, leafTenant));
         }
 
         public IEnumerable<DownwardsUserRoleView<string>> GetDownwardsTenantUserRoles(string userId, bool userIdIsLabels, string viewpointTenant)

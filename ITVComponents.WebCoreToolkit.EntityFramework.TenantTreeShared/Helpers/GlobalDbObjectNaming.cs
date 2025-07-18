@@ -10,8 +10,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers
     {
         public const string UpwardsTenantTreeView = "UpwardsTenantTree";
         public const string DownwardsTenantTreeView = "DownwardsTenantTree";
-        public const string UpwardsRoleTreeView = "UpwardsRoleTree";
-        public const string DownwardsRoleTreeView = "DownwardsRoleTree";
+        /*public const string UpwardsRoleTreeView = "UpwardsRoleTree";
+        public const string DownwardsRoleTreeView = "DownwardsRoleTree";*/
+        //public const string Get
         public const string ChildTenantsWithProc = "ChildTenantsWith";
     }
 }

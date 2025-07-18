@@ -58,16 +58,21 @@ namespace ITVComponents.EFRepo.Expressions
             {
                 return BuildCompare<T>(cop, parameter, redirectColumnName, useProperty, reconfigureFilter);
             }
-            else if (resultingFilter is CustomFilter<T> cut)
+            else if (resultingFilter is IExpressionFilter exf)
+            {
+                return ParameterReplaceVisitor.ReplaceFuncParams(exf.FilterExpression,
+                    parameter);
+            }
+                /*if (resultingFilter is CustomFilter<T> cut)
             {
                 return ParameterReplaceVisitor.ReplaceFuncParams(cut.Filter,
                     parameter); //Expression.Invoke(cut.Filter, parameter);
             }
             else if (resultingFilter is LinqFilter<T> liq)
             {
-                return ParameterReplaceVisitor.ReplaceFuncParams(liq.Filter,
+                return ParameterReplaceVisitor.ReplaceFuncParams(liq.FilterExpression,
                     parameter); //Expression.Invoke(liq.Filter, parameter);
-            }
+            }*/
 
             throw new InvalidOperationException("Invalid Filter object");
         }

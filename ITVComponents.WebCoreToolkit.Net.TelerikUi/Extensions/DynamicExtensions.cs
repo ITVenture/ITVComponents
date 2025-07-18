@@ -118,6 +118,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
                 Operator = Enum.Parse<CompareOperator>(fi.BinaryOp),
                 Value = fi.Value
             };
+
+            
         }
     }
 }

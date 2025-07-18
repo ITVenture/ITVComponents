@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.DIServices;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
@@ -15,19 +16,23 @@ namespace ITVComponents.WebCoreToolkit.Cookies
     {
         private readonly IHttpContextAccessor httpContext;
         private readonly IOptions<DefaultCookieOptions> options;
-
+        private IObjectProvider ObjectProvider => httpContext.HttpContext?.RequestServices.GetObjectProvider("ITVWCT:DCS:Buffer", null);
         public DefaultCookieService(IHttpContextAccessor httpContext, IOptions<DefaultCookieOptions> options)
         {
             this.httpContext = httpContext;
             this.options = options;
         }
 
+        public bool ServerCookiesSupported => ObjectProvider != null;
+
+        public bool Ready => httpContext.HttpContext != null;
+
         public bool TryGetCookie(string cookieKey, out string cookieValue)
         {
+            var objectProvider = ObjectProvider;
             var tmp = httpContext.HttpContext.Request.Cookies.TryGetValue(cookieKey, out cookieValue);
             if (tmp && CookieBufferHelper.IsBufferCookie(cookieValue, "DCMB", out var guid, out var validity))
             {
-                var objectProvider = httpContext.HttpContext.RequestServices.GetObjectProvider("ITVWCT:DCS:Buffer", null);
                 if (tmp=(objectProvider != null))
                 {
                     cookieValue = objectProvider.GetBufferedValue<string>($"{guid:N}", out var tmpVal);
@@ -38,11 +43,11 @@ namespace ITVComponents.WebCoreToolkit.Cookies
             return tmp;
         }
 
-        public void SetCookie(string cookieKey, string cookieValue, CookieOptions cookieOptions = null)
+        public void SetCookie(string cookieKey, string cookieValue, CookieOptions cookieOptions = null, CookieStrategy preferredStrategy = CookieStrategy.Client)
         {
+            var objectProvider = ObjectProvider;
             var opt = options.Value;
-            var objectProvider = httpContext.HttpContext.RequestServices.GetObjectProvider("ITVWCT:DCS:Buffer", null);
-            if (objectProvider != null && cookieValue.Length > opt.LengthToBufferThreashold)
+            if (objectProvider != null && (preferredStrategy == CookieStrategy.Server || cookieValue.Length > opt.LengthToBufferThreashold))
             {
                 var id = CookieBufferHelper.CreateBufferCookieTag("DCMB", cookieOptions, opt.BufferValidityDays,
                     out var validity, out var guid);
