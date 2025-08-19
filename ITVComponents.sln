@@ -181,6 +181,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.StateMachine"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.StateMachine.PluginDriven", "ITVComponents.StateMachine.PluginDriven\ITVComponents.StateMachine.PluginDriven.csproj", "{2AB2C0E0-AB06-8E3B-2832-A726C22C28EA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.Blazor", "ITVComponents.WebCoreToolkit.Blazor\ITVComponents.WebCoreToolkit.Blazor.csproj", "{A3B77529-9206-568D-2608-CA227EEC66BC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.Blazor.TelerikUi", "ITVComponents.WebCoreToolkit.Blazor.TelerikUi\ITVComponents.WebCoreToolkit.Blazor.TelerikUi.csproj", "{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -901,12 +905,27 @@ Global
 		{2AB2C0E0-AB06-8E3B-2832-A726C22C28EA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2AB2C0E0-AB06-8E3B-2832-A726C22C28EA}.Release|x86.ActiveCfg = Release|Any CPU
 		{2AB2C0E0-AB06-8E3B-2832-A726C22C28EA}.Release|x86.Build.0 = Release|Any CPU
+		{A3B77529-9206-568D-2608-CA227EEC66BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3B77529-9206-568D-2608-CA227EEC66BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3B77529-9206-568D-2608-CA227EEC66BC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A3B77529-9206-568D-2608-CA227EEC66BC}.Debug|x86.Build.0 = Debug|Any CPU
+		{A3B77529-9206-568D-2608-CA227EEC66BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3B77529-9206-568D-2608-CA227EEC66BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3B77529-9206-568D-2608-CA227EEC66BC}.Release|x86.ActiveCfg = Release|Any CPU
+		{A3B77529-9206-568D-2608-CA227EEC66BC}.Release|x86.Build.0 = Release|Any CPU
+		{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}.Debug|x86.Build.0 = Debug|Any CPU
+		{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}.Release|x86.ActiveCfg = Release|Any CPU
+		{9B23E280-2E13-2FC2-8085-FEE8ADC1165D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {59B2EC7C-8ADB-4070-A165-6B52F6B04012}
-		RESX_CodeReferences = {"Items":[{"Expression":"\\W($File.$Key)\\W","Extensions":".cs,.xaml,.cshtml","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"\\W($File.$Key)\\W","Extensions":".vbhtml","IsCaseSensitive":false,"SingleLineComment":null},{"Expression":"ResourceManager.GetString\\(\"($Key)\"\\)","Extensions":".cs","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"typeof\\((\\w+\\.)*($File)\\).+\"($Key)\"|\"($Key)\".+typeof\\((\\w+\\.)*($File)\\)","Extensions":".cs","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"\\W($Key)\\W","Extensions":".vb","IsCaseSensitive":false,"SingleLineComment":"'"},{"Expression":"\\W($File::$Key)\\W","Extensions":".cpp,.c,.hxx,.h","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"&lt;%\\$\\s+Resources:\\s*($File)\\s*,\\s*($Key)\\s*%&gt;","Extensions":".aspx,.ascx,.master","IsCaseSensitive":true,"SingleLineComment":null},{"Expression":"StringResourceKey\\.($Key)","Extensions":".cs","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"\\.($Key)","Extensions":".ts,.html","IsCaseSensitive":true,"SingleLineComment":"\/\/"},{"Expression":"\\w+\\[\"($Key)\"(\\]|\\,[^\\]]+)","Extensions":".cs,.xaml,.cshtml","IsCaseSensitive":true,"SingleLineComment":"\/\/"}]}
 	EndGlobalSection
 EndGlobal

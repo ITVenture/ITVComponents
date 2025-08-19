@@ -1,0 +1,34 @@
+﻿@using ITVComponents.WebCoreToolkit.Blazor.Configuration
+@using Microsoft.Extensions.Options
+@inject IOptions<StubComponentConfiguration> config
+
+@if (GetTargetType() != null)
+{
+    <DynamicComponent Type="@stubType" Parameters="@Parameters"></DynamicComponent>
+}
+else
+{
+    <p class="text-danger">Stub component '@StubName' not found.</p>
+}
+
+
+@code
+{
+    [Parameter]
+    public string StubName { get; set; }
+
+    [Parameter]
+    public IDictionary<string,object> Parameters { get; set; }
+
+    private Type? stubType;
+
+    private Type? GetTargetType()
+    {
+        if (string.IsNullOrEmpty(StubName))
+        {
+            return null;
+        }
+        stubType = config.Value.GetStubComponentType(StubName);
+        return stubType;
+    }
+}

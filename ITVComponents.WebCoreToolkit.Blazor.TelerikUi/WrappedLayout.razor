@@ -1,0 +1,13 @@
+﻿@typeparam TInteractiveWrapper where TInteractiveWrapper : InteractiveWrapper
+@using System.Text
+@inherits LayoutComponentBase
+
+<DynamicComponent Type="@typeof(TInteractiveWrapper)" Parameters="@dc"></DynamicComponent>
+
+@code
+{
+    private IDictionary<string, object> dc => new Dictionary<string, object>
+    {
+        { "ChildContent", Body }
+    };
+}
