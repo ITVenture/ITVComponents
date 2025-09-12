@@ -31,7 +31,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         where TSequence : Sequence<TTenant>
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>, new()
-        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
     {
         private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db;
 

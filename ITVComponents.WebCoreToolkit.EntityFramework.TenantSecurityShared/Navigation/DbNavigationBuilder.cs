@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Options;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
 using Microsoft.Extensions.Options;
@@ -57,7 +58,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
         where TSequence : Sequence<TTenant>
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
         where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -65,13 +66,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
         private readonly ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext;
         protected readonly IServiceProvider services;
         protected readonly IPermissionScope permissionScope;
+        private readonly IHttpContextAccessor httpContext;
         private readonly IOptions<ToolkitPolicyOptions> options;
 
-        protected DbNavigationBuilder(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext, IServiceProvider services, IPermissionScope permissionScope, IOptions<ToolkitPolicyOptions> options)
+        protected DbNavigationBuilder(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext, IServiceProvider services, IPermissionScope permissionScope, IHttpContextAccessor httpContext, IOptions<ToolkitPolicyOptions> options)
         {
             this.securityContext = securityContext;
             this.services = services;
             this.permissionScope = permissionScope;
+            this.httpContext = httpContext;
             this.options = options;
         }
 
@@ -107,11 +110,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
                 if ((!options.Value.CheckPermissions || string.IsNullOrEmpty(ret.RequiredPermission) || services.VerifyUserPermissions(new[] {ret.RequiredPermission})) &&
                     (!options.Value.CheckFeatures || string.IsNullOrEmpty(ret.RequiredFeature) || services.VerifyActivatedFeatures(new[]{ret.RequiredFeature}, out _)))
                 {
-                    if (string.IsNullOrEmpty(item.Url))
-                    {
-                        ret.Children.AddRange(SelectNavigation(item.NavigationMenuId,explicitTenant));
-                    }
-                    else
+                    ret.Children.AddRange(SelectNavigation(item.NavigationMenuId,explicitTenant));
+                    if (!string.IsNullOrEmpty(item.Url))
                     {
                         var queryName = $"counter4{item.Url.Replace("/","_")}";
                         var qry = securityContext.TenantDiagnosticsQueries
@@ -120,7 +120,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
                         if (qry != null && services.VerifyUserPermissions(new []{qry.Permission.PermissionName}))
                         {
                             var ctx = services.ContextForDiagnosticsQuery(queryName, null, out var def);
-                            var l = ctx.RunDiagnosticsQuery(def, new Dictionary<string, object>()).Cast<object>().FirstOrDefault();
+                            var l = ctx.RunDiagnosticsQuery(def, httpContext.HttpContext, new Dictionary<string, object>()).Cast<object>().FirstOrDefault();
                             if (l != null)
                             {
                                 ret.CounterVal = $"{l}";

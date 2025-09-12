@@ -63,10 +63,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 }
                 else
                 {
-                    if (!cfg.References.Contains(reference, StringComparer.OrdinalIgnoreCase))
-                    {
-                        cfg.References.Add(reference);
-                    }
+                    cfg.AddReference(reference);
                 }
             }
         }
@@ -83,18 +80,15 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             {
                 if (usingParam.StartsWith("using "))
                 {
-                    usingParam = usingParam.Substring(6);
+                    usingParam = usingParam.Substring(6).Trim();
                 }
 
                 if (usingParam.EndsWith(";"))
                 {
-                    usingParam = usingParam.Substring(0, usingParam.Length - 1);
+                    usingParam = usingParam.Substring(0, usingParam.Length - 1).Trim();
                 }
 
-                if (!cfg.Usings.Contains(usingParam, StringComparer.OrdinalIgnoreCase))
-                {
-                    cfg.Usings.Add(usingParam);
-                }
+                cfg.AddUsing(usingParam);
             }
         }
 
@@ -158,7 +152,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             }
 
             string roslynHash = GetFlatString(expression);
-            var roslynScript = cfg.Scripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
+            var roslynScript = cfg.GetOrAddScript(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
                 ScriptOptions scriptoptions;
                 lock (cfg)
@@ -208,7 +202,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             }
 
             string roslynHash = GetFlatString(expression);
-            var roslynScript = cfg.Scripts.GetOrAdd(roslynHash, new Lazy<ScriptRunner<object>>(() =>
+            var roslynScript = cfg.GetOrAddScript(roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
                 ScriptOptions scriptoptions;
                 lock (cfg)
@@ -257,7 +251,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             }
 
             string roslynHash = GetFlatString(expression);
-            var roslynScript = cfg.ExpressionBuilders.GetOrAdd(roslynHash, new Lazy<LambdaHolder>(() =>
+            var roslynScript = cfg.GetOrAddExpressionBuilder(roslynHash, new Lazy<LambdaHolder>(() =>
             {
                 ScriptOptions scriptoptions;
                 lock (cfg)
@@ -450,12 +444,12 @@ namespace ITVComponents.Scripting.CScript.Core.Native
 
                     if (assemblyName != sysAssembly && !cfg.References.Contains(assemblyName) && !string.IsNullOrEmpty(assemblyName))
                     {
-                        cfg.References.Add(assemblyName);
+                        cfg.AddReference(assemblyName);
                     }
 
                     if (usings && !cfg.Usings.Contains(nameSpace) && !string.IsNullOrEmpty(nameSpace))
                     {
-                        cfg.Usings.Add(nameSpace);
+                        cfg.AddUsing(nameSpace);
                     }
                 }
             }

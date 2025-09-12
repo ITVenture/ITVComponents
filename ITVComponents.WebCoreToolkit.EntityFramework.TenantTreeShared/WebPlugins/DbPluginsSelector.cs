@@ -25,7 +25,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
     where TSequence : Sequence<TTenant>
     where TTenantSetting : HierarchyTenantSetting<TTenant>
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-    where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
+    where TTrustConfig : HierarchyTenantContextSecurityTrustConfig<TTrustConfig>, new()
     {
         private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext;
         private readonly IPermissionScope scopeProvider;

@@ -20,10 +20,11 @@ namespace ITVComponents.Helpers
             return new List<T> {firstItem};
         }
 
-        public static void AddIfMissing<T>(this IList<T> list, T item, bool omitDefault = false)
+        public static bool AddIfMissing<T>(this IList<T> list, T item, bool omitDefault = false)
         {
             var eq = EqualityComparer<T>.Default;
             var isDefault = eq.Equals(item, default(T));
+            var retVal = false;
             if (!isDefault || !omitDefault)
             {
                 if (list.All(n =>
@@ -35,8 +36,11 @@ namespace ITVComponents.Helpers
                     }))
                 {
                     list.Add(item);
+                    retVal = true;
                 }
             }
+
+            return retVal;
         }
     }
 }

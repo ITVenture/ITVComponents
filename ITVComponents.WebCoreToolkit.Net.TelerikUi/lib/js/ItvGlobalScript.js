@@ -11,6 +11,13 @@ window.ITVenture = {
 
             ITVenture.Text[lng][label] = text;
         },
+        setTexts: function (label, texts) {
+            for (var lng in texts) {
+                if (texts.hasOwnProperty(lng) && lng != "default") {
+                    ITVenture.Text.setText(lng, label, texts[lng]);
+                }
+            }
+        },
         getText: function (label, defaultValueOrValues) {
             var lng = ITVenture.Lang; //.toUpperCase();
             if ((!ITVenture.Text.hasOwnProperty(lng) ||
@@ -43,6 +50,14 @@ window.ITVenture = {
             }
 
             return messageObject;
+        },
+        getLocaleMessageOrDefault(messageObject, messageArguments) {
+            var retVal = ITVenture.Text.getLocaleMessage(messageObject, messageArguments);
+            if (typeof (retVal) === "object" && retVal.hasOwnProperty("default")) {
+                retVal = retVal.default;
+            }
+
+            return retVal;
         },
         processMessage: function (label, messageSource, messageArguments) {
             var retVal = label;

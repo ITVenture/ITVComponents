@@ -71,7 +71,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         where TTenantSetting : HierarchyTenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
-        where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
+        where TTrustConfig : HierarchyTenantContextSecurityTrustConfig<TTrustConfig>, new()
         where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>

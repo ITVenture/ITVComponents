@@ -56,7 +56,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -127,7 +127,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -200,7 +200,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -273,7 +273,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -346,7 +346,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -419,7 +419,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -492,7 +492,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -565,7 +565,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -639,7 +639,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -712,7 +712,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -788,7 +788,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -861,7 +861,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TSequence : Sequence<TTenant>
             where TTenantSetting : TenantSetting<TTenant>
             where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
             where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>

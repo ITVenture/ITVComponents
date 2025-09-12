@@ -79,15 +79,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.GlobalFi
                 o.ConfigureGlobalFilter<TWebPlugin>(wp => ShowAllTenants || !FilterAvailable || !IncludeParentTree && wp.TenantId != null && wp.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && wp.TenantId != null && CurrentTenantTree.Contains(wp.TenantId.Value) || wp.TenantId == null && !HideGlobals);
                 o.ConfigureGlobalFilter<TWebPluginGenericParameter>(wp => ShowAllTenants || !FilterAvailable || !IncludeParentTree && wp.Plugin.TenantId != null && wp.Plugin.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && wp.Plugin.TenantId != null && CurrentTenantTree.Contains(wp.Plugin.TenantId.Value) || wp.Plugin.TenantId == null && !HideGlobals);
                 o.ConfigureGlobalFilter<TWebPluginConstant>(wc => ShowAllTenants || !FilterAvailable || !IncludeParentTree && wc.TenantId != null && wc.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && wc.TenantId != null && CurrentTenantTree.Contains(wc.TenantId.Value) || wc.TenantId == null && !HideGlobals);
-                o.ConfigureGlobalFilter<TWidget>(dw => ShowAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TWidgetParam>(dw => ShowAllTenants || !FilterAvailable || dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TUserWidget>(uw => ShowAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) && uw.Tenant.TenantName == CurrentTenant && uw.UserName == CurrentUserName));
+                o.ConfigureGlobalFilter<TWidget>(dw => ShowAllTenants || !FilterAvailable || !IncludeParentTree && dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) || IncludeParentTree && dw.DiagnosticsQuery.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId)));
+                o.ConfigureGlobalFilter<TWidgetParam>(dw => ShowAllTenants || !FilterAvailable || !IncludeParentTree && dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) || IncludeParentTree && dw.Parent.DiagnosticsQuery.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId)));
+                o.ConfigureGlobalFilter<TUserWidget>(uw => ShowAllTenants || !FilterAvailable || (!IncludeParentTree && uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) || IncludeParentTree && uw.Widget.DiagnosticsQuery.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId))) && uw.Tenant.TenantName == CurrentTenant && uw.UserName == CurrentUserName);
                 o.ConfigureGlobalFilter<TTenantFeatureActivation>(fa => ShowAllTenants || !FilterAvailable || fa.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TClientAppUser>(ca => ShowAllTenants || !FilterAvailable || ca.TenantUser.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TSequence>(sq => ShowAllTenants || !FilterAvailable || !IncludeParentTree && sq.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && CurrentTenantTree.Contains(sq.TenantId));
                 ConfigureTrees<TContext, TUserId>(o);
             });
-        }
+        } 
 
         public static MethodInfo GetConfigureMethod(Dictionary<Type,Dictionary<string, Type>> genericArguments)
         {

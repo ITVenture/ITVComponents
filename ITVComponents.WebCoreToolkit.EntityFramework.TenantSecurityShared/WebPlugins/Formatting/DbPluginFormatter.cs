@@ -26,7 +26,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         where TSequence : Sequence<TTenant>
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
 
     {
         private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context;

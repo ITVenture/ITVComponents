@@ -73,7 +73,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         private readonly IPermissionScope tenantProvider;
         private readonly bool useFilters = false;
         private readonly IContextUserProvider userProvider;
-
+        private Dictionary<string, bool> componentSpecialTrusts;
         private bool hideDisabledUsers = true;
         private bool hideGlobals = false;
         private bool showAllTenants = false;
@@ -261,9 +261,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         public bool HideGlobals
         {
             get => hideGlobals;
-            set
-            {
-                if (value != hideGlobals)
+            set => hideGlobals = value;
+            /*if (value != hideGlobals)
                 {
                     var tmp = hideGlobals;
                     hideGlobals = value;
@@ -272,8 +271,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                     {
                         hideGlobals = tmp;
                     }
-                }
-            }
+                }*/
         }
 
         public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
@@ -562,11 +560,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
 
         public DbSet<DashboardWidget> Widgets { get; set; }
 
+        IDictionary<string, bool> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.ComponentSpecialTrusts => componentSpecialTrusts;
+
         void ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.ApplyTrust(
             BaseTenantContextSecurityTrustConfig desiredTrust)
         {
             showAllTenants = desiredTrust.ShowAllTenants;
             hideGlobals = desiredTrust.HideGlobals;
+            componentSpecialTrusts = desiredTrust.SpecialFilterSettings == null
+                ? null
+                : new Dictionary<string, bool>(desiredTrust.SpecialFilterSettings);
         }
 
         BaseTenantContextSecurityTrustConfig ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.GetReverseTrust(
@@ -575,7 +578,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             return new BaseTenantContextSecurityTrustConfig
             {
                 HideGlobals = hideGlobals,
-                ShowAllTenants = showAllTenants
+                ShowAllTenants = showAllTenants,
+                SpecialFilterSettings = componentSpecialTrusts == null
+                    ? null
+                    : new Dictionary<string, bool>(componentSpecialTrusts)
             };
         }
 

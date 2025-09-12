@@ -4,12 +4,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Security.PermissionFlagging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces
 {
-    public interface ITrustfulComponent<TTrustConfig> where TTrustConfig : class, new()
+    public interface ITrustfulComponent<TTrustConfig>:ITrustfulComponent where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
     {
         protected Stack<FullSecurityAccessHelper<TTrustConfig>> securityStateStack { get; }
+
+        protected IDictionary<string,bool> ComponentSpecialTrusts { get; }
         protected static void CheckSecurityRollbackObject(FullSecurityAccessHelper<TTrustConfig> fullSecurityAccessHelper)
         {
             
@@ -43,6 +46,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             {
                 throw new InvalidOperationException("Invalid Disposal-order!");
             }
+        }
+
+        bool ITrustfulComponent.IsComponentSecureFor(string topic)
+        {
+            return ComponentSpecialTrusts != null && ComponentSpecialTrusts.TryGetValue(topic, out var retVal) &&
+                   retVal;
         }
 
         protected void ApplyTrust(TTrustConfig trust);

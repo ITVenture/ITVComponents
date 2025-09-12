@@ -24,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
     where TSequence:Sequence<TTenant>
     where TTenantSetting: TenantSetting<TTenant>
     where TTenantFeatureActivation: TenantFeatureActivation<TTenant>
-    where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+    where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
     {
         /// <summary>
         /// Gets the Id of the current Tenant. If no TenantProvider was provided, this value is null.

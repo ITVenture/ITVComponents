@@ -25,7 +25,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Health
 {
-    public class ScriptedHealthCheck<TTrustConfig> : IHealthCheck where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+    public class ScriptedHealthCheck<TTrustConfig> : IHealthCheck where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
     {
         private readonly IServiceProvider services;
 

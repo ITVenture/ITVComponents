@@ -582,6 +582,7 @@ namespace ITVComponents.Json
             if (strongTypeMode == SerializationTypingMode.StaticTyping)
             {
                 tmp.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
+                
             }
 
             return tmp;

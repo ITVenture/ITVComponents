@@ -17,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         where TSequence : Sequence<TTenant>
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation: TenantFeatureActivation<TTenant>
-        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
     {
         
         TenantTemplateMarkup ExtractTemplate(TTenant tenant);

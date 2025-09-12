@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Tokens;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -97,7 +98,8 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling.Special
             var queryName = data["$$QUERYNAME"];
             var area = data["$$QUERYAREA"];
             var ctx = services.ContextForDiagnosticsQuery(queryName, area, out var query);
-            var result = ctx.RunDiagnosticsQuery(query, data).Cast<object>().ToArray();
+            var httpContext = services.GetService<IHttpContextAccessor>();
+            var result = ctx.RunDiagnosticsQuery(query, httpContext?.HttpContext, data).Cast<object>().ToArray();
             return await MaterializeQueryData(result, queryName, downloadingIdentity);
         }
 

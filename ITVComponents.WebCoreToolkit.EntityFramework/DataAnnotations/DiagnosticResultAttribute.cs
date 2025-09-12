@@ -9,6 +9,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
 {
@@ -47,7 +49,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
 
                 if (context != null)
                 {
-                    return context.RunDiagnosticsQuery(qr, options.Arguments).Cast<object>().FirstOrDefault();
+                    var httpContext = services.GetService<IHttpContextAccessor>();
+                    return context.RunDiagnosticsQuery(qr, httpContext?.HttpContext, options.Arguments).Cast<object>().FirstOrDefault();
                     /*if (p.Property.PropertyType == typeof(SimpleTriStateResult))
                     {
                         p.Property.SetValue(ret, context.RunDiagnosticsQuery(qr, queryArguments).Cast<SimpleTriStateResult>().FirstOrDefault());

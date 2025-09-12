@@ -39,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Opt
             //Page = "Account/ExternalLogin",
             Controller="Registration",
             Action= "LoginExternal",
-            PostToController = true
+            PostToController = true,
         };
     }
 }

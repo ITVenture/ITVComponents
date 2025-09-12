@@ -9,6 +9,7 @@ using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
+using Microsoft.AspNetCore.Http;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
 {
@@ -21,13 +22,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             this.src = src;
         }
         
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, string> queryArguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, HttpContext httpContext, IDictionary<string, string> queryArguments)
         {
             var arguments = DiagnoseQueryHelper.BuildArguments(query, queryArguments);
             return src.SqlQuery(query.QueryText, arguments);
         }
 
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, HttpContext httpContext, IDictionary<string, object> arguments)
         {
             var arg = DiagnoseQueryHelper.VerifyArguments(query, arguments);
             return src.SqlQuery(query.QueryText, arg);

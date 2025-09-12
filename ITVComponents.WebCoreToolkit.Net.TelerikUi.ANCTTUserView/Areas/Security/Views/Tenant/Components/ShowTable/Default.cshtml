@@ -39,9 +39,9 @@
             columns.Bound(c => c.TenantName).Title(TextsAndMessagesHelper.IWCN_General_SystemName);
             if (ViewData["userId"] == null && ViewData["navigationMenuId"] == null && ViewData["diagnosticsQueryId"] == null)
             {
-                columns.AjaxFk(c => c.ParentTenantId, "sys", "Tenants", "TenantId", new { CurrentTenantId = "#=TenantId#" });
+                columns.AjaxFk(c => c.ParentTenantId, "sys", "Tenants", "TenantId", new { CurrentTenantId = "#=TenantId#" }, filterable:true);
                 columns.ForeignKey(c => c.TimeZone, (IEnumerable<ForeignKeyData<string>>)ViewData["TimeZoneInfo"], "Key", "Label").Title(TextsAndMessagesHelper.IWCN_General_TimeZone);
-                columns.AjaxFk(c => c.TenantTypeId, "sys", "TenantTemplates", "TenantId").Title(TextsAndMessagesHelper.IWCN_Tenant_Type);
+                columns.AjaxFk(c => c.TenantTypeId, "sys", "TenantTemplates", "TenantId", filterable: true).Title(TextsAndMessagesHelper.IWCN_Tenant_Type);
                 if (Context.RequestServices.VerifyUserPermissions(new[] {"Tenants.Write"}))
                 {
                     columns.Command(ga =>

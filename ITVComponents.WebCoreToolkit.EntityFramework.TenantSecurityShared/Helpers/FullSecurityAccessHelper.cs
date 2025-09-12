@@ -3,11 +3,12 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using ITVComponents.Json;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers
 {
-    public sealed class FullSecurityAccessHelper<TTrustConfig>:IDisposable where TTrustConfig : class, new()
+    public sealed class FullSecurityAccessHelper<TTrustConfig>:IDisposable where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
     {
         public TTrustConfig DesiredTrust { get; set; }
         private readonly ITrustfulComponent<TTrustConfig> trustfulTarget;
@@ -54,14 +55,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
                     n.FullQualifiedTypeName == type.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
             }
 
+            var configuredTrust = new TTrustConfig();
             if (cmp != null)
             {
-                TTrustConfig trustConfig =
-                    desiredTrust ?? JsonHelper.FromJsonString<TTrustConfig>(cmp.TrustLevelConfig, SerializationTypingMode.StaticTyping);
-                return new FullSecurityAccessHelper<TTrustConfig>(trustingObject, trustConfig);
+                configuredTrust =
+                    JsonHelper.FromJsonString<TTrustConfig>(cmp.TrustLevelConfig, SerializationTypingMode.StaticTyping);
+                
             }
-
-            throw new InvalidOperationException($"The caller ({type.AssemblyQualifiedName}) is not trusted for {trustingType.AssemblyQualifiedName}!");
+            else
+            {
+                LogEnvironment.LogEvent($"No Trust Configuration found for the caller ({type.AssemblyQualifiedName}). No special permissions will be granted.", LogSeverity.Warning, "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.FullSecurityAccessHelper");
+            }
+                //throw new InvalidOperationException($"The caller ({type.AssemblyQualifiedName}) is not trusted for {trustingType.AssemblyQualifiedName}!");
+                TTrustConfig trustConfig =
+                    desiredTrust ?? configuredTrust;
+            return new FullSecurityAccessHelper<TTrustConfig>(trustingObject, trustConfig.ApplySpecialFilters(configuredTrust));
         }
 
         public void Dispose()

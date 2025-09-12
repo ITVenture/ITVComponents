@@ -21,7 +21,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
     where TSequence : Sequence<TTenant>
     where TTenantSetting : HierarchyTenantSetting<TTenant>, new()
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-    where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
+    where TTrustConfig : HierarchyTenantContextSecurityTrustConfig<TTrustConfig>, new()
     {
         /// <summary>
         /// Holds the db-context with the tenant-settings

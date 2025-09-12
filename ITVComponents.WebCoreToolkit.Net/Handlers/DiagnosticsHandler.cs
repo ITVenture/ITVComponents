@@ -54,7 +54,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 var dbContext = context.RequestServices.ContextForDiagnosticsQuery(diagnosticsQueryName, area, out var diagQuery);
                 if (dbContext != null)
                 {
-                    return Results.Json(dbContext.RunDiagnosticsQuery(diagQuery, queryArg), new JsonSerializerOptions());
+                    return Results.Json(dbContext.RunDiagnosticsQuery(diagQuery, context, queryArg), new JsonSerializerOptions());
                 }
             }
             else

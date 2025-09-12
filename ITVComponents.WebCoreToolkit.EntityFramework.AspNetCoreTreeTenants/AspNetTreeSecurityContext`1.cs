@@ -14,6 +14,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
@@ -59,6 +60,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         private bool showAllTenants = false;
         private int? currentTenantId;
         private string bufferedTenantName;
+        private Dictionary<string, bool> componentSpecialTrusts;
 
         public AspNetTreeSecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions,
             DbContextOptions<TImpl> options) : base(options)
@@ -259,7 +261,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         public bool HideGlobals
         {
             get => hideGlobals;
-            set
+            set => hideGlobals = value;
+            /*set
             {
                 if (value != hideGlobals)
                 {
@@ -271,7 +274,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                         hideGlobals = tmp;
                     }
                 }
-            }
+            }*/
         }
 
         public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
@@ -807,6 +810,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
 
         public DbSet<DashboardWidget> Widgets { get; set; }
 
+        IDictionary<string, bool> ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.ComponentSpecialTrusts => componentSpecialTrusts;
+
         void ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.ApplyTrust(
             HierarchyTenantContextSecurityTrustConfig trust)
         {
@@ -814,6 +819,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             showAllTenants = trust.ShowAllTenants;
             hideGlobals = trust.HideGlobals;
             includeChildTree = trust.IncludeChildTree;
+            componentSpecialTrusts = trust.SpecialFilterSettings == null
+                ? null
+                : new Dictionary<string, bool>(trust.SpecialFilterSettings);
         }
 
         HierarchyTenantContextSecurityTrustConfig ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.
@@ -824,7 +832,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 HideGlobals = hideGlobals,
                 IncludeParentTree = includeParentTree,
                 ShowAllTenants = showAllTenants,
-                IncludeChildTree = includeChildTree
+                IncludeChildTree = includeChildTree,
+                SpecialFilterSettings = componentSpecialTrusts == null
+                    ? null
+                    : new Dictionary<string, bool>(componentSpecialTrusts)
             };
         }
 

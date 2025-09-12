@@ -9,6 +9,7 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionFlagging
 {
     public class PermissionDeterminationDictionary
     {
+        private readonly ITrustfulComponent trustfulComponent;
         private readonly Func<IReadOnlyDictionary<string, string>> getPermissions;
         private readonly IContextUserProvider userProvider;
         private IReadOnlyDictionary<string, string> permissions;
@@ -21,17 +22,21 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionFlagging
             this.userProvider = userProvider;
         }
 
+
+        public PermissionDeterminationDictionary(Func<IReadOnlyDictionary<string, string>> getPermissions,
+            IContextUserProvider userProvider, ITrustfulComponent trustfulComponent) : this(getPermissions,
+            userProvider)
+        {
+            this.trustfulComponent = trustfulComponent;
+        }
+
         public bool this[string key]
         {
             get
             {
-                var t = values.TryGetValue(key, out var v);
-                if (t)
-                {
-                    return v;
-                }
-
-                return false;
+                var trustByC = trustfulComponent != null && trustfulComponent.IsComponentSecureFor(key);
+                var t = trustByC || values.TryGetValue(key, out var v) && v;
+                return t;
             }
             set
             {

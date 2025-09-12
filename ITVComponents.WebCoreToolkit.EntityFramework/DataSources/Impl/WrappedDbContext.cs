@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
@@ -23,14 +24,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             this.cfg = decoratedContext as IForeignKeyProviderWithOptions;
             this.services = services;
         }
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition qr, IDictionary<string, string> queryArguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition qr, HttpContext httpContext, IDictionary<string, string> queryArguments)
         {
-            return decoratedContext.RunDiagnosticsQuery(qr, queryArguments);
+            return decoratedContext.RunDiagnosticsQuery(httpContext, qr, queryArguments);
         }
 
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, HttpContext httpContext, IDictionary<string, object> arguments)
         {
-            return decoratedContext.RunDiagnosticsQuery(query, arguments);
+            return decoratedContext.RunDiagnosticsQuery(httpContext, query, arguments);
         }
 
         public ForeignKeyOptions CustomFkSettings => cfg?.DefaultFkOptions;

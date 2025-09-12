@@ -8,6 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.DiagnosticsQueries
@@ -54,7 +55,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation:TenantFeatureActivation<TTenant>
         where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
-        where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
         where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -71,7 +72,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// </summary>
         /// <param name="queryName">the name of the requested DiagnosticsQuery</param>
         /// <returns>a DiagnosticsQueryDefinition-Object containing all parameters and permissions required to execute it</returns>
-        public DiagnosticsQueryDefinition GetQuery(string queryName)
+        public virtual DiagnosticsQueryDefinition GetQuery(string queryName)
         {
             var dbQuery = dbContext.DiagnosticsQueries.FirstOrDefault(n => n.DiagnosticsQueryName.ToLower() == queryName.ToLower());
             if (dbQuery != null)
@@ -109,7 +110,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// <param name="targetCulture">the culture that is used to select the basic-markup for the requested dashboard-template</param>
         /// <param name="userDashboardId">the id of the user-dashboard that is requested</param>
         /// <returns>the definition of the requested dashboard-item including the permissions required to use it</returns>
-        public DashboardWidgetDefinition GetDashboard(string dashboardName, string targetCulture, int? userDashboardId = null)
+        public virtual DashboardWidgetDefinition GetDashboard(string dashboardName, string targetCulture, int? userDashboardId = null)
         {
             var tmp = dbContext.Widgets.FirstOrDefault(n => n.SystemName == dashboardName);
             var userDash = (userDashboardId != null)
@@ -139,7 +140,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// <param name="userWidgets">the target widgets to add</param>
         /// <param name="userName">the user for which to register these widgets</param>
         /// <returns>an empty task</returns>
-        public async Task<DashboardWidgetDefinition[]> SetUserWidgets(DashboardWidgetDefinition[] widgets, string userName)
+        public virtual async Task<DashboardWidgetDefinition[]> SetUserWidgets(DashboardWidgetDefinition[] widgets, string userName)
         {
             var tmp = dbContext.ShowAllTenants;
             try
@@ -220,7 +221,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// Gets an array containing all defined DashboardWidget-Definitions
         /// </summary>
         /// <returns>an array that contains all known dashboard-templates</returns>
-        public DashboardWidgetDefinition[] GetWidgetTemplates(string targetCulture)
+        public virtual DashboardWidgetDefinition[] GetWidgetTemplates(string targetCulture)
         {
             return (from t in dbContext.Widgets.ToArray()
                 orderby t.DisplayName
@@ -231,7 +232,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// Gets an array containing all User-Widgets
         /// </summary>
         /// <returns>an array that contains all assigned user-widgets.</returns>
-        public DashboardWidgetDefinition[] GetUserWidgets(string userName, string targetCulture)
+        public virtual DashboardWidgetDefinition[] GetUserWidgets(string userName, string targetCulture)
         {
             var tmp = dbContext.ShowAllTenants;
             try
@@ -251,7 +252,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
         /// </summary>
         /// <param name="tmp">the entity from which to create the definition</param>
         /// <returns>a complete widget-definition</returns>
-        private DashboardWidgetDefinition GetDashboardItem(TWidget tmp, TUserWidget userWidget, string targetCulture)
+        private  DashboardWidgetDefinition GetDashboardItem(TWidget tmp, TUserWidget userWidget, string targetCulture)
         {
             IDashboardRawDefinition lng = !string.IsNullOrEmpty(targetCulture)
                 ? tmp.Localizations.FirstOrDefault(n => n.LocaleName == targetCulture)
@@ -268,7 +269,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Diag
                 Area = tmp.Area,
                 CustomQueryString = userWidget?.CustomQueryString??tmp.CustomQueryString,
                 DiagnosticsQuery = GetQuery(tmp.DiagnosticsQuery.DiagnosticsQueryName),
-                DisplayName = userWidget?.DisplayName??lng.DisplayName,
+                DisplayName = (userWidget?.DisplayName??lng.DisplayName).Translate(targetCulture),
                 SystemName = tmp.SystemName,
                 Template = lng.Template,
                 TitleTemplate = lng.TitleTemplate,

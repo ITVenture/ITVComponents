@@ -24,6 +24,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Help.QueryExtenders;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
@@ -50,6 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.WebCoreToolkit.EntityFramework.Models");
             NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.Decisions");
             NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.Decisions.Entities.Results");
+            NativeScriptHelper.AddUsing(RosDiagConfig, "Microsoft.AspNetCore.Http");
             NativeScriptHelper.RunLinqQuery(RosDiagConfig, new[] { "Fubar" }, "Fubar", "return null;", new Dictionary<string, object>());
         }
 
@@ -230,28 +232,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
         }
 
-        public static IEnumerable RunDiagnosticsQuery(this DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
+        public static IEnumerable RunDiagnosticsQuery(this DbContext context, HttpContext httpContext, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
         {
             var queryText = CreateDiagQuery(context, query, arguments, out var args);
-            return RunQuery(context, queryText, RosDiagConfig, args);
+            return RunQuery(context, queryText, RosDiagConfig, args, httpContext);
         }
 
-        public static IEnumerable RunDiagnosticsQuery(this DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
+        public static IEnumerable RunDiagnosticsQuery(this DbContext context, HttpContext httpContext, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
             var args = new Dictionary<string, object>(arguments);
             var queryText = CreateDiagQuery(context, query, args);
-            return RunQuery(context, queryText, RosDiagConfig, args);
+            return RunQuery(context, queryText, RosDiagConfig, args, httpContext);
         }
 
-        private static IEnumerable RunQuery(DbContext context, string query, string configName, IDictionary<string, object> data)
+        private static IEnumerable RunQuery(DbContext context, string query, string configName, IDictionary<string, object> data, HttpContext httpContext)
         {
-            return (IEnumerable)NativeScriptHelper.RunLinqQuery(configName, context, "Db", query, data ?? new Dictionary<string, object>());
+            data ??= new Dictionary<string, object>();
+            data["HttpContext"] = httpContext;
+            return (IEnumerable)NativeScriptHelper.RunLinqQuery(configName, context, "Db", query, data);
         }
 
         private static string CreateDiagQuery(DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
-            ConfigureLinqForContext(context, RosDiagConfig, out var contextType);
+            ConfigureLinqForContext(context, RosDiagConfig, query.QueryText, out var contextType);
             StringBuilder fullQuery = new StringBuilder($@"{contextType.Name} db = Global.Db;
+HttpContext context = Global.HttpContext;
 ");
             DiagnoseQueryHelper.VerifyArguments(query, arguments, fullQuery);
             fullQuery.AppendLine($"{(query.AutoReturn ? "return " : "")}{query.QueryText}{(query.AutoReturn ? ";" : "")}");
@@ -260,8 +265,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
         private static string CreateDiagQuery(DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, out IDictionary<string, object> queryArguments)
         {
-            ConfigureLinqForContext(context, RosDiagConfig, out var contextType);
+            ConfigureLinqForContext(context, RosDiagConfig, query.QueryText, out var contextType);
             StringBuilder fullQuery = new StringBuilder($@"{contextType.Name} db = Global.Db;
+HttpContext context = Global.HttpContext;
 ");
             queryArguments = new Dictionary<string, object>();
             DiagnoseQueryHelper.BuildArguments(query, arguments, queryArguments, fullQuery);
@@ -488,7 +494,7 @@ return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSe
         }
         private static string GetKeyType(DbContext context, string tableName, IServiceProvider services, out string keyName, out Type tableType, out bool isKeyless, out bool isAccessible)
         {
-            ConfigureLinqForContext(context, RosFkConfig, out var contextType);
+            ConfigureLinqForContext(context, RosFkConfig, null, out var contextType);
             var prop = contextType.GetProperty(tableName);
             tableType = null;
             isAccessible = true;
@@ -527,13 +533,48 @@ return from t in db.{tableName} where t.{keyColumn} == Id select {att.CompleteSe
             return null;
         }
 
-        private static void ConfigureLinqForContext(DbContext context, string configName, out Type contextType)
+        private static void ConfigureLinqForContext(DbContext context, string configName, string queryText, out Type contextType)
         {
             contextType = context.GetType();
             var nameSpace = contextType.Namespace;
             var assemblyName = contextType.Assembly.FullName;
             NativeScriptHelper.AddReference(configName, assemblyName);
             NativeScriptHelper.AddUsing(configName, nameSpace);
+            if (!string.IsNullOrEmpty(queryText))
+            {
+                var idStart = queryText.IndexOf("#@#{");
+                var idEnd = queryText.IndexOf("}#@#");
+                if (idStart != -1 && idEnd != -1 && idEnd > idStart)
+                {
+                    idStart += 4;
+                    var ln = idEnd - idStart;
+                    var tx = queryText.Substring(idStart, ln);
+                    LogEnvironment.LogEvent($"found Reference-Statement: {tx}", LogSeverity.Report, "IWCTEF.ContextExtensions");
+                    var imports = tx.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var import in imports)
+                    {
+                        var trimmed = import.Trim();
+                        LogEnvironment.LogEvent($"Processing: {trimmed}", LogSeverity.Report, "IWCTEF.ContextExtensions");
+                        if (!string.IsNullOrEmpty(trimmed))
+                        {
+                            if (trimmed.StartsWith("U:"))
+                            {
+                                LogEnvironment.LogEvent($"Adding Using: {trimmed.Substring(2)}", LogSeverity.Report, "IWCTEF.ContextExtensions");
+                                NativeScriptHelper.AddUsing(configName, trimmed.Substring(2));
+                            }
+                            else if (trimmed.StartsWith("R:"))
+                            {
+                                LogEnvironment.LogEvent($"Adding Ref: {trimmed.Substring(2)}", LogSeverity.Report, "IWCTEF.ContextExtensions");
+                                NativeScriptHelper.AddReference(configName, trimmed.Substring(2));
+                            }
+                            else
+                            {
+                                LogEnvironment.LogEvent($"Invalid Using/Reference statement: {trimmed}", LogSeverity.Warning, "IWCTEF.ContextExtensions");
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         private static string GetTypeForKey(Type type)

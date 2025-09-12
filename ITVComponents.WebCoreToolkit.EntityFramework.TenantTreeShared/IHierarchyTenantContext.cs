@@ -25,7 +25,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
         where TSequence : Sequence<TTenant>
         where TTenantSetting : HierarchyTenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-        where TTrustConfig : HierarchyTenantContextSecurityTrustConfig, new()
+        where TTrustConfig : HierarchyTenantContextSecurityTrustConfig<TTrustConfig>, new()
     {
         /// <summary>
         /// When tenant filtering is used, enables the Tree-Inheritance User- and Permissionresolving

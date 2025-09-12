@@ -68,6 +68,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         private readonly bool useFilters = false;
         private bool showAllTenants = false;
         private bool hideGlobals = false;
+        private IDictionary<string, bool> componentSpecialTrusts;
         Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.securityStateStack { get; }= new Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>();
         private bool hideDisabledUsers = true;
         private int? currentTenantId;
@@ -170,7 +171,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public bool HideGlobals
         {
             get => hideGlobals;
-            set
+            set => hideGlobals = value;
+            /*set
             {
                 if (value != hideGlobals)
                 {
@@ -182,7 +184,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
                         hideGlobals = tmp;
                     }
                 }
-            }
+            }*/
         }
 
         public string CurrentTenantName => CurrentTenant;
@@ -400,12 +402,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<TenantSecurityShared.Models.Localization> Localizations { get; set; }
         public DbSet<LocalizationCulture> LocalizationCultures { get; set; }
 
+        IDictionary<string,bool> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.ComponentSpecialTrusts => componentSpecialTrusts;
+
         BaseTenantContextSecurityTrustConfig ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.GetReverseTrust(BaseTenantContextSecurityTrustConfig desiredTrust)
         {
             return new BaseTenantContextSecurityTrustConfig
             {
                 HideGlobals = hideGlobals,
-                ShowAllTenants = showAllTenants
+                ShowAllTenants = showAllTenants,
+                SpecialFilterSettings = componentSpecialTrusts == null
+                    ? null
+                    : new Dictionary<string, bool>(componentSpecialTrusts)
             };
         }
 
@@ -413,6 +420,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         {
             showAllTenants = desiredTrust.ShowAllTenants;
             hideGlobals = desiredTrust.HideGlobals;
+            componentSpecialTrusts = desiredTrust.SpecialFilterSettings == null
+                ? null
+                : new Dictionary<string, bool>(desiredTrust.SpecialFilterSettings);
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

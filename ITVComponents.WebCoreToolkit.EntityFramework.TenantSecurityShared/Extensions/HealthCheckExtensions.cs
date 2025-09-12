@@ -11,13 +11,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
 {
     public static class HealthCheckExtensions
     {
-        public static IHealthChecksBuilder AddScriptedCheck<TTrustConfig>(this IHealthChecksBuilder builder, string name) where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+        public static IHealthChecksBuilder AddScriptedCheck<TTrustConfig>(this IHealthChecksBuilder builder, string name) where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
         {
             return builder.AddScriptedCheck<ScriptedHealthCheck<TTrustConfig>, TTrustConfig>(name);
         }
 
         public static IHealthChecksBuilder AddScriptedCheck<THealthCheck, TTrustConfig>(this IHealthChecksBuilder builder, string name)
-            where TTrustConfig : BaseTenantContextSecurityTrustConfig, new()
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
             where THealthCheck : ScriptedHealthCheck<TTrustConfig>
         {
             return builder.AddCheck<THealthCheck>(name);

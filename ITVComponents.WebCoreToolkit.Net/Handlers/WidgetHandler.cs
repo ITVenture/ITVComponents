@@ -38,6 +38,11 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             }
             bool hasId = userWidgetId != -1;
             var dbContext = context.RequestServices.GetService<IDiagnosticsStore>();
+            if (cult != null)
+            {
+                currentCulture = cult.RequestCulture.UICulture.Name;
+
+            }
             if (dbContext != null)
             {
                 var model = !hasId
