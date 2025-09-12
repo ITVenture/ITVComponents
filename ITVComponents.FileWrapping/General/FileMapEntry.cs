@@ -7,6 +7,8 @@ namespace ITVComponents.FileWrapping.General
     /// </summary>
     public class FileMapEntry
     {
+        private FileInfo fileInfo;
+
         /// <summary>
         /// Initializes a new instance of the FileMapEntry class
         /// </summary>
@@ -25,6 +27,7 @@ namespace ITVComponents.FileWrapping.General
         {
             LocationInFileSystem = locationInFileSystem;
             Direction = FileMap.MapDirection.FileToArchive;
+            fileInfo = new FileInfo(locationInFileSystem);
         }
 
         /// <summary>
@@ -48,6 +51,22 @@ namespace ITVComponents.FileWrapping.General
         /// Gets the direction of this Entry
         /// </summary>
         public FileMap.MapDirection Direction { get; internal set; }
+
+        /// <summary>
+        /// Gets the Length of the file in the file system
+        /// </summary>
+        public int Length
+        {
+            get
+            {
+                if (fileInfo == null && !string.IsNullOrEmpty(LocationInFileSystem) && File.Exists(LocationInFileSystem))
+                {
+                    fileInfo = new FileInfo(LocationInFileSystem);
+                }
+
+                return (int)(fileInfo?.Length ?? 0);
+            }
+        }
 
         /// <summary>
         /// Opens the file in the fileSystem for either writing or reading depending on the Direction of this item
