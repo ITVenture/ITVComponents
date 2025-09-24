@@ -34,6 +34,58 @@ namespace ITVComponents.Helpers
             return null;
         }
 
+        public static IDictionary<string, object> AsDictionary(this object source, bool simpleTypesOnly = false)
+        {
+            if (source != null)
+            {
+                Type t = source.GetType();
+                return (from p in
+                        t.GetProperties(BindingFlags.FlattenHierarchy | BindingFlags.GetProperty |
+                                        BindingFlags.Instance | BindingFlags.Public)
+                    where (!simpleTypesOnly || IsSimpleType(p.PropertyType)) &&
+                          !Attribute.IsDefined(p, typeof(ExcludeFromDictionaryAttribute), true)
+                    select new { n = p.Name, v = p }).AsDictionary(source, p => p.n, p => p.v);
+            }
+
+            return null;
+        }
+
+        public static IDictionary<string, object> AsDictionary<T>(this IEnumerable<T> source, object target, Func<T, string> keyFunc,
+            Func<T, PropertyInfo> valueFunc)
+        {
+            List<string> keys = new List<string>();
+            List<PropertyInfo> values = new List<PropertyInfo>();
+            foreach(var item in source)
+            {
+                keys.Add(keyFunc(item));
+                values.Add(valueFunc(item));
+            }
+
+            return new ObjectWrapper(target, keys.ToArray(), values.ToArray());
+        }
+
+        public static bool CanRead(this IDictionary<string, object> dictionary, string key)
+        {
+            var retVal = dictionary.ContainsKey(key);
+            if (retVal && dictionary is ObjectWrapper ow)
+            {
+                retVal= ow.CanRead(key);
+            }
+
+            return retVal;
+        }
+
+        public static bool CanWrite(this IDictionary<string, object> dictionary, string key)
+        {
+            var retVal = !dictionary.IsReadOnly;
+            if (retVal && dictionary is ObjectWrapper ow)
+            {
+                retVal = ow.CanWrite(key);
+            }
+
+            return retVal;
+        }
+
         /// <summary>
         /// Converts a KeyValue-Collection instance to a string-object dictionary
         /// </summary>
@@ -192,7 +244,8 @@ namespace ITVComponents.Helpers
               || type.IsEnum
               || type.Equals(typeof(string))
               || type.Equals(typeof(decimal))
-              || type.Equals(typeof(DateTime));
+              || type.Equals(typeof(DateTime))
+              || type.Equals(typeof(Guid));
         }
     }
 }

@@ -396,6 +396,11 @@ namespace ITVComponents.Json
             return DeserializeObject<T>(basicSettings, json);
         }
 
+        public static T FromJsonString<T>(string json, JsonSerializerOptions options)
+        {
+            return DeserializeObject<T>(options, json);
+        }
+
         public static object FromJsonString(string json, Type t, SerializationTypingMode typingMode,
             bool preserveReferences = false,
             bool useCamelCase = false)
@@ -411,6 +416,16 @@ namespace ITVComponents.Json
                 .GetGenericMethodDefinition();
             var impl = mth.MakeGenericMethod(t);
             return impl.Invoke(null, new object[] { json, typingMode, preserveReferences, useCamelCase });
+        }
+
+        public static object FromJsonString(string json, Type t, JsonSerializerOptions options)
+        {
+            t ??= typeof(object);
+            var mth = LambdaHelper
+                .GetMethodInfo(() => FromJsonString<object>(json, options))
+                .GetGenericMethodDefinition();
+            var impl = mth.MakeGenericMethod(t);
+            return impl.Invoke(null, new object[] { json, options });
         }
 
         public static JsonSerializerOptions WithStrongContract(JsonSerializerOptions options)

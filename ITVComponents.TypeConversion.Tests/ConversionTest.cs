@@ -1,4 +1,5 @@
-﻿using ITVComponents.DataAccess.Extensions;
+﻿using System;
+using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.TypeConversion.DefaultConverters;
@@ -13,6 +14,7 @@ namespace ITVComponents.TypeConversion.Tests
         {
             new EnumConverter();
             new NullableConverter();
+            new GuidConverter();
         }
 
         [TestMethod]
@@ -23,9 +25,11 @@ namespace ITVComponents.TypeConversion.Tests
             var ok1 = TypeConverter.Convert(raw1, typeof(TestEnum001?));
             var ok2 = TypeConverter.Convert(raw2, typeof(TestEnum001?));
             var ok3 = new Model1 { Horn = 1 }.ToViewModel<Model1, Model2>();
+            var ok4 = TypeConverter.Convert("2025-09-19T15:59:59.0", typeof(DateTime?));
             Assert.AreEqual(TestEnum001.Value1, ok1);
             Assert.AreEqual(TestEnum001.Value2, ok2);
             Assert.AreEqual(TestEnum001.Value2, ok3.Horn);
+            Assert.AreEqual(ok4, new DateTime(2025, 09, 19, 15, 59, 59));
         }
     }
 
