@@ -181,6 +181,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.StateMachine"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.StateMachine.PluginDriven", "ITVComponents.StateMachine.PluginDriven\ITVComponents.StateMachine.PluginDriven.csproj", "{2AB2C0E0-AB06-8E3B-2832-A726C22C28EA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.PowerShell", "ITVComponents.PowerShell\ITVComponents.PowerShell.csproj", "{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -901,6 +903,14 @@ Global
 		{2AB2C0E0-AB06-8E3B-2832-A726C22C28EA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2AB2C0E0-AB06-8E3B-2832-A726C22C28EA}.Release|x86.ActiveCfg = Release|Any CPU
 		{2AB2C0E0-AB06-8E3B-2832-A726C22C28EA}.Release|x86.Build.0 = Release|Any CPU
+		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Debug|x86.Build.0 = Debug|Any CPU
+		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Release|x86.ActiveCfg = Release|Any CPU
+		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
