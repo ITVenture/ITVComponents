@@ -15,4 +15,6 @@ namespace ITVComponents.EFRepo.DynamicData
     }
 
     public delegate string TableColumnResolveCallback(string tableName, out TableColumnDefinition rawDef);
+
+    public delegate TableColumnDefinition[] TableColumnDefinitionsCallback(string columnName);
 }

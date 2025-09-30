@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Expressions.Models;
 
 namespace ITVComponents.EFRepo.DynamicData
 {
@@ -23,6 +24,15 @@ namespace ITVComponents.EFRepo.DynamicData
         /// <param name="invertEntireFilter">indicates whether to invert this query-part</param>
         /// <returns>a string representing the boolean filter chain represented by the provided params</returns>
         string BooleanLogicFilter(DynamicCompositeFilterType type, ICollection<DynamicTableFilter> filterParts, TableColumnResolveCallback tableColumnNameCallback, Func<object, string> addQueryParam, bool invertEntireFilter);
+
+        /// <summary>
+        /// Builds a logic Operand chain for a specific expression filter object
+        /// </summary>
+        /// <param name="expressionFilter">the expression filter</param>
+        /// <param name="tableColumnNameCallback">a callback to redirect provided columns</param>
+        /// <param name="addQueryParam">a callback that will add a parameter to the query-command that needs to be executed</param>
+        /// <returns>a string representing the boolean filter chain represented by the provided filter object</returns>
+        string TranslateExpressionFilter(FilterBase expressionFilter, TableColumnDefinitionsCallback tableColumnNameCallback, Func<object, string> addQueryParam);
 
         /// <summary>
         /// Builds a binary compare operation for the given column name operator and values

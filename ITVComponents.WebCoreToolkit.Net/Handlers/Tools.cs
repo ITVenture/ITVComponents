@@ -1,13 +1,14 @@
-﻿using System;
+﻿using ITVComponents.EFRepo.Expressions.Models;
+using ITVComponents.Formatting;
+using ITVComponents.Logging;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using ITVComponents.Formatting;
-using ITVComponents.Logging;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
 
 namespace ITVComponents.WebCoreToolkit.Net.Handlers
 {
@@ -98,6 +99,15 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 {
                     ret.Add(v.Key, v.Value.FirstOrDefault());
                 }
+            }
+
+            if (!ret.ContainsKey("parsedfilter"))
+            {
+                ret["parsedfilter"] = new CompositeFilter
+                {
+                    Children = new FilterBase[0],
+                    Operator = BoolOperator.And
+                };
             }
 
             return ret;

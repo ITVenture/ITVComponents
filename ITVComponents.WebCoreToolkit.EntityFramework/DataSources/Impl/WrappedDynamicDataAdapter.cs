@@ -5,10 +5,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.DynamicData;
+using ITVComponents.EFRepo.Expressions.Models;
+using ITVComponents.Logging;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
+using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
 {
@@ -60,56 +63,119 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
                 return src.SqlQuery($"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)} where {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} = [->p0]", t, id);
             }
 
-            var filterValue = (postedFilter?.ContainsKey("Filter") ?? false) ? postedFilter["Filter"] : null;
-            if (filterValue != null)
+            if (postedFilter.ContainsKey("parsedfilter") && postedFilter["parsedfilter"] is FilterBase fimo)
             {
-                List<object> values = new List<object>();
-                List<string> andFilters = new List<string>();
-                List<string> orFilters = new List<string>();
-                string linkOp;
-                foreach (var col in desc)
+                var values = new List<object>();
+                var tmpAddition = (from tf in postedFilter
+                    join d in desc on tf.Key.ToLower() equals d.ColumnName.ToLower()
+                    select new CompareFilter
+                    {
+                        Value = TypeConverter.TryConvert(tf.Value, d.Type.ManagedType), Operator = CompareOperator.Equal,
+                        PropertyName = d.ColumnName
+                    }).ToArray();
+
+                if (tmpAddition.Length != 0 && fimo is not CompositeFilter { Operator: BoolOperator.And } ca)
                 {
-                    var target = orFilters;
-                    linkOp = " AND ";
-                    var pnNull = "is not null";
-                    var cv = filterValue;
-                    if (postedFilter.ContainsKey(col.ColumnName))
+                    fimo = ca = new CompositeFilter
                     {
-                        cv = postedFilter[col.ColumnName];
-                        linkOp = " OR ";
-                        pnNull = "is null";
-                        target = andFilters;
-                    }
-                    
-                    var pn = $"[->p{values.Count}]";
-                    var op = "=";
-                    if (col.Type.ManagedType == typeof(string))
-                    {
-                        values.Add($"%{cv}%");
-                        op = "like";
-                    }
-                    else
-                    {
-                        values.Add(TypeConverter.TryConvert(cv, col.Type.ManagedType)??DBNull.Value);
-                    }
-                    
-                    target.Add($"({pn} {pnNull}{linkOp}{src.SyntaxProvider.FormatColumnName(col.ColumnName)} {op} {pn})");
+                        Children = [fimo],
+                        Operator = BoolOperator.And
+                    };
+                }
+                else
+                {
+                    ca = null;
                 }
 
-                List<string> final = new List<string>();
-                if (andFilters.Count != 0)
+                if (ca != null && tmpAddition.Length != 0)
                 {
-                    final.Add($"({string.Join(" AND ", andFilters)})");
-                }
-                
-                if (orFilters.Count != 0)
-                {
-                    final.Add($"({string.Join(" OR ", orFilters)})");
+                    ca.Children = [..ca.Children, ..tmpAddition];
                 }
 
-                return src.SqlQuery($"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)} {(final.Count != 0 ? $"where {string.Join(" AND ", final)}" : "")}", t, values.ToArray());
+                var whereClause = src.SyntaxProvider.TranslateExpressionFilter(fimo, n =>
+                {
+                    if (n == "Label")
+                    {
+                        return (from u in desc
+                            where u.Type.ManagedType == typeof(string)
+                            select u).ToArray();
+                    }
+
+                    return (from u in desc where u.ColumnName.Equals(n, StringComparison.OrdinalIgnoreCase) select u)
+                        .ToArray();
+                }, (v) =>
+                {
+                    var retVal = $"[->{values.Count}]";
+                    values.Add(v);
+                    return retVal;
+                });
+
+                var finalQuery =
+                    $"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)} {(!string.IsNullOrEmpty(whereClause) ? $"where {whereClause}" : "")}";
+                LogEnvironment.LogDebugEvent($"executing the following Query for ForeignKey: {finalQuery}", LogSeverity.Report);
+                return src.SqlQuery(finalQuery,
+                    t, values.ToArray());
+                //var filter = fimo.BuildSqlFilter(desc, src.SyntaxProvider, values);
+                /*return src.SqlQuery(
+                    $"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)} {(string.IsNullOrEmpty(filter) ? "" : $"where {filter}")}",
+                    t, values.ToArray());*/
             }
-            
+            else
+            {
+                var filterValue = (postedFilter?.ContainsKey("Filter") ?? false) ? postedFilter["Filter"] : null;
+                if (filterValue != null)
+                {
+                    List<object> values = new List<object>();
+                    List<string> andFilters = new List<string>();
+                    List<string> orFilters = new List<string>();
+                    string linkOp;
+                    foreach (var col in desc)
+                    {
+                        var target = orFilters;
+                        linkOp = " AND ";
+                        var pnNull = "is not null";
+                        var cv = filterValue;
+                        if (postedFilter.ContainsKey(col.ColumnName))
+                        {
+                            cv = postedFilter[col.ColumnName];
+                            linkOp = " OR ";
+                            pnNull = "is null";
+                            target = andFilters;
+                        }
+
+                        var pn = $"[->p{values.Count}]";
+                        var op = "=";
+                        if (col.Type.ManagedType == typeof(string))
+                        {
+                            values.Add($"%{cv}%");
+                            op = "like";
+                        }
+                        else
+                        {
+                            values.Add(TypeConverter.TryConvert(cv, col.Type.ManagedType) ?? DBNull.Value);
+                        }
+
+                        target.Add(
+                            $"({pn} {pnNull}{linkOp}{src.SyntaxProvider.FormatColumnName(col.ColumnName)} {op} {pn})");
+                    }
+
+                    List<string> final = new List<string>();
+                    if (andFilters.Count != 0)
+                    {
+                        final.Add($"({string.Join(" AND ", andFilters)})");
+                    }
+
+                    if (orFilters.Count != 0)
+                    {
+                        final.Add($"({string.Join(" OR ", orFilters)})");
+                    }
+
+                    return src.SqlQuery(
+                        $"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)} {(final.Count != 0 ? $"where {string.Join(" AND ", final)}" : "")}",
+                        t, values.ToArray());
+                }
+            }
+
             return src.SqlQuery($"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)}", t);
         }
     }

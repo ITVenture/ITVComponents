@@ -780,6 +780,7 @@ order by c.""Position""", tableName);
             {
                 tmp.Add(new TableColumnDefinition
                 {
+                    TableName= tableName,
                     ColumnName = t.Key.ColumnName,
                     DataLength = t.Key.DataLength,
                     DataType = t.Key.DataType,
