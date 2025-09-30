@@ -74,7 +74,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
                         PropertyName = d.ColumnName
                     }).ToArray();
 
-                if (tmpAddition.Length != 0 && fimo is not CompositeFilter { Operator: BoolOperator.And } ca)
+                LogEnvironment.LogDebugEvent($"tmpAddition has {tmpAddition.Length} entries.", LogSeverity.Report);
+                var ca = fimo as CompositeFilter ;
+                if (tmpAddition.Length != 0 && ca is not { Operator: BoolOperator.And })
                 {
                     fimo = ca = new CompositeFilter
                     {
@@ -82,14 +84,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
                         Operator = BoolOperator.And
                     };
                 }
-                else
+                else if (tmpAddition.Length == 0)
                 {
                     ca = null;
                 }
 
                 if (ca != null && tmpAddition.Length != 0)
                 {
-                    ca.Children = [..ca.Children, ..tmpAddition];
+                    LogEnvironment.LogDebugEvent($"ca has {ca.Children.Length} child-entries before adding tmpAddition.", LogSeverity.Report);
+                    ca.AddFilters(tmpAddition);
+                    LogEnvironment.LogDebugEvent($"ca has now {ca.Children.Length} child-entries.", LogSeverity.Report);
                 }
 
                 var whereClause = src.SyntaxProvider.TranslateExpressionFilter(fimo, n =>
@@ -105,7 +109,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
                         .ToArray();
                 }, (v) =>
                 {
-                    var retVal = $"[->{values.Count}]";
+                    var retVal = $"[->p{values.Count}]";
                     values.Add(v);
                     return retVal;
                 });
