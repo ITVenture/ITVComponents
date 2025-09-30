@@ -272,8 +272,13 @@ namespace ITVComponents.EFRepo.SqlServer
             }
             if (expressionFilter is CompositeFilter cf)
             {
+                if (cf.Children.Length == 0)
+                {
+                    return null;
+                }
+
                 return
-                    $"({string.Join($" {cf.Operator} ", from t in cf.Children select TranslateExpressionFilter(t, tableColumnNameCallback, addQueryParam))})";
+                    $"({string.Join($" {cf.Operator} ", from t in cf.Children let u = TranslateExpressionFilter(t, tableColumnNameCallback, addQueryParam) where !string.IsNullOrEmpty(u) select u)})";
             }
             else
             {

@@ -3,6 +3,7 @@ using ITVComponents.Json;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,6 +29,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
             {
                 filters.Clear();
                 filters.AddRange(value);
+                builtFilter = null;
             }
         }
 
@@ -44,6 +46,12 @@ namespace ITVComponents.EFRepo.Expressions.Models
         public void AddFilter(FilterBase filter)
         {
             filters.Add(filter);
+            builtFilter = null;
+        }
+
+        public void AddFilters(IEnumerable<FilterBase> filters)
+        {
+            this.filters.AddRange(filters);
             builtFilter = null;
         }
     }
