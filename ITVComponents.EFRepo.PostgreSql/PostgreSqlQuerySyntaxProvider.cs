@@ -1,8 +1,9 @@
-﻿using System;
+﻿using ITVComponents.EFRepo.DynamicData;
+using ITVComponents.EFRepo.Expressions.Models;
+using ITVComponents.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using ITVComponents.EFRepo.DynamicData;
-using ITVComponents.Logging;
 
 namespace ITVComponents.EFRepo.PostgreSql
 {
@@ -137,6 +138,82 @@ namespace ITVComponents.EFRepo.PostgreSql
             }
 
             return null;
+        }
+
+        public string TranslateExpressionFilter(FilterBase expressionFilter,
+            TableColumnDefinitionsCallback tableColumnNameCallback, Func<object, string> addQueryParam)
+        {
+            if (expressionFilter is CompareFilter cmpf)
+            {
+                var actualColumns = tableColumnNameCallback(cmpf.PropertyName);
+                if (actualColumns.Length == 1)
+                {
+                    var col = actualColumns[0].ColumnName;
+                    switch (cmpf.Operator)
+                    {
+                        case CompareOperator.Equal:
+                            return $"{col} = {addQueryParam(cmpf.Value)}";
+                        case CompareOperator.NotEqual:
+                            return $"{col} != {addQueryParam(cmpf.Value)}";
+                        case CompareOperator.GreaterThan:
+                            return $"{col} > {addQueryParam(cmpf.Value)}";
+                        case CompareOperator.GreaterThanOrEqual:
+                            return $"{col} >= {addQueryParam(cmpf.Value)}";
+                        case CompareOperator.LessThan:
+                            return $"{col} < {addQueryParam(cmpf.Value)}";
+                        case CompareOperator.LessThanOrEqual:
+                            return $"{col} <= {addQueryParam(cmpf.Value)}";
+                        case CompareOperator.Contains:
+                            return $"{col} like {addQueryParam($"%{cmpf.Value}%")}";
+                        case CompareOperator.ContainsNot:
+                            return $"{col} not like {addQueryParam($"%{cmpf.Value}%")}";
+                        case CompareOperator.StartsWith:
+                            return $"{col} like {addQueryParam($"{cmpf.Value}%")}";
+                        case CompareOperator.StartsNotWith:
+                            return $"{col} not like {addQueryParam($"{cmpf.Value}%")}";
+                        case CompareOperator.EndsWith:
+                            return $"{col} like {addQueryParam($"%{cmpf.Value}")}";
+                        case CompareOperator.EndsNotWith:
+                            return $"{col} not like {addQueryParam($"%{cmpf.Value}")}";
+                        case CompareOperator.Between:
+                            return $"{col} between {addQueryParam(cmpf.Value)} and {addQueryParam(cmpf.Value2)}";
+                        case CompareOperator.NotBetween:
+                            return $"{col} not between {addQueryParam(cmpf.Value)} and {addQueryParam(cmpf.Value2)}";
+                        case CompareOperator.IsNull:
+                            return $"{col} is null";
+                        case CompareOperator.IsNotNull:
+                            return $"{col} is not null";
+                        case CompareOperator.IsEmpty:
+                            return $"{col} = ''";
+                        case CompareOperator.IsNotEmpty:
+                            return $"{col} != ''";
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+                }
+
+                return TranslateExpressionFilter(new CompositeFilter
+                {
+                    Children = (from t in actualColumns
+                        select (FilterBase)new CompareFilter
+                        {
+                            PropertyName = t.ColumnName,
+                            Operator = cmpf.Operator,
+                            Value = cmpf.Value,
+                            Value2 = cmpf.Value2
+                        }).ToArray(),
+                    Operator = BoolOperator.Or
+                }, tableColumnNameCallback, addQueryParam);
+            }
+            if (expressionFilter is CompositeFilter cf)
+            {
+                return
+                    $"({string.Join($" {cf.Operator} ", from t in cf.Children select TranslateExpressionFilter(t, tableColumnNameCallback, addQueryParam))})";
+            }
+            else
+            {
+                throw new NotSupportedException("The provided filter-type is not supported for dynamic DataSource");
+            }
         }
 
         /// <summary>
