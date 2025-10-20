@@ -14,6 +14,15 @@ namespace ITVComponents.Formatting.Test
     [TestClass]
     public class FormatterTest
     {
+        public FormatterTest()
+        {
+            new {
+                Val1 = "TEST123",
+                Val2 = "HORN",
+                Val3 = DateTime.Today
+            }.FormatText("Das ist ein [Val1]. Von weitem klingt ein [Val2]. Heute ist der [Val3:dd.MM.yyyy]");
+        }
+
         [TestMethod]
         public void TestBaseFormats()
         {

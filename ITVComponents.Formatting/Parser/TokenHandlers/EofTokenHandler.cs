@@ -18,7 +18,6 @@ namespace ITVComponents.Formatting.Parser.TokenHandlers
         public EofTokenHandler(StringFormatParser target, bool unexpected):this(target)
         {
             throwOnEnter = unexpected;
-            ;
         }
 
         public override Task EnterAsync()

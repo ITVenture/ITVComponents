@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using ITVComponents.Formatting.CustomFormat.Impl;
 using ITVComponents.Formatting.DefaultExtensions;
 using ITVComponents.Formatting.Elements;
+using ITVComponents.Formatting.Parser;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Helpers;
@@ -18,6 +19,8 @@ namespace ITVComponents.Formatting
 {
     public static class TextFormat
     {
+        private static List<StringFormatParser> parsers = new List<StringFormatParser>();
+
         private static ConcurrentDictionary<string, ICustomFormatter> customFormatHints =
             new ConcurrentDictionary<string, ICustomFormatter>(StringComparer.Ordinal);
 
@@ -57,7 +60,23 @@ namespace ITVComponents.Formatting
 
         public static string FormatText(this object target, string format, Func<string, string, string, object> argumentsCallback, ScriptingPolicy policy = null)
         {
-            if (!string.IsNullOrEmpty(format))
+            var parser = AcquireParser();
+            try
+            {
+                if (!string.IsNullOrEmpty(format))
+                {
+                    return parser.FormatString(target, format, null, argumentsCallback, policy);
+                }
+
+                return format;
+            }
+            finally
+            {
+                parser.ReleaseLock();
+            }
+
+
+            /*if (!string.IsNullOrEmpty(format))
             {
                 var tmp = TokenizeString(format);
                 using (var context = CreateScriptingSession(target, policy))
@@ -66,7 +85,7 @@ namespace ITVComponents.Formatting
                 }
             }
 
-            return format;
+            return format;*/
         }
 
         public static string FormatText(this object target, string format, CustomExpressionParse customExpressionParser, ScriptingPolicy policy = null)
@@ -81,7 +100,17 @@ namespace ITVComponents.Formatting
                 return format;
             }
 
-            var tmp = TokenizeString(format);
+            var parser = AcquireParser();
+            try
+            {
+                return parser.FormatString(target, format, customExpressionParser, argumentsCallback, policy);
+            }
+            finally
+            {
+                parser.ReleaseLock();
+            }
+
+            /*var tmp = TokenizeString(format);
             for (int i = 0; i < tmp.Length; i++)
             {
                 if (tmp[i] is FormatElement fmt)
@@ -121,7 +150,7 @@ namespace ITVComponents.Formatting
             using (var context = CreateScriptingSession(target, policy))
             {
                 return string.Concat(from t in tmp select Stringify(t, context, argumentsCallback));
-            }
+            }*/
         }
 
         public static string FormatText(this IDisposable scriptingContext, string format,
@@ -137,6 +166,17 @@ namespace ITVComponents.Formatting
                 return format;
             }
 
+            var parser = AcquireParser();
+            try
+            {
+                return parser.FormatString(scriptingContext, format, customExpressionParser, argumentsCallback);
+            }
+            finally
+            {
+                parser.ReleaseLock();
+            }
+
+            /*
             if (ExpressionParser.IsReplSession(scriptingContext))
             {
                 var tmp = TokenizeString(format);
@@ -180,6 +220,7 @@ namespace ITVComponents.Formatting
             }
 
             return FormatText((object)scriptingContext, format, customExpressionParser, argumentsCallback);
+            */
         }
 
         public static string FormatText(IDisposable scriptingContext, string format)
@@ -191,13 +232,23 @@ namespace ITVComponents.Formatting
         {
             if (!string.IsNullOrEmpty(format))
             {
-                if (ExpressionParser.IsReplSession(scriptingContext))
+                var parser = AcquireParser();
+                try
+                {
+                    return parser.FormatString(scriptingContext, format, null, argumentsCallback);
+                }
+                finally
+                {
+                    parser.ReleaseLock();
+                }
+
+                /*if (ExpressionParser.IsReplSession(scriptingContext))
                 {
                     var tmp = TokenizeString(format);
                     return string.Concat(from t in tmp select Stringify(t, scriptingContext, argumentsCallback));
                 }
 
-                return FormatText((object)scriptingContext, format, argumentsCallback);
+                return FormatText((object)scriptingContext, format, argumentsCallback);*/
             }
 
             return format;
@@ -218,6 +269,7 @@ namespace ITVComponents.Formatting
             return customFormatHints.GetValueOrDefault(hint);
         }
 
+        /*
         private static IDisposable CreateScriptingSession(object target, ScriptingPolicy policy = null)
         {
             var pol = policy ?? DefaultFormatPolicy;
@@ -739,6 +791,20 @@ namespace ITVComponents.Formatting
             }
 
             return elements.ToArray();
+        }
+
+        */
+        private static StringFormatParser AcquireParser()
+        {
+            var retVal = parsers.FirstOrDefault(n => n.TryLock());
+            if (retVal == null)
+            {
+                retVal = new StringFormatParser();
+                retVal.TryLock();
+                parsers.Add(retVal);
+            }
+
+            return new StringFormatParser();
         }
     }
 

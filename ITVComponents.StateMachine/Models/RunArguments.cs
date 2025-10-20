@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices.ObjectiveC;
@@ -10,34 +11,40 @@ namespace ITVComponents.StateMachine.Models
 {
     public class RunArguments
     {
-        public RunArguments(Action<Dictionary<string, object>> initialize)
+        public RunArguments(Action<ConcurrentDictionary<string, object>> initialize)
         {
             arguments = new();
             initialize(arguments);
         }
 
-        private Dictionary<string, object> arguments;
+        private ConcurrentDictionary<string, object> arguments;
 
         public T Argument<T>(string name, bool remove = false)
         {
             T retVal = default;
-            if (arguments.ContainsKey(name))
+            object tmp;
+            var isOk = !remove ? arguments.TryGetValue(name, out tmp) : arguments.TryRemove(name, out tmp);
+            if (isOk)
             {
-                retVal = (T)arguments[name];
-                if (remove)
-                {
-                    arguments.Remove(name);
-                }
+                retVal = (T)tmp;
             }
 
             return retVal;
         }
 
-        public void Set(string name, object value) => arguments[name] = value;
+        public void Set<T>(string name, T value, Func<T,T,T> updateExistingValue = null)
+        {
+            if (updateExistingValue == null)
+            {
+                updateExistingValue = (_, v) => v;
+            }
+
+            arguments.AddOrUpdate(name, value, (n, o) => updateExistingValue((T)o, value));
+        }
 
         public bool Remove(string name)
         {
-            return arguments.Remove(name);
+            return arguments.Remove(name, out _);
         }
     }
 }

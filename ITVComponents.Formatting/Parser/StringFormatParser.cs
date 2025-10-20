@@ -23,7 +23,7 @@ namespace ITVComponents.Formatting.Parser
 {
     public class StringFormatParser
     {
-        private static TransducerMachine<ParserStateHandler, StringFormatParser> stateMachine;
+        private TransducerMachine<ParserStateHandler, StringFormatParser> stateMachine;
 
         private IFormatElement currentElement;
 
@@ -32,6 +32,8 @@ namespace ITVComponents.Formatting.Parser
         private FormatElementAppendMode formatElementMode = FormatElementAppendMode.Content;
 
         private string[] doubles = ["[[", "]]", "$$", "££"];
+
+        private bool isLocked = false;
 
         public StringFormatParser()
         {
@@ -273,7 +275,7 @@ namespace ITVComponents.Formatting.Parser
         {
             stateMachine.Reset("StringTokenHandler");
             var shifter = new StringShifter(source);
-            var arguments = new RunArguments(d => d["shifter"] = shifter);
+            var arguments = new RunArguments(d => d.TryAdd("shifter", shifter));
             currentElement = new StringElement();
             elements.Clear();
             while (stateMachine.Status is not EofTokenHandler)
@@ -308,7 +310,7 @@ namespace ITVComponents.Formatting.Parser
             }
         }
 
-        private static Task NextToken(ParserStateHandler status, StringFormatParser t, RunArguments arguments)
+        private Task NextToken(ParserStateHandler status, StringFormatParser t, RunArguments arguments)
         {
             if (t.currentElement.Content.Length != 0 && stateMachine.CurrentDepth == 0)
             {
@@ -380,6 +382,29 @@ namespace ITVComponents.Formatting.Parser
             }
 
             formatElementMode = newElementMode;
+        }
+
+        internal bool TryLock()
+        {
+            bool retVal = false;
+            lock (stateMachine)
+            {
+                if (!isLocked)
+                {
+                    isLocked = true;
+                    retVal = true;
+                }
+            }
+
+            return retVal;
+        }
+
+        internal void ReleaseLock()
+        {
+            lock (stateMachine)
+            {
+                isLocked = false;
+            }
         }
     }
 

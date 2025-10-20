@@ -45,17 +45,36 @@ namespace ITVComponents.Formatting.Parser.Model
         private string BindElements()
         {
             var pol = policy ?? TextFormat.DefaultFormatPolicy;
-            Scope s = new Scope(new Dictionary<string, object> { { "$data", src } }, pol);
-            s.ImplicitContext = "$data";
-            using var ctx = ExpressionParser.BeginRepl(s,
-                args => DefaultCallbacks.PrepareDefaultCallbacks(args.Scope, args.ReplSession), pol);
-            object[] parsedData = new object[elements.Length];
-            for (int i = 0; i < elements.Length; i++)
+            IDisposable ctx = null;
+            bool doDispose = true;
+            if (src is IDisposable idi && ExpressionParser.IsReplSession(idi))
             {
-                parsedData[i] = BindElement(ctx, elements[i], pol);
+                ctx = idi;
+                doDispose = false;
+            }
+            else
+            {
+                Scope s = new Scope(new Dictionary<string, object> { { "$data", src } }, pol);
+                s.ImplicitContext = "$data";
+                ctx = ExpressionParser.BeginRepl(s,
+                    args => DefaultCallbacks.PrepareDefaultCallbacks(args.Scope, args.ReplSession), pol);
             }
 
-            return string.Format(pattern, parsedData);
+            try
+            {
+                object[] parsedData = new object[elements.Length];
+                for (int i = 0; i < elements.Length; i++)
+                {
+                    parsedData[i] = BindElement(ctx, elements[i], pol);
+                }
+
+                return string.Format(pattern, parsedData);
+            }
+            finally
+            {
+                if (doDispose)
+                    ctx.Dispose();
+            }
         }
 
         private object BindElement(IDisposable ctx, CodeElement element, ScriptingPolicy pol)
