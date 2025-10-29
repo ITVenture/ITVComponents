@@ -396,6 +396,8 @@
         obj.onShow(function (window, dialog, refObj) {
             var inputArea = '<input id="UserInput" class="flex-fill k-textbox" />';
             var buttonArea = obj.defaultButtons;
+            var hasDefault = false;
+            var defaultValue = "";
             obj.mode = "default";
             if (typeof refObj === "string") {
                 obj.window.children("[id='AlertMessage']").html(refObj);
@@ -404,9 +406,10 @@
                 if (typeof refObj.Controls !== "undefined") {
                     inputArea = refObj.Controls;
                     obj.mode = "custom";
-                } else {
-                    obj.window.find("[id='UserInput']").val(refObj.Default);
-                }
+                } else if (typeof refObj.Default !== "undefined") {
+                    defaultValue = refObj.Default;
+                    hasDefault = true;
+                } 
 
                 if (typeof refObj.Buttons !== "undefined") {
                     obj.mode = obj.mode.concat("WithButtons");
@@ -430,6 +433,9 @@
             }
             obj.window.children("[tag='cip-Content']").html(inputArea);
             obj.window.children("[tag='buttons']").html(buttonArea);
+            if (hasDefault) {
+                obj.window.find("[id='UserInput']").val(defaultValue);
+            }
             //obj.window.children("[id='AlertMessage']").html(refObj);
         });
 
