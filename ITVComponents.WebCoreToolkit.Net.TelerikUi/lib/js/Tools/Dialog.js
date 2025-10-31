@@ -368,7 +368,7 @@
             visible: false,
             title: ITVenture.Text.getText("Popup_Input_Title", "Input"),
             minWidth: 400,
-            minHeight: 140,
+            minHeight: 190,
             modal: true,
             scrollable: false,
             position: {
@@ -394,10 +394,12 @@
         });
 
         obj.onShow(function (window, dialog, refObj) {
-            var inputArea = '<input id="UserInput" class="flex-fill k-textbox" />';
+            var inputArea = '<input id="UserInput" class="flex-fill k-input k-textbox" />';
             var buttonArea = obj.defaultButtons;
             var hasDefault = false;
             var defaultValue = "";
+            var defaultSize = { width: 400, height: 190 };
+            dialog.setOptions(defaultSize);
             obj.mode = "default";
             if (typeof refObj === "string") {
                 obj.window.children("[id='AlertMessage']").html(refObj);
@@ -410,6 +412,10 @@
                     defaultValue = refObj.Default;
                     hasDefault = true;
                 } 
+
+                if (typeof refObj.Size === "object") {
+                    dialog.setOptions({ width: typeof refObj.Size.width !== "undefined" ? refObj.Size.width : defaultSize.width, height: typeof refObj.Size.height !== "undefined" ? refObj.Size.height : defaultSize.height });
+                }
 
                 if (typeof refObj.Buttons !== "undefined") {
                     obj.mode = obj.mode.concat("WithButtons");
