@@ -153,12 +153,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                     };
                 }
 
-                if (fib == null)
+                if (fib == null || fib is CompositeFilter cfi && (cfi.Children == null || cfi.Children.Length == 0))
                 {
                     fib = selector?.GetCustomFilterAddition(postedFilter) ?? new CompositeFilter();
                 }
 
-                if (so == null)
+                if (so == null || so.Length == 0)
                 {
                     so = new Sort[] { new Sort { Direction = SortDirection.Ascending, MemberName = "Label" } };
                 }
