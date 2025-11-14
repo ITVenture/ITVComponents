@@ -70,7 +70,7 @@ ITVenture.Tools.Uploader.fileTokenMode=""query"";
 """);
         }
 
-        public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule, string uploadReason, string callbackMethod, string errorCallbackMethod = null, int height = 0, int width = 0, Dictionary<string, string> customAttributes = null)
+        public static IHtmlContent Uploader(this IHtmlHelper target, UploadMode mode, string uploaderModule, string uploadReason, string callbackMethod, string errorCallbackMethod = null, string processingCallbackMethod= null, int height = 0, int width = 0, Dictionary<string, string> customAttributes = null)
         {
             string uniqueDivId;
             uniqueDivId = CustomActionHelper.RandomName("uploadDiv");
@@ -81,6 +81,9 @@ ITVenture.Tools.Uploader.fileTokenMode=""query"";
         var retVal = false;
         {(!string.IsNullOrEmpty(errorCallbackMethod)?$"retVal={errorCallbackMethod}(file,message);":"")}
         return retVal;
+    }},
+    {uniqueDivId}_PROCESS: function(file,wrapper,options){{
+        {(!string.IsNullOrEmpty(processingCallbackMethod) ? $"{processingCallbackMethod}(file,wrapper,options);" : "")}
     }}
 }});
 </script>";
@@ -173,7 +176,8 @@ ITVenture.Tools.Uploader.fileTokenMode=""query"";
                 string uploadHint,
                 string customUploadCallback,
                 bool setOriginalOnlyIfNull,
-                string errorHandler)
+                string errorHandler,
+                string processingHandler)
             {
                 string uniqueDivId, uniqueInputId, uniqueOrigId, uniqueDummyId;
                 uniqueDivId = CustomActionHelper.RandomName("uploadDiv");
@@ -201,6 +205,9 @@ var tmpl = ""\u003Cdiv purpose=\""{mode}\"" nameTarget=\""{uniqueDivId}\"" uploa
 .concat(    ""var retVal = false;"")
 .concat(    ""{(!string.IsNullOrEmpty(errorHandler)?$"retVal={errorHandler}(file,message);":"")}"")
 .concat(    ""return retVal;"")
+.concat(""}},"")
+.concat(    ""{uniqueDivId}_PROCESS: function(file,wrapper,options){{"")
+.concat(    ""{(!string.IsNullOrEmpty(processingHandler) ? $"{processingHandler}(file,wrapper,options);" : "")}"")
 .concat(""}},"")
 .concat(""}});\u003C/script\u003E"");
 var template = kendo.template(tmpl);

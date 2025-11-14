@@ -58,5 +58,7 @@ namespace ITVComponents.WebCoreToolkit.Models.RequestConservation
         public sealed override CancellationToken RequestAborted { get; set; }
         public sealed override string TraceIdentifier { get; set; }
         public sealed override ISession Session { get; set; }
+
+        public bool IsBackgroundServiceContext { get; set; }
     }
 }

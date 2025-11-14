@@ -296,12 +296,18 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             return requestData;
         }
 
-        public static void PrepareEmptyContext(this IServiceProvider provider)
+        public static bool IsBackgroundTaskContext(this IServiceProvider provider)
+        {
+            var httpBuffer = provider.GetService<IHttpContextAccessor>();
+            return httpBuffer?.HttpContext is ConservedHttpContext { IsBackgroundServiceContext: true };
+        }
+
+        public static void PrepareEmptyContext(this IServiceProvider provider, out HttpContext executionHttpContext)
         {
             var userProvider = provider.GetService<IContextUserProvider>();
             var permissionScope = provider.GetService<IPermissionScope>();
             var httpBuffer = provider.GetService<IHttpContextAccessor>();
-            httpBuffer.HttpContext = new EmptyHttpContext() { RequestServices = provider };
+            executionHttpContext = httpBuffer.HttpContext = new EmptyHttpContext() { RequestServices = provider };
             if (userProvider is DefaultContextUserProvider dcup)
             {
                 dcup.SetDefaults(new ClaimsPrincipal(), new Dictionary<string, object>(), "");
@@ -313,7 +319,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// </summary>
         /// <param name="provider">the service-provider that holds all dependencies</param>
         /// <param name="conservedRequestData">the previously conserved context data</param>
-        public static void PrepareContext(this IServiceProvider provider, object conservedRequestData)
+        public static void PrepareContext(this IServiceProvider provider, object conservedRequestData, out HttpContext restoredHttpContext)
         {
             if (conservedRequestData is not ConservedRequestData crd)
             {
@@ -324,7 +330,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var userProvider = provider.GetService<IContextUserProvider>();
             var permissionScope = provider.GetService<IPermissionScope>();
             var httpBuffer = provider.GetService<IHttpContextAccessor>();
-            httpBuffer.HttpContext = crd.HttpContext;
+            restoredHttpContext = httpBuffer.HttpContext = crd.HttpContext;
             crd.HttpContext.RequestServices = provider;
             if (userProvider is DefaultContextUserProvider dcup)
             {

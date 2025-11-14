@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Text;
-using System.Threading.Tasks;
-using ITVComponents.Helpers;
+﻿using ITVComponents.Helpers;
+using ITVComponents.WebCoreToolkit.BackgroundProcessing;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
@@ -23,9 +17,23 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading.Tasks;
+using System.Xml.Linq;
+using static System.Collections.Specialized.BitVector32;
 
 namespace ITVComponents.WebCoreToolkit.Net.Handlers
 {
@@ -130,6 +138,67 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 return Results.BadRequest("Multipart Upload expected!");
             }
 
+            var handlerOptionsName = $"{uploadModule}UploadSettings";
+            var handlerReasonOptionsName = $"{reason}_{handlerOptionsName}";
+            var scopeOptions = context.RequestServices.GetService<IScopedSettingsProvider>();
+            var globalOptions = context.RequestServices.GetService<IGlobalSettingsProvider>();
+            var handlerSettingsRaw = scopeOptions?.GetJsonSetting(handlerOptionsName) ??
+                                     globalOptions?.GetJsonSetting(handlerOptionsName);
+            var reasonSettingsRaw = scopeOptions?.GetJsonSetting(handlerReasonOptionsName) ??
+                                    globalOptions?.GetJsonSetting(handlerReasonOptionsName);
+            var finalSettingsRaw = reasonSettingsRaw ?? handlerSettingsRaw;
+            var options = new UploadOptions();
+            if (!string.IsNullOrEmpty(finalSettingsRaw))
+            {
+                options = JsonHelper.FromJsonString<UploadOptions>(finalSettingsRaw);
+            }
+
+            var maxSize = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+            maxSize.MaxRequestBodySize = options.MaxUploadSize;
+            ParsedMultipartFile[] parsedFiles;
+            try
+            {
+                parsedFiles = await ProcessMultipartFileUpload(fileData);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+
+            var hasBackgroundRule = context.Request.Query.TryGetValue("UseBackground", out var backgroundValue);
+            
+            var useBackground = hasBackgroundRule && bool.TryParse(backgroundValue, out var bgVal) && bgVal;
+            if (!useBackground)
+            {
+                return await ProcessFileUpload(context, uploadModule, reason, uploadHint, withAuthorization, parsedFiles,
+                    options);
+            }
+            else
+            {
+                var newContext = context.RequestServices.ConserveRequestData(context);
+                IBackgroundTaskQueue queue = context.RequestServices.GetService<IBackgroundTaskQueue>();
+                await queue.Enqueue(async (ctx, args) =>
+                {
+                    var bgJob = args as BackgroundFileJob;
+                    IHttpContextAccessor accessor = ctx.Services.GetService<IHttpContextAccessor>();
+                    await ProcessFileUpload(accessor.HttpContext, bgJob.UploadModule, bgJob.Reason, bgJob.UploadHint, bgJob.WithAuthorization,
+                        bgJob.ParsedFiles, bgJob.Options);
+                }, newContext, new BackgroundFileJob
+                {
+                    Options = options,
+                    ParsedFiles = parsedFiles,
+                    Reason = reason,
+                    UploadHint = uploadHint,
+                    UploadModule = uploadModule,
+                    WithAuthorization = withAuthorization
+                });
+                
+                return Results.Ok("File upload scheduled in background.");
+            }
+        }
+
+        private static async Task<IResult> ProcessFileUpload(HttpContext context, string uploadModule, string reason, string uploadHint, bool withAuthorization, ParsedMultipartFile[] files, UploadOptions options)
+        {
             var hasAsset = context.Request.Query.TryGetValue("AssetKey", out var assetKey);
             IImpersonationControl assetImpersonator = null;
             IDisposable assetAccess = null;
@@ -144,71 +213,43 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 var fileHandler = context.RequestServices.GetFileHandler(uploadModule);
                 var syncHandler = fileHandler as IFileHandler;
                 var asyncHandler = fileHandler as IAsyncFileHandler;
-                var handlerOptionsName = $"{uploadModule}UploadSettings";
-                var handlerReasonOptionsName = $"{reason}_{handlerOptionsName}";
                 var logger = context.RequestServices.GetService<ILogger<IFileHandler>>();
-                var scopeOptions = context.RequestServices.GetService<IScopedSettingsProvider>();
-                var globalOptions = context.RequestServices.GetService<IGlobalSettingsProvider>();
-                var handlerSettingsRaw = scopeOptions?.GetJsonSetting(handlerOptionsName) ??
-                                         globalOptions?.GetJsonSetting(handlerOptionsName);
-                var reasonSettingsRaw = scopeOptions?.GetJsonSetting(handlerReasonOptionsName) ??
-                                        globalOptions?.GetJsonSetting(handlerReasonOptionsName);
-                var finalSettingsRaw = reasonSettingsRaw ?? handlerSettingsRaw;
-                var options = new UploadOptions();
-                if (!string.IsNullOrEmpty(finalSettingsRaw))
-                {
-                    options = JsonHelper.FromJsonString<UploadOptions>(finalSettingsRaw);
-                }
-
-                var maxSize = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
-                maxSize.MaxRequestBodySize = options.MaxUploadSize;
                 var requiredPermissions = asyncHandler?.PermissionsForReason(reason) ??
                                           syncHandler.PermissionsForReason(reason);
                 if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 &&
                                            context.RequestServices.VerifyUserPermissions(requiredPermissions)))
                 {
-                    MultipartSection section;
                     var ms = new ModelStateDictionary();
                     try
                     {
-                        while ((section = await fileData.FilePartReader.ReadNextSectionAsync()) != null)
+                        foreach(var section in files)
                         {
-                            var hasContentDispositionHeader =
-                                ContentDispositionHeaderValue.TryParse(
-                                    section.ContentDisposition, out var contentDisposition);
-                            if (hasContentDispositionHeader)
-                            {
-                                if (contentDisposition.IsFileDisposition())
+                            
+                                if (!section.IsFormData)
                                 {
-                                    logger.LogDebug(new EventId(0, "Found File-Disposition"),
-                                        $"Found a File: {contentDisposition.Name.Value} ({contentDisposition.FileName.Value},{contentDisposition.FileNameStar.Value})");
-                                    var content = await section.Body.ToArrayAsync();
-                                    string name = contentDisposition.FileName.Value ??
-                                                  contentDisposition.FileNameStar.Value ??
-                                                  contentDisposition.Name.Value;
-                                    if (VerifyFile(name, content, options, out var deniedReason))
+                                    if (VerifyFile(section.FileName, section.Content, options, out var deniedReason))
                                     {
                                         if (string.IsNullOrEmpty(uploadHint))
                                         {
                                             if (asyncHandler != null)
                                             {
-                                                await (!hasAsset
-                                                    ? asyncHandler.AddFile(name, content, ms,
+                                                await(!hasAsset
+                                                    ? asyncHandler.AddFile(section.FileName, section.Content, ms,
                                                         context.User?.Identity,
                                                         (n, c) => VerifyFile(n, c, options, out _))
-                                                    : asyncHandler.AddFile(name, content, (string)assetKey, ms,
+                                                    : asyncHandler.AddFile(section.FileName, section.Content, (string)assetKey, ms,
                                                         context.User, (n, c) => VerifyFile(n, c, options, out _)));
                                             }
                                             else
                                             {
                                                 if (!hasAsset)
                                                 {
-                                                    syncHandler.AddFile(name, content, ms, context.User?.Identity,
+                                                    syncHandler.AddFile(section.FileName, section.Content, ms, context.User?.Identity,
                                                         (n, c) => VerifyFile(n, c, options, out _));
                                                 }
                                                 else
                                                 {
-                                                    syncHandler.AddFile(name, content, (string)assetKey, ms,
+                                                    syncHandler.AddFile(section.FileName, section.Content, (string)assetKey, ms,
                                                         context.User, (n, c) => VerifyFile(n, c, options, out _));
                                                 }
                                             }
@@ -217,22 +258,22 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                                         {
                                             if (asyncHandler != null)
                                             {
-                                                await (!hasAsset
-                                                    ? asyncHandler.AddFile(name, content, uploadHint, ms,
+                                                await(!hasAsset
+                                                    ? asyncHandler.AddFile(section.FileName, section.Content, uploadHint, ms,
                                                         context.User?.Identity)
-                                                    : asyncHandler.AddFile(name, content, uploadHint,
+                                                    : asyncHandler.AddFile(section.FileName, section.Content, uploadHint,
                                                         (string)assetKey, ms, context.User));
                                             }
                                             else
                                             {
                                                 if (!hasAsset)
                                                 {
-                                                    syncHandler.AddFile(name, content, uploadHint, ms,
+                                                    syncHandler.AddFile(section.FileName, section.Content, uploadHint, ms,
                                                         context.User?.Identity);
                                                 }
                                                 else
                                                 {
-                                                    syncHandler.AddFile(name, content, uploadHint, (string)assetKey,
+                                                    syncHandler.AddFile(section.FileName, section.Content, uploadHint, (string)assetKey,
                                                         ms,
                                                         context.User);
                                                 }
@@ -251,23 +292,23 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                                         return Results.BadRequest(deniedReason);
                                     }
                                 }
-                                else if (contentDisposition.IsFormDisposition())
+                                else if (section.IsFormData)
                                 {
+                                    using var body = new MemoryStream(section.Content);
                                     string formContent = null;
                                     if (asyncHandler != null && asyncHandler is IAsyncFormProcessor asyncFormer)
                                     {
-                                        formContent = await asyncFormer.ProcessForm(section.Headers, section.Body);
+                                        formContent = await asyncFormer.ProcessForm(section.Headers, body);
                                     }
                                     else if (syncHandler != null && syncHandler is IFormProcessor syncFormer)
                                     {
-                                        formContent = syncFormer.ProcessForm(section.Headers, section.Body);
+                                        formContent = syncFormer.ProcessForm(section.Headers, body);
                                     }
 
-                                    formContent ??= Encoding.Default.GetString(await section.Body.ToArrayAsync());
+                                    formContent ??= Encoding.Default.GetString(section.Content);
                                     logger.LogDebug(new EventId(0, "Found Form-Disposition"),
                                         $"Form Content: {formContent})");
                                 }
-                            }
                         }
 
                         var rfh = syncHandler as IRespondingFileHandler;
@@ -297,6 +338,49 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             }
 
             return Results.Unauthorized();
+        }
+
+        private static async Task<ParsedMultipartFile[]> ProcessMultipartFileUpload(MultipartFileModel fileData)
+        {
+            var retVal = new List<ParsedMultipartFile>();
+            MultipartSection section;
+            while ((section = await fileData.FilePartReader.ReadNextSectionAsync()) != null)
+            {
+                var hasContentDispositionHeader =
+                    ContentDispositionHeaderValue.TryParse(
+                        section.ContentDisposition, out var contentDisposition);
+                if (hasContentDispositionHeader)
+                {
+                    var content = await section.Body.ToArrayAsync();
+                    if (contentDisposition.IsFileDisposition())
+                    {
+                        string name = contentDisposition.FileName.Value ??
+                                      contentDisposition.FileNameStar.Value ??
+                                      contentDisposition.Name.Value;
+                        retVal.Add(new ParsedMultipartFile
+                        {
+                            Content = content,
+                            FileName = name,
+                            ContentType = section.ContentType,
+                            IsFormData = false,
+                            Headers = section.Headers != null?new Dictionary<string, StringValues>(section.Headers):null
+                        });
+                    }
+                    else if (contentDisposition.IsFormDisposition())
+                    {
+                        retVal.Add(new ParsedMultipartFile
+                        {
+                            Content = content,
+                            FileName = "--FORM--",
+                            ContentType = section.ContentType,
+                            IsFormData = true,
+                            Headers = section.Headers != null ? new Dictionary<string, StringValues>(section.Headers) : null
+                        });
+                    }
+                }
+            }
+
+            return retVal.ToArray();
         }
 
         private static async Task<IResult> GetFile(HttpContext context, bool withAuthorization, string fileToken)

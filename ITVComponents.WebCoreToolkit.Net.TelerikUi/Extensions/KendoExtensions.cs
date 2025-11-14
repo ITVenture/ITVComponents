@@ -309,17 +309,18 @@
                 bool setOriginalOnlyIfNull = false,
                 bool forceDownload = false,
                 string uploadHintHandler = null,
-                string customUploadCallback = null) where TModel : class
+                string customUploadCallback = null,
+                string expectedContentTypeColumn = null) where TModel : class
             {
                 var retVal = target.Bound(expression);
                 bool preserveOriginalName = originalNameColumn != null;
                 string columnName = retVal.Column.Member;
                 var urlHelper = new UrlHelper(target.Container.ViewContext);
-                string template =
+            string template =
                     $@"#if (typeof {columnName} === ""string"" && {columnName}.trim() !== """" && ITVenture.Tools.Uploader.fileTokenMode!==""query"") {{#
-        <a href='{(forceDownload ? $"{urlHelper.Content($"~/File/#={columnName}#")}" : "\\#")}' onclick='ITVenture.Tools.Uploader.showFile(ITVenture.Helpers.ResolveUrl(""~/File/#={columnName}#"")); return false;'>{displayText}</a>
+        <a href='{(forceDownload ? $"{urlHelper.Content($"~/File/#={columnName}#")}" : "\\#")}' onclick='ITVenture.Tools.Uploader.showFile(ITVenture.Helpers.ResolveUrl(""~/File/#={columnName}#""){(!string.IsNullOrEmpty(expectedContentTypeColumn)? $",\"#={expectedContentTypeColumn}#\"" : "")}); return false;'>{displayText}</a>
     #}} else if (typeof {columnName} === ""string"" && {columnName}.trim() !== """" && ITVenture.Tools.Uploader.fileTokenMode===""query""){{#
-        <a href='{(forceDownload ? $"{urlHelper.Content($"~/File?FileToken=#={columnName}#")}" : "\\#")}' onclick='ITVenture.Tools.Uploader.showFile(ITVenture.Helpers.ResolveUrl(""~/File?FileToken=#={columnName}#"")); return false;'>{displayText}</a>
+        <a href='{(forceDownload ? $"{urlHelper.Content($"~/File?FileToken=#={columnName}#")}" : "\\#")}' onclick='ITVenture.Tools.Uploader.showFile(ITVenture.Helpers.ResolveUrl(""~/File?FileToken=#={columnName}#""){(!string.IsNullOrEmpty(expectedContentTypeColumn) ? $",\"#={expectedContentTypeColumn}#\"" : "")}); return false;'>{displayText}</a>
     #}}else {{#
         <span>{emptyText}</span>
     #}}#";
