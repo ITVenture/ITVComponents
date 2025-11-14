@@ -1,5 +1,6 @@
 ﻿Dropzone.autoDiscover = false;
 ITVenture.Tools.Uploader = {
+    fileExtensionPopups: {"application/pdf":"pdf"},
     fileTokenMode:"path",
     dropzoneConfigured: false,
     configureDropzone: function () {
@@ -60,10 +61,25 @@ ITVenture.Tools.Uploader = {
             return retVal;
         };
 
+        var getProcessingFunction = function (e) {
+            var tmp = e[0].attributes.nameTarget.value;
+            var retVal = function (file) {
+                var callback = retVal.config[retVal.target.concat("_PROCESS")];
+                var wrapper = retVal.config[retVal.target.concat("_wrapper")];
+                if (typeof (callback) === "function") {
+                    callback(file, wrapper, this.options);
+                }
+            };
+
+            retVal.target = tmp;
+            retVal.config = config;
+            return retVal;
+        }
+
         var getMultiUploadedMethod = function (e) {
             var tmp = e[0].attributes.nameTarget.value;
             var retVal = function (file, response) {
-                retVal.config[retVal.target](response.Message, response.OriginalFileName, e);
+                retVal.config[retVal.target](response.Message, response.OriginalFileName, e, response);
                 $(file.previewElement).remove();
             };
 
@@ -85,18 +101,21 @@ ITVenture.Tools.Uploader = {
         sl.each(function (e, f) {
             var theHandler = getUploadedMethod($(f));
             var errorHandler = getErrorMethod($(f));
+            var processingFunction = getProcessingFunction($(f))
             var div = $(f);
             div.removeClass("dropzone");
             div.html("<div class='dropzone'></div>");
             var uploadDiv = $($(f).children("div")[0]);
             var uploadHint = "";
             var uploadAsset = "";
+            var asyncUpload = false;
             if (typeof (div[0].attributes.uploadHint) !== "undefined") {
                 uploadHint = div[0].attributes.uploadHint.value;
             }
             if (typeof (div[0].attributes.sharedAsset) !== "undefined") {
                 uploadAsset = div[0].attributes.sharedAsset.value;
             }
+
             var queryArg = [];
             if (uploadHint !== "") {
                 try {
@@ -119,18 +138,23 @@ ITVenture.Tools.Uploader = {
             }
 
             var query = ITVenture.Tools.Uploader.buildQuery(queryArg);
+            var urlRaw = "~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value);
             var dz = uploadDiv.dropzone({
-                url: ITVenture.Helpers.ResolveUrl("~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value).concat(query)),
+                url: ITVenture.Helpers.ResolveUrl(urlRaw.concat(query)),
                 maxFiles: 1,
                 init: function () {
                     this.on("success", theHandler);
                     this.on("error", errorHandler);
+                    this.on("processing", processingFunction);
                 }
             });
             var wrapper = config[theHandler.target + "_wrapper"] = {
                 dropzone: dz,
                 handler: theHandler,
-                errorHandler: errorHandler
+                errorHandler: errorHandler,
+                processingFunction: processingFunction,
+                queryArgRaw: queryArg,
+                urlRaw: urlRaw
             };
 
             wrapper.reset = function () {
@@ -149,6 +173,7 @@ ITVenture.Tools.Uploader = {
             .each(function (e, f) {
                 var theHandler = getMultiUploadedMethod($(f));
                 var errorHandler = getErrorMethod($(f));
+                var processingFunction = getProcessingFunction($(f))
                 var div = $(f);
                 div.removeClass("dropzone");
                 div.html("<div class='dropzone'></div>");
@@ -183,19 +208,24 @@ ITVenture.Tools.Uploader = {
                 }
 
                 var query = ITVenture.Tools.Uploader.buildQuery(queryArg);
+                var urlRaw = "~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value);
                 var dz = uploadDiv.dropzone({
-                    url: ITVenture.Helpers.ResolveUrl("~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value).concat(query)),
+                    url: ITVenture.Helpers.ResolveUrl(urlRaw.concat(query)),
                     maxFiles: 256,
                     init: function () {
                         this.on("success", theHandler);
                         this.on("error", errorHandler);
+                        this.on("processing", processingFunction);
                     }
                 });
                 uploadDiv.attr("style", "width:100%;height:100%");
                 config[theHandler.target + "_wrapper"] = {
                     dropzone: dz,
                     handler: theHandler,
-                    errorHandler: errorHandler
+                    errorHandler: errorHandler,
+                    processingFunction: processingFunction,
+                    queryArgRaw: queryArg,
+                    urlRaw: urlRaw
                 };
 
                 div.removeAttr("purpose");
@@ -213,7 +243,17 @@ ITVenture.Tools.Uploader = {
 
         return retVal;
     },
-    showFile: function (url) {
-        ITVenture.Tools.Popup.Open("pdf", url);
+    showFile: function (url, expectedContentType) {
+        if (typeof expectedContentType === "undefined" || expectedContentType === null || expectedContentType === "") {
+            expectedContentType = "application/pdf";
+        }
+
+        if (Object.hasOwn(ITVenture.Tools.Uploader.fileExtensionPopups, expectedContentType)) {
+
+            ITVenture.Tools.Popup.Open(ITVenture.Tools.Uploader.fileExtensionPopups[expectedContentType], url);
+        }
+        else {
+            window.location.href = url;
+        }
     }
 };

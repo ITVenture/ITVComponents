@@ -5,7 +5,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Models.RequestConservation;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -57,17 +59,24 @@ namespace ITVComponents.WebCoreToolkit.BackgroundProcessing
                 var task = await queue.Dequeue(stoppingToken);
                 if (task != null)
                 {
+                    HttpContext artContext = null;
                     try
                     {
                         using (var scope = services.CreateScope())
                         {
                             if (task.ConservedContext != null)
                             {
-                                scope.ServiceProvider.PrepareContext(task.ConservedContext);
+                                scope.ServiceProvider.PrepareContext(task.ConservedContext, out artContext);
+
                             }
                             else
                             {
-                                scope.ServiceProvider.PrepareEmptyContext();
+                                scope.ServiceProvider.PrepareEmptyContext(out artContext);
+                            }
+
+                            if (artContext is ConservedHttpContext chc)
+                            {
+                                chc.IsBackgroundServiceContext = true;
                             }
 
                             await task.Task(
@@ -79,6 +88,13 @@ namespace ITVComponents.WebCoreToolkit.BackgroundProcessing
                     catch (Exception ex)
                     {
                         logger?.LogError(ex, "Error occurred during Task execution");
+                    }
+                    finally
+                    {
+                        if (artContext is ConservedHttpContext chc)
+                        {
+                            chc.IsBackgroundServiceContext = false;
+                        }
                     }
                 }
             }
