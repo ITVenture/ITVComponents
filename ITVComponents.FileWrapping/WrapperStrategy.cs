@@ -69,8 +69,6 @@ namespace ITVComponents.FileWrapping
             }
         }
 
-
-
         /// <summary>
         /// Unwraps the file and puts its content into a directory with the same name as the input file
         /// </summary>
@@ -79,6 +77,15 @@ namespace ITVComponents.FileWrapping
         /// <param name="unwrappedFiles">a FileMap object containing all files that have been unwrapped</param>
         /// <returns>a value indicating whether the unwrapping of the file was successful</returns>
         public abstract bool Unwrap(string file, out string unwrappedDirectory, out FileMap unwrappedFiles);
+
+        /// <summary>
+        /// Unwraps the file and puts its content into a directory with the same name as the input file
+        /// </summary>
+        /// <param name="file">the input file that needs to be unwrapped</param>
+        /// <param name="unwrappedDirectory">the directory containing the unwrapped files</param>
+        /// <param name="unwrappedFiles">a FileMap object containing all files that have been unwrapped</param>
+        /// <returns>a value indicating whether the unwrapping of the file was successful</returns>
+        public abstract bool Unwrap(string file, string unwrappedDirectory, out FileMap unwrappedFiles);
 
         /// <summary>
         /// Unwraps a file and requests for each entry a new stream providing the inner entryname
