@@ -339,7 +339,10 @@ window.ITVenture = {
                 ITVenture.FrontendSecurity.featuresUsed = true;
                 var tmp = await ITVenture.Ajax.ajaxGet("~/TenantFeatures");
                 for (var i = 0; i < tmp.length; i++) {
-                    ITVenture.FrontendSecurity.activeFeatures.push(tmp[i]);
+                    var item = tmp[i];
+                    if (item.Enabled) {
+                        ITVenture.FrontendSecurity.activeFeatures.push(tmp[i]);
+                    }
                 }
             };
             $(document).ready(function () { ITVenture.FrontendSecurity.featureDownload = asyncFx(); });
@@ -369,7 +372,7 @@ window.ITVenture = {
             await ITVenture.FrontendSecurity.featureDownload;
             var lowerFeat = featureName.toLowerCase();
             var retVal = !ITVenture.FrontendSecurity.featuresUsed
-                || ITVenture.FrontendSecurity.activeFeatures.findIndex(n => n.FeatureName.toLowerCase() == lowerFeat) != -1;
+                || ITVenture.FrontendSecurity.activeFeatures.findIndex(n => n.FeatureName.toLowerCase() == lowerFeat && n.Enabled) != -1;
             return retVal;
         }
     }
