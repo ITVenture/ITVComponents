@@ -162,6 +162,16 @@ namespace ITVComponents.Scripting.CScript.Core
             return session is InterpreterBuffer.RunnerItem;
         }
 
+        public static ParserRuleContext GetRawExpressionTree(string expression, ExpressionMode mode)
+        {
+            if (mode == ExpressionMode.Expression)
+            {
+                return GetExpressionTree(expression);
+            }
+
+            return GetProgramTree(expression);
+        }
+
         /// <summary>
         /// Gets the ExpressionTree for a specific Expression
         /// </summary>
@@ -200,7 +210,7 @@ namespace ITVComponents.Scripting.CScript.Core
             return tmp.Value.Program;
         }
 
-        private enum ExpressionMode
+        public enum ExpressionMode
         {
             Expression,
             Program
