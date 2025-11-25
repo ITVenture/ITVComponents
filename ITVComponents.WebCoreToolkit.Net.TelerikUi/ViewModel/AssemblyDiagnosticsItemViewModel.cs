@@ -2,6 +2,7 @@
 {
     public class AssemblyDiagnosticsItemViewModel
     {
+        public string AssemblyVersion { get; set; }
         public string FullName { get; set; }
 
         public string Location { get; set; }
