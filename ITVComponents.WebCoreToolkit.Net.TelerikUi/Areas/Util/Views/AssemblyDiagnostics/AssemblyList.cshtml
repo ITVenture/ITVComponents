@@ -15,6 +15,7 @@
             .Columns(columns =>
             {
                 columns.Bound(n => n.FullName);
+                columns.Bound(n => n.AssemblyVersion);
                 columns.Bound(n => n.Location);
                 columns.Bound(n => n.RuntimeVersion);
                 columns.Bound(n => n.LoadContext);

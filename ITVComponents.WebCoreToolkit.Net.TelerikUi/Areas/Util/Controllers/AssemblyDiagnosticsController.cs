@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.Loader;
 using System.Security.Claims;
 using System.Text;
@@ -149,6 +150,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Areas.Util.Controllers
         {
             return Json(AssemblyLoadContext.All.SelectMany(n => n.Assemblies.Select(a => new {Context = n.Name, Assembly = a})).Select(n => new AssemblyDiagnosticsItemViewModel
             {
+                AssemblyVersion = n.Assembly.GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute)).Cast<AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion
+                ?? n.Assembly.GetCustomAttributes(typeof(AssemblyVersionAttribute)).Cast<AssemblyVersionAttribute>().FirstOrDefault()?.Version
+                ?? "--UNKNOWN--",
                 FullName=n.Assembly.FullName,
                 IsDynamic = n.Assembly.IsDynamic,
                 Location = !n.Assembly.IsDynamic?n.Assembly.Location:"--DYNAMIC--",
