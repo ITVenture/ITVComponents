@@ -349,6 +349,21 @@ window.ITVenture = {
         featuresUsed: false,
         permissionDownload: null,
         featureDownload: null,
+        initFeaturesAwaitable: null,
+        initPermissionsAwaitable: null,
+        awaitInit: async function (which, doWait) {
+            if (which !== "initFeaturesAwaitable" && which !== "initPermissionsAwaitable") {
+                throw "which must be 'initFeaturesAwaitable' or 'initPermissionsAwaitable'";
+            }
+
+            if (ITVenture.FrontendSecurity[which] == null) {
+                ITVenture.FrontendSecurity[which] = new ITVenture.Tools.EventBus.MiniAwaitable();
+            }
+
+            if (doWait) {
+                await ITVenture.FrontendSecurity[which];
+            }
+        },
         InitFeatures: function () {
             var asyncFx = async function () {
                 ITVenture.FrontendSecurity.featuresUsed = true;
@@ -360,7 +375,11 @@ window.ITVenture = {
                     }
                 }
             };
-            $(document).ready(function () { ITVenture.FrontendSecurity.featureDownload = asyncFx(); });
+            $(document).ready(async function () {
+                await ITVenture.FrontendSecurity.awaitInit("initFeaturesAwaitable", false);
+                ITVenture.FrontendSecurity.featureDownload = asyncFx();
+                ITVenture.FrontendSecurity.initFeaturesAwaitable.resolve();
+            });
         },
         InitPermissions: function () {
             var asyncFx = async function () {
@@ -370,13 +389,18 @@ window.ITVenture = {
                     ITVenture.FrontendSecurity.activePermissions.push(tmp[i]);
                 }
             };
-            $(document).ready(function () { ITVenture.FrontendSecurity.permissionDownload = asyncFx(); });
+            $(document).ready(async function () {
+                await ITVenture.FrontendSecurity.awaitInit("initPermissionsAwaitable", false);
+                ITVenture.FrontendSecurity.permissionDownload = asyncFx();
+                ITVenture.FrontendSecurity.initPermissionsAwaitable.resolve();
+            });
         },
         Init: function () {
             ITVenture.FrontendSecurity.InitFeatures();
             ITVenture.FrontendSecurity.InitPermissions();
         },
         CheckPermission: async function (permissionName) {
+            await ITVenture.FrontendSecurity.awaitInit("initPermissionsAwaitable" ,true);
             await ITVenture.FrontendSecurity.permissionDownload;
             var lowerPerm = permissionName.toLowerCase();
             var retVal = !ITVenture.FrontendSecurity.permissionsUsed
@@ -384,6 +408,7 @@ window.ITVenture = {
             return retVal;
         },
         CheckFeature: async function (featureName) {
+            await ITVenture.FrontendSecurity.awaitInit("initFeaturesAwaitable", true);
             await ITVenture.FrontendSecurity.featureDownload;
             var lowerFeat = featureName.toLowerCase();
             var retVal = !ITVenture.FrontendSecurity.featuresUsed
