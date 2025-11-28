@@ -19,28 +19,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             return (from t in retType.GetProperties(BindingFlags.SetProperty | BindingFlags.Public | BindingFlags.Instance) where Attribute.IsDefined(t, typeof(DiagnosticResultAttribute)) select new DiagEntityAnlyseItem{Attribute = (DiagnosticResultAttribute) Attribute.GetCustomAttribute(t, typeof(DiagnosticResultAttribute)), Property = t}).ToArray();
         }
 
-        public static IDictionary<string, object> VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
+        public static IDictionary<string, object> VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments, out bool argumentsValid)
         {
             var retVal = new Dictionary<string, object>();
-            VerifyArguments(query, arguments, (name, value, type, nullable) => retVal.Add(name, value), (name, type, nullable) => retVal.Add(name, DBNull.Value));
+            argumentsValid = VerifyArguments(query, arguments, (name, value, type, nullable) => retVal.Add(name, value), (name, type, nullable) => retVal.Add(name, DBNull.Value));
             return retVal;
         }
         
-        public static IDictionary<string, object> BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
+        public static IDictionary<string, object> BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, out bool argumentsValid)
         {
             var retVal = new Dictionary<string, object>();
-            BuildArguments(query, arguments, (name, value, type, nullable) => retVal.Add(name, value), (name, type, nullable) => retVal.Add(name, DBNull.Value));
+            argumentsValid = BuildArguments(query, arguments, (name, value, type, nullable) => retVal.Add(name, value), (name, type, nullable) => retVal.Add(name, DBNull.Value));
             return retVal;
         }
         
-        public static void VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> queryArguments, StringBuilder fullQuery)
+        public static bool VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> queryArguments, StringBuilder fullQuery)
         {
             var writeParam = new Action<string, string, bool>((name, type, nullable) =>
             {
                 fullQuery.AppendLine($"{type}{(nullable ? "?" : "")} {name} = Global.{name};");
             });
 
-            VerifyArguments(query, queryArguments, (name, value, type, nullable) =>
+            return VerifyArguments(query, queryArguments, (name, value, type, nullable) =>
             {
                 if (!queryArguments.ContainsKey(name))
                 {
@@ -51,9 +51,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }, writeParam);
         }
 
-        private static void VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> rawArguments, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
+        private static bool VerifyArguments(DiagnosticsQueryDefinition query, IDictionary<string, object> rawArguments, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
         {
-            ProcessArguments(query, s =>
+            return ProcessArguments(query, s =>
             {
                 object retVal = null;
                 if (rawArguments.ContainsKey(s))
@@ -65,14 +65,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }, paramWithValue, paramWithoutValue);
         }
 
-        public static void BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, IDictionary<string, object> queryArguments, StringBuilder fullQuery)
+        public static bool BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, IDictionary<string, object> queryArguments, StringBuilder fullQuery)
         {
             var writeParam = new Action<string, string, bool>((name, type, nullable) =>
             {
                 fullQuery.AppendLine($"{type}{(nullable ? "?" : "")} {name} = Global.{name};");
             });
 
-            BuildArguments(query, arguments, (name, value, type, nullable) =>
+            return BuildArguments(query, arguments, (name, value, type, nullable) =>
             {
                 if (!queryArguments.ContainsKey(name))
                 {
@@ -83,9 +83,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }, writeParam);
         }
 
-        private static void BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
+        private static bool BuildArguments(DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
         {
-            ProcessArguments(query, s =>
+            return ProcessArguments(query, s =>
             {
                 object retVal = null;
                 if (arguments.ContainsKey(s))
@@ -97,8 +97,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }, paramWithValue, paramWithoutValue);
         }
 
-        private static void ProcessArguments(DiagnosticsQueryDefinition query, Func<string, object> argumentValue, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
+        private static bool ProcessArguments(DiagnosticsQueryDefinition query, Func<string, object> argumentValue, Action<string, object, string, bool> paramWithValue, Action<string, string, bool> paramWithoutValue)
         {
+            bool retVal = true;
             foreach (var arg in query.Parameters)
             {
                 var rawValue = argumentValue(arg.ParameterName);
@@ -112,8 +113,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
                 string typeDef;
                 if (rawValue is string s && !string.IsNullOrEmpty(s))
                 {
-                    var paramValue = ParseArgument(s, arg.ParameterType, arg.Format, out typeDef);
-                    paramWithValue(arg.ParameterName, paramValue, typeDef, nullable);
+                    var paramValue = ParseArgument(s, arg.ParameterType, arg.Format, out typeDef, out var valid);
+                    if (valid)
+                    {
+                        paramWithValue(arg.ParameterName, paramValue, typeDef, nullable);
+                    }
+                    else
+                    {
+                        retVal = false;
+                        break;
+                    }
                     //queryArguments.Add(arg.ParameterName, ParseArgument(arg.DefaultValue, arg.ParameterType, arg.Format, out typeDef));
                 }
                 else if (rawValue != null)
@@ -127,6 +136,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
                     paramWithoutValue(arg.ParameterName, typeDef, nullable);
                 }
             }
+
+            return retVal;
         }
 
         public static string GetTypeDef(QueryParameterTypes type)
@@ -150,39 +161,84 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Helpers
             }
         }
         
-        public static object ParseArgument(string parameterValue, QueryParameterTypes type, string format, out string typeName)
+        public static object ParseArgument(string parameterValue, QueryParameterTypes type, string format, out string typeName, out bool paramValid)
         {
-            object retVal;
+            paramValid = true;
+            typeName = "--invalid--";
+            object retVal = null;
             switch (type)
             {
                 case QueryParameterTypes.Boolean:
-                    retVal = bool.Parse(parameterValue);
-                    typeName = "bool";
+                {
+                    //retVal = bool.Parse(parameterValue);
+                    paramValid = bool.TryParse(parameterValue, out var val);
+                    if (paramValid)
+                    {
+                        typeName = "bool";
+                        retVal = val;
+                    }
+
                     break;
+                }
                 case QueryParameterTypes.DateTime:
+                {
+                    DateTime val;
                     if (string.IsNullOrEmpty(format))
                     {
-                        retVal = DateTime.Parse(parameterValue);
+                        paramValid = DateTime.TryParse(parameterValue, out val);
+                        //retVal = DateTime.Parse(parameterValue);
                     }
                     else
                     {
-                        retVal = DateTime.ParseExact(parameterValue, format, CultureInfo.InvariantCulture);
+                        paramValid = DateTime.TryParseExact(parameterValue, format, CultureInfo.InvariantCulture,
+                            DateTimeStyles.None, out val);
+                        //retVal = DateTime.ParseExact(parameterValue, format, CultureInfo.InvariantCulture);
                     }
 
-                    typeName = "DateTime";
+                    if (paramValid)
+                    {
+                        retVal = val;
+                        typeName = "DateTime";
+                    }
+
                     break;
+                }
                 case QueryParameterTypes.Double:
-                    retVal = double.Parse(parameterValue);
-                    typeName = "double";
+                {
+                    paramValid = double.TryParse(parameterValue, out var val);
+                    //retVal = double.Parse(parameterValue);
+                    if (paramValid)
+                    {
+                        retVal = val;
+                        typeName = "double";
+                    }
+
                     break;
+                }
                 case QueryParameterTypes.Int32:
-                    retVal = int.Parse(parameterValue);
-                    typeName = "int";
+                {
+                    paramValid = int.TryParse(parameterValue, out var val);
+                    if (paramValid)
+                    {
+                        retVal = val;
+                        //retVal = int.Parse(parameterValue);
+                        typeName = "int";
+                    }
+
                     break;
+                }
                 case QueryParameterTypes.Int64:
-                    retVal = long.Parse(parameterValue);
-                    typeName = "long";
+                {
+                    paramValid = long.TryParse(parameterValue, out var val);
+                    //retVal = long.Parse(parameterValue);
+                    if (paramValid)
+                    {
+                        retVal = val;
+                        typeName = "long";
+                    }
+
                     break;
+                }
                 case QueryParameterTypes.String:
                     retVal = parameterValue;
                     typeName = "string";

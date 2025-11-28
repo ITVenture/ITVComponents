@@ -1,14 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection;
-using System.Security;
-using System.Text;
-using System.Threading.Tasks;
-using Dynamitey.DynamicObjects;
+﻿using Dynamitey.DynamicObjects;
 using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.EFRepo.Expressions.Visitors;
 using ITVComponents.EFRepo.Extensions;
@@ -254,9 +244,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             ConfigureLinqForContext(context, RosDiagConfig, out var contextType);
             StringBuilder fullQuery = new StringBuilder($@"{contextType.Name} db = Global.Db;
 ");
-            DiagnoseQueryHelper.VerifyArguments(query, arguments, fullQuery);
-            fullQuery.AppendLine($"{(query.AutoReturn ? "return " : "")}{query.QueryText}{(query.AutoReturn ? ";" : "")}");
-            return fullQuery.ToString();
+            if (DiagnoseQueryHelper.VerifyArguments(query, arguments, fullQuery))
+            {
+                fullQuery.AppendLine(
+                    $"{(query.AutoReturn ? "return " : "")}{query.QueryText}{(query.AutoReturn ? ";" : "")}");
+                return fullQuery.ToString();
+            }
+
+            throw new InvalidOperationException(
+                $"Invalid arguments were passed for Diagnostics-Query {query.DiagnosticsQueryName}.");
         }
 
         private static string CreateDiagQuery(DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments, out IDictionary<string, object> queryArguments)
@@ -265,9 +261,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             StringBuilder fullQuery = new StringBuilder($@"{contextType.Name} db = Global.Db;
 ");
             queryArguments = new Dictionary<string, object>();
-            DiagnoseQueryHelper.BuildArguments(query, arguments, queryArguments, fullQuery);
-            fullQuery.AppendLine($"{(query.AutoReturn ? "return " : "")}{query.QueryText}{(query.AutoReturn ? ";" : "")}");
-            return fullQuery.ToString();
+            if (DiagnoseQueryHelper.BuildArguments(query, arguments, queryArguments, fullQuery))
+            {
+                fullQuery.AppendLine(
+                    $"{(query.AutoReturn ? "return " : "")}{query.QueryText}{(query.AutoReturn ? ";" : "")}");
+                return fullQuery.ToString();
+            }
+
+            throw new InvalidOperationException(
+                $"Invalid arguments were passed for Diagnostics-Query {query.DiagnosticsQueryName}.");
         }
 
         private static string CreateRawQuery(DbContext context, string tableName, IDictionary<string, object> postedFilter, IServiceProvider services, out string filterDecl)

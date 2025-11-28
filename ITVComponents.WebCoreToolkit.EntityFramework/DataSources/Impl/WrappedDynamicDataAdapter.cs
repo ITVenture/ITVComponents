@@ -26,14 +26,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
         
         public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, string> queryArguments)
         {
-            var arguments = DiagnoseQueryHelper.BuildArguments(query, queryArguments);
-            return src.SqlQuery(query.QueryText, arguments);
+            var arguments = DiagnoseQueryHelper.BuildArguments(query, queryArguments, out var argumentsValid);
+            if (argumentsValid)
+            {
+                return src.SqlQuery(query.QueryText, arguments);
+            }
+
+            throw new InvalidOperationException(
+                $"Invalid arguments were passed for {httpContext.Request.Path}. (Diagnostics-QueryName: {query.DiagnosticsQueryName})");
         }
 
         public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
-            var arg = DiagnoseQueryHelper.VerifyArguments(query, arguments);
-            return src.SqlQuery(query.QueryText, arg);
+            var arg = DiagnoseQueryHelper.VerifyArguments(query, arguments, out var argumentsValid);
+            if (argumentsValid)
+            {
+                return src.SqlQuery(query.QueryText, arg);
+            }
+
+            throw new InvalidOperationException(
+                $"Invalid arguments were passed for {httpContext.Request.Path}. (Diagnostics-QueryName: {query.DiagnosticsQueryName})");
         }
 
         public ForeignKeyOptions CustomFkSettings { get; } = null;
