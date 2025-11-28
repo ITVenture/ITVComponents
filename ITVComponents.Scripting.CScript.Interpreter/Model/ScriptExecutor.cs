@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Antlr4.Runtime;
+using ITVComponents.Scripting.CScript.Interpreter.Model.Helpers;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,22 +12,31 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Model
     {
         private object statusArguments;
 
-        public ScriptExecutor(int pos, int length)
+        public ScriptExecutor(ParserRuleContext sourceElement)
         {
-            Pos = pos;
-            Length = length;
+            Pos = sourceElement.SourceInterval.a;
+            Length = sourceElement.SourceInterval.Length;
+            Line = sourceElement.Start.Line;
+            LineCol = sourceElement.Start.Column;
+            ChildExecutors = new ChildList(
+                whenAdded: c => c.Parent = this,
+                whenRemoved: c => c.Parent = null);
         }
 
         public string StatusName { get; set; }
 
         public string ElementName { get; set; }
 
-        public List<ScriptExecutor> ChildExecutors { get; } = new();
+        public IList<ScriptExecutor> ChildExecutors { get; }
 
-        public ScriptExecutor Parent { get; set; }
+        public ScriptExecutor Parent { get; private set; }
 
         public int Pos { get; }
         public int Length { get; }
+
+        public int Line { get; }
+
+        public int LineCol { get; }
 
         public void SetStatusArguments(object value)
         {

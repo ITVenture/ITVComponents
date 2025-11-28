@@ -18,5 +18,14 @@ namespace ITVComponents.Scripting.CScript.Interpreter
         public const string Void = "Void";
         public const string Operation = "Operation";
         public const string Assignment = "Assignment";
+        public const string Identifier = "Identifier";
+        public const string Indexer = "Indexer";
+        public const string MemberAccess = "MemberAccess";
+        public const string ConditionalValue = "ConditionalValue";
+        public const string ValueIsType = "ValueIsType";
+        public const string New = "New";
+        public const string Negate = "Negate";
+        public const string Increment = "Increment";
+        public const string Compare = "Compare";
     }
 }
