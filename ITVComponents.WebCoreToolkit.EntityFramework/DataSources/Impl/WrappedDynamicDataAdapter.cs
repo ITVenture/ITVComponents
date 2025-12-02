@@ -33,7 +33,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             }
 
             throw new InvalidOperationException(
-                $"Invalid arguments were passed for {httpContext.Request.Path}. (Diagnostics-QueryName: {query.DiagnosticsQueryName})");
+                $"Invalid arguments were passed for Diagnostics-Query {query.DiagnosticsQueryName}.");
         }
 
         public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
@@ -45,7 +45,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             }
 
             throw new InvalidOperationException(
-                $"Invalid arguments were passed for {httpContext.Request.Path}. (Diagnostics-QueryName: {query.DiagnosticsQueryName})");
+                $"Invalid arguments were passed for Diagnostics-Query {query.DiagnosticsQueryName}.");
         }
 
         public ForeignKeyOptions CustomFkSettings { get; } = null;
