@@ -2,15 +2,15 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>4.0.0-PRE223</Version>
+    <Version>4.0.0-PRE224</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
-		<ItemGroup>
-			<PackageReference Include="antlr4.runtime.standard" Version="4.13.1" />
-		</ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\..\..\dv\ITVComponents-Public\ITVComponents\ITVComponents.csproj" />
+    <PackageReference Include="antlr4.runtime.standard" Version="4.13.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
     <ProjectReference Include="..\ITVComponents.Scripting.CScript\ITVComponents.Scripting.CScript.csproj" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

@@ -1,27 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net8.0-windows</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>4.0.0-PRE224</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
-    <UseWPF>true</UseWPF>
   </PropertyGroup>
   <ItemGroup>
-    <Folder Include="Properties\" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Extended.Wpf.Toolkit" Version="4.6.1" />
-    <PackageReference Include="fontawesome.sharp" Version="6.6.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\ITVComponents.DataAccess.SqLite\ITVComponents.DataAccess.SqLite.csproj" />
-    <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />
-    <ProjectReference Include="..\ITVComponents.Logging.DefaultLoggers\ITVComponents.Logging.DefaultLoggers.csproj" />
     <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
-    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
-    <ProjectReference Include="..\ITVComponents.UserInterface.DefaultLayouts\ITVComponents.UserInterface.DefaultLayouts.csproj" />
-    <ProjectReference Include="..\ITVComponents.UserInterface\ITVComponents.UserInterface.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
