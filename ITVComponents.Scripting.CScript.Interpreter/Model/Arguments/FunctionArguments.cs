@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class FunctionArguments
+    internal class FunctionArguments : IExecutorArgument
     {
         public const string FunctionBody = "FunctionBody";
         public string[] Arguments { get; set; }

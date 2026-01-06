@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class AssignArguments : IExecutorArgument
+    internal class SwitchArguments : IExecutorArgument
     {
-        public const string Target = "Target";
-        public const string Source = "Source";
+        public const string Case = "Case";
+        public const string SwitchValue = "SwitchValue";
     }
 }

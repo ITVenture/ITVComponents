@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class NewArguments
+    internal class NewArguments : IExecutorArgument
     {
         public const string Type = "Type";
         public const string ConstructorArguments = "ConstructorArguments";

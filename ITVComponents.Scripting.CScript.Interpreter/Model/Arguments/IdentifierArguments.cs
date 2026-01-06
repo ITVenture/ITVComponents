@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class IdentifierArguments
+    /*internal class IdentifierArguments
     {
         public string Name { get; set; }
-    }
+    }*/
 }

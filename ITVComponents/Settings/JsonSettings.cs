@@ -193,7 +193,7 @@ namespace ITVComponents.Settings
 
             options.TypeInfoResolverChain.Add(GetTypeResolver(typing));
 
-            return JsonHelper.ReadObject<Dictionary<string, JsonSettingsSection>>(sourceStream, options);
+            return JsonHelper.ReadObject<Dictionary<string, JsonSettingsSection>, JsonSerializerOptions>(sourceStream, options);
         }
 
         /// <summary>

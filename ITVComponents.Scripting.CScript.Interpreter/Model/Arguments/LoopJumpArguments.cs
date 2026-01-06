@@ -6,9 +6,14 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class AssignArguments : IExecutorArgument
+    internal class LoopJumpArguments : IExecutorArgument
     {
-        public const string Target = "Target";
-        public const string Source = "Source";
+        public LoopJumpType Type { get; set; }
+    }
+
+    internal enum LoopJumpType
+    {
+        Continue,
+        Break
     }
 }

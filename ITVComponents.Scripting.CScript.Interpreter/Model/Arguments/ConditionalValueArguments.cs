@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class ConditionalValueArguments
+    internal class ConditionalValueArguments : IExecutorArgument
     {
+        public const string Condition = "Condition";
         public const string FirstValue = "FirstValue";
         public const string AlternativeValue = "AlternativeValue";
         public ConditionalValueType Type { get; set; }

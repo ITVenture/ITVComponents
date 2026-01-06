@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class NativeScriptArguments
+    internal class NativeScriptArguments : IExecutorArgument
     {
         public const string ExpressionArguments = "ExpressionArguments";
         public const string ExpressionBody = "ExpressionBody";

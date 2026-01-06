@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class NegateArguments
+    internal class NegateArguments : IExecutorArgument
     {
         public const string BaseValue = "BaseValue";
     }

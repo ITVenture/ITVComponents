@@ -1,13 +1,16 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Threading;
-using Antlr4.Runtime;
+﻿using Antlr4.Runtime;
 using ITVComponents.Scripting.CScript.Buffering;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Threading;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ITVComponents.Scripting.CScript.Core
 {
@@ -170,6 +173,42 @@ namespace ITVComponents.Scripting.CScript.Core
             }
 
             return GetProgramTree(expression);
+        }
+
+        public static ITVScriptingParser.ProgramContext GetExpressionTreeFromFile(Stream s, out bool runnable,
+            out int suspectLine, out string errors)
+        {
+            AntlrInputStream astr;
+            using (var r = new StreamReader(s, Encoding.Default))
+            {
+                astr = new AntlrInputStream(r);
+            }
+
+            return GetProgramContext(astr, out runnable, out suspectLine, out errors);
+        }    
+        
+        public static ITVScriptingParser.ProgramContext GetExpressionTreeFromFile(string fileName, out bool runnable,
+            out int suspectLine, out string errors)
+        {
+            AntlrInputStream astr = new AntlrFileStream(fileName, Encoding.Default);
+            return GetProgramContext(astr, out runnable, out suspectLine, out errors);
+        }
+
+        private static ITVScriptingParser.ProgramContext GetProgramContext(AntlrInputStream astr, out bool runnable,
+            out int suspectLine, out string errors)
+        {
+            //SingletonPredictionContext.
+            Lexer lex = new ITVScriptingLexer(astr);
+            ITVScriptingParser parser = new ITVScriptingParser(new CommonTokenStream(lex));
+            ErrorListener listener = new ErrorListener();
+            parser.RemoveErrorListeners();
+            parser.AddErrorListener(listener);
+            //parser.AddParseListener(new ScriptErrorHandler());
+            var program = parser.program();
+            runnable = parser.NumberOfSyntaxErrors == 0;
+            suspectLine = listener.SuspectLine;
+            errors = listener.GetAllErrors();
+            return program;
         }
 
         /// <summary>

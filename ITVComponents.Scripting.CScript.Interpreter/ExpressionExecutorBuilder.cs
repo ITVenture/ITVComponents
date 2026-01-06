@@ -1,753 +1,454 @@
-﻿using Antlr4.Runtime.Tree;
-using ITVComponents.Scripting.CScript.Core;
-using ITVComponents.Scripting.CScript.Interpreter.Model;
-using ITVComponents.Scripting.CScript.Operating;
-using ITVComponents.Scripting.CScript.ScriptValues;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices.JavaScript;
-using System.Text;
-using System.Threading.Tasks;
-using Antlr4.Runtime;
+﻿using Antlr4.Runtime;
+using Antlr4.Runtime.Misc;
+using Antlr4.Runtime.Tree;
+using Dynamitey.DynamicObjects;
 using ITVComponents.AssemblyResolving;
+using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
+using ITVComponents.Scripting.CScript.Interpreter.Model;
 using ITVComponents.Scripting.CScript.Interpreter.Model.Arguments;
+using ITVComponents.Scripting.CScript.Operating;
 using ITVComponents.Scripting.CScript.ReflectionHelpers;
+using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 using ITVComponents.Scripting.CScript.Security.Restrictions;
+using Microsoft.CodeAnalysis.Operations;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.JavaScript;
+using System.Text;
+using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace ITVComponents.Scripting.CScript.Interpreter
 {
     public class ExpressionExecutorBuilder: ITVScriptingBaseVisitor<ScriptExecutor>
     {
-        private IScope variables;
-
-        //private ValueBuffer valueBuffer = new ValueBuffer();
-
-        private object switchVal = null;
-
-        private InitializeScopeVariables preparer;
-
         private bool loopJumpAllowed = false;
 
         private bool catching = false;
+
+        private bool hasUnconditionalJump = false;
+
+        public bool conditional = false;
 
         //private Stack<object> switchStack = new Stack<object>();
         //private Stack<bool> loopJumpAllowed = new Stack<bool>();
         //private Stack<bool> returnSupported = new Stack<bool>();
         private bool returnSupported = true;
 
-        private bool typeSafety = true;
+        
 
-        private bool lazyInvokation = false;
-
-        private bool bypassCompatibilityOnLazyInvokation = false;
-
-        private bool openBlockScope = true;
-
-        private ScriptValue defaultRet;
+        //private ScriptValue defaultRet;
         private ScriptingPolicy scriptingPolicy;
 
-        public ScriptVisitor()
+        public ExpressionExecutorBuilder()
         {
-            variables = new Scope(ScriptingPolicy.Default);
-        }
-
-        public ScriptVisitor(IScope baseScope)
-        {
-            variables = baseScope;
-            Reactivateable = false;
+            scriptingPolicy = Security.ScriptingPolicy.Default;
         }
 
         internal ScriptingPolicy ScriptingPolicy
         {
             get => scriptingPolicy;
-            set
-            {
-                scriptingPolicy = value;
-                variables.OverridePolicy(value);
-            }
+            set => scriptingPolicy = value;
         }
 
-        protected override ScriptValue DefaultResult
-        {
-            get { return defaultRet ?? JSType.Void.Instance; }
-        }
-
-        public IDisposable Context { get; internal set; }
-
-        public void ClearScope(IDictionary<string, object> baseValues)
-        {
-            preparer = null;
-            variables.Clear(baseValues);
-            loopJumpAllowed = false;
-            returnSupported = true;
-        }
-
-        public void Prepare(InitializeScopeVariables prepareVariables)
-        {
-            if (prepareVariables != null)
-            {
-                prepareVariables(new ScopePreparationCallbackArguments(variables, Context, this));
-                preparer = prepareVariables;
-            }
-        }
-
-        public override ScriptValue VisitProgram(ITVScriptingParser.ProgramContext context)
+        public override ScriptExecutor VisitProgram(ITVScriptingParser.ProgramContext context)
         {
             return VisitSourceElements(context.sourceElements());
         }
 
-        public override ScriptValue VisitSourceElements(ITVScriptingParser.SourceElementsContext context)
+        public override ScriptExecutor VisitSourceElements(ITVScriptingParser.SourceElementsContext context)
         {
-            ScriptValue retVal;
-            ITVScriptingParser.SourceElementContext[] elements = context.sourceElement();
-            foreach (var element in elements)
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.Block };
+            retVal.SetStatusArguments(new BlockArguments { BlockType = BlockType.SourceElementList });
+            ITVScriptingParser.StatementContext[] list = null;
+            var statements = context.sourceElement();
+
+            if (statements != null && statements.Length != 0)
             {
-                retVal = VisitSourceElement(element);
-                if (retVal is IPassThroughValue)
+                foreach (var statement in statements)
                 {
-                    return retVal;
+                    var value = Visit(statement);
+                    value.ElementName = BlockArguments.SourceElement;
+                    retVal.ChildExecutors.Add(value);
                 }
             }
 
-            return JSType.Void.Instance;
+            return retVal;
         }
-
-        /*public ScriptValue VisitSourceElement(ITVScriptingParser.SourceElementContext context)
+        private ScriptExecutor Block(ParserRuleContext entireBlock, ITVScriptingParser.StatementListContext statements, BlockType blockType = BlockType.StatementList)
         {
-            return VisitStatement(context.statement());
-        }*/
-
-        /*public ScriptValue VisitStatement(ITVScriptingParser.StatementContext context)
-        {
-            var statement = context.GetChild(0);
-            Type t = statement.GetType();
-            if (t == typeof (ITVScriptingParser.BlockContext))
+            var retVal = new ScriptExecutor(entireBlock) { StatusName = ScriptExecutionStatus.Block };
+            retVal.SetStatusArguments(new BlockArguments{BlockType = blockType});
+            ITVScriptingParser.StatementContext[] list = null;
+            if (statements != null && (list = statements.statement()) != null && list.Length != 0)
             {
-                return VisitBlock((ITVScriptingParser.BlockContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.BreakStatementContext))
-            {
-                return VisitBreakStatement((ITVScriptingParser.BreakStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.ContinueStatementContext))
-            {
-                return VisitContinueStatement((ITVScriptingParser.ContinueStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.EmptyStatementContext))
-            {
-                return VisitEmptyStatement((ITVScriptingParser.EmptyStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.ExpressionStatementContext))
-            {
-                return VisitExpressionStatement((ITVScriptingParser.ExpressionStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.IfStatementContext))
-            {
-                return VisitIfStatement((ITVScriptingParser.IfStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.DoStatementContext))
-            {
-                return VisitDoStatement((ITVScriptingParser.DoStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.WhileStatementContext))
-            {
-                return VisitWhileStatement((ITVScriptingParser.WhileStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.ForInStatementContext))
-            {
-                return VisitForInStatement((ITVScriptingParser.ForInStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.ForStatementContext))
-            {
-                return VisitForStatement((ITVScriptingParser.ForStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.ReturnStatementContext))
-            {
-                return VisitReturnStatement((ITVScriptingParser.ReturnStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.SwitchStatementContext))
-            {
-                return VisitSwitchStatement((ITVScriptingParser.SwitchStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.ThrowStatementContext))
-            {
-                return VisitThrowStatement((ITVScriptingParser.ThrowStatementContext) statement);
-            }
-
-            if (t == typeof (ITVScriptingParser.TryStatementContext))
-            {
-                return VisitTryStatement((ITVScriptingParser.TryStatementContext) statement);
-            }
-
-            Throw val = new Throw>();
-            val.Initialize(string.Format("Unexpected Statement found at {0}/{1}", context.Start.Line,
-                                         context.Start.StartIndex), false);
-            return val;
-        }*/
-
-        public override ScriptValue VisitChildren(IRuleNode node)
-        {
-            try
-            {
-                return base.VisitChildren(node);
-            }
-            finally
-            {
-                defaultRet = null;
-            }
-        }
-
-        public override ScriptValue VisitBlock(ITVScriptingParser.BlockContext context)
-        {
-            bool useScope = openBlockScope;
-            openBlockScope = true;
-            if (useScope)
-            {
-                variables.OpenInnerScope();
-            }
-
-            try
-            {
-                ITVScriptingParser.StatementListContext list = context.statementList();
-                if (list != null)
+                foreach (ITVScriptingParser.StatementContext statement in statements.statement())
                 {
-                    return VisitStatementList(context.statementList());
+                    var value = VisitStatement(statement);
+                    value.ElementName = BlockArguments.Statement;
+                    retVal.ChildExecutors.Add(value);
                 }
-
-                return JSType.Void.Instance;
             }
-            finally
-            {
-                if (useScope)
-                {
-                    variables.CollapseScope();
-                }
 
-                openBlockScope = useScope;
-            }
+            return retVal;
         }
 
-        public override ScriptValue VisitStatementList(ITVScriptingParser.StatementListContext context)
+        public override ScriptExecutor VisitBlock(ITVScriptingParser.BlockContext context)
         {
+            return Block(context, context.statementList(), BlockType.CodeBlock);
+        }
+
+        public override ScriptExecutor VisitStatementList(ITVScriptingParser.StatementListContext context)
+        {
+            return Block(context, context);
+        }
+
+        public override ScriptExecutor VisitEmptyStatement(ITVScriptingParser.EmptyStatementContext context)
+        {
+            return new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.EmptyStatement };
+        }
+
+        public override ScriptExecutor VisitExpressionStatement(ITVScriptingParser.ExpressionStatementContext context)
+        {
+            var sequence = VisitExpressionSequence(context.expressionSequence());
+            if (sequence.ChildExecutors.Count == 1)
+            {
+                var firstChild = sequence.ChildExecutors[0];
+                firstChild.ReleaseFromParent();
+                return firstChild;
+            }
+
+            return sequence;
+        }
+
+        public override ScriptExecutor VisitIfStatement(ITVScriptingParser.IfStatementContext context)
+        {
+            var val = Visit(context.singleExpression());
             ITVScriptingParser.StatementContext[] statements = context.statement();
-            foreach (ITVScriptingParser.StatementContext statement in statements)
-            {
-                ScriptValue value = VisitStatement(statement);
-                if (value is IPassThroughValue)
-                {
-                    return value;
-                }
-            }
-
-            return JSType.Void.Instance;
-        }
-
-        public override ScriptValue VisitEmptyStatement(ITVScriptingParser.EmptyStatementContext context)
-        {
-            return JSType.Void.Instance;
-        }
-
-        public override ScriptValue VisitExpressionStatement(ITVScriptingParser.ExpressionStatementContext context)
-        {
-            return VisitExpressionSequence(context.expressionSequence());
-        }
-
-        public override ScriptValue VisitIfStatement(ITVScriptingParser.IfStatementContext context)
-        {
-#if UseVisitSingleExpression
-            ScriptValue val = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue val = Visit(context.singleExpression());
-#endif
-            if (val is IPassThroughValue)
-            {
-                return val;
-            }
-            ITVScriptingParser.StatementContext[] statements = context.statement();
-            if (CheckBooleanTrue(val))
-            {
-                return VisitStatement(statements[0]);
-            }
-
+            ScriptExecutor ifBlock = null;
             if (statements.Length > 1)
             {
-                return VisitStatement(statements[1]);
+                ifBlock = VisitStatement(statements[1]);
             }
 
-            return JSType.Void.Instance;
-        }
-
-        public override ScriptValue VisitDoStatement(ITVScriptingParser.DoStatementContext context)
-        {
-            ITVScriptingParser.StatementContext body = context.statement();
-            ITVScriptingParser.SingleExpressionContext condition = context.singleExpression();
-            bool loopJumps = loopJumpAllowed;
-            loopJumpAllowed = true;
-            try
+            if (ifBlock == null || ifBlock.StatusName != ScriptExecutionStatus.IfBlock)
             {
-                do
+                var tmp = ifBlock;
+                ifBlock = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.IfBlock };
+                var arg = new IfBlockArguments { };
+                ifBlock.SetStatusArguments(arg);
+                if (tmp != null)
                 {
-                    ScriptValue tmp = VisitStatement(body);
-                    if (tmp is IPassThroughValue && !(tmp is Continue))
-                    {
-                        if (tmp is Break)
-                        {
-                            break;
-                        }
-
-                        return tmp;
-                    }
-
-#if UseVisitSingleExpression
-            } while (CheckBooleanTrue(VisitSingleExpression(condition)));
-#else
-                } while (CheckBooleanTrue(Visit(condition)));
-#endif
-
-            }
-            finally
-            {
-                loopJumpAllowed = loopJumps;
-            }
-
-            return JSType.Void.Instance;
-        }
-
-        /*public override ScriptValue VisitInterpolatedStringLiteral(ITVScriptingParser.InterpolatedStringLiteralContext context)
-        {
-            string[] singleValues = (from t in context.interpolatedStringParts() select (string)VisitInterpolatedStringParts(t).GetValue(null)).ToArray();
-
-            LiteralScriptValue retVal = new LiteralScriptValue>();
-            retVal.SetValue(string.Join(" ", singleValues), null);
-            return retVal;
-        }
-
-        public override ScriptValue VisitInterpolatedStringParts(ITVScriptingParser.InterpolatedStringPartsContext context)
-        {
-            ITVScriptingParser.DoubleStringPartContext literal = context.doubleStringPart();
-            ITVScriptingParser.SingleExpressionContext complex = context.singleExpression();
-            LiteralScriptValue retVal = new LiteralScriptValue>();
-            if (literal != null)
-            {
-                retVal.SetValue(literal.GetText(), null);
-            }
-            else
-            {
-                ScriptValue value = VisitSingleExpression(complex);
-                retVal.SetValue(
-                    string.Format(
-                        string.Format("{{0{0}{1}}}", context.StringPadding().GetText(), context.StringFormat().GetText()),
-                        value.GetValue(null)),null);
-            }
-
-            return retVal;
-        }*/
-
-        public override ScriptValue VisitWhileStatement(ITVScriptingParser.WhileStatementContext context)
-        {
-            ITVScriptingParser.StatementContext body = context.statement();
-            ITVScriptingParser.SingleExpressionContext condition = context.singleExpression();
-            bool loopJumps = loopJumpAllowed;
-            loopJumpAllowed = true;
-            try
-            {
-#if UseVisitSingleExpression
-            while (CheckBooleanTrue(VisitSingleExpression(condition)))
-                    {
-#else
-                while (CheckBooleanTrue(Visit(context.singleExpression())))
-                {
-#endif
-
-                    ScriptValue tmp = VisitStatement(body);
-                    if (tmp is IPassThroughValue && !(tmp is Continue))
-                    {
-                        if (tmp is Break)
-                        {
-                            break;
-                        }
-
-                        return tmp;
-                    }
+                    tmp.ElementName = IfBlockArguments.ElseBlock;
+                    ifBlock.ChildExecutors.Add(tmp);
                 }
             }
-            finally
-            {
-                loopJumpAllowed = loopJumps;
-            }
 
-            return JSType.Void.Instance;
+            var primaryIf = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.IfCondition };
+            val.ElementName = IfBlockArguments.Condition;
+            primaryIf.ChildExecutors.Add(val);
+            var primaryBody = VisitStatement(statements[0]);
+            primaryBody.ElementName = IfBlockArguments.Body;
+            primaryIf.ChildExecutors.Add(primaryBody);
+            primaryIf.ElementName = IfBlockArguments.Alternative;
+            ifBlock.ChildExecutors.Insert(0, primaryIf);
+            return ifBlock;
         }
 
-        public override ScriptValue VisitForStatement(ITVScriptingParser.ForStatementContext context)
+        public override ScriptExecutor VisitDoStatement(ITVScriptingParser.DoStatementContext context)
+        {
+            ITVScriptingParser.StatementContext body = context.statement();
+            ITVScriptingParser.SingleExpressionContext condition = context.singleExpression();
+            return Loop(context, LoopType.DoWhile, null, condition, null, null, body);
+        }
+
+        public override ScriptExecutor VisitWhileStatement(ITVScriptingParser.WhileStatementContext context)
+        {
+            ITVScriptingParser.StatementContext body = context.statement();
+            ITVScriptingParser.SingleExpressionContext condition = context.singleExpression();
+            return Loop(context, LoopType.While, null, condition, null, null, body);
+        }
+
+        public override ScriptExecutor VisitForStatement(ITVScriptingParser.ForStatementContext context)
         {
             ITVScriptingParser.StatementContext body = context.statement();
             ITVScriptingParser.ExpressionSequenceContext[] header = context.expressionSequence();
             if (header.Length != 3)
             {
-                Throw t = new Throw();
-                t.Initialize(
-                    string.Format("Invalid For - Statement at {0}/{1}", context.Start.Line, context.Start.Column),
-                    false);
-                return t;
+                throw new ScriptException($"Invalid For - Statement at {context.Start.Line}/{context.Start.Column}");
             }
 
             ITVScriptingParser.ExpressionSequenceContext start, condition, loopAction;
             start = header[0];
             condition = header[1];
             loopAction = header[2];
-            variables.OpenInnerScope();
-            openBlockScope = false;
-            try
-            {
-                bool loopJumps = loopJumpAllowed;
-                loopJumpAllowed = true;
-                try
-                {
-                    for (VisitExpressionSequence(start);
-                         CheckBooleanTrue(VisitExpressionSequence(condition));
-                         VisitExpressionSequence(loopAction))
-                    {
-                        ScriptValue tmp = VisitStatement(body);
-                        if (tmp is IPassThroughValue && !(tmp is Continue))
-                        {
-                            if (tmp is Break)
-                            {
-                                break;
-                            }
-
-                            return tmp;
-                        }
-                    }
-                }
-                finally
-                {
-                    loopJumpAllowed = loopJumps;
-                }
-            }
-            finally
-            {
-                openBlockScope = true;
-                variables.CollapseScope();
-            }
-
-            return JSType.Void.Instance;
+            return Loop(context, LoopType.For, start, condition, loopAction, null, body);
         }
 
-        public override ScriptValue VisitForInStatement(ITVScriptingParser.ForInStatementContext context)
+        public override ScriptExecutor VisitForInStatement(ITVScriptingParser.ForInStatementContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] startExpressions = context.singleExpression();
             ITVScriptingParser.StatementContext body = context.statement();
             ITVScriptingParser.SingleExpressionContext runVar = startExpressions[0];
             ITVScriptingParser.SingleExpressionContext enumerableValue = startExpressions[1];
-#if UseVisitSingleExpression
-            ScriptValue en = VisitSingleExpression(enumerableValue);
-#else
-            ScriptValue en = Visit(enumerableValue);
-#endif
-            if (en is IPassThroughValue)
+            return Loop(context, LoopType.ForEach, runVar, null, null, enumerableValue, body);
+        }
+
+        private ScriptExecutor Loop(ParserRuleContext entireLoopContext, LoopType type, ParserRuleContext initContextOrItem, ParserRuleContext conditionContext, ParserRuleContext oneToNEntryActionContext, ParserRuleContext iteratorContext, ParserRuleContext bodyContext)
+        {
+            var retVal = new ScriptExecutor(entireLoopContext) { StatusName = ScriptExecutionStatus.Loop };
+            var arg = new LoopArguments { Type = type };
+            var lja = loopJumpAllowed;
+            var cnd = conditional;
+            if (type == LoopType.For)
             {
-                return en;
+                var init = Visit(initContextOrItem);
+                init.ElementName = LoopArguments.Initializer;
+                retVal.ChildExecutors.Add(init);
+                var oneToN = Visit(oneToNEntryActionContext);
+                oneToN.ElementName = LoopArguments.Iterator;
+                retVal.ChildExecutors.Add(oneToN);
             }
 
-#if UseVisitSingleExpression
-            ScriptValue targetVal = VisitSingleExpression(runVar);
-#else
-            ScriptValue targetVal = Visit(runVar);
-#endif
-            if (targetVal is IPassThroughValue)
+            if (type == LoopType.For || type == LoopType.While || type == LoopType.DoWhile)
             {
-                return targetVal;
+                var condition = Visit(conditionContext);
+                condition.ElementName = LoopArguments.Condition;
+                retVal.ChildExecutors.Add(condition);
             }
-            variables.OpenInnerScope();
-            openBlockScope = false;
+
+            if (type == LoopType.ForEach)
+            {
+                var item = Visit(initContextOrItem);
+                item.ElementName = LoopArguments.ItemVariable;
+                retVal.ChildExecutors.Add(item);
+                var iterator = Visit(iteratorContext);
+                iterator.ElementName = LoopArguments.Iterator;
+                retVal.ChildExecutors.Add(iterator);
+            }
+
+            ScriptExecutor body;
             try
             {
-                object enumerator = en.GetValue(null, ScriptingPolicy);
-                if (!(enumerator is IEnumerable))
-                {
-                    Throw t = new Throw();
-                    t.Initialize(
-                        string.Format("Enumerable object required at {0}/{1}", context.Start.Line,
-                                      context.Start.Column),
-                        false);
-                    return t;
-                }
-
-                IEnumerable enumerable = (IEnumerable)enumerator;
-                bool loopJumps = loopJumpAllowed;
                 loopJumpAllowed = true;
-                try
-                {
-                    foreach (object current in enumerable)
-                    {
-                        targetVal.SetValue(current, null, ScriptingPolicy);
-                        ScriptValue tmp = VisitStatement(body);
-                        if (tmp is IPassThroughValue && !(tmp is Continue))
-                        {
-                            if (tmp is Break)
-                            {
-                                break;
-                            }
-
-                            return tmp;
-                        }
-                    }
-                }
-                finally
-                {
-                    loopJumpAllowed = loopJumps;
-                }
+                conditional = true;
+                body= Visit(bodyContext);
             }
             finally
             {
-                openBlockScope = true;
-                variables.CollapseScope();
+                loopJumpAllowed = lja;
+                conditional = cnd;
             }
 
-            return JSType.Void.Instance;
+            body.ElementName = LoopArguments.Body;
+            retVal.ChildExecutors.Add(body);
+            retVal.SetStatusArguments(arg);
+            return retVal;
         }
 
-        public override ScriptValue VisitContinueStatement(ITVScriptingParser.ContinueStatementContext context)
+        public override ScriptExecutor VisitContinueStatement(ITVScriptingParser.ContinueStatementContext context)
         {
             if (loopJumpAllowed)
             {
-                return Continue.Instance;
+                if (!conditional)
+                {
+                    hasUnconditionalJump = true;
+                }
+
+                return LoopJump(context, LoopJumpType.Continue);
             }
 
-            Throw t = new Throw();
-            t.Initialize(
-                string.Format(
-                    "Invalid usage of Continue found at {0}/{1}",
-                    context.Start.Line,
-                    context.Start.Column),
-                false);
-            return t;
+            throw new ScriptException(
+                $"Invalid usage of Continue found at {context.Start.Line}/{context.Start.Column}");
         }
 
-        public override ScriptValue VisitBreakStatement(ITVScriptingParser.BreakStatementContext context)
+        public override ScriptExecutor VisitBreakStatement(ITVScriptingParser.BreakStatementContext context)
         {
             if (loopJumpAllowed)
             {
-                return Break.Instance;
+                if (!conditional)
+                {
+                    hasUnconditionalJump = true;
+                }
+
+                return LoopJump(context,LoopJumpType.Break);
             }
 
-            Throw t = new Throw();
-            t.Initialize(
-                string.Format(
-                    "Invalid usage of Break found at {0}/{1}",
-                    context.Start.Line,
-                    context.Start.Column),
-                false);
-            return t;
+            throw new ScriptException($"Invalid usage of Break found at {context.Start.Line}/{context.Start.Column}");
         }
 
-        public override ScriptValue VisitReturnStatement(ITVScriptingParser.ReturnStatementContext context)
+        private ScriptExecutor LoopJump(ParserRuleContext context, LoopJumpType type)
+        {
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.LoopJump };
+            retVal.SetStatusArguments(new LoopJumpArguments { Type = type });
+            return retVal;
+        }
+
+        public override ScriptExecutor VisitReturnStatement(ITVScriptingParser.ReturnStatementContext context)
         {
             if (returnSupported)
             {
-#if UseVisitSingleExpression
-            ScriptValue val = VisitSingleExpression(context.singleExpression());
-#else
-                ScriptValue val = Visit(context.singleExpression());
-#endif
-                if (val is IPassThroughValue)
+                ScriptExecutor val = null;
+                var rv = context.singleExpression();
+                if (rv != null)
                 {
-                    return val;
+                    val = Visit(rv);
+                }
+                if (!conditional)
+                {
+                    hasUnconditionalJump = true;
                 }
 
-                ReturnValue r = new ReturnValue();
-                r.Initialize(val.GetValue(null, ScriptingPolicy));
-                return r;
+                var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.ReturnStatement };
+                retVal.SetStatusArguments(new ReturnArguments());
+                if (val != null)
+                {
+                    val.ElementName = ReturnArguments.Value;
+                    retVal.ChildExecutors.Add(val);
+                }
+
+                return retVal;
             }
 
-            Throw t = new Throw();
-            t.Initialize(
-                string.Format(
-                    "Invalid usage of Return found at {0}/{1}",
-                    context.Start.Line,
-                    context.Start.Column),
-                false);
-            return t;
+            throw new ScriptException($"Invalid usage of Return found at {context.Start.Line}/{context.Start.Column}");
         }
 
-        public override ScriptValue VisitSwitchStatement(ITVScriptingParser.SwitchStatementContext context)
+        public override ScriptExecutor VisitSwitchStatement(ITVScriptingParser.SwitchStatementContext context)
         {
-#if UseVisitSingleExpression
-            ScriptValue caseValue = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue caseValue = Visit(context.singleExpression());
-#endif
-            if (caseValue is IPassThroughValue)
-            {
-                return caseValue;
-            }
-
-            object lastVal = switchVal;
-            bool loopJumps = loopJumpAllowed;
-            switchVal = caseValue.GetValue(null, ScriptingPolicy);
-            try
-            {
-                loopJumpAllowed = true;
-                return VisitCaseBlock(context.caseBlock());
-            }
-            finally
-            {
-                switchVal = lastVal;
-                loopJumpAllowed = loopJumps;
-            }
+            ScriptExecutor caseValue = Visit(context.singleExpression());
+            var arg = new SwitchArguments();
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.Switch };
+            caseValue.ElementName = SwitchArguments.SwitchValue;
+            retVal.ChildExecutors.Add(caseValue);
+            retVal.SetStatusArguments(arg);
+            VisitCaseBlock(context.caseBlock(), retVal);
+            return retVal;
         }
 
-        public override ScriptValue VisitCaseBlock(ITVScriptingParser.CaseBlockContext context)
+        public void VisitCaseBlock(ITVScriptingParser.CaseBlockContext context, ScriptExecutor rootSwitch)
         {
             ITVScriptingParser.CaseClausesContext cases = context.caseClauses();
             ITVScriptingParser.DefaultClauseContext defaultClause = context.defaultClause();
-            ScriptValue tmp = VisitCaseClauses(cases);
-            if (tmp is IPassThroughValue)
-            {
-                return tmp;
-            }
-
-            if (!CheckBooleanTrue(tmp) && defaultClause != null)
-            {
-                tmp = VisitDefaultClause(defaultClause);
-                if (tmp is IPassThroughValue)
-                {
-                    return tmp;
-                }
-            }
-
-            return JSType.Void.Instance;
+            VisitCaseClauses(cases, defaultClause, rootSwitch);
         }
 
-        public override ScriptValue VisitCaseClauses(ITVScriptingParser.CaseClausesContext context)
+        public void VisitCaseClauses(ITVScriptingParser.CaseClausesContext context, ITVScriptingParser.DefaultClauseContext defaultClause, ScriptExecutor rootCase)
         {
             ITVScriptingParser.CaseClauseContext[] allCases = context.caseClause();
             bool ok = false;
             foreach (ITVScriptingParser.CaseClauseContext singleCase in allCases)
             {
-                ok = true;
-                ScriptValue ret = VisitCaseClause(singleCase);
-                if (ret is Break)
-                {
-                    LiteralScriptValue l = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-                    l.Initialize(true);
-                    return l;
-                }
-                if (ret is Continue)
-                {
-                    switchVal = ret;
-                }
-                else if (ret is IPassThroughValue)
-                {
-                    return ret;
-                }
-                else
-                {
-                    object obj = ret.GetValue(null, ScriptingPolicy);
-                    if (!(obj is bool))
-                    {
-                        Throw t = new Throw();
-                        t.Initialize(
-                            string.Format(
-                                "Should not fall implicit through Case Labels. Use Continue for falling through {0}/{1}",
-                                context.Start.Line,
-                                context.Start.Column),
-                            false);
-                        return t;
-                    }
-                }
+                var ret = VisitCaseClause(singleCase);
+                ret.ElementName = SwitchArguments.Case;
+                rootCase.ChildExecutors.Add(ret);
             }
 
-            if (!ok)
+            if (defaultClause != null)
             {
-                Throw t = new Throw();
-                t.Initialize(string.Format("No Cases defined at {0}/{1}", context.Start.Line,
-                                           context.Start.Column),
-                             false);
-                return t;
+                var ret = VisitDefaultClause(defaultClause);
+                ret.ElementName = SwitchArguments.Case;
+                rootCase.ChildExecutors.Add(ret);
             }
-
-            LiteralScriptValue v = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            v.Initialize(false);
-            return v;
         }
 
-        public override ScriptValue VisitCaseClause(ITVScriptingParser.CaseClauseContext context)
+        public ScriptExecutor VisitCaseClause(ITVScriptingParser.CaseClauseContext context)
         {
             ITVScriptingParser.SingleExpressionContext expression = context.singleExpression();
             ITVScriptingParser.StatementListContext statements = context.statementList();
-#if UseVisitSingleExpression
-            ScriptValue val = VisitSingleExpression(expression);
-#else
-            ScriptValue val = Visit(expression);
-#endif
-            if (val is IPassThroughValue)
+            ScriptExecutor val = Visit(expression);
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.SwitchCase };
+            var arg = new SwitchCaseArguments { Type = CaseType.Standard };
+
+            retVal.SetStatusArguments(arg);
+            val.ElementName = SwitchCaseArguments.Label;
+            retVal.ChildExecutors.Add(val);
+            ScriptExecutor list;
+            var lja = loopJumpAllowed;
+            var cnd = conditional;
+            try
             {
-                return val;
+                loopJumpAllowed = true;
+                hasUnconditionalJump = false;
+                conditional = false;
+                list = VisitStatementList(statements);
+                if (!hasUnconditionalJump)
+                {
+                    throw new ScriptException(
+                        $"Falling through case-labels at {context.Start.Line}/{context.Start.Column}");
+                }
+            }
+            finally
+            {
+                loopJumpAllowed = lja;
+                conditional = cnd;
             }
 
-            object foundVal = val.GetValue(null, ScriptingPolicy);
-            if (switchVal is Continue || (switchVal == null && foundVal == null) ||
-                (switchVal != null && foundVal != null && switchVal.Equals(foundVal)))
-            {
-                return VisitStatementList(statements);
-            }
-
-            LiteralScriptValue r = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            r.Initialize(false);
-            return r;
+            list.ElementName = SwitchCaseArguments.Statements;
+            retVal.ChildExecutors.Add(list);
+            return retVal;
         }
 
-        public new ScriptValue VisitDefaultClause(ITVScriptingParser.DefaultClauseContext context)
+        public new ScriptExecutor VisitDefaultClause(ITVScriptingParser.DefaultClauseContext context)
         {
-            return VisitStatementList(context.statementList());
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.SwitchCase };
+            retVal.SetStatusArguments(new SwitchCaseArguments{Type = CaseType.DefaultLabel});
+            ScriptExecutor list;
+            var lja = loopJumpAllowed;
+            var cnd = conditional;
+            try
+            {
+                loopJumpAllowed = true;
+                hasUnconditionalJump = false;
+                conditional = false;
+                list = VisitStatementList(context.statementList());
+                if (!hasUnconditionalJump)
+                {
+                    throw new ScriptException(
+                        $"Falling through case-labels at {context.Start.Line}/{context.Start.Column}");
+                }
+            }
+            finally
+            {
+                loopJumpAllowed = lja;
+                conditional = cnd;
+            }
+
+            list.ElementName = SwitchCaseArguments.Statements;
+            retVal.ChildExecutors.Add(list);
+            return retVal;
         }
 
-        public override ScriptValue VisitThrowStatement(ITVScriptingParser.ThrowStatementContext context)
+        public override ScriptExecutor VisitThrowStatement(ITVScriptingParser.ThrowStatementContext context)
         {
             ITVScriptingParser.SingleExpressionContext exception = context.singleExpression();
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.ThrowStatement };
+            var arg = new ThrowArguments();
+            retVal.SetStatusArguments(arg);
             if (exception != null)
             {
-                Throw t = new Throw();
-#if UseVisitSingleExpression
-                
-#else
-                t.Initialize(Visit(exception).GetValue(null, ScriptingPolicy), true);
-#endif
-
-                return t;
+                var ex = Visit(exception);
+                ex.ElementName = ThrowArguments.Exception;
+                retVal.ChildExecutors.Add(ex);
+                arg.ThrowMode = ThrowMode.ThrowException;
             }
-
-            if (!catching)
+            else if (!catching)
             {
-                throw new ScriptException("Illegal Re-Throw statement found!");
+                throw new ScriptException($"Illegal Re-Throw statement found at {context.Start.Line}/{context.Start.Column}!");
             }
 
-            return ReThrow.Instance;
+            return retVal;
         }
 
-        public override ScriptValue VisitTryStatement(ITVScriptingParser.TryStatementContext context)
+        public override ScriptExecutor VisitTryStatement(ITVScriptingParser.TryStatementContext context)
         {
             ITVScriptingParser.BlockContext block = context.block();
             ITVScriptingParser.CatchProductionContext catchBlock = context.catchProduction();
@@ -757,113 +458,75 @@ namespace ITVComponents.Scripting.CScript.Interpreter
             {
                 name = catchBlock.Identifier().GetText();
             }
-            ScriptValue retVal = JSType.Void.Instance;
-            try
-            {
 
-                ScriptValue value;
-                value = VisitBlock(block);
-                if (value is Throw)
-                {
-                    variables.OpenInnerScope();
-                    bool isCatching = catching;
-                    catching = true;
-                    openBlockScope = false;
-                    try
-                    {
-                        if (name != null && ((Throw)value).Catchable)
-                        {
-                            variables[name] = value.GetValue(null, ScriptingPolicy);
-                            value = VisitCatchProduction(catchBlock);
-                            if (value is ReThrow)
-                            {
-                                retVal = value;
-                            }
-                        }
-                        else
-                        {
-                            retVal = value;
-                        }
-                    }
-                    finally
-                    {
-                        catching = isCatching;
-                        openBlockScope = true;
-                        variables.CollapseScope();
-                    }
-                }
-                else
-                {
-                    retVal = value;
-                }
-            }
-            catch (Exception ex)
+            ScriptExecutor tryBlockExecutor = Block(block, block.statementList(), BlockType.TryBlock);
+            ScriptExecutor catchBlockExecutor = null;
+            ScriptExecutor finallyBlockExecutor = null;
+            bool hasFollowUp = false;
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.TryStatement };
+            var arguments = new TryArguments();
+            retVal.SetStatusArguments(arguments);
+
+            tryBlockExecutor.ElementName = TryArguments.Try;
+            retVal.ChildExecutors.Add(tryBlockExecutor);
+            if (catchBlock != null)
             {
-                bool isCatching = catching;
-                catching = true;
-                variables.OpenInnerScope();
-                openBlockScope = false;
+                var ct = catching;
                 try
                 {
-                    if (name != null)
-                    {
-                        variables[name] = ex;
-                        retVal = VisitCatchProduction(catchBlock);
-                        if (retVal is ReThrow)
-                        {
-                            retVal = new Throw();
-                            ((Throw)retVal).Initialize(ex, true);
-                        }
-                    }
-                    else
-                    {
-                        retVal = new Throw();
-                        ((Throw)retVal).Initialize(ex, true);
-                    }
+                    catching = true;
+                    catchBlockExecutor = VisitCatchProduction(catchBlock);
                 }
                 finally
                 {
-                    catching = isCatching;
-                    openBlockScope = true;
-                    variables.CollapseScope();
+                    catching = ct;
+                }
+
+                hasFollowUp = true;
+                catchBlockExecutor.ElementName = TryArguments.Catch;
+                retVal.ChildExecutors.Add(catchBlockExecutor);
+                arguments.CatchVariable = name;
+                arguments.HasCatch = true;
+            }
+
+            if (finallyBlock != null)
+            {
+                var lja = loopJumpAllowed;
+                var rs = returnSupported;
+                try
+                {
+                    loopJumpAllowed = false;
+                    returnSupported = false;
+                    finallyBlockExecutor = VisitFinallyProduction(finallyBlock);
+                    hasFollowUp = true;
+                    finallyBlockExecutor.ElementName = TryArguments.Finally;
+                    retVal.ChildExecutors.Add(finallyBlockExecutor);
+                    arguments.HasFinally = true;
+                }
+                finally
+                {
+                    loopJumpAllowed = lja;
+                    returnSupported = rs;
                 }
             }
-            finally
+
+            if (!hasFollowUp)
             {
-                if (finallyBlock != null)
-                {
-                    ScriptValue val = VisitFinallyProduction(finallyBlock);
-                    if (val is Throw)
-                    {
-                        retVal = val;
-                    }
-                }
+                throw new ScriptException(
+                    $"Incomplete Try-Statement detected at {context.Start.Line}/{context.Start.Column}.");
             }
 
             return retVal;
         }
 
-        public override ScriptValue VisitCatchProduction(ITVScriptingParser.CatchProductionContext context)
+        public override ScriptExecutor VisitCatchProduction(ITVScriptingParser.CatchProductionContext context)
         {
-            return VisitBlock(context.block());
+            return Block(context, context.block()?.statementList(), BlockType.CatchBlock);
         }
 
-        public override ScriptValue VisitFinallyProduction(ITVScriptingParser.FinallyProductionContext context)
+        public override ScriptExecutor VisitFinallyProduction(ITVScriptingParser.FinallyProductionContext context)
         {
-            bool loopJumps = loopJumpAllowed;
-            bool ret = returnSupported;
-            loopJumpAllowed = false;
-            returnSupported = false;
-            try
-            {
-                ScriptValue retVal = VisitBlock(context.block());
-                return retVal;
-            }
-            finally
-            {
-                loopJumpAllowed = loopJumps;
-                returnSupported = ret;
-            }
+            return Block(context, context.block()?.statementList(), BlockType.FinallyBlock);
         }
 
         public override ScriptExecutor VisitArrayLiteral(ITVScriptingParser.ArrayLiteralContext context)
@@ -871,94 +534,57 @@ namespace ITVComponents.Scripting.CScript.Interpreter
             var list = context.elementList();
             if (list != null)
             {
-                ScriptValue value = VisitElementList(list);
-                if (value is SequenceValue)
-                {
-                    SequenceValue sv = (SequenceValue)value;
-                    object[] tmp = new object[sv.Sequence.Length];
-                    for (int i = 0; i < tmp.Length; i++)
-                    {
-                        tmp[i] = sv.Sequence[i].GetValue(null, ScriptingPolicy);
-                    }
-
-                    LiteralScriptValue rv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-                    rv.Initialize(tmp);
-                    return rv;
-                }
-
+                ScriptExecutor value = VisitElementList(list);
+                var arg = value.GetStatusArguments<SequenceArguments>();
+                arg.SequenceType = SequenceType.Array;
+                arg.VoidWhenEmpty = false;
                 return value;
             }
 
-            var ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation) { ValueType = ValueType.Literal };
-            ret.Initialize(Array.Empty<object>());
-            return ret;
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.ExpressionSequence };
+            retVal.SetStatusArguments(
+                new SequenceArguments { SequenceType = SequenceType.Array, VoidWhenEmpty = false });
+            return retVal;
         }
 
-        public override ScriptValue VisitElementList(ITVScriptingParser.ElementListContext context)
+        public override ScriptExecutor VisitElementList(ITVScriptingParser.ElementListContext context)
         {
-            List<ScriptValue> elements = new List<ScriptValue>();
-
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.ExpressionSequence };
+            retVal.SetStatusArguments(new SequenceArguments());
             foreach (ITVScriptingParser.SingleExpressionContext se in context.singleExpression())
             {
-#if UseVisitSingleExpression
-            ScriptValue tmp= VisitSingleExpression(se);
-#else
-                ScriptValue tmp = Visit(se);
-#endif
-                if (tmp is IPassThroughValue)
-                {
-                    return tmp;
-                }
-
-                elements.Add(tmp);
+                var tmp = Visit(se);
+                tmp.ElementName = SequenceArguments.SequenceItem;
+                retVal.ChildExecutors.Add(tmp);
             }
 
-            SequenceValue rv = new SequenceValue(bypassCompatibilityOnLazyInvokation);
-            rv.Initialize(elements.ToArray());
-            return rv;
+            return retVal;
         }
 
         public override ScriptExecutor VisitArguments(ITVScriptingParser.ArgumentsContext context)
         {
-            return VisitArgumentList(context.argumentList());
+            return ArgumentList(context, context.argumentList());
         }
-
-        #region Overrides of ITVScriptingBaseVisitor<ScriptValue>
 
         public override ScriptExecutor VisitFinalGenerics(ITVScriptingParser.FinalGenericsContext context)
         {
             return VisitTypedArguments(context.typedArguments());
         }
 
-        #endregion
-
-        /*public override ScriptValue (ITVScriptingParser.TypeArgumentsContext context)
-        {
-            ITVScriptingParser.FinalGenericsContext finalGenerics = context as ITVScriptingParser.FinalGenericsContext;
-            if (finalGenerics != null)
-                return VisitTypedArguments(finalGenerics.typedArguments());
-            ITVScriptingParser.OpenGenericsContext openGenerics = context as ITVScriptingParser.OpenGenericsContext;
-            return 
-        }*/
-
         public override ScriptExecutor VisitTypedArguments(ITVScriptingParser.TypedArgumentsContext context)
         {
-            List<ScriptValue> elements = new List<ScriptValue>();
+            //List<ScriptValue> elements = new List<ScriptValue>();
             ITVScriptingParser.TypeIdentifierContext[] types = context.typeIdentifier();
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.ExpressionSequence };
+            retVal.SetStatusArguments(new SequenceArguments());
             foreach (ITVScriptingParser.TypeIdentifierContext se in types)
             {
-                ScriptValue tmp = VisitTypeIdentifier(se);
-                if (tmp is IPassThroughValue)
-                {
-                    return tmp;
-                }
-
-                elements.Add(tmp);
+                var tmp = Visit(se);
+                tmp.ElementName = SequenceArguments.SequenceItem;
+                retVal.ChildExecutors.Add(tmp);
             }
 
-            SequenceValue rv = new SequenceValue(bypassCompatibilityOnLazyInvokation);
-            rv.Initialize(elements.ToArray());
-            return rv;
+            return retVal;
         }
 
         #region Overrides of ITVScriptingBaseVisitor<ScriptValue>
@@ -972,265 +598,120 @@ namespace ITVComponents.Scripting.CScript.Interpreter
 
         public override ScriptExecutor VisitTypeIdentifier(ITVScriptingParser.TypeIdentifierContext context)
         {
-            VariableAccessValue retVal = new VariableAccessValue(bypassCompatibilityOnLazyInvokation);
-            IScope tmpVar = variables;
+            var retVal = new ScriptExecutor(context){StatusName = ScriptExecutionStatus.MemberAccess};
+            var param = new MemberAccessArguments();
+            //VariableAccessValue retVal = new VariableAccessValue(bypassCompatibilityOnLazyInvokation);
             var path = context.Identifier();
-            string finalMember = path[path.Length - 1].GetText();
-            for (int i = 0; i < path.Length - 1; i++)
+            for (int i = 0; i < path.Length; i++)
             {
                 var node = path[i];
                 var targetName = node.GetText();
-                if (!(tmpVar[targetName] is IScope))
-                {
-                    throw new ScriptException($"Failed to resolve Type at {context.Start.Line}/{context.Start.Column}");
-                }
-
-                tmpVar = (IScope)tmpVar[targetName];
+                param.MemberPath.Add(targetName);
             }
-            retVal.Initialize(tmpVar, finalMember);
+
             return retVal;
         }
 
         public override ScriptExecutor VisitArgumentList(ITVScriptingParser.ArgumentListContext context)
         {
-            List<ScriptExecutor> elements = new List<ScriptExecutor>();
-            if (context != null)
+            return ArgumentList(context, context);
+        }
+
+        private ScriptExecutor ArgumentList(ParserRuleContext entireExpression,
+            ITVScriptingParser.ArgumentListContext list)
+        {
+            var retVal = new ScriptExecutor(entireExpression) { StatusName = ScriptExecutionStatus.ExpressionSequence };
+            if (list != null)
             {
-                ITVScriptingParser.SingleExpressionContext[] expressions = context.singleExpression();
-                if (expressions != null)
+                ITVScriptingParser.SingleExpressionContext[] sequence = list.singleExpression();
+                foreach (var item in sequence)
                 {
-                    foreach (ITVScriptingParser.SingleExpressionContext se in expressions)
-                    {
-                        var tmp = Visit(se);
-                        elements.Add(tmp);
-                    }
+                    var tmp = Visit(item);
+                    tmp.ElementName = SequenceArguments.SequenceItem;
+                    retVal.ChildExecutors.Add(tmp);
                 }
             }
 
-            SequenceValue rv = new SequenceValue(bypassCompatibilityOnLazyInvokation);
-            rv.Initialize(elements.ToArray());
-            return rv;
+            retVal.SetStatusArguments(new SequenceArguments { VoidWhenEmpty = false });
+
+            return retVal;
         }
 
         public override ScriptExecutor VisitExpressionSequence(ITVScriptingParser.ExpressionSequenceContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] sequence = context.singleExpression();
-            List<ScriptValue> val = new List<ScriptValue>();
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.ExpressionSequence };
             foreach (var item in sequence)
             {
-                ScriptValue retVal;
-#if UseVisitSingleExpression
-            retVal = VisitSingleExpression(item);
-#else
-                retVal = Visit(item);
-#endif
-                if (retVal is IPassThroughValue)
-                {
-                    return retVal;
-                }
-
-                val.Add(retVal);
+                var tmp = Visit(item);
+                tmp.ElementName = SequenceArguments.SequenceItem;
+                retVal.ChildExecutors.Add(tmp);
             }
 
-            if (val.Count == 0)
-            {
-                return JSType.Void.Instance;
-            }
-
-            SequenceValue sv = new SequenceValue(bypassCompatibilityOnLazyInvokation);
-            sv.Initialize(val.ToArray());
-            return sv;
+            retVal.SetStatusArguments(new SequenceArguments { VoidWhenEmpty = true });
+            return retVal;
         }
 
-        public override ScriptValue VisitTernaryExpression(ITVScriptingParser.TernaryExpressionContext context)
+        public override ScriptExecutor VisitTernaryExpression(ITVScriptingParser.TernaryExpressionContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] values = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue first = VisitSingleExpression(values[0]);
-#else
-            ScriptValue first = Visit(values[0]);
-#endif
-            if (first is IPassThroughValue)
+            var condition = Visit(values[0]);
+            var first = Visit(values[1]);
+            var second = Visit(values[2]);
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.ConditionalValue };
+            condition.ElementName = ConditionalValueArguments.Condition;
+            first.ElementName = ConditionalValueArguments.FirstValue;
+            second.ElementName = ConditionalValueArguments.AlternativeValue;
+            retVal.ChildExecutors.Add(condition);
+            retVal.ChildExecutors.Add(first);
+            retVal.ChildExecutors.Add(second);
+            retVal.SetStatusArguments(new ConditionalValueArguments
             {
-                return first;
-            }
+                Type = ConditionalValueType.Ternary
+            });
 
-            if (CheckBooleanTrue(first))
-            {
-#if UseVisitSingleExpression
-            return VisitSingleExpression(values[1]);
-#else
-                return Visit(values[1]);
-#endif
-            }
-
-#if UseVisitSingleExpression
-            return VisitSingleExpression(values[2]);
-#else
-            return Visit(values[2]);
-#endif
-        }
-
-        public override ScriptValue VisitLogicalAndExpression(ITVScriptingParser.LogicalAndExpressionContext context)
-        {
-            ITVScriptingParser.SingleExpressionContext[] expressions = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue v1 = VisitSingleExpression(expressions[0]);
-#else
-            ScriptValue v1 = Visit(expressions[0]);
-#endif
-            if (v1 is IPassThroughValue)
-            {
-                return v1;
-            }
-
-            if (!CheckBooleanTrue(v1))
-            {
-                LiteralScriptValue r = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-                r.Initialize(false);
-                return r;
-            }
-
-#if UseVisitSingleExpression
-            ScriptValue v2 = VisitSingleExpression(expressions[1]);
-#else
-            ScriptValue v2 = Visit(expressions[1]);
-#endif
-            if (v2 is IPassThroughValue)
-            {
-                return v2;
-            }
-
-            LiteralScriptValue v = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            v.Initialize(CheckBooleanTrue(v2));
-            return v;
-        }
-
-        public override ScriptValue VisitPreIncrementExpression(ITVScriptingParser.PreIncrementExpressionContext context)
-        {
-#if UseVisitSingleExpression
-            ScriptValue val = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue val = Visit(context.singleExpression());
-#endif
-            if (val is IPassThroughValue)
-            {
-                return val;
-            }
-
-            object value = val.GetValue(null, ScriptingPolicy);
-            try
-            {
-                value = OperationsHelper.Increment(value);
-            }
-            catch (Exception ex)
-            {
-                throw new ScriptException($"Pre-Increment failed at {context.Start.Line}/{context.Start.Column}", ex);
-            }
-            val.SetValue(value, null, ScriptingPolicy);
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            retVal.Initialize(value);
             return retVal;
         }
 
-        public override ScriptValue VisitLogicalOrExpression(ITVScriptingParser.LogicalOrExpressionContext context)
+        public override ScriptExecutor VisitLogicalAndExpression(ITVScriptingParser.LogicalAndExpressionContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] expressions = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue v1 = VisitSingleExpression(expressions[0]);
-#else
-            ScriptValue v1 = Visit(expressions[0]);
-#endif
-            if (v1 is IPassThroughValue)
-            {
-                return v1;
-            }
-
-            if (CheckBooleanTrue(v1))
-            {
-                LiteralScriptValue r = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-                r.Initialize(true);
-                return r;
-            }
-
-#if UseVisitSingleExpression
-            ScriptValue v2 = VisitSingleExpression(expressions[1]);
-#else
-            ScriptValue v2 = Visit(expressions[1]);
-#endif
-            if (v2 is IPassThroughValue)
-            {
-                return v2;
-            }
-
-            LiteralScriptValue v = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            v.Initialize(CheckBooleanTrue(v2));
-            return v;
+            var v1 = Visit(expressions[0]);
+            var v2 = Visit(expressions[1]);
+            return OperationExecutor(context, v1, v2, BaseOperations.AndAlso);
         }
 
-        public override ScriptValue VisitNotExpression(ITVScriptingParser.NotExpressionContext context)
+        public override ScriptExecutor VisitPreIncrementExpression(ITVScriptingParser.PreIncrementExpressionContext context)
         {
-#if UseVisitSingleExpression
-            ScriptValue value = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue value = Visit(context.singleExpression());
-#endif
-            if (value is IPassThroughValue)
-            {
-                return value;
-            }
-
-            LiteralScriptValue rv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            rv.Initialize(!CheckBooleanTrue(value));
-            return rv;
+            var val = Visit(context.singleExpression());
+            return IncrementExecutor(context, val, IncrementType.PreIncrement);
         }
 
-        public override ScriptValue VisitPreDecreaseExpression(ITVScriptingParser.PreDecreaseExpressionContext context)
+        public override ScriptExecutor VisitLogicalOrExpression(ITVScriptingParser.LogicalOrExpressionContext context)
         {
-#if UseVisitSingleExpression
-            ScriptValue val = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue val = Visit(context.singleExpression());
-#endif
-            if (val is IPassThroughValue)
-            {
-                return val;
-            }
-
-            object value = val.GetValue(null, ScriptingPolicy);
-            try
-            {
-                value = OperationsHelper.Decrement(value);
-            }
-            catch (Exception ex)
-            {
-                throw new ScriptException($"Pre-Decrement failed at {context.Start.Line}/{context.Start.Column}", ex);
-            }
-            val.SetValue(value, null, ScriptingPolicy);
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            retVal.Initialize(value);
-            return retVal;
+            ITVScriptingParser.SingleExpressionContext[] expressions = context.singleExpression();
+            var v1 = Visit(expressions[0]);
+            var v2 = Visit(expressions[1]);
+            return OperationExecutor(context, v1, v2, BaseOperations.OrElse);
         }
 
-        public override ScriptValue VisitArgumentsExpression(ITVScriptingParser.ArgumentsExpressionContext context)
+        public override ScriptExecutor VisitNotExpression(ITVScriptingParser.NotExpressionContext context)
         {
-#if UseVisitSingleExpression
-            ScriptValue baseValue = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue baseValue = Visit(context.singleExpression());
-#endif
-            if (baseValue is IPassThroughValue)
-            {
-                return baseValue;
-            }
+            var val = Visit(context.singleExpression());
+            return UnaryOp(context, val, UnaryOperator.Not);
+        }
 
-            ScriptValue arguments = VisitArguments(context.arguments());
-            if (arguments is IPassThroughValue)
-            {
-                return arguments;
-            }
+        public override ScriptExecutor VisitPreDecreaseExpression(ITVScriptingParser.PreDecreaseExpressionContext context)
+        {
+            var val = Visit(context.singleExpression());
+            return IncrementExecutor(context, val, IncrementType.PreDecrement);
+        }
 
-            ScriptValue typeArguments = null;
+        public override ScriptExecutor VisitArgumentsExpression(ITVScriptingParser.ArgumentsExpressionContext context)
+        {
+            ScriptExecutor baseValue = Visit(context.singleExpression());
+            ScriptExecutor arguments = VisitArguments(context.arguments());
+            ScriptExecutor typeArguments = null;
             ITVScriptingParser.TypeArgumentsContext targ = context.typeArguments();
             if (targ != null)
             {
@@ -1241,517 +722,177 @@ namespace ITVComponents.Scripting.CScript.Interpreter
                 }
                 else
                 {
-                    Throw th = new Throw();
-                    th.Initialize(
-                        string.Format("Open Generic Arguments are not supported in Methodcalls! at {0}/{1}",
-                            context.Start.Line, context.Start.Column),
-                        false);
-                    return th;
+                    throw new ScriptException(
+                        $"Open Generic Arguments are not supported in Methodcalls! at {context.Start.Line}/{context.Start.Column}");
                 }
             }
 
-            ScriptValue explicitTyping = null;
+            ScriptExecutor explicitTyping = null;
             ITVScriptingParser.ExplicitTypeHintContext ext = context.explicitTypeHint();
             if (ext != null)
             {
                 explicitTyping = VisitExplicitTypeHint(ext);
             }
 
-            if (arguments is SequenceValue && (typeArguments == null || typeArguments is SequenceValue))
-            {
-                baseValue.ValueType = ValueType.Method;
-                LiteralScriptValue rv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-                try
-                {
-                    rv.Initialize(baseValue.GetValue(new[] { typeArguments, arguments, explicitTyping }, ScriptingPolicy));
-                    return rv;
-                }
-                catch (Exception ex)
-                {
-                    throw new ScriptException($"Method-Call failed! at {context.Start.Line}/{context.Start.Column}", ex);
-                }
-            }
-
-            Throw t = new Throw();
-            t.Initialize(
-                string.Format("Unable to perform method call at {0}/{1}", context.Start.Line, context.Start.Column),
-                false);
-            return t;
+            return UpdateMemberExpression(context, baseValue, explicitTyping, arguments, typeArguments);
         }
 
-        public override ScriptValue VisitUnaryMinusExpression(ITVScriptingParser.UnaryMinusExpressionContext context)
+        public override ScriptExecutor VisitUnaryMinusExpression(ITVScriptingParser.UnaryMinusExpressionContext context)
         {
-#if UseVisitSingleExpression
-            ScriptValue val = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue val = Visit(context.singleExpression());
-#endif
-            if (val is IPassThroughValue)
-            {
-                return val;
-            }
-            object value = val.GetValue(null, ScriptingPolicy);
-            try
-            {
-                value = OperationsHelper.UnaryMinus(value);
-            }
-            catch (Exception ex)
-            {
-                throw new ScriptException($"Unary Minus failed at {context.Start.Line}/{context.Start.Column}", ex);
-            }
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            retVal.Initialize(value);
-            return retVal;
+            var val = Visit(context.singleExpression());
+            return UnaryOp(context, val, UnaryOperator.Minus);
         }
 
-        public override ScriptValue VisitMemberDotQExpression(ITVScriptingParser.MemberDotQExpressionContext context)
+        public override ScriptExecutor VisitMemberDotQExpression(ITVScriptingParser.MemberDotQExpressionContext context)
         {
-#if UseVisitSingleExpression
-            ScriptValue baseVal = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue baseVal = Visit(context.singleExpression());
-#endif
-            if (baseVal is IPassThroughValue)
-            {
-                return baseVal;
-            }
-
-            Type explicitType = null;
+            var baseVal = Visit(context.singleExpression());
+            ScriptExecutor explicitType = null;
             var eth = context.explicitTypeHint();
             if (eth != null)
             {
-                explicitType = VisitExplicitTypeHint(eth).GetValue(null, ScriptingPolicy) as Type;
+                explicitType = VisitExplicitTypeHint(eth);
             }
 
-            WeakReferenceMemberAccessValue retVal = new WeakReferenceMemberAccessValue(lazyInvokation ? context : null, bypassCompatibilityOnLazyInvokation, ScriptingPolicy);
-            retVal.Initialize(baseVal, context.identifierName().GetText(), explicitType);
-            return retVal;
+            var name = context.identifierName().GetText();
+            return MemberExpression(context, baseVal, explicitType, null, null, name, false, true);
         }
 
-        public override ScriptValue VisitPostDecreaseExpression(ITVScriptingParser.PostDecreaseExpressionContext context)
+        public override ScriptExecutor VisitPostDecreaseExpression(ITVScriptingParser.PostDecreaseExpressionContext context)
         {
-#if UseVisitSingleExpression
-            ScriptValue val = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue val = Visit(context.singleExpression());
-#endif
-            if (val is IPassThroughValue)
-            {
-                return val;
-            }
-
-            object value = val.GetValue(null, ScriptingPolicy);
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            retVal.Initialize(value);
-            try
-            {
-                value = OperationsHelper.Decrement(value);
-            }
-            catch (Exception ex)
-            {
-                throw new ScriptException($"Post-Decrement failed at {context.Start.Line}/{context.Start.Column}", ex);
-            }
-
-            val.SetValue(value, null, ScriptingPolicy);
-            return retVal;
+            var val = Visit(context.singleExpression());
+            return IncrementExecutor(context, val, IncrementType.PostDecrement);
         }
 
-        public override ScriptValue VisitAssignmentExpression(ITVScriptingParser.AssignmentExpressionContext context)
+        public override ScriptExecutor VisitAssignmentExpression(ITVScriptingParser.AssignmentExpressionContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue target = VisitSingleExpression(subExpressions[0]);
-#else
-            ScriptValue target = Visit(subExpressions[0]);
-#endif
-            if (target is IPassThroughValue)
-            {
-                return target;
-            }
-
-#if UseVisitSingleExpression
-            ScriptValue value = VisitSingleExpression(subExpressions[1]);
-#else
-            ScriptValue value = Visit(subExpressions[1]);
-#endif
-            if (value is IPassThroughValue)
-            {
-                return value;
-            }
-
-            if (!target.Writable)
-            {
-                Throw t = new Throw();
-                t.Initialize(
-                    string.Format("Unable to set the Value at {0}/{1}", context.Start.Line, context.Start.Column),
-                    false);
-                return t;
-            }
-
-            target.SetValue(value.GetValue(null, ScriptingPolicy), null, ScriptingPolicy);
-            LiteralScriptValue ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            ret.Initialize(target.GetValue(null, ScriptingPolicy));
-            return ret;
+            var target = Visit(subExpressions[0]);
+            var value = Visit(subExpressions[1]);
+            var retVal = new ScriptExecutor(context) { StatusName = ScriptExecutionStatus.Assignment };
+            target.ElementName = AssignArguments.Target;
+            value.ElementName = AssignArguments.Source;
+            retVal.ChildExecutors.Add(target);
+            retVal.ChildExecutors.Add(value);
+            retVal.SetStatusArguments(new AssignArguments());
+            return retVal;
         }
 
-        public override ScriptValue VisitUnaryPlusExpression(ITVScriptingParser.UnaryPlusExpressionContext context)
+        public override ScriptExecutor VisitUnaryPlusExpression(ITVScriptingParser.UnaryPlusExpressionContext context)
         {
-#if UseVisitSingleExpression
-            ScriptValue v1 = VisitSingleExpression(context.singleExpression());
-#else
-            ScriptValue v1 = Visit(context.singleExpression());
-#endif
-            if (v1 is IPassThroughValue)
-            {
-                return v1;
-            }
-
-            LiteralScriptValue ret = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            ret.Initialize(v1.GetValue(null, ScriptingPolicy));
-            return ret;
+            var v1 = Visit(context.singleExpression());
+            return UnaryOp(context, v1, UnaryOperator.Plus);
         }
 
-        public override ScriptValue VisitEqualityExpression(ITVScriptingParser.EqualityExpressionContext context)
+        private ScriptExecutor UnaryOp(ParserRuleContext entireExpression, ScriptExecutor baseValue, UnaryOperator op)
+        {
+            var retVal = new ScriptExecutor(entireExpression) { StatusName = ScriptExecutionStatus.UnaryOperation };
+            retVal.SetStatusArguments(new UnaryOpArguments{Operator = op});
+            baseValue.ElementName = UnaryOpArguments.BaseValue;
+            retVal.ChildExecutors.Add(baseValue);
+            return retVal;
+        }
+
+        public override ScriptExecutor VisitEqualityExpression(ITVScriptingParser.EqualityExpressionContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] expressions = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue leftVal = VisitSingleExpression(expressions[0]);
-#else
-            ScriptValue leftVal = Visit(expressions[0]);
-#endif
-            if (leftVal is IPassThroughValue)
-            {
-                return leftVal;
-            }
-
-#if UseVisitSingleExpression
-            ScriptValue rightVal = VisitSingleExpression(expressions[1]);
-#else
-            ScriptValue rightVal = Visit(expressions[1]);
-#endif
-            if (rightVal is IPassThroughValue)
-            {
-                return rightVal;
-            }
-            object left = leftVal.GetValue(null, ScriptingPolicy);
-            object right = rightVal.GetValue(null, ScriptingPolicy);
-            bool isEqual = (left == null && right == null) || (left != null && left.Equals(right));
+            var leftVal = Visit(expressions[0]);
+            var rightVal = Visit(expressions[1]);
             string s = context.GetChild(1).GetText();
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            retVal.Initialize(!(isEqual ^ (s == "==")));
-            return retVal;
+            if (s == "==")
+            {
+                return CompareExecutor(context, leftVal, rightVal, ComparisonType.Equal);
+            }
+
+            return CompareExecutor(context, leftVal, rightVal, ComparisonType.NotEqual);
         }
 
-        public override ScriptValue VisitBitXOrExpression(ITVScriptingParser.BitXOrExpressionContext context)
+        public override ScriptExecutor VisitBitXOrExpression(ITVScriptingParser.BitXOrExpressionContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue leftVal = VisitSingleExpression(subExpressions[0]);
-#else
-            ScriptValue leftVal = Visit(subExpressions[0]);
-#endif
-            if (leftVal is IPassThroughValue)
-            {
-                return leftVal;
-            }
-
-#if UseVisitSingleExpression
-            ScriptValue rightVal = VisitSingleExpression(subExpressions[1]);
-#else
-            ScriptValue rightVal = Visit(subExpressions[1]);
-#endif
-            if (rightVal is IPassThroughValue)
-            {
-                return rightVal;
-            }
-
-            object value1 = leftVal.GetValue(null, ScriptingPolicy);
-            object value2 = rightVal.GetValue(null, ScriptingPolicy);
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            if (value1 is bool && value2 is bool)
-            {
-                retVal.Initialize((bool)value1 ^ (bool)value2);
-            }
-            else
-            {
-                try
-                {
-                    retVal.Initialize(OperationsHelper.Xor(value1, value2, typeSafety));
-                }
-                catch (Exception ex)
-                {
-                    throw new ScriptException($"XOR failed at {context.Start.Line}/{context.Start.Column}", ex);
-                }
-            }
-
-            return retVal;
+            var leftVal = Visit(subExpressions[0]);
+            var rightVal = Visit(subExpressions[1]);
+            return OperationExecutor(context, leftVal, rightVal, BaseOperations.Xor);
         }
 
-        public override ScriptValue VisitMultiplicativeExpression(ITVScriptingParser.MultiplicativeExpressionContext context)
+        public override ScriptExecutor VisitMultiplicativeExpression(ITVScriptingParser.MultiplicativeExpressionContext context)
         {
             ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue leftVal = VisitSingleExpression(subExpressions[0]);
-#else
-            ScriptValue leftVal = Visit(subExpressions[0]);
-#endif
-            if (leftVal is IPassThroughValue)
-            {
-                return leftVal;
-            }
-
-#if UseVisitSingleExpression
-            ScriptValue rightVal = VisitSingleExpression(subExpressions[1]);
-#else
-            ScriptValue rightVal = Visit(subExpressions[1]);
-#endif
-            if (rightVal is IPassThroughValue)
-            {
-                return rightVal;
-            }
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            if (lazyInvokation)
-            {
-                bool ok;
-                object obj = context.InvokeExecutor(null, new[] { leftVal, rightVal }, bypassCompatibilityOnLazyInvokation, out ok);
-                if (ok)
-                {
-                    retVal.Initialize(obj);
-                    return retVal;
-                }
-            }
-
-            object value1 = leftVal.GetValue(null, ScriptingPolicy);
-            object value2 = rightVal.GetValue(null, ScriptingPolicy);
+            var leftVal = Visit(subExpressions[0]);
+            var rightVal = Visit(subExpressions[1]);
             string op = context.GetChild(1).GetText();
             switch (op)
             {
                 case "*":
-                    {
-                        try
-                        {
-                            retVal.Initialize(OperationsHelper.Multiply(value1, value2, typeSafety));
-                            if (lazyInvokation)
-                            {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Multiply, typeSafety, ScriptingPolicy));
-                            }
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new ScriptException(
-                                $"Multiply failed at {context.Start.Line}/{context.Start.Column}", ex);
-                        }
-                    }
-                case "/":
-                    {
-                        try
-                        {
-                            retVal.Initialize(OperationsHelper.Divide(value1, value2, typeSafety));
-                            if (lazyInvokation)
-                            {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Divide, typeSafety, ScriptingPolicy));
-                            }
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new ScriptException(
-                                $"Divide failed at {context.Start.Line}/{context.Start.Column}", ex);
-                        }
-                    }
-                case "%":
-                    {
-                        try
-                        {
-                            retVal.Initialize(OperationsHelper.Modulus(value1, value2, typeSafety));
-                            if (lazyInvokation)
-                            {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Modulus, typeSafety, ScriptingPolicy));
-                            }
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new ScriptException(
-                                $"Modulus failed at {context.Start.Line}/{context.Start.Column}", ex);
-                        }
-                    }
-                default:
-                    {
-                        Throw t = new Throw();
-                        t.Initialize(
-                            string.Format("Unable to perform multiplicative operation at {0}/{1}", context.Start.Line,
-                                          context.Start.Column), false);
-                        return t;
-                    }
-            }
-
-            return retVal;
-        }
-
-        public override ScriptValue VisitBitShiftExpression(ITVScriptingParser.BitShiftExpressionContext context)
-        {
-            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue leftVal = VisitSingleExpression(subExpressions[0]);
-#else
-            ScriptValue leftVal = Visit(subExpressions[0]);
-#endif
-            if (leftVal is IPassThroughValue)
-            {
-                return leftVal;
-            }
-
-#if UseVisitSingleExpression
-            ScriptValue rightVal = VisitSingleExpression(subExpressions[1]);
-#else
-            ScriptValue rightVal = Visit(subExpressions[1]);
-#endif
-            if (rightVal is IPassThroughValue)
-            {
-                return rightVal;
-            }
-
-            object value1 = leftVal.GetValue(null, ScriptingPolicy);
-            object value2 = rightVal.GetValue(null, ScriptingPolicy);
-            string shiftDirection = context.GetChild(1).GetText();
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-            switch (shiftDirection)
-            {
-                case "<<":
-                    {
-                        try
-                        {
-                            retVal.Initialize(OperationsHelper.LShift(value1, value2));
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new ScriptException(
-                                $"Left-Shift failed at {context.Start.Line}/{context.Start.Column}", ex);
-                        }
-                    }
-                case ">>":
-                    {
-                        try
-                        {
-                            retVal.Initialize(OperationsHelper.RShift(value1, value2));
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new ScriptException(
-                                $"Right-Shift failed at {context.Start.Line}/{context.Start.Column}", ex);
-                        }
-                    }
-                default:
-                    {
-                        Throw t = new Throw();
-                        t.Initialize(
-                            string.Format("Unable to perform shift operation at {0}/{1}", context.Start.Line,
-                                          context.Start.Column), false);
-                        return t;
-                    }
-            }
-
-            return retVal;
-        }
-
-        public override ScriptValue VisitParenthesizedExpression(ITVScriptingParser.ParenthesizedExpressionContext context)
-        {
-#if UseVisitSingleExpression
-            return VisitSingleExpression(context.singleExpression());
-#else
-            return Visit(context.singleExpression());
-#endif
-        }
-
-        public override ScriptValue VisitAdditiveExpression(ITVScriptingParser.AdditiveExpressionContext context)
-        {
-            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
-#if UseVisitSingleExpression
-            ScriptValue leftVal = VisitSingleExpression(subExpressions[0]);
-#else
-            ScriptValue leftVal = Visit(subExpressions[0]);
-#endif
-            if (leftVal is IPassThroughValue)
-            {
-                return leftVal;
-            }
-
-#if UseVisitSingleExpression
-            ScriptValue rightVal = VisitSingleExpression(subExpressions[1]);
-#else
-            ScriptValue rightVal = Visit(subExpressions[1]);
-#endif
-            if (rightVal is IPassThroughValue)
-            {
-                return rightVal;
-            }
-            LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
-
-            if (lazyInvokation)
-            {
-                bool ok;
-                object obj = context.InvokeExecutor(null, new[] { leftVal, rightVal }, bypassCompatibilityOnLazyInvokation, out ok);
-                if (ok)
                 {
-                    retVal.Initialize(obj);
-                    return retVal;
+                    return OperationExecutor(context, leftVal, rightVal, BaseOperations.Multiply);
+                }
+                case "/":
+                {
+                    return OperationExecutor(context, leftVal, rightVal, BaseOperations.Divide);
+                }
+                case "%":
+                {
+                    return OperationExecutor(context, leftVal, rightVal, BaseOperations.Modulus);
+                }
+                default:
+                {
+                    throw new ScriptException(
+                        $"Unable to perform shift operation at {context.Start.Line}/{context.Start.Column}");
                 }
             }
+        }
 
-            object value1 = leftVal.GetValue(null, ScriptingPolicy);
-            object value2 = rightVal.GetValue(null, ScriptingPolicy);
+        public override ScriptExecutor VisitBitShiftExpression(ITVScriptingParser.BitShiftExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftVal = Visit(subExpressions[0]);
+            var rightVal = Visit(subExpressions[1]);
+            string op = context.GetChild(1).GetText();
+            switch (op)
+            {
+                case "<<":
+                {
+                    return OperationExecutor(context, leftVal, rightVal, BaseOperations.LeftShift);
+                }
+                case ">>":
+                {
+                    return OperationExecutor(context, leftVal, rightVal, BaseOperations.RightShift);
+                }
+                default:
+                {
+                    throw new ScriptException(
+                        $"Unable to perform shift operation at {context.Start.Line}/{context.Start.Column}");
+                }
+            }
+        }
+
+        public override ScriptExecutor VisitParenthesizedExpression(ITVScriptingParser.ParenthesizedExpressionContext context)
+        {
+            return Visit(context.singleExpression());
+        }
+
+        public override ScriptExecutor VisitAdditiveExpression(ITVScriptingParser.AdditiveExpressionContext context)
+        {
+            ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
+            var leftVal = Visit(subExpressions[0]);
+            var rightVal = Visit(subExpressions[1]);
             string op = context.GetChild(1).GetText();
             switch (op)
             {
                 case "+":
-                    {
-                        try
-                        {
-                            retVal.Initialize(OperationsHelper.Add(value1, value2, typeSafety));
-                            if (lazyInvokation)
-                            {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Add, typeSafety, ScriptingPolicy));
-                            }
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new ScriptException(
-                                $"Add failed at {context.Start.Line}/{context.Start.Column}", ex);
-                        }
-                    }
+                {
+                    return OperationExecutor(context, leftVal, rightVal, BaseOperations.Add);
+                }
                 case "-":
-                    {
-                        try
-                        {
-                            retVal.Initialize(OperationsHelper.Subtract(value1, value2, typeSafety));
-                            if (lazyInvokation)
-                            {
-                                context.SetPreferredExecutor(new LazyOp(OperationsHelper.Subtract, typeSafety, ScriptingPolicy));
-                            }
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new ScriptException(
-                                $"Subtract failed at {context.Start.Line}/{context.Start.Column}", ex);
-                        }
-                    }
+                {
+                    return OperationExecutor(context, leftVal, rightVal, BaseOperations.Subtract);
+                }
                 default:
-                    {
-                        Throw t = new Throw();
-                        t.Initialize(
-                            string.Format("Unable to perform additive operation at {0}/{1}", context.Start.Line,
-                                          context.Start.Column), false);
-                        return t;
-                    }
+                {
+                    throw new ScriptException(
+                        $"Unable to perform additive operation at {context.Start.Line}/{context.Start.Column}");
+                }
             }
-
-            return retVal;
         }
 
         public override ScriptExecutor VisitRelationalExpression(ITVScriptingParser.RelationalExpressionContext context)
@@ -1759,53 +900,45 @@ namespace ITVComponents.Scripting.CScript.Interpreter
             ITVScriptingParser.SingleExpressionContext[] subExpressions = context.singleExpression();
             var leftVal = Visit(subExpressions[0]);
             var rightVal = Visit(subExpressions[1]);
-            ScriptExecutor retVal = new ScriptExecutor(context){StatusName = ScriptExecutionStatus.Compare};
-            leftVal.ElementName = CompareArguments.Left;
-            rightVal.ElementName = CompareArguments.Right;
-            retVal.ChildExecutors.Add(leftVal);
-            retVal.ChildExecutors.Add(rightVal);
-            var arg = new CompareArguments();
-            retVal.SetStatusArguments(arg);
             string op = context.GetChild(1).GetText();
             switch (op)
             {
                 case ">":
                 {
-                    arg.ComparisonType = ComparisonType.GreaterThan;
-                    break;
+                    return CompareExecutor(context, leftVal, rightVal, ComparisonType.GreaterThan);
                 }
                 case ">=":
                 {
-                    arg.ComparisonType = ComparisonType.GreaterThanOrEqual;
-                    break;
-                }
+                    return CompareExecutor(context, leftVal, rightVal, ComparisonType.GreaterThanOrEqual);
+                    }
                 case "<":
                 {
-                    arg.ComparisonType = ComparisonType.LessThan;
-                    break;
-                }
+                    return CompareExecutor(context, leftVal, rightVal, ComparisonType.LessThan);
+                    }
                 case "<=":
                 {
-                    arg.ComparisonType = ComparisonType.LessThanOrEqual;
-                    break;
-                }
+                    return CompareExecutor(context, leftVal, rightVal, ComparisonType.LessThanOrEqual);
+                    }
                 default:
                 {
                     throw new ScriptException(
                         $"Unable to perform compare operation at {context.Start.Line}/{context.Start.Column}");
                 }
             }
-
-            return retVal;
         }
 
         public override ScriptExecutor VisitPostIncrementExpression(ITVScriptingParser.PostIncrementExpressionContext context)
         {
             ScriptExecutor val = Visit(context.singleExpression());
-            ScriptExecutor retVal = new ScriptExecutor(context){StatusName = ScriptExecutionStatus.Increment};
-            val.ElementName = IncrementArguments.BaseValue;
-            retVal.ChildExecutors.Add(val);
-            retVal.SetStatusArguments(new IncrementArguments{IncType = IncrementType.PostIncrement});
+            return IncrementExecutor(context, val, IncrementType.PostIncrement);
+        }
+
+        private ScriptExecutor IncrementExecutor(ParserRuleContext entireExpression, ScriptExecutor value, IncrementType type)
+        {
+            ScriptExecutor retVal = new ScriptExecutor(entireExpression) { StatusName = ScriptExecutionStatus.Increment };
+            value.ElementName = IncrementArguments.BaseValue;
+            retVal.ChildExecutors.Add(value);
+            retVal.SetStatusArguments(new IncrementArguments { IncType = type });
             return retVal;
         }
 
@@ -1905,37 +1038,101 @@ namespace ITVComponents.Scripting.CScript.Interpreter
             return VisitArrayLiteral(context.arrayLiteral());
         }
 
+        private ScriptExecutor MemberExpression(ParserRuleContext entireExpression, ScriptExecutor baseValue, ScriptExecutor explicitTyping, ScriptExecutor arguments, ScriptExecutor typeArguments, string identifier, bool indicator = false, bool nullPropagation = false)
+        {
+            ScriptExecutor retVal = baseValue;
+            MemberAccessArguments memberArgs;
+            var setBase = false;
+            if (baseValue == null || baseValue.StatusName != ScriptExecutionStatus.MemberAccess ||
+                (memberArgs = baseValue.GetStatusArguments<MemberAccessArguments>()).Indicator != indicator ||
+                memberArgs.NullPropageted != nullPropagation || baseValue.GetElements(MemberAccessArguments.ExplicitType).Length != 0)
+            {
+                retVal = new ScriptExecutor(entireExpression) { StatusName = ScriptExecutionStatus.MemberAccess };
+                memberArgs = new MemberAccessArguments
+                {
+                    ExpectedMemberType = MemberAccessType.PropertyOrFieldOrEvent,
+                    Indicator = indicator,
+                    NullPropageted = nullPropagation
+                };
+                retVal.SetStatusArguments(memberArgs);
+                setBase = true;
+            }
+
+            memberArgs.MemberPath.Add(identifier);
+            if (baseValue != null && setBase)
+            {
+                baseValue.ElementName = MemberAccessArguments.BaseValue;
+                retVal.ChildExecutors.Add(baseValue);
+            }
+
+            retVal = UpdateMemberExpression(entireExpression, retVal, explicitTyping, arguments, typeArguments);
+
+            return retVal;
+        }
+
+        private ScriptExecutor UpdateMemberExpression(ParserRuleContext entireExpression, ScriptExecutor memberExpression, ScriptExecutor explicitTyping, ScriptExecutor arguments,
+            ScriptExecutor typeArguments)
+        {
+            var retVal = memberExpression;
+            MemberAccessArguments arg;
+            if (memberExpression.StatusName != ScriptExecutionStatus.MemberAccess)
+            {
+                retVal = new ScriptExecutor(entireExpression) { StatusName = ScriptExecutionStatus.MemberAccess };
+                memberExpression.ElementName = MemberAccessArguments.DirectMethod;
+                retVal.ChildExecutors.Add(memberExpression);
+                retVal.SetStatusArguments(arg=new MemberAccessArguments
+                    { ExpectedMemberType = MemberAccessType.Method });
+            }
+            else
+            {
+                retVal.UpdateRuleContext(entireExpression);
+                arg = retVal.GetStatusArguments<MemberAccessArguments>();
+            }
+
+            if (arguments != null)
+            {
+                arguments.ElementName = MemberAccessArguments.MethodArguments;
+                retVal.ChildExecutors.Add(arguments);
+                arg.ExpectedMemberType = MemberAccessType.Method;
+            }
+
+            if (typeArguments != null)
+            {
+                typeArguments.ElementName = MemberAccessArguments.GenericArguments;
+                retVal.ChildExecutors.Add(typeArguments);
+            }
+
+            if (explicitTyping != null)
+            {
+                if (retVal.GetElements(MemberAccessArguments.ExplicitType).Length != 0)
+                {
+                    throw new ScriptException(
+                        $"Ambigious Typing expression found at {entireExpression.Start.Line}/{entireExpression.Start.Column}");
+                }
+
+                explicitTyping.ElementName = MemberAccessArguments.ExplicitType;
+                retVal.ChildExecutors.Add(explicitTyping);
+            }
+
+            return retVal;
+        }
 
         public override ScriptExecutor VisitHasMemberExpression(ITVScriptingParser.HasMemberExpressionContext context)
         {
             var sample = Visit(context.singleExpression());
             string name = context.identifierName().GetText();
-            sample.ElementName = MemberAccessArguments.BaseValue;
-            var retVal = new ScriptExecutor(context){StatusName = ScriptExecutionStatus.MemberAccess};
-            var arg = new MemberAccessArguments
-            {
-                 MemberName = name,
-                 ExpectedMemberType = MemberAccessType.PropertyOrFieldOrEvent,
-                 Indicator = true
-            };
-            retVal.SetStatusArguments(arg);
-            retVal.ChildExecutors.Add(sample);
             ScriptExecutor explicitTyping = null;
+            ScriptExecutor arguments = null;
+            ScriptExecutor typeArguments = null;
             ITVScriptingParser.ExplicitTypeHintContext ext = context.explicitTypeHint();
             if (ext != null)
             {
                 explicitTyping = VisitExplicitTypeHint(ext);
-                explicitTyping.ElementName = MemberAccessArguments.ExplicitType;
-                retVal.ChildExecutors.Add(explicitTyping);
             }
 
             if (context.arguments() != null)
             {
-                var arguments = VisitArguments(context.arguments());
-                arguments.ElementName = MemberAccessArguments.MethodArguments;
-                retVal.ChildExecutors.Add(arguments);
-                arg.ExpectedMemberType = MemberAccessType.Method;
-                ScriptExecutor typeArguments = null;
+                arguments = VisitArguments(context.arguments());
                 ITVScriptingParser.TypeArgumentsContext targ = context.typeArguments();
                 if (targ != null)
                 {
@@ -1943,8 +1140,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter
                     if (genericsContext != null)
                     {
                         typeArguments = VisitFinalGenerics(genericsContext);
-                        typeArguments.ElementName = MemberAccessArguments.GenericArguments;
-                        retVal.ChildExecutors.Add(typeArguments);
+                        
                     }
                     else
                     {
@@ -1954,7 +1150,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter
                 }
             }
 
-            return retVal;
+            return MemberExpression(context, sample, explicitTyping, arguments, typeArguments, name, true);
         }
 
         public override ScriptExecutor VisitMemberIsExpression(ITVScriptingParser.MemberIsExpressionContext context)
@@ -1973,24 +1169,16 @@ namespace ITVComponents.Scripting.CScript.Interpreter
 
         public override ScriptExecutor VisitMemberDotExpression(ITVScriptingParser.MemberDotExpressionContext context)
         {
-            var retVal = new ScriptExecutor(context){StatusName = ScriptExecutionStatus.MemberAccess};
             var val = Visit(context.singleExpression());
-            val.ElementName = MemberAccessArguments.BaseValue;
-            retVal.ChildExecutors.Add(val);
             ScriptExecutor explicitType = null;
             var eth = context.explicitTypeHint();
             if (eth != null)
             {
                 explicitType = VisitExplicitTypeHint(eth);
-                explicitType.ElementName = MemberAccessArguments.ExplicitType;
-                retVal.ChildExecutors.Add(explicitType);
             }
 
-            retVal.SetStatusArguments(new MemberAccessArguments{MemberName = context.identifierName().GetText() , NullPropageted = true});
-            //MemberAccessValue retVal = new MemberAccessValue(lazyInvokation ? context : null, bypassCompatibilityOnLazyInvokation, ScriptingPolicy);
-            /*retVal.Initialize(val,
-                              , explicitType);*/
-            return retVal;
+            var name = context.identifierName().GetText();
+            return MemberExpression(context, val, explicitType, null, null, name);
         }
 
         public override ScriptExecutor VisitMemberIndexExpression(ITVScriptingParser.MemberIndexExpressionContext context)
@@ -2035,9 +1223,11 @@ namespace ITVComponents.Scripting.CScript.Interpreter
 
         public override ScriptExecutor VisitIdentifierExpression(ITVScriptingParser.IdentifierExpressionContext context)
         {
-            var retVal = new ScriptExecutor(context){StatusName = ScriptExecutionStatus.Identifier};
-            retVal.SetStatusArguments(new IdentifierArguments{Name = context.Identifier().GetText() });
-            return retVal;
+            var name = context.Identifier().GetText();
+            return MemberExpression(context, null, null, null, null, name);
+            /*var retVal = new ScriptExecutor(context){StatusName = ScriptExecutionStatus.Identifier};
+            retVal.SetStatusArguments(new IdentifierArguments{Name =  });
+            return retVal;*/
         }
 
         public override ScriptExecutor VisitBitAndExpression(ITVScriptingParser.BitAndExpressionContext context)
@@ -2067,6 +1257,20 @@ namespace ITVComponents.Scripting.CScript.Interpreter
             baseOp.ChildExecutors.Add(right);
             baseOp.SetStatusArguments(new OperationArguments { Operation = operation });
             return baseOp;
+        }
+
+        private ScriptExecutor CompareExecutor(ParserRuleContext entireExpression, ScriptExecutor leftVal,
+            ScriptExecutor rightVal, ComparisonType type)
+        {
+            ScriptExecutor retVal = new ScriptExecutor(entireExpression) { StatusName = ScriptExecutionStatus.Compare };
+            leftVal.ElementName = CompareArguments.Left;
+            rightVal.ElementName = CompareArguments.Right;
+            retVal.ChildExecutors.Add(leftVal);
+            retVal.ChildExecutors.Add(rightVal);
+            var arg = new CompareArguments();
+            retVal.SetStatusArguments(arg);
+            arg.ComparisonType = type;
+            return retVal;
         }
 
         public override ScriptExecutor VisitAssignmentOperatorExpression(

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class ExecutionSwitchArguments
+    internal class ExecutionSwitchArguments : IExecutorArgument
     {
         public ExecutionSwitchType SwitchType { get; set; }
 

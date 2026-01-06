@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class IndexerArguments
+    internal class IndexerArguments : IExecutorArgument
     {
         public const string Source = "Source";
         public const string Index = "Index";

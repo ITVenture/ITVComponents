@@ -255,30 +255,16 @@ namespace ITVComponents.Scripting.CScript
 
             try
             {
-                AntlrInputStream astr = null;
                 if (!isStatic)
                 {
-                    astr = new AntlrFileStream(fileName, Encoding.Default);
+                    program = ExpressionParser.GetExpressionTreeFromFile(fileName, out runnable, out suspectLine, out errors);
                 }
                 else
                 {
-                    using (var r = new StreamReader(file, Encoding.Default))
-                    {
-                        astr = new AntlrInputStream(r);
-                    }
+                    program = ExpressionParser.GetExpressionTreeFromFile(file, out runnable, out suspectLine,
+                        out errors);
                 }
 
-                //SingletonPredictionContext.
-                Lexer lex = new ITVScriptingLexer(astr);
-                ITVScriptingParser parser = new ITVScriptingParser(new CommonTokenStream(lex));
-                ErrorListener listener = new ErrorListener();
-                parser.RemoveErrorListeners();
-                parser.AddErrorListener(listener);
-                //parser.AddParseListener(new ScriptErrorHandler());
-                program = parser.program();
-                runnable = parser.NumberOfSyntaxErrors == 0;
-                suspectLine = listener.SuspectLine;
-                errors = listener.GetAllErrors();
                 lastCompilation = DateTime.Now;
             }
             finally

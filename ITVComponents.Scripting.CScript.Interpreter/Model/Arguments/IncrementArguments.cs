@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class IncrementArguments
+    internal class IncrementArguments : IExecutorArgument
     {
         public const string BaseValue = "BaseValue";
         public IncrementType IncType { get; set; }

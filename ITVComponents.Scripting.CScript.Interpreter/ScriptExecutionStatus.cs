@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Antlr4.Runtime;
 
 namespace ITVComponents.Scripting.CScript.Interpreter
 {
@@ -18,7 +19,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter
         public const string Void = "Void";
         public const string Operation = "Operation";
         public const string Assignment = "Assignment";
-        public const string Identifier = "Identifier";
+        //public const string Identifier = "Identifier";
         public const string Indexer = "Indexer";
         public const string MemberAccess = "MemberAccess";
         public const string ConditionalValue = "ConditionalValue";
@@ -27,5 +28,18 @@ namespace ITVComponents.Scripting.CScript.Interpreter
         public const string Negate = "Negate";
         public const string Increment = "Increment";
         public const string Compare = "Compare";
+        public const string UnaryOperation = "UnaryOperation";
+        public const string ExpressionSequence = "ExpressionSequence";
+        public const string Block = "Block";
+        public const string TryStatement = "TryStatement";
+        public const string ThrowStatement = "ThrowStatement";
+        public const string SwitchCase = "SwitchCase";
+        public const string Switch = "Switch";
+        public const string ReturnStatement = "ReturnStatement";
+        public const string LoopJump = "LoopJump";
+        public const string Loop = "Loop";
+        public const string IfBlock = "IfBlock";
+        public const string IfCondition = "IfCondition";
+        public const string EmptyStatement = "EmptyStatement";
     }
 }

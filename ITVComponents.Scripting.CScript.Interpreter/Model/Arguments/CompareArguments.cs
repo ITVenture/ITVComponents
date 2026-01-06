@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class CompareArguments
+    internal class CompareArguments : IExecutorArgument
     {
         public const string Left = "Left";
         public const string Right = "Right";
@@ -18,6 +18,8 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
         GreaterThan,
         GreaterThanOrEqual,
         LessThan,
-        LessThanOrEqual
+        LessThanOrEqual,
+        Equal,
+        NotEqual
     }
 }

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
 {
-    internal class OperationArguments
+    internal class OperationArguments : IExecutorArgument
     {
         public const string LeftOperand = "LeftOperand";
         public const string RightOperand = "RightOperand";
@@ -22,7 +22,9 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Model.Arguments
         Divide,
         Modulus,
         And,
+        AndAlso,
         Or,
+        OrElse,
         Xor,
         LeftShift,
         RightShift,
