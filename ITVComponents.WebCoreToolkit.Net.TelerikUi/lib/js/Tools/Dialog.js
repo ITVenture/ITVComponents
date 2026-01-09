@@ -57,7 +57,7 @@
     Accept: function (name) {
         ITVenture.Tools.Popup.dialogs[name].Accept.apply(this, Array.prototype.slice.call(arguments, 1));
     },
-    EnrichWindow: function (obj) {
+    EnrichWindow: function (obj, windowRef) {
         var tmo = {
             refObj: null,
             acceptCallbacks: [],
@@ -68,10 +68,14 @@
             pressedEnterCallbacks: [],
             handleReturn: false
         };
+        if (typeof (windowRef) === "undefined") {
+            windowRef = "window";
+        }
+        var windowObj = obj[windowRef];
         obj = $.extend(true, tmo, obj);
-        obj.dialog = function () { return obj.window.data("kendoWindow"); };
-        obj.window.data("itvDialog", obj);
-        obj.window.addClass("itv-dialog");
+        obj.dialog = function () { return windowObj.data("kendoWindow"); };
+        windowObj.data("itvDialog", obj);
+        windowObj.addClass("itv-dialog");
         var dg = obj.dialog();
         dg.wrapper.on("keydown",
             function (event) {
@@ -354,17 +358,17 @@
             showCallbacks: [],
             cancelCallbacks: [],
             closedCallbacks: [],
-            window: $('<div class="k-edit-form-container d-flex flex-column align-items-fill">' +
+            wnd: $('<form id="inputDlgForm"><div class="k-edit-form-container d-flex flex-column align-items-fill">' +
                 '<div id="AlertMessage"></div>' +
                 '<div tag="cip-Content" class="flex-row d-flex"></div>' +
                 '<div tag="buttons" class="k-edit-buttons k-state-default mt-auto p-2">' +
                 '</div>' +
-                '</div>'),
-            defaultButtons: '<a class="k-button k-button-lg k-primary k-grid-update" href="#" onclick="ITVenture.Tools.Popup.Accept(\'input\')"><span class="fa-regular fa-check" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</span></a>' +
-                '<a class="k-button k-button-lg k-grid-cancel" href="#" onclick="ITVenture.Tools.Popup.Close(\'input\')"><span class="fa-regular fa-ban" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</span></a>',
+                '</div></form>'),
+            defaultButtons: '<button class="k-button k-button-lg k-primary k-grid-update" type="submit" form="inputDlgForm"><span class="fa-regular fa-check" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_OK", "Ok") + '</span></button>' +
+                '<button class="k-button k-button-lg k-grid-cancel" type="button" onclick="ITVenture.Tools.Popup.Close(\'input\')"><span class="fa-regular fa-ban" ></span><span class="k-button-text">' + ITVenture.Text.getText("Popup_General_Cancel", "Cancel") + '</span></button>',
             handleReturn: true
         };
-        obj.window.kendoWindow({
+        obj.wnd.kendoWindow({
             visible: false,
             title: ITVenture.Text.getText("Popup_Input_Title", "Input"),
             minWidth: 400,
@@ -376,7 +380,17 @@
                 left: "30%"
             }
         });
-        obj = ITVenture.Tools.Popup.EnrichWindow(obj);
+        obj.form = obj.wnd;
+        obj.validator = obj.form.kendoValidator().data("kendoValidator");
+        obj.form.on("submit", function (e) {
+            e.preventDefault();
+            if (obj.validator.validate()) {
+                var action = $(e.originalEvent.submitter).attr("submitAction");
+                ITVenture.Tools.Popup.Accept('input', action);
+            }
+        });
+        obj = ITVenture.Tools.Popup.EnrichWindow(obj, "wnd");
+        obj.window = $(obj.wnd.children()[0]);
         obj.onPressedEnter(function (event) {
             var dialogInfo = ITVenture.Tools.Popup.FindDialog($(event.target)).data("itvDialog");
             if (dialogInfo.mode.indexOf("WithButtons") === -1) {
@@ -394,7 +408,8 @@
         });
 
         obj.onShow(function (window, dialog, refObj) {
-            var inputArea = '<input id="UserInput" class="flex-fill k-input k-textbox" />';
+            var required = typeof (refObj.required) === "boolean" && refObj.required;
+            var inputArea = required ? '<input id="UserInput" class="flex-fill k-input k-textbox" required />' :'<input id="UserInput" class="flex-fill k-input k-textbox" />';
             var buttonArea = obj.defaultButtons;
             var hasDefault = false;
             var defaultValue = "";
@@ -423,17 +438,16 @@
                     $.each(refObj.Buttons,
                         function (id, item) {
                             buttonArea +=
-                                '<a class="k-button k-button-lg ' +
+                                '<button class="k-button k-button-lg ' +
                                 (item.Default ? 'k-primary k-grid-update' : '') +
-                                '" href="#" onclick="ITVenture.Tools.Popup.' +
+                            (item.Action == "Accept" ? 'type="submit" form="inputDlgForm" submitAction="' + item.ActionArgument : 'type="button" onclick="ITVenture.Tools.Popup.' +
                                 item.Action +
-                                '(\'input\',\'' +
-                                item.ActionArgument +
-                                '\')"><span class="' +
+                                '(\'input\',\'' + item.ActionArgument + '\')') +
+                                '"><span class="' +
                                 item.SpanClass +
                                 '" ></span><span class="k-button-text">' +
                                 item.Text +
-                                '</span></a>';
+                                '</span></button>';
                         });
                 }
             }
