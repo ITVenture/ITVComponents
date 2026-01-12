@@ -189,6 +189,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.BlobStore", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.BlobStore.Test", "ITVComponents.BlobStore.Test\ITVComponents.BlobStore.Test.csproj", "{A099BDD1-8FBA-3B28-A95A-08781A525166}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.NewtonsoftJson", "ITVComponents.NewtonsoftJson\ITVComponents.NewtonsoftJson.csproj", "{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -941,6 +943,14 @@ Global
 		{A099BDD1-8FBA-3B28-A95A-08781A525166}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A099BDD1-8FBA-3B28-A95A-08781A525166}.Release|x86.ActiveCfg = Release|Any CPU
 		{A099BDD1-8FBA-3B28-A95A-08781A525166}.Release|x86.Build.0 = Release|Any CPU
+		{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}.Debug|x86.Build.0 = Debug|Any CPU
+		{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}.Release|x86.ActiveCfg = Release|Any CPU
+		{0D127EBE-DCB1-41AF-99F6-8FB3E38E103D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
