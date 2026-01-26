@@ -51,7 +51,7 @@ namespace ITVComponents.WebCoreToolkit.InterProcessExtensions.Options
             IPermissionScope nameExtender = services.GetService<IPermissionScope>();
             var permissionScope = nameExtender?.PermissionPrefix??"";
             Dictionary<string, object> formatHints = new Dictionary<string, object>(userProvider.RouteData);
-            PluginFactory factory = plugins.GetFactory();
+            IPluginFactory factory = plugins.GetFactory();
             IBaseClient retVal = null;
             formatHints.Add("PermissionScope", permissionScope);
             for (var i = 0; i < ObjectPatterns.Length; i++)
