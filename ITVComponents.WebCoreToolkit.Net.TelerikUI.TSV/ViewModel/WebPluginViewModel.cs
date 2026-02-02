@@ -20,5 +20,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         public string StartupRegistrationConstructor { get; set; }
         
         public int? TenantId { get;set; }
+        public bool Transient { get; set; }
     }
 }

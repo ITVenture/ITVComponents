@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 {
     public static class PermissionFlaggingExtensions
     {
-        public static string GetPermissionGroupName(this PropertyInfo prop)
+        public static string[] GetPermissionGroupName(this PropertyInfo prop)
         {
             return prop.GetPermissionGroupName(typeof(DbSet<>));
         }

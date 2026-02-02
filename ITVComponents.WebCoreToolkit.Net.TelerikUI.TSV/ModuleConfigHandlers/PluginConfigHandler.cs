@@ -20,7 +20,7 @@ using Kendo.Mvc.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ModuleConfigHandlers
 {
-    public class PluginConfigHandler<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> 
+    public class PluginConfigHandler<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> 
         where TTenant : Tenant 
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
         where TWebPluginConstant : WebPluginConstant<TTenant>, new()
@@ -29,13 +29,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ModuleC
         where TTenantSetting : TenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
+        where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
-        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,TSequence,TTenantSetting, TTenantFeatureActivation, TTrustConfig> context;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,TSequence,TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context;
         private readonly IPermissionScope permissionScope;
         private readonly ISecurityRepository security;
         private readonly IInjectablePlugin<WebPluginAnalyzer> localLoader;
 
-        public PluginConfigHandler(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context, IPermissionScope permissionScope, ISecurityRepository security, IInjectablePlugin<WebPluginAnalyzer> localLoader = null)
+        public PluginConfigHandler(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, IPermissionScope permissionScope, ISecurityRepository security, IInjectablePlugin<WebPluginAnalyzer> localLoader = null)
         {
             this.context = context;
             this.permissionScope = permissionScope;

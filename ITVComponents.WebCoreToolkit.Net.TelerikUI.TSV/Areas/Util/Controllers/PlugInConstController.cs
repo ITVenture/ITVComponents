@@ -23,7 +23,7 @@ using System.Threading.Tasks;
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {
     [Authorize("HasPermission(PlugInConstants.Write,PlugInConstants.View),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention, CustomGenericTypeArg("TWebPluginConstantViewModel", typeof(WebPluginConstantViewModel))]
-    public class PlugInConstController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TWebPluginConstantViewModel, TTrustConfig> : Controller 
+    public class PlugInConstController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TWebPluginConstantViewModel, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : Controller 
         where TTenant : Tenant 
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TWebPluginConstant : WebPluginConstant<TTenant>, new()
@@ -33,12 +33,15 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.U
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TWebPluginConstantViewModel: WebPluginConstantViewModel, new()
         where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
+        where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
-        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> db;
         private readonly IOptions<SecurityViewsOptions> options;
         private bool isSysAdmin;
 
-        public PlugInConstController(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> db, IServiceProvider services, IOptions<SecurityViewsOptions> options)
+        public PlugInConstController(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> db, IServiceProvider services, IOptions<SecurityViewsOptions> options)
         {
             this.db = db;
             this.options = options;

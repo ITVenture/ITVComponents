@@ -45,7 +45,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         /// <returns>the ServicesCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbPlugins<TContext>(this IServiceCollection services, int bufferDuration) where TContext : DbContext
         {
-            var tff = typeof(TContext).FinalizeType(typeof(DbPluginsSelector<,,,,,,>));
+            var tff = typeof(TContext).FinalizeType(typeof(DbPluginsSelector<,,,,,,,,,>));
             services.Configure<WebPluginBufferingOptions>(n => n.BufferDuration = bufferDuration);
             return services.AddScoped(typeof(IWebPluginsSelector), tff);
         }
@@ -57,7 +57,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseTenantSettings<TContext>(this IServiceCollection services) where TContext : DbContext
         {
-            var tff = typeof(TContext).FinalizeType(typeof(TenantSettingsProvider<,,,,,,,>));
+            var tff = typeof(TContext).FinalizeType(typeof(TenantSettingsProvider<,,,,,,,,,,>));
             return services.AddScoped(typeof(IScopedSettingsProvider), tff);
         }
 

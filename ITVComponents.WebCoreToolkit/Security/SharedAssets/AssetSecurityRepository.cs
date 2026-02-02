@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using Microsoft.AspNetCore.Authentication;
 
 namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
@@ -279,5 +280,14 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         {
             throw new NotImplementedException();
         }
+
+        public ExternalOAuthConnection GetExternalService(string name)=>decoratedRepo.GetExternalService(name);
+
+        public void PrepareExternalServiceConnect(OAuthState oAuthState)=>decoratedRepo.PrepareExternalServiceConnect(oAuthState);
+
+        public OAuthState GetOAuthRequest(string connectionName, string state)=>decoratedRepo.GetOAuthRequest(connectionName, state);
+
+        public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token)=>decoratedRepo.StoreExternalServiceToken(connectionName, token);
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken) => decoratedRepo.GetBufferedToken(connectionName, forRevoke, out connectionInfo, out updateToken);
     }
 }

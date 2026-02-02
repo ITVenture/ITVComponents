@@ -28,7 +28,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
         private readonly IStringLocalizer<IdentityMessages> localizer;
         private readonly ISecurityContextWithOnboarding dbContext;
         private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
-        private readonly ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig> tenantInitializer;
+        private readonly ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer;
         //private readonly ITenantTemplateHelper<ISecurityContextWithOnboarding> tenantInitializer;
 
         public CreateTenantModel(
@@ -37,7 +37,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
             IStringLocalizer<IdentityMessages> localizer,
             ISecurityContextWithOnboarding dbContext,
             IGlobalSettings<TenantSetupOptions> setupOptions,
-            ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig> tenantInitializer)
+            ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer)
         {
             _userManager = userManager;
             _signInManager = signInManager;

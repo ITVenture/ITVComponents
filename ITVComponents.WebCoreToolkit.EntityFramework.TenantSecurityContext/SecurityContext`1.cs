@@ -58,7 +58,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig>
+    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>
     where TImpl:SecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -280,6 +280,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 
         public DbSet<LocalizationString> LocalizationCultureStrings { get; set; }
 
+        public DbSet<FlatExternalOAuthServiceState> ExternalOAuthServiceStates { get; set; }
+
         public int SequenceNextVal(string sequenceName)
         {
             var mth = modelBuilderOptions.GetMethod<Func<DbContext, string, int, int>>("SequenceNextVal");
@@ -397,6 +399,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         public DbSet<TrustedFullAccessComponent> TrustedFullAccessComponents { get; set; }
 
         public DbSet<FlatSequence> Sequences { get; set; }
+        public DbSet<FlatExternalOAuthService> ExternalOAuthServices { get; set; }
+
+        public DbSet<FlatExternalOAuthServiceTenantLogin> ExternalOAuthServiceTenantLogins { get; set; }
+
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DbResources.View", "DbResources.Write")]
         public DbSet<Culture> Cultures { get; set; }
         public DbSet<TenantSecurityShared.Models.Localization> Localizations { get; set; }

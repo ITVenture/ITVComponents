@@ -137,6 +137,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrapper
             return GetPlugins<T>().FirstOrDefault();
         }
 
+        public IPlugin[] ScopeClose()
+        {
+            return Array.Empty<IPlugin>();
+        }
+
         public event EventHandler Disposed;
 
         protected virtual void OnDisposed()

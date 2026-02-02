@@ -16,7 +16,7 @@ namespace ITVComponents.Plugins.Collections
     {
         private readonly PluginCollector parent;
         private ConcurrentDictionary<string, IPlugin> plugins;
-
+        private bool isTransientLoadingScope;
         private ConcurrentDictionary<string, ManualResetEventSlim> pluginInitializationPromises;
 
         /// <summary>
@@ -26,18 +26,21 @@ namespace ITVComponents.Plugins.Collections
 
         private AsyncLocal<Dictionary<string, object>> localRegistrations;
 
-        public PluginCollector()
+        public PluginCollector(bool isTransientLoadingScope)
         {
             pluginInitializationPromises = new ConcurrentDictionary<string, ManualResetEventSlim>();
             plugins = new ConcurrentDictionary<string, IPlugin>();
             registeredObjects = new ConcurrentDictionary<string, object>();
             localRegistrations = new AsyncLocal<Dictionary<string, object>>();
+            this.isTransientLoadingScope = isTransientLoadingScope;
         }
 
-        public PluginCollector(PluginCollector parent):this()
+        public PluginCollector(PluginCollector parent, bool isTransientLoadingScope):this(isTransientLoadingScope)
         {
             this.parent = parent;
         }
+
+        public bool IsTransientLoadScope => isTransientLoadingScope;
 
         public IPlugin this[string name]
         {
@@ -168,32 +171,37 @@ namespace ITVComponents.Plugins.Collections
             return pluginInitializationPromises.TryRemove(uniqueName, out wh);
         }
 
-        public void Clear()
+        public IPlugin[] Clear()
         {
             IPlugin[] pluginArray = plugins.Values.ToArray();
-            for (int i = 0; i < pluginArray.Length; i++)
+            if (!isTransientLoadingScope)
             {
-                IStoppable plugin = pluginArray[i] as IStoppable;
-                if (plugin != null)
+                for (int i = 0; i < pluginArray.Length; i++)
                 {
-                    plugin.Stop();
+                    IStoppable plugin = pluginArray[i] as IStoppable;
+                    if (plugin != null)
+                    {
+                        plugin.Stop();
+                    }
                 }
-            }
 
-            for (int i = pluginArray.Length - 1; i >= 0; i--)
-            {
-                IPlugin pi = pluginArray[i];
-                try
+                for (int i = pluginArray.Length - 1; i >= 0; i--)
                 {
-                    pi.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error, "PluginSystem");
+                    IPlugin pi = pluginArray[i];
+                    try
+                    {
+                        pi.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error, "PluginSystem");
+                    }
                 }
             }
 
             plugins.Clear();
+
+            return pluginArray;
         }
 
         public void TryAddRegisteredObject(string parameterName, object instance)

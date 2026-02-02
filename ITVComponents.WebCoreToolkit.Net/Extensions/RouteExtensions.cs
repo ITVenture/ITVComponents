@@ -251,5 +251,21 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
 
             return builder.MapGet("/FileSys/{Action:regex(^(download|list|search)$)}", FileSystemHandler.FileSystemAccessNoAuth).AllowAnonymous();
         }
+
+        public static void ExposeCrossServiceAuthentication(this WebApplication builder,
+            string explicitTenantParam,
+            Action<IEndpointConventionBuilder> configureInit = null,
+            Action<IEndpointConventionBuilder> configureCallback = null)
+        {
+            var forExplicitTenants = !string.IsNullOrEmpty(explicitTenantParam);
+            //            Func<HttpContext, Task> dlgP = ;
+
+            
+            var init = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/XSvcAuth/connect/{{externalServiceName:required}}", ExternalOAuthHandler.InitAuthentication)
+                .RequireAuthorization();
+            var callback = builder.MapGet($"/XSvcAuth/callback",ExternalOAuthHandler.Callback ).RequireAuthorization();
+            configureInit?.Invoke(init);
+            configureCallback?.Invoke(callback);
+        }
     }
 }

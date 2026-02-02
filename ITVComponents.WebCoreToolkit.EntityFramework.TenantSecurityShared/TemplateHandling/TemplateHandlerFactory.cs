@@ -35,7 +35,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
         private ConcurrentDictionary<Type, object> bufferedHandlers =
             new ConcurrentDictionary<Type, object>();
         private IRequestCultureFeature cult = null;
-        private PluginFactory factory;
+        private IPluginFactory factory;
 
         public TemplateHandlerFactory(IServiceProvider services, IWebPluginHelper pluginProvider,
             IHttpContextAccessor httpContext, ICoreSystemContext sysContext)
@@ -46,7 +46,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
             this.sysContext = sysContext;
         }
 
-        private PluginFactory Factory => factory ??= pluginProvider.GetFactory();
+        private IPluginFactory Factory => factory ??= pluginProvider.GetFactory();
 
         public object GetBackEndHandler(TemplateModuleConfigurator configurator, out IDictionary<string,object> arguments)
         {

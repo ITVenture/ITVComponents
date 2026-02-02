@@ -45,7 +45,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp,
             ClientAppPermission, ClientAppUser, HierarchyWebPlugin, HierarchyWebPluginConstant,
             HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting,
-            HierarchyTenantFeatureActivation, HierarchyTenantContextSecurityTrustConfig>
+            HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>
         where TImpl : AspNetTreeSecurityContext<TImpl>
     {
         protected readonly DbContextModelBuilderOptions<TImpl> modelBuilderOptions;
@@ -189,6 +189,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
 
         public DbSet<HierarchyWebPluginGenericParameter> GenericPluginParams { get; set; }
 
+        public DbSet<HierarchyExternalOAuthServiceState> ExternalOAuthServiceStates { get; set; }
+
         public int SequenceNextVal(string sequenceName)
         {
             var trust = new HierarchyTenantContextSecurityTrustConfig
@@ -225,6 +227,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         }
 
         public DbSet<HierarchySequence> Sequences { get; set; }
+        public DbSet<HierarchyExternalOAuthService> ExternalOAuthServices { get; set; }
+
+        public DbSet<HierarchyExternalOAuthServiceTenantLogin> ExternalOAuthServiceTenantLogins { get; set; }
 
         public DbSet<HierarchyTenantFeatureActivation> TenantFeatureActivations { get; set; }
 

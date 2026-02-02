@@ -10,6 +10,7 @@ using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.Security;
 
 namespace ITVComponents.GenericService.ServiceSecurity
@@ -293,6 +294,31 @@ namespace ITVComponents.GenericService.ServiceSecurity
         public Permission[] GetKnownPermissions(string permissionScope)
         {
             return Permissions.ToArray();
+        }
+
+        public ExternalOAuthConnection GetExternalService(string name)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void PrepareExternalServiceConnect(OAuthState oAuthState)
+        {
+            throw new NotImplementedException();
+        }
+
+        public OAuthState GetOAuthRequest(string connectionName, string state)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token)
+        {
+            throw new NotImplementedException();
+        }
+
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>

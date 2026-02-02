@@ -17,6 +17,8 @@ namespace ITVComponents.WebCoreToolkit.Models
 
         public bool AutoLoad { get; set; }
 
+        public bool Transient { get; set; } = false;
+
         [MaxLength(8192)]
         public string StartupRegistrationConstructor { get; set; }
 

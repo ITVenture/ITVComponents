@@ -64,7 +64,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter,
             SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
             ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,
-            FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation,
+            FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin,
             BaseTenantContextSecurityTrustConfig>
         where TImpl : AspNetSecurityContext<TImpl>
     {
@@ -559,6 +559,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         public DbSet<DashboardParam> WidgetParams { get; set; }
 
         public DbSet<DashboardWidget> Widgets { get; set; }
+
+        public DbSet<FlatExternalOAuthService> ExternalOAuthServices { get; set; }
+
+        public DbSet<FlatExternalOAuthServiceState> ExternalOAuthServiceStates { get; set; }
+
+        public DbSet<FlatExternalOAuthServiceTenantLogin> ExternalOAuthServiceTenantLogins { get; set; }
 
         IDictionary<string, bool> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.ComponentSpecialTrusts => componentSpecialTrusts;
 

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Dynamitey;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 
 namespace ITVComponents.WebCoreToolkit.Security
 {
@@ -172,6 +173,19 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         public string EncryptJsonObject(object value, string permissionScopeName) => Current.EncryptJsonObject(value, permissionScopeName);
         public Permission[] GetKnownPermissions(string permissionScope) => Current.GetKnownPermissions(permissionScope);
+        public ExternalOAuthConnection GetExternalService(string name) => Current.GetExternalService(name);
+
+        public void PrepareExternalServiceConnect(OAuthState oAuthState) =>
+            Current.PrepareExternalServiceConnect(oAuthState);
+
+        public OAuthState GetOAuthRequest(string connectionName, string state) =>
+            Current.GetOAuthRequest(connectionName, state);
+
+        public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token) =>
+            Current.StoreExternalServiceToken(connectionName, token);
+
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken) =>
+            Current.GetBufferedToken(connectionName, forRevoke, out connectionInfo, out updateToken);
 
         private void OnDisposed()
         {

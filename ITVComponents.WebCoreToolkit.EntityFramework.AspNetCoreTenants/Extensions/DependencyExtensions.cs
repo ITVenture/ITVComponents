@@ -32,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options)
         {
-            var finaltth = typeof(AspNetSecurityContext).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,>), fixTypeEntries: ("TContext",typeof(AspNetSecurityContext)));
+            var finaltth = typeof(AspNetSecurityContext).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext",typeof(AspNetSecurityContext)));
             return services.AddDbContext<AspNetSecurityContext>(options)
                 .RegisterExplicityInterfacesScoped<AspNetSecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
@@ -56,7 +56,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities<TImpl>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options) where TImpl:AspNetSecurityContext<TImpl>
         {
-            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
+            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
@@ -96,7 +96,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensi
             where TImpl : AspNetSecurityContext<TImpl>
             where TTmpHelper : TenantTemplateHelper<TImpl>
         {
-            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
+            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>

@@ -21,7 +21,7 @@ using ITVComponents.WebCoreToolkit.WebPlugins;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugins.Formatting
 {
-    public class DbPluginFormatter<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : StringFormatProvider, IDeferredInit
+    public class DbPluginFormatter<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : StringFormatProvider, IDeferredInit
         where TTenant : HierarchyTenant 
         where TWebPlugin : HierarchyWebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
@@ -30,9 +30,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
         where TTenantSetting : HierarchyTenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TTrustConfig : HierarchyTenantContextSecurityTrustConfig<TTrustConfig>, new()
+        where TExternalOAuthService : HierarchyExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceState : HierarchyExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 
     {
-        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context;
+        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context;
         private readonly IWebPluginsSelector plugInSelector;
         private readonly IObjectProvider objectCache;
         private Dictionary<string, object> formatPrototype = new Dictionary<string, object>();
@@ -45,7 +48,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
         /// </summary>
         /// <param name="context">the database containing formatting-hints</param>
         public DbPluginFormatter(
-            IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context, IWebPluginsSelector plugInSelector) : this(context, plugInSelector, null)
+            IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, IWebPluginsSelector plugInSelector) : this(context, plugInSelector, null)
         {
         }
 
@@ -53,7 +56,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
         /// Initializes a new instance of the DbPluginFormatter class
         /// </summary>
         /// <param name="context">the database containing formatting-hints</param>
-        public DbPluginFormatter(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> context, IWebPluginsSelector plugInSelector, IObjectProvider objectCache)
+        public DbPluginFormatter(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, IWebPluginsSelector plugInSelector, IObjectProvider objectCache)
         {
             this.context = context;
             this.plugInSelector = plugInSelector;

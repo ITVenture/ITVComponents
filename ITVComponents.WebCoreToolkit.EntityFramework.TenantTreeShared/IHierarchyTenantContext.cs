@@ -16,8 +16,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeM
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
 {
     [ExplicitlyExpose]
-    public interface IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : 
-        IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> 
+    public interface IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : 
+        IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> 
         where TTenant : HierarchyTenant 
         where TWebPlugin : HierarchyWebPlugin<TTenant,TWebPlugin,TWebPluginGenericParameter>
         where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
@@ -26,6 +26,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
         where TTenantSetting : HierarchyTenantSetting<TTenant>
         where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
         where TTrustConfig : HierarchyTenantContextSecurityTrustConfig<TTrustConfig>, new()
+        where TExternalOAuthService : HierarchyExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceState : HierarchyExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
         /// <summary>
         /// When tenant filtering is used, enables the Tree-Inheritance User- and Permissionresolving

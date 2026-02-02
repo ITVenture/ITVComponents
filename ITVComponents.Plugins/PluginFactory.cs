@@ -58,6 +58,8 @@ namespace ITVComponents.Plugins
         /// </summary>
         private ThreadLocal<PluginScope> currentScope = new ThreadLocal<PluginScope>();
 
+        private bool useCurrentScope = true;
+
         /// <summary>
         /// A Reflection-only typelist that is used for test-only factories
         /// </summary>
@@ -237,7 +239,7 @@ namespace ITVComponents.Plugins
             registeredDirectories = new List<string>();
             registeredDirectories.Add(Path.GetDirectoryName(Assembly.GetCallingAssembly().Location));
             registeredAssemblies = new Dictionary<string, Assembly>();
-            this.pluginInstances = new PluginCollector();
+            this.pluginInstances = new PluginCollector(false);
             this.roTypeList = new ConcurrentDictionary<string, Type>();
             disposer = new Thread(Dispose);
             waitForDisposedEvent = new ManualResetEvent(false);
@@ -246,6 +248,12 @@ namespace ITVComponents.Plugins
                 //reflectionContext = new AssemblyLoadContext($"ITVPI{DateTime.Now.Ticks}", true);
                 contextRelease = AssemblyResolver.AcquireTemporaryLoadContext(out reflectionContext);
             }
+        }
+
+        public bool UseCurrentScope
+        {
+            get { return useCurrentScope; }
+            set { useCurrentScope = value; }
         }
 
         /// <summary>
@@ -267,12 +275,20 @@ namespace ITVComponents.Plugins
             get
             {
                 var retVal = stringLiteralFormatter;
-                if (currentScope.IsValueCreated && currentScope.Value is { Formatter: not null })
+                if (HasActiveScope && currentScope.Value is { Formatter: not null })
                 {
                     retVal = currentScope.Value.Formatter;
                 }
 
                 return retVal;
+            }
+        }
+
+        private bool HasActiveScope
+        {
+            get
+            {
+                return useCurrentScope && currentScope.IsValueCreated && currentScope.Value != null;
             }
         }
 
@@ -299,7 +315,7 @@ namespace ITVComponents.Plugins
                     IPlugin retVal = this[uq.UniqueName];
                     if (retVal == null && triggerAsParameterRequest)
                     {
-                        if (currentScope.IsValueCreated && currentScope.Value != null)
+                        if (HasActiveScope)
                         {
                             retVal = RequestScopePlugin(currentScope.Value, uq, callingPluginRef);
                         }
@@ -412,7 +428,7 @@ namespace ITVComponents.Plugins
 
                     if (retVal is StringFormatProvider prov)
                     {
-                        if (!currentScope.IsValueCreated || currentScope.Value == null)
+                        if (!HasActiveScope)
                         {
                             if (stringLiteralFormatter != null)
                             {
@@ -1322,8 +1338,7 @@ namespace ITVComponents.Plugins
                     retVal = AssemblyResolver.FindReflectionOnlyTypeFor(retVal.GetType());
                 }
             }
-            else if (name.UniqueName == "ifactory" && allowFactoryParameter && currentScope.IsValueCreated &&
-                     currentScope.Value != null)
+            else if (name.UniqueName == "ifactory" && allowFactoryParameter && HasActiveScope)
             {
                 retVal = currentScope.Value;
                 if (reflectOnly)
@@ -1337,7 +1352,7 @@ namespace ITVComponents.Plugins
             }
             else if (reflectOnly || !SingletonEnvironment.FindSingletonPlugin(name.UniqueName, out retVal))
             {
-                if (currentScope.IsValueCreated && currentScope.Value != null)
+                if (HasActiveScope)
                 {
                     retVal = RequestScopePlugin(currentScope.Value, name, callingType);
                 }
@@ -1399,23 +1414,36 @@ namespace ITVComponents.Plugins
             dynamicPlugIns = LoadDynamicPlugins(PluginLoadType.Singleton);
         }
 
-        internal void CloseScope(PluginScope scope)
+        public IPlugin[] ScopeClose()
         {
+            if (HasActiveScope)
+            {
+                return currentScope.Value.ScopeClose();
+            }
+
+            return Array.Empty<IPlugin>();
+        }
+
+        internal IPlugin[] CloseScope(PluginScope scope)
+        {
+            IPlugin[] retVal = Array.Empty<IPlugin>();
             if (scopedPlugins.TryRemove(scope, out var pluginDic))
             {
-                ClearPlugins(pluginDic);
+                retVal = ClearPlugins(pluginDic);
             }
+
+            return retVal;
         }
 
         internal T WithScope<T>(PluginScope scope, Func<PluginScope, T> action)
         {
-            if (currentScope.IsValueCreated && currentScope.Value != null && currentScope.Value != scope)
+            if (HasActiveScope && currentScope.Value != scope)
             {
                 throw new InvalidOperationException("There already is a plugin-load in progress in this thread!");
             }
 
             bool currentScopeSet = false;
-            if (!currentScope.IsValueCreated || currentScope.Value == null)
+            if (!HasActiveScope)
             {
                 currentScope.Value = scope;
                 currentScopeSet = true;
@@ -1473,14 +1501,14 @@ namespace ITVComponents.Plugins
             });
         }
 
-        private void ClearPlugins(PluginCollector pluginDic)
+        private IPlugin[] ClearPlugins(PluginCollector pluginDic)
         {
-            pluginDic.Clear();
+            return pluginDic.Clear();
         }
 
         private PluginCollector plugins(PluginScope scope)
         {
-            if (currentScope.IsValueCreated)
+            if (HasActiveScope)
             {
                 scope ??= currentScope.Value;
             }
@@ -1493,29 +1521,37 @@ namespace ITVComponents.Plugins
             return pluginInstances;
         }
 
-        public IPluginFactory NewScope(Dictionary<string, object> knownScopeObjects, IServiceProvider services)
+        public IPluginFactory NewScope(Dictionary<string, object> knownScopeObjects, IServiceProvider services, bool transientLoadingScope)
         {
-            var scopePlugins = new PluginCollector(pluginInstances);
+            var scopePlugins = new PluginCollector(pluginInstances, transientLoadingScope);
             var retVal = new PluginScope(this, scopePlugins);
             scopedPlugins.TryAdd(retVal, scopePlugins);
-            foreach (var kso in knownScopeObjects)
+            if (!transientLoadingScope)
             {
-                scopePlugins.TryAddRegisteredObject(kso.Key, kso.Value);
-            }
+                if (knownScopeObjects != null)
+                {
+                    foreach (var kso in knownScopeObjects)
+                    {
+                        scopePlugins.TryAddRegisteredObject(kso.Key, kso.Value);
+                    }
+                }
 
-            if (services != null)
-            {
-                scopePlugins.TryAddRegisteredObject("services", services);
-            }
+                if (services != null)
+                {
+                    scopePlugins.TryAddRegisteredObject("services", services);
+                }
 
-            retVal = WithScope(retVal, s =>
-            {
-                var scopeInitializers =
-                    (from t in scopePlugins.DynamicLoaders select t.LoadDynamicAssemblies(PluginLoadType.ScopeStartup))
-                    .SelectMany(n => n).ToArray();
-                LogEnvironment.LogDebugEvent($"{scopeInitializers.Length} plugins loaded for Scope-Startup.", LogSeverity.Report);
-                return s;
-            });
+                retVal = WithScope(retVal, s =>
+                {
+                    var scopeInitializers =
+                        (from t in scopePlugins.DynamicLoaders
+                            select t.LoadDynamicAssemblies(PluginLoadType.ScopeStartup))
+                        .SelectMany(n => n).ToArray();
+                    LogEnvironment.LogDebugEvent($"{scopeInitializers.Length} plugins loaded for Scope-Startup.",
+                        LogSeverity.Report);
+                    return s;
+                });
+            }
 
             return retVal;
         }

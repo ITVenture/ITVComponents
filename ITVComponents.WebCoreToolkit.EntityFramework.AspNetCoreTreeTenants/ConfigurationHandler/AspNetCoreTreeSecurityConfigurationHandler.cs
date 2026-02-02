@@ -21,7 +21,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Con
         ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp,
         ClientAppPermission, ClientAppUser, HierarchyWebPlugin, HierarchyWebPluginConstant,
         HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting,
-        HierarchyTenantFeatureActivation, HierarchyTenantContextSecurityTrustConfig>
+        HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>
         where TContext : AspNetTreeSecurityContext<TContext>
     {
         public AspNetCoreTreeSecurityConfigurationHandler(TContext db) : base(db)

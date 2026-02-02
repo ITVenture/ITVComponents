@@ -23,5 +23,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
         public NavigationTemplateMarkup[] Navigation { get; set; }
 
         public QueryTemplateMarkup[] Queries { get; set; }
+
+        public ExternalOAuthServiceTemplateMarkup[] ExternalOAuthServices { get; set; }
     }
 }

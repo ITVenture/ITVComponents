@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.DIServices;
@@ -38,7 +39,8 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         //private ConcurrentDictionary<GuidEnumeration, PluginFactory> factories;
         private PluginFactory factory;
         private ILogger<WebPluginHelper> logger;
-
+        private List<IPlugin> transientPlugins = new();
+        private ThreadLocal<bool> pluginIsLoading = new ThreadLocal<bool>(() => false);
         /// <summary>
         /// Initializes a new instance of the WebPluginHelper class
         /// </summary>
@@ -111,6 +113,14 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         {
             factory?.Dispose();
             factory = null;
+            IPlugin[] toDispose;
+            lock (transientPlugins)
+            {
+                toDispose = transientPlugins.ToArray();
+                transientPlugins.Clear();
+            }
+
+            toDispose.ForEach(n => n.Dispose());
         }
 
         /// <summary>
@@ -140,63 +150,89 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             UnknownConstructorParameterEventHandler handler = (sender, args) =>
             {
                 PluginFactory pi = (PluginFactory)sender;
-                IWebPluginsSelector availablePlugins = pluginProvider;
-                var globalProvider = serviceProvider.GetService<IGlobalSettingsProvider>();
-                var tenantProvider = serviceProvider.GetService<IScopedSettingsProvider>();
-
-                var preInitializationSequence = tenantObjects.GetBufferedValue(
-                    $"PreInitSequenceFor{args.RequestedName}", k => tenantProvider?.GetJsonSetting(k, explicitUserScope)
-                                                                    ?? globalProvider?.GetJsonSetting(k), null);
-                var postInitializationSequence = tenantObjects.GetBufferedValue(
-                    $"PostInitSequenceFor{args.RequestedName}", k =>
-                        tenantProvider?.GetJsonSetting(k, explicitUserScope)
-                        ?? globalProvider?.GetJsonSetting(k), null);
-                var preInitSequence = DeserializeInitArray(preInitializationSequence);
-                var postInitSequence = DeserializeInitArray(postInitializationSequence);
-                WebPlugin plugin =
-                    tenantObjects.GetBufferedValue($"TenantPI#{args.RequestedName}",
-                        _ => availablePlugins.GetPlugin(args.RequestedName), null);
-                if (plugin != null)
+                bool cleanup = false;
+                if (!pluginIsLoading.Value)
                 {
-                    if (!checkSecurity || serviceProvider.VerifyUserPermissions(new[] { args.RequestedName }, true))
+                    pluginIsLoading.Value = true;
+                    cleanup = true;
+                    pi.NewScope(null, null, true);
+                }
+
+                try
+                {
+                    IWebPluginsSelector availablePlugins = pluginProvider;
+                    var globalProvider = serviceProvider.GetService<IGlobalSettingsProvider>();
+                    var tenantProvider = serviceProvider.GetService<IScopedSettingsProvider>();
+
+                    var preInitializationSequence = tenantObjects.GetBufferedValue(
+                        $"PreInitSequenceFor{args.RequestedName}", k =>
+                            tenantProvider?.GetJsonSetting(k, explicitUserScope)
+                            ?? globalProvider?.GetJsonSetting(k), null);
+                    var postInitializationSequence = tenantObjects.GetBufferedValue(
+                        $"PostInitSequenceFor{args.RequestedName}", k =>
+                            tenantProvider?.GetJsonSetting(k, explicitUserScope)
+                            ?? globalProvider?.GetJsonSetting(k), null);
+                    var preInitSequence = DeserializeInitArray(preInitializationSequence);
+                    var postInitSequence = DeserializeInitArray(postInitializationSequence);
+                    WebPlugin plugin =
+                        tenantObjects.GetBufferedValue($"TenantPI#{args.RequestedName}",
+                            _ => availablePlugins.GetPlugin(args.RequestedName), null);
+                    if (plugin != null)
                     {
-                        if (preInitSequence.Length != 0)
+                        if (!checkSecurity || serviceProvider.VerifyUserPermissions(new[] { args.RequestedName }, true))
                         {
-                            foreach (var s in preInitSequence)
+                            if (preInitSequence.Length != 0)
                             {
-                                var tmp = pi[s, true, args.PluginType];
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(plugin.Constructor))
-                        {
-                            if (args.PluginType != null)
-                            {
-                                args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
-                                    new Dictionary<string, object> { { "CallingPlugin", args.PluginType } });
-                            }
-                            else
-                            {
-                                args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
+                                foreach (var s in preInitSequence)
+                                {
+                                    var tmp = pi[s, true, args.PluginType];
+                                }
                             }
 
-                            args.Handled = true;
-                        }
-
-                        if (postInitSequence.Length != 0)
-                        {
-                            foreach (var s in postInitSequence)
+                            if (!string.IsNullOrEmpty(plugin.Constructor))
                             {
-                                var tmp = pi[s, true, args.PluginType];
+                                if (args.PluginType != null)
+                                {
+                                    pi.UseCurrentScope = plugin.Transient;
+                                    args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
+                                        new Dictionary<string, object> { { "CallingPlugin", args.PluginType } });
+                                }
+                                else
+                                {
+                                    pi.UseCurrentScope = plugin.Transient;
+                                    args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
+                                }
+
+                                args.Handled = true;
+                            }
+
+                            if (postInitSequence.Length != 0)
+                            {
+                                foreach (var s in postInitSequence)
+                                {
+                                    var tmp = pi[s, true, args.PluginType];
+                                }
                             }
                         }
                     }
+                    else
+                    {
+                        var tmp = factoryOptions?.GetDependency(args.RequestedName, serviceProvider);
+                        args.Handled = tmp != null;
+                        args.Value = tmp;
+                    }
                 }
-                else
+                finally
                 {
-                    var tmp = factoryOptions?.GetDependency(args.RequestedName, serviceProvider);
-                    args.Handled = tmp != null;
-                    args.Value = tmp;
+                    if (cleanup)
+                    {
+                        pluginIsLoading.Value = false;
+                        lock (transientPlugins)
+                        {
+                            transientPlugins.AddRange(pi.ScopeClose());
+                        }
+
+                    }
                 }
             };
 
@@ -332,6 +368,14 @@ Section: Plugins", ex, "Plugins");
         {
             logger.LogInformation("Disposing Factory...");
             factory?.Dispose();
+            IPlugin[] toDispose;
+            lock (transientPlugins)
+            {
+                toDispose = transientPlugins.ToArray();
+                transientPlugins.Clear();
+            }
+
+            toDispose.ForEach(n => n.Dispose());
             logger.LogInformation("Factory disposed.");
         }
     }

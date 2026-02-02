@@ -40,6 +40,7 @@ namespace ITVComponents.WebCoreToolkit.Options
 
         public Dictionary<string, string> GroupClaims { get; set; } = new();
         public bool UseDefaultCookies { get; set; } = true;
+        public bool UseOAuthClientFactory { get; set; } = false;
     }
 
     public class LocalizationMappingOption

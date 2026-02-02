@@ -18,6 +18,7 @@
             columns.Bound(c => c.Constructor);
             columns.Bound(c => c.StartupRegistrationConstructor).Title("Web-Start - Constructor");
             columns.InlineCheckbox(c => c.AutoLoad, "WebPluginId", readOnly: true);
+            columns.InlineCheckbox(c => c.Transient, "WebPluginId", readOnly: true);
             if (ViewData["tenantId"] != null)
             {
                 columns.InlineCheckbox(c => c.Inheritable, "WebPluginId", readOnly: true);

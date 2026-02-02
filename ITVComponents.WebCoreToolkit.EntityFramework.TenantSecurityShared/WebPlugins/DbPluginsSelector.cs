@@ -16,7 +16,7 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins
 {
-    internal class DbPluginsSelector<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation> :IWebPluginsSelector
+    internal class DbPluginsSelector<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin> :IWebPluginsSelector
     where TTenant : Tenant 
     where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
     where TWebPluginConstant : WebPluginConstant<TTenant>
@@ -24,8 +24,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
     where TSequence : Sequence<TTenant>
     where TTenantSetting : TenantSetting<TTenant>
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+    where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+    where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+    where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
-        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, BaseTenantContextSecurityTrustConfig> securityContext;
+        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> securityContext;
         private readonly IPermissionScope scopeProvider;
         private readonly WebPluginBufferingOptions bufferConfig;
 
@@ -36,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
         /// Initializes a new instance of hte DbPluginsSelector class
         /// </summary>
         /// <param name="securityContext">the injected security-db-context</param>
-        public DbPluginsSelector(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, BaseTenantContextSecurityTrustConfig> securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
+        public DbPluginsSelector(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
         {
             this.securityContext = securityContext;
             this.scopeProvider = scopeProvider;
@@ -144,7 +147,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
                     AutoLoad = pluginData.AutoLoad,
                     Constructor = pluginData.Constructor,
                     StartupRegistrationConstructor = pluginData.StartupRegistrationConstructor,
-                    UniqueName = pluginData.UniqueName  
+                    UniqueName = pluginData.UniqueName ,
+                    Transient = pluginData.Transient
                 }:null,
                 WebPluginId = pluginData?.WebPluginId
             });
@@ -181,13 +185,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
                     select new WebPlugin
                     {
                         AutoLoad = p.AutoLoad, Constructor = p.Constructor,
-                        StartupRegistrationConstructor = p.StartupRegistrationConstructor, UniqueName = p.UniqueName
+                        StartupRegistrationConstructor = p.StartupRegistrationConstructor, UniqueName = p.UniqueName,
+                        Transient = p.Transient
                     }).AsEnumerable().Union((from p in securityContext.WebPlugins
                     where p.TenantId == null
                     select new WebPlugin
                     {
                         AutoLoad = p.AutoLoad, Constructor = p.Constructor,
-                        StartupRegistrationConstructor = p.StartupRegistrationConstructor, UniqueName = p.UniqueName
+                        StartupRegistrationConstructor = p.StartupRegistrationConstructor, UniqueName = p.UniqueName,
+                        Transient = p.Transient
                     }).AsEnumerable(),
                     new WebPluginComparer()).Where(n => !string.IsNullOrEmpty(n.Constructor) && n.AutoLoad);
             }
@@ -207,7 +213,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
                     AutoLoad = p.AutoLoad,
                     Constructor = p.Constructor,
                     StartupRegistrationConstructor = p.StartupRegistrationConstructor,
-                    UniqueName = p.UniqueName
+                    UniqueName = p.UniqueName,
+                    Transient = p.Transient
                 }).AsEnumerable().Union((from p in securityContext.WebPlugins
                 where p.TenantId == null
                 select new WebPlugin
@@ -215,7 +222,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebP
                     AutoLoad = p.AutoLoad,
                     Constructor = p.Constructor,
                     StartupRegistrationConstructor = p.StartupRegistrationConstructor,
-                    UniqueName = p.UniqueName
+                    UniqueName = p.UniqueName,
+                    Transient = p.Transient
                 }).AsEnumerable(),
                 new WebPluginComparer()).Where(p => !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad);
 

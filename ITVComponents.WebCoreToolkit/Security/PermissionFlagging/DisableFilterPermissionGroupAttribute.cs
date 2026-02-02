@@ -9,9 +9,9 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionFlagging
     [AttributeUsage(AttributeTargets.Class|AttributeTargets.Property)]
     public class DisableFilterPermissionGroupAttribute:Attribute
     {
-        public string PermissionGroupName { get; }
+        public string[] PermissionGroupName { get; }
 
-        public DisableFilterPermissionGroupAttribute(string permissionGroupName)
+        public DisableFilterPermissionGroupAttribute(params string[] permissionGroupName)
         {
             PermissionGroupName = permissionGroupName;
         }

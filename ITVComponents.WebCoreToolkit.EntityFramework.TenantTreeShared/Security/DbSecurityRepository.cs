@@ -2,24 +2,31 @@
 using ITVComponents.Helpers;
 using ITVComponents.Json;
 using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ExternalOAuthServices.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ExternalOAuthServices.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -28,11 +35,13 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.Linq;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using Feature = ITVComponents.WebCoreToolkit.Models.Feature;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 {
-    public abstract class DbSecurityRepository<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : ISecurityRepository
+    public abstract class DbSecurityRepository<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : ISecurityRepository
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -75,14 +84,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TExternalOAuthService : HierarchyExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceState : HierarchyExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
+        where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
     {
-        private readonly IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext;
+        private readonly IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
+        private readonly IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions;
         private readonly ILogger logger;
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>
+            bufferedServices= new ConcurrentDictionary<string, ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>();
 
-        protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext,
+        protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions,
             ILogger logger)
         {
             this.securityContext = securityContext;
+            this.bufferOptions = bufferOptions;
             this.logger = logger;
         }
 
@@ -648,7 +664,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                     tenantToUse = securityContext.CurrentTenantId;
                 }
 
-                    var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
+                var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
                 var raw = (from t in securityContext.Features
                     join a in securityContext.TenantFeatureActivations.Where(ta =>
                                 ((!useCurrentTenant && ta.Tenant.TenantName == permissionScopeName) || (useCurrentTenant && ta.TenantId == tenantToUse))
@@ -747,6 +763,155 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 select new Permission { PermissionName = p.PermissionName }).ToArray();
         }
 
+        public ExternalOAuthConnection GetExternalService(string name)
+        {
+            var tmp = GetExternalOAuthService(name, out _, out _, out var tenantName, true);
+            return tmp;
+        }
+
+        public void PrepareExternalServiceConnect(OAuthState oAuthState)
+        {
+            var tmp = GetExternalOAuthService(oAuthState.ConnectionName, out var serviceId, out var tenantId, out _, true);
+            if (tenantId != securityContext.CurrentTenantId && tenantId != null)
+            {
+                throw new InvalidOperationException("Can only configure a connection for the active tenant");
+            }
+
+            if (securityContext.CurrentTenantId != null && serviceId != null)
+            {
+                var state = new TExternalOAuthServiceState
+                {
+                    TenantId = securityContext.CurrentTenantId.Value,
+                    OAuthServiceId = serviceId.Value,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(5),
+                    State = oAuthState.State,
+                    CodeVerifier = oAuthState.CodeVerifier
+                };
+
+                securityContext.ExternalOAuthServiceStates.Add(state);
+                securityContext.SaveChanges();
+            }
+        }
+
+        public OAuthState GetOAuthRequest(string connectionName, string state)
+        {
+            var tmp = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out _, true);
+            if (tenantId != securityContext.CurrentTenantId && tenantId != null)
+            {
+                throw new InvalidOperationException("Can only configure a connection for the active tenant");
+            }
+
+            if (tmp != null)
+            {
+                var now = DateTime.UtcNow;
+                var request = securityContext.ExternalOAuthServiceStates.FirstOrDefault(n =>
+                    n.OAuthServiceId == serviceId && n.TenantId == securityContext.CurrentTenantId && n.State == state && n.ExpiresAt > now);
+                if (request != null)
+                {
+                    return new OAuthState
+                    {
+                        ConnectionName = tmp.UniqueConnectionName,
+                        ExpiresAt = request.ExpiresAt,
+                        State = request.State
+                    };
+                }
+            }
+
+            return null;
+        }
+
+        public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token)
+        {
+            var tmp = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out var tenantName, true);
+            if (tenantId != securityContext.CurrentTenantId && tenantId != null)
+            {
+                throw new InvalidOperationException("Can only configure a connection for the active tenant");
+            }
+
+            var login = securityContext.ExternalOAuthServiceTenantLogins.FirstOrDefault(n =>
+                n.OAuthServiceId == serviceId && n.TenantId == securityContext.CurrentTenantId);
+            var encToken = new TranslatedTokenResponse()
+            {
+                ExpiresAt = token.ExpiresAt,
+                Scope = token.Scope,
+                RefreshToken = Encrypt(token.RefreshToken, securityContext.CurrentTenantName),
+                AccessToken = Encrypt(token.AccessToken, securityContext.CurrentTenantName),
+                TokenType=token.TokenType
+            };
+
+            if (login == null)
+            {
+                login = new TExternalOAuthServiceTenantLogin
+                {
+                    TenantId = securityContext.CurrentTenantId.Value,
+                    OAuthServiceId = serviceId.Value,
+                    Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping)
+                };
+                securityContext.ExternalOAuthServiceTenantLogins.Add(login);
+            }
+            else
+            {
+                login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
+                login.Revoked = false;
+            }
+
+            securityContext.SaveChanges();
+        }
+
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        {
+            using var tmpSecurity = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
+            var svc = GetExternalOAuthService(connectionName, out var serviceId, out _, out var tenantName, false);
+            connectionInfo = svc;
+            if (serviceId != null)
+            {
+                var login = GetExternalOAuthServiceLogin(serviceId.Value,false);
+                if (login is { Revoked: false } && (!forRevoke || login.TenantId == securityContext.CurrentTenantId))
+                {
+                    var tmp = JsonHelper.FromJsonString<TranslatedTokenResponse>(login.Token,
+                        SerializationTypingMode.StaticTyping);
+                    var targetTenant = login.Tenant.TenantName;
+                    var token = new TranslatedTokenResponse
+                    {
+                        AccessToken = Decrypt(tmp.AccessToken, targetTenant),
+                        ExpiresAt = tmp.ExpiresAt,
+                        RefreshToken = Decrypt(tmp.RefreshToken, targetTenant),
+                        Scope = tmp.Scope,
+                        TokenType = tmp.TokenType
+                    };
+
+                    if (!forRevoke)
+                    {
+                        updateToken = newToken =>
+                        {
+                            var encToken = new TranslatedTokenResponse
+                            {
+                                Scope = newToken.Scope,
+                                AccessToken = Encrypt(newToken.AccessToken, targetTenant),
+                                ExpiresAt = newToken.ExpiresAt,
+                                RefreshToken = Encrypt(newToken.RefreshToken, targetTenant),
+                                TokenType = newToken.TokenType
+                            };
+                            login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
+                            securityContext.SaveChanges();
+                        };
+                    }
+                    else
+                    {
+                        updateToken = _ => { };
+                        login.Revoked = true;
+                        login.Token = "{}";
+                        securityContext.SaveChanges();
+                    }
+
+                    return token;
+                }
+            }
+
+            throw new InvalidOperationException($"No appropriate Token found for {connectionName}");
+        }
+
         public void Dispose()
         {
             OnDisposed();
@@ -778,6 +943,114 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         protected abstract Expression<Func<UserTenantLevel<TUser>,TUserId>> IdOfUserLevelRecord { get; }
 
         protected abstract TTrustConfig ConfigureTrustConfigImpl(TTrustConfig trustConfig, string callingMethod);
+
+        protected virtual ExternalOAuthConnection GetExternalOAuthService(string name, out int? externalOAuthServiceId, out int? tenantId, out string? tenantName, bool useFullAccess)
+        {
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && ServiceBuffered(name, out var bufferInfo))
+            {
+                externalOAuthServiceId = bufferInfo.ExternalOAuthServiceId;
+                tenantId = bufferInfo.TenantId;
+                tenantName = bufferInfo.TenantName;
+                return bufferInfo.Service;
+            }
+
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            {
+                IDisposable tmp = null;
+                if (useFullAccess)
+                {
+                    tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                        new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
+                }
+
+                try
+                {
+                    var phase1 = from p in securityContext.UpwardsTenantTreeView
+                        join pin in securityContext.ExternalOAuthServices on p.ParentTenantId equals pin.TenantId
+                        where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value &&
+                              (p.ParentLevel == 1 || pin.Inheritable)
+                        select new { pin.UniqueConnectionName, p.OutermostLeafTenantId, p.ParentLevel };
+                    var phase2 = from gj in phase1
+                        group gj by new { gj.UniqueConnectionName, gj.OutermostLeafTenantId }
+                        into g
+                        select new
+                        {
+                            TenantId = g.Key.OutermostLeafTenantId,
+                            UniqueConnectionName = g.Key.UniqueConnectionName,
+                            Level = g.Min(n => n.ParentLevel)
+                        };
+                    var phase3 = from p in phase2
+                        join t in securityContext.UpwardsTenantTreeView on new { p.TenantId, p.Level } equals
+                            new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
+                        join pg in securityContext.ExternalOAuthServices.Include(n => n.Tenant) on new
+                                { p.UniqueConnectionName, TenantId = t.ParentTenantId }
+                            equals new { pg.UniqueConnectionName, TenantId = pg.TenantId.Value }
+                        where pg.UniqueConnectionName == name
+                        select pg;
+                    var pi = phase3.FirstOrDefault() ??
+                             securityContext.ExternalOAuthServices.Include(n => n.Tenant)
+                                 .FirstOrDefault(n => n.TenantId == null && n.UniqueConnectionName == name);
+                    externalOAuthServiceId = pi?.OAuthServiceId;
+                    tenantId = pi?.TenantId;
+                    tenantName = pi?.Tenant?.TenantName;
+                    return TryRegisterService(name, pi);
+                }
+                finally
+                {
+                    tmp?.Dispose();
+                }
+            }
+
+            throw new InvalidOperationException("Invalid DB-Access mode");
+        }
+
+        protected virtual TExternalOAuthServiceTenantLogin GetExternalOAuthServiceLogin(int oauthServiceId, bool useFullAccess)
+        {
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            {
+                IDisposable tmp = null;
+                if (useFullAccess)
+                {
+                    tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                        new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
+                }
+
+                try
+                {
+                    var phase1 = from p in securityContext.UpwardsTenantTreeView
+                        join pin in securityContext.ExternalOAuthServiceTenantLogins.Include(n => n.OAuthService) on p
+                            .ParentTenantId equals pin.TenantId
+                        where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value && (p.ParentLevel == 1 ||
+                            pin.OAuthService.Inheritable || pin.OAuthService.TenantId == null)
+                        select new { pin.OAuthServiceId, p.OutermostLeafTenantId, p.ParentLevel };
+                    var phase2 = from gj in phase1
+                        group gj by new { gj.OAuthServiceId, gj.OutermostLeafTenantId }
+                        into g
+                        select new
+                        {
+                            TenantId = g.Key.OutermostLeafTenantId,
+                            OAuthServiceId = g.Key.OAuthServiceId,
+                            Level = g.Min(n => n.ParentLevel)
+                        };
+                    var phase3 = from p in phase2
+                        join t in securityContext.UpwardsTenantTreeView on new { p.TenantId, p.Level } equals
+                            new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
+                        join pg in securityContext.ExternalOAuthServiceTenantLogins.Include(n => n.Tenant) on new
+                                { p.OAuthServiceId, TenantId = t.ParentTenantId }
+                            equals new { pg.OAuthServiceId, TenantId = pg.TenantId }
+                        where pg.OAuthServiceId == oauthServiceId
+                        select pg;
+                    var pi = phase3.FirstOrDefault();
+                    return pi;
+                }
+                finally
+                {
+                    tmp?.Dispose();
+                }
+            }
+
+            throw new InvalidOperationException("Invalid DB-Access mode");
+        }
 
         /// <summary>
         /// Estimats a claimData item from a given mapping and an original claim
@@ -854,6 +1127,57 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                     User = tn.User, Level = t.ParentLevel, TenantId = t.OutermostLeafTenantId,
                     RoleId = t.OutermostRoleId
                 });
+        }
+
+        private TExternalOAuthService TryRegisterService(string uniqueName, TExternalOAuthService serviceData)
+        {
+            var dc = bufferedServices.GetOrAdd(securityContext.CurrentTenantName,
+                n => new ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());
+            dc.TryAdd(uniqueName, new ExternalOAuthServiceBufferInfo()/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/
+            {
+                Created = DateTime.Now,
+                Service = ToServiceDefinition(serviceData, serviceData?.Tenant?.TenantName),
+                ExternalOAuthServiceId = serviceData?.OAuthServiceId,
+                TenantId = serviceData?.TenantId,
+                TenantName = serviceData?.Tenant?.TenantName
+            });
+
+            return serviceData;
+        }
+
+        private ExternalOAuthConnection ToServiceDefinition(TExternalOAuthService serviceData, string tenantName)
+        {
+            return (serviceData != default)
+                ? new ExternalOAuthConnection
+                {
+                    AuthorizationEndpoint = serviceData.AuthorizationEndpoint,
+                    ClientId = serviceData.ClientId,
+                    ClientSecret = serviceData.Global ? serviceData.ClientSecret.Decrypt() : Decrypt(serviceData.ClientSecret, tenantName),
+                    Global = serviceData.Global,
+                    RedirectUri = serviceData.RedirectUri,
+                    Scope = serviceData.Scope,
+                    TokenEndpoint = serviceData.TokenEndpoint,
+                    UniqueConnectionName = serviceData.UniqueConnectionName,
+                    RevocationEndpoint = serviceData.RevocationEndpoint
+                }
+                : null;
+        }
+
+        private bool ServiceBuffered(string name, out ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/ bufferInfo)
+        {
+            var dc = bufferedServices.GetOrAdd(securityContext.CurrentTenantName,
+                n => new ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());
+            var retVal = dc.TryGetValue(name, out bufferInfo);
+            var bufferConfig = bufferOptions.Value;
+            if (retVal && bufferConfig.BufferDuration != 0 &&
+                DateTime.Now.Subtract(bufferInfo.Created).TotalSeconds > bufferConfig.BufferDuration)
+            {
+                dc.Remove(name, out _);
+                bufferInfo = null;
+                return false;
+            }
+
+            return retVal;
         }
 
         public event EventHandler Disposed;

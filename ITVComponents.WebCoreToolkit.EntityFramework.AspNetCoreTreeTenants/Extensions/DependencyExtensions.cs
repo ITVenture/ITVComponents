@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Navigat
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Security.ApplicationToken;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Security.SharedAssets;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ExternalOAuthServices.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Security.ApplicationToken;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -15,6 +16,7 @@ using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Extensions
 {
@@ -28,13 +30,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Ext
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options)
         {
-            var finaltth = typeof(AspNetTreeSecurityContext).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,>), fixTypeEntries: ("TContext",typeof(AspNetTreeSecurityContext)));
+            var finaltth = typeof(AspNetTreeSecurityContext).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext",typeof(AspNetTreeSecurityContext)));
             return services.AddDbContext<AspNetTreeSecurityContext>(options)
                 .RegisterExplicityInterfacesScoped<AspNetTreeSecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
                     var retVal = new AspNetDbTreeSecurityRepository<AspNetTreeSecurityContext>(
                         i.GetService<AspNetTreeSecurityContext>(),
+                        i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                         i.GetService<ILogger<AspNetDbTreeSecurityRepository<AspNetTreeSecurityContext>>>());
                     return i.GetAssetSecurityRepository(retVal);
 
@@ -52,12 +55,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Ext
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbIdentities<TImpl>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> options) where TImpl: AspNetTreeSecurityContext<TImpl>
         {
-            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
+            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
                     {
                         var retVal = new AspNetDbTreeSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                            i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                                 i.GetService<ILogger<AspNetDbTreeSecurityRepository<TImpl>>>());
                         return i.GetAssetSecurityRepository(retVal);
                     })
@@ -92,12 +96,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Ext
             where TImpl : AspNetTreeSecurityContext<TImpl>
             where TTmpHelper : TenantTreeTemplateHelper<TImpl>
         {
-            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
+            var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
                     var retVal = new AspNetDbTreeSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                        i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                             i.GetService<ILogger<AspNetDbTreeSecurityRepository<TImpl>>>());
                     return i.GetAssetSecurityRepository(retVal);
                 })

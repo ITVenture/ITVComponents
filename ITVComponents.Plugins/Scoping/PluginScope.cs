@@ -16,7 +16,7 @@ namespace ITVComponents.Plugins.Scoping
     {
         private readonly PluginFactory parent;
         private readonly PluginCollector plugins;
-
+        private bool closed = false;
         public PluginScope(PluginFactory parent, PluginCollector plugins)
         {
             this.parent = parent;
@@ -25,8 +25,29 @@ namespace ITVComponents.Plugins.Scoping
 
         public void Dispose()
         {
-            parent.CloseScope(this);
+            if (!closed)
+            {
+                if (plugins.IsTransientLoadScope)
+                {
+                    throw new InvalidOperationException("Call Close instead of dispose for transient loading contexts");
+                }
+
+                ScopeClose();
+            }
+
             OnDisposed();
+        }
+
+        public IPlugin[] ScopeClose()
+        {
+            try
+            {
+                return parent.CloseScope(this);
+            }
+            finally
+            {
+                closed = true;
+            }
         }
 
         public IEnumerator<IPlugin> GetEnumerator()

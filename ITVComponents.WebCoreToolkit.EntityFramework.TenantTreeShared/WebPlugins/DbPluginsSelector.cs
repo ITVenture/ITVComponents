@@ -17,7 +17,7 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugins
 {
-    internal class DbPluginsSelector<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IWebPluginsSelector
+    internal class DbPluginsSelector<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> :IWebPluginsSelector
     where TTenant : HierarchyTenant
     where TWebPlugin : HierarchyWebPlugin<TTenant,TWebPlugin,TWebPluginGenericParameter>, new()
     where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
@@ -26,8 +26,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
     where TTenantSetting : HierarchyTenantSetting<TTenant>
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
     where TTrustConfig : HierarchyTenantContextSecurityTrustConfig<TTrustConfig>, new()
+    where TExternalOAuthService : HierarchyExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+    where TExternalOAuthServiceState : HierarchyExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+    where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
-        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext;
+        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
         private readonly IPermissionScope scopeProvider;
         private readonly WebPluginBufferingOptions bufferConfig;
 
@@ -38,7 +41,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
         /// Initializes a new instance of hte DbPluginsSelector class
         /// </summary>
         /// <param name="securityContext">the injected security-db-context</param>
-        public DbPluginsSelector(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
+        public DbPluginsSelector(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
         {
             this.securityContext = securityContext;
             this.scopeProvider = scopeProvider;
@@ -208,8 +211,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                     AutoLoad = pluginData.AutoLoad,
                     Constructor = pluginData.Constructor,
                     StartupRegistrationConstructor = pluginData.StartupRegistrationConstructor,
-                    UniqueName = pluginData.UniqueName  
-                }:null,
+                    UniqueName = pluginData.UniqueName,
+                    Transient = pluginData.Transient
+                } :null,
                 WebPluginId = pluginData?.WebPluginId
             });
 
@@ -269,7 +273,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                     select new WebPlugin
                     {
                         AutoLoad = t.AutoLoad, Constructor = t.Constructor,
-                        StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName
+                        StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName,
+                        Transient = t.Transient
                     };
                 return phase3.AsEnumerable().Union(phase4.AsEnumerable(), new WebPluginComparer()).ToArray();
 
@@ -319,7 +324,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                 join pg in securityContext.WebPlugins on new { p.UniqueName, TenantId = t.ParentTenantId }
                     equals new { pg.UniqueName, TenantId = pg.TenantId.Value }
                 where !string.IsNullOrEmpty(pg.Constructor) && pg.AutoLoad
-                select new WebPlugin { AutoLoad = pg.AutoLoad, Constructor = pg.Constructor, StartupRegistrationConstructor = pg.StartupRegistrationConstructor, UniqueName = pg.UniqueName };
+                select new WebPlugin { AutoLoad = pg.AutoLoad, Constructor = pg.Constructor, StartupRegistrationConstructor = pg.StartupRegistrationConstructor, UniqueName = pg.UniqueName, Transient = pg.Transient
+                };
             var xPhase4 = from t in securityContext.WebPlugins
                 where t.TenantId == null
                       && !string.IsNullOrEmpty(t.Constructor) && t.AutoLoad
@@ -328,7 +334,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
                     AutoLoad = t.AutoLoad,
                     Constructor = t.Constructor,
                     StartupRegistrationConstructor = t.StartupRegistrationConstructor,
-                    UniqueName = t.UniqueName
+                    UniqueName = t.UniqueName,
+                    Transient = t.Transient
                 };
             return xPhase3.AsEnumerable().Union(xPhase4.AsEnumerable(), new WebPluginComparer()).ToArray();
             /*return

@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
     /// <summary>
     /// Tenant-capable settings-provider
     /// </summary>
-    internal class TenantSettingsProvider<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IScopedSettingsProvider
+    internal class TenantSettingsProvider<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> :IScopedSettingsProvider
     where TTenant: HierarchyTenant 
     where TWebPlugin : HierarchyWebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
     where TWebPluginConstant : HierarchyWebPluginConstant<TTenant>
@@ -22,17 +22,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings
     where TTenantSetting : HierarchyTenantSetting<TTenant>, new()
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
     where TTrustConfig : HierarchyTenantContextSecurityTrustConfig<TTrustConfig>, new()
+    where TExternalOAuthService : HierarchyExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+    where TExternalOAuthServiceState : HierarchyExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+    where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
         /// <summary>
         /// Holds the db-context with the tenant-settings
         /// </summary>
-        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> dbContext;
+        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext;
 
         /// <summary>
         /// Initializes a new instance of the TenantSettinsgProvider class
         /// </summary>
         /// <param name="dbContext"></param>
-        public TenantSettingsProvider(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> dbContext)
+        public TenantSettingsProvider(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext)
         {
             this.dbContext = dbContext;
         }

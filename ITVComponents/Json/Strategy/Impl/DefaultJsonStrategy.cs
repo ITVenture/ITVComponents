@@ -151,7 +151,7 @@ namespace ITVComponents.Json.Strategy.Impl
             JsonSerializerOptions basicSettings = GetSerializer(typingMode, preserveReferences, useCamelCase);
             var meth = LambdaHelper.GetMethodInfo(() => ToJson(value, basicSettings, useCamelCase)).GetGenericMethodDefinition()
                 .MakeGenericMethod(type);
-            return (string)meth.Invoke(null, new[] { value, basicSettings, useCamelCase });
+            return (string)meth.Invoke(this, new[] { value, basicSettings, useCamelCase });
         }
 
         public void WriteObject<TProto>(TProto value, SerializationTypingMode typingMode, Stream targetStream, bool preserveReferences, bool useCamelCase)
@@ -295,7 +295,7 @@ namespace ITVComponents.Json.Strategy.Impl
                 .GetMethodInfo(() => FromJsonString<object>(json, typingMode, preserveReferences, useCamelCase))
                 .GetGenericMethodDefinition();
             var impl = mth.MakeGenericMethod(t);
-            return impl.Invoke(null, new object[] { json, typingMode, preserveReferences, useCamelCase });
+            return impl.Invoke(this, new object[] { json, typingMode, preserveReferences, useCamelCase });
         }
 
         public object FromJsonString<TSerializerOptions>(string json, Type t, TSerializerOptions options) where TSerializerOptions : class
@@ -305,7 +305,7 @@ namespace ITVComponents.Json.Strategy.Impl
                 .GetMethodInfo(() => FromJsonString<object, TSerializerOptions>(json, options))
                 .GetGenericMethodDefinition();
             var impl = mth.MakeGenericMethod(t, typeof(TSerializerOptions));
-            return impl.Invoke(null, new object[] { json, options });
+            return impl.Invoke(this, new object[] { json, options });
         }
 
         public TSerializerOptions WithStrongContract<TSerializerOptions>(TSerializerOptions options) where TSerializerOptions : class

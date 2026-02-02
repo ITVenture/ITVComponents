@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.Security.UserScopes.Helpers;
 
 namespace ITVComponents.WebCoreToolkit.Security.UserScopes
@@ -200,5 +201,16 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             return parentRepo.GetKnownPermissions(permissionScope);
         }
 
+        public ExternalOAuthConnection GetExternalService(string name)=>parentRepo.GetExternalService(name);
+
+        public void PrepareExternalServiceConnect(OAuthState oAuthState) =>
+            parentRepo.PrepareExternalServiceConnect(oAuthState);
+
+        public OAuthState GetOAuthRequest(string connectionName, string state)=> parentRepo.GetOAuthRequest(connectionName, state);
+
+        public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token) =>
+            parentRepo.StoreExternalServiceToken(connectionName, token);
+
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)=>parentRepo.GetBufferedToken(connectionName, forRevoke, out connectionInfo, out updateToken);
     }
 }

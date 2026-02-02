@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {
     [ExplicitlyExpose]
-    public interface IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> :IUserAwareContext, ICoreSystemContext<TTrustConfig> 
+    public interface IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> :IUserAwareContext, ICoreSystemContext<TTrustConfig> 
     where TTenant: Tenant
     where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
     where TWebPluginConstant: WebPluginConstant<TTenant>
@@ -24,6 +24,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
     where TSequence:Sequence<TTenant>
     where TTenantSetting: TenantSetting<TTenant>
     where TTenantFeatureActivation: TenantFeatureActivation<TTenant>
+    where TExternalOAuthService:ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+    where TExternalOAuthServiceState: ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+    where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
     {
         /// <summary>
@@ -55,6 +58,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
         public DbSet<TWebPluginGenericParameter> GenericPluginParams { get; set; }
 
         public DbSet<TSequence> Sequences { get; set; }
+
+        public DbSet<TExternalOAuthService> ExternalOAuthServices { get; set; }
+
+        public DbSet<TExternalOAuthServiceState> ExternalOAuthServiceStates { get; set; }
+
+        public DbSet<TExternalOAuthServiceTenantLogin> ExternalOAuthServiceTenantLogins { get; set; }
 
         public int SequenceNextVal(string sequenceName);
     }

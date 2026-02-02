@@ -10,6 +10,8 @@ using ITVComponents.WebCoreToolkit.BackgroundProcessing;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Configuration.Impl;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
+using ITVComponents.WebCoreToolkit.ExternalServiceConnect;
+using ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl;
 using ITVComponents.WebCoreToolkit.Localization;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Options;
@@ -441,6 +443,12 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             Action<PageHandlerFactoryOptions> configure)
         {
             return services.Configure(configure);
+        }
+
+        public static IServiceCollection UseOAuthClientFactory(this IServiceCollection services)
+        {
+            return services.AddScoped<IOAuthTokenService, OAuthTokenService>()
+                .AddScoped<IOAuthHttpClientFactory, OAuthHttpClientFactory>();
         }
     }
 }

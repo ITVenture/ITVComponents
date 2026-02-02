@@ -9,9 +9,9 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionFlagging
 {
     public static class PermissionGroupExtensions
     {
-        public static string GetPermissionGroupName(this Type type)
+        public static string[] GetPermissionGroupName(this Type type)
         {
-            string retVal = "Default";
+            string[] retVal = ["Default"];
             if (Attribute.IsDefined(type, typeof(DisableFilterPermissionGroupAttribute), true))
             {
                 var att = (DisableFilterPermissionGroupAttribute)Attribute.GetCustomAttribute(type,
@@ -22,7 +22,7 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionFlagging
             return retVal;
         }
 
-        public static string GetPermissionGroupName(this PropertyInfo prop, Type genericBaseType = null)
+        public static string[] GetPermissionGroupName(this PropertyInfo prop, Type genericBaseType = null)
         {
             if (Attribute.IsDefined(prop, typeof(DisableFilterPermissionGroupAttribute), true))
             {

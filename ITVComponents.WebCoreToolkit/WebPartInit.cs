@@ -150,6 +150,11 @@ namespace ITVComponents.WebCoreToolkit
                 services.AddScoped<ICookieService, DefaultCookieService>();
             }
 
+            if (options.UseOAuthClientFactory)
+            {
+                services.UseOAuthClientFactory();
+            }
+
             if (options.UseLocalization)
             {
                 services.ConfigureLocalization(o =>

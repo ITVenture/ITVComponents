@@ -64,5 +64,7 @@ public interface IPluginFactory: IDisposable, IEnumerable<IPlugin>
     /// <returns>the first occurrence of the specified plugin-Type or null if none was found</returns>
     T GetPlugin<T>() where T: class, IPlugin;
 
+    public IPlugin[] ScopeClose();
+
     event EventHandler Disposed;
 }

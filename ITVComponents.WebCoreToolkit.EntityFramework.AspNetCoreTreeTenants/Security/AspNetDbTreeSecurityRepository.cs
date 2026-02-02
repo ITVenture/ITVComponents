@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ExternalOAuthServices.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
@@ -10,6 +11,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.CustomUserProperty;
 using NavigationMenu = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.NavigationMenu;
 using Permission = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Permission;
@@ -18,12 +20,12 @@ using User = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Security
 {
-    internal class AspNetDbTreeSecurityRepository<TImpl>:TenantTreeShared.Security.DbSecurityRepository<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting, HierarchyTenantFeatureActivation, HierarchyTenantContextSecurityTrustConfig>
+    internal class AspNetDbTreeSecurityRepository<TImpl>:TenantTreeShared.Security.DbSecurityRepository<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting, HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>
     where TImpl: AspNetTreeSecurityContext<TImpl>
     {
         private const string default1 = "Identity.Application";
 
-        public AspNetDbTreeSecurityRepository(TImpl securityContext, ILogger<AspNetDbTreeSecurityRepository<TImpl>> logger):base(securityContext, logger)
+        public AspNetDbTreeSecurityRepository(TImpl securityContext, IOptions<ExternalOAuthServiceBufferingOptions> serviceBufferOptions, ILogger<AspNetDbTreeSecurityRepository<TImpl>> logger):base(securityContext, serviceBufferOptions, logger)
         {
         }
 

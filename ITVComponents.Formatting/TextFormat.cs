@@ -796,12 +796,20 @@ namespace ITVComponents.Formatting
         */
         private static StringFormatParser AcquireParser()
         {
-            var retVal = parsers.FirstOrDefault(n => n.TryLock());
+            StringFormatParser retVal = null;
+            lock (parsers)
+            {
+                retVal = parsers.FirstOrDefault(n => n.TryLock());
+            }
+
             if (retVal == null)
             {
                 retVal = new StringFormatParser();
                 retVal.TryLock();
-                parsers.Add(retVal);
+                lock (parsers)
+                {
+                    parsers.Add(retVal);
+                }
             }
 
             return new StringFormatParser();

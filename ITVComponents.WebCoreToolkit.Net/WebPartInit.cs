@@ -57,6 +57,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
+                        options.ExposeExternalOAuthClientEndpoints,
                         endPointRegistry);
                 }
 
@@ -68,6 +69,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         false,false,
+                        false,
                         endPointRegistry);
                 }
 
@@ -80,6 +82,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
+                        options.ExposeExternalOAuthClientEndpoints,
                         endPointRegistry);
                 }
 
@@ -91,6 +94,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         false,false,
+                        false,
                         endPointRegistry);
                 }
             }
@@ -106,6 +110,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
+                        options.ExposeExternalOAuthClientEndpoints,
                         endPointRegistry);
                 }
 
@@ -117,6 +122,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         false,false,
+                        false,
                         endPointRegistry);
                 }
 
@@ -129,6 +135,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
+                        options.ExposeExternalOAuthClientEndpoints,
                         endPointRegistry);
                 }
 
@@ -140,12 +147,13 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseFileTokenFromQuery,
                         options.UseTenantSwitch,
                         false,false,
+                        false,
                         endPointRegistry);
                 }
             }
         }
 
-        private static void Register(WebApplication builder, string tenantParam, bool useAreas, bool useAuth, bool useAutoForeignKeys, bool useDiagnostics, bool useWidgets, bool exposeFileSystem, bool exposeClientSettings, bool useFileServices, bool useFileTokenFromQuery, bool useTenantSwitch, bool exposeUserPermissions, bool exposeTenantFeatures, EndPointTrunk endPointRegistry)
+        private static void Register(WebApplication builder, string tenantParam, bool useAreas, bool useAuth, bool useAutoForeignKeys, bool useDiagnostics, bool useWidgets, bool exposeFileSystem, bool exposeClientSettings, bool useFileServices, bool useFileTokenFromQuery, bool useTenantSwitch, bool exposeUserPermissions, bool exposeTenantFeatures, bool exposeExternalOAuthClientEndpoints, EndPointTrunk endPointRegistry)
         {
             if (useAutoForeignKeys)
             {
@@ -190,6 +198,11 @@ namespace ITVComponents.WebCoreToolkit.Net
             if (useTenantSwitch && string.IsNullOrEmpty(tenantParam) && !useAreas && useAuth)
             {
                 builder.UseTenantSwitch();
+            }
+
+            if (exposeExternalOAuthClientEndpoints && useAuth && !useAreas)
+            {
+                builder.ExposeCrossServiceAuthentication(tenantParam);
             }
         }
     }

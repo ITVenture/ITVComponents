@@ -6,6 +6,7 @@ using ITVComponents.Formatting;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
@@ -15,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Security
 {
-    internal class DbSecurityRepository<TImpl>:TenantSecurityShared.Security.DbSecurityRepository<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser,RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant, AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, BaseTenantContextSecurityTrustConfig> where TImpl:SecurityContext<TImpl>
+    internal class DbSecurityRepository<TImpl>:TenantSecurityShared.Security.DbSecurityRepository<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser,RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant, AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> where TImpl:SecurityContext<TImpl>
     {
         public DbSecurityRepository(TImpl securityContext, ILogger<DbSecurityRepository<TImpl>> logger):base(securityContext, logger)
         {
@@ -57,6 +58,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sec
         protected override BaseTenantContextSecurityTrustConfig ConfigureTrustConfigImpl(BaseTenantContextSecurityTrustConfig trustConfig, string callingMethod)
         {
             return trustConfig;
+        }
+
+        protected override FlatExternalOAuthService GetExternalServiceInternal(IBaseTenantContext<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> context, string name)
+        {
+            return context.ExternalOAuthServices.FirstOrDefault(n =>
+                    n.UniqueConnectionName == name && n.TenantId != null &&
+                    n.TenantId == context.CurrentTenantId) ??
+                context.ExternalOAuthServices.FirstOrDefault(n =>
+                    n.UniqueConnectionName == name && n.TenantId == null);
         }
     }
 }

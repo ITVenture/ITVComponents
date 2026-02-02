@@ -153,7 +153,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
 
         public IPluginFactory OpenScope(Dictionary<string, object> dictionary, IServiceProvider services)
         {
-            var retVal = wrapped.NewScope(dictionary, services);
+            var retVal = wrapped.NewScope(dictionary, services, false);
             currentScope.Value = retVal;
             retVal.Disposed += (s, e) => currentScope.Value = null; 
             return retVal;

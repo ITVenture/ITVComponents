@@ -15,12 +15,14 @@ using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ExternalOAuthServices.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
@@ -36,7 +38,7 @@ using User = ITVComponents.WebCoreToolkit.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Security
 {
-    public abstract class DbSecurityRepository<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> : ISecurityRepository
+    public abstract class DbSecurityRepository<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : ISecurityRepository
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -79,11 +81,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+        where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
+        where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
     {
-        private readonly ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext;
+        private readonly ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
         private readonly ILogger logger;
 
-        protected DbSecurityRepository(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TTrustConfig> securityContext,
+        protected DbSecurityRepository(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext,
             ILogger logger)
         {
             this.securityContext = securityContext;
@@ -763,6 +768,147 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             return (from p in securityContext.Permissions where p.TenantId == null || p.Tenant.TenantName == permissionScope select new Permission{PermissionName = p.PermissionName}).ToArray();
         }
 
+        public ExternalOAuthConnection GetExternalService(string name)
+        {
+            using var tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
+            var svc= GetExternalServiceInternal(securityContext, name);
+            if (svc!= null)
+            {
+                var retVal = ToExternalDefinition(svc);
+                return retVal;
+            }
+
+            return null;
+        }
+
+        public void PrepareExternalServiceConnect(OAuthState oAuthState)
+        {
+            var state = new TExternalOAuthServiceState
+            {
+                TenantId = securityContext.CurrentTenantId.Value,
+                ExpiresAt = DateTime.Now.AddMinutes(5).ToUniversalTime(),
+                State = oAuthState.State,
+                CodeVerifier = oAuthState.CodeVerifier,
+                Used = false
+            };
+
+            var connection = GetExternalServiceInternal(securityContext, oAuthState.ConnectionName);
+            if (connection != null)
+            {
+                state.OAuthServiceId = connection.OAuthServiceId;
+                securityContext.ExternalOAuthServiceStates.Add(state);
+                securityContext.SaveChanges();
+            }
+        }
+
+        public OAuthState GetOAuthRequest(string connectionName, string state)
+        {
+            var now = DateTime.UtcNow;
+            var bufferedState = securityContext.ExternalOAuthServiceStates.Include(n => n.Connection)
+                .FirstOrDefault(n =>
+                    n.Connection.UniqueConnectionName == connectionName && n.State == state && !n.Used &&
+                    n.ExpiresAt > now);
+            if (bufferedState != null)
+            {
+                bufferedState.Used = true;
+                securityContext.SaveChanges();
+
+
+                return new OAuthState
+                {
+                    ConnectionName = bufferedState.Connection.UniqueConnectionName,
+                    ExpiresAt = bufferedState.ExpiresAt,
+                    State = bufferedState.State,
+                    CodeVerifier = bufferedState.CodeVerifier
+                };
+            }
+
+            return null;
+        }
+
+        public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token)
+        {
+            var connection = GetExternalServiceInternal(securityContext, connectionName);
+            var login = securityContext.ExternalOAuthServiceTenantLogins.FirstOrDefault(n =>
+                n.OAuthServiceId == connection.OAuthServiceId && n.TenantId == securityContext.CurrentTenantId);
+            var encToken = new TranslatedTokenResponse()
+            {
+                Scope = token.Scope, AccessToken = Encrypt(token.AccessToken, securityContext.CurrentTenantName), ExpiresAt = token.ExpiresAt,
+                RefreshToken = Encrypt(token.RefreshToken, securityContext.CurrentTenantName),
+                TokenType = token.TokenType
+            };
+
+            if (login == null)
+            {
+                login = new TExternalOAuthServiceTenantLogin
+                {
+                    TenantId = securityContext.CurrentTenantId.Value,
+                    OAuthServiceId = connection.OAuthServiceId,
+                    Token = JsonHelper.ToJson(encToken,SerializationTypingMode.StaticTyping)
+                };
+                securityContext.ExternalOAuthServiceTenantLogins.Add(login);
+            }
+            else
+            {
+                login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
+                login.Revoked = false;
+            }
+
+            securityContext.SaveChanges();
+        }
+
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        {
+            var connection = GetExternalServiceInternal(securityContext, connectionName);
+            if (connection != null)
+            {
+                connectionInfo = ToExternalDefinition(connection);
+                var login = securityContext.ExternalOAuthServiceTenantLogins.FirstOrDefault(n =>
+                    n.OAuthServiceId == connection.OAuthServiceId && n.TenantId == securityContext.CurrentTenantId);
+                if (login is { Revoked: false })
+                {
+                    var tmp = JsonHelper.FromJsonString<TranslatedTokenResponse>(login.Token,
+                        SerializationTypingMode.StaticTyping);
+                    var token = new TranslatedTokenResponse
+                    {
+                        AccessToken = Decrypt(tmp.AccessToken, securityContext.CurrentTenantName),
+                        ExpiresAt = tmp.ExpiresAt,
+                        RefreshToken = Decrypt(tmp.RefreshToken, securityContext.CurrentTenantName),
+                        Scope = tmp.Scope,
+                        TokenType = tmp.TokenType
+                    };
+
+                    if (!forRevoke)
+                    {
+                        updateToken = newToken =>
+                        {
+                            var encToken = new TranslatedTokenResponse
+                            {
+                                Scope = newToken.Scope,
+                                AccessToken = Encrypt(newToken.AccessToken, securityContext.CurrentTenantName),
+                                ExpiresAt = newToken.ExpiresAt,
+                                RefreshToken = Encrypt(newToken.RefreshToken, securityContext.CurrentTenantName),
+                                TokenType = newToken.TokenType
+                            };
+                            login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
+                            securityContext.SaveChanges();
+                        };
+                    }
+                    else
+                    {
+                        updateToken = _ => { };
+                        login.Revoked = true;
+                        login.Token = "{}";
+                        securityContext.SaveChanges();
+                    }
+
+                    return token;
+                }
+            }
+
+            throw new InvalidOperationException($"No appropriate Token found for {connectionName}");
+        }
+
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         public void Dispose()
         {
@@ -788,6 +934,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         protected abstract Expression<Func<TUser, TUserId>> UserId { get;}
 
         protected abstract TTrustConfig ConfigureTrustConfigImpl(TTrustConfig trustConfig, string callingMethod);
+
+        protected abstract TExternalOAuthService GetExternalServiceInternal(IBaseTenantContext<TTenant,TWebPlugin,TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context,string name);
+
+        private ExternalOAuthConnection ToExternalDefinition(TExternalOAuthService svc)
+        {
+            var retVal = new ExternalOAuthConnection
+            {
+                AuthorizationEndpoint = svc.AuthorizationEndpoint,
+                ClientId = svc.ClientId,
+                Global = svc.TenantId == null,
+                RedirectUri = svc.RedirectUri,
+                Scope = svc.Scope,
+                UniqueConnectionName = svc.UniqueConnectionName,
+                TokenEndpoint = svc.TokenEndpoint,
+                RevocationEndpoint = svc.RevocationEndpoint
+            };
+            retVal.ClientSecret = retVal.Global
+                ? svc.ClientSecret.Decrypt()
+                : Decrypt(svc.ClientSecret, securityContext.CurrentTenantName);
+            return retVal;
+        }
 
         private TimeZoneInfo GetTimeZone(string permissionScopeName)
         {

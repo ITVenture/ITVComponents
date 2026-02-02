@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 
 namespace ITVComponents.WebCoreToolkit.Security
 {
@@ -305,5 +306,23 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <param name="permissionScope">the permissionScope for which to get the known permissions</param>
         /// <returns>an array containing all known permission definitions</returns>
         Permission[] GetKnownPermissions(string permissionScope);
+
+        /// <summary>
+        /// Gets a configured Connection to an external Service on which the Web-Backend can authenticate using OAuth
+        /// </summary>
+        /// <param name="name">the name of the externalService</param>
+        /// <returns>the configuration used for the Authentication-Flow</returns>
+        ExternalOAuthConnection GetExternalService(string name);
+
+        /// <summary>
+        /// Prepares the Authentication-Flow and stores the state that is used for CSRF-Validation
+        /// </summary>
+        /// <param name="oAuthState">the generated auth-state</param>
+        void PrepareExternalServiceConnect(OAuthState oAuthState);
+
+        OAuthState GetOAuthRequest(string connectionName, string state);
+        void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token);
+
+        TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken);
     }
 }
