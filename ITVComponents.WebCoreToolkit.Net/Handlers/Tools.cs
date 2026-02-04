@@ -75,16 +75,16 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                                             ret.Add("Filter", tmpFilter);
                                         }
                                     }
-                                    else
+                                    /*else
                                     {
                                         LogEnvironment.LogEvent($"Unexpected Search-Filter: {tmpFilter}",
                                             LogSeverity.Warning);
-                                    }
+                                    }*/
                                 }
-                                else
+                                /*else
                                 {
                                     LogEnvironment.LogEvent($"Unexpected Search-Filter: {tmpFilter}", LogSeverity.Warning);
-                                }
+                                }*/
 
                                 break;
                             }
