@@ -274,6 +274,7 @@ window.ITVenture = {
         }
     },
     Ajax: {
+        globalAjaxTimeout: null,
         baseUrl: "/",
         ajaxGet: function (url, expectedType, extend) {
             if (typeof expectedType === "undefined" || expectedType === null) {
@@ -285,6 +286,10 @@ window.ITVenture = {
                 type: "GET",
                 dataType: expectedType
             };
+
+            if (ITVenture.Ajax.globalAjaxTimeout != null) {
+                request.timeout = ITVenture.Ajax.globalAjaxTimeout;
+            }
 
             if (typeof extend === "function") {
                 extend.apply(request);
@@ -302,6 +307,10 @@ window.ITVenture = {
                 dataType: expectedType,
                 data: { data: data }
             };
+
+            if (ITVenture.Ajax.globalAjaxTimeout != null) {
+                request.timeout = ITVenture.Ajax.globalAjaxTimeout;
+            }
 
             if (typeof contentType !== "undefined" && contentType !== null) {
                 request.contentType = contentType;
@@ -323,6 +332,10 @@ window.ITVenture = {
                 dataType: expectedType,
                 data: data
             };
+
+            if (ITVenture.Ajax.globalAjaxTimeout != null) {
+                request.timeout = ITVenture.Ajax.globalAjaxTimeout;
+            }
 
             if (typeof contentType !== "undefined" && contentType !== null) {
                 request.contentType = contentType;

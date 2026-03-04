@@ -391,6 +391,12 @@
         });
         obj = ITVenture.Tools.Popup.EnrichWindow(obj, "wnd");
         obj.window = $(obj.wnd.children()[0]);
+        obj.lockButtons = function () {
+            obj.window.find("[tag='buttons'] > button, a").addClass("k-state-disabled").attr("disabled", "disabled");
+        };
+        obj.unlockButtons = function () {
+            obj.window.find("[tag='buttons'] > button, a").removeClass("k-state-disabled").attr("disabled", null);
+        };
         obj.onPressedEnter(function (event) {
             var dialogInfo = ITVenture.Tools.Popup.FindDialog($(event.target)).data("itvDialog");
             if (dialogInfo.mode.indexOf("WithButtons") === -1) {
@@ -452,6 +458,10 @@
             }
             obj.window.children("[tag='cip-Content']").html(inputArea);
             obj.window.children("[tag='buttons']").html(buttonArea);
+            if (typeof (refObj.buttonsLocked) === "boolean" && refObj.buttonsLocked) {
+                obj.lockButtons();
+            }
+
             if (hasDefault) {
                 obj.window.find("[id='UserInput']").val(defaultValue);
             }
