@@ -139,7 +139,7 @@ ITVenture.Tools.Uploader = {
 
             var query = ITVenture.Tools.Uploader.buildQuery(queryArg);
             var urlRaw = "~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value);
-            var dz = uploadDiv.dropzone({
+            var cfg = {
                 url: ITVenture.Helpers.ResolveUrl(urlRaw.concat(query)),
                 maxFiles: 1,
                 init: function () {
@@ -147,7 +147,12 @@ ITVenture.Tools.Uploader = {
                     this.on("error", errorHandler);
                     this.on("processing", processingFunction);
                 }
-            });
+            };
+
+            if (ITVenture.Ajax.globalAjaxTimeout != null) {
+                cfg.timeout = ITVenture.Ajax.globalAjaxTimeout;
+            }
+            var dz = uploadDiv.dropzone(cfg);
             var wrapper = config[theHandler.target + "_wrapper"] = {
                 dropzone: dz,
                 handler: theHandler,
@@ -209,7 +214,7 @@ ITVenture.Tools.Uploader = {
 
                 var query = ITVenture.Tools.Uploader.buildQuery(queryArg);
                 var urlRaw = "~/File/".concat(div[0].attributes.uploadModule.value).concat("/").concat(div[0].attributes.uploadReason.value);
-                var dz = uploadDiv.dropzone({
+                var cfg = {
                     url: ITVenture.Helpers.ResolveUrl(urlRaw.concat(query)),
                     maxFiles: 256,
                     init: function () {
@@ -217,7 +222,12 @@ ITVenture.Tools.Uploader = {
                         this.on("error", errorHandler);
                         this.on("processing", processingFunction);
                     }
-                });
+                };
+                if (ITVenture.Ajax.globalAjaxTimeout != null) {
+                    cfg.timeout = ITVenture.Ajax.globalAjaxTimeout;
+                }
+
+                var dz = uploadDiv.dropzone(cfg);
                 uploadDiv.attr("style", "width:100%;height:100%");
                 config[theHandler.target + "_wrapper"] = {
                     dropzone: dz,
