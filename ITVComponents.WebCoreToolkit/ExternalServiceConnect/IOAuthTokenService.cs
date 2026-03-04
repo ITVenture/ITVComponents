@@ -8,6 +8,7 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect
 {
     public interface IOAuthTokenService
     {
+        string GetValidAccessToken(string connectionName);
         Task<string> GetValidAccessTokenAsync(string connectionName);
     }
 }

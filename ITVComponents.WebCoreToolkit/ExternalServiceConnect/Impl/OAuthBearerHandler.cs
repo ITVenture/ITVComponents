@@ -23,6 +23,14 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             this.connectionName = connectionName;
         }
 
+        protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var token = tokenService.GetValidAccessToken(connectionName);
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", token);
+            return base.Send(request, cancellationToken);
+        }
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken ct)

@@ -1,41 +1,33 @@
-﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Security.PermissionFlagging;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces
+namespace ITVComponents.WebCoreToolkit.Security.ComponentTrust
 {
     public interface ITrustfulComponent<TTrustConfig>:ITrustfulComponent where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
     {
-        protected Stack<FullSecurityAccessHelper<TTrustConfig>> securityStateStack { get; }
+        protected Stack<IFullSecurityAccessHelper<TTrustConfig>> securityStateStack { get; }
 
         protected IDictionary<string,bool> ComponentSpecialTrusts { get; }
-        protected static void CheckSecurityRollbackObject(FullSecurityAccessHelper<TTrustConfig> fullSecurityAccessHelper)
+        protected static void CheckSecurityRollbackObject(IFullSecurityAccessHelper<TTrustConfig> fullSecurityAccessHelper)
         {
             
         }
 
-        protected internal void RegisterSecurityRollback(
-            FullSecurityAccessHelper<TTrustConfig> fullSecurityAccessHelper)
+        public void RegisterSecurityRollback(
+            IFullSecurityAccessHelper<TTrustConfig> fullSecurityAccessHelper)
         {
             if (!fullSecurityAccessHelper.CreatedWithContext)
             {
                 throw new InvalidOperationException("Use Constructor with context argument, to use this method.");
             }
 
-            securityStateStack.Push(new FullSecurityAccessHelper<TTrustConfig>
-            {
-                ForwardHelper = fullSecurityAccessHelper,
-                DesiredTrust = GetReverseTrust(fullSecurityAccessHelper.DesiredTrust)
-            });
+            securityStateStack.Push(fullSecurityAccessHelper.GetReverse(GetReverseTrust(fullSecurityAccessHelper.DesiredTrust)));
 
             ApplyTrust(fullSecurityAccessHelper.DesiredTrust);
         }
 
-        protected internal void RollbackSecurity(FullSecurityAccessHelper<TTrustConfig> fullSecurityAccessHelper)
+        public void RollbackSecurity(IFullSecurityAccessHelper<TTrustConfig> fullSecurityAccessHelper)
         {
             var tmp = securityStateStack.Pop();
             if (tmp.ForwardHelper == fullSecurityAccessHelper)

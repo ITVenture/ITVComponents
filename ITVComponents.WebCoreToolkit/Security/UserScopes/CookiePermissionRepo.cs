@@ -201,7 +201,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             return parentRepo.GetKnownPermissions(permissionScope);
         }
 
-        public ExternalOAuthConnection GetExternalService(string name)=>parentRepo.GetExternalService(name);
+        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false) =>parentRepo.GetExternalService(name, decryptSecret);
 
         public void PrepareExternalServiceConnect(OAuthState oAuthState) =>
             parentRepo.PrepareExternalServiceConnect(oAuthState);

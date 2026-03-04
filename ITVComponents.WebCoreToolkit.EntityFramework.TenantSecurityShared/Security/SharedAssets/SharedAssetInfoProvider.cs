@@ -15,6 +15,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -74,15 +75,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         private readonly IUserNameMapper userNameMapper;
         private readonly ISecurityRepository securityRepo;
         private readonly TContext database;
+        private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly IServiceProvider services;
         private object sync = new();
         private int impersonationDeactivated = 0;
 
-        public SharedAssetInfoProvider(IUserNameMapper userNameMapper, ISecurityRepository securityRepo, TContext database, IServiceProvider services)
+        public SharedAssetInfoProvider(IUserNameMapper userNameMapper, ISecurityRepository securityRepo, TContext database, ISecurityAccessProvider securityAccessProvider, IServiceProvider services)
         {
             this.userNameMapper = userNameMapper;
             this.securityRepo = securityRepo;
             this.database = database;
+            this.securityAccessProvider = securityAccessProvider;
             this.services = services;
         }
 
@@ -339,7 +342,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         {
             if (!ImpersonationDeactivated)
             {
-                using var h = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(database, database, ConfigureTrustConfig(new() {ShowAllTenants = true, HideGlobals = false}));
+                using var h = securityAccessProvider.CreateForCaller(database, ConfigureTrustConfig(new() {ShowAllTenants = true, HideGlobals = false}));
                 var rawAsset = (from t in database.SharedAssets
                     join a in database.SharedAssetUserFilters on t.SharedAssetId equals a.SharedAssetId
                     where a.LabelFilter == AnonymousTag && t.AssetKey == assetKey

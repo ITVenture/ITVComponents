@@ -54,6 +54,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
 {
@@ -69,7 +70,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext
         private bool showAllTenants = false;
         private bool hideGlobals = false;
         private IDictionary<string, bool> componentSpecialTrusts;
-        Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.securityStateStack { get; }= new Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>();
+        Stack<IFullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>> ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.securityStateStack { get; }= new Stack<IFullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>();
         private bool hideDisabledUsers = true;
         private int? currentTenantId;
         private string bufferedTenantName;

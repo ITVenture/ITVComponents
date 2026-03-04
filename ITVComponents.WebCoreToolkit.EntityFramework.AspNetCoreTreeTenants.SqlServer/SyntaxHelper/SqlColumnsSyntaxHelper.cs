@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.Design;
-using System.Data.SqlClient;
-using System.Linq;
-using ITVComponents.EFRepo.Extensions;
+﻿using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
@@ -19,6 +15,11 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.Design;
+using System.Data.SqlClient;
+using System.Linq;
 using TargetInterface = ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.IHierarchySecurityContext<ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.HierarchyTenant, string, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.User, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Role, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Permission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.UserRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RolePermission,
     ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.HierarchyTenantUser, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RoleRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GlobalRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GlobalRolePermission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GRoleLRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.NavigationMenu, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.TenantNavigationMenu, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DiagnosticsQuery,
     ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DiagnosticsQueryParameter, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.TenantDiagnosticsQuery, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DashboardWidget, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DashboardParam,
@@ -46,6 +47,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
                 "case when TenantId is null then UniqueName else '__T'+convert(varchar(10),TenantId)+'##'+UniqueName end persisted");
             builderOptions.ConfigureComputedColumn<HierarchyWebPluginConstant, string>(c => c.NameUniqueness,
                 "case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted");
+            builderOptions.ConfigureComputedColumn<HierarchyExternalOAuthService, string>(s => s.CalculatedUniqueServiceName, "case when TenantId is null then 'GLOBAL'+UniqueConnectionName else 'T'+convert(varchar(10),TenantId)+'-'+UniqueConnectionName end persisted");
             ConfigureVirtualTables(builderOptions);
         }
 

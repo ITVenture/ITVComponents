@@ -6,7 +6,6 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
 {
     public static class TextsAndMessagesHelper
     {
-
         private static ResourceManager resourceMan;
 
         /// <summary>
@@ -110,6 +109,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
 
         public static string IWCN_Titles_TutorialVideos => GetString(nameof(IWCN_Titles_TutorialVideos));
 
+        public static string IWCN_Titles_Services => GetString(nameof(IWCN_Titles_Services));
+
         public static string IWCN_Language => GetString(nameof(IWCN_Language));
 
         public static string IWCN_TutorialStreamFormat => GetString(nameof(IWCN_TutorialStreamFormat));
@@ -160,6 +161,34 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string IWCN_DRI_ResetFactory => GetString(nameof(IWCN_DRI_ResetFactory));
 
         public static string IWCN_DRI_CopyFromOrigin => GetString(nameof(IWCN_DRI_CopyFromOrigin));
+
+        public static string IWCN_ES_Global => GetString(nameof(IWCN_ES_Global));
+
+        public static string IWCN_ES_UniqueName => GetString(nameof(IWCN_ES_UniqueName));
+
+        public static string IWCN_ES_RedirectUri => GetString(nameof(IWCN_ES_RedirectUri));
+
+        public static string IWCN_ES_AuthEndpoint => GetString(nameof(IWCN_ES_AuthEndpoint));
+
+        public static string IWCN_ES_TokenEndpoint => GetString(nameof(IWCN_ES_TokenEndpoint));
+
+        public static string IWCN_ES_RevocationEndpoint => GetString(nameof(IWCN_ES_RevocationEndpoint));
+
+        public static string IWCN_ES_ClientId => GetString(nameof(IWCN_ES_ClientId));
+
+        public static string IWCN_ES_ClientSecret => GetString(nameof(IWCN_ES_ClientSecret));
+
+        public static string IWCN_ES_Scope => GetString(nameof(IWCN_ES_Scope));
+
+        public static string IWCN_ES_ConnectSvc => GetString(nameof(IWCN_ES_ConnectSvc));
+
+        public static string IWCN_ES_UseEncryptPrefix => GetString(nameof(IWCN_ES_UseEncryptPrefix));
+
+        public static string IWCN_ES_EncryptedValue => GetString(nameof(IWCN_ES_EncryptedValue));
+
+        public static string IWCN_ES_DetailsTitle_Params => GetString(nameof(IWCN_ES_DetailsTitle_Params));
+
+        public static string IWCN_ES_DetailsTitle_Test => GetString(nameof(IWCN_ES_DetailsTitle_Test));
         //--
 
         public static string GetIWCN_General_DisplayName(this IRequestCultureFeature requestCulture)
@@ -396,6 +425,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
             return GetString(nameof(IWCN_Titles_TutorialVideos), requestCulture.RequestCulture.UICulture);
         }
 
+        public static string GetIWCN_Titles_Services(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_Titles_Services), requestCulture.RequestCulture.UICulture);
+
         public static string GetIWCN_Tutorials_SortableName(this IRequestCultureFeature requestCulture)
         {
             return GetString(nameof(IWCN_Tutorials_SortableName), requestCulture.RequestCulture.UICulture);
@@ -506,5 +537,28 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
             GetString(nameof(IWCN_DRI_ResetFactory), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_DRI_CopyFromOrigin(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_DRI_CopyFromOrigin), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_Global(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_Global), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_UniqueName(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_UniqueName), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_RedirectUri(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_RedirectUri), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_AuthEndpoint(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_AuthEndpoint), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_TokenEndpoint(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_TokenEndpoint), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_RevocationEndpoint(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_RevocationEndpoint), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_ClientId(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_ClientId), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_ClientSecret(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_ClientSecret), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_Scope(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_Scope), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_ConnectSvc(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_ConnectSvc), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_UseEncryptPrefix(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_UseEncryptPrefix), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_EncryptedValue(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_EncryptedValue), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_DetailsTitle_Params(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_DetailsTitle_Params), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_DetailsTitle_Test(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_DetailsTitle_Test), requestCulture.RequestCulture.UICulture);
     }
 }

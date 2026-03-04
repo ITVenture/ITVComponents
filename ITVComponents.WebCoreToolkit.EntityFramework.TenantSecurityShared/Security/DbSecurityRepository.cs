@@ -10,6 +10,7 @@ using Castle.Core.Logging;
 using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
+using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Security;
@@ -768,13 +769,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             return (from p in securityContext.Permissions where p.TenantId == null || p.Tenant.TenantName == permissionScope select new Permission{PermissionName = p.PermissionName}).ToArray();
         }
 
-        public ExternalOAuthConnection GetExternalService(string name)
+        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false)
         {
-            using var tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
             var svc= GetExternalServiceInternal(securityContext, name);
             if (svc!= null)
             {
-                var retVal = ToExternalDefinition(svc);
+                var retVal = ToExternalDefinition(svc, decryptSecret);
+                if (decryptSecret && !string.IsNullOrEmpty(retVal.ClientSecret))
+                {
+                    if (retVal.Global)
+                    {
+                        retVal.ClientSecret = retVal.ClientSecret.Decrypt();
+                    }
+                    else
+                    {
+                        retVal.ClientSecret = Decrypt(retVal.ClientSecret, securityContext.CurrentTenantName);
+                    }
+                }
+
                 return retVal;
             }
 
@@ -804,22 +816,37 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         public OAuthState GetOAuthRequest(string connectionName, string state)
         {
             var now = DateTime.UtcNow;
+            bool switchRequired = false;
+
+            LogEnvironment.LogDebugEvent("Looking up all services", LogSeverity.Warning);
+            using var tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext,
+                ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
             var bufferedState = securityContext.ExternalOAuthServiceStates.Include(n => n.Connection)
+                .Include(n => n.Tenant)
                 .FirstOrDefault(n =>
-                    n.Connection.UniqueConnectionName == connectionName && n.State == state && !n.Used &&
+                    n.Connection.CalculatedUniqueServiceName == connectionName && n.State == state && !n.Used &&
                     n.ExpiresAt > now);
+
             if (bufferedState != null)
             {
+                switchRequired = bufferedState.TenantId != securityContext.CurrentTenantId;
                 bufferedState.Used = true;
                 securityContext.SaveChanges();
 
+                string explicitTenant = null;
+                if (switchRequired)
+                {
+                    explicitTenant = bufferedState.Tenant.TenantName;
+                }
 
                 return new OAuthState
                 {
-                    ConnectionName = bufferedState.Connection.UniqueConnectionName,
+                    ConnectionName = bufferedState.Connection.CalculatedUniqueServiceName,
                     ExpiresAt = bufferedState.ExpiresAt,
                     State = bufferedState.State,
-                    CodeVerifier = bufferedState.CodeVerifier
+                    CodeVerifier = bufferedState.CodeVerifier,
+                    ScopeSwitchRequired = switchRequired,
+                    ExplicitScope = explicitTenant
                 };
             }
 
@@ -862,7 +889,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             var connection = GetExternalServiceInternal(securityContext, connectionName);
             if (connection != null)
             {
-                connectionInfo = ToExternalDefinition(connection);
+                connectionInfo = ToExternalDefinition(connection, true);
                 var login = securityContext.ExternalOAuthServiceTenantLogins.FirstOrDefault(n =>
                     n.OAuthServiceId == connection.OAuthServiceId && n.TenantId == securityContext.CurrentTenantId);
                 if (login is { Revoked: false })
@@ -937,22 +964,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
         protected abstract TExternalOAuthService GetExternalServiceInternal(IBaseTenantContext<TTenant,TWebPlugin,TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context,string name);
 
-        private ExternalOAuthConnection ToExternalDefinition(TExternalOAuthService svc)
+        private ExternalOAuthConnection ToExternalDefinition(TExternalOAuthService svc, bool decryptSecret)
         {
             var retVal = new ExternalOAuthConnection
             {
                 AuthorizationEndpoint = svc.AuthorizationEndpoint,
                 ClientId = svc.ClientId,
                 Global = svc.TenantId == null,
-                RedirectUri = svc.RedirectUri,
                 Scope = svc.Scope,
                 UniqueConnectionName = svc.UniqueConnectionName,
                 TokenEndpoint = svc.TokenEndpoint,
                 RevocationEndpoint = svc.RevocationEndpoint
             };
-            retVal.ClientSecret = retVal.Global
-                ? svc.ClientSecret.Decrypt()
-                : Decrypt(svc.ClientSecret, securityContext.CurrentTenantName);
+            if (!string.IsNullOrEmpty(retVal.ClientSecret) && decryptSecret)
+            {
+                retVal.ClientSecret = retVal.Global
+                    ? svc.ClientSecret.Decrypt()
+                    : Decrypt(svc.ClientSecret, securityContext.CurrentTenantName);
+            }
+
             return retVal;
         }
 

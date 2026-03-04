@@ -23,5 +23,7 @@
         {
             item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_Sequences).LoadContentFrom("SequenceTable", "Sequence", new { tenantId = Model, area = "Util" });
         }
+
+        item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_Services).LoadContentFrom("ServicesTable", "ExternalService", new { area = "Connectivity", tenantId = Model });
         item.Add().Text(TextsAndMessagesHelper.IWCN_Titles_TenantTemplates).LoadContentFrom("TenantTemplateActivation", "TenantTemplate", new { area = "Util", tenantId = Model });
     }))

@@ -20,6 +20,8 @@ namespace ITVComponents.WebCoreToolkit.Net
     [WebPart]
     public static class WebPartInit
     {
+        private static bool oauthCallbackRegistered = false;
+
         [LoadWebPartConfig]
         public static NetPartOptions LoadOptions(IConfiguration config, string path)
         {
@@ -57,7 +59,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
-                        options.ExposeExternalOAuthClientEndpoints,
+                        false,
                         endPointRegistry);
                 }
 
@@ -110,7 +112,7 @@ namespace ITVComponents.WebCoreToolkit.Net
                         options.UseTenantSwitch,
                         options.ExposeUserPermissions,
                         options.ExposeTenantFeatures,
-                        options.ExposeExternalOAuthClientEndpoints,
+                        false,
                         endPointRegistry);
                 }
 
@@ -202,7 +204,8 @@ namespace ITVComponents.WebCoreToolkit.Net
 
             if (exposeExternalOAuthClientEndpoints && useAuth && !useAreas)
             {
-                builder.ExposeCrossServiceAuthentication(tenantParam);
+                builder.ExposeCrossServiceAuthentication(tenantParam, !oauthCallbackRegistered);
+                oauthCallbackRegistered = true;
             }
         }
     }

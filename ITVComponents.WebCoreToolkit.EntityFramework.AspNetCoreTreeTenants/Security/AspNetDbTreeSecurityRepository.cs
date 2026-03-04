@@ -10,6 +10,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Mode
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.VirtualModels;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.CustomUserProperty;
@@ -25,7 +26,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sec
     {
         private const string default1 = "Identity.Application";
 
-        public AspNetDbTreeSecurityRepository(TImpl securityContext, IOptions<ExternalOAuthServiceBufferingOptions> serviceBufferOptions, ILogger<AspNetDbTreeSecurityRepository<TImpl>> logger):base(securityContext, serviceBufferOptions, logger)
+        public AspNetDbTreeSecurityRepository(TImpl securityContext, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> serviceBufferOptions, ILogger<AspNetDbTreeSecurityRepository<TImpl>> logger):base(securityContext, securityAccessProvider, serviceBufferOptions, logger)
         {
         }
 

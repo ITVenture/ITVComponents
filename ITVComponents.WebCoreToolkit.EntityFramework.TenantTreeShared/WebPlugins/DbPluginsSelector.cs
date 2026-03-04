@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeM
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.Comparers;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.Extensions.Options;
 
@@ -32,6 +33,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
     {
         private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
         private readonly IPermissionScope scopeProvider;
+        private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly WebPluginBufferingOptions bufferConfig;
 
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DbPluginBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>
@@ -41,10 +43,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
         /// Initializes a new instance of hte DbPluginsSelector class
         /// </summary>
         /// <param name="securityContext">the injected security-db-context</param>
-        public DbPluginsSelector(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IPermissionScope scopeProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
+        public DbPluginsSelector(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IPermissionScope scopeProvider, ISecurityAccessProvider securityAccessProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
         {
             this.securityContext = securityContext;
             this.scopeProvider = scopeProvider;
+            this.securityAccessProvider = securityAccessProvider;
             this.bufferConfig = bufferConfig.Value;
         }
 
@@ -137,7 +140,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
 
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
-                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
 
                 var phase1 = from p in securityContext.UpwardsTenantTreeView
@@ -244,7 +247,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
         {
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
-                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
 
                 var phase1 = from p in securityContext.UpwardsTenantTreeView
@@ -374,7 +377,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugi
             {
                 if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
                 {
-                    using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
+                    using var tmp = securityAccessProvider.CreateForCaller(
                         securityContext,
                         new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
                     return (from p in securityContext.GenericPluginParams

@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
 {

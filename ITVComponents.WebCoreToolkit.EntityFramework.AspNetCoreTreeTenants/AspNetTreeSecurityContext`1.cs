@@ -32,6 +32,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Principal;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
 {
@@ -53,6 +54,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         private readonly IPermissionScope tenantProvider;
         private readonly bool useFilters = false;
         private readonly IContextUserProvider userProvider;
+        private readonly ISecurityAccessProvider securityAccessProvider;
         private bool hideDisabledUsers = true;
         private bool hideGlobals = false;
         private bool includeChildTree = false;
@@ -69,12 +71,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         }
 
         public AspNetTreeSecurityContext(IPermissionScope tenantProvider, IContextUserProvider userProvider,
+            ISecurityAccessProvider securityAccessProvider,
             ILogger<TImpl> logger, IOptions<DbContextModelBuilderOptions<TImpl>> modelBuilderOptions,
             DbContextOptions<TImpl> options) : base(options)
         {
             this.logger = logger;
             this.tenantProvider = tenantProvider;
             this.userProvider = userProvider;
+            this.securityAccessProvider = securityAccessProvider;
             useFilters = true;
             this.modelBuilderOptions = modelBuilderOptions.Value;
             /*HideGlobals = true;
@@ -200,7 +204,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 ShowAllTenants = showAllTenants
             };
 
-            using (FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(this, this,
+            using (securityAccessProvider.CreateForCaller(this,
                        trust))
             {
                 var mth = modelBuilderOptions.GetMethod<Func<DbContext, string, int, int>>("SequenceNextVal");
@@ -612,7 +616,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 ShowAllTenants = true
             };
 
-            using (FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(this, this,
+            using (securityAccessProvider.CreateForCaller(this,
                        trust))
             {
                 var mth =
@@ -643,7 +647,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 ShowAllTenants = true
             };
 
-            using (FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(this, this,
+            using (securityAccessProvider.CreateForCaller(this,
                        trust))
             {
                 var mth =
@@ -844,9 +848,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             };
         }
 
-        Stack<FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>>
+        Stack<IFullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>>
             ITrustfulComponent<HierarchyTenantContextSecurityTrustConfig>.securityStateStack { get; } =
-            new Stack<FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>>();
+            new Stack<IFullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>>();
 
         [ExpressionPropertyRedirect("CurrentUserName")]
         public string CurrentUserName => userProvider.User?.Identity?.Name;

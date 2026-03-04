@@ -1,10 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.Logging;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.Logging;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions
 {
@@ -93,5 +96,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
                 target.Configure(l.ToArray(), filters);
             }
         }
+
+        /*public static IFullSecurityAccessHelper TryGetTrust(this IServiceProvider services, object target,
+            Type trustingType, Type trustedType, ITrustConfig desiredTrust)
+        {
+            var method = LambdaHelper.GetMethodInfo(() => TryGetTrust<DummyTrustConfig>(null, null, null, null, null))
+                .GetGenericMethodDefinition();
+            var genericMethod = method.MakeGenericMethod(desiredTrust.GetType());
+            return (IFullSecurityAccessHelper)genericMethod.Invoke(null,
+                new[] { services, target, trustingType, trustedType, desiredTrust });
+        }
+
+        public static IFullSecurityAccessHelper<TTrustConfig> TryGetTrust<TTrustConfig>(this IServiceProvider services,
+            ITrustfulComponent<TTrustConfig> target, Type trustingType, Type trustedType, TTrustConfig desiredTrust)
+            where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
+        {
+            return FullSecurityAccessHelper<TTrustConfig>.CreateForCallerInternal(services, target, trustingType,
+                trustedType, desiredTrust);
+        }
+
+        private class DummyTrustConfig : ITrustConfig<DummyTrustConfig>
+        {
+            public DummyTrustConfig Clone()
+            {
+                return new DummyTrustConfig();
+            }
+
+            public IDictionary<string, bool> SpecialFilterSettings { get; set; }
+
+            public DummyTrustConfig Clone(DummyTrustConfig other)
+            {
+                throw new NotImplementedException();
+            }
+        }*/
     }
 }

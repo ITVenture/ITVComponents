@@ -173,7 +173,7 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         public string EncryptJsonObject(object value, string permissionScopeName) => Current.EncryptJsonObject(value, permissionScopeName);
         public Permission[] GetKnownPermissions(string permissionScope) => Current.GetKnownPermissions(permissionScope);
-        public ExternalOAuthConnection GetExternalService(string name) => Current.GetExternalService(name);
+        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false) => Current.GetExternalService(name, decryptSecret);
 
         public void PrepareExternalServiceConnect(OAuthState oAuthState) =>
             Current.PrepareExternalServiceConnect(oAuthState);

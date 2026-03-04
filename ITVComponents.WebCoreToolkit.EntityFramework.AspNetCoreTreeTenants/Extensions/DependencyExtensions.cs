@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.ApplicationToken;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Ext
                 {
                     var retVal = new AspNetDbTreeSecurityRepository<AspNetTreeSecurityContext>(
                         i.GetService<AspNetTreeSecurityContext>(),
+                        i.GetService<ISecurityAccessProvider>(),
                         i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                         i.GetService<ILogger<AspNetDbTreeSecurityRepository<AspNetTreeSecurityContext>>>());
                     return i.GetAssetSecurityRepository(retVal);
@@ -61,6 +63,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Ext
                     .AddScoped<ISecurityRepository>(i =>
                     {
                         var retVal = new AspNetDbTreeSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                                i.GetService<ISecurityAccessProvider>(),
                             i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                                 i.GetService<ILogger<AspNetDbTreeSecurityRepository<TImpl>>>());
                         return i.GetAssetSecurityRepository(retVal);
@@ -102,6 +105,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Ext
                 .AddScoped<ISecurityRepository>(i =>
                 {
                     var retVal = new AspNetDbTreeSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                                i.GetService<ISecurityAccessProvider>(),
                         i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                             i.GetService<ILogger<AspNetDbTreeSecurityRepository<TImpl>>>());
                     return i.GetAssetSecurityRepository(retVal);

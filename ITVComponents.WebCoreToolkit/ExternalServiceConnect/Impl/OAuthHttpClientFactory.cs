@@ -29,7 +29,6 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
 
             // Named Client für Timeouts, BaseAddress etc.
             var client = httpClientFactory.CreateClient();
-            
             // Handler-Kette ersetzen
             client = new HttpClient(handler)
             {

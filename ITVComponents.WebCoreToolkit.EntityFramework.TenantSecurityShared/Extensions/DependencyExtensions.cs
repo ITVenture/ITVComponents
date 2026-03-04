@@ -15,10 +15,12 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.GlobalFiltering;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Settings;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 using ITVComponents.WebCoreToolkit.Logging;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -146,6 +148,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             }
 
             return services;
+        }
+
+        public static IServiceCollection UseDefaultSecurityAccessProvider(this IServiceCollection services)
+        {
+            return services.AddScoped<ISecurityAccessProvider, DbSecurityAccessProvider>();
         }
     }
 }

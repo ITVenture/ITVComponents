@@ -354,4 +354,46 @@
   <data name="IWCN_DRI_CopyFromOrigin" xml:space="preserve">
     <value>Copia dalla risorsa originale</value>
   </data>
+  <data name="IWCN_ES_Global" xml:space="preserve">
+    <value>Globale</value>
+  </data>
+  <data name="IWCN_ES_UniqueName" xml:space="preserve">
+    <value>Nome univoco</value>
+  </data>
+  <data name="IWCN_ES_RedirectUri" xml:space="preserve">
+    <value>URI di reindirizzamento</value>
+  </data>
+  <data name="IWCN_ES_AuthEndpoint" xml:space="preserve">
+    <value>Endpoint di autenticazione</value>
+  </data>
+  <data name="IWCN_ES_TokenEndpoint" xml:space="preserve">
+    <value>Endpoint del token</value>
+  </data>
+  <data name="IWCN_ES_RevocationEndpoint" xml:space="preserve">
+    <value>Endpoint di logout</value>
+  </data>
+  <data name="IWCN_ES_ClientId" xml:space="preserve">
+    <value>ID client</value>
+  </data>
+  <data name="IWCN_ES_ClientSecret" xml:space="preserve">
+    <value>Segreto client</value>
+  </data>
+  <data name="IWCN_ES_Scope" xml:space="preserve">
+    <value>Ambito OAuth (Scope)</value>
+  </data>
+  <data name="GetIWCN_ES_ConnectSvc" xml:space="preserve">
+    <value>Collega il servizio</value>
+  </data>
+  <data name="IWCN_ES_UseEncryptPrefix" xml:space="preserve">
+    <value>-- Valore crittografato. Utilizzare il prefisso «encrypt:» per impostare un valore. --</value>
+  </data>
+  <data name="IWCN_ES_EncryptedValue" xml:space="preserve">
+    <value>-- Valore crittografato--</value>
+  </data>
+  <data name="IWCN_ES_DetailsTitle_Params" xml:space="preserve">
+    <value>Parametri</value>
+  </data>
+  <data name="IWCN_ES_DetailsTitle_Test" xml:space="preserve">
+    <value>Verifica connessione</value>
+  </data>
 </root>

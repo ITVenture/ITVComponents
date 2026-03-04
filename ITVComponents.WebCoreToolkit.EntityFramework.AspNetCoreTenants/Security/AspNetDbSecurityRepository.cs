@@ -68,7 +68,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Securit
 
         protected override FlatExternalOAuthService GetExternalServiceInternal(IBaseTenantContext<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> context, string name)
         {
-            return context.ExternalOAuthServices.FirstOrDefault(n =>
+            return context.ExternalOAuthServices.FirstOrDefault(n => n.CalculatedUniqueServiceName == name)??context.ExternalOAuthServices.FirstOrDefault(n =>
                        n.UniqueConnectionName == name && n.TenantId != null &&
                        n.TenantId == context.CurrentTenantId) ??
                    context.ExternalOAuthServices.FirstOrDefault(n =>

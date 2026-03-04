@@ -1,6 +1,7 @@
 ﻿using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
+using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;
@@ -36,8 +37,12 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using ITVComponents.Cloning;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using Feature = ITVComponents.WebCoreToolkit.Models.Feature;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 {
@@ -89,15 +94,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
     {
         private readonly IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
+        private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions;
         private readonly ILogger logger;
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>
             bufferedServices= new ConcurrentDictionary<string, ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>();
 
-        protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions,
+        protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions,
             ILogger logger)
         {
             this.securityContext = securityContext;
+            this.securityAccessProvider = securityAccessProvider;
             this.bufferOptions = bufferOptions;
             this.logger = logger;
         }
@@ -117,9 +124,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         {
             get
             {
-                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
-                    securityContext,
-                    new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
+                using var tmp = securityAccessProvider.CreateForCaller(securityContext,
+                    new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
                 return (from r in securityContext.SecurityRoles where r.TenantId == securityContext.CurrentTenantId select r).ToList<Role>();
             }
         }
@@ -128,26 +134,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         {
             get
             {
-                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
-                    securityContext,
-                    new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
+                using var tmp = securityAccessProvider.CreateForCaller(securityContext,
+                    new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
                 return (from p in securityContext.Permissions where p.TenantId == null || p.TenantId == securityContext.CurrentTenantId select p).ToList<Permission>();
             }
         }
 
         public IEnumerable<Role> GetRoles(User user)
         {
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
-                new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = true});
+                new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = true});
             return (from r in AllRoles(securityContext.Users.First(UserFilter(user))) select r.Role).ToArray();
         }
 
         public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions, string permissionScope)
         {
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
-                new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
+                new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
             return (from a in (from t in securityContext.SecurityRoles.Where(r =>
                             r.Tenant.TenantName == permissionScope)
                         select new
@@ -162,9 +167,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
-                new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
+                new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
             return (from p in UserProps(securityContext.Users.First(UserFilter(user))) where p.PropertyType == propertyType select p).ToArray();
         }
 
@@ -211,9 +216,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value)
         {
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
-                new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
+                new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
             var dbuser = securityContext.Users.First(UserFilter(user));
             var prop = securityContext.UserProperties.FirstOrDefault(n =>
                 n.PropertyName == propertyName && n.User == dbuser && n.PropertyType == propertyType);
@@ -266,7 +271,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 var ti = t.Value;
                 IQueryable<UserTenantLevel<TUser>> tenantUsers;
                 var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
-                using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = false });
                 if (isUser)
                 {
@@ -293,7 +298,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
         {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                 new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = true });
             var t = securityContext.Tenants.FirstOrDefault(n => n.TenantName == forScope)?.TenantId;
             if (t != null)
@@ -327,9 +332,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             CustomUserPropertyType propertyType)
         {
             var isUser = userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern));
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
-                new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser});
+                new TTrustConfig() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser});
             IQueryable<TUser> tenantUsers;
             if (isUser)
             {
@@ -361,7 +366,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             }
 
             var isUser = userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern));
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser}));
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser}));
             IQueryable<UserTenantLevel<TUser>> tenantUsers;
             if (isUser)
             {
@@ -394,7 +399,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims, string userAuthenticationType)
         {
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false }));
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false }));
             var typeClaims = securityContext.AuthenticationClaimMappings.Where(n =>
                 n.AuthenticationType.AuthenticationTypeName == userAuthenticationType).ToArray();
             var claimMapRaw = new Dictionary<string, ClaimData[]>(from t in originalClaims group t by t.Type into g select new KeyValuePair<string, ClaimData[]>(g.Key, g.ToArray()));
@@ -445,7 +450,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                 ConfigureTrustConfig(new()
                     { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser }));
 
@@ -523,7 +528,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
         {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                 ConfigureTrustConfig(new()
                 { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = isUser }));
 
@@ -601,7 +606,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public IEnumerable<Permission> GetPermissions(Role role)
         {
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
             if (role is TRole dbRole)
             {
                 return from p in dbRole.RolePermissions select p.Permission;
@@ -617,14 +622,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public bool PermissionScopeExists(string permissionScopeName)
         {
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
             return securityContext.Tenants.Any(n => n.TenantName == permissionScopeName);
         }
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType)
         {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false}));
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false}));
             if (!isUser)
             {
                 IQueryable<TUser> tenantUsers;
@@ -657,7 +662,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 int? tenantToUse = null;
                 if (!useCurrentTenant)
                 {
-                    tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
+                    tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
                 }
                 else
                 {
@@ -755,17 +760,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public Permission[] GetKnownPermissions(string permissionScope)
         {
-            using var tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext,
+            using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
-                new() { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false });
+                new TTrustConfig { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false });
             return (from p in securityContext.Permissions
                 where p.TenantId == null || p.Tenant.TenantName == permissionScope
                 select new Permission { PermissionName = p.PermissionName }).ToArray();
         }
 
-        public ExternalOAuthConnection GetExternalService(string name)
+        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false)
         {
-            var tmp = GetExternalOAuthService(name, out _, out _, out var tenantName, true);
+            var tmp = GetExternalOAuthService(name, out _, out _, out var tenantName, true).Copy();
+            if (decryptSecret && !string.IsNullOrEmpty(tmp.ClientSecret))
+            {
+                if (tmp.Global)
+                {
+                    tmp.ClientSecret = tmp.ClientSecret.Decrypt();
+                }
+                else
+                {
+                    tmp.ClientSecret = Decrypt(tmp.ClientSecret, tenantName);
+                }
+            }
+
             return tmp;
         }
 
@@ -795,26 +812,40 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public OAuthState GetOAuthRequest(string connectionName, string state)
         {
-            var tmp = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out _, true);
-            if (tenantId != securityContext.CurrentTenantId && tenantId != null)
-            {
-                throw new InvalidOperationException("Can only configure a connection for the active tenant");
-            }
+            var now = DateTime.UtcNow;
+            bool switchRequired = false;
 
-            if (tmp != null)
+            LogEnvironment.LogDebugEvent("Looking up all services", LogSeverity.Warning);
+            using var tmp = securityAccessProvider.CreateForCaller(
+                securityContext,
+                new TTrustConfig { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false });
+            var bufferedState = securityContext.ExternalOAuthServiceStates.Include(n => n.Connection)
+                .Include(n => n.Tenant)
+                .FirstOrDefault(n =>
+                    n.Connection.CalculatedUniqueServiceName == connectionName && n.State == state && !n.Used &&
+                    n.ExpiresAt > now);
+
+            if (bufferedState != null)
             {
-                var now = DateTime.UtcNow;
-                var request = securityContext.ExternalOAuthServiceStates.FirstOrDefault(n =>
-                    n.OAuthServiceId == serviceId && n.TenantId == securityContext.CurrentTenantId && n.State == state && n.ExpiresAt > now);
-                if (request != null)
+                switchRequired = bufferedState.TenantId != securityContext.CurrentTenantId;
+                bufferedState.Used = true;
+                securityContext.SaveChanges();
+
+                string explicitTenant = null;
+                if (switchRequired)
                 {
-                    return new OAuthState
-                    {
-                        ConnectionName = tmp.UniqueConnectionName,
-                        ExpiresAt = request.ExpiresAt,
-                        State = request.State
-                    };
+                    explicitTenant = bufferedState.Tenant.TenantName;
                 }
+
+                return new OAuthState
+                {
+                    ConnectionName = bufferedState.Connection.CalculatedUniqueServiceName,
+                    ExpiresAt = bufferedState.ExpiresAt,
+                    State = bufferedState.State,
+                    CodeVerifier = bufferedState.CodeVerifier,
+                    ScopeSwitchRequired = switchRequired,
+                    ExplicitScope = explicitTenant
+                };
             }
 
             return null;
@@ -860,9 +891,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
         {
-            using var tmpSecurity = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+            using var tmpSecurity = securityAccessProvider.CreateForCaller(securityContext,
                 new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
-            var svc = GetExternalOAuthService(connectionName, out var serviceId, out _, out var tenantName, false);
+            var svc = GetExternalOAuthService(connectionName, out var serviceId, out _, out var tenantName, false).Copy();
+            if (!string.IsNullOrEmpty(svc.ClientSecret))
+            {
+                if (svc.Global)
+                {
+                    svc.ClientSecret = svc.ClientSecret.Decrypt();
+                }
+                else
+                {
+                    svc.ClientSecret = Decrypt(svc.ClientSecret, tenantName);
+                }
+            }
+
             connectionInfo = svc;
             if (serviceId != null)
             {
@@ -893,6 +936,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                                 RefreshToken = Encrypt(newToken.RefreshToken, targetTenant),
                                 TokenType = newToken.TokenType
                             };
+
                             login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
                             securityContext.SaveChanges();
                         };
@@ -959,7 +1003,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 IDisposable tmp = null;
                 if (useFullAccess)
                 {
-                    tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                    tmp = securityAccessProvider.CreateForCaller(securityContext,
                         new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
                 }
 
@@ -985,11 +1029,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                         join pg in securityContext.ExternalOAuthServices.Include(n => n.Tenant) on new
                                 { p.UniqueConnectionName, TenantId = t.ParentTenantId }
                             equals new { pg.UniqueConnectionName, TenantId = pg.TenantId.Value }
-                        where pg.UniqueConnectionName == name
-                        select pg;
+                        where pg.UniqueConnectionName == name || pg.CalculatedUniqueServiceName == name
+                                 select pg;
                     var pi = phase3.FirstOrDefault() ??
                              securityContext.ExternalOAuthServices.Include(n => n.Tenant)
-                                 .FirstOrDefault(n => n.TenantId == null && n.UniqueConnectionName == name);
+                                 .FirstOrDefault(n => n.TenantId == null && (n.UniqueConnectionName == name || n.CalculatedUniqueServiceName == name));
                     externalOAuthServiceId = pi?.OAuthServiceId;
                     tenantId = pi?.TenantId;
                     tenantName = pi?.Tenant?.TenantName;
@@ -1011,7 +1055,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 IDisposable tmp = null;
                 if (useFullAccess)
                 {
-                    tmp = FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext,
+                    tmp = securityAccessProvider.CreateForCaller(securityContext,
                         new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
                 }
 
@@ -1080,7 +1124,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         private TimeZoneInfo GetTimeZone(string permissionScopeName)
         {
-            using (FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = true })))
+            using (securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = true })))
             {
                 var t = securityContext.Tenants.First(n => n.TenantName == permissionScopeName);
                 if (!string.IsNullOrEmpty(t.TimeZone))
@@ -1129,38 +1173,39 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 });
         }
 
-        private TExternalOAuthService TryRegisterService(string uniqueName, TExternalOAuthService serviceData)
+        private ExternalOAuthConnection TryRegisterService(string uniqueName, TExternalOAuthService serviceData)
         {
             var dc = bufferedServices.GetOrAdd(securityContext.CurrentTenantName,
                 n => new ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());
-            dc.TryAdd(uniqueName, new ExternalOAuthServiceBufferInfo()/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/
+            var svcData = serviceData != null
+                ? serviceData
+                    .ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState,
+                        TExternalOAuthServiceTenantLogin>()
+                : null;
+            /*if (!string.IsNullOrEmpty(svcData?.ClientSecret))
+            {
+                if (svcData.Global)
+                {
+                    svcData.ClientSecret = svcData.ClientSecret.Decrypt();
+                }
+                else
+                {
+                    svcData.ClientSecret = Decrypt(svcData.ClientSecret, serviceData.Tenant?.TenantName);
+                }
+            }*/
+
+            var svc = new ExternalOAuthServiceBufferInfo() /*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/
             {
                 Created = DateTime.Now,
-                Service = ToServiceDefinition(serviceData, serviceData?.Tenant?.TenantName),
+                Service = svcData,
                 ExternalOAuthServiceId = serviceData?.OAuthServiceId,
                 TenantId = serviceData?.TenantId,
                 TenantName = serviceData?.Tenant?.TenantName
-            });
+            };
+            dc.TryAdd(uniqueName, svc);
+            dc.TryAdd(svc.Service.GlobalUniqueConnectionName, svc);
 
-            return serviceData;
-        }
-
-        private ExternalOAuthConnection ToServiceDefinition(TExternalOAuthService serviceData, string tenantName)
-        {
-            return (serviceData != default)
-                ? new ExternalOAuthConnection
-                {
-                    AuthorizationEndpoint = serviceData.AuthorizationEndpoint,
-                    ClientId = serviceData.ClientId,
-                    ClientSecret = serviceData.Global ? serviceData.ClientSecret.Decrypt() : Decrypt(serviceData.ClientSecret, tenantName),
-                    Global = serviceData.Global,
-                    RedirectUri = serviceData.RedirectUri,
-                    Scope = serviceData.Scope,
-                    TokenEndpoint = serviceData.TokenEndpoint,
-                    UniqueConnectionName = serviceData.UniqueConnectionName,
-                    RevocationEndpoint = serviceData.RevocationEndpoint
-                }
-                : null;
+            return serviceData.ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>();
         }
 
         private bool ServiceBuffered(string name, out ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/ bufferInfo)

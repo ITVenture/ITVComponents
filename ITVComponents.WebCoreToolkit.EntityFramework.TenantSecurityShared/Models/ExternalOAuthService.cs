@@ -10,8 +10,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models
 {
-    [Index(nameof(UniqueConnectionName),nameof(TenantId), IsUnique = true, Name="UQOAuthService")]
-    public class ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>:ExternalOAuthConnection
+    [Index(nameof(CalculatedUniqueServiceName), IsUnique = true, Name="UQOAuthService")]
+    public class ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
         where TTenant : Tenant
         where TExternalOAuthService: ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
         where TExternalOAuthServiceState: ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
@@ -19,6 +19,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
     {
         [Key]
         public int OAuthServiceId { get; set; }
+
+        [MaxLength(255)]
+        public string UniqueConnectionName { get; set; }
+
+        public string AuthorizationEndpoint { get; set; } = null!;
+        public string TokenEndpoint { get; set; } = null!;
+        public string RevocationEndpoint { get; set; } = null!;
+        public string ClientId { get; set; } = null!;
+        public string ClientSecret { get; set; } = null!;
+
+        public string Scope { get; set; } = null!;
+
+        public bool Global { get; set; }
+
+        [DatabaseGenerated(DatabaseGeneratedOption.Computed), MaxLength(1024), Required]
+        public string CalculatedUniqueServiceName { get; set; }
 
         public int? TenantId { get; set; }
 

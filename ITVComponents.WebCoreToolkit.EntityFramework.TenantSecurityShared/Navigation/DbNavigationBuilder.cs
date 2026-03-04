@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Options;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
@@ -142,7 +143,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
                 .ToArray();
         }
 
-        protected virtual FullSecurityAccessHelper<TTrustConfig> ConfigureNavigationAccess()
+        protected virtual IFullSecurityAccessHelper<TTrustConfig> ConfigureNavigationAccess()
         {
             return new FullSecurityAccessHelper<TTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
         }

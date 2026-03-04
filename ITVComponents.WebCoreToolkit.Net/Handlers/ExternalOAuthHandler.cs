@@ -12,6 +12,11 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
+using ITVComponents.Security;
+using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
+using ITVComponents.WebCoreToolkit.Security.ScopeManipulation;
 
 namespace ITVComponents.WebCoreToolkit.Net.Handlers
 {
@@ -27,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             [FromServices] ISecurityRepository securityRepo)
         {
             var connection = securityRepo.GetExternalService(name);
-
+            var baseUrl = $"{context.Request.Scheme}://{context.Request.Host.Value}{context.Request.PathBase}";
             var bt32 = new byte[32];
             RandomNumberGenerator.Create().GetBytes(bt32);
             var state = string.Join("", from t in bt32 select t.ToString("X2"));
@@ -42,15 +47,13 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
             });
 
-            var stateX = string.Join("",Encoding.UTF8.GetBytes(state).Select(n => n.ToString("X2")));
-            state = $"{stateX}_{state}";
             var url =
                 $"{connection.AuthorizationEndpoint}?" +
                 $"response_type=code&" +
                 $"client_id={Uri.EscapeDataString(connection.ClientId)}&" +
-                $"redirect_uri={Uri.EscapeDataString(connection.RedirectUri)}&" +
+                $"redirect_uri={Uri.EscapeDataString($"{baseUrl}{connection.RedirectUri()}")}&" +
                 $"scope={Uri.EscapeDataString(connection.Scope)}&" +
-                $"state={state}"+
+                $"state={state}&"+
                 $"code_challenge={challenge}&" +
                 "code_challenge_method=S256";
 
@@ -63,66 +66,82 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
         /// <param name="context">the http-context in which the query is being executed</param>
         /// <param name="name">the name of the externalService for which the authentication-flow is initialized</param>
         /// <param name="securityRepo">a security repository containing information about the current user and its tenant</param>
-        public static async Task<IResult> Callback(HttpContext context,
+        public static async Task<IResult> Callback([FromRoute(Name = "externalServiceName")] string externalServiceName, HttpContext context,
             HttpRequest request,
             [FromServices] ISecurityRepository securityRepo,
             [FromServices] IPermissionScope scopeProvider,
-            [FromServices] IHttpClientFactory httpClientFactory)
+            [FromServices] IHttpClientFactory httpClientFactory,
+            [FromServices] ISecurityAccessProvider securityAccessProvider)
         {
+            var baseUrl = $"{context.Request.Scheme}://{context.Request.Host.Value}{context.Request.PathBase}";
             var code = request.Query["code"].ToString();
-            var state = request.Query["state"].ToString().Split("_");
-            var translatedState = "";
-            for (var i= 0; i< state[0].Length; i+=2)
-            {
-                var hex = state[0].Substring(i, 2);
-                translatedState += (char)Convert.ToByte(hex, 16);
-            }
+            var state = request.Query["state"].ToString();
+            IDisposable explicitTenantSwitch = null;
 
-            var stateEntry = securityRepo.GetOAuthRequest(translatedState, state[1]);
+            var stateEntry = securityRepo.GetOAuthRequest(externalServiceName, state);
             if (stateEntry == null)
                 return Results.BadRequest("Invalid state");
 
-            var connection = securityRepo.GetExternalService(stateEntry.ConnectionName);
-
-            var client = httpClientFactory.CreateClient();
-
-            var rawForm = new Dictionary<string, string>
+            if (stateEntry.ScopeSwitchRequired)
             {
-                ["grant_type"] = "authorization_code",
-                ["code"] = code,
-                ["redirect_uri"] = connection.RedirectUri,
-                ["client_id"] = connection.ClientId,
-                ["code_verifyer"] = stateEntry.CodeVerifier
-            };
-
-            if (!string.IsNullOrEmpty(connection.ClientSecret))
-            {
-                rawForm.Add("client_secret",connection.ClientSecret);
+                explicitTenantSwitch = securityAccessProvider.CreateForCaller(scopeProvider,
+                    new ScopeManipulationTrustConfig { SetExplicitScope = true });
+                LogEnvironment.LogDebugEvent("Performing Scope-Switch...", LogSeverity.Report);
+                scopeProvider.ChangeScope(stateEntry.ExplicitScope, true);
             }
 
-            var tokenResponse = await client.PostAsync(
-                connection.TokenEndpoint,
-                new FormUrlEncodedContent(rawForm));
-
-            tokenResponse.EnsureSuccessStatusCode();
-
-            var token = await tokenResponse.Content
-                .ReadFromJsonAsync<TokenResponse>();
-            var dbToken = new TranslatedTokenResponse
+            try
             {
-                ExpiresAt =
-                    DateTimeOffset.UtcNow.AddSeconds(token.ExpiresIn),
-                Scope = token.Scope,
-                RefreshToken = token.RefreshToken,
-                AccessToken = token.AccessToken,
-                TokenType = token.TokenType
-            };
+                var connection = securityRepo.GetExternalService(stateEntry.ConnectionName, true);
+                var client = httpClientFactory.CreateClient();
 
-            securityRepo.StoreExternalServiceToken(
-                stateEntry.ConnectionName,
-                dbToken);
+                var rawForm = new Dictionary<string, string>
+                {
+                    ["grant_type"] = "authorization_code",
+                    ["code"] = code,
+                    ["redirect_uri"] = $"{baseUrl}{connection.RedirectUri()}",
+                    ["client_id"] = connection.ClientId,
+                    ["code_verifier"] = stateEntry.CodeVerifier
+                };
 
-            return Results.LocalRedirect("/");
+                if (!string.IsNullOrEmpty(connection.ClientSecret))
+                {
+                    LogEnvironment.LogDebugEvent($"Providing client secret: {connection.ClientSecret}", LogSeverity.Report);
+                    rawForm.Add("client_secret", connection.ClientSecret);
+                }
+
+                var tokenResponse = await client.PostAsync(
+                    connection.TokenEndpoint,
+                    new FormUrlEncodedContent(rawForm));
+
+                tokenResponse.EnsureSuccessStatusCode();
+
+                var token = await tokenResponse.Content
+                    .ReadFromJsonAsync<TokenResponse>();
+                var dbToken = new TranslatedTokenResponse
+                {
+                    ExpiresAt =
+                        DateTimeOffset.UtcNow.AddSeconds(token.ExpiresIn),
+                    Scope = token.Scope,
+                    RefreshToken = token.RefreshToken,
+                    AccessToken = token.AccessToken,
+                    TokenType = token.TokenType
+                };
+
+                securityRepo.StoreExternalServiceToken(
+                    stateEntry.ConnectionName,
+                    dbToken);
+
+                return Results.LocalRedirect("/");
+            }
+            finally
+            {
+                if (explicitTenantSwitch != null)
+                {
+                    scopeProvider.ChangeScope(null, true);
+                    explicitTenantSwitch.Dispose();
+                }
+            }
         }
     }
 }

@@ -26,6 +26,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
             builderOptions.ConfigureComputedColumn<Permission, string>(p => p.PermissionNameUniqueness, "case when \"TenantId\" is null then \"PermissionName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"PermissionName\" end");
             builderOptions.ConfigureComputedColumn<FlatWebPlugin, string>(w => w.PluginNameUniqueness, "case when \"TenantId\" is null then \"UniqueName\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"UniqueName\" end");
             builderOptions.ConfigureComputedColumn<FlatWebPluginConstant, string>(c => c.NameUniqueness, "case when \"TenantId\" is null then \"Name\" else '__T'||cast(\"TenantId\" as character varying(10))||'##'||\"Name\" end");
+            builderOptions.ConfigureComputedColumn<FlatExternalOAuthService, string>(s => s.CalculatedUniqueServiceName, "case when \"TenantId\" is null then 'GLOBAL'||\"UniqueConnectionName\" else 'T'||cast(\"TenantId\" as character varying(10))||'-'||\"UniqueConnectionName\" end");
         }
 
         public static void ConfigureMethods(IContextModelBuilderOptions bld)

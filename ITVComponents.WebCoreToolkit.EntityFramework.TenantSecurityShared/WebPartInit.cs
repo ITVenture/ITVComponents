@@ -95,6 +95,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared
                     o.CookieLengthThreshold = partOptions.CookieLengthThreshold;
                 });
             }
+
+            if (partOptions.UseDefaultSecurityAccessProvider)
+            {
+                services.UseDefaultSecurityAccessProvider();
+            }
         }
     }
 }

@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces
+namespace ITVComponents.WebCoreToolkit.Security.ComponentTrust
 {
-    public interface ITrustConfig<TTrustConfig> where TTrustConfig: ITrustConfig<TTrustConfig>
+    public interface ITrustConfig
+    {
+
+    }
+    public interface ITrustConfig<TTrustConfig>:ITrustConfig where TTrustConfig: ITrustConfig<TTrustConfig>
     {
         IDictionary<string, bool> SpecialFilterSettings { get; set; }
 

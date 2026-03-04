@@ -354,4 +354,46 @@
   <data name="IWCN_DRI_CopyFromOrigin" xml:space="preserve">
     <value>Copy from OriginalResource</value>
   </data>
+  <data name="IWCN_ES_Global" xml:space="preserve">
+    <value>Global</value>
+  </data>
+  <data name="IWCN_ES_UniqueName" xml:space="preserve">
+    <value>Unique Name</value>
+  </data>
+  <data name="IWCN_ES_RedirectUri" xml:space="preserve">
+    <value>RedirectUri</value>
+  </data>
+  <data name="IWCN_ES_AuthEndpoint" xml:space="preserve">
+    <value>Authentication Endpoint</value>
+  </data>
+  <data name="IWCN_ES_TokenEndpoint" xml:space="preserve">
+    <value>Token Endpoint</value>
+  </data>
+  <data name="IWCN_ES_RevocationEndpoint" xml:space="preserve">
+    <value>Logout Endpoint</value>
+  </data>
+  <data name="IWCN_ES_ClientId" xml:space="preserve">
+    <value>Client-ID</value>
+  </data>
+  <data name="IWCN_ES_ClientSecret" xml:space="preserve">
+    <value>Client-Secret</value>
+  </data>
+  <data name="IWCN_ES_Scope" xml:space="preserve">
+    <value>OAuth-Scope</value>
+  </data>
+  <data name="GetIWCN_ES_ConnectSvc" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="IWCN_ES_UseEncryptPrefix" xml:space="preserve">
+    <value>-- Encrypted value. Use 'encrypt:' prefix to assign a value--</value>
+  </data>
+  <data name="IWCN_ES_EncryptedValue" xml:space="preserve">
+    <value>Encrypted value</value>
+  </data>
+  <data name="IWCN_ES_DetailsTitle_Params" xml:space="preserve">
+    <value>Parameters</value>
+  </data>
+  <data name="IWCN_ES_DetailsTitle_Test" xml:space="preserve">
+    <value>Test Connection</value>
+  </data>
 </root>

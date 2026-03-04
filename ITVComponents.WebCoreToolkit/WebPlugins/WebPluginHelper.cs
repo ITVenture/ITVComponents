@@ -16,6 +16,7 @@ using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.WebPlugins.Initialization;
 using ITVComponents.WebCoreToolkit.WebPlugins.ServiceModels;
 using Microsoft.AspNetCore.Authorization;
@@ -31,6 +32,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
     /// </summary>
     public class WebPluginHelper:IWebPluginHelper
     {
+        private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly IPermissionScope scopeProvider;
         private readonly FactoryOptions factoryOptions;
         private IWebPluginsSelector pluginProvider;
@@ -65,9 +67,10 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         /// <param name="autoPluginsInit"></param>
         /// <param name="factoryOptions">the factory-options used for DI injection into plugins</param>
         /// <param name="logger">a logger instance that is used to log events of this PluginHelper instance</param>
-        public WebPluginHelper(IWebPluginsSelector pluginProvider, IServiceProvider serviceProvider, IOptions<PluginsInitOptions> autoPluginsInit, IOptions<FactoryOptions> factoryOptions, IPermissionScope scopeProvider, ILogger<WebPluginHelper> logger)
+        public WebPluginHelper(IWebPluginsSelector pluginProvider, IServiceProvider serviceProvider, IOptions<PluginsInitOptions> autoPluginsInit, IOptions<FactoryOptions> factoryOptions, IPermissionScope scopeProvider, ISecurityAccessProvider securityAccessProvider, ILogger<WebPluginHelper> logger)
         :this(pluginProvider, serviceProvider, autoPluginsInit, scopeProvider, logger)
         {
+            this.securityAccessProvider = securityAccessProvider;
             this.factoryOptions = factoryOptions.Value;
         }
 
@@ -135,6 +138,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             retVal.AllowFactoryParameter = true;
             retVal.RegisterObject(Global.ServiceProviderName, serviceProvider);
             retVal.RegisterObject(Global.PlugInSelectorName, pluginProvider);
+            retVal.RegisterObject(Global.SecurityAccessProvider, securityAccessProvider);
             string explicitUserScope = null;
             if (useExplicitTenants)
             {
@@ -357,7 +361,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                     logger.LogError($@"Plugin failed to load.
 Error:
 {ex.OutlineException()}
-Section: Plugins", ex, "Plugins");
+Section: Plugins");
                 }
             }
         }

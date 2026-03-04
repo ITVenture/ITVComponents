@@ -254,6 +254,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
 
         public static void ExposeCrossServiceAuthentication(this WebApplication builder,
             string explicitTenantParam,
+            bool registerCallback,
             Action<IEndpointConventionBuilder> configureInit = null,
             Action<IEndpointConventionBuilder> configureCallback = null)
         {
@@ -263,9 +264,12 @@ namespace ITVComponents.WebCoreToolkit.Net.Extensions
             
             var init = builder.MapGet($"{(forExplicitTenants ? $"/{{{explicitTenantParam}:permissionScope}}" : "")}/XSvcAuth/connect/{{externalServiceName:required}}", ExternalOAuthHandler.InitAuthentication)
                 .RequireAuthorization();
-            var callback = builder.MapGet($"/XSvcAuth/callback",ExternalOAuthHandler.Callback ).RequireAuthorization();
+            var callback = registerCallback?builder.MapGet($"/XSvcAuth/callback/{{externalServiceName:required}}",ExternalOAuthHandler.Callback ).RequireAuthorization():null;
             configureInit?.Invoke(init);
-            configureCallback?.Invoke(callback);
+            if (callback != null)
+            {
+                configureCallback?.Invoke(callback);
+            }
         }
     }
 }

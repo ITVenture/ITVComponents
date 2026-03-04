@@ -281,7 +281,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             throw new NotImplementedException();
         }
 
-        public ExternalOAuthConnection GetExternalService(string name)=>decoratedRepo.GetExternalService(name);
+        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false) =>decoratedRepo.GetExternalService(name, decryptSecret);
 
         public void PrepareExternalServiceConnect(OAuthState oAuthState)=>decoratedRepo.PrepareExternalServiceConnect(oAuthState);
 

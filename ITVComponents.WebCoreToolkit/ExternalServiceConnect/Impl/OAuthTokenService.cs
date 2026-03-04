@@ -10,6 +10,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.Threading;
 
 namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
 {
@@ -26,6 +27,11 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
         {
             this.securityRepo = securityRepo;
             this.httpClientFactory = httpClientFactory;
+        }
+
+        public string GetValidAccessToken(string connectionName)
+        {
+            return AsyncHelpers.RunSync(async () => await GetValidAccessTokenAsync(connectionName));
         }
 
         public async Task<string> GetValidAccessTokenAsync(string connectionName)
@@ -104,7 +110,8 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                     ["grant_type"] = "refresh_token",
                     ["refresh_token"] = token.RefreshToken,
                     ["client_id"] = c.ClientId,
-                    ["client_secret"] = c.ClientSecret
+                    ["client_secret"] = c.ClientSecret,
+                    ["scope"] = token.Scope
                 }));
 
             response.EnsureSuccessStatusCode();
@@ -115,10 +122,10 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             {
                 ExpiresAt =
                     DateTimeOffset.UtcNow.AddSeconds(newToken.ExpiresIn),
-                Scope = token.Scope,
-                RefreshToken = token.RefreshToken,
-                AccessToken = token.AccessToken,
-                TokenType = token.TokenType
+                Scope = newToken.Scope,
+                RefreshToken = newToken.RefreshToken,
+                AccessToken = newToken.AccessToken,
+                TokenType = newToken.TokenType
             };
 
             update(dbToken);

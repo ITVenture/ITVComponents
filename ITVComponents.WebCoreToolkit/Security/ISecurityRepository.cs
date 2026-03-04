@@ -311,8 +311,9 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// Gets a configured Connection to an external Service on which the Web-Backend can authenticate using OAuth
         /// </summary>
         /// <param name="name">the name of the externalService</param>
+        /// <param name="decryptSecret"></param>
         /// <returns>the configuration used for the Authentication-Flow</returns>
-        ExternalOAuthConnection GetExternalService(string name);
+        ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false);
 
         /// <summary>
         /// Prepares the Authentication-Flow and stores the state that is used for CSRF-Validation

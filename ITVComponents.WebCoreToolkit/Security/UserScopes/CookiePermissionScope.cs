@@ -46,10 +46,17 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         /// Sets the permissionScope to a new value
         /// </summary>
         /// <param name="newScope">the new scope to apply for the current user</param>
-        protected override void SetPermissionScopePrefix(string newScope)
+        protected override void SetPermissionScopePrefix(string newScope, bool asTemporary)
         {
-            var token = ReadScopeToken(out var opt, out var createdNew, out var secc);
-            UpdateToken(newScope, token, secc, createdNew, true, false);
+            if (!asTemporary)
+            {
+                var token = ReadScopeToken(out var opt, out var createdNew, out var secc);
+                UpdateToken(newScope, token, secc, createdNew, true, false);
+            }
+            else
+            {
+                SetFixedScope(newScope);
+            }
         }
 
         /// <summary>

@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.AspNetCore.Http;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Navigation
@@ -67,15 +68,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Navigati
         where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
         private readonly IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
+        private readonly ISecurityAccessProvider securityAccessProvider;
 
-        public DbNavigationBuilder(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IServiceProvider services, IPermissionScope permissionScope, IHttpContextAccessor httpContext, IOptions<ToolkitPolicyOptions> options) : base(securityContext, services, permissionScope, httpContext, options)
+        public DbNavigationBuilder(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IServiceProvider services, IPermissionScope permissionScope, IHttpContextAccessor httpContext, ISecurityAccessProvider securityAccessProvider, IOptions<ToolkitPolicyOptions> options) : base(securityContext, services, permissionScope, httpContext, options)
         {
             this.securityContext = securityContext;
+            this.securityAccessProvider = securityAccessProvider;
         }
 
-        protected override FullSecurityAccessHelper<TTrustConfig> ConfigureNavigationAccess()
+        protected override IFullSecurityAccessHelper<TTrustConfig> ConfigureNavigationAccess()
         {
-            return FullSecurityAccessHelper<TTrustConfig>.CreateForCaller(securityContext, securityContext, new () { HideGlobals =false, ShowAllTenants=false, IncludeParentTree = true});
+            return securityAccessProvider.CreateForCaller(securityContext, new TTrustConfig { HideGlobals =false, ShowAllTenants=false, IncludeParentTree = true});
         }
 
         protected override IEnumerable<TNavigationMenu> SelectNavigationLevelRaw(int? parent)

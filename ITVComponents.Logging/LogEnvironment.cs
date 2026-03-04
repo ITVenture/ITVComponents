@@ -239,7 +239,7 @@ namespace ITVComponents.Logging
         private static string AutoLogContext(bool forDebug = false)
         {
             var mt = typeof(LogEnvironment);
-            for (var i = !forDebug ? 3 : 1; i <= 7; i++)
+            for (var i = !forDebug ? 3 : 2; i <= 7; i++)
             {
                 var frame = new StackFrame(i, false);
                 var mth = frame.GetMethod();
@@ -278,14 +278,13 @@ namespace ITVComponents.Logging
                 {
                     targets = logTargets.ToArray();
                 }
+                if (string.IsNullOrEmpty(context))
+                {
+                    context = AutoLogContext(isDebugMessage);
+                }
 
                 foreach (var n in targets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
                 {
-                    if (string.IsNullOrEmpty(context))
-                    {
-                        context = AutoLogContext(isDebugMessage);
-                    }
-
                     n.LogEvent(eventText, severity, context);
                 }
 
@@ -301,11 +300,6 @@ namespace ITVComponents.Logging
 
                         foreach (var n in targets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
                         {
-                            if (string.IsNullOrEmpty(context))
-                            {
-                                context = AutoLogContext(isDebugMessage);
-                            }
-
                             n.LogEvent(eventText, severity, context);
                         }
                     }

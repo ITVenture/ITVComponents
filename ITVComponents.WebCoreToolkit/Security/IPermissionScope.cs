@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
+using ITVComponents.WebCoreToolkit.Security.PermissionFlagging;
+using ITVComponents.WebCoreToolkit.Security.ScopeManipulation;
 
 namespace ITVComponents.WebCoreToolkit.Security
 {
     /// <summary>
     /// Enables applications to add context-driven prefixes to user-permissions
     /// </summary>
-    public interface IPermissionScope
+    public interface IPermissionScope:ITrustfulComponent<ScopeManipulationTrustConfig>
     {
         /// <summary>
         /// Gets the permission prefix for the current user in this context
@@ -25,7 +28,8 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// Sets the permissionScope to a new value
         /// </summary>
         /// <param name="newScope">the new scope to apply for the current user</param>
-        void ChangeScope(string newScope);
+        /// <param name="asTemporary">indicates whether to set the scope in the scope-cookie for the current user. When asTemporary is set to true, the cookie will not be set</param>
+        void ChangeScope(string newScope, bool asTemporary);
 
         /// <summary>
         /// Explicitly turns off impersonation on this permission scope instance

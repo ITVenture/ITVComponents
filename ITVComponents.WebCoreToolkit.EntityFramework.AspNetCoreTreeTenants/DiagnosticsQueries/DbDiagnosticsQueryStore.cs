@@ -9,6 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.F
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.DiagnosticsQueries
 {
@@ -19,38 +20,41 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Dia
     where TImpl:AspNetTreeSecurityContext<TImpl>
     {
         private readonly TImpl dbContext;
-        public AspNetDbDiagnosticsQueryStore(TImpl dbContext):base(dbContext)
+        private readonly ISecurityAccessProvider securityAccessProvider;
+
+        public AspNetDbDiagnosticsQueryStore(TImpl dbContext, ISecurityAccessProvider securityAccessProvider):base(dbContext)
         {
             this.dbContext = dbContext;
+            this.securityAccessProvider = securityAccessProvider;
         }
 
         public override DashboardWidgetDefinition GetDashboard(string dashboardName, string targetCulture, int? userDashboardId = null)
         {
-            using var acl = FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(dbContext, dbContext, new () { HideGlobals =false, ShowAllTenants=false, IncludeParentTree = true});
+            using var acl = securityAccessProvider.CreateForCaller(dbContext, new HierarchyTenantContextSecurityTrustConfig() { HideGlobals =false, ShowAllTenants=false, IncludeParentTree = true});
             return base.GetDashboard(dashboardName, targetCulture, userDashboardId);
         }
 
         public override DiagnosticsQueryDefinition GetQuery(string queryName)
         {
-            using var acl = FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(dbContext, dbContext, new() { HideGlobals = false, ShowAllTenants = false, IncludeParentTree = true });
+            using var acl = securityAccessProvider.CreateForCaller(dbContext, new HierarchyTenantContextSecurityTrustConfig { HideGlobals = false, ShowAllTenants = false, IncludeParentTree = true });
             return base.GetQuery(queryName);
         }
 
         public override DashboardWidgetDefinition[] GetUserWidgets(string userName, string targetCulture)
         {
-            using var acl = FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(dbContext, dbContext, new() { HideGlobals = false, ShowAllTenants = false, IncludeParentTree = true });
+            using var acl = securityAccessProvider.CreateForCaller(dbContext, new HierarchyTenantContextSecurityTrustConfig { HideGlobals = false, ShowAllTenants = false, IncludeParentTree = true });
             return base.GetUserWidgets(userName, targetCulture);
         }
 
         public override DashboardWidgetDefinition[] GetWidgetTemplates(string targetCulture)
         {
-            using var acl = FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(dbContext, dbContext, new() { HideGlobals = false, ShowAllTenants = false, IncludeParentTree = true });
+            using var acl = securityAccessProvider.CreateForCaller(dbContext, new HierarchyTenantContextSecurityTrustConfig { HideGlobals = false, ShowAllTenants = false, IncludeParentTree = true });
             return base.GetWidgetTemplates(targetCulture);
         }
 
         public override Task<DashboardWidgetDefinition[]> SetUserWidgets(DashboardWidgetDefinition[] widgets, string userName)
         {
-            using var acl = FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(dbContext, dbContext, new() { HideGlobals = false, ShowAllTenants = false, IncludeParentTree = true });
+            using var acl = securityAccessProvider.CreateForCaller(dbContext, new HierarchyTenantContextSecurityTrustConfig { HideGlobals = false, ShowAllTenants = false, IncludeParentTree = true });
             return base.SetUserWidgets(widgets, userName);
         }
     }

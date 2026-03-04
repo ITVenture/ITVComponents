@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using ITVComponents.Json;
+﻿using ITVComponents.Json;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+//using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Localization;
 //using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
@@ -19,6 +18,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System;
+using System.Collections.Generic;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
 {
@@ -97,6 +98,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
                     o.DefaultCookieValidDays = partOptions.DefaultServerCookieValidity;
                     o.CookieLengthThreshold = partOptions.CookieLengthThreshold;
                 });
+            }
+
+            if (partOptions.UseDefaultSecurityAccessProvider)
+            {
+                services.UseDefaultSecurityAccessProvider();
             }
         }
     }

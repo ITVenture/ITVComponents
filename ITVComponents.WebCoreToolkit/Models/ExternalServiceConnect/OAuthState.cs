@@ -13,5 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
         public DateTimeOffset ExpiresAt { get; set; }
 
         public string CodeVerifier { get; set; } = null!;
+        public bool ScopeSwitchRequired { get; set; }
+        public string ExplicitScope { get; set; }
     }
 }

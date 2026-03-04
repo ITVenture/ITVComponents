@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
+using ITVComponents.WebCoreToolkit.Security.ScopeManipulation;
 
 namespace ITVComponents.WebCoreToolkit.Security
 {
@@ -20,6 +22,8 @@ namespace ITVComponents.WebCoreToolkit.Security
         private object sync = new();
 
         private Stack<string> temporaryScopes = new Stack<string>();
+        private bool allowSetExplicitScope = false;
+
         public string PermissionPrefix
         {
             get
@@ -52,14 +56,19 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// Sets the permissionScope to a new value
         /// </summary>
         /// <param name="newScope">the new scope to apply for the current user</param>
-        public void ChangeScope(string newScope)
+        public void ChangeScope(string newScope, bool asTemporary)
         {
-            if(scopeIsExplicit || scopeIsFixed)
+            if((scopeIsExplicit || scopeIsFixed) && !asTemporary)
             {
                 throw new InvalidOperationException("Scope explicitly set!");
             }
+            
+            if (asTemporary && !allowSetExplicitScope)
+            {
+                throw new InvalidOperationException("Setting temporary scope is currently not allowed for this component!");
+            }
 
-            SetPermissionScopePrefix(newScope);
+            SetPermissionScopePrefix(newScope, asTemporary);
         }
 
         /// <summary>
@@ -108,7 +117,7 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// Enables a derived class to set the value for the current scope in case that it can be changed by a caller
         /// </summary>
         /// <param name="newScope">the new scope value</param>
-        protected abstract void SetPermissionScopePrefix(string newScope);
+        protected abstract void SetPermissionScopePrefix(string newScope, bool asTemporary);
 
         private string GetPermissionPrefix()
         {
@@ -123,6 +132,18 @@ namespace ITVComponents.WebCoreToolkit.Security
             }
 
             return c;
+        }
+
+        Stack<IFullSecurityAccessHelper<ScopeManipulationTrustConfig>> ITrustfulComponent<ScopeManipulationTrustConfig>.securityStateStack { get; } = new Stack<IFullSecurityAccessHelper<ScopeManipulationTrustConfig>>();
+        IDictionary<string, bool> ITrustfulComponent<ScopeManipulationTrustConfig>.ComponentSpecialTrusts { get; }
+        public void ApplyTrust(ScopeManipulationTrustConfig trust)
+        {
+            allowSetExplicitScope = trust.SetExplicitScope;
+        }
+
+        public ScopeManipulationTrustConfig GetReverseTrust(ScopeManipulationTrustConfig forwardTrustConfig)
+        {
+            return new ScopeManipulationTrustConfig { SetExplicitScope = allowSetExplicitScope };
         }
     }
 }

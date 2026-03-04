@@ -296,7 +296,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
             return Permissions.ToArray();
         }
 
-        public ExternalOAuthConnection GetExternalService(string name)
+        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false)
         {
             throw new NotImplementedException();
         }

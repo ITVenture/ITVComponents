@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -17,12 +18,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
         private readonly ISecurityContextWithOnboarding dbContext;
         private readonly UserManager<User> userManager;
         private readonly IStringLocalizer<MyTenantsModel> localizer;
+        private readonly ISecurityAccessProvider securityAccessProvider;
 
-        public MyTenantsModel(ISecurityContextWithOnboarding dbContext, UserManager<User> userManager, IStringLocalizer<MyTenantsModel> localizer)
+        public MyTenantsModel(ISecurityContextWithOnboarding dbContext, UserManager<User> userManager, IStringLocalizer<MyTenantsModel> localizer, ISecurityAccessProvider securityAccessProvider)
         {
             this.dbContext = dbContext;
             this.userManager = userManager;
             this.localizer = localizer;
+            this.securityAccessProvider = securityAccessProvider;
         }
 
         public ParticipatingTenantViewModel[] MyTenants { get; set; }
@@ -75,7 +78,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
         private void AcceptInvitation(Employee tmp, User usr)
         {
 
-            using var a =FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>.CreateForCaller(dbContext, dbContext, new (){ShowAllTenants= true, HideGlobals=true});
+            using var a =securityAccessProvider.CreateForCaller(dbContext, new BaseTenantContextSecurityTrustConfig{ShowAllTenants= true, HideGlobals=true});
             var tenant = tmp.Tenant;
             if (!dbContext.TenantUsers.Any(n => n.UserId == usr.Id))
             {

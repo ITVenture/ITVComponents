@@ -5,14 +5,36 @@ using System.Runtime.CompilerServices;
 using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Interfaces;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers
 {
-    public sealed class FullSecurityAccessHelper<TTrustConfig>:IDisposable where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
+    public sealed class FullSecurityAccessHelper<TTrustConfig>:IDisposable, IFullSecurityAccessHelper<TTrustConfig> where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
     {
         public TTrustConfig DesiredTrust { get; set; }
+        IFullSecurityAccessHelper IFullSecurityAccessHelper.ForwardHelper
+        {
+            get => ForwardHelper;
+        }
+
+        IFullSecurityAccessHelper IFullSecurityAccessHelper.GetReverse(ITrustConfig trustConfig)
+        {
+            return GetReverse((TTrustConfig)trustConfig);
+        }
+
+        public IFullSecurityAccessHelper<TTrustConfig> GetReverse(TTrustConfig reverseTrust)
+        {
+            return new FullSecurityAccessHelper<TTrustConfig>
+            {
+                ForwardHelper = this,
+                DesiredTrust = reverseTrust
+            };
+        }
+
         private readonly ITrustfulComponent<TTrustConfig> trustfulTarget;
-        public FullSecurityAccessHelper<TTrustConfig> ForwardHelper { get; set; }
+        ITrustConfig IFullSecurityAccessHelper.DesiredTrust { get; }
+        public IFullSecurityAccessHelper<TTrustConfig> ForwardHelper { get; set; }
 
         public bool CreatedWithContext { get; }
 
@@ -26,50 +48,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Help
             trustfulTarget = trustfulComponent;
             CreatedWithContext = true;
             trustfulTarget.RegisterSecurityRollback(this);
-        }
-
-        public static FullSecurityAccessHelper<TTrustConfig> CreateForCaller<T>(ICoreSystemContext securityDb,
-            T trustingObject, TTrustConfig desiredTrust = null) where T : ITrustfulComponent<TTrustConfig>
-        {
-            var stack = new StackTrace(new StackFrame(1, false));
-            var type = stack.GetFrame(0).GetMethod().DeclaringType;
-            var trustingType = trustingObject.GetType();
-            if (type.Assembly == trustingType.Assembly)
-            {
-                return new FullSecurityAccessHelper<TTrustConfig>(trustingObject, desiredTrust??new TTrustConfig());
-            }
-
-            return CreateForCallerInternal(securityDb, trustingObject, desiredTrust);
-        }
-
-        private static FullSecurityAccessHelper<TTrustConfig> CreateForCallerInternal<T>(ICoreSystemContext securityDb, T trustingObject, TTrustConfig desiredTrust) where T: ITrustfulComponent<TTrustConfig>
-        {
-            var stack = new StackTrace(new StackFrame(2, false));
-            var type = stack.GetFrame(0).GetMethod().DeclaringType;
-            var trustingType = trustingObject.GetType();
-            var cmp = securityDb.TrustedFullAccessComponents.Local.FirstOrDefault(n =>
-                n.FullQualifiedTypeName == type.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
-            if (cmp == null)
-            {
-                cmp = securityDb.TrustedFullAccessComponents.FirstOrDefault(n =>
-                    n.FullQualifiedTypeName == type.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
-            }
-
-            var configuredTrust = new TTrustConfig();
-            if (cmp != null)
-            {
-                configuredTrust =
-                    JsonHelper.FromJsonString<TTrustConfig>(cmp.TrustLevelConfig, SerializationTypingMode.StaticTyping);
-                
-            }
-            else
-            {
-                LogEnvironment.LogEvent($"No Trust Configuration found for the caller ({type.AssemblyQualifiedName}). No special permissions will be granted.", LogSeverity.Warning, "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.FullSecurityAccessHelper");
-            }
-                //throw new InvalidOperationException($"The caller ({type.AssemblyQualifiedName}) is not trusted for {trustingType.AssemblyQualifiedName}!");
-                TTrustConfig trustConfig =
-                    desiredTrust ?? configuredTrust;
-            return new FullSecurityAccessHelper<TTrustConfig>(trustingObject, trustConfig.ApplySpecialFilters(configuredTrust));
         }
 
         public void Dispose()

@@ -21,6 +21,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -591,9 +592,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
             };
         }
 
-        Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>
+        Stack<IFullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>
             ITrustfulComponent<BaseTenantContextSecurityTrustConfig>.securityStateStack { get; } =
-            new Stack<FullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>();
+            new Stack<IFullSecurityAccessHelper<BaseTenantContextSecurityTrustConfig>>();
 
         [ExpressionPropertyRedirect("CurrentUserName")]
         public string CurrentUserName => userProvider.User?.Identity?.Name;

@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.B
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
@@ -26,11 +27,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTreeTenantSecurit
         where TContext : AspNetTreeSecurityContext<TContext>
     {
         private readonly TContext db;
+        private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly bool isSysAdmin;
 
-        public Roles2RoleController(TContext db, IServiceProvider services)
+        public Roles2RoleController(TContext db, ISecurityAccessProvider securityAccessProvider, IServiceProvider services)
         {
             this.db = db;
+            this.securityAccessProvider = securityAccessProvider;
             if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }))
             {
                 db.HideGlobals = true;
@@ -54,8 +57,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTreeTenantSecurit
                 {
                     IncludeParentTree = true
                 };
-                trustDisposable = FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(
-                    db, db,
+                trustDisposable = securityAccessProvider.CreateForCaller(
+                    db,
                     trust);
             }
 
@@ -106,8 +109,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTreeTenantSecurit
                 {
                     IncludeParentTree = true
                 };
-                trustDisposable = FullSecurityAccessHelper<HierarchyTenantContextSecurityTrustConfig>.CreateForCaller(
-                    db, db,
+                trustDisposable = securityAccessProvider.CreateForCaller(
+                    db,
                     trust);
             }
 

@@ -1,23 +1,25 @@
-﻿using System;
-using ITVComponents.EFRepo.Helpers;
+﻿using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cookies;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Logging;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 //using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.GlobalFiltering;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Settings;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.WebPlugins;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.WebPlugins.Options;
 using ITVComponents.WebCoreToolkit.Logging;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using ITVComponents.WebCoreToolkit.Cookies;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Cookies;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using System;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Security.ComponentTrust;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Extensions
 {
@@ -142,6 +144,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Extensio
             }
 
             return services;
+        }
+
+        public static IServiceCollection UseDefaultSecurityAccessProvider(this IServiceCollection services)
+        {
+            return services.AddScoped<ISecurityAccessProvider, DbSecurityAccessProvider>();
         }
     }
 }

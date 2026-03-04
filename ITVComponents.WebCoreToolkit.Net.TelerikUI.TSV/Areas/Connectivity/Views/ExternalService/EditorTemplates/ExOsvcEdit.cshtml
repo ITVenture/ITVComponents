@@ -1,0 +1,69 @@
+﻿@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
+@using Kendo.Mvc.UI
+@using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel.ExternalOAuthServiceViewModel
+@{
+    var isAdmin = Context.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+}
+<div class="container col">
+    @Html.HiddenFor(model => model.OAuthServiceId)
+    <div class="form-group row">
+
+        @Html.LabelFor(model => model.UniqueConnectionName, TextsAndMessagesHelper.IWCN_ES_UniqueName, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+        <div class="col-sm-3">
+            @Html.Kendo().TextBoxFor(model => model.UniqueConnectionName).HtmlAttributes(new {required="required"})
+            @Html.ValidationMessageFor(model => model.UniqueConnectionName, "", new { @class = "text-danger" })
+        </div>
+        @if (isAdmin)
+        {
+            @Html.LabelFor(model => model.Global, TextsAndMessagesHelper.IWCN_ES_Global, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+            <div class="col-sm-3">
+                @Html.Kendo().SwitchFor(model => model.Global)
+            </div>
+        }
+    </div>
+
+    <div class="form-group row">
+
+        @Html.LabelFor(model => model.AuthorizationEndpoint, TextsAndMessagesHelper.IWCN_ES_AuthEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+        <div class="col-sm-3">
+            @Html.Kendo().TextBoxFor(model => model.AuthorizationEndpoint).HtmlAttributes(new { required = "required" })
+            @Html.ValidationMessageFor(model => model.AuthorizationEndpoint, "", new { @class = "text-danger" })
+        </div>
+
+        @Html.LabelFor(model => model.TokenEndpoint, TextsAndMessagesHelper.IWCN_ES_TokenEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+        <div class="col-sm-3">
+            @Html.Kendo().TextBoxFor(model => model.TokenEndpoint).HtmlAttributes(new { required = "required" })
+            @Html.ValidationMessageFor(model => model.TokenEndpoint, "", new { @class = "text-danger" })
+        </div>
+    </div>
+    <div class="form-group row">
+        @Html.LabelFor(model => model.RevocationEndpoint, TextsAndMessagesHelper.IWCN_ES_RevocationEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+        <div class="col-sm-8">
+            @Html.Kendo().TextBoxFor(model => model.RevocationEndpoint)
+        </div>
+    </div>
+    <div class="form-group row">
+        @Html.LabelFor(model => model.ClientId, TextsAndMessagesHelper.IWCN_ES_ClientId, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+        <div class="col-sm-3">
+            @Html.Kendo().TextBoxFor(model => model.ClientId).HtmlAttributes(new { required = "required" })
+            @Html.ValidationMessageFor(model => model.ClientId, "", new { @class = "text-danger" })
+        </div>
+        
+        @Html.LabelFor(model => model.ClientSecret, TextsAndMessagesHelper.IWCN_ES_ClientSecret, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+        <div class="col-sm-3">
+            @Html.Kendo().TextBoxFor(model => model.ClientSecret).Placeholder(TextsAndMessagesHelper.IWCN_ES_UseEncryptPrefix)
+        </div>
+    </div>
+    <div class="form-group row">
+        @Html.LabelFor(model => model.Scope, TextsAndMessagesHelper.IWCN_ES_Scope, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+        <div class="col-sm-8">
+            @Html.Kendo().TextBoxFor(model => model.Scope).HtmlAttributes(new { required = "required" })
+            @Html.ValidationMessageFor(model => model.Scope, "", new { @class = "text-danger" })
+        </div>
+    </div>
+
+</div>

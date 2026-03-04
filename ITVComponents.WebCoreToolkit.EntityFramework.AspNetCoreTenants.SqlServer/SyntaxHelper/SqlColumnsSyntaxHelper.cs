@@ -25,6 +25,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
             builderOptions.ConfigureComputedColumn<Permission, string>(p => p.PermissionNameUniqueness, "case when TenantId is null then PermissionName else '__T'+convert(varchar(10),TenantId)+'##'+PermissionName end persisted");
             builderOptions.ConfigureComputedColumn<FlatWebPlugin, string>(w => w.PluginNameUniqueness, "case when TenantId is null then UniqueName else '__T'+convert(varchar(10),TenantId)+'##'+UniqueName end persisted");
             builderOptions.ConfigureComputedColumn<FlatWebPluginConstant, string>(c => c.NameUniqueness, "case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted");
+            builderOptions.ConfigureComputedColumn<FlatExternalOAuthService, string>(s => s.CalculatedUniqueServiceName, "case when TenantId is null then 'GLOBAL'+UniqueConnectionName else 'T'+convert(varchar(10),TenantId)+'-'+UniqueConnectionName end persisted");
         }
 
         public static void ConfigureMethods(IContextModelBuilderOptions bld)

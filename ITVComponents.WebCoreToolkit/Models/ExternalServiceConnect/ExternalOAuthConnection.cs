@@ -18,8 +18,7 @@ namespace ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 
         public string Scope { get; set; } = null!;
 
-        public string RedirectUri { get; set; } = null!;
-
         public bool Global { get; set; }
+        public string GlobalUniqueConnectionName { get; set; }
     }
 }

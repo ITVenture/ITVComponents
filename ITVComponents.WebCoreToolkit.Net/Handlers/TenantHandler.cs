@@ -43,7 +43,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                     .SelectMany(n => n).Distinct(new ScopeInfoComparer()).ToArray();
                 if (eligibleTenants.Any(n => n.ScopeName.ToLower() == formData.NewTenant.ToLower()))
                 {
-                    scopeProvider.ChangeScope(formData.NewTenant);
+                    scopeProvider.ChangeScope(formData.NewTenant, false);
                     return Results.Ok();
                 }
 
