@@ -324,4 +324,10 @@
   <data name="IWCN_Titles_Sequences" xml:space="preserve">
     <value>Sequences</value>
   </data>
+  <data name="IWCN_General_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="IWCN_TST_ParameterName" xml:space="preserve">
+    <value>Parametername</value>
+  </data>
 </root>

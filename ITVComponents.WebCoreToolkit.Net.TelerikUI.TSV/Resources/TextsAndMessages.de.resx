@@ -246,9 +246,6 @@
   <data name="IWCN_Titles_TutorialVideos" xml:space="preserve">
     <value>Tutorials</value>
   </data>
-  <data name="IWCN_General_Cancel" xml:space="preserve">
-    <value>Abbrechen</value>
-  </data>
   <data name="IWCN_Tutorials_SortableName" xml:space="preserve">
     <value>Name für Sortierung</value>
   </data>
@@ -326,5 +323,11 @@
   </data>
   <data name="IWCN_Titles_Sequences" xml:space="preserve">
     <value>Sequenzen</value>
+  </data>
+  <data name="IWCN_General_Cancel" xml:space="preserve">
+    <value>Abbrechen</value>
+  </data>
+  <data name="IWCN_TST_ParameterName" xml:space="preserve">
+    <value>Parameter-Name</value>
   </data>
 </root>

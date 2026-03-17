@@ -189,11 +189,8 @@
   <data name="IWCN_TST_JsonParam" xml:space="preserve">
     <value>JSON</value>
   </data>
-  <data name="IWCN_TST_ParameterName" xml:space="preserve">
+  <data name="IWCN_General_ParameterName" xml:space="preserve">
     <value>Nom du paramètre</value>
-  </data>
-  <data name="IWCN_DQP_Type" xml:space="preserve">
-    <value>Type</value>
   </data>
   <data name="IWCN_Titles_GlobalSettings" xml:space="preserve">
     <value>paramètres globaux</value>
@@ -203,6 +200,9 @@
   </data>
   <data name="IWCN_DQP_DateFormat" xml:space="preserve">
     <value>Format (pour la date uniquement)</value>
+  </data>
+  <data name="IWCN_DQP_Type" xml:space="preserve">
+    <value>Type</value>
   </data>
   <data name="IWCN_Titles_PlugInConstants" xml:space="preserve">
     <value>Constantes</value>
@@ -245,9 +245,6 @@
   </data>
   <data name="IWCN_Titles_TutorialVideos" xml:space="preserve">
     <value>Tutoriels</value>
-  </data>
-  <data name="IWCN_General_Cancel" xml:space="preserve">
-    <value>Anuller</value>
   </data>
   <data name="IWCN_Tutorials_SortableName" xml:space="preserve">
     <value>Nom de tri</value>
@@ -326,5 +323,11 @@
   </data>
   <data name="IWCN_Titles_Sequences" xml:space="preserve">
     <value>Sequences</value>
+  </data>
+  <data name="IWCN_General_Cancel" xml:space="preserve">
+    <value>Anuller</value>
+  </data>
+  <data name="IWCN_TST_ParameterName" xml:space="preserve">
+    <value>Nom du paramètre</value>
   </data>
 </root>
