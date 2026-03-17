@@ -768,7 +768,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 select new Permission { PermissionName = p.PermissionName }).ToArray();
         }
 
-        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false)
+        public ExternalServiceConnection GetExternalService(string name, bool decryptSecret = false)
         {
             var tmp = GetExternalOAuthService(name, out _, out _, out var tenantName, true).Copy();
             if (decryptSecret && !string.IsNullOrEmpty(tmp.ClientSecret))
@@ -889,7 +889,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             securityContext.SaveChanges();
         }
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
         {
             using var tmpSecurity = securityAccessProvider.CreateForCaller(securityContext,
                 new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
@@ -988,7 +988,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         protected abstract TTrustConfig ConfigureTrustConfigImpl(TTrustConfig trustConfig, string callingMethod);
 
-        protected virtual ExternalOAuthConnection GetExternalOAuthService(string name, out int? externalOAuthServiceId, out int? tenantId, out string? tenantName, bool useFullAccess)
+        protected virtual ExternalServiceConnection GetExternalOAuthService(string name, out int? externalOAuthServiceId, out int? tenantId, out string? tenantName, bool useFullAccess)
         {
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && ServiceBuffered(name, out var bufferInfo))
             {
@@ -1173,7 +1173,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                 });
         }
 
-        private ExternalOAuthConnection TryRegisterService(string uniqueName, TExternalOAuthService serviceData)
+        private ExternalServiceConnection TryRegisterService(string uniqueName, TExternalOAuthService serviceData)
         {
             var dc = bufferedServices.GetOrAdd(securityContext.CurrentTenantName,
                 n => new ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());

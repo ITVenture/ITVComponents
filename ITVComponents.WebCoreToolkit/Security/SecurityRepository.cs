@@ -173,7 +173,7 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         public string EncryptJsonObject(object value, string permissionScopeName) => Current.EncryptJsonObject(value, permissionScopeName);
         public Permission[] GetKnownPermissions(string permissionScope) => Current.GetKnownPermissions(permissionScope);
-        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false) => Current.GetExternalService(name, decryptSecret);
+        public ExternalServiceConnection GetExternalService(string name, bool decryptSecret = false) => Current.GetExternalService(name, decryptSecret);
 
         public void PrepareExternalServiceConnect(OAuthState oAuthState) =>
             Current.PrepareExternalServiceConnect(oAuthState);
@@ -184,7 +184,7 @@ namespace ITVComponents.WebCoreToolkit.Security
         public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token) =>
             Current.StoreExternalServiceToken(connectionName, token);
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken) =>
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken) =>
             Current.GetBufferedToken(connectionName, forRevoke, out connectionInfo, out updateToken);
 
         private void OnDisposed()

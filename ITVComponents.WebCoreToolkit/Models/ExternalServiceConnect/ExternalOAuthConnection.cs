@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 {
-    public class ExternalOAuthConnection
+    public class ExternalServiceConnection
     {
         public string UniqueConnectionName { get; set; }
 
@@ -20,5 +20,15 @@ namespace ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 
         public bool Global { get; set; }
         public string GlobalUniqueConnectionName { get; set; }
+
+        public ExternalServiceAuthenticationType AuthenticationType { get; set; }
+    }
+
+    public enum ExternalServiceAuthenticationType
+    {
+        OAuth,
+        Basic,
+        ApiKey,
+        BearerToken
     }
 }

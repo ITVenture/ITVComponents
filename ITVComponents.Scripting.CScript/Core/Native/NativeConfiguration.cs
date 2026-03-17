@@ -53,6 +53,8 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             scripts.Clear();
             expressionBuilders.Clear();
             AssemblyLoader.Dispose();
+            usings.Clear();
+            references.Clear();
             AssemblyLoader = new InteractiveAssemblyLoader();
             isDirty = false;
             containsCode = false;

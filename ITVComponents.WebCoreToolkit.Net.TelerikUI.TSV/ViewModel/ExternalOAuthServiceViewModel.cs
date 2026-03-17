@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
 {
@@ -22,5 +23,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewMod
         public bool Global { get; set; }
         public bool Editable { get; set; }
         public bool IsConnected { get; set; }
+
+        public  ExternalServiceAuthenticationType AuthenticationType { get; set; }
     }
 }

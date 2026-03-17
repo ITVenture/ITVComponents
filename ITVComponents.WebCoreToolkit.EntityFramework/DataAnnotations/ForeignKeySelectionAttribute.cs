@@ -1,9 +1,10 @@
-﻿using System;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.Help.QueryExtenders;
+using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.EntityFramework.Help.QueryExtenders;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
 {
@@ -24,18 +25,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
                     nameof(selectionHelperType));
             }
 
-            if (selectionHelperType.GetConstructor(Type.EmptyTypes) == null)
+            /*if (selectionHelperType.GetConstructor(Type.EmptyTypes) == null)
             {
                 throw new ArgumentException("Type must have a default-constructor!",
                     nameof(selectionHelperType));
-            }
+            }*/
 
             this.selectionHelperType = selectionHelperType;
         }
 
-        public IForeignKeySelectorHelper CreateTypeInstance(Type finalType)
+        public IForeignKeySelectorHelper CreateTypeInstance(Type finalType, IServiceProvider services)
         {
             var t = GetAccurateType(finalType, selectionHelperType);
+            if (services != null)
+            {
+                return ActivatorUtilities.CreateInstance(services, t) as IForeignKeySelectorHelper;
+            }
+
             var ct = t.GetConstructor(Type.EmptyTypes);
             var ret = ct.Invoke(Array.Empty<object>());
             return (IForeignKeySelectorHelper)ret;

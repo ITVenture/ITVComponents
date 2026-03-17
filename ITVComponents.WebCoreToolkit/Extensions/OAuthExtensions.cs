@@ -9,7 +9,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
 {
     public static class OAuthExtensions
     {
-        public static string RedirectUri(this ExternalOAuthConnection connection)
+        public static string RedirectUri(this ExternalServiceConnection connection)
         {
             return $"/XSvcAuth/callback/{Uri.EscapeDataString(connection.GlobalUniqueConnectionName)}";
         }

@@ -33,6 +33,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
 
         public bool Global { get; set; }
 
+        public ExternalServiceAuthenticationType AuthenticationType { get; set; }
+
         [DatabaseGenerated(DatabaseGeneratedOption.Computed), MaxLength(1024), Required]
         public string CalculatedUniqueServiceName { get; set; }
 

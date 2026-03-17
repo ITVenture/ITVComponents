@@ -10,7 +10,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
     public class ExternalOAuthServiceBufferInfo
     {
         public int? ExternalOAuthServiceId { get; set; }
-        public ExternalOAuthConnection Service { get; set; }
+        public ExternalServiceConnection Service { get; set; }
         public DateTime Created { get; set; }
         public int? TenantId { get; set; }
         public string TenantName { get; set; }

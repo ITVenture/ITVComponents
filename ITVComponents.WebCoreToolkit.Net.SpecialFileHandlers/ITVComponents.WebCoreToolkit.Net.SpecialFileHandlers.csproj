@@ -1,18 +1,19 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
-  <PropertyGroup>
-    <LangVersion>9</LangVersion>
-    <TargetFrameworks>net8.0</TargetFrameworks>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>4.0.0-PRE263</Version>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
-    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+	<!--Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0"-->
+	<PropertyGroup>
+			<LangVersion>9</LangVersion>
+		<TargetFrameworks>net8.0</TargetFrameworks>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<Version>4.0.0-PRE268</Version>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+		<!--RazorCompileOnBuild>true</RazorCompileOnBuild>
     <RazorCompileOnPublish>true</RazorCompileOnPublish>
-    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
-  </PropertyGroup>
-  <ItemGroup>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc-->
+	</PropertyGroup>
+	<!--ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
+  </ItemGroup-->
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" />
   </Target>

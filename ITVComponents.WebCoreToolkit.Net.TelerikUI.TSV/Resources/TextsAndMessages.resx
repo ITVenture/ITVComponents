@@ -396,4 +396,7 @@
   <data name="IWCN_ES_DetailsTitle_Test" xml:space="preserve">
     <value>Test Connection</value>
   </data>
+  <data name="IWCN_ES_AuthType" xml:space="preserve">
+    <value>Authentication Type</value>
+  </data>
 </root>

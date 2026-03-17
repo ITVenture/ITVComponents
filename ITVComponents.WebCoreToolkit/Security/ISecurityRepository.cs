@@ -313,7 +313,7 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <param name="name">the name of the externalService</param>
         /// <param name="decryptSecret"></param>
         /// <returns>the configuration used for the Authentication-Flow</returns>
-        ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false);
+        ExternalServiceConnection GetExternalService(string name, bool decryptSecret = false);
 
         /// <summary>
         /// Prepares the Authentication-Flow and stores the state that is used for CSRF-Validation
@@ -324,6 +324,6 @@ namespace ITVComponents.WebCoreToolkit.Security
         OAuthState GetOAuthRequest(string connectionName, string state);
         void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token);
 
-        TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken);
+        TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken);
     }
 }

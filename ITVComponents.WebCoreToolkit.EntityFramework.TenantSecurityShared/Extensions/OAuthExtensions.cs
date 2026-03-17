@@ -10,13 +10,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
 {
     public static class OAuthExtensions
     {
-        public static ExternalOAuthConnection ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+        public static ExternalServiceConnection ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
             this TExternalOAuthService definition, bool clientSecretAsIndicators = false) 
             where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin> 
             where TTenant : Tenant where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin> 
             where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
         {
-            return new ExternalOAuthConnection
+            return new ExternalServiceConnection
             {
                 AuthorizationEndpoint = definition.AuthorizationEndpoint,
                 ClientId = definition.ClientId,
@@ -28,7 +28,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
                 RevocationEndpoint = definition.RevocationEndpoint,
                 Scope = definition.Scope,
                 TokenEndpoint = definition.TokenEndpoint,
-                UniqueConnectionName = definition.UniqueConnectionName
+                UniqueConnectionName = definition.UniqueConnectionName,
+                AuthenticationType = definition.AuthenticationType
             };
         }
     }

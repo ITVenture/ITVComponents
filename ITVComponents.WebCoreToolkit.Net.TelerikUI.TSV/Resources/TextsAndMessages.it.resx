@@ -396,4 +396,7 @@
   <data name="IWCN_ES_DetailsTitle_Test" xml:space="preserve">
     <value>Verifica connessione</value>
   </data>
+  <data name="IWCN_ES_AuthType" xml:space="preserve">
+    <value>Tipo di autenticazione</value>
+  </data>
 </root>

@@ -296,7 +296,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
             return Permissions.ToArray();
         }
 
-        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false)
+        public ExternalServiceConnection GetExternalService(string name, bool decryptSecret = false)
         {
             throw new NotImplementedException();
         }
@@ -316,7 +316,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
             throw new NotImplementedException();
         }
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
         {
             throw new NotImplementedException();
         }

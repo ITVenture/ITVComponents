@@ -1,15 +1,49 @@
 ﻿(function($){
-    $.fn.loadPartial = function(replace, whenDone, extendViewSource) {
+    $.fn.loadPartial = function () {
+        var options = null;
+        if (arguments.length == 1 && typeof (arguments[0]) === "object") {
+            options = arguments[0];
+        }
+        else {
+            options = {
+                replace: false, whenDone: null, extendViewSource: null
+            };
+
+            if (arguments.length > 0 && typeof (arguments[0]) === "boolean") {
+                options.replace = arguments[0];
+            }
+
+            if (arguments.length > 1 && typeof (arguments[1]) === "function") {
+                options.whenDone = arguments[1];
+            }
+
+            if (arguments.length > 2 && typeof (arguments[2]) === "function") {
+                options.extendViewSource = arguments[2];
+            }
+        }
+
+        if (typeof (options.extendViewSource) === "undefined") {
+            options.extendViewSource = null;
+        }
+
+        if (typeof (options.whenDone) === "undefined") {
+            options.whenDone = null;
+        }
+
+        if (typeof (options.replace) === "undefined") {
+            options.replace = false;
+        }
+
         $.each(this,
             function(index, item) {
                 var that = $(item);
                 var plug = {
                     target: that,
                     url: that.attr("viewSrc"),
-                    extendViewSource: extendViewSource,
+                    extendViewSource: options.extendViewSource,
                     load: function () {
                         var url = plug.url;
-                        var useReplace = replace;
+                        var useReplace = options.replace;
                         if (typeof (plug.extendViewSource) === "function") {
                             url = plug.extendViewSource.apply(plug, [plug.url]);
                         }
@@ -23,19 +57,29 @@
                         }
 
                         if (url != null && url != "") {
+                            var dtype = "text";
+                            if (typeof (options.dataType) === "string") {
+                                dtype = options.dataType;
+                            }
+
                             var request = {
                                 url: ITVenture.Helpers.ResolveUrl(url),
                                 type: "GET",
-                                dataType: "text",
+                                dataType: dtype,
                                 success: function (data) {
-                                    if (useReplace) {
-                                        plug.target.replaceWith(data);
-                                    } else {
-                                        plug.target.html(data);
+                                    var proto = data;
+                                    if (typeof (options.template) === "function") {
+                                        proto = options.template.apply(plug, [data]);
                                     }
 
-                                    if (typeof (whenDone) === "function") {
-                                        whenDone();
+                                    if (useReplace) {
+                                        plug.target.replaceWith(proto);
+                                    } else {
+                                        plug.target.html(proto);
+                                    }
+
+                                    if (typeof (options.whenDone) === "function") {
+                                        options.whenDone();
                                     }
                                 },
                                 fail: function (data) {

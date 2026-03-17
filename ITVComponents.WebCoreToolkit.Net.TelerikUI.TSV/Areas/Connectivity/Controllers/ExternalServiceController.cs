@@ -17,6 +17,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.ExternalServiceConnect;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources;
@@ -173,7 +174,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
                     var tmp = n.Connection.ToViewModel<TExternalOAuthService, ExternalOAuthServiceViewModel>();
                     tmp.Editable = false;
                     tmp.ClientSecret = null;
-                    tmp.IsConnected = n.Login != null;
+                    tmp.IsConnected = n.Login != null || n.Connection.AuthenticationType != ExternalServiceAuthenticationType.OAuth;
                     return tmp;
                 }));
         }

@@ -32,32 +32,37 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             [FromServices] ISecurityRepository securityRepo)
         {
             var connection = securityRepo.GetExternalService(name);
-            var baseUrl = $"{context.Request.Scheme}://{context.Request.Host.Value}{context.Request.PathBase}";
-            var bt32 = new byte[32];
-            RandomNumberGenerator.Create().GetBytes(bt32);
-            var state = string.Join("", from t in bt32 select t.ToString("X2"));
-            var verifier = PkceHelper.CreateCodeVerifier();
-            var challenge = PkceHelper.CreateCodeChallenge(verifier);
-
-            securityRepo.PrepareExternalServiceConnect(new OAuthState
+            if (connection.AuthenticationType == ExternalServiceAuthenticationType.OAuth)
             {
-                State = state,
-                ConnectionName = name,
-                CodeVerifier = verifier,
-                ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
-            });
+                var baseUrl = $"{context.Request.Scheme}://{context.Request.Host.Value}{context.Request.PathBase}";
+                var bt32 = new byte[32];
+                RandomNumberGenerator.Create().GetBytes(bt32);
+                var state = string.Join("", from t in bt32 select t.ToString("X2"));
+                var verifier = PkceHelper.CreateCodeVerifier();
+                var challenge = PkceHelper.CreateCodeChallenge(verifier);
 
-            var url =
-                $"{connection.AuthorizationEndpoint}?" +
-                $"response_type=code&" +
-                $"client_id={Uri.EscapeDataString(connection.ClientId)}&" +
-                $"redirect_uri={Uri.EscapeDataString($"{baseUrl}{connection.RedirectUri()}")}&" +
-                $"scope={Uri.EscapeDataString(connection.Scope)}&" +
-                $"state={state}&"+
-                $"code_challenge={challenge}&" +
-                "code_challenge_method=S256";
+                securityRepo.PrepareExternalServiceConnect(new OAuthState
+                {
+                    State = state,
+                    ConnectionName = name,
+                    CodeVerifier = verifier,
+                    ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
+                });
 
-            return Results.Redirect(url);
+                var url =
+                    $"{connection.AuthorizationEndpoint}?" +
+                    $"response_type=code&" +
+                    $"client_id={Uri.EscapeDataString(connection.ClientId)}&" +
+                    $"redirect_uri={Uri.EscapeDataString($"{baseUrl}{connection.RedirectUri()}")}&" +
+                    $"scope={Uri.EscapeDataString(connection.Scope)}&" +
+                    $"state={state}&" +
+                    $"code_challenge={challenge}&" +
+                    "code_challenge_method=S256";
+
+                return Results.Redirect(url);
+            }
+
+            return Results.BadRequest($"Not available for {connection.AuthenticationType}.");
         }
 
         /// <summary>

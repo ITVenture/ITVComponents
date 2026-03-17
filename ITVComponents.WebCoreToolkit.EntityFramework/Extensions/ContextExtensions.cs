@@ -30,6 +30,7 @@ using System.Reflection;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 {
@@ -98,7 +99,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 IForeignKeySelectorHelper selector = null;
                 if (fkAttr is ForeignKeySelectionAttribute fsa)
                 {
-                    selector = fsa.CreateTypeInstance(dbSet.EntityType);
+                    selector = fsa.CreateTypeInstance(dbSet.EntityType, services);
                 }
 
                 var keyProp = GetKey(context, dbSet.EntityType, out var isKeyless);

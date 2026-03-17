@@ -769,13 +769,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             return (from p in securityContext.Permissions where p.TenantId == null || p.Tenant.TenantName == permissionScope select new Permission{PermissionName = p.PermissionName}).ToArray();
         }
 
-        public ExternalOAuthConnection GetExternalService(string name, bool decryptSecret = false)
+        public ExternalServiceConnection GetExternalService(string name, bool decryptSecret = false)
         {
             var svc= GetExternalServiceInternal(securityContext, name);
             if (svc!= null)
             {
                 var retVal = ToExternalDefinition(svc, decryptSecret);
-                if (decryptSecret && !string.IsNullOrEmpty(retVal.ClientSecret))
+                /*if (decryptSecret && !string.IsNullOrEmpty(retVal.ClientSecret))
                 {
                     if (retVal.Global)
                     {
@@ -785,7 +785,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                     {
                         retVal.ClientSecret = Decrypt(retVal.ClientSecret, securityContext.CurrentTenantName);
                     }
-                }
+                }*/
 
                 return retVal;
             }
@@ -884,7 +884,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             securityContext.SaveChanges();
         }
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalOAuthConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
         {
             var connection = GetExternalServiceInternal(securityContext, connectionName);
             if (connection != null)
@@ -964,9 +964,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
         protected abstract TExternalOAuthService GetExternalServiceInternal(IBaseTenantContext<TTenant,TWebPlugin,TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context,string name);
 
-        private ExternalOAuthConnection ToExternalDefinition(TExternalOAuthService svc, bool decryptSecret)
+        private ExternalServiceConnection ToExternalDefinition(TExternalOAuthService svc, bool decryptSecret)
         {
-            var retVal = new ExternalOAuthConnection
+            var retVal = new ExternalServiceConnection
             {
                 AuthorizationEndpoint = svc.AuthorizationEndpoint,
                 ClientId = svc.ClientId,
@@ -974,7 +974,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                 Scope = svc.Scope,
                 UniqueConnectionName = svc.UniqueConnectionName,
                 TokenEndpoint = svc.TokenEndpoint,
-                RevocationEndpoint = svc.RevocationEndpoint
+                RevocationEndpoint = svc.RevocationEndpoint,
+                AuthenticationType = svc.AuthenticationType
             };
             if (!string.IsNullOrEmpty(retVal.ClientSecret) && decryptSecret)
             {

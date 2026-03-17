@@ -59,7 +59,7 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
         {
 
             TranslatedTokenResponse token = null;
-            ExternalOAuthConnection svc = null; 
+            ExternalServiceConnection svc = null; 
             try
             {
                 token = securityRepo.GetBufferedToken(connectionName, true, out svc, out var update);
@@ -93,7 +93,7 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             // => keine harte Fehlerbehandlung nötig
         }
 
-        private async Task RefreshAsync(TranslatedTokenResponse token, ExternalOAuthConnection svc, Action<TranslatedTokenResponse> update)
+        private async Task RefreshAsync(TranslatedTokenResponse token, ExternalServiceConnection svc, Action<TranslatedTokenResponse> update)
         {
             var c = svc;
             if (token.RefreshToken == null)
