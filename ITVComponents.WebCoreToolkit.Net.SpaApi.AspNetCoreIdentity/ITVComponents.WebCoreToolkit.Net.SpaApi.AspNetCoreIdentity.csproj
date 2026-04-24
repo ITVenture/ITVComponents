@@ -2,16 +2,16 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>4.0.0-PRE268</Version>
+    <Version>4.0.0-PRE295</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
-    <LangVersion>11</LangVersion>
+    <LangVersion>12.0</LangVersion>
   </PropertyGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" />
   </Target>
   <Target Name="MyPreCompileTarget" BeforeTargets="Build">
-    <Exec Command="npx webpack" />
+    <!--Exec Command="npx webpack" /-->
   </Target>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.SpaApi\ITVComponents.WebCoreToolkit.Net.SpaApi.csproj" />
@@ -19,6 +19,12 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Common" version="4.9.2" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="4.9.2" />
-	<PackageReference Include="Microsoft.Extensions.Identity.Stores" version="8.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" version="8.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Resources\Handlers\LoginHandler.resx">
+      <Generator>
+      </Generator>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>
