@@ -86,6 +86,11 @@ namespace ITVComponents.DataAccess.Models
         public string ValueResolveExpression { get; set; }
 
         /// <summary>
+        /// Gets or sets a user-defined Expression to get some information about the underlying value. This is used for debugging purposes to get some more information about the value that is mapped to a column. Provide an expression that takes a Parameter "value", which will be the database-value of the provided Column-Name.
+        /// </summary>
+        public string DebugExpression { get; set; }
+
+        /// <summary>
         /// Gets map rules for a specific type
         /// </summary>
         /// <param name="targetType">the targettype for which to extract mapping rules</param>

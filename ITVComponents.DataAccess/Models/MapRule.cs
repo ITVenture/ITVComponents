@@ -53,12 +53,16 @@ namespace ITVComponents.DataAccess.Models
         /// <summary>
         /// Gets a value indicating whether to use a ValueResolving Expression for this MapRule
         /// </summary>
-        public bool UseExpression { get { return dataColumn.ValueResolveExpression != null; } }
+        public bool UseExpression => dataColumn.ValueResolveExpression != null;
 
         /// <summary>
         /// Gets an Expression that is used to resolve the Value of this MapRule. The Expression will provide e variable called "value" that can be used to resolve the requested value
         /// </summary>
         public string ValueResolveExpression { get { return dataColumn.ValueResolveExpression; } }
+
+        public bool UseDebugExpression => dataColumn.DebugExpression != null;
+
+        public string DebugExpression => dataColumn.DebugExpression;
 
         /// <summary>
         /// Gets or sets the value of this MapRule for a specific object

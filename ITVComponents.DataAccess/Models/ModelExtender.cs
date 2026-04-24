@@ -41,7 +41,7 @@ namespace ITVComponents.DataAccess.Models
                         }
                         else
                         {
-                            r[retVal] = ProcessResolveExpression(r.ValueResolveExpression, val);
+                            r[retVal] = ProcessResolveExpression(r.ValueResolveExpression, val, r.DebugExpression);
                         }
                     }
                     catch (Exception ex)
@@ -83,7 +83,7 @@ namespace ITVComponents.DataAccess.Models
                         }
                         else
                         {
-                            r[retVal] = ProcessResolveExpression(r.ValueResolveExpression, val);
+                            r[retVal] = ProcessResolveExpression(r.ValueResolveExpression, val, r.DebugExpression);
                         }
                     }
                     catch (Exception ex)
@@ -183,7 +183,7 @@ namespace ITVComponents.DataAccess.Models
                         }
                         else
                         {
-                            r[target] = ProcessResolveExpression(r.ValueResolveExpression, val);
+                            r[target] = ProcessResolveExpression(r.ValueResolveExpression, val, r.DebugExpression);
                         }
                     }
                     catch(Exception ex)
@@ -241,7 +241,7 @@ namespace ITVComponents.DataAccess.Models
                         }
                         else
                         {
-                            r[target] = ProcessResolveExpression(r.ValueResolveExpression, val);
+                            r[target] = ProcessResolveExpression(r.ValueResolveExpression, val, r.DebugExpression);
                         }
                     }
                     catch (Exception ex)
@@ -328,9 +328,24 @@ namespace ITVComponents.DataAccess.Models
         /// <param name="expression">the expression that was provided for the mapping</param>
         /// <param name="value">the value of the provided columnname</param>
         /// <returns>the result of the Expression</returns>
-        private static object ProcessResolveExpression(string expression, object value)
+        private static object ProcessResolveExpression(string expression, object value, string debugExpression)
         {
             Dictionary<string, object> variables = new Dictionary<string, object> {{"value", value}};
+            if (!string.IsNullOrEmpty(debugExpression))
+            {
+                try
+                {
+                    var tmpVl = ExpressionParser.Parse(expression, variables,
+                        a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
+                    LogEnvironment.LogDebugEvent($"Processing Expression: {tmpVl} with value={value}",
+                        LogSeverity.Report);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogDebugEvent($"Failed to execute {debugExpression} with (value = {value}). {ex.OutlineException()}",LogSeverity.Error);
+                }
+            }
+
             var retVal = ExpressionParser.Parse(expression, variables, a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
             return retVal;
         }
