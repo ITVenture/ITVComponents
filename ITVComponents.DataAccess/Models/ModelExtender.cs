@@ -335,7 +335,7 @@ namespace ITVComponents.DataAccess.Models
             {
                 try
                 {
-                    var tmpVl = ExpressionParser.Parse(expression, variables,
+                    var tmpVl = ExpressionParser.Parse(debugExpression, variables,
                         a => { DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession); });
                     LogEnvironment.LogDebugEvent($"Processing Expression: {tmpVl} with value={value}",
                         LogSeverity.Report);
