@@ -184,8 +184,8 @@ namespace ITVComponents.WebCoreToolkit.Security
         public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token) =>
             Current.StoreExternalServiceToken(connectionName, token);
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken) =>
-            Current.GetBufferedToken(connectionName, forRevoke, out connectionInfo, out updateToken);
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, bool throwIfNull, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken) =>
+            Current.GetBufferedToken(connectionName, forRevoke, throwIfNull, out connectionInfo, out updateToken);
 
         private void OnDisposed()
         {

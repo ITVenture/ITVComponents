@@ -1,4 +1,5 @@
 ﻿@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 @model ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect.ExternalServiceConnection
 
 <table class="k-grid">
@@ -15,42 +16,84 @@
         </td>
         <td>@Model.UniqueConnectionName</td>
     </tr>
+    @if (Model.AuthenticationType is ExternalServiceAuthenticationType.OAuthAuthorizationFlow or ExternalServiceAuthenticationType.OAuthClientCredentialsFlow or ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow)
+    {
+        <tr>
+            <td>
+                AuthorizationEndpoint
+            </td>
+            <td>@Model.AuthorizationEndpoint</td>
+        </tr>
+        <tr>
+            <td>
+                TokenEndpoint
+            </td>
+            <td>@Model.TokenEndpoint</td>
+        </tr>
+        <tr>
+            <td>
+                RevocationEndpoint
+            </td>
+            <td>@Model.RevocationEndpoint</td>
+        </tr>
+        <tr>
+            <td>
+                ClientId
+            </td>
+            <td>@Model.ClientId</td>
+        </tr>
+        <tr>
+            <td>
+                ClientSecret
+            </td>
+            <td>@Model.ClientSecret</td>
+        </tr>
+        <tr>
+            <td>
+                Scope
+            </td>
+            <td>@Model.Scope</td>
+        </tr>
+    }
+    else if (Model.AuthenticationType == ExternalServiceAuthenticationType.ApiKey)
+    {
+        <tr>
+            <td>
+                ApiKeyHeader
+            </td>
+            <td>@Model.ClientId</td>
+        </tr>
+        <tr>
+            <td>
+                ApiKeyValue
+            </td>
+            <td>@Model.ClientSecret</td>
+        </tr>
+    }
+    else if (Model.AuthenticationType == ExternalServiceAuthenticationType.Basic)
+    {
+        <tr>
+            <td>
+                UserName
+            </td>
+            <td>@Model.ClientId</td>
+        </tr>
+        <tr>
+            <td>
+                Password
+            </td>
+            <td>@Model.ClientSecret</td>
+        </tr>
+    }
+    else if (Model.AuthenticationType == ExternalServiceAuthenticationType.BearerToken)
+    {
     <tr>
         <td>
-            AuthorizationEndpoint
-        </td>
-        <td>@Model.AuthorizationEndpoint</td>
-    </tr>
-    <tr>
-        <td>
-            TokenEndpoint
-        </td>
-        <td>@Model.TokenEndpoint</td>
-    </tr>
-    <tr>
-        <td>
-            RevocationEndpoint
-        </td>
-        <td>@Model.RevocationEndpoint</td>
-    </tr>
-    <tr>
-        <td>
-            ClientId
-        </td>
-        <td>@Model.ClientId</td>
-    </tr>
-    <tr>
-        <td>
-            ClientSecret
+            TokenValue
         </td>
         <td>@Model.ClientSecret</td>
     </tr>
-    <tr>
-        <td>
-            Scope
-        </td>
-        <td>@Model.Scope</td>
-    </tr>
+    }
     <tr>
         <td>
             Global

@@ -211,6 +211,6 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token) =>
             parentRepo.StoreExternalServiceToken(connectionName, token);
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)=>parentRepo.GetBufferedToken(connectionName, forRevoke, out connectionInfo, out updateToken);
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, bool throwIfNull, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)=>parentRepo.GetBufferedToken(connectionName, forRevoke, throwIfNull, out connectionInfo, out updateToken);
     }
 }

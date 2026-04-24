@@ -8,7 +8,7 @@ using ITVComponents.StateMachine.Models;
 
 namespace ITVComponents.StateMachine.BaseTypes
 {
-    public abstract class Status<TStatus, TStatusTarget> where TStatusTarget : class
+    public abstract class Status<TStatus, TStatusTarget>: IDisposable where TStatusTarget : class
     where TStatus: Status<TStatus,TStatusTarget>
     {
         private TransducerMachine<TStatus, TStatusTarget> machine;
@@ -72,6 +72,15 @@ namespace ITVComponents.StateMachine.BaseTypes
             }
 
             return retValRaw[0];
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
         }
     }
 }

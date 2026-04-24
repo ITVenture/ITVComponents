@@ -316,7 +316,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
             throw new NotImplementedException();
         }
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, bool throwIfNull, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
         {
             throw new NotImplementedException();
         }

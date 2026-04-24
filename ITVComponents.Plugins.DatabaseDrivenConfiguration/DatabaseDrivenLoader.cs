@@ -241,6 +241,30 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
             return null;
         }
 
+        public IEnumerable<PluginConfigurationItem> GetScopedPluginNames()
+        {
+            DynamicResult[] plugs;
+            using (database.AcquireConnection(false, out var db))
+            {
+                plugs = db.GetNativeResults($@"Select * from {tableName} where isnull(disabled,0)=0 and 
+(tenantId=@tenantId or (tenantId is null and @tenantId is null)) and (LoadType=@loadType) 
+order by UniqueName",
+                    null, db.GetParameter("tenantId", tenantName),
+                    db.GetParameter("loadType", (int)PluginLoadType.Scope)
+                ).ToArray();
+            }
+
+            foreach (var plug in plugs)
+            {
+                yield return new PluginConfigurationItem
+                {
+                    Disabled = false,
+                    ConstructionString = plug["Constructor"],
+                    Name = plug["UniqueName"]
+                };
+            }
+        }
+
         /// <summary>
         /// Checks for plugins that are currently not loaded
         /// </summary>

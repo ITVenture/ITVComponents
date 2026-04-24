@@ -10,7 +10,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
     {
         public string MemberName { get; set; }
 
-        public SortDirection Direction { get; set; }
+        public SortDirection Direction { get; set; } = SortDirection.Ascending;
     }
 
     public enum SortDirection

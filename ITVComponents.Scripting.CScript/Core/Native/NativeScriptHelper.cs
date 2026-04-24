@@ -47,6 +47,12 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         public static void AddReference(string configuration, string reference)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+            bool stubborn = false;
+            if (reference.StartsWith("#S#"))
+            {
+                stubborn = true;
+                reference = reference.Substring(3);
+            }
             lock (cfg)
             {
                 if (reference == "--ROSLYN--")
@@ -63,7 +69,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 }
                 else
                 {
-                    cfg.AddReference(reference);
+                    cfg.AddReference(reference, stubborn);
                 }
             }
         }
@@ -76,6 +82,13 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         public static void AddUsing(string configuration, string usingParam)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+            bool stubborn = false;
+            if (usingParam.StartsWith("#S#"))
+            {
+                stubborn = true;
+                usingParam = usingParam.Substring(3);
+            }
+
             lock (cfg)
             {
                 if (usingParam.StartsWith("using "))
@@ -88,7 +101,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                     usingParam = usingParam.Substring(0, usingParam.Length - 1).Trim();
                 }
 
-                cfg.AddUsing(usingParam);
+                cfg.AddUsing(usingParam, stubborn);
             }
         }
 
@@ -127,12 +140,12 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             if (string.IsNullOrEmpty(configuration))
             {
                 var ks = configurations.Keys.ToArray();
-                Array.ForEach(ks,ResetNativeScripts);
+                Array.ForEach(ks, ResetNativeScripts);
             }
             else
             {
                 var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
-                cfg.Reset();
+                cfg.Reset(true);
             }
         }
 
@@ -143,20 +156,20 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         /// <param name="expression">the expression to run on the target object</param>
         /// <param name="arguments">arguments for the query. each property of the given object will lead to a parameter of the resulting method</param>
         /// <returns>the result of the compiled and executed method</returns>
-        public static object RunLinqQuery(string configuration, string expression, IDictionary<string, object> arguments)
+        public static object RunLinqQuery(string configuration, string label, string expression, IDictionary<string, object> arguments)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
-            if (cfg.AutoReferences)
-            {
-                ApplyAutoRef(cfg, arguments.Values, false);
-            }
-
             string roslynHash = GetFlatString(expression);
-            var roslynScript = cfg.GetOrAddScript(roslynHash, new Lazy<ScriptRunner<object>>(() =>
+            var roslynScript = cfg.GetOrAddScript(label, roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
                 ScriptOptions scriptoptions;
                 lock (cfg)
                 {
+                    if (cfg.AutoReferences)
+                    {
+                        ApplyAutoRef(cfg, arguments.Values, false);
+                    }
+
                     scriptoptions = ScriptOptions.Default
                         .WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" }))
                         .WithReferences(
@@ -192,21 +205,21 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         /// <param name="expression">the expression to run on the target object</param>
         /// <param name="arguments">arguments for the query. each property of the given object will lead to a parameter of the resulting method</param>
         /// <returns>the result of the compiled and executed method</returns>
-        public static object RunLinqQuery(string configuration, object target, string nameOfTarget, string expression, IDictionary<string, object> arguments)
+        public static object RunLinqQuery(string configuration, object target, string nameOfTarget, string label, string expression, IDictionary<string, object> arguments)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
-            if (cfg.AutoReferences)
-            {
-                ApplyAutoRef(cfg, arguments.Values, false);
-                ApplyAutoRef(cfg, new[] { target }, true);
-            }
-
             string roslynHash = GetFlatString(expression);
-            var roslynScript = cfg.GetOrAddScript(roslynHash, new Lazy<ScriptRunner<object>>(() =>
+            var roslynScript = cfg.GetOrAddScript(label, roslynHash, new Lazy<ScriptRunner<object>>(() =>
             {
                 ScriptOptions scriptoptions;
                 lock (cfg)
                 {
+                    if (cfg.AutoReferences)
+                    {
+                        ApplyAutoRef(cfg, arguments.Values, false);
+                        ApplyAutoRef(cfg, new[] { target }, true);
+                    }
+
                     scriptoptions = ScriptOptions.Default
                         .WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" }))
                         .WithReferences(
@@ -235,6 +248,41 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper { Global = idic }));
         }
 
+        public static T RunCustomCode<T, TInput>(string configuration, TInput target, string label, string expression)
+        {
+            var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
+            string roslynHash = GetFlatString(expression);
+            var roslynScript = cfg.GetOrAddScript($"#{label}", roslynHash, new Lazy<ScriptRunner<object>>(() =>
+            {
+                ScriptOptions scriptoptions;
+                lock (cfg)
+                {
+                    if (cfg.AutoReferences)
+                    {
+                        ApplyAutoRef(cfg, new object[] { target }, true);
+                    }
+
+                    scriptoptions = ScriptOptions.Default
+                        .WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" }))
+                        .WithReferences(
+                            new[]
+                            {
+                                typeof(FileStyleUriParser).Assembly, typeof(Action).Assembly,
+                                AssemblyResolver.FindAssemblyByName("System.Linq"),
+                                AssemblyResolver.FindAssemblyByName("Microsoft.CSharp")
+                            }.Union(from t in cfg.References select AssemblyResolver.FindAssemblyByName(t)).ToArray())
+                        .WithOptimizationLevel(OptimizationLevel.Release);
+                }
+
+                //var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), Loader);
+                var retVal = CSharpScript.Create(expression, scriptoptions, typeof(NativeScriptObjectHelper), cfg.AssemblyLoader);
+                retVal.Compile();
+                return retVal.CreateDelegate();
+            }));
+
+            return (T)AsyncHelpers.RunSync(() => roslynScript.Value(target));
+        }
+
         /// <summary>
         /// Compiles an expression from c# code
         /// </summary>
@@ -242,20 +290,20 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         /// <param name="configuration">the configuration name to use for the given expression</param>
         /// <param name="expression">the expression as string</param>
         /// <returns>an Expression object</returns>
-        public static Expression<T> CompileExpression<T>(string configuration, string expression)
+        public static Expression<T> CompileExpression<T>(string configuration, string label, string expression)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
-            if (cfg.AutoReferences)
-            {
-                ApplyAutoRef(cfg, typeof(T), true);
-            }
-
             string roslynHash = GetFlatString(expression);
-            var roslynScript = cfg.GetOrAddExpressionBuilder(roslynHash, new Lazy<LambdaHolder>(() =>
+            var roslynScript = cfg.GetOrAddExpressionBuilder(label, roslynHash, new Lazy<LambdaHolder>(() =>
             {
                 ScriptOptions scriptoptions;
                 lock (cfg)
                 {
+                    if (cfg.AutoReferences)
+                    {
+                        ApplyAutoRef(cfg, typeof(T), true);
+                    }
+
                     scriptoptions = ScriptOptions.Default
                         .WithImports(cfg.Usings.Union(new[] { "System", "System.Linq", "System.Collections.Generic" }))
                         .WithReferences(

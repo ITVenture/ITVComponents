@@ -17,16 +17,21 @@ namespace ITVComponents.Scripting.CScript.Core.Native
     {
         private List<string> usings = new List<string>();
         private List<string> references = new List<string>();
+        private List<string> stubbornReferences = new();
+        private List<string> stubbornUsings = new ();
 
+        private ConcurrentDictionary<string, string> scriptLabelToHash = new ConcurrentDictionary<string, string>();
         private ConcurrentDictionary<string, Lazy<ScriptRunner<object>>> scripts =
             new ConcurrentDictionary<string, Lazy<ScriptRunner<object>>>();
 
+        private ConcurrentDictionary<string, string> expressionLabelToHash = new ConcurrentDictionary<string, string>();
         private ConcurrentDictionary<string, Lazy<LambdaHolder>> expressionBuilders =
             new ConcurrentDictionary<string, Lazy<LambdaHolder>>();
 
         private bool isDirty = false;
 
         private bool containsCode = false;
+
 
         public NativeConfiguration()
         {
@@ -48,23 +53,40 @@ namespace ITVComponents.Scripting.CScript.Core.Native
 
         internal IReadOnlyDictionary<string, Lazy<LambdaHolder>> ExpressionBuilders { get; }
 
-    public void Reset()
+    public void Reset(bool fullReset)
         {
             scripts.Clear();
+            scriptLabelToHash.Clear();
             expressionBuilders.Clear();
             AssemblyLoader.Dispose();
-            usings.Clear();
-            references.Clear();
+            if (fullReset)
+            {
+                usings.Clear();
+                references.Clear();
+                usings.AddRange(stubbornUsings);
+                references.AddRange(stubbornReferences);
+            }
+
             AssemblyLoader = new InteractiveAssemblyLoader();
             isDirty = false;
             containsCode = false;
         }
 
-        internal Lazy<LambdaHolder> GetOrAddExpressionBuilder(string roslynHash, Lazy<LambdaHolder> lazy)
+        internal Lazy<LambdaHolder> GetOrAddExpressionBuilder(string label, string roslynHash, Lazy<LambdaHolder> lazy)
         {
+            bool fullReset = false;
+            if (!string.IsNullOrEmpty(label))
+            {
+                expressionLabelToHash.AddOrUpdate(label, l => roslynHash, (l, o) =>
+                {
+                    fullReset = true;
+                    isDirty = true;
+                    return roslynHash;
+                });
+            }
             if (isDirty)
             {
-                Reset();
+                Reset(fullReset);
             }
 
             var retVal= expressionBuilders.GetOrAdd(roslynHash, lazy);
@@ -90,27 +112,48 @@ namespace ITVComponents.Scripting.CScript.Core.Native
             return retVal;
         }
 
-        public void AddReference(string reference)
+        public void AddReference(string reference, bool stubborn = false)
         {
+            if (stubborn)
+            {
+                stubbornReferences.AddIfMissing(reference);
+            }
+            
             if (references.AddIfMissing(reference) && containsCode)
             {
                 isDirty = true;
             }
         }
 
-        public void AddUsing(string usingParam)
+        public void AddUsing(string usingParam, bool stubborn = false)
         {
+            if (stubborn)
+            {
+                stubbornUsings.AddIfMissing(usingParam);
+            }
+
             if (usings.AddIfMissing(usingParam) && containsCode)
             {
                 isDirty = true;
             }
         }
 
-        public Lazy<ScriptRunner<object>> GetOrAddScript(string roslynHash, Lazy<ScriptRunner<object>> lazy)
+        public Lazy<ScriptRunner<object>> GetOrAddScript(string label, string roslynHash, Lazy<ScriptRunner<object>> lazy)
         {
+            bool fullReset = false;
+            if (!string.IsNullOrEmpty(label))
+            {
+                scriptLabelToHash.AddOrUpdate(label, l => roslynHash, (l, o) =>
+                {
+                    //fullReset = true;
+                    isDirty = true;
+                    return roslynHash;
+                });
+            }
+
             if (isDirty)
             {
-                Reset();
+                Reset(fullReset);
             }
 
             containsCode = true;

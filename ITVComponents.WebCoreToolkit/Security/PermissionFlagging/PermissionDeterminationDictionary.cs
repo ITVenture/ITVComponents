@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 
 namespace ITVComponents.WebCoreToolkit.Security.PermissionFlagging
@@ -12,69 +13,72 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionFlagging
     public class PermissionDeterminationDictionary
     {
         private readonly ITrustfulComponent trustfulComponent;
-        private readonly Func<IReadOnlyDictionary<string, string[]>> getPermissions;
+        private readonly Func<string, IReadOnlyDictionary<string, string[]>> getPermissions;
         private readonly IContextUserProvider userProvider;
-        private IReadOnlyDictionary<string, string[]> permissions;
         private Dictionary<string, bool> values = new Dictionary<string, bool>();
+        private Dictionary<string, IReadOnlyDictionary<string, string[]>> permissionBuffer = new Dictionary<string, IReadOnlyDictionary<string, string[]>>();
 
-        private IReadOnlyDictionary<string, string[]> Permissions => permissions ??= getPermissions?.Invoke();
-        public PermissionDeterminationDictionary(Func<IReadOnlyDictionary<string, string[]>> getPermissions, IContextUserProvider userProvider)
+        private IReadOnlyDictionary<string, string[]> Permissions(string permissionCategory) =>
+            permissionBuffer.GetOrInsert(permissionCategory, c => getPermissions?.Invoke(c));
+        public PermissionDeterminationDictionary(Func<string, IReadOnlyDictionary<string, string[]>> getPermissions, IContextUserProvider userProvider)
         {
             this.getPermissions = getPermissions;
             this.userProvider = userProvider;
         }
 
 
-        public PermissionDeterminationDictionary(Func<IReadOnlyDictionary<string, string[]>> getPermissions,
+        public PermissionDeterminationDictionary(Func<string, IReadOnlyDictionary<string, string[]>> getPermissions,
             IContextUserProvider userProvider, ITrustfulComponent trustfulComponent) : this(getPermissions,
             userProvider)
         {
             this.trustfulComponent = trustfulComponent;
         }
 
-        public bool this[string key]
+        public bool this[string category, string key]
         {
             get
             {
-                var trustByC = trustfulComponent != null && trustfulComponent.IsComponentSecureFor(key);
-                var t = trustByC || values.TryGetValue(key, out var v) && v;
+                var compKey = $"{category}#{key}";
+                var trustByC = trustfulComponent != null && trustfulComponent.IsComponentSecureFor(compKey);
+                var t = trustByC || values.TryGetValue(compKey, out var v) && v;
                 return t;
             }
             set
             {
-                if (value != this[key])
+                var compKey = $"{category}#{key}";
+                if (value != this[category, key])
                 {
-                    if (value && !CanDeactivateFilter(key))
+                    if (value && !CanDeactivateFilter(category, key))
                     {
-                        values[key] = false;
+                        values[compKey] = false;
                     }
                     else
                     {
-                        values[key] = value;
+                        values[compKey] = value;
                     }
                 }
             }
         }
 
-        public bool this[string[] keys]
+        public bool this[(string category, string key)[] keys]
         {
             get
             {
                 var trustByC = keys.Any(key =>
-                    trustfulComponent != null && trustfulComponent.IsComponentSecureFor(key));
-                var t = trustByC || keys.Any(key => values.TryGetValue(key, out var v) && v);
+                    trustfulComponent != null && trustfulComponent.IsComponentSecureFor($"{key.category}#{key.key}"));
+                var t = trustByC || keys.Any(key => values.TryGetValue($"{key.category}#{key.key}", out var v) && v);
                 return t;
             }
         }
 
-        public string[] PermissionsOnTopics(string[] topicKeys, out bool block)
+        public string[] PermissionsOnTopics(string category, string[] topicKeys, out bool block)
         {
             var retVal = Array.Empty<string>();
             block = true;
             if (Permissions != null)
             {
                 retVal = (from t in topicKeys
-                    join p in Permissions on t equals p.Key
+                    join p in Permissions(category) on t equals p.Key
                     select p.Value).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 block = retVal.Length == 0;
             }
@@ -82,18 +86,19 @@ namespace ITVComponents.WebCoreToolkit.Security.PermissionFlagging
             return retVal;
         }
 
-        private bool CanDeactivateFilter(string key)
+        private bool CanDeactivateFilter(string category, string key)
         {
             var value = false;
-            if (Permissions != null && userProvider != null)
+            var prm = Permissions(category);
+            if (prm != null && userProvider != null)
             {
-                if (Permissions.ContainsKey(key))
+                if (prm.TryGetValue(key, out var directPerms))
                 {
-                    value = userProvider.Services.VerifyUserPermissions(permissions[key]);
+                    value = userProvider.Services.VerifyUserPermissions(directPerms);
                 }
-                else if (permissions.ContainsKey("Default"))
+                else if (prm.TryGetValue("Default", out var defPerms))
                 {
-                    value = userProvider.Services.VerifyUserPermissions(permissions["Default"]);
+                    value = userProvider.Services.VerifyUserPermissions(defPerms);
                 }
 
                 return value;

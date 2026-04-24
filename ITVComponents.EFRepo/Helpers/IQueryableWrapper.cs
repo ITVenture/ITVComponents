@@ -13,4 +13,9 @@ namespace ITVComponents.EFRepo.Helpers
 
         IQueryable<TResult> Select<TResult>(Expression selectExpression);
     }
+
+    public interface IQueryableWrapper<out T> : IQueryableWrapper, IQueryable<T> where T : class, new()
+    {
+        IQueryable<T> Select(Expression selectExpression) => Select<T>(selectExpression);
+    }
 }

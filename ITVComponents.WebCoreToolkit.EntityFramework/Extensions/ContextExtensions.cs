@@ -41,20 +41,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
         static ContextExtensions()
         {
-            NativeScriptHelper.AddReference(RosFkConfig, "--ROSLYN--");
-            NativeScriptHelper.AddReference(RosFkConfig, "ITVComponents.WebCoreToolkit.EntityFramework");
-            NativeScriptHelper.AddUsing(RosFkConfig, "ITVComponents.WebCoreToolkit.EntityFramework.Models");
-            NativeScriptHelper.AddUsing(RosFkConfig, "ITVComponents.WebCoreToolkit.EntityFramework.Helpers");
-            NativeScriptHelper.AddUsing(RosFkConfig, "ITVComponents.Helpers");
-            NativeScriptHelper.RunLinqQuery(RosFkConfig, new[] { "Fubar" }, "Fubar", "return null;", new Dictionary<string, object>());
-            NativeScriptHelper.AddReference(RosDiagConfig, "--ROSLYN--");
-            NativeScriptHelper.AddReference(RosDiagConfig, "ITVComponents.WebCoreToolkit.EntityFramework");
-            NativeScriptHelper.AddReference(RosDiagConfig, "ITVComponents.Decisions.Entities");
-            NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.WebCoreToolkit.EntityFramework.Models");
-            NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.Decisions");
-            NativeScriptHelper.AddUsing(RosDiagConfig, "ITVComponents.Decisions.Entities.Results");
-            NativeScriptHelper.AddUsing(RosDiagConfig, "Microsoft.AspNetCore.Http");
-            NativeScriptHelper.RunLinqQuery(RosDiagConfig, new[] { "Fubar" }, "Fubar", "return null;", new Dictionary<string, object>());
+            NativeScriptHelper.AddReference(RosFkConfig, "#S#--ROSLYN--");
+            NativeScriptHelper.AddReference(RosFkConfig, "#S#ITVComponents.WebCoreToolkit.EntityFramework");
+            NativeScriptHelper.AddUsing(RosFkConfig, "#S#ITVComponents.WebCoreToolkit.EntityFramework.Models");
+            NativeScriptHelper.AddUsing(RosFkConfig, "#S#ITVComponents.WebCoreToolkit.EntityFramework.Helpers");
+            NativeScriptHelper.AddUsing(RosFkConfig, "#S#ITVComponents.Helpers");
+            NativeScriptHelper.RunLinqQuery(RosFkConfig, new[] { "Fubar" }, "Fubar", "InitDummy", "return null;", new Dictionary<string, object>());
+            NativeScriptHelper.AddReference(RosDiagConfig, "#S#--ROSLYN--");
+            NativeScriptHelper.AddReference(RosDiagConfig, "#S#ITVComponents.WebCoreToolkit.EntityFramework");
+            NativeScriptHelper.AddReference(RosDiagConfig, "#S#ITVComponents.Decisions.Entities");
+            NativeScriptHelper.AddUsing(RosDiagConfig, "#S#ITVComponents.WebCoreToolkit.EntityFramework.Models");
+            NativeScriptHelper.AddUsing(RosDiagConfig, "#S#ITVComponents.Decisions");
+            NativeScriptHelper.AddUsing(RosDiagConfig, "#S#ITVComponents.Decisions.Entities.Results");
+            NativeScriptHelper.AddUsing(RosDiagConfig, "#S#Microsoft.AspNetCore.Http");
+            NativeScriptHelper.RunLinqQuery(RosDiagConfig, new[] { "Fubar" }, "Fubar", "InitDummy", "return null;", new Dictionary<string, object>());
         }
 
         /// <summary>
@@ -237,21 +237,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         public static IEnumerable RunDiagnosticsQuery(this DbContext context, HttpContext httpContext, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
         {
             var queryText = CreateDiagQuery(context, query, arguments, out var args);
-            return RunQuery(context, queryText, RosDiagConfig, args, httpContext);
+            return RunQuery(context, query.DiagnosticsQueryName, queryText, RosDiagConfig, args, httpContext);
         }
 
         public static IEnumerable RunDiagnosticsQuery(this DbContext context, HttpContext httpContext, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
             var args = new Dictionary<string, object>(arguments);
             var queryText = CreateDiagQuery(context, query, args);
-            return RunQuery(context, queryText, RosDiagConfig, args, httpContext);
+            return RunQuery(context, query.DiagnosticsQueryName, queryText, RosDiagConfig, args, httpContext);
         }
 
-        private static IEnumerable RunQuery(DbContext context, string query, string configName, IDictionary<string, object> data, HttpContext httpContext)
+        private static IEnumerable RunQuery(DbContext context, string queryLabel, string query, string configName, IDictionary<string, object> data, HttpContext httpContext)
         {
             data ??= new Dictionary<string, object>();
             data["HttpContext"] = httpContext;
-            return (IEnumerable)NativeScriptHelper.RunLinqQuery(configName, context, "Db", query, data);
+            return (IEnumerable)NativeScriptHelper.RunLinqQuery(configName, context, "Db", queryLabel, query, data);
         }
 
         private static string CreateDiagQuery(DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)

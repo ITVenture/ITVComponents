@@ -14,19 +14,22 @@ using ITVComponents.Threading;
 
 namespace ITVComponents.StateMachine
 {
-    public class TransducerMachine<TStatus, TStatusTarget> where TStatusTarget : class
+    public class TransducerMachine<TStatus, TStatusTarget>:IDisposable where TStatusTarget : class
         where TStatus : Status<TStatus, TStatusTarget>
     {
+        private bool ownsFactory;
         private IStatusFactory<TStatus,TStatusTarget> statusFactory;
         private TransitionCollection<TStatus, TStatusTarget> transitions;
         private Dictionary<string, ITransition<TStatus, TStatusTarget>[]> typeTransitions;
         private TStatus currentStatus;
         private readonly TStatusTarget target;
         private object locker = new object();
+        private string currentStatusName;
 
-        public TransducerMachine(IStatusFactory<TStatus,TStatusTarget> statusFactory, TransitionCollection<TStatus, TStatusTarget> transitions,
+        public TransducerMachine(IStatusFactory<TStatus,TStatusTarget> statusFactory, bool ownsFactory, TransitionCollection<TStatus, TStatusTarget> transitions,
             string initialStatus, TStatusTarget target)
         {
+            this.ownsFactory = ownsFactory;
             this.statusFactory = statusFactory ?? throw new ArgumentNullException(nameof(statusFactory));
             this.transitions = transitions ?? throw new ArgumentNullException(nameof(transitions));
             var statusSrc = initialStatus ?? throw new ArgumentNullException(nameof(initialStatus));
@@ -74,6 +77,8 @@ namespace ITVComponents.StateMachine
         }
 
         public TStatus Status => currentStatus;
+
+        public string StatusName => currentStatusName;
         public int CurrentDepth { get; private set; }
 
         public async Task NextStatusAsync(RunArguments arguments)
@@ -104,6 +109,7 @@ namespace ITVComponents.StateMachine
             lock (locker)
             {
                 currentStatus = nextStatus;
+                currentStatusName = status;
             }
 
             await EnterCurrentStatusAsync();
@@ -183,5 +189,19 @@ namespace ITVComponents.StateMachine
         public event EventHandler<StatusEventArgs<TStatus, TStatusTarget>> LeaveStatus;
 
         public event EventHandler<StatusEventArgs<TStatus, TStatusTarget>> EnterStatus;
+        public void Dispose()
+        {
+            if (ownsFactory)
+            {
+                statusFactory.Dispose();
+            }
+
+            Dispose(true);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+
+        }
     }
 }

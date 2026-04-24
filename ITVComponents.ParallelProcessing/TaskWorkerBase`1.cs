@@ -35,7 +35,7 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         /// <param name="task">the ITask object to process</param>
         /// <returns>an async awaitable task object</returns>
-        public async override Task ProcessAsync(ITask task)
+        public override async Task ProcessAsync(ITask task)
         {
             await ProcessAsync((TTask)task);
         }

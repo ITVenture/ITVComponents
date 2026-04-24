@@ -646,7 +646,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
             return (from d in (from t in securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
                         .Join(securityContext.TenantUsers, UserId, u => u.UserId, (tu, tt) => new{tt.TenantUserId, tt.TenantId})
-                        .Join(securityContext.GetUpwardsTenantUserRoles(userLabels,null), l => l.TenantUserId, r => r.TenantUserId, (l,r)=>new{l.TenantUserId, l.TenantId, r.OutermostLeafTenantId})
+                        .Join(securityContext.GetUpwardsTenantUserRoles(userLabels,(string)null), l => l.TenantUserId, r => r.TenantUserId, (l,r)=>new{l.TenantUserId, l.TenantId, r.OutermostLeafTenantId})
                         .Join(securityContext.Tenants, l => l.OutermostLeafTenantId, r => r.TenantId, (l,r)=> new {l,r})
                     select new {t.r.TenantId, t.r.TenantName, t.r.DisplayName, DirectlyAssigned=t.l.TenantId==t.r.TenantId}).Distinct()
                 orderby d.DisplayName
@@ -889,11 +889,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             securityContext.SaveChanges();
         }
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, bool throwIfNull, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
         {
             using var tmpSecurity = securityAccessProvider.CreateForCaller(securityContext,
                 new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
-            var svc = GetExternalOAuthService(connectionName, out var serviceId, out _, out var tenantName, false).Copy();
+            var svc = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out var tenantName, false).Copy();
             if (!string.IsNullOrEmpty(svc.ClientSecret))
             {
                 if (svc.Global)
@@ -910,11 +910,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             if (serviceId != null)
             {
                 var login = GetExternalOAuthServiceLogin(serviceId.Value,false);
+                var targetTenant = login?.Tenant.TenantName ?? tenantName;
                 if (login is { Revoked: false } && (!forRevoke || login.TenantId == securityContext.CurrentTenantId))
                 {
                     var tmp = JsonHelper.FromJsonString<TranslatedTokenResponse>(login.Token,
                         SerializationTypingMode.StaticTyping);
-                    var targetTenant = login.Tenant.TenantName;
                     var token = new TranslatedTokenResponse
                     {
                         AccessToken = Decrypt(tmp.AccessToken, targetTenant),
@@ -950,6 +950,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
                     }
 
                     return token;
+                }
+
+                if (!throwIfNull)
+                {
+                    updateToken = newToken =>
+                    {
+                        var encToken = new TranslatedTokenResponse
+                        {
+                            Scope = newToken.Scope,
+                            AccessToken = Encrypt(newToken.AccessToken, targetTenant),
+                            ExpiresAt = newToken.ExpiresAt,
+                            RefreshToken = Encrypt(newToken.RefreshToken, targetTenant),
+                            TokenType = newToken.TokenType
+                        };
+
+                        if (login != null)
+                        {
+                            login.Revoked = false;
+                            login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
+                        }
+                        else
+                        {
+                            login = new TExternalOAuthServiceTenantLogin
+                            {
+                                TenantId = tenantId ?? securityContext.CurrentTenantId.Value,
+                                Revoked = false,
+                                OAuthServiceId = serviceId.Value,
+                                Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping)
+                            };
+
+                            securityContext.ExternalOAuthServiceTenantLogins.Add(login);
+
+                        }
+
+                        securityContext.SaveChanges();
+                    };
+
+                    return null;
                 }
             }
 

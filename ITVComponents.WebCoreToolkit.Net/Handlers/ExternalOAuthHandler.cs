@@ -32,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             [FromServices] ISecurityRepository securityRepo)
         {
             var connection = securityRepo.GetExternalService(name);
-            if (connection.AuthenticationType == ExternalServiceAuthenticationType.OAuth)
+            if (connection.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
             {
                 var baseUrl = $"{context.Request.Scheme}://{context.Request.Host.Value}{context.Request.PathBase}";
                 var bt32 = new byte[32];

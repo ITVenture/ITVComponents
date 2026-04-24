@@ -70,6 +70,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers.Model
 
                 return null;
             }, true);
+            foreach (var qry in httpContext.Request.Query)
+            {
+                if (!newDic.ContainsKey($"query_{qry.Key}"))
+                {
+                    newDic[$"query_{qry.Key}"] = qry.Value.ToString();
+                }
+            }
+
             return ValueTask.FromResult<SearchForm?>(new SearchForm { SearchDictionary = newDic });
         }
 
@@ -143,7 +151,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers.Model
                     else
                     {
                         var filterText = s.Substring(4);
-                        l.Add(new LinqFilter(filterText, entityType, null));
+                        l.Add(new LinqFilter(null, filterText, entityType, null));
                     }
                 }
                 else

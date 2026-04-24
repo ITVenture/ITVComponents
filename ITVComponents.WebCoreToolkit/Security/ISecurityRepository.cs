@@ -324,6 +324,6 @@ namespace ITVComponents.WebCoreToolkit.Security
         OAuthState GetOAuthRequest(string connectionName, string state);
         void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token);
 
-        TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken);
+        TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, bool throwIfNull, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken);
     }
 }

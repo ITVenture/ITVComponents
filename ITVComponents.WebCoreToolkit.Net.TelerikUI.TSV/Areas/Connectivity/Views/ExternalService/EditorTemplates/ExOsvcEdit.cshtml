@@ -1,7 +1,10 @@
-﻿@using ITVComponents.WebCoreToolkit.Extensions
+﻿@using ITVComponents.Helpers
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
 @using Kendo.Mvc.UI
 @using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel.ExternalOAuthServiceViewModel
@@ -10,6 +13,12 @@
 }
 <div class="container col">
     @Html.HiddenFor(model => model.OAuthServiceId)
+    <div class="form-group row">
+        @Html.LabelFor(model => model.AuthenticationType, TextsAndMessagesHelper.IWCN_ES_AuthenticationType, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
+        @(Html.Kendo().DropDownListFor(n => n.AuthenticationType).BindTo(EnumHelper.DescribeEnum<ExternalServiceAuthenticationType>()).DataTextField(nameof(EnumHelper.EnumValueDescription.Description)).DataValueField(nameof(EnumHelper.EnumValueDescription.Value))
+            .Events(ev => ev.Select("ITVenture.Pages.ExternalOAuthServices.OnAuthTypeSelected"))
+        )
+    </div>
     <div class="form-group row">
 
         @Html.LabelFor(model => model.UniqueConnectionName, TextsAndMessagesHelper.IWCN_ES_UniqueName, htmlAttributes: new { @class = "col-sm-2 col-form-label" })
@@ -26,42 +35,42 @@
         }
     </div>
 
-    <div class="form-group row">
+    <div class="form-group row authTypeControlContainer" data-auth-type="00.01.02">
 
-        @Html.LabelFor(model => model.AuthorizationEndpoint, TextsAndMessagesHelper.IWCN_ES_AuthEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", dataAuthType = "00" })
-        <div class="col-sm-3">
-            @Html.Kendo().TextBoxFor(model => model.AuthorizationEndpoint).HtmlAttributes(new { required = "required", @class = "authTypeConfig", dataAuthType = "00", dataAuthRequired="true" })
+        @Html.LabelFor(model => model.AuthorizationEndpoint, TextsAndMessagesHelper.IWCN_ES_AuthEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", Data_Auth_Type = "00.01.02" })
+        <div class="col-sm-3" >
+            @Html.Kendo().TextBoxFor(model => model.AuthorizationEndpoint).HtmlAttributes(new { required = "required", @class = "authTypeConfig", Data_Auth_Type = "00.01.02", Data_Auth_Required = "true" })
             @Html.ValidationMessageFor(model => model.AuthorizationEndpoint, "", new { @class = "text-danger" })
         </div>
 
-        @Html.LabelFor(model => model.TokenEndpoint, TextsAndMessagesHelper.IWCN_ES_TokenEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", dataAuthType = "00" })
-        <div class="col-sm-3">
-            @Html.Kendo().TextBoxFor(model => model.TokenEndpoint).HtmlAttributes(new { required = "required", @class = "authTypeConfig", dataAuthType = "00", dataAuthRequired = "true" })
+        @Html.LabelFor(model => model.TokenEndpoint, TextsAndMessagesHelper.IWCN_ES_TokenEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", Data_Auth_Type = "00" })
+        <div class="col-sm-3 authTypeControlContainer" data-auth-type="00">
+            @Html.Kendo().TextBoxFor(model => model.TokenEndpoint).HtmlAttributes(new { required = "required", @class = "authTypeConfig", Data_Auth_Type = "00", Data_Auth_Required = "true" })
             @Html.ValidationMessageFor(model => model.TokenEndpoint, "", new { @class = "text-danger" })
         </div>
     </div>
-    <div class="form-group row">
-        @Html.LabelFor(model => model.RevocationEndpoint, TextsAndMessagesHelper.IWCN_ES_RevocationEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", dataAuthType = "00" })
+    <div class="form-group row authTypeControlContainer" data-auth-type="00">
+        @Html.LabelFor(model => model.RevocationEndpoint, TextsAndMessagesHelper.IWCN_ES_RevocationEndpoint, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", Data_Auth_Type = "00" })
         <div class="col-sm-8">
-            @Html.Kendo().TextBoxFor(model => model.RevocationEndpoint).HtmlAttributes(new { @class = "authTypeConfig", dataAuthType = "00", dataAuthRequired = "false" })
+            @Html.Kendo().TextBoxFor(model => model.RevocationEndpoint).HtmlAttributes(new { @class = "authTypeConfig", Data_Auth_Type = "00", Data_Auth_Required = "false" })
         </div>
     </div>
-    <div class="form-group row">
-        @Html.LabelFor(model => model.ClientId, TextsAndMessagesHelper.IWCN_ES_ClientId, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", dataAuthType = "00.01", dataAuthLabel="labelForClientId" })
-        <div class="col-sm-3">
-            @Html.Kendo().TextBoxFor(model => model.ClientId).HtmlAttributes(new { required = "required", @class = "authTypeConfig", dataAuthType = "00.01", dataAuthRequired = "true" })
+    <div class="form-group row authTypeControlContainer" data-auth-type="00.01.02.03.04.05">
+        @Html.LabelFor(model => model.ClientId, TextsAndMessagesHelper.IWCN_ES_ClientId, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", Data_Auth_Type = "00.01.02.03.04", Data_Auth_Label = "labelForClientId" })
+        <div class="col-sm-3 authTypeControlContainer" data-auth-type="00.01.02.03.04">
+            @Html.Kendo().TextBoxFor(model => model.ClientId).HtmlAttributes(new { required = "required", @class = "authTypeConfig", Data_Auth_Type = "00.01.02.03.04", Data_Auth_Required = "true" })
             @Html.ValidationMessageFor(model => model.ClientId, "", new { @class = "text-danger" })
         </div>
         
-        @Html.LabelFor(model => model.ClientSecret, TextsAndMessagesHelper.IWCN_ES_ClientSecret, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", dataAuthType = "00.01.02.03" })
-        <div class="col-sm-3">
-            @Html.Kendo().TextBoxFor(model => model.ClientSecret).Placeholder(TextsAndMessagesHelper.IWCN_ES_UseEncryptPrefix).HtmlAttributes(new { @class = "authTypeConfig", dataAuthType = "00.01.02.03", dataAuthRequired = "false", dataAuthLabel="labelForClientSecret" })
+        @Html.LabelFor(model => model.ClientSecret, TextsAndMessagesHelper.IWCN_ES_ClientSecret, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", Data_Auth_Type = "00.01.02.03.04.05", Data_Auth_Label = "labelForClientSecret" })
+        <div class="col-sm-3 authTypeControlContainer" data-auth-type="00.01.02.03.04.05">
+            @Html.Kendo().TextBoxFor(model => model.ClientSecret).Placeholder(TextsAndMessagesHelper.IWCN_ES_UseEncryptPrefix).HtmlAttributes(new { @class = "authTypeConfig", Data_Auth_Type = "00.01.02.03.04.05", Data_Auth_Required = "false" })
         </div>
     </div>
-    <div class="form-group row">
-        @Html.LabelFor(model => model.Scope, TextsAndMessagesHelper.IWCN_ES_Scope, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", dataAuthType = "00" })
+    <div class="form-group row authTypeControlContainer" data-auth-type="00">
+        @Html.LabelFor(model => model.Scope, TextsAndMessagesHelper.IWCN_ES_Scope, htmlAttributes: new { @class = "col-sm-2 col-form-label  authTypeConfig authLabel", Data_Auth_Type = "00" })
         <div class="col-sm-8">
-            @Html.Kendo().TextBoxFor(model => model.Scope).HtmlAttributes(new { required = "required", @class = "authTypeConfig", dataAuthType = "00", dataAuthRequired = "true" })
+            @Html.Kendo().TextBoxFor(model => model.Scope).HtmlAttributes(new { required = "required", @class = "authTypeConfig", daData_Auth_TypetaAuthType = "00", Data_Auth_Required = "true" })
             @Html.ValidationMessageFor(model => model.Scope, "", new { @class = "text-danger" })
         </div>
     </div>

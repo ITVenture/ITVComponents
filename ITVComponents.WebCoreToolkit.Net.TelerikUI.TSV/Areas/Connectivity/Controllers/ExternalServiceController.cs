@@ -174,7 +174,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
                     var tmp = n.Connection.ToViewModel<TExternalOAuthService, ExternalOAuthServiceViewModel>();
                     tmp.Editable = false;
                     tmp.ClientSecret = null;
-                    tmp.IsConnected = n.Login != null || n.Connection.AuthenticationType != ExternalServiceAuthenticationType.OAuth;
+                    tmp.IsConnected = n.Login != null || n.Connection.AuthenticationType != ExternalServiceAuthenticationType.OAuthAuthorizationFlow;
                     return tmp;
                 }));
         }
@@ -200,13 +200,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
 
             return Json(servicesRaw.ToDataSourceResult(request,
                 n =>
-                {
-                    var tmp = n.ToViewModel<TExternalOAuthService, ExternalOAuthServiceViewModel>();
-                    tmp.Editable = (isAdmin && n.TenantId == null && tenantId == null) ||
-                                   (!isAdmin && n.TenantId != null);
-                    tmp.ClientSecret = string.Empty;//TextsAndMessagesHelper.IWCN_ES_UseEncryptPrefix;
-                    return tmp;
-                }));
+                BuildViewModel(n,isAdmin,tenantId)));
         }
 
         [HttpPost]
@@ -239,7 +233,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] { model.ToViewModel<TExternalOAuthService, ExternalOAuthServiceViewModel>() }
+            return Json(await new[] { BuildViewModel(model, isAdmin, tenantId) }
                 .ToDataSourceResultAsync(request, ModelState));
         }
 
@@ -248,6 +242,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
         public async Task<IActionResult> Update([DataSourceRequest] DataSourceRequest request,
             ExternalOAuthServiceViewModel viewModel)
         {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
             //var model = new TExternalOAuthService();
             var model = db.ExternalOAuthServices.First(n => n.OAuthServiceId == viewModel.OAuthServiceId);
             if (ModelState.IsValid)
@@ -257,7 +252,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
                 await db.SaveChangesAsync();
             }
 
-            return Json(await new[] { model.ToViewModel<TExternalOAuthService, ExternalOAuthServiceViewModel>() }
+            return Json(await new[] { BuildViewModel(model, isAdmin , model.TenantId) }
                 .ToDataSourceResultAsync(request, ModelState));
         }
 
@@ -266,11 +261,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
         public async Task<IActionResult> Delete([DataSourceRequest] DataSourceRequest request,
             ExternalOAuthServiceViewModel viewModel)
         {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
             //var model = new TExternalOAuthService();
             var model = db.ExternalOAuthServices.First(n => n.OAuthServiceId == viewModel.OAuthServiceId);
             db.ExternalOAuthServices.Remove(model);
 
-            return Json(await new[] { model.ToViewModel<TExternalOAuthService, ExternalOAuthServiceViewModel>() }
+            return Json(await new[] { BuildViewModel(model, isAdmin, model.TenantId) }
                 .ToDataSourceResultAsync(request, ModelState));
         }
 
@@ -284,6 +280,17 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
             {
                 var t = db.Tenants.First(n => n.TenantId == model.TenantId);
                 model.ClientSecret = secRepo.Encrypt(secret.Substring(8), t.TenantName);
+            }
+        }
+
+        private ExternalOAuthServiceViewModel BuildViewModel(TExternalOAuthService n, bool isAdmin, int? tenantId)
+        {
+            {
+                var tmp = n.ToViewModel<TExternalOAuthService, ExternalOAuthServiceViewModel>();
+                tmp.Editable = (isAdmin && n.TenantId == null && tenantId == null) ||
+                               (!isAdmin && n.TenantId != null);
+                tmp.ClientSecret = string.Empty;//TextsAndMessagesHelper.IWCN_ES_UseEncryptPrefix;
+                return tmp;
             }
         }
     }

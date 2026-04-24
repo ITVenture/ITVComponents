@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using ITVComponents.DataAccess.Parallel;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Plugins.Config;
+using ITVComponents.Plugins.DatabaseDrivenConfiguration.Models;
 using ITVComponents.Plugins.Helpers;
 using ITVComponents.Scripting.CScript.Core;
 
@@ -184,6 +185,28 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             }
 
             return null;
+        }
+
+        public IEnumerable<PluginConfigurationItem> GetScopedPluginNames()
+        {
+            DatabasePlugin[] plugs;
+            using (database.AcquireContext<TContext>(out var db))
+            {
+                plugs = db.Plugins.Where(n =>
+                    n.LoadType == PluginLoadType.Scope && (n.Disabled == null || !n.Disabled.Value))
+                    .OrderBy(n => n.UniqueName)
+                    .ToArray();
+            }
+
+            foreach(var plug in plugs)
+            {
+                yield return new PluginConfigurationItem
+                {
+                    ConstructionString = plug.Constructor,
+                    Disabled = false,
+                    Name = plug.UniqueName
+                };
+            }
         }
 
         /// <summary>

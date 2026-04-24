@@ -26,9 +26,12 @@ namespace ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 
     public enum ExternalServiceAuthenticationType
     {
-        OAuth,
+        OAuthAuthorizationFlow,
+        OAuthClientCredentialsFlow,
+        OAuthBasicClientCredentialsFlow,
         Basic,
         ApiKey,
-        BearerToken
+        BearerToken,
+
     }
 }

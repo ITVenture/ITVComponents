@@ -2680,7 +2680,7 @@ namespace ITVComponents.Scripting.CScript.Core
 
             var parameters = (parameterObj.GetValue(null, ScriptingPolicy) as ObjectLiteral)?.Snapshot();
             string[] identifier = (from t in context.Identifier() select t.GetText()).ToArray();
-            object result = NativeScriptHelper.RunLinqQuery(identifier[1], value, identifier[0], text, parameters);
+            object result = NativeScriptHelper.RunLinqQuery(identifier[1], value, identifier[0], null, text, parameters);
             LiteralScriptValue lrv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             lrv.Initialize(result);
             return lrv;
@@ -2706,7 +2706,7 @@ namespace ITVComponents.Scripting.CScript.Core
             string identifier = context.Identifier().GetText();
             var text = context.NativeCodeLiteral().GetText();
             text = text.Substring(2, text.Length - 3);
-            object result = NativeScriptHelper.RunLinqQuery(identifier, text, parameters);
+            object result = NativeScriptHelper.RunLinqQuery(identifier, null, text, parameters);
             LiteralScriptValue lrv = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
             lrv.Initialize(result);
             return lrv;

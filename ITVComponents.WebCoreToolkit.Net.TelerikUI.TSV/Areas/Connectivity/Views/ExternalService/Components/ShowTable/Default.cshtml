@@ -30,7 +30,7 @@
                     }
                     else
                     {
-                        cmd.Custom("connectSvc").Text("\u200B").Click("ITVenture.Pages.ExternalOAuthServices.ConnectService").HtmlAttributes(new { @class = "itv-grid-button itv-fa-gbx glyphSprite", title = TextsAndMessagesHelper.IWCN_ES_ConnectSvc }).IconClass("fa-duotone fa-link-simple");
+                        cmd.Custom("connectSvc").Text("\u200B").Click("ITVenture.Pages.ExternalOAuthServices.ConnectService").HtmlAttributes(new { @class = "itv-grid-button itv-fa-gbx glyphSprite", title = TextsAndMessagesHelper.IWCN_ES_ConnectSvc }).IconClass("fa-duotone fa-link-simple").Visible("ITVenture.Pages.ExternalOAuthServices.IsOAuthService");
                     }
                 });
             }
@@ -72,6 +72,12 @@
         .Filterable(f => f.Enabled(true))
         .Resizable(c => c.Columns(true))
         .Editable(ed => ed.Mode(GridEditMode.PopUp).TemplateName("ExOsvcEdit"));
+
+    if (Context.RequestServices.VerifyUserPermissions(new[] { "Services.Connections.Write" }))
+    {
+        tmp.Events(ev => ev.Edit("ITVenture.Pages.ExternalOAuthServices.editorReady"));
+    }
+
     if (useConnect)
     {
         tmp.ClientDetailTemplateId("serviceDetails");

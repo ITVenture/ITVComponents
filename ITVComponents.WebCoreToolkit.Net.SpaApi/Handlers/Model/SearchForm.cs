@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.WebCoreToolkit.Net.Handlers;
+using ITVComponents.WebCoreToolkit.Net.SpaApi.Parsers;
 using Microsoft.AspNetCore.Http;
 
 namespace ITVComponents.WebCoreToolkit.Net.SpaApi.Handlers.Model
@@ -13,17 +14,28 @@ namespace ITVComponents.WebCoreToolkit.Net.SpaApi.Handlers.Model
     {
         public static ValueTask<SearchForm?> BindAsync(HttpContext httpContext, ParameterInfo parameter)
         {
-            var newDic = Tools.TranslateForm(httpContext.Request.Form, (k, v) =>
+            var newDic = Tools.TranslateQuery(httpContext.Request.Query, (k, v) =>
             {
                 switch (k)
                 {
                     case "filter":
                     {
-                        return ToEfFilters(FilterDescriptorFactory.Create(v));
+                        var parser = new FilterParser();
+                        return parser.GetFilter(v).FirstOrDefault()?.ToFilter();
                     }
                     case "sort":
                     {
-                        return ToEfSorts(DataSourceDescriptorSerializer.Deserialize<SortDescriptor>(v));
+                        string s = v;
+                        return (from i in s.Split("~") select i.Split("-")).Select(arr =>
+                        {
+                            var retVal = new Sort { MemberName = arr[0] };
+                            if (arr.Length > 1)
+                            {
+                                retVal.Direction =
+                                    arr[1] == "desc" ? SortDirection.Descending : SortDirection.Ascending;
+                            }
+                            return retVal;
+                        }).ToArray();
                     }
                     case "aggregates":
                     {
@@ -64,132 +76,58 @@ namespace ITVComponents.WebCoreToolkit.Net.SpaApi.Handlers.Model
             return ValueTask.FromResult<SearchForm?>(new SearchForm { SearchDictionary = newDic });
         }
 
-        private static Sort[] ToEfSorts(IList<SortDescriptor> inSort)
-        {
-            return (from t in inSort
-                select new Sort
-                {
-                    Direction = t.SortDirection == ListSortDirection.Ascending
-                        ? SortDirection.Ascending
-                        : SortDirection.Descending,
-                    MemberName = t.Member
-                }).ToArray();
-        }
-
-        public static FilterBase ToEfFilters(IList<IFilterDescriptor> filter, Type entityType = null)
-        {
-            var l = new List<FilterBase>();
-            l.AddRange(ToEfFilterList(filter, entityType));
-            if (l.Count > 1)
-            {
-                return new CompositeFilter
-                {
-                    Children = l.ToArray(),
-                    Operator = BoolOperator.And
-                };
-            }
-
-            if (l.Count == 1)
-            {
-                return l.First();
-            }
-
-            return null;
-        }
-
-        private static FilterBase[] ToEfFilterList(IEnumerable<IFilterDescriptor> filter, Type entityType)
-        {
-            var l = new List<FilterBase>();
-            foreach (var tmp in filter)
-            {
-                if (tmp is CompositeFilterDescriptor cfd)
-                {
-                    var c =  ToEfFilterList(cfd.FilterDescriptors, entityType);
-                    if (c.Length > 1)
-                    {
-                        l.Add(new CompositeFilter
-                        {
-                            Children = c,
-                            Operator = cfd.LogicalOperator == FilterCompositionLogicalOperator.And
-                                ? BoolOperator.And
-                                : BoolOperator.Or
-                        });
-                    }
-                    else if (c.Length == 1)
-                    {
-                        l.Add(c.First());
-                    }
-                }
-                else if (tmp is FilterDescriptor sfd)
-                {
-                    if (sfd.Value is not string s || !s.StartsWith("#LQ#"))
-                    {
-                        l.Add(new CompareFilter
-                        {
-                            Value = sfd.Value,
-                            Operator = TranslateOp(sfd.Operator),
-                            PropertyName = sfd.Member
-                        });
-                    }
-                    else
-                    {
-                        var filterText = s.Substring(4);
-                        l.Add(new LinqFilter(filterText, entityType, null));
-                    }
-                }
-                else
-                {
-                    throw new ArgumentException($"Unexpected Filter-Type: {tmp.GetType()}", nameof(filter));
-                }
-            }
-
-            return l.ToArray();
-        }
-
-        private static CompareOperator TranslateOp(FilterOperator op)
-        {
-            switch (op)
-            {
-                case FilterOperator.IsLessThan:
-                    return CompareOperator.LessThan;
-                case FilterOperator.IsLessThanOrEqualTo:
-                    return CompareOperator.LessThanOrEqual;
-                case FilterOperator.IsEqualTo:
-                    return CompareOperator.Equal;
-                case FilterOperator.IsNotEqualTo:
-                    return CompareOperator.NotEqual;
-                case FilterOperator.IsGreaterThanOrEqualTo:
-                    return CompareOperator.GreaterThanOrEqual;
-                case FilterOperator.IsGreaterThan:
-                    return CompareOperator.GreaterThan;
-                case FilterOperator.StartsWith:
-                    return CompareOperator.StartsWith;
-                case FilterOperator.EndsWith:
-                    return CompareOperator.EndsWith;
-                case FilterOperator.Contains:
-                    return CompareOperator.Contains;
-                case FilterOperator.DoesNotContain:
-                    return CompareOperator.ContainsNot;
-                case FilterOperator.IsNull:
-                    return CompareOperator.IsNull;
-                case FilterOperator.IsNotNull:
-                    return CompareOperator.IsNotNull;
-                case FilterOperator.IsNullOrEmpty:
-                case FilterOperator.IsEmpty:
-                    return CompareOperator.IsEmpty;
-                case FilterOperator.IsNotNullOrEmpty:
-                case FilterOperator.IsNotEmpty:
-                    return CompareOperator.IsNotEmpty;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(op), op, null);
-            }
-        }
-
         public Dictionary<string, object> SearchDictionary { get; set; }
 
+        public FilterBase Filter
+        {
+            get
+            {
+                if (SearchDictionary.TryGetValue("parsedfilter", out var raw) && raw is FilterBase fi)
+                {
+                    return fi;
+                }
+
+                return null;
+            }
+        }
+
+        public Sort[] Sorts
+        {
+            get
+            {
+                if (SearchDictionary.TryGetValue("parsedsort", out var raw) && raw is Sort[] so)
+                {
+                    return so;
+                }
+
+                return null;
+            }
+        }
+
+        public int Page
+        {
+            get
+            {
+                if (SearchDictionary.TryGetValue("parsedpage", out var raw) && raw is int page)
+                {
+                    return page;
+                }
+
+                return 0;
+            }
+        }
+
+        public int PageSize
+        {
+            get
+            {
+                if (SearchDictionary.TryGetValue("parsedpageSize", out var raw) && raw is int ps)
+                {
+                    return ps;
+                }
+
+                return 0;
+            }
+        }
     }
 }
-
-/*
-   DataSourceRequestModelBinder.TryGetValue<int>(modelMetadata, valueProvider, modelName, DataSourceRequestUrlParameters.Take, (Action<int>) (take => request.Take = take));
- */

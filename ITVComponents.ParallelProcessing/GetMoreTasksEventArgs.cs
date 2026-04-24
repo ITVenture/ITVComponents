@@ -15,5 +15,10 @@ namespace ITVComponents.ParallelProcessing
         /// Gets or sets of which to add new TaskItems
         /// </summary>
         public int Priority { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value idicating how many Tasks should be added to the queue
+        /// </summary>
+        public int TaskCount { get; set; }
     }
 }

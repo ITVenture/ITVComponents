@@ -142,7 +142,7 @@ namespace ITVComponents.Formatting.Parser
                     {"FormatLengthHandler", (parser, machine, args, prev) => new FormatHintHandler(parser, prev, args.Argument<FormatElementAppendMode>("AppendMode",true))},
                     {"RecursionDepthTokenHandler", (parser,machine, args, prev) => new RecursionDepthHandler(parser)},
                     {"EofTokenHandler", (parser, machine, args, prev) => new EofTokenHandler(parser, args.Argument<bool>("UnExpected",true)) }
-                }), statusCollection, "StringTokenHandler", this);
+                }), true, statusCollection, "StringTokenHandler", this);
             currentElement = new StringElement();
             elements = new List<IFormatElement>();
         }

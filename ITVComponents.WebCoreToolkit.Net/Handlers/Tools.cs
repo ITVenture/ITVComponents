@@ -30,6 +30,85 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             return input;
         }
 
+        public static Dictionary<string, object> TranslateQuery(IQueryCollection values,
+            Func<string, StringValues, object> propertyCallback = null, bool expectFilterForm = false)
+        {
+            var ret = new Dictionary<string, object>();
+            foreach (var v in values)
+            {
+                var tmp = propertyCallback?.Invoke(v.Key, v.Value);
+                if (tmp != null)
+                {
+                    ret.Add($"parsed{v.Key}", tmp);
+                }
+
+                if (expectFilterForm)
+                {
+                    switch (v.Key)
+                    {
+                        case "sort":
+                        case "page":
+                        case "group":
+                            {
+                                LogEnvironment.LogDebugEvent($"Ignoring {v.Key}", LogSeverity.Report);
+                                break;
+                            }
+                        case "filter":
+                            {
+                                var tmpFilter = v.Value.FirstOrDefault();
+                                var st = "~contains~'";
+                                if (tmpFilter?.Contains(st, StringComparison.OrdinalIgnoreCase) ?? false)
+                                {
+                                    var id = tmpFilter.IndexOf(st, StringComparison.OrdinalIgnoreCase);
+                                    var searchName = tmpFilter.Substring(0, id);
+                                    if (searchName == "Label")
+                                    {
+                                        id += st.Length;
+                                        var ln = tmpFilter.Length - 1 - id;
+                                        if (ln > 0)
+                                        {
+                                            tmpFilter = tmpFilter.Substring(id, ln);
+                                            ret.Add("Filter", tmpFilter);
+                                        }
+                                    }
+                                    /*else
+                                    {
+                                        LogEnvironment.LogEvent($"Unexpected Search-Filter: {tmpFilter}",
+                                            LogSeverity.Warning);
+                                    }*/
+                                }
+                                /*else
+                                {
+                                    LogEnvironment.LogEvent($"Unexpected Search-Filter: {tmpFilter}", LogSeverity.Warning);
+                                }*/
+
+                                break;
+                            }
+                        default:
+                            {
+                                ret.Add(v.Key, v.Value.FirstOrDefault());
+                                break;
+                            }
+                    }
+                }
+                else
+                {
+                    ret.Add(v.Key, v.Value.FirstOrDefault());
+                }
+            }
+
+            if (!ret.ContainsKey("parsedfilter"))
+            {
+                ret["parsedfilter"] = new CompositeFilter
+                {
+                    Children = new FilterBase[0],
+                    Operator = BoolOperator.And
+                };
+            }
+
+            return ret;
+        }
+
         /// <summary>
         /// Translates a specific filter to a Dictionary that is processable by the Context-Extensions for ForeignKey processing
         /// </summary>

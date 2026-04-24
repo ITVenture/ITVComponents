@@ -9,7 +9,7 @@ using ITVComponents.StateMachine.Models;
 
 namespace ITVComponents.StateMachine.Interfaces
 {
-    public interface IStatusFactory<TStatus, TStatusTarget> where TStatusTarget : class
+    public interface IStatusFactory<TStatus, TStatusTarget>:IDisposable where TStatusTarget : class
         where TStatus : Status<TStatus, TStatusTarget>
     {
         IEnumerable<string> KnownStates { get; }

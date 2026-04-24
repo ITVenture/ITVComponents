@@ -13,12 +13,14 @@ namespace ITVComponents.EFRepo.Expressions.Models
 {
     public class LinqFilter<T>:FilterBase, IExpressionFilter
     {
+        private string label;
         private readonly string filterText;
         private readonly string configurationName;
         private Expression<Func<T, bool>> filter;
 
-        public LinqFilter(string filterText, string configurationName)
+        public LinqFilter(string label, string filterText, string configurationName)
         {
+            this.label = label;
             this.filterText = filterText;
             this.configurationName = configurationName;
         }
@@ -28,7 +30,7 @@ namespace ITVComponents.EFRepo.Expressions.Models
 
         private Expression<Func<T, bool>> BuildFilter()
         {
-            return NativeScriptHelper.CompileExpression<Func<T, bool>>(configurationName, filterText);
+            return NativeScriptHelper.CompileExpression<Func<T, bool>>(configurationName, label, filterText);
         }
 
         protected override string DescribeFilter()
@@ -44,16 +46,18 @@ namespace ITVComponents.EFRepo.Expressions.Models
     public class LinqFilter : FilterBase, IExpressionFilter
     {
         private readonly string configurationName;
-        private Func<string, string, Expression> getExpression;
+        private Func<string, string, string, Expression> getExpression;
         private Expression expression;
+        private readonly string label;
         private string expressionText;
-        public LinqFilter(string expression, Type entityType, string configurationName)
+        public LinqFilter(string label, string expression, Type entityType, string configurationName)
         {
+            this.label = label;
             expressionText = expression;
             this.configurationName = configurationName;
-            var tmpXp= LambdaHelper.GetMethodInfo(() => NativeScriptHelper.CompileExpression<object>(null, null));
+            var tmpXp= LambdaHelper.GetMethodInfo(() => NativeScriptHelper.CompileExpression<object>(null, null, null));
             getExpression = tmpXp.MakeGenericMethod(typeof(Func<,>).MakeGenericType(entityType, typeof(bool)))
-                .CreateDelegate<Func<string, string, Expression>>();
+                .CreateDelegate<Func<string, string, string, Expression>>();
         }
 
         protected override string DescribeFilter()
@@ -65,6 +69,6 @@ namespace ITVComponents.EFRepo.Expressions.Models
             }, SerializationTypingMode.StaticTyping, null);
         }
 
-        public Expression FilterExpression => expression ??= getExpression(expressionText, configurationName);
+        public Expression FilterExpression => expression ??= getExpression(configurationName, label, expressionText);
     }
 }

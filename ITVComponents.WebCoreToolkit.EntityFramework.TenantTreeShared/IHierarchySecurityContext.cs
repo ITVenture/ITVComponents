@@ -86,11 +86,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
         public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string userId, string? leafTenant);
 
         [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForLabels")]
-        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserLabelsRoles(string userLabelsJson,
-            string? leafTenant);
+        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserLabelsRoles(string userLabelsJson, string? leafTenant);
+
+        //--
+
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForIdByLeafId")]
+        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string userId, int? leafTenantId);
+
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForLabelsByLeafId")]
+        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserLabelsRoles(string userLabelsJson, int? leafTenantId);
 
         public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string[] userLabels, string? leafTenant) =>
             GetUpwardsTenantUserLabelsRoles(JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), leafTenant);
+
+        public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string[] userLabels, int? leafTenantId) =>
+            GetUpwardsTenantUserLabelsRoles(JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), leafTenantId);
+
+        public IQueryable<UpwardsTenantView> GetAccessibleUpwardsTenants(string[] userLabels, string authenticationType, string leafTenant);
+
+        public IQueryable<UpwardsTenantView> GetAccessibleUpwardsTenants(string[] userLabels, string authenticationType, int leafTenantId);
 
         public IEnumerable<DownwardsUserRoleView<TUserId>> GetDownwardsTenantUserRoles(string userId, bool userIdIsLabels,
             string viewpointTenant);
@@ -100,6 +114,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
             GetDownwardsTenantUserRoles(JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), true,
                 viewpointTenant);
 
+        public DbSet<UserAccessTree<TUserId>> UserAccessTree { get; set; }
+
         public IEnumerable<TTenant> ChildTenantsWith(string userId, string currentTenant, string[] requiredPermissions);
+
+        public IEnumerable<TTenant> ChildTenantsWith(string[] userLabels, string currentTenant, string[] requiredPermissions);
+
+        public IEnumerable<TTenant> ChildTenantsWith(string userId, int? currentTenantId, string[] requiredPermissions);
+
+        public IEnumerable<TTenant> ChildTenantsWith(string[]userLabels, int? currentTenantId, string[] requiredPermissions);
     }
 }

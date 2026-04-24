@@ -55,6 +55,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
         {
             ConfigureUpwardsTree(builderOptions);
             ConfigureDownwardsTree(builderOptions);
+            ConfigureAccessTree(builderOptions);
             ConfigureUpwardsRoleTree(builderOptions);
             ConfigureDownwardsRoleTree(builderOptions);
         }
@@ -62,7 +63,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
         public static void ConfigureUpwardsTree(IContextModelBuilderOptions builderOptions)
         {
             builderOptions.ConfigureEntity<UpwardsTenantView>(uu =>
-                uu.ToTable(GlobalDbObjectNaming.UpwardsTenantTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
+                uu.ToView(GlobalDbObjectNaming.UpwardsTenantTreeView).HasNoKey());
+        }
+
+        public static void ConfigureAccessTree(IContextModelBuilderOptions builderOptions)
+        {
+            builderOptions.ConfigureEntity<UserAccessTree<string>>(uat => uat.ToView(GlobalDbObjectNaming.UserAccessTree).HasNoKey());
         }
 
         public static void ConfigureUpwardsRoleTree(
@@ -72,6 +78,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
                 m => m.HasName("GetUpwardsRoleTreeForId"));
             builderOptions.ConfigureDbFunction("GetUpwardsRoleTreeForLabels",
                 m => m.HasName("GetUpwardsRoleTreeForLabels"));
+            builderOptions.ConfigureDbFunction("GetUpwardsRoleTreeForIdByLeafId",
+                m => m.HasName("GetUpwardsRoleTreeForIdByLeafId"));
+            builderOptions.ConfigureDbFunction("GetUpwardsRoleTreeForLabelsByLeafId",
+                m => m.HasName("GetUpwardsRoleTreeForLabelsByLeafId"));
+
             builderOptions.ConfigureEntity<UpwardsRoleUserView<string>>(b => b.HasNoKey());
             /*builderOptions.ConfigureEntity<UpwardsRoleUserView<string>>(pp =>
                 pp.ToTable(GlobalDbObjectNaming.UpwardsRoleTreeView, b => b.ExcludeFromMigrations()).HasNoKey());*/
@@ -81,7 +92,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
             IContextModelBuilderOptions builderOptions)
         {
             builderOptions.ConfigureEntity<DownwardsTenantView>(dd =>
-                dd.ToTable(GlobalDbObjectNaming.DownwardsTenantTreeView, b => b.ExcludeFromMigrations()).HasNoKey());
+                dd.ToView(GlobalDbObjectNaming.DownwardsTenantTreeView).HasNoKey());
         }
 
         public static void ConfigureDownwardsRoleTree(
@@ -152,21 +163,47 @@ select * from @vld", new SqlParameter("@name", name),
                             $"exec GetChildTenantsWithPermsProc @UserId={JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping)},@UserIsLabels=1,@ViewPointTenantName={currentTenant},@RequiredPermissionArray={JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping)}")
                         .ToArray();
                 });
+
+            //--
+
+            bld.ConfigureMethod<Func<DbContext, string, int?, string[], HierarchyTenant[]>>(GlobalDbObjectNaming.ChildTenantsWithProc,
+                (c, userId, currentTenant, requiredPermissions) =>
+                {
+                    var ctx = (TargetInterface)c;
+                    return ctx.Tenants
+                        .FromSql(
+                            $"exec GetChildTenantsWithPermsByVpIProc @UserId={userId},@UserIsLabels=0,@ViewPointTenantId={currentTenant},@RequiredPermissionArray={JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping)}")
+                        .ToArray();
+                });
+
+            bld.ConfigureMethod<Func<DbContext, string[], int?, string[], HierarchyTenant[]>>(GlobalDbObjectNaming.ChildTenantsWithProc,
+                (c, userLabels, currentTenant, requiredPermissions) =>
+                {
+                    var ctx = (TargetInterface)c;
+                    return ctx.Tenants
+                        .FromSql(
+                            $"exec GetChildTenantsWithPermsByVpIProc @UserId={JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping)},@UserIsLabels=1,@ViewPointTenantId={currentTenant},@RequiredPermissionArray={JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping)}")
+                        .ToArray();
+                });
         }
 
-        public static void ConfigureViews(MigrationBuilder migrationBuilder, string schema = "dbo", bool dropFirst = false)
+        public static void ConfigureViews(MigrationBuilder migrationBuilder, string schema = "dbo")
         {
-            if (dropFirst)
-            {
-                migrationBuilder.Sql($@"DROP VIEW [{schema}].[UpwardsTenantTree]");
-                migrationBuilder.Sql($@"DROP VIEW [{schema}].[DownwardsTenantTree]");
+            migrationBuilder.Sql($"Drop View if exists [{schema}].[TenantAccessTreeUp]");
+            migrationBuilder.Sql($"Drop View if exists [{schema}].[TenantAccessTreeDown]");
+            migrationBuilder.Sql($@"DROP VIEW if exists [{schema}].[UpwardsTenantTree]");
+                migrationBuilder.Sql($@"DROP VIEW if exists [{schema}].[DownwardsTenantTree]");
                 //migrationBuilder.Sql($@"DROP FUNCTION [{schema}].[GetUpwardsRoleTree]");
-                migrationBuilder.Sql($@"DROP FUNCTION [{schema}].[GetUpwardsRoleTreeForLabels]");
-                migrationBuilder.Sql($@"DROP FUNCTION [{schema}].[GetUpwardsRoleTreeForId]");
-                migrationBuilder.Sql($@"DROP PROCEDURE [{schema}].[GetDownwardsRoleTreeProc]");
-                migrationBuilder.Sql($@"DROP PROCEDURE [{schema}].[GetChildTenantsWithPermsProc]");
+                migrationBuilder.Sql($@"DROP FUNCTION if exists [{schema}].[GetUpwardsRoleTreeForLabels]");
+                migrationBuilder.Sql($@"DROP FUNCTION if exists [{schema}].[GetUpwardsRoleTreeForId]");
+                migrationBuilder.Sql($@"DROP PROCEDURE if exists [{schema}].[GetDownwardsRoleTreeProc]");
+                migrationBuilder.Sql($@"DROP PROCEDURE if exists [{schema}].[GetChildTenantsWithPermsProc]");
+                //--
+                migrationBuilder.Sql($@"DROP FUNCTION if exists [{schema}].[GetUpwardsRoleTreeForLabelsByLeafId]");
+                migrationBuilder.Sql($@"DROP FUNCTION if exists [{schema}].[GetUpwardsRoleTreeForIdByLeafId]");
+                migrationBuilder.Sql($@"DROP PROCEDURE if exists [{schema}].[GetDownwardsRoleTreeByVpIdProc]");
+                migrationBuilder.Sql($@"DROP PROCEDURE if exists [{schema}].[GetChildTenantsWithPermsByVpIdProc]");
 
-            }
             migrationBuilder.Sql($@"CREATE VIEW [{schema}].[UpwardsTenantTree]
 AS
 WITH r AS (SELECT   TenantId AS OutermostLeafTenantId, TenantName AS OutermostLeafTenantName, TenantId AS ParentTenantId, TenantName AS ParentTenantName, 1 AS ParentLevel, 
@@ -190,6 +227,57 @@ WITH r AS (SELECT   TenantId AS TopmostTenantId, TenantName AS TopmostTenantName
                                                       r  ON r.ChildTenantId = u.ParentTenantId)
     SELECT   TopmostTenantId,TopmostTenantName, ChildTenantId, ChildTenantName, ChildLevel
      FROM         r");
+
+            migrationBuilder.Sql($$"""
+                                   create view [{{schema}}].[TenantAccessTreeDown] as 
+                                   with rDown as (select t.TenantId as TopmostTenantId, t.TenantName as TopmostTenantName, s.RoleId TopmostSecurityRole, tu.TenantUserId, tu.UserId,
+                                   t.TenantId as ChildTenantId, t.TenantName as ChildTenantName, s.RoleId ChildTenantRole, s.RoleId NextParentRoleId, level = 1 from Tenants t
+                                   inner join TenantUsers tu on tu.TenantId = t.TenantId
+                                   inner join SecurityRoles s on s.TenantId = t.TenantId
+                                   inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = s.RoleId
+                                   union all
+                                   select r_2.TopmostTenantId, r_2.TopmostTenantName, r_2.TopmostSecurityRole, r_2.TenantUserId, r_2.UserId, 
+                                   tc.TenantId as ChildTenantId, tc.TenantName as ChildTenantName, ts.RoleId ChildTenantRoleId, ts.RoleId NextParentRoleId, level+1 level
+                                   from
+                                   rDown r_2
+                                   inner join Tenants tc on tc.ParentTenantId = r_2.ChildTenantId
+                                   inner join SecurityRoles ts on ts.TenantId = tc.TenantId
+                                   inner join RoleRoles tcr on tcr.PermittedRoleId = r_2.NextParentRoleId and tcr.PermissiveRoleId = ts.RoleId
+                                   )
+                                   
+                                   select * from rDown
+                                   """);
+
+            migrationBuilder.Sql($$"""
+                                   create view [{{schema}}].[TenantAccessTreeUp] as 
+                                   with rUp as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 
+                                   	   from 
+                                   	   SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                                   union all
+                                   select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level 
+                                   from rUp as r_2
+                                   inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
+                                   inner join SecurityRoles pr on pr.RoleId = roro.PermittedRoleId and pr.TenantId =r_2.nextparent
+                                   inner join Tenants ct on ct.TenantId = r_2.TenantId
+                                   inner join Tenants pt on pt.TenantId = pr.TenantId and pr.TenantId = r_2.nextparent
+                                   )
+                                   select * from rUp
+                                   """);
+
+            migrationBuilder.Sql($$"""
+                                   create view [{{schema}}].[TenantAccessTree] as 
+                                   with ranked as (select t.OutermostLeafTenantId, OutermostLeafTenantName, t.ParentTenantId, t.ParentTenantName, t.ParentLevel, 
+                                   					d.topmosttenantid, d.topmosttenantname, d.tenantuserid, d.userid, d.childtenantid, d.childtenantname, d.level, ROW_NUMBER() OVER (
+                                               PARTITION BY d.userid, outermostleaftenantid, d.childtenantid
+                                               ORDER BY t.parentlevel DESC  -- lokal gewinnt
+                                           ) AS rn from UpwardsTenantTree t
+                                   inner join TenantAccessTreeDown d on d.ChildTenantId = t.ParentTenantId 
+                                   left outer join (TenantAccessTreeUp u  inner join tenantusers tut on tut.tenantid = u.parenttenantid) on d.childtenantid = u.parenttenantid 
+                                   and d.childtenantrole = u.parentRoleId and tut.UserId = d.userid and d.childtenantid = t.OutermostLeafTenantId
+                                   )
+                                   select OutermostLeafTenantId, OutermostLeafTenantName, ParentTenantId, ParentTenantName, ParentLevel, topmosttenantid, TopmostTenantName, tenantuserid, userid, childtenantid, childtenantname, case when [level] = 1 then CAST(1 as bit) else cast(0 as bit) end directAssign from ranked 
+                                   where rn = 1
+                                   """);
 
             if (false)
             {
@@ -252,7 +340,7 @@ inner join users u on u.id = tu.UserId");
                              begin
                              	declare @UserId nvarchar(256) = @pUserId
                              	declare @userIsLabels bit = @puserIsLabels
-                             	declare @ViewPoint nvarchar(256) = @pViewPoint
+                             	declare @viewPoint nvarchar(256) = @pViewPoint
                              	declare @completeUpTree table(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(100), ParentTenantId int, ParentTenantName nvarchar(100), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(100), OutermostRoleId int)
                              	declare @completeUpTreeShrinker table(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(100), ParentLevel int, UserId nvarchar(100))
                              	declare @resultingUpTree table(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(100), ParentTenantId int, ParentTenantName nvarchar(100), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(100), OutermostRoleId int)
@@ -302,8 +390,8 @@ inner join users u on u.id = tu.UserId");
                              
                              end
                              """;
-                var ctwp = """
-                           ALTER procedure [{{schema}}].[GetChildTenantsWithPermsProc]
+                var ctwp = $$"""
+                           CREATE procedure [{{schema}}].[GetChildTenantsWithPermsProc]
                            (
                                @UserId nvarchar(100),
                            	@UserIsLabels bit,
@@ -367,7 +455,7 @@ inner join users u on u.id = tu.UserId");
                                   )
                                   """;
                 var urtLblFunc = $$"""
-                                   ALTER FUNCTION [{{schema}}].[GetUpwardsRoleTreeForLabels] 
+                                   CREATE FUNCTION [{{schema}}].[GetUpwardsRoleTreeForLabels] 
                                    (
                                    	@UserId NVARCHAR(256),
                                    	@FromLeaf nvarchar(256)
@@ -395,6 +483,162 @@ inner join users u on u.id = tu.UserId");
                                    where @FromLeaf is null or @FromLeaf = OutermostLeafTenantName
                                    )
                                    """;
+                var drtTi = $$"""
+             Create Procedure [{{schema}}].[GetDownwardsRoleTreeByVpIdProc] 
+             (	
+                	@pUserId NVARCHAR(256),
+                	@puserIsLabels bit,
+                	@pViewPointTenantId int
+             )
+             AS
+             begin
+                	declare @UserId nvarchar(256) = @pUserId
+                	declare @userIsLabels bit = @puserIsLabels
+                	declare @viewPointId int = @pViewPointTenantId
+                	declare @completeUpTree table(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(100), ParentTenantId int, ParentTenantName nvarchar(100), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(100), OutermostRoleId int)
+                	declare @completeUpTreeShrinker table(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(100), ParentLevel int, UserId nvarchar(100))
+                	declare @resultingUpTree table(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(100), ParentTenantId int, ParentTenantName nvarchar(100), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(100), OutermostRoleId int)
+                	if (@userIsLabels=1) begin
+                   		insert into @completeUpTree select * from GetUpwardsRoleTreeForLabelsByLeafId(@userid, @viewPointId) --group by OutermostLeafTenantId, OutermostLeafTenantName, UserId
+                	end else begin
+                   		insert into @completeUpTree select * from GetUpwardsRoleTreeForIdByLeafId(@userid, @viewPointId) --group by OutermostLeafTenantId, OutermostLeafTenantName, UserId
+                	end
+                	insert into @completeUpTreeShrinker (OutermostLeafTenantId, OutermostLeafTenantName, UserId, ParentLevel) select OutermostLeafTenantId, OutermostLeafTenantName, UserId, min(parentlevel) as parentLevel from @completeUpTree group by OutermostLeafTenantId, OutermostLeafTenantName, UserId
+                	insert into @resultingUpTree select b.* from @completeUpTreeShrinker a inner join @completeUpTree b on a.OutermostLeafTenantId = b.OutermostLeafTenantId and a.OutermostLeafTenantName = b.OutermostLeafTenantName and a.ParentLevel = b.ParentLevel and a.UserId = b.UserId
+                	declare @rawtree table (
+                   		TopmostTenantId int, 
+                   		TopmostTenantName nvarchar(100), 
+                   		TopmostRoleId int,
+                   		ViewpointTenantId int, 
+                   		ViewpointTenantName nvarchar(100), 
+                   		ChildTenantId int, 
+                   		ChildTenantName nvarchar(100), 
+                   		ChildLevel int, 
+                   		UserId nvarchar(100), 
+                   		OutermostRoleId int
+                	)
+             
+                	insert into @rawTree
+                	SELECT   ParentTenantId TopmostTenantId, ParentTenantName TopmostTenantName, ParentRoleId TopMostRoleId, a.OutermostLeafTenantId ViewpointTenantId, a.OutermostLeafTenantName ViewpointTenantName, d.childtenantid, d.ChildTenantName, d.ChildLevel, UserId, OutermostRoleId--OutermostLeafTenantId, OutermostLeafTenantName, ParentTenantId, parenttenantname, parentlevel, tu.TenantUserId, u.id as UserId, OutermostRole OutermostRoleId
+                	from @resultingUpTree a
+                	inner join downwardstenanttree d on d.TopmostTenantId = OutermostLeafTenantId
+                	;
+             
+                	with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+             union all
+             select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
+             inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
+             inner join SecurityRoles pr on pr.RoleId = roro.PermittedRoleId and pr.TenantId =r_2.nextparent
+             inner join Tenants ct on ct.TenantId = r_2.TenantId
+             inner join Tenants pt on pt.TenantId = pr.TenantId and pr.TenantId = r_2.nextparent)
+             
+             
+             SELECT   d.ViewpointTenantId, d.ViewpointTenantName, r.ParentTenantId TopmostTenantId, parenttenantname TopmostTenantName, OutermostLeafTenantId ChildTenantId, OutermostLeafTenantName ChildTenantName, tu.TenantUserId, u.id as UserId, r.RoleId ResultingChildRoleId, d.ChildLevel, parentlevel TopmostParentLevel from UpwardsTenantTree t
+             inner join r on r.TenantId = t.OutermostLeafTenantId and r.ParentTenantId = t.ParentTenantId
+             inner join TenantUsers tu on tu.TenantId = t.ParentTenantId
+             inner join Users u on u.id = tu.UserId
+             inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
+             inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
+             inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+             inner join @rawtree d on d.TopmostTenantId = r.ParentTenantId and d.ChildTenantId = OutermostLeafTenantId and d.UserId = u.Id and d.TopmostRoleId = pr.RoleId
+             
+             end
+             """;
+                var ctwpTi = $$"""
+           CREATE procedure [{{schema}}].[GetChildTenantsWithPermsByVpIdProc]
+           (
+               @UserId nvarchar(100),
+              	@UserIsLabels bit,
+              	@ViewPointTenantId int,
+              	@RequiredPermissionArray nvarchar(max)
+           )
+           AS
+           BEGIN
+               declare @rtQuery table (ViewpointTenantId int, ViewpointTenantName nvarchar(100), TopmostTenantId int, TopmostTenantName nvarchar(100), ChildTenantId int, ChildTenantName nvarchar(100), TenantUserId int, UserId nvarchar(100), ResultingChildRoleId int, ChildLevel int, TopmostParentLevel int)
+           insert into @rtQuery
+           exec GetDownwardsRoleTreeByVpIdProc @pUserId=@userId, @pUserIsLabels=@UserIsLabels, @pViewPointTenantId = @ViewpointTenantId
+           declare @permRaw table([value] nvarchar(150))
+           insert into @permRaw ([value]) select value from openjson(@RequiredPermissionArray) with ([value] nvarchar(150) '$')
+           
+           declare @perm2T table(permissionId int, tenantId int)
+           insert into @perm2T select p.PermissionId, r.ChildTenantId TenantId from
+           @rtQuery r
+           inner join RolePermissions rp on rp.RoleId = r.ResultingChildRoleId
+           inner join Permissions p on p.PermissionId = rp.PermissionId
+           inner join @permRaw rqr on p.PermissionName = rqr.value
+           union 
+           select p.PermissionId, r.ChildTenantId TenantId from
+           @rtQuery r
+           inner join GlobalToLocalRoles rp on rp.LocalRoleId = r.ResultingChildRoleId
+           inner join GlobalRolePermissions grp on grp.GlobalRoleId = rp.GlobalRoleId
+           inner join Permissions p on p.PermissionId = grp.PermissionId
+           inner join @permRaw rqr on p.PermissionName = rqr.value
+           
+           select t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, null TenantPassword, t.TimeZone, t.TenantTypeId, t.TenantDirty 
+           from @perm2T r
+           inner join Tenants t on t.TenantId = r.tenantId
+           group by t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, t.TimeZone, t.TenantTypeId, t.TenantDirty
+           END
+           """;
+
+                var urtIdFuncTi = $$"""
+                  CREATE FUNCTION [{{schema}}].[GetUpwardsRoleTreeForIdByLeafId] 
+                  (
+                     	@UserId NVARCHAR(256),
+                     	@FromLeafTenantId int
+                  )
+                  RETURNS TABLE --(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(150), ParentTenantId int, ParentTenantName nvarchar(150), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(400), OutermostRoleId int)
+                  AS 
+                  return (
+                         with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                  union all
+                  select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
+                  inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
+                  inner join SecurityRoles pr on pr.RoleId = roro.PermittedRoleId and pr.TenantId =r_2.nextparent
+                  inner join Tenants ct on ct.TenantId = r_2.TenantId
+                  inner join Tenants pt on pt.TenantId = pr.TenantId and pr.TenantId = r_2.nextparent)
+                  
+                  
+                  select t.OutermostLeafTenantId, t.OutermostLeafTenantName, t.ParentTenantId, t.ParentTenantName, pr.RoleId ParentRoleId, t.ParentLevel, tu.TenantUserId, u.Id as UserId, cr.RoleId as OutermostRoleId from UpwardsTenantTree t
+                  inner join r on r.TenantId = t.OutermostLeafTenantId and r.ParentTenantId = t.ParentTenantId
+                  inner join TenantUsers tu on tu.TenantId = t.ParentTenantId
+                  inner join Users u on u.id = tu.UserId
+                  inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
+                  inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
+                  inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+                  where u.id = @userId  and (OutermostLeafTenantId = @FromLeafTenantId or @FromLeafTenantId is null)
+                  )
+                  """;
+
+                var urtLblFuncTi = $$"""
+                   CREATE FUNCTION [{{schema}}].[GetUpwardsRoleTreeForLabelsByLeafId] 
+                   (
+                      	@UserId NVARCHAR(256),
+                      	@FromLeafTenantId int
+                   )
+                   RETURNS TABLE --(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(150), ParentTenantId int, ParentTenantName nvarchar(150), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(400), OutermostRoleId int)
+                   AS 
+                   return (
+                          with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                   union all
+                   select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
+                   inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
+                   inner join SecurityRoles pr on pr.RoleId = roro.PermittedRoleId and pr.TenantId =r_2.nextparent
+                   inner join Tenants ct on ct.TenantId = r_2.TenantId
+                   inner join Tenants pt on pt.TenantId = pr.TenantId and pr.TenantId = r_2.nextparent)
+                   
+                   
+                   select t.OutermostLeafTenantId, t.OutermostLeafTenantName, t.ParentTenantId, t.ParentTenantName, pr.RoleId ParentRoleId, t.ParentLevel, tu.TenantUserId, u.Id as UserId, cr.RoleId as OutermostRoleId from UpwardsTenantTree t
+                   inner join r on r.TenantId = t.OutermostLeafTenantId and r.ParentTenantId = t.ParentTenantId
+                   inner join TenantUsers tu on tu.TenantId = t.ParentTenantId
+                   inner join Users u on u.id = tu.UserId
+                   inner join openjson(@UserId) with ([value] nvarchar(150) '$') uta on u.NormalizedUserName = uta.value
+                   inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
+                   inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
+                   inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+                   where @FromLeafTenantId is null or @FromLeafTenantId = OutermostLeafTenantId
+                   )
+                   """;
                 /*var urt = $$"""
                              CREATE FUNCTION [{{schema}}].[GetUpwardsRoleTree] 
                              (
@@ -419,6 +663,11 @@ inner join users u on u.id = tu.UserId");
                 //migrationBuilder.Sql(urt);
                 migrationBuilder.Sql(drt);
                 migrationBuilder.Sql(ctwp);
+                migrationBuilder.Sql(urtIdFuncTi);
+                migrationBuilder.Sql(urtLblFuncTi);
+                //migrationBuilder.Sql(urt);
+                migrationBuilder.Sql(drtTi);
+                migrationBuilder.Sql(ctwpTi);
             }
         }
 

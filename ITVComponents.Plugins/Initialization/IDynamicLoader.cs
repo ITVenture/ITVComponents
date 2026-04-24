@@ -43,5 +43,7 @@ namespace ITVComponents.Plugins.Initialization
         /// <param name="pluginName">the unique name of the plugin</param>
         /// <returns>a plugin definition if this loaders source provides one, otherwise null.</returns>
         PluginConfigurationItem GetScopedPlugin(string pluginName);
+
+        IEnumerable<PluginConfigurationItem> GetScopedPluginNames();
     }
 }

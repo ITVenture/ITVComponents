@@ -95,7 +95,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 if (!string.IsNullOrEmpty(reqx))
                 {
                     string s = unpackString(refQuery["RFXQ"]);
-                    return new LinqFilter<T>(s, nativeConfigName);
+                    return new LinqFilter<T>(null, s, nativeConfigName);
                 }
 
                 if (reqs.Length > 0)

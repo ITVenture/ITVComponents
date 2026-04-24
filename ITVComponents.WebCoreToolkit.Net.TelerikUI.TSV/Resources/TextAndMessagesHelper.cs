@@ -166,6 +166,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
 
         public static string IWCN_ES_UniqueName => GetString(nameof(IWCN_ES_UniqueName));
 
+        public static string IWCN_ES_AuthenticationType => GetString(nameof(IWCN_ES_AuthenticationType));
+
         public static string IWCN_ES_RedirectUri => GetString(nameof(IWCN_ES_RedirectUri));
 
         public static string IWCN_ES_AuthEndpoint => GetString(nameof(IWCN_ES_AuthEndpoint));
@@ -541,6 +543,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resourc
         public static string GetIWCN_ES_Global(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_Global), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_ES_UniqueName(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_UniqueName), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_AuthenticationType(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_AuthenticationType), requestCulture.RequestCulture.UICulture);
         public static string GetIWCN_ES_RedirectUri(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_RedirectUri), requestCulture.RequestCulture.UICulture);
         public static string GetIWCN_ES_AuthEndpoint(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_AuthEndpoint), requestCulture.RequestCulture.UICulture);
         public static string GetIWCN_ES_TokenEndpoint(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_TokenEndpoint), requestCulture.RequestCulture.UICulture);

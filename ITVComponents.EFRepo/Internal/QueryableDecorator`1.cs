@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace ITVComponents.EFRepo.Internal
 {
-    internal class QueryableDecorator<T>:IQueryableWrapper, IQueryable<T> where T : class, new()
+    internal class QueryableDecorator<T>:IQueryableWrapper<T>, IQueryable<T> where T : class, new()
     {
         private readonly IQueryable<T> decorated;
 

@@ -32,8 +32,17 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Principal;
+using Dynamitey;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
-
+using IHierarchySecurityContext = ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.IHierarchySecurityContext<ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.HierarchyTenant, string, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.User, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Role, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Permission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.UserRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RolePermission,
+    ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.HierarchyTenantUser, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RoleRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GlobalRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GlobalRolePermission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GRoleLRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.NavigationMenu, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.TenantNavigationMenu, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DiagnosticsQuery,
+    ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DiagnosticsQueryParameter, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.TenantDiagnosticsQuery, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DashboardWidget, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DashboardParam,
+    ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DashboardWidgetLocalization, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.UserWidget, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.CustomUserProperty, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.AssetTemplate, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.AssetTemplatePath,
+    ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.AssetTemplateGrant, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.AssetTemplateFeature, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.SharedAsset, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.SharedAssetUserFilter, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.SharedAssetTenantFilter,
+    ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.ClientAppTemplate, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.AppPermission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.AppPermissionSet, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.ClientAppTemplatePermission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.ClientApp,
+    ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.ClientAppPermission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.ClientAppUser, ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchyWebPlugin, ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchyWebPluginConstant,
+    ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchyWebPluginGenericParameter, ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchySequence, ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchyTenantSetting,
+    ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchyTenantFeatureActivation, ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchyExternalOAuthService, ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchyExternalOAuthServiceState, ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels.HierarchyExternalOAuthServiceTenantLogin, ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models.HierarchyTenantContextSecurityTrustConfig>;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
@@ -229,6 +238,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                 return -1;
             }
         }
+
+        public DbSet<UserAccessTree<string>> UserAccessTree { get; set; }
 
         public DbSet<HierarchySequence> Sequences { get; set; }
         public DbSet<HierarchyExternalOAuthService> ExternalOAuthServices { get; set; }
@@ -668,6 +679,70 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
             }
         }
 
+        //--
+
+        public IEnumerable<HierarchyTenant> ChildTenantsWith(string userId, int? currentTenantId, string[] requiredPermissions)
+        {
+            var trust = new HierarchyTenantContextSecurityTrustConfig
+            {
+                HideGlobals = false,
+                IncludeParentTree = true,
+                IncludeChildTree = true,
+                ShowAllTenants = true
+            };
+
+            using (securityAccessProvider.CreateForCaller(this,
+                       trust))
+            {
+                var mth =
+                    modelBuilderOptions.GetMethod<Func<DbContext, string, int?, string[], HierarchyTenant[]>>(
+                        "ChildTenantsWith");
+                if (mth == null)
+                {
+                    throw new InvalidOperationException("ChildTenantsWith was not implemented for this Database-Type");
+                }
+
+                if (currentTenantId != null)
+                {
+                    var tmpRet = mth(this, userId, currentTenantId, requiredPermissions);
+                    return tmpRet;
+                }
+
+                return Array.Empty<HierarchyTenant>();
+            }
+        }
+
+        public IEnumerable<HierarchyTenant> ChildTenantsWith(string[] userLabels, int? currentTenantId, string[] requiredPermissions)
+        {
+            var trust = new HierarchyTenantContextSecurityTrustConfig
+            {
+                HideGlobals = false,
+                IncludeParentTree = true,
+                IncludeChildTree = true,
+                ShowAllTenants = true
+            };
+
+            using (securityAccessProvider.CreateForCaller(this,
+                       trust))
+            {
+                var mth =
+                    modelBuilderOptions.GetMethod<Func<DbContext, string[], int?, string[], HierarchyTenant[]>>(
+                        "ChildTenantsWith");
+                if (mth == null)
+                {
+                    throw new InvalidOperationException("ChildTenantsWith was not implemented for this Database-Type");
+                }
+
+                if (currentTenantId != null)
+                {
+                    var tmpRet = mth(this, userLabels, currentTenantId, requiredPermissions);
+                    return tmpRet;
+                }
+
+                return Array.Empty<HierarchyTenant>();
+            }
+        }
+
         [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForId")]
         public IQueryable<UpwardsRoleUserView<string>> GetUpwardsTenantUserRoles(string userId, string? leafTenant)
         {
@@ -678,6 +753,108 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         public IQueryable<UpwardsRoleUserView<string>> GetUpwardsTenantUserLabelsRoles(string userLabelsJson, string? leafTenant)
         {
             return FromExpression(() => GetUpwardsTenantUserLabelsRoles(userLabelsJson, leafTenant));
+        }
+
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForIdByLeafId")]
+        public IQueryable<UpwardsRoleUserView<string>> GetUpwardsTenantUserRoles(string userId, int? leafTenantId)
+        {
+            return FromExpression(() => GetUpwardsTenantUserRoles(userId, leafTenantId));
+        }
+
+        [EFRepo.DataAnnotations.DbFunction("GetUpwardsRoleTreeForLabelsByLeafId")]
+        public IQueryable<UpwardsRoleUserView<string>> GetUpwardsTenantUserLabelsRoles(string userLabelsJson, int? leafTenantId)
+        {
+            return FromExpression(() => GetUpwardsTenantUserLabelsRoles(userLabelsJson, leafTenantId));
+        }
+
+        public IQueryable<UpwardsTenantView> GetAccessibleUpwardsTenants(string[] userLabels, string authenticationType,
+            int leafTenantId)
+        {
+            var lbl = (from t in userLabels select t.ToLower()).ToArray();
+            var tmp = (from t in Users.Where(n => lbl.Contains(n.UserName.ToLower()) &&
+                                                  (n.AuthenticationType == null ||
+                                                   n.AuthenticationType.AuthenticationTypeName == authenticationType))
+                join r in UserAccessTree on t.Id equals r.UserId
+                where r.OutermostLeafTenantId == leafTenantId
+                orderby r.ParentLevel
+                select new UpwardsTenantView
+                {
+                    OutermostLeafTenantId = r.OutermostLeafTenantId,
+                    OutermostLeafTenantName = r.OutermostLeafTenantName,
+                    ParentLevel = r.ParentLevel,
+                    ParentTenantId = r.ParentTenantId,
+                    ParentTenantName = r.ParentTenantName
+                });
+            /*var lbl = (from t in userLabels select t.ToLower()).ToArray();
+            var tmp = (from t in Users.Where(n => lbl.Contains(n.UserName.ToLower()) &&
+                                                  (n.AuthenticationType == null ||
+                                                   n.AuthenticationType.AuthenticationTypeName == authenticationType))
+                        .Join(TenantUsers, u => u.Id, u => u.UserId, (tu, tt) => new { tt.TenantUserId, tt.TenantId })
+                        .Join(((IHierarchySecurityContext)this).GetUpwardsTenantUserRoles(userLabels, leafTenantId),
+                            l => l.TenantUserId, r => r.TenantUserId,
+                            (l, r) => new { l.TenantUserId, l.TenantId, r.OutermostLeafTenantId, r.OutermostLeafTenantName, r.ParentLevel })
+                        .Join(Tenants, l => l.OutermostLeafTenantId, r => r.TenantId, (l, r) => new { l, r })
+                    select new
+                    {
+                        t.r.TenantId,
+                        t.r.TenantName,
+                        t.r.DisplayName,
+                        DirectlyAssigned = t.l.TenantId == t.r.TenantId,
+                        t.l.ParentLevel,
+                        t.l.OutermostLeafTenantId,
+                        t.l.OutermostLeafTenantName
+                    }).Distinct()
+                .OrderBy(n => n.ParentLevel)
+                .Select(r => new UpwardsTenantView
+                {
+                    ParentLevel = r.ParentLevel,
+                    OutermostLeafTenantId = r.OutermostLeafTenantId,
+                    OutermostLeafTenantName = r.OutermostLeafTenantName,
+                    ParentTenantId = r.TenantId,
+                    ParentTenantName = r.TenantName
+                });*/
+            return tmp;
+        }
+
+        public IQueryable<UpwardsTenantView> GetAccessibleUpwardsTenants(string[] userLabels, string authenticationType, string leafTenant)
+        {
+            var lbl = (from t in userLabels select t.ToLower()).ToArray();
+            var tmp = (from t in Users.Where(n => lbl.Contains(n.UserName.ToLower()) &&
+                                                   (n.AuthenticationType == null ||
+                                                    n.AuthenticationType.AuthenticationTypeName == authenticationType))
+                join r in UserAccessTree on t.Id equals r.UserId
+                       where r.OutermostLeafTenantName == leafTenant
+                orderby r.ParentLevel
+                        select new UpwardsTenantView
+                {
+                    OutermostLeafTenantId = r.OutermostLeafTenantId,
+                    OutermostLeafTenantName = r.OutermostLeafTenantName,
+                    ParentLevel = r.ParentLevel,
+                    ParentTenantId = r.ParentTenantId,
+                    ParentTenantName = r.ParentTenantName
+                });
+            /*var tmp = (from t in Users.Where(n => lbl.Contains(n.UserName.ToLower()) &&
+                                                  (n.AuthenticationType == null ||
+                                                   n.AuthenticationType.AuthenticationTypeName == authenticationType))
+                    .Join(TenantUsers, u => u.Id, u => u.UserId, (tu, tt) => new { tt.TenantUserId, tt.TenantId })
+                    .Join(((IHierarchySecurityContext)this).GetUpwardsTenantUserRoles(userLabels, leafTenant),
+                        l => l.TenantUserId, r => r.TenantUserId,
+                        (l, r) => new { l.TenantUserId, l.TenantId, r.OutermostLeafTenantId, r.OutermostLeafTenantName, r.ParentLevel })
+                    .Join(Tenants, l => l.OutermostLeafTenantId, r => r.TenantId, (l, r) => new { l, r })
+                select new
+                {
+                    t.r.TenantId, t.r.TenantName, t.r.DisplayName, DirectlyAssigned = t.l.TenantId == t.r.TenantId, t.l.ParentLevel, t.l.OutermostLeafTenantId, t.l.OutermostLeafTenantName 
+                }).Distinct()
+                .OrderBy(n => n.ParentLevel)
+                .Select(r => new UpwardsTenantView
+                {
+                    ParentLevel = r.ParentLevel, 
+                    OutermostLeafTenantId = r.OutermostLeafTenantId,
+                    OutermostLeafTenantName = r.OutermostLeafTenantName,
+                    ParentTenantId = r.TenantId,
+                    ParentTenantName = r.TenantName
+                });*/
+            return tmp;
         }
 
         public IEnumerable<DownwardsUserRoleView<string>> GetDownwardsTenantUserRoles(string userId, bool userIdIsLabels, string viewpointTenant)

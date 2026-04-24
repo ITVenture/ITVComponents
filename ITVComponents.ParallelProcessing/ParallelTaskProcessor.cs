@@ -542,11 +542,12 @@ namespace ITVComponents.ParallelProcessing
         /// Raises the GetMoreTasks event in order to inform a client object that a priority queue may soon be running out of work
         /// </summary>
         /// <param name="priority">the priority for which to get new tasks to do</param>
-        protected virtual void OnGetMoreTasks(int priority)
+        /// <param name="count">the remaining capacity for this task-queue</param>
+        protected virtual void OnGetMoreTasks(int priority, int count)
         {
             if (GetMoreTasks != null)
             {
-                GetMoreTasks(this, new GetMoreTasksEventArgs {Priority = priority});
+                GetMoreTasks(this, new GetMoreTasksEventArgs {Priority = priority, TaskCount = count});
             }
         }
 
@@ -577,7 +578,8 @@ namespace ITVComponents.ParallelProcessing
 
                         if (filling[list.Key])
                         {
-                            OnGetMoreTasks(list.Key);
+                            var count = list.Value.Count;
+                            OnGetMoreTasks(list.Key, highTaskThreshold - count);
                         }
                     }
 

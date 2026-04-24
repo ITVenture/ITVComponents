@@ -1,23 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security;
-using System.Text;
+﻿using System.Security;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Web;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Handlers;
+using ITVComponents.WebCoreToolkit.Net.SpaApi.Extensions;
 using ITVComponents.WebCoreToolkit.Net.SpaApi.Handlers.Model;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.WebUtilities;
 
-namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers
+//using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
+
+namespace ITVComponents.WebCoreToolkit.Net.SpaApi.Handlers
 {
     internal static class ForeignKeyHandler
     {
@@ -32,7 +26,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers
         /// <response code="200">a Json-Array containing the foreign-key data with custom search-arguments applied</response>
         /// <response code="401">if access to the desired connection or table is denied</response>
         /// <response code="404">a not-found when the requested connection or table does not exist</response>
-        public static async Task<IResult> FkWithAuth(HttpContext context, string area, string connection, string table, SearchForm form)
+        public static async Task<IResult> FkWithAuth(HttpContext context, string area, string connection, string table, [FromQuery]SearchForm form)
         {
             return await ReadForeignKey(context, true, area, connection, table, form);
         }
@@ -48,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers
         /// <response code="200">a Json-Array containing the foreign-key data with custom search-arguments applied</response>
         /// <response code="401">if access to the desired connection or table is denied</response>
         /// <response code="404">a not-found when the requested connection or table does not exist</response>
-        public static async Task<IResult> FkNoAuth(HttpContext context, string area, string connection, string table, SearchForm form)
+        public static async Task<IResult> FkNoAuth(HttpContext context, string area, string connection, string table, [FromQuery]SearchForm form)
         {
             return await ReadForeignKey(context, false, area, connection, table, form);
         }
@@ -72,7 +66,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Handlers
                         try
                         {
                             return Results.Json(dbContext.ReadForeignKey(table, postedFilter: form.SearchDictionary)
-                                .ToDummyDataSourceResult(), new JsonSerializerOptions());
+                                .ToDataResult(), new JsonSerializerOptions());
                         }
                         catch (SecurityException)
                         {

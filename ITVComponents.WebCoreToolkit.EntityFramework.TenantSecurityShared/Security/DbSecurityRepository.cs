@@ -884,7 +884,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             securityContext.SaveChanges();
         }
 
-        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
+        public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, bool throwIfNull, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
         {
             var connection = GetExternalServiceInternal(securityContext, connectionName);
             if (connection != null)
@@ -930,6 +930,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
                     }
 
                     return token;
+                }
+
+                if (!throwIfNull)
+                {
+                    updateToken = newToken =>
+                    {
+                        var encToken = new TranslatedTokenResponse
+                        {
+                            Scope = newToken.Scope,
+                            AccessToken = Encrypt(newToken.AccessToken, securityContext.CurrentTenantName),
+                            ExpiresAt = newToken.ExpiresAt,
+                            RefreshToken = Encrypt(newToken.RefreshToken, securityContext.CurrentTenantName),
+                            TokenType = newToken.TokenType
+                        };
+
+                        if (login != null)
+                        {
+                            login.Revoked = false;
+                            login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
+                        }
+                        else
+                        {
+                            login = new TExternalOAuthServiceTenantLogin
+                            {
+                                TenantId = securityContext.CurrentTenantId.Value,
+                                Revoked = false,
+                                OAuthServiceId = connection.OAuthServiceId,
+                                Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping)
+                            };
+
+                            securityContext.ExternalOAuthServiceTenantLogins.Add(login);
+
+                        }
+
+                        securityContext.SaveChanges();
+                    };
+
+                    return null;
                 }
             }
 
