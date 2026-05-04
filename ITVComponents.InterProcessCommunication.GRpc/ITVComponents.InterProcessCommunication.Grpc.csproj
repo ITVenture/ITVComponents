@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>4.0.0-PRE295</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -18,7 +18,7 @@
     </PackageReference>
     <PackageReference Include="google.protobuf" version="3.28.3" />
     <PackageReference Include="System.Collections.Concurrent" Version="4.3.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="8.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.GenericService.WebService\ITVComponents.GenericService.WebService.csproj" />

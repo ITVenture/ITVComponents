@@ -263,7 +263,7 @@ namespace ITVComponents.Invokation
         /// <returns>the TerminationInformation of the called process</returns>
         protected virtual ProgramTerminationInformation Run(ProcessStartInfo pif, int timeout, int maxRetryCount)
         {
-            return AsyncHelpers.RunSync(() => RunAsync(pif, timeout, maxRetryCount));
+            return ITVComponents.Threading.AsyncHelpers.RunSync(() => RunAsync(pif, timeout, maxRetryCount));
         }
 
         private async Task<bool> RunProc(Process proc, StringBuilder con, StringBuilder err, int timeout)
