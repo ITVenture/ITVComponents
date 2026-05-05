@@ -1,0 +1,15 @@
+@page "/Account/Lockout"
+
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+
+@inject IStringLocalizer<IdentityMessages> L
+
+<PageTitle>@L["Locked out"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        <MudText Typo="Typo.h4" Color="Color.Error" GutterBottom="true">@L["Locked out"]</MudText>
+        <MudAlert Severity="Severity.Error">@L["This account has been locked out, please try again later."]</MudAlert>
+    </MudPaper>
+</MudContainer>

@@ -1,0 +1,113 @@
+@page "/Account/LoginWithRecoveryCode"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+
+@inject IPageHandlerProvider<LoginWithRecoveryCodeModel, ILoginWithRecoveryCodeHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<LoginWithRecoveryCode> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@L["Recovery code verification"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        <MudText Typo="Typo.h4" GutterBottom="true">@L["Recovery code verification"]</MudText>
+
+        @if (!HandlerProvider.Handler.UsePage)
+        {
+            <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+        }
+        else
+        {
+            <MudText GutterBottom="true">
+                @L["You have requested to log in with a recovery code. This login will not be remembered until you provide an authenticator app code at log in or disable 2FA and log in again."]
+            </MudText>
+            <MudDivider Class="my-3" />
+
+            <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="login-with-recovery-code">
+                <DataAnnotationsValidator />
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">@errorMessage</MudAlert>
+                }
+
+                <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
+
+                <div class="form-floating mb-3">
+                    <InputText @bind-Value="Input.RecoveryCode" id="Input.RecoveryCode" class="form-control" autocomplete="off" />
+                    <label for="Input.RecoveryCode">@L["Recovery Code"]</label>
+                    <ValidationMessage For="() => Input.RecoveryCode" class="text-danger" />
+                </div>
+
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+                    @L["Login_Button"]
+                </MudButton>
+            </EditForm>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string? errorMessage;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private async Task OnSubmit()
+    {
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        var user = await HandlerProvider.Handler.GetTwoFactorAuthenticationUserAsync();
+        if (!user.UserExists)
+        {
+            errorMessage = L["Unable to load two-factor authentication user."];
+            return;
+        }
+
+        try
+        {
+            var recoveryCode = Input.RecoveryCode.Replace(" ", string.Empty);
+            var userId = HandlerProvider.Handler.GetUserId(user);
+            var result = await HandlerProvider.Handler.TwoFactorRecoveryCodeSignInAsync(recoveryCode);
+
+            if (result.Succeeded)
+            {
+                Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", userId);
+                Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+                return;
+            }
+
+            if (result.IsLockedOut)
+            {
+                Logger.LogWarning("User with ID '{UserId}' account locked out.", userId);
+                Nav.NavigateTo("Account/Lockout", forceLoad: true);
+                return;
+            }
+
+            Logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}'.", userId);
+            errorMessage = L["Invalid recovery code entered."];
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    public sealed class InputModel
+    {
+        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [DataType(DataType.Text)]
+        public string RecoveryCode { get; set; } = "";
+    }
+}

@@ -1,0 +1,66 @@
+@page "/Account/Manage/PersonalData"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<PersonalDataModel, IPersonalDataHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+
+<PageTitle>@L["Personal Data"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Personal Data"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else
+{
+    <MudText GutterBottom="true">
+        @L["Your account contains personal data that you have given us. This page allows you to download or delete that data."]
+    </MudText>
+    <MudAlert Severity="Severity.Warning" Class="mb-3">
+        <strong>@L["Deleting this data will permanently remove your account, and this cannot be recovered."]</strong>
+    </MudAlert>
+
+    <EditForm Model="this" method="post" Action="Account/Manage/DownloadPersonalData" FormName="download-data" Class="mb-3">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+            @L["Download"]
+        </MudButton>
+    </EditForm>
+
+    <MudButton Href="Account/Manage/DeletePersonalData" Variant="Variant.Filled" Color="Color.Secondary">
+        @L["Delete"]
+    </MudButton>
+}
+
+@code {
+    private bool notFound;
+    private string? notFoundMessage;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+
+        var userExists = await HandlerProvider.Handler.UserExists(HttpContext.User);
+        if (!userExists)
+        {
+            notFound = true;
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+        }
+    }
+}

@@ -1,0 +1,109 @@
+@page "/Account/ResendEmailConfirmation"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Identity.UI.Services
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+
+@inject IPageHandlerProvider<ResendEmailConfirmationModel, IResendEmailConfirmationHandler> HandlerProvider
+@inject IEmailSender EmailSender
+@inject IStringLocalizer<IdentityMessages> L
+@inject NavigationManager Nav
+
+<PageTitle>@L["Resend email confirmation"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        <MudText Typo="Typo.h4" GutterBottom="true">@L["Resend email confirmation"]</MudText>
+
+        @if (!HandlerProvider.Handler.UsePage)
+        {
+            <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+        }
+        else
+        {
+            <MudText Typo="Typo.subtitle1" GutterBottom="true">@L["Enter your email."]</MudText>
+            <MudDivider Class="my-3" />
+
+            @if (!string.IsNullOrEmpty(statusMessage))
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-3">@statusMessage</MudAlert>
+            }
+
+            <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="resend-email-confirmation">
+                <DataAnnotationsValidator />
+
+                <div class="form-floating mb-3">
+                    <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" type="email" />
+                    <label for="Input.Email">@L["Email"]</label>
+                    <ValidationMessage For="() => Input.Email" class="text-danger" />
+                </div>
+
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+                    @L["Resend_Button"]
+                </MudButton>
+            </EditForm>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string? statusMessage;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    private async Task OnSubmit()
+    {
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        var user = await HandlerProvider.Handler.FetchUser(Input.Email);
+        try
+        {
+            if (!user.UserExists)
+            {
+                statusMessage = L["Verification email sent. Please check your email."];
+                return;
+            }
+
+            var mailToken = await HandlerProvider.Handler.GetMailToken(user);
+            if (mailToken.Success)
+            {
+                var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(mailToken.Code));
+                var callbackUrl = Nav.ToAbsoluteUri(
+                    Nav.GetUriWithQueryParameters("Account/ConfirmEmail",
+                        new Dictionary<string, object?>
+                        {
+                            ["userId"] = mailToken.UserId,
+                            ["code"] = code
+                        })).ToString();
+
+                await EmailSender.SendEmailAsync(
+                    Input.Email,
+                    L["Confirm your email"],
+                    L["Please confirm your account by <a href='{0}'>clicking here</a>.",
+                        HtmlEncoder.Default.Encode(callbackUrl)]);
+            }
+
+            statusMessage = L["Verification email sent. Please check your email."];
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    public sealed class InputModel
+    {
+        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [EmailAddress(ErrorMessage = "ITV:DataTypeAttribute.EmailAddress_ValidationError")]
+        public string Email { get; set; } = "";
+    }
+}

@@ -1,0 +1,133 @@
+@page "/Account/LoginWith2fa"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+
+@inject IPageHandlerProvider<LoginWith2faModel, ILoginWith2faHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<LoginWith2fa> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@L["Two-factor authentication"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        <MudText Typo="Typo.h4" GutterBottom="true">@L["Two-factor authentication"]</MudText>
+
+        @if (!HandlerProvider.Handler.UsePage)
+        {
+            <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+        }
+        else
+        {
+            <MudText GutterBottom="true">@L["Your login is protected with an authenticator app. Enter your authenticator code below."]</MudText>
+            <MudDivider Class="my-3" />
+
+            <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="login-with-2fa">
+                <DataAnnotationsValidator />
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">@errorMessage</MudAlert>
+                }
+
+                <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
+                <input type="hidden" name="RememberMe" value="@RememberMe" />
+
+                <div class="form-floating mb-3">
+                    <InputText @bind-Value="Input.TwoFactorCode" id="Input.TwoFactorCode" class="form-control" autocomplete="off" />
+                    <label for="Input.TwoFactorCode">@L["Authenticator code"]</label>
+                    <ValidationMessage For="() => Input.TwoFactorCode" class="text-danger" />
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox @bind-Value="Input.RememberMachine" id="Input.RememberMachine" class="form-check-input" />
+                    <label for="Input.RememberMachine" class="form-check-label">@L["Remember this machine"]</label>
+                </div>
+
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+                    @L["Login_Button"]
+                </MudButton>
+            </EditForm>
+
+            <MudDivider Class="my-3" />
+            <MudText>
+                <MudLink Href="@RecoveryCodeUrl">@L["Log in with a recovery code"]</MudLink>
+            </MudText>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string? errorMessage;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    private bool RememberMe { get; set; }
+
+    private string RecoveryCodeUrl =>
+        Nav.GetUriWithQueryParameters("Account/LoginWithRecoveryCode",
+            new Dictionary<string, object?> { ["returnUrl"] = ReturnUrl });
+
+    private async Task OnSubmit()
+    {
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        var user = await HandlerProvider.Handler.GetTwoFactorAuthenticationUserAsync();
+        if (!user.UserExists)
+        {
+            errorMessage = L["Unable to load two-factor authentication user."];
+            return;
+        }
+
+        try
+        {
+            var authenticatorCode = Input.TwoFactorCode.Replace(" ", string.Empty).Replace("-", string.Empty);
+            var userId = HandlerProvider.Handler.GetUserId(user);
+            var result = await HandlerProvider.Handler.TwoFactorAuthenticatorSignInAsync(
+                authenticatorCode, RememberMe, Input.RememberMachine);
+
+            if (result.Succeeded)
+            {
+                Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", userId);
+                Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+                return;
+            }
+
+            if (result.IsLockedOut)
+            {
+                Logger.LogWarning("User with ID '{UserId}' account locked out.", userId);
+                Nav.NavigateTo("Account/Lockout", forceLoad: true);
+                return;
+            }
+
+            Logger.LogWarning("Invalid authenticator code entered for user with ID '{UserId}'.", userId);
+            errorMessage = L["Invalid authenticator code."];
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    public sealed class InputModel
+    {
+        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [StringLength(7, MinimumLength = 6)]
+        [DataType(DataType.Text)]
+        public string TwoFactorCode { get; set; } = "";
+
+        public bool RememberMachine { get; set; }
+    }
+}

@@ -1,0 +1,140 @@
+@page "/Account/Manage/DeletePersonalData"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<DeletePersonalDataModel, IDeletePersonalDataHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<DeletePersonalData> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@L["Delete Personal Data"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Delete Personal Data"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-3">
+        <strong>@L["Deleting this data will permanently remove your account, and this cannot be recovered."]</strong>
+    </MudAlert>
+
+    <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="delete-user">
+        <DataAnnotationsValidator />
+
+        @if (errors.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3">
+                @foreach (var err in errors) { <div>@err</div> }
+            </MudAlert>
+        }
+
+        @if (requirePassword)
+        {
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Password" id="Input.Password" class="form-control" type="password" autocomplete="current-password" />
+                <label for="Input.Password">@L["Password"]</label>
+                <ValidationMessage For="() => Input.Password" class="text-danger" />
+            </div>
+        }
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error">
+            @L["Delete data and close my account"]
+        </MudButton>
+    </EditForm>
+}
+
+@code {
+    private bool notFound;
+    private string? notFoundMessage;
+    private bool requirePassword;
+    private List<string> errors = new();
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+            requirePassword = user.HasPassword;
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+
+            requirePassword = user.HasPassword;
+            if (requirePassword)
+            {
+                if (!await HandlerProvider.Handler.CheckPassword(user, Input.Password))
+                {
+                    errors = new() { L["Incorrect password."] };
+                    return;
+                }
+            }
+
+            var dropResult = await HandlerProvider.Handler.DeleteAccount(user);
+            if (!dropResult.UserDeleted)
+            {
+                errors = new() { L["Unexpected error occurred deleting user with ID '{0}'.", dropResult.UserId] };
+                return;
+            }
+
+            Logger.LogInformation("User with ID '{UserId}' deleted themselves.", dropResult.UserId);
+            Nav.NavigateTo("/", forceLoad: true);
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    public sealed class InputModel
+    {
+        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = "";
+    }
+}

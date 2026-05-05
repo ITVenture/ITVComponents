@@ -1,0 +1,65 @@
+@page "/Account/ExternalLoginCallback"
+
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+
+@inject IPageHandlerProvider<ExternalLoginModel, IExternalLoginHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<ExternalLoginCallback> Logger
+@inject NavigationManager Nav
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "remoteError")]
+    private string? RemoteError { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        var returnUrl = ReturnUrl ?? "/";
+
+        if (RemoteError is not null)
+        {
+            Nav.NavigateTo(
+                Nav.GetUriWithQueryParameters("Account/Login",
+                    new Dictionary<string, object?> { ["ReturnUrl"] = returnUrl }),
+                forceLoad: true);
+            return;
+        }
+
+        var status = await HandlerProvider.Handler.PerformExternalLogin();
+
+        if (!status.Success && status.ErrorOnLoadExternalData)
+        {
+            Nav.NavigateTo(
+                Nav.GetUriWithQueryParameters("Account/Login",
+                    new Dictionary<string, object?> { ["ReturnUrl"] = returnUrl }),
+                forceLoad: true);
+            return;
+        }
+
+        if (status.Success)
+        {
+            Logger.LogInformation("{Name} logged in with {LoginProvider} provider.",
+                status.LoginUserName, status.ProviderName);
+            Nav.NavigateTo(returnUrl, forceLoad: true);
+            return;
+        }
+
+        if (status.AuthResult?.IsLockedOut == true)
+        {
+            Nav.NavigateTo("Account/Lockout", forceLoad: true);
+            return;
+        }
+
+        Nav.NavigateTo("Account/Login", forceLoad: true);
+    }
+}

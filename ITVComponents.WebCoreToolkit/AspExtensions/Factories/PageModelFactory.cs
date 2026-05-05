@@ -10,7 +10,6 @@ using ITVComponents.WebCoreToolkit.AspExtensions.Attributes;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -32,7 +31,6 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions.Factories
         }
 
         public THandlerInterface CreateHandler<TPageModel, THandlerInterface>()
-            where TPageModel : PageModel
             where THandlerInterface : IPageHandlerInstance<TPageModel>
         {
             var currentServices = currentContextAccessor.HttpContext?.RequestServices;

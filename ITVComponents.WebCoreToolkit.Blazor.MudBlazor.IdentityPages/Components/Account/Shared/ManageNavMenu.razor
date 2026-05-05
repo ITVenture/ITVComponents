@@ -1,0 +1,13 @@
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+
+@inject IStringLocalizer<IdentityMessages> L
+
+<MudNavMenu>
+    <MudNavLink Href="Account/Manage" Match="NavLinkMatch.All">@L["Profile"]</MudNavLink>
+    <MudNavLink Href="Account/Manage/Email">@L["Email"]</MudNavLink>
+    <MudNavLink Href="Account/Manage/ChangePassword">@L["Password"]</MudNavLink>
+    <MudNavLink Href="Account/Manage/ExternalLogins">@L["External logins"]</MudNavLink>
+    <MudNavLink Href="Account/Manage/TwoFactorAuthentication">@L["Two-factor authentication"]</MudNavLink>
+    <MudNavLink Href="Account/Manage/PersonalData">@L["Personal data"]</MudNavLink>
+</MudNavMenu>

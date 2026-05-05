@@ -1,0 +1,47 @@
+@page "/Account/ExternalLogin"
+
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+
+@inject IPageHandlerProvider<ExternalLoginModel, IExternalLoginHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject NavigationManager Nav
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private string? Provider { get; set; }
+
+    [SupplyParameterFromForm]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            Nav.NavigateTo("Account/Login", forceLoad: true);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Provider))
+        {
+            Nav.NavigateTo("Account/Login", forceLoad: true);
+            return;
+        }
+
+        var redirectUrl = Nav.GetUriWithQueryParameters("Account/ExternalLoginCallback",
+            new Dictionary<string, object?> { ["returnUrl"] = ReturnUrl });
+        var properties = HandlerProvider.Handler.ConfigureExternalAuthenticationProperties(Provider, redirectUrl);
+        await HttpContext.ChallengeAsync(Provider, properties);
+    }
+}

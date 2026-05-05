@@ -1,0 +1,95 @@
+@page "/Account/Manage/ResetAuthenticator"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<ResetAuthenticatorModel, IResetAuthenticatorHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<ResetAuthenticator> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@L["Reset authenticator key"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Reset authenticator key"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-3">
+        <strong>@L["If you reset your authenticator key your authenticator app will not work until you reconfigure it."]</strong>
+        <div>
+            @L["This process disables 2FA until you verify your authenticator app. If you do not complete your authenticator app configuration you may lose access to your account."]
+        </div>
+    </MudAlert>
+
+    <EditForm Model="this" method="post" OnValidSubmit="OnSubmit" FormName="reset-authenticator">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error">
+            @L["Reset authenticator key"]
+        </MudButton>
+    </EditForm>
+}
+
+@code {
+    private bool notFound;
+    private string? notFoundMessage;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            }
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var userId = HandlerProvider.Handler.GetUserId(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", userId];
+                return;
+            }
+
+            await HandlerProvider.Handler.ResetAuthenticator(user);
+            Logger.LogInformation("User with ID '{UserId}' has reset their authentication app key.", userId);
+            Nav.NavigateTo("Account/Manage/EnableAuthenticator", forceLoad: true);
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+}

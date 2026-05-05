@@ -1,0 +1,140 @@
+@page "/Account/Manage/GenerateRecoveryCodes"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<GenerateRecoveryCodesModel, IGenerateRecoveryCodesHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<GenerateRecoveryCodes> Logger
+
+<PageTitle>@L["Generate two-factor authentication recovery codes"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Generate two-factor authentication recovery codes"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else if (!is2faEnabled)
+{
+    <MudAlert Severity="Severity.Warning">
+        @L["You must enable two-factor authentication before you can generate recovery codes."]
+    </MudAlert>
+}
+else if (recoveryCodes is { Length: > 0 })
+{
+    <MudAlert Severity="Severity.Success" Class="mb-3">@L["You have generated new recovery codes."]</MudAlert>
+
+    <MudAlert Severity="Severity.Warning" Class="mb-3">
+        <strong>@L["Put these codes in a safe place."]</strong>
+        <div>
+            @L["If you lose your device and don't have the recovery codes you will lose access to your account."]
+        </div>
+    </MudAlert>
+
+    <MudPaper Elevation="0" Class="pa-3 mb-3" Style="font-family: monospace;">
+        @for (var row = 0; row < recoveryCodes.Length; row += 2)
+        {
+            <div>
+                <code>@recoveryCodes[row]</code>
+                @if (row + 1 < recoveryCodes.Length)
+                {
+                    <span>&nbsp;&nbsp;</span>
+                    <code>@recoveryCodes[row + 1]</code>
+                }
+            </div>
+        }
+    </MudPaper>
+
+    <MudButton Href="Account/Manage/TwoFactorAuthentication" Variant="Variant.Outlined">
+        @L["Back to 2FA settings"]
+    </MudButton>
+}
+else
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-3">
+        <strong>@L["Generating new recovery codes does not change the keys used in authenticator apps."]</strong>
+        <div>
+            @L["If you wish to change the key used in an authenticator app you should "]
+            <MudLink Href="Account/Manage/ResetAuthenticator">@L["reset your authenticator keys."]</MudLink>
+        </div>
+    </MudAlert>
+
+    <EditForm Model="this" method="post" OnValidSubmit="OnSubmit" FormName="generate-recovery-codes">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error">
+            @L["Generate Recovery Codes"]
+        </MudButton>
+    </EditForm>
+}
+
+@code {
+    private bool notFound;
+    private string? notFoundMessage;
+    private bool is2faEnabled;
+    private string[]? recoveryCodes;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+        if (HttpMethods.IsPost(HttpContext.Request.Method)) return;
+
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+            is2faEnabled = user.TwoFactorEnabled;
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var userId = HandlerProvider.Handler.GetUserId(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", userId];
+                return;
+            }
+
+            is2faEnabled = user.TwoFactorEnabled;
+            if (!is2faEnabled)
+            {
+                return;
+            }
+
+            recoveryCodes = await HandlerProvider.Handler.GenerateNewRecoveryCodes(user, 10);
+            Logger.LogInformation("User with ID '{UserId}' has generated new 2FA recovery codes.", userId);
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+}

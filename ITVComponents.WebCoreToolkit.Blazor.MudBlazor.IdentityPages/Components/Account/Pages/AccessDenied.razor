@@ -1,0 +1,24 @@
+@page "/Account/AccessDenied"
+
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+
+@inject IPageHandlerProvider<AccessDeniedModel, IAccessDeniedHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+
+<PageTitle>@L["Access denied"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        @if (HandlerProvider.Handler.UsePage)
+        {
+            <MudText Typo="Typo.h4" Color="Color.Error" GutterBottom="true">@L["Access denied"]</MudText>
+            <MudAlert Severity="Severity.Error">@L["You do not have access to this resource."]</MudAlert>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+        }
+    </MudPaper>
+</MudContainer>

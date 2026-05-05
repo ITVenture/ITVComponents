@@ -1,0 +1,81 @@
+@page "/Account/ConfirmEmail"
+
+@using System.Text
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+
+@inject IPageHandlerProvider<ConfirmEmailModel, IConfirmEmailHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject NavigationManager Nav
+
+<PageTitle>@L["Confirm email"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        <MudText Typo="Typo.h4" GutterBottom="true">@L["Confirm email"]</MudText>
+
+        @if (!HandlerProvider.Handler.UsePage)
+        {
+            <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+        }
+        else if (!string.IsNullOrEmpty(statusMessage))
+        {
+            <MudAlert Severity="@statusSeverity">@statusMessage</MudAlert>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string? statusMessage;
+    private Severity statusSeverity = Severity.Info;
+
+    [SupplyParameterFromQuery]
+    private string? UserId { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? Code { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        if (UserId is null || Code is null)
+        {
+            Nav.NavigateTo(HandlerProvider.Handler.RedirectOnNoCode, forceLoad: true);
+            return;
+        }
+
+        var user = await HandlerProvider.Handler.FetchUser(UserId);
+        if (!user.UserExists)
+        {
+            statusMessage = L["Unable to load user with ID '{0}'.", UserId];
+            statusSeverity = Severity.Error;
+            return;
+        }
+
+        try
+        {
+            var decoded = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(Code));
+            var result = await HandlerProvider.Handler.ConfirmEmailCode(user, decoded);
+            if (result.Succeeded)
+            {
+                statusMessage = L["Thank you for confirming your email."];
+                statusSeverity = Severity.Success;
+            }
+            else
+            {
+                statusMessage = L["Error confirming your email."];
+                statusSeverity = Severity.Error;
+            }
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+}

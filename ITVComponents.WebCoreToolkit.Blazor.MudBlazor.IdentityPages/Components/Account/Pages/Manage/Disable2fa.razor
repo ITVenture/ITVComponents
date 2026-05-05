@@ -1,0 +1,118 @@
+@page "/Account/Manage/Disable2fa"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<Disable2faModel, IDisable2faHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<Disable2fa> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@L["Disable two-factor authentication (2FA)"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Disable two-factor authentication (2FA)"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else if (!is2faEnabled)
+{
+    <MudAlert Severity="Severity.Warning">
+        @L["Cannot disable 2FA for user with ID '{0}' as it's not currently enabled.", HandlerProvider.Handler.GetUserId(HttpContext.User)]
+    </MudAlert>
+}
+else
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-3">
+        <strong>@L["This action only disables 2FA."]</strong>
+        <div>
+            @L["Disabling 2FA does not change the keys used in authenticator apps. If you wish to change the key used in an authenticator app you should "]
+            <MudLink Href="Account/Manage/ResetAuthenticator">@L["reset your authenticator keys."]</MudLink>
+        </div>
+    </MudAlert>
+
+    <EditForm Model="this" method="post" OnValidSubmit="OnSubmit" FormName="disable-2fa">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error">
+            @L["Disable 2FA"]
+        </MudButton>
+    </EditForm>
+}
+
+@code {
+    private bool notFound;
+    private string? notFoundMessage;
+    private bool is2faEnabled;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        if (!user.UserExists)
+        {
+            notFound = true;
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            return;
+        }
+
+        try
+        {
+            is2faEnabled = user.TwoFactorEnabled;
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+
+            var result = await HandlerProvider.Handler.SetTwoFactorEnabled(user, false);
+            if (!result.Succeeded)
+            {
+                notFoundMessage = L["Unexpected error occurred disabling 2FA for user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFound = true;
+                return;
+            }
+
+            Logger.LogInformation("User with ID '{UserId}' has disabled 2fa.", HandlerProvider.Handler.GetUserId(HttpContext.User));
+            Nav.NavigateTo(
+                Nav.GetUriWithQueryParameters("Account/Manage/TwoFactorAuthentication",
+                    new Dictionary<string, object?>
+                    {
+                        ["status"] = L["2fa has been disabled. You can reenable 2fa when you setup an authenticator app"].Value
+                    }),
+                forceLoad: true);
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+}

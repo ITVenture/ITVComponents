@@ -1,0 +1,144 @@
+@page "/Account/Manage"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<IndexModel, IIndexHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject NavigationManager Nav
+
+<PageTitle>@L["Profile"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Profile"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(StatusMessage))
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-3">@StatusMessage</MudAlert>
+    }
+
+    <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="manage-index">
+        <DataAnnotationsValidator />
+
+        @if (errors.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3">
+                @foreach (var err in errors) { <div>@err</div> }
+            </MudAlert>
+        }
+
+        <div class="form-floating mb-3">
+            <input id="Username" class="form-control" value="@username" disabled />
+            <label for="Username">@L["Username"]</label>
+        </div>
+
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.PhoneNumber" id="Input.PhoneNumber" class="form-control" />
+            <label for="Input.PhoneNumber">@L["Phone number"]</label>
+            <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
+        </div>
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+            @L["Save profile"]
+        </MudButton>
+    </EditForm>
+}
+
+@code {
+    private string username = "";
+    private bool notFound;
+    private string? notFoundMessage;
+    private List<string> errors = new();
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery(Name = "status")]
+    private string? StatusMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+
+            username = user.UserName ?? "";
+            if (!HttpMethods.IsPost(HttpContext.Request.Method))
+            {
+                Input.PhoneNumber = user.PhoneNumber ?? "";
+            }
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+
+            if (Input.PhoneNumber != user.PhoneNumber)
+            {
+                var setPhoneResult = await HandlerProvider.Handler.ChangePhoneNumber(user, Input.PhoneNumber);
+                if (!setPhoneResult.Succeeded)
+                {
+                    errors = new() { L["Unexpected error when trying to set phone number."] };
+                    return;
+                }
+            }
+
+            await HandlerProvider.Handler.RefreshSignIn(user);
+            Nav.NavigateTo(
+                Nav.GetUriWithQueryParameters("Account/Manage",
+                    new Dictionary<string, object?> { ["status"] = L["Your profile has been updated"].Value }),
+                forceLoad: true);
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    public sealed class InputModel
+    {
+        [Phone]
+        public string PhoneNumber { get; set; } = "";
+    }
+}

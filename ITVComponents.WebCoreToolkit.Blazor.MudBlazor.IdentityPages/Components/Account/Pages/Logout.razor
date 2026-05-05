@@ -1,0 +1,53 @@
+@page "/Account/Logout"
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+
+@inject IPageHandlerProvider<LogoutModel, ILogoutHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<Logout> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@L["Log out"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        <MudText Typo="Typo.h4" GutterBottom="true">@L["Log out"]</MudText>
+
+        @if (!HandlerProvider.Handler.UsePage)
+        {
+            <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+        }
+        else if (HttpContext.User.Identity?.IsAuthenticated == true)
+        {
+            <EditForm Model="this" method="post" OnValidSubmit="SignOutUser" FormName="logout">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+                    @L["Click here to Logout"]
+                </MudButton>
+            </EditForm>
+        }
+        else
+        {
+            <MudText>@L["You have successfully logged out of the application."]</MudText>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private async Task SignOutUser()
+    {
+        await HandlerProvider.Handler.SignOut();
+        Logger.LogInformation("User logged out.");
+        Nav.NavigateTo(ReturnUrl ?? "Account/Logout", forceLoad: true);
+    }
+}

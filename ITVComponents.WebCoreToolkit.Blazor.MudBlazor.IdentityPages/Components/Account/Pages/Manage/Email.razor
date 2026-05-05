@@ -1,0 +1,223 @@
+@page "/Account/Manage/Email"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Identity.UI.Services
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.EmailDnsValidation
+@using ITVComponents.WebCoreToolkit.Helpers
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<EmailModel, IEmailHandler> HandlerProvider
+@inject IEmailSender EmailSender
+@inject IStringLocalizer<IdentityMessages> L
+@inject NavigationManager Nav
+
+<PageTitle>@L["Manage Email"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Manage Email"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(StatusMessage))
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">@StatusMessage</MudAlert>
+    }
+
+    <div class="form-floating mb-3">
+        <input id="Email" class="form-control" value="@email" disabled />
+        <label for="Email">@L["Email"]</label>
+        @if (isEmailConfirmed)
+        {
+            <small class="text-success fw-bold">✓ @L["Email confirmed"]</small>
+        }
+        else
+        {
+            <EditForm Model="this" method="post" OnValidSubmit="OnSendVerification" FormName="send-verification" Class="mt-2">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Primary">
+                    @L["Send verification email"]
+                </MudButton>
+            </EditForm>
+        }
+    </div>
+
+    <EditForm Model="Input" method="post" OnValidSubmit="OnChangeEmail" FormName="change-email">
+        <DataAnnotationsValidator />
+
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.NewEmail" id="Input.NewEmail" class="form-control" autocomplete="email" type="email" />
+            <label for="Input.NewEmail">@L["New email"]</label>
+            <ValidationMessage For="() => Input.NewEmail" class="text-danger" />
+        </div>
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+            @L["Change email"]
+        </MudButton>
+    </EditForm>
+}
+
+@code {
+    private bool notFound;
+    private string? notFoundMessage;
+    private string email = "";
+    private bool isEmailConfirmed;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "change-email")]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery(Name = "status")]
+    private string? StatusMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        if (!user.UserExists)
+        {
+            notFound = true;
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            return;
+        }
+
+        try
+        {
+            email = user.Email ?? "";
+            isEmailConfirmed = user.EmailConfirmed;
+            if (string.IsNullOrEmpty(Input.NewEmail))
+            {
+                Input.NewEmail = email;
+            }
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnChangeEmail()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        if (!user.UserExists)
+        {
+            notFound = true;
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            return;
+        }
+
+        try
+        {
+            if (Input.NewEmail == user.Email)
+            {
+                RedirectWithStatus(L["Your email is unchanged."].Value);
+                return;
+            }
+
+            var mail = new EmailAddress(Input.NewEmail, new MailDomainValidator());
+            if (!mail.FormatOk)
+            {
+                RedirectWithStatus(L["InvalidMailFormat"].Value);
+                return;
+            }
+            if (!mail.DomainOk)
+            {
+                RedirectWithStatus(L["InvalidMailDomain"].Value);
+                return;
+            }
+
+            var tokenData = await HandlerProvider.Handler.GetMailToken(user, Input.NewEmail);
+            var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(tokenData.Code));
+            var callbackUrl = Nav.ToAbsoluteUri(
+                Nav.GetUriWithQueryParameters("Account/ConfirmEmailChange",
+                    new Dictionary<string, object?>
+                    {
+                        ["userId"] = tokenData.UserId,
+                        ["email"] = Input.NewEmail,
+                        ["code"] = code
+                    })).ToString();
+
+            var username = HandlerProvider.Handler.GetUserName(HttpContext.User);
+            await EmailSender.SendEmailAsync(
+                Input.NewEmail,
+                L["Confirm your email"],
+                L["Hello {0}\r\nPlease confirm your account by <a href='{1}'>clicking here</a>.",
+                    username, HtmlEncoder.Default.Encode(callbackUrl)]);
+
+            RedirectWithStatus(L["Verification email sent. Please check your email."].Value);
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnSendVerification()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        if (!user.UserExists)
+        {
+            notFound = true;
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            return;
+        }
+
+        try
+        {
+            var tokenData = await HandlerProvider.Handler.GetMailToken(user);
+            var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(tokenData.Code));
+            var callbackUrl = Nav.ToAbsoluteUri(
+                Nav.GetUriWithQueryParameters("Account/ConfirmEmail",
+                    new Dictionary<string, object?>
+                    {
+                        ["userId"] = tokenData.UserId,
+                        ["code"] = code
+                    })).ToString();
+
+            var username = HandlerProvider.Handler.GetUserName(HttpContext.User);
+            await EmailSender.SendEmailAsync(
+                user.Email,
+                L["Confirm your email"],
+                L["Hello {0}\r\nPlease confirm your account by <a href='{1}'>clicking here</a>.",
+                    username, HtmlEncoder.Default.Encode(callbackUrl)]);
+
+            RedirectWithStatus(L["Verification email sent. Please check your email."].Value);
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private void RedirectWithStatus(string status) =>
+        Nav.NavigateTo(
+            Nav.GetUriWithQueryParameters("Account/Manage/Email",
+                new Dictionary<string, object?> { ["status"] = status }),
+            forceLoad: true);
+
+    public sealed class InputModel
+    {
+        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [EmailAddress(ErrorMessage = "ITV:DataTypeAttribute.EmailAddress_ValidationError")]
+        public string NewEmail { get; set; } = "";
+    }
+}

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace ITVComponents.WebCoreToolkit.AspExtensions.Options
 {
@@ -29,9 +28,8 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions.Options
         }
 
         public void ConfigureHandlerType<TPageModel, THandlerInterface, THandler>(bool update)
-        where TPageModel:PageModel
-        where THandlerInterface:IPageHandlerInstance<TPageModel>
-        where THandler:class, THandlerInterface
+        where THandlerInterface : IPageHandlerInstance<TPageModel>
+        where THandler : class, THandlerInterface
         {
             handlerTypes.AddOrUpdate(typeof(THandlerInterface), typeof(THandler),
                 (th, ti) => update ? typeof(THandler) : ti);
@@ -39,12 +37,6 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions.Options
 
         public void ConfigureHandlerType(Type pageModelType, Type handlerInterfaceType, Type handlerType, bool update)
         {
-
-            if (!typeof(PageModel).IsAssignableFrom(pageModelType))
-            {
-                throw new ArgumentException("PageModel implementation expected", nameof(pageModelType));
-            }
-
             if (!typeof(IPageHandlerInstance<>).MakeGenericType(pageModelType).IsAssignableFrom(handlerInterfaceType))
             {
                 throw new ArgumentException($"PageHandlerInstance of Type {pageModelType.FullName} expected.",
