@@ -1,0 +1,88 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IUserAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!CanView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view logins.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="UserLoginViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.subtitle2">External logins</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.LoginProvider" Title="Provider" />
+            <PropertyColumn Property="x => x.ProviderKey" Title="Key" />
+            <PropertyColumn Property="x => x.ProviderDisplayName" Title="Display name" />
+            <TemplateColumn T="UserLoginViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (CanWrite)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="UserLoginViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public string UserId { get; set; } = "";
+    [Parameter] public bool CanView { get; set; }
+    [Parameter] public bool CanWrite { get; set; }
+
+    private MudDataGrid<UserLoginViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<UserLoginViewModel>> LoadData(GridState<UserLoginViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !CanView)
+            return new GridData<UserLoginViewModel> { Items = Array.Empty<UserLoginViewModel>(), TotalItems = 0 };
+
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new UserListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false
+        };
+        var result = await Handler.ListLoginsAsync(currentUser, UserId, query);
+        return new GridData<UserLoginViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Delete(UserLoginViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync(
+            "Delete login",
+            $"Really delete '{item.LoginProvider}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+
+        item.UserId = UserId;
+        var success = await Handler.DeleteLoginAsync(currentUser!, item);
+        if (success) { Snackbar.Add("Login deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

@@ -1,0 +1,239 @@
+@page "/Account/Manage/EnableAuthenticator"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using QRCoder
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<EnableAuthenticatorModel, IEnableAuthenticatorHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<EnableAuthenticator> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@L["Configure authenticator app"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Configure authenticator app"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else if (recoveryCodes is { Length: > 0 })
+{
+    <MudAlert Severity="Severity.Success" Class="mb-3">@L["Your authenticator app has been verified."]</MudAlert>
+
+    <MudText Typo="Typo.h6" Class="mt-3" GutterBottom="true">@L["Recovery Codes"]</MudText>
+    <MudAlert Severity="Severity.Warning" Class="mb-3">
+        <strong>@L["Put these codes in a safe place."]</strong>
+        <div>
+            @L["If you lose your device and don't have the recovery codes you will lose access to your account."]
+        </div>
+    </MudAlert>
+
+    <MudPaper Elevation="0" Class="pa-3 mb-3" Style="font-family: monospace;">
+        @for (var row = 0; row < recoveryCodes.Length; row += 2)
+        {
+            <div>
+                <code>@recoveryCodes[row]</code>
+                @if (row + 1 < recoveryCodes.Length)
+                {
+                    <span>&nbsp;&nbsp;</span>
+                    <code>@recoveryCodes[row + 1]</code>
+                }
+            </div>
+        }
+    </MudPaper>
+
+    <MudButton Href="Account/Manage/TwoFactorAuthentication" Variant="Variant.Filled" Color="Color.Primary">
+        @L["Continue"]
+    </MudButton>
+}
+else
+{
+    <MudText GutterBottom="true">@L["To use an authenticator app go through the following steps:"]</MudText>
+
+    <ol>
+        <li class="mb-3">
+            <MudText>
+                @L["Download a two-factor authenticator app like Microsoft Authenticator for "]
+                <MudLink Href="https://go.microsoft.com/fwlink/?Linkid=825072">@L["Android"]</MudLink>
+                @L[" and "]
+                <MudLink Href="https://go.microsoft.com/fwlink/?Linkid=825073">@L["iOS"]</MudLink>
+                @L[" or Google Authenticator for "]
+                <MudLink Href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2&hl=en">@L["Android"]</MudLink>
+                @L[" and "]
+                <MudLink Href="https://itunes.apple.com/us/app/google-authenticator/id388497605?mt=8">@L["iOS"]</MudLink>.
+            </MudText>
+        </li>
+        <li class="mb-3">
+            <MudText GutterBottom="true">
+                @L["Scan the QR Code or enter this key"] <kbd>@sharedKey</kbd> @L["into your two factor authenticator app. Spaces and casing do not matter."]
+            </MudText>
+            @if (qrSvg is not null)
+            {
+                <div class="mt-2 mb-2">
+                    @((MarkupString)qrSvg)
+                </div>
+            }
+        </li>
+        <li class="mb-3">
+            <MudText GutterBottom="true">
+                @L["Once you have scanned the QR code or input the key above, your two factor authentication app will provide you with a unique code. Enter the code in the confirmation box below."]
+            </MudText>
+
+            <EditForm Model="Input" method="post" OnValidSubmit="OnVerify" FormName="enable-authenticator">
+                <DataAnnotationsValidator />
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">@errorMessage</MudAlert>
+                }
+
+                <div class="form-floating mb-3" style="max-width: 320px;">
+                    <InputText @bind-Value="Input.Code" id="Input.Code" class="form-control" autocomplete="off" />
+                    <label for="Input.Code">@L["Verification Code"]</label>
+                    <ValidationMessage For="() => Input.Code" class="text-danger" />
+                </div>
+
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+                    @L["Activate Authenticator app"]
+                </MudButton>
+            </EditForm>
+        </li>
+    </ol>
+}
+
+@code {
+    private bool notFound;
+    private string? notFoundMessage;
+    private string? sharedKey;
+    private string? authenticatorUri;
+    private string? qrSvg;
+    private string? errorMessage;
+    private string[]? recoveryCodes;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+        if (HttpMethods.IsPost(HttpContext.Request.Method)) return;
+
+        await LoadSharedKeyAndQrCodeAsync();
+    }
+
+    private async Task LoadSharedKeyAndQrCodeAsync()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+
+            var initData = await HandlerProvider.Handler.LoadSharedKeyAndQrData(user);
+            if (initData.Success)
+            {
+                sharedKey = initData.SharedKey;
+                authenticatorUri = initData.AuthenticatorUri;
+                qrSvg = GenerateQrSvg(authenticatorUri);
+            }
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnVerify()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+
+            var verificationCode = Input.Code.Replace(" ", string.Empty).Replace("-", string.Empty);
+            var result = await HandlerProvider.Handler.VerifyAuthenticatorToken(user, verificationCode);
+
+            if (!result.Success)
+            {
+                errorMessage = L["Verification code is invalid."];
+                await ReloadInitDataAsync(user);
+                return;
+            }
+
+            Logger.LogInformation("User with ID '{UserId}' has enabled 2FA with an authenticator app.", result.UserId);
+
+            if (result.RecoveryCodeCount == 0)
+            {
+                recoveryCodes = await HandlerProvider.Handler.GenerateNewRecoveryCodes(user, 10);
+            }
+            else
+            {
+                Nav.NavigateTo(
+                    Nav.GetUriWithQueryParameters("Account/Manage/TwoFactorAuthentication",
+                        new Dictionary<string, object?>
+                        {
+                            ["status"] = L["Your authenticator app has been verified."].Value
+                        }),
+                    forceLoad: true);
+            }
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task ReloadInitDataAsync(ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Models.UserQueryTicket user)
+    {
+        var initData = await HandlerProvider.Handler.LoadSharedKeyAndQrData(user);
+        if (initData.Success)
+        {
+            sharedKey = initData.SharedKey;
+            authenticatorUri = initData.AuthenticatorUri;
+            qrSvg = GenerateQrSvg(authenticatorUri);
+        }
+    }
+
+    private static string GenerateQrSvg(string? data)
+    {
+        if (string.IsNullOrEmpty(data)) return string.Empty;
+        using var generator = new QRCodeGenerator();
+        using var qrData = generator.CreateQrCode(data, QRCodeGenerator.ECCLevel.Q);
+        var svg = new SvgQRCode(qrData);
+        return svg.GetGraphic(5);
+    }
+
+    public sealed class InputModel
+    {
+        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [StringLength(7, MinimumLength = 6, ErrorMessage = "ITV:DataTypeAttribute.StringLength_ValidationError")]
+        [DataType(DataType.Text)]
+        public string Code { get; set; } = "";
+    }
+}

@@ -1,0 +1,141 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IUserAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!CanView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view claims.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="UserClaimViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.subtitle2">Claims</MudText>
+            <MudSpacer />
+            @if (CanWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                    Add claim
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.ClaimType" Title="Name" />
+            <PropertyColumn Property="x => x.ClaimValue" Title="Value" />
+            <TemplateColumn T="UserClaimViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (CanWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="UserClaimViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public string UserId { get; set; } = "";
+    [Parameter] public bool CanView { get; set; }
+    [Parameter] public bool CanWrite { get; set; }
+
+    private MudDataGrid<UserClaimViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<UserClaimViewModel>> LoadData(GridState<UserClaimViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !CanView)
+            return new GridData<UserClaimViewModel> { Items = Array.Empty<UserClaimViewModel>(), TotalItems = 0 };
+
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new UserListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false
+        };
+        var result = await Handler.ListClaimsAsync(currentUser, UserId, query);
+        return new GridData<UserClaimViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<UserClaimDialog>
+        {
+            { d => d.Model, new UserClaimViewModel() },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<UserClaimDialog>("Add claim", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: UserClaimViewModel input })
+        {
+            var created = await Handler.CreateClaimAsync(currentUser!, UserId, input);
+            if (created != null) { Snackbar.Add("Claim added", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to add", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(UserClaimViewModel item)
+    {
+        var copy = new UserClaimViewModel
+        {
+            Id = item.Id,
+            UserId = item.UserId,
+            ClaimType = item.ClaimType,
+            ClaimValue = item.ClaimValue
+        };
+        var parameters = new DialogParameters<UserClaimDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false }
+        };
+        var dlg = await DialogService.ShowAsync<UserClaimDialog>("Edit claim", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: UserClaimViewModel input })
+        {
+            var updated = await Handler.UpdateClaimAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Claim updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(UserClaimViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync(
+            "Delete claim",
+            $"Really delete '{item.ClaimType}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+
+        var success = await Handler.DeleteClaimAsync(currentUser!, item.Id);
+        if (success) { Snackbar.Add("Claim deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+}

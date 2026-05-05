@@ -1,0 +1,85 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IRoleAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view permission assignments.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="PermissionAssignmentViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.subtitle2">Permissions</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <TemplateColumn T="PermissionAssignmentViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudCheckBox T="bool"
+                                 Value="context.Item.Assigned"
+                                 Disabled="!hasWrite"
+                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.PermissionName" Title="Permission" />
+            <PropertyColumn Property="x => x.IsGlobal" Title="Global" />
+            <PropertyColumn Property="x => x.Description" Title="Description" />
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="PermissionAssignmentViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int RoleId { get; set; }
+    [Parameter, EditorRequired] public int TenantId { get; set; }
+
+    private MudDataGrid<PermissionAssignmentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Roles.AssignPermission", "Permissions.View");
+        hasWrite = Handler.HasPermission(currentUser, "Roles.AssignPermission");
+    }
+
+    private async Task<GridData<PermissionAssignmentViewModel>> LoadData(GridState<PermissionAssignmentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<PermissionAssignmentViewModel> { Items = Array.Empty<PermissionAssignmentViewModel>(), TotalItems = 0 };
+
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListPermissionAssignmentsForRoleAsync(currentUser, RoleId, TenantId, query);
+        return new GridData<PermissionAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(PermissionAssignmentViewModel item, bool newValue)
+    {
+        if (!hasWrite || currentUser is null) return;
+        var ok = await Handler.SetPermissionAssignmentForRoleAsync(currentUser, RoleId, item.PermissionId, TenantId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Permission assigned" : "Permission unassigned", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update assignment", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

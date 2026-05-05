@@ -1,0 +1,39 @@
+@using ITVComponents.WebCoreToolkit.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.PropertyName" Label="Name" Required="true" RequiredError="Name is required" />
+            <MudTextField @bind-Value="Model.Value" Label="Value" Required="true" RequiredError="Value is required" Lines="3" />
+            <MudSelect T="CustomUserPropertyType" @bind-Value="Model.PropertyType" Label="Type">
+                @foreach (var t in Enum.GetValues<CustomUserPropertyType>())
+                {
+                    <MudSelectItem Value="t">@t</MudSelectItem>
+                }
+            </MudSelect>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Add" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public CustomUserPropertyViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+
+    private MudForm? form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) return;
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

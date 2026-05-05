@@ -1,0 +1,194 @@
+@page "/Account/Manage/ExternalLogins"
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
+@using ITVComponents.WebCoreToolkit.Options
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+
+@inject IPageHandlerProvider<ExternalLoginsModel, IExternalLoginsHandler> HandlerProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject IWebHostEnvironment HostingEnvironment
+@inject NavigationManager Nav
+
+<PageTitle>@L["Manage your external logins"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Manage your external logins"]</MudText>
+
+@if (!HandlerProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (notFound)
+{
+    <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(StatusMessage))
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">@StatusMessage</MudAlert>
+    }
+
+    @if (currentLogins is { Count: > 0 })
+    {
+        <MudText Typo="Typo.h6" Class="mt-3" GutterBottom="true">@L["Registered Logins"]</MudText>
+        <MudTable Items="currentLogins" Hover="true" Dense="true" Class="mb-3" Context="login">
+            <RowTemplate>
+                <MudTd>@login.ProviderDisplayName</MudTd>
+                <MudTd Style="width: 1%; white-space: nowrap;">
+                    @if (showRemoveButton)
+                    {
+                        <EditForm Model="this" method="post" OnValidSubmit="@(() => OnRemoveAsync(login.LoginProvider, login.ProviderKey))" FormName="@($"remove-login-{login.LoginProvider}")">
+                            <MudButton ButtonType="ButtonType.Submit"
+                                       Variant="Variant.Outlined"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       title="@L["Remove this {0} login from your account", login.ProviderDisplayName]">
+                                @L["Remove"]
+                            </MudButton>
+                        </EditForm>
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+
+    @if (otherLogins is { Length: > 0 })
+    {
+        <MudText Typo="Typo.h6" Class="mt-3" GutterBottom="true">@L["Add another service to log in."]</MudText>
+        <MudDivider Class="mb-3" />
+
+        <EditForm Model="LinkInput" method="post" OnValidSubmit="OnLinkAsync" FormName="link-login">
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                @foreach (var provider in otherLogins)
+                {
+                    var logoExists = HostingEnvironment.WebRootFileProvider.GetFileInfo(provider.LogoFile).Exists;
+                    var title = L["Log in using your {0} account", provider.DisplayName].Value;
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               name="LinkInput.Provider"
+                               value="@provider.AuthenticationSchemeName"
+                               title="@title"
+                               Style="@(logoExists
+                                   ? $"background-image: url('{provider.LogoFile}'); width: {provider.ImageWidth + 5}px; height: {provider.ImageHeight + 5}px; background-position: center; background-repeat: no-repeat; background-size: {provider.ImageWidth}px auto;"
+                                   : null)">
+                        @if (!logoExists)
+                        {
+                            @provider.DisplayName
+                        }
+                    </MudButton>
+                }
+            </MudStack>
+        </EditForm>
+    }
+}
+
+@code {
+    private bool notFound;
+    private string? notFoundMessage;
+    private IList<UserLoginInfo>? currentLogins;
+    private AuthenticationHandlerDefinition[]? otherLogins;
+    private bool showRemoveButton;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private LinkInputModel LinkInput { get; set; } = new();
+
+    [SupplyParameterFromQuery(Name = "status")]
+    private string? StatusMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!HandlerProvider.Handler.UsePage) return;
+
+        await LoadConfigurationAsync();
+    }
+
+    private async Task LoadConfigurationAsync()
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+
+            var cfg = await HandlerProvider.Handler.GetUserExternalLoginConfiguration(user);
+            currentLogins = cfg.ExternalUserLogins;
+            otherLogins = cfg.AvailableLogins;
+            showRemoveButton = user.HasPassword || (currentLogins?.Count ?? 0) > 1;
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnRemoveAsync(string loginProvider, string providerKey)
+    {
+        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        try
+        {
+            if (!user.UserExists)
+            {
+                notFound = true;
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                return;
+            }
+
+            var result = await HandlerProvider.Handler.RemoveExternalAuthentication(user, loginProvider, providerKey);
+            var message = result.Success
+                ? L["The external login was removed."].Value
+                : L["The external login was not removed."].Value;
+            RedirectWithStatus(message);
+        }
+        finally
+        {
+            HandlerProvider.Handler.ReleaseUser(user);
+        }
+    }
+
+    private async Task OnLinkAsync()
+    {
+        if (string.IsNullOrEmpty(LinkInput.Provider))
+        {
+            return;
+        }
+
+        await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+
+        var redirectUrl = Nav.ToAbsoluteUri("Account/Manage/ExternalLoginsCallback").ToString();
+        var properties = HandlerProvider.Handler.ConfigureExternalAuthenticationProperties(
+            LinkInput.Provider, redirectUrl, HttpContext.User);
+        if (properties != null)
+        {
+            await HttpContext.ChallengeAsync(LinkInput.Provider, properties);
+        }
+    }
+
+    private void RedirectWithStatus(string status) =>
+        Nav.NavigateTo(
+            Nav.GetUriWithQueryParameters("Account/Manage/ExternalLogins",
+                new Dictionary<string, object?> { ["status"] = status }),
+            forceLoad: true);
+
+    public sealed class LinkInputModel
+    {
+        public string? Provider { get; set; }
+    }
+}

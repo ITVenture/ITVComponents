@@ -1,0 +1,188 @@
+@page "/Security/Roles"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IRoleAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Roles</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Roles</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view roles.</MudAlert>
+}
+else if (effectiveTenantId is null)
+{
+    <MudAlert Severity="Severity.Info">No active tenant. Roles are tenant-scoped.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="RoleViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Roles for tenant @effectiveTenantId</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add role
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="RoleViewModel" />
+            <PropertyColumn Property="x => x.RoleName" Title="Name" />
+            <PropertyColumn Property="x => x.IsSystemRole" Title="System role" />
+            <TemplateColumn T="RoleViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite && context.Item.Editable)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <MudTabs Elevation="0" Rounded="true">
+                    <MudTabPanel Text="Permissions">
+                        <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.PermissionsForRoleGrid
+                            RoleId="@context.Item.RoleId"
+                            TenantId="@context.Item.TenantId" />
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="RoleViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<RoleViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private bool isSysAdmin;
+    private int? effectiveTenantId;
+    private string? search;
+
+    [SupplyParameterFromQuery(Name = "tenantId")]
+    private int? TenantIdQuery { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Roles.View", "Roles.Write");
+        hasWrite = Handler.HasPermission(currentUser, "Roles.Write");
+        var ctx = Handler.GetContext(currentUser);
+        isSysAdmin = ctx.IsSysAdmin;
+        effectiveTenantId = isSysAdmin ? TenantIdQuery : ctx.CurrentTenantId;
+    }
+
+    private async Task<GridData<RoleViewModel>> LoadData(GridState<RoleViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || effectiveTenantId is null)
+            return new GridData<RoleViewModel> { Items = Array.Empty<RoleViewModel>(), TotalItems = 0 };
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+        var result = await Handler.ListRolesAsync(currentUser, effectiveTenantId.Value, query);
+        return new GridData<RoleViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<RoleDialog>
+        {
+            { d => d.Model, new RoleViewModel { TenantId = effectiveTenantId ?? 0 } },
+            { d => d.IsCreate, true },
+            { d => d.AllowSystemRole, isSysAdmin }
+        };
+        var dlg = await DialogService.ShowAsync<RoleDialog>("Create role", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: RoleViewModel input })
+        {
+            var created = await Handler.CreateRoleAsync(currentUser!, effectiveTenantId!.Value, input);
+            if (created != null) { Snackbar.Add("Role created", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to create role", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(RoleViewModel role)
+    {
+        var copy = new RoleViewModel
+        {
+            RoleId = role.RoleId,
+            RoleName = role.RoleName,
+            TenantId = role.TenantId,
+            IsSystemRole = role.IsSystemRole,
+            Editable = role.Editable
+        };
+        var parameters = new DialogParameters<RoleDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false },
+            { d => d.AllowSystemRole, isSysAdmin }
+        };
+        var dlg = await DialogService.ShowAsync<RoleDialog>("Edit role", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: RoleViewModel input })
+        {
+            var updated = await Handler.UpdateRoleAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Role updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update role", Severity.Error);
+        }
+    }
+
+    private async Task Delete(RoleViewModel role)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync(
+            "Delete role",
+            $"Really delete '{role.RoleName}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteRoleAsync(currentUser!, role.RoleId);
+        if (success) { Snackbar.Add("Role deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete role", Severity.Error);
+    }
+}

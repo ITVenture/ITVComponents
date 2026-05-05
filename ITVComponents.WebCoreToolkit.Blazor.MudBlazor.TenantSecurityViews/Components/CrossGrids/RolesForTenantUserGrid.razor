@@ -1,0 +1,84 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IRoleAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view role assignments.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="RoleAssignmentViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.subtitle2">Roles</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <TemplateColumn T="RoleAssignmentViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudCheckBox T="bool"
+                                 Value="context.Item.Assigned"
+                                 Disabled="!hasWrite"
+                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.RoleName" Title="Role" />
+            <PropertyColumn Property="x => x.IsSystemRole" Title="System" />
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="RoleAssignmentViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int TenantUserId { get; set; }
+    [Parameter, EditorRequired] public int TenantId { get; set; }
+
+    private MudDataGrid<RoleAssignmentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Roles.AssignUser", "Roles.View");
+        hasWrite = Handler.HasPermission(currentUser, "Roles.AssignUser");
+    }
+
+    private async Task<GridData<RoleAssignmentViewModel>> LoadData(GridState<RoleAssignmentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<RoleAssignmentViewModel> { Items = Array.Empty<RoleAssignmentViewModel>(), TotalItems = 0 };
+
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListRoleAssignmentsForTenantUserAsync(currentUser, TenantUserId, TenantId, query);
+        return new GridData<RoleAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(RoleAssignmentViewModel item, bool newValue)
+    {
+        if (!hasWrite || currentUser is null) return;
+        var ok = await Handler.SetRoleAssignmentForTenantUserAsync(currentUser, TenantUserId, item.RoleId, TenantId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Role assigned" : "Role unassigned", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update assignment", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

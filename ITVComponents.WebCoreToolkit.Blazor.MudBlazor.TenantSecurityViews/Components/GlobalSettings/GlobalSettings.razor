@@ -1,0 +1,161 @@
+@page "/Util/GlobalSettings"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IGlobalSettingsAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Global settings</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Global settings</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view global settings.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="GlobalSettingViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Global settings</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add setting
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.SettingsKey" Title="Key" />
+            <PropertyColumn Property="x => x.SettingsValue" Title="Value" />
+            <PropertyColumn Property="x => x.JsonSetting" Title="JSON" />
+            <TemplateColumn T="GlobalSettingViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="GlobalSettingViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<GlobalSettingViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "GlobalSettings.View", "GlobalSettings.Write");
+        hasWrite = Handler.HasPermission(currentUser, "GlobalSettings.Write");
+    }
+
+    private async Task<GridData<GlobalSettingViewModel>> LoadData(GridState<GlobalSettingViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<GlobalSettingViewModel> { Items = Array.Empty<GlobalSettingViewModel>(), TotalItems = 0 };
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+        var result = await Handler.ListAsync(currentUser, query);
+        return new GridData<GlobalSettingViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<GlobalSettingDialog>
+        {
+            { d => d.Model, new GlobalSettingViewModel() },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<GlobalSettingDialog>("Create setting", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: GlobalSettingViewModel input })
+        {
+            var created = await Handler.CreateAsync(currentUser!, input);
+            if (created != null) { Snackbar.Add("Setting created", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(GlobalSettingViewModel item)
+    {
+        var copy = new GlobalSettingViewModel
+        {
+            GlobalSettingId = item.GlobalSettingId,
+            SettingsKey = item.SettingsKey,
+            SettingsValue = item.SettingsValue,
+            JsonSetting = item.JsonSetting
+        };
+        var parameters = new DialogParameters<GlobalSettingDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false }
+        };
+        var dlg = await DialogService.ShowAsync<GlobalSettingDialog>("Edit setting", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: GlobalSettingViewModel input })
+        {
+            var updated = await Handler.UpdateAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Setting updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(GlobalSettingViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync(
+            "Delete setting",
+            $"Really delete '{item.SettingsKey}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteAsync(currentUser!, item.GlobalSettingId);
+        if (success) { Snackbar.Add("Setting deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

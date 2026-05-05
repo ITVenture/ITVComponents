@@ -1,0 +1,167 @@
+@page "/Security/AuthenticationTypes"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IAuthenticationTypeAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Authentication types</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Authentication types</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view authentication types.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="AuthenticationTypeViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Authentication types</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add type
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="AuthenticationTypeViewModel" />
+            <PropertyColumn Property="x => x.AuthenticationTypeName" Title="Name" />
+            <TemplateColumn T="AuthenticationTypeViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <MudTabs Elevation="0" Rounded="true">
+                    <MudTabPanel Text="Claim mappings">
+                        <AuthClaimMappingsGrid AuthenticationTypeId="@context.Item.AuthenticationTypeId" CanWrite="@hasWrite" />
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="AuthenticationTypeViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<AuthenticationTypeViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "AuthenticationTypes.View", "AuthenticationTypes.Write");
+        hasWrite = Handler.HasPermission(currentUser, "AuthenticationTypes.Write");
+    }
+
+    private async Task<GridData<AuthenticationTypeViewModel>> LoadData(GridState<AuthenticationTypeViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<AuthenticationTypeViewModel> { Items = Array.Empty<AuthenticationTypeViewModel>(), TotalItems = 0 };
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+        var result = await Handler.ListAsync(currentUser, query);
+        return new GridData<AuthenticationTypeViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<AuthenticationTypeDialog>
+        {
+            { d => d.Model, new AuthenticationTypeViewModel() },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<AuthenticationTypeDialog>("Create authentication type", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AuthenticationTypeViewModel input })
+        {
+            var created = await Handler.CreateAsync(currentUser!, input);
+            if (created != null) { Snackbar.Add("Type created", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(AuthenticationTypeViewModel item)
+    {
+        var copy = new AuthenticationTypeViewModel
+        {
+            AuthenticationTypeId = item.AuthenticationTypeId,
+            AuthenticationTypeName = item.AuthenticationTypeName
+        };
+        var parameters = new DialogParameters<AuthenticationTypeDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false }
+        };
+        var dlg = await DialogService.ShowAsync<AuthenticationTypeDialog>("Edit authentication type", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AuthenticationTypeViewModel input })
+        {
+            var updated = await Handler.UpdateAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Type updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(AuthenticationTypeViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync(
+            "Delete authentication type",
+            $"Really delete '{item.AuthenticationTypeName}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteAsync(currentUser!, item.AuthenticationTypeId);
+        if (success) { Snackbar.Add("Type deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

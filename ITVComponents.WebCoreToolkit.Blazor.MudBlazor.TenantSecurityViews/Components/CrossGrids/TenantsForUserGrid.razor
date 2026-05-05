@@ -1,0 +1,83 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject ITenantAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view tenant assignments.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="TenantAssignmentViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.subtitle2">Tenants</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <TemplateColumn T="TenantAssignmentViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudCheckBox T="bool"
+                                 Value="context.Item.Assigned"
+                                 Disabled="!hasWrite"
+                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.TenantName" Title="Name" />
+            <PropertyColumn Property="x => x.DisplayName" Title="Display name" />
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="TenantAssignmentViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public string UserId { get; set; } = "";
+
+    private MudDataGrid<TenantAssignmentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Tenants.AssignUser", "Tenants.View");
+        hasWrite = Handler.HasPermission(currentUser, "Tenants.AssignUser");
+    }
+
+    private async Task<GridData<TenantAssignmentViewModel>> LoadData(GridState<TenantAssignmentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<TenantAssignmentViewModel> { Items = Array.Empty<TenantAssignmentViewModel>(), TotalItems = 0 };
+
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListTenantAssignmentsForUserAsync(currentUser, UserId, query);
+        return new GridData<TenantAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(TenantAssignmentViewModel item, bool newValue)
+    {
+        if (!hasWrite || currentUser is null) return;
+        var ok = await Handler.SetUserTenantAssignmentAsync(currentUser, UserId, item.TenantId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Tenant assigned" : "Tenant unassigned", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update assignment", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

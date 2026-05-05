@@ -1,0 +1,32 @@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.SettingsKey" Label="Key" Required="true" RequiredError="Key is required" />
+            <MudTextField @bind-Value="Model.SettingsValue" Label="Value" Lines="6" />
+            <MudCheckBox @bind-Value="Model.JsonSetting" Label="JSON setting" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public GlobalSettingViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+
+    private MudForm? form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) return;
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

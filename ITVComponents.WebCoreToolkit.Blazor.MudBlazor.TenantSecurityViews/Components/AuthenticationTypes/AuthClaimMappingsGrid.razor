@@ -1,0 +1,126 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IAuthenticationTypeAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="AuthenticationClaimMappingViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.Single"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <MudText Typo="Typo.subtitle2">Claim mappings</MudText>
+        <MudSpacer />
+        @if (CanWrite)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                Add mapping
+            </MudButton>
+        }
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.IncomingClaimName" Title="Incoming" />
+        <PropertyColumn Property="x => x.Condition" Title="Condition" />
+        <PropertyColumn Property="x => x.OutgoingClaimName" Title="Outgoing" />
+        <PropertyColumn Property="x => x.OutgoingClaimValue" Title="Value" />
+        <TemplateColumn T="AuthenticationClaimMappingViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                @if (CanWrite)
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    </MudStack>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="AuthenticationClaimMappingViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int AuthenticationTypeId { get; set; }
+    [Parameter] public bool CanWrite { get; set; }
+
+    private MudDataGrid<AuthenticationClaimMappingViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<AuthenticationClaimMappingViewModel>> LoadData(GridState<AuthenticationClaimMappingViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null)
+            return new GridData<AuthenticationClaimMappingViewModel> { Items = Array.Empty<AuthenticationClaimMappingViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListClaimsAsync(currentUser, AuthenticationTypeId, query);
+        return new GridData<AuthenticationClaimMappingViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<AuthClaimMappingDialog>
+        {
+            { d => d.Model, new AuthenticationClaimMappingViewModel { AuthenticationTypeId = AuthenticationTypeId } },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<AuthClaimMappingDialog>("Add claim mapping", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AuthenticationClaimMappingViewModel input })
+        {
+            var created = await Handler.CreateClaimAsync(currentUser!, AuthenticationTypeId, input);
+            if (created != null) { Snackbar.Add("Mapping added", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to add", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(AuthenticationClaimMappingViewModel item)
+    {
+        var copy = new AuthenticationClaimMappingViewModel
+        {
+            AuthenticationClaimMappingId = item.AuthenticationClaimMappingId,
+            AuthenticationTypeId = item.AuthenticationTypeId,
+            IncomingClaimName = item.IncomingClaimName,
+            Condition = item.Condition,
+            OutgoingClaimName = item.OutgoingClaimName,
+            OutgoingValueType = item.OutgoingValueType,
+            OutgoingIssuer = item.OutgoingIssuer,
+            OutgoingOriginalIssuer = item.OutgoingOriginalIssuer,
+            OutgoingClaimValue = item.OutgoingClaimValue
+        };
+        var parameters = new DialogParameters<AuthClaimMappingDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false }
+        };
+        var dlg = await DialogService.ShowAsync<AuthClaimMappingDialog>("Edit claim mapping", parameters);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AuthenticationClaimMappingViewModel input })
+        {
+            var updated = await Handler.UpdateClaimAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Mapping updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(AuthenticationClaimMappingViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync(
+            "Delete claim mapping",
+            $"Really delete '{item.IncomingClaimName} → {item.OutgoingClaimName}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteClaimAsync(currentUser!, item.AuthenticationClaimMappingId);
+        if (success) { Snackbar.Add("Mapping deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

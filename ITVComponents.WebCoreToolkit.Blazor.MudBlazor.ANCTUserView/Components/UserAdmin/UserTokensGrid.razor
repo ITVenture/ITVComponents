@@ -1,0 +1,88 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IUserAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!CanView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view tokens.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="UserTokenViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <MudText Typo="Typo.subtitle2">Tokens</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" />
+            <PropertyColumn Property="x => x.Value" Title="Value" />
+            <PropertyColumn Property="x => x.LoginProvider" Title="Provider" />
+            <TemplateColumn T="UserTokenViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (CanWrite)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="UserTokenViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public string UserId { get; set; } = "";
+    [Parameter] public bool CanView { get; set; }
+    [Parameter] public bool CanWrite { get; set; }
+
+    private MudDataGrid<UserTokenViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<UserTokenViewModel>> LoadData(GridState<UserTokenViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !CanView)
+            return new GridData<UserTokenViewModel> { Items = Array.Empty<UserTokenViewModel>(), TotalItems = 0 };
+
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new UserListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false
+        };
+        var result = await Handler.ListTokensAsync(currentUser, UserId, query);
+        return new GridData<UserTokenViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Delete(UserTokenViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync(
+            "Delete token",
+            $"Really delete '{item.Name}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+
+        item.UserId = UserId;
+        var success = await Handler.DeleteTokenAsync(currentUser!, item);
+        if (success) { Snackbar.Add("Token deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

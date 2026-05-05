@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ITVComponents.WebCoreToolkit.TenantSecurityContextUserView.Blazor</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>4.0.0-PRE295</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -21,13 +22,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.0" />
-    <PackageReference Include="QRCoder" Version="1.6.0" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCIP\ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.ANCTUserView\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AspNetCoreTenantSecurityUserView.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.csproj" />
   </ItemGroup>
 
   <ItemGroup>
