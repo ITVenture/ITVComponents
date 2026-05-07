@@ -1,0 +1,64 @@
+@using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids
+
+<MudDialog>
+    <DialogContent>
+        @{
+            var u = User;
+            var globalUserId = IsSysAdmin && u.TenantId == null ? u.Id : null;
+            var isTenantUser = u.TenantId != null && int.TryParse(u.Id, out _);
+            int? tenantUserId = isTenantUser ? int.Parse(u.Id!) : null;
+        }
+        <MudTabs Elevation="0" Rounded="true" Outlined="true" PanelClass="pa-2">
+            @if (globalUserId is not null)
+            {
+                <MudTabPanel Text="Properties">
+                    <UserPropertiesGrid UserId="@globalUserId" CanWrite="@HasPropWrite" CanView="@HasPropView" />
+                </MudTabPanel>
+                <MudTabPanel Text="Logins">
+                    <UserLoginsGrid UserId="@globalUserId" CanWrite="@HasLoginWrite" CanView="@HasLoginView" />
+                </MudTabPanel>
+                <MudTabPanel Text="Tokens">
+                    <UserTokensGrid UserId="@globalUserId" CanWrite="@HasTokenWrite" CanView="@HasTokenView" />
+                </MudTabPanel>
+                <MudTabPanel Text="Claims">
+                    <UserClaimsGrid UserId="@globalUserId" CanWrite="@HasClaimWrite" CanView="@HasClaimView" />
+                </MudTabPanel>
+                <MudTabPanel Text="Tenants">
+                    <TenantsForUserGrid UserId="@globalUserId" />
+                </MudTabPanel>
+            }
+            @if (tenantUserId is not null && u.TenantId is not null)
+            {
+                <MudTabPanel Text="Roles">
+                    <RolesForTenantUserGrid TenantUserId="@tenantUserId.Value" TenantId="@u.TenantId.Value" />
+                </MudTabPanel>
+            }
+            @if (globalUserId is null && tenantUserId is null)
+            {
+                <MudTabPanel Text="Info">
+                    <MudAlert Severity="Severity.Info">No detail tabs available for this row.</MudAlert>
+                </MudTabPanel>
+            }
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public UserViewModel User { get; set; } = default!;
+    [Parameter] public bool IsSysAdmin { get; set; }
+    [Parameter] public bool HasPropView { get; set; }
+    [Parameter] public bool HasPropWrite { get; set; }
+    [Parameter] public bool HasLoginView { get; set; }
+    [Parameter] public bool HasLoginWrite { get; set; }
+    [Parameter] public bool HasTokenView { get; set; }
+    [Parameter] public bool HasTokenWrite { get; set; }
+    [Parameter] public bool HasClaimView { get; set; }
+    [Parameter] public bool HasClaimWrite { get; set; }
+
+    private void Close() => MudDialog.Close();
+}

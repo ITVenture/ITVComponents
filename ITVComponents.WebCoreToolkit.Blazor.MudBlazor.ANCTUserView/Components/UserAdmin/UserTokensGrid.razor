@@ -19,6 +19,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
             <MudText Typo="Typo.subtitle2">Tokens</MudText>
             <MudSpacer />
         </ToolBarContent>

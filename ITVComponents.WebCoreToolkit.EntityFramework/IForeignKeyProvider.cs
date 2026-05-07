@@ -16,7 +16,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework
         /// </summary>
         /// <param name="tableName">the table-name for which to get the foreign-key data</param>
         /// <returns>the query that will be executed go get the foreignkey-data</returns>
-        IEnumerable GetForeignKeyFilterQuery(string tableName);
+        IEnumerable GetForeignKeyFilterQuery(string tableName, out Type keyType);
 
         /// <summary>
         /// Gets the filter Linq-Query for the given table-name. If you implement this interface, form a query that uses the db-context as [db] and the search-string as [filter]
@@ -24,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework
         /// <param name="tableName">the table-name for which to get the foreign-key data</param>
         /// <param name="postedFilter">a filter that was posted when a Foreignkey was queried with POST</param>
         /// <returns>the query that will be executed go get the foreignkey-data</returns>
-        IEnumerable GetForeignKeyFilterQuery(string tableName, Dictionary<string, object> postedFilter);
+        IEnumerable GetForeignKeyFilterQuery(string tableName, Dictionary<string, object> postedFilter, out Type keyType);
 
         /// <summary>
         /// Gets the filter Linq-Query for the given table-name. If you implement this interface, form a query that uses the db-context as [db] and the search-string as [filter]
@@ -32,6 +32,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework
         /// <param name="tableName">the table-name for which to get the foreign-key data</param>
         /// <param name="id">the primary-key value of the resovled record</param>
         /// <returns>the query that will be executed go get the foreignkey-data</returns>
-        IEnumerable GetForeignKeyResolveQuery(string tableName, object id);
+        IEnumerable GetForeignKeyResolveQuery(string tableName, object id, out Type keyType);
     }
 }

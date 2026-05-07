@@ -1,0 +1,137 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@typeparam T
+
+@using ITVComponents.EFRepo.Expressions.Models
+@using ITVComponents.WebCoreToolkit.EntityFramework.Extensions
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using SortDirection = ITVComponents.EFRepo.Expressions.Models.SortDirection
+
+@inject IServiceProvider Services
+
+@* Mud autocomplete (typeahead) over FK options resolved via Toolkit's ContextForFkQuery.
+   - ServerFilter=false (default): loads the full list once, filters client-side on Label.
+   - ServerFilter=true: queries IWrappedFkSource.ReadForeignKey(table, postedFilter: ...) per
+     keystroke. Caller supplies a FilterBuilder that turns the typed text into a postedFilter
+     dictionary (typically wrapping the consumer's FilterBase EF-expression builder).        *@
+
+<MudAutocomplete T="T"
+                 Value="Value"
+                 ValueChanged="ValueChanged"
+                 SearchFunc="DoSearch"
+                 ToStringFunc="@CaptionFor"
+                 Label="@Label"
+                 Required="@Required"
+                 Clearable="@Clearable"
+                 Disabled="@Disabled"
+                 ResetValueOnEmptyText="false"
+                 CoerceText="false"
+                 DebounceInterval="@DebounceMilliseconds" />
+
+@code {
+    [Parameter] public T Value { get; set; } = default!;
+    [Parameter] public EventCallback<T> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Connection { get; set; } = "sys";
+    [Parameter, EditorRequired] public string Table { get; set; } = string.Empty;
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public bool Clearable { get; set; } = true;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public int DebounceMilliseconds { get; set; } = 300;
+
+    /// <summary>
+    /// false (default): full list fetched once, filtered client-side on Label substring.
+    /// true: SearchFunc queries the FK source per keystroke; supply <see cref="FilterBuilder"/>.
+    /// </summary>
+    [Parameter] public bool ServerFilter { get; set; }
+
+    private record Item(T Key, string Label);
+    private readonly List<Item> _all = new();
+    private readonly Dictionary<object, string> _captions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.Yield();
+        try
+        {
+            var src = Services.ContextForFkQuery(Connection, null);
+            if (src is null) return;
+
+            if (!ServerFilter)
+            {
+                var raw = src.ReadForeignKey<T>(Table);
+                foreach (var obj in raw)
+                {
+                    if (obj.Key is null) continue;
+                    _all.Add(new Item(obj.Key, obj.Label));
+                    _captions[obj.Key] = obj.Label;
+                }
+            }
+            else if (Value is not null)
+            {
+                // Resolve the label for the current bound value so the input does not display
+                // the raw key while the user has not searched yet.
+                var one = src.ReadForeignKey<T>(Table, id: Value.ToString())
+                    .FirstOrDefault();
+                if (one is { Key: not null })
+                {
+                    _captions[one.Key] = one.Label;
+                }
+            }
+        }
+        catch
+        {
+            // Best-effort: leave caches empty — MudAutocomplete still renders, the dialog
+            // does not crash, and the user can clear the field via Clearable.
+        }
+    }
+
+    private Task<IEnumerable<T>> DoSearch(string text, CancellationToken ct)
+    {
+        text ??= string.Empty;
+
+        if (!ServerFilter)
+        {
+            return Task.FromResult<IEnumerable<T>>(
+                _all.Where(i => string.IsNullOrEmpty(text)
+                                || i.Label.Contains(text, StringComparison.OrdinalIgnoreCase))
+                    .Select(i => i.Key));
+        }
+
+        try
+        {
+            var src = Services.ContextForFkQuery(Connection, null);
+            if (src is null) return Task.FromResult<IEnumerable<T>>(Array.Empty<T>());
+            var filter = new Dictionary<string, object>
+            {
+                {
+                    "parsedfilter", new CompareFilter{Value = text, Operator = CompareOperator.Contains, PropertyName = "Label"}
+                },
+                {
+                    "parsedsort", new[]{new Sort{Direction = SortDirection.Ascending, MemberName = "Label"} }
+                },
+                {
+                    "Filter", text
+                }
+            };
+            var raw = src.ReadForeignKey<T>(Table, postedFilter: filter);
+            var result = new List<T>();
+            foreach (var obj in raw)
+            {
+                if (obj.Key is null) continue;
+                _captions[obj.Key] = obj.Label;
+                result.Add(obj.Key);
+            }
+            return Task.FromResult<IEnumerable<T>>(result);
+        }
+        catch
+        {
+            return Task.FromResult<IEnumerable<T>>(Array.Empty<T>());
+        }
+    }
+
+    private string CaptionFor(T v)
+    {
+        if (v is null) return string.Empty;
+        return _captions.TryGetValue(v, out var lbl) ? lbl : v.ToString() ?? string.Empty;
+    }
+}

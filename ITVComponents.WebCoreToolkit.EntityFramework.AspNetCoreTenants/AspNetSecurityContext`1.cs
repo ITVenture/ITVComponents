@@ -316,6 +316,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<TenantTemplate> TenantTemplates { get; set; }
 
+        [ForeignKeySecurity(ToolkitPermission.Sysadmin)]
         public DbSet<TenantType> TenantTypes { get; set; }
         public DbSet<ServerCookie> ServerCookies { get; set; }
 
@@ -331,10 +332,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         /// </summary>
         /// <param name="tableName">the table-name for which to get the foreign-key data</param>
         /// <returns>the query that will be executed go get the foreignkey-data</returns>
-        public IEnumerable GetForeignKeyFilterQuery(string tableName)
+        public IEnumerable GetForeignKeyFilterQuery(string tableName, out Type keyType)
         {
             if (tableName == "TenantSelectionFk")
             {
+                keyType = typeof(string);
                 return (from t in Tenants
                         orderby t.DisplayName
                         select new ForeignKeyData<string>
@@ -356,6 +358,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                             Label = t.DisplayName,
                             FullRecord = t.ToDictionary(true)
                         });
+                    keyType = typeof(int);
+                    return ret;
                 }
             }
 
@@ -364,6 +368,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                 return from t in Permissions orderby t.PermissionName select new ForeignKeyData<int> {Key = t.PermissionId, Label = t.PermissionName};
             }*/
 
+                keyType = typeof(string);
             return null;
         }
 
@@ -374,7 +379,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
         /// <param name="tableName">the table-name for which to get the foreign-key data</param>
         /// <param name="postedFilter">a filter that was posted when a Foreignkey was queried with POST</param>
         /// <returns>the query that will be executed go get the foreignkey-data</returns>
-        public IEnumerable GetForeignKeyFilterQuery(string tableName, Dictionary<string, object> postedFilter)
+        public IEnumerable GetForeignKeyFilterQuery(string tableName, Dictionary<string, object> postedFilter, out Type keyType)
         {
             var hasPreFilter = postedFilter.TryGetValue("parsedfilter", out var clientQuery);
             FilterBase clientFilter = null;
@@ -399,6 +404,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                     }));
                 }
 
+                keyType = typeof(string);
                 return (from t in ts
                         orderby t.DisplayName
                         select new ForeignKeyData<string>
@@ -435,6 +441,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                             Label = t.DisplayName,
                             FullRecord = t.ToDictionary(true)
                         });
+
+                    keyType = typeof(int);
+                    return ret;
                 }
             }
 
@@ -443,14 +452,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                 return from t in Permissions orderby t.PermissionName select new ForeignKeyData<int> {Key = t.PermissionId, Label = t.PermissionName};
             }*/
 
+            keyType = typeof(string);
             return null;
         }
 
-        public IEnumerable GetForeignKeyResolveQuery(string tableName, object id)
+        public IEnumerable GetForeignKeyResolveQuery(string tableName, object id, out Type keyType)
         {
             if (tableName == "TenantSelectionFk")
             {
                 int tid = Convert.ToInt32(id);
+                keyType = typeof(string);
                 return (from t in Tenants
                         where t.TenantId == tid
                         select new ForeignKeyData<string>
@@ -473,10 +484,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants
                             Label = t.DisplayName,
                             FullRecord = t.ToDictionary(true)
                         });
+                    keyType = typeof(int);
                     return ret;
                 }
             }
 
+            keyType = typeof(string);
             return null;
         }
 

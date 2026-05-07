@@ -1,4 +1,5 @@
 using System.Reflection;
+using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.Blazor.Configuration;
 using ITVComponents.WebCoreToolkit.Blazor.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
         public static IServiceCollection AddBlazorRoutingAssembly(this IServiceCollection services, Assembly assembly)
         {
             services.Configure<BlazorRoutingOptions>(o => o.AddAssembly(assembly));
+            return services;
+        }
+
+        /// <summary>
+        /// Adds the given assembly with a per-type filter. The filter is consumed at
+        /// render-time by <c>FilteredRouteView</c> to short-circuit excluded pages
+        /// to NotFound. Mirrors the MVC <c>AssemblyPartWithGenerics</c> blacklist
+        /// so the same JSON config can be reused.
+        /// </summary>
+        public static IServiceCollection AddBlazorRoutingAssembly(
+            this IServiceCollection services,
+            Assembly assembly,
+            AssemblyPartTypeLoadBehaviorOptions? typeFilter)
+        {
+            services.Configure<BlazorRoutingOptions>(o => o.AddAssembly(assembly, typeFilter));
             return services;
         }
     }

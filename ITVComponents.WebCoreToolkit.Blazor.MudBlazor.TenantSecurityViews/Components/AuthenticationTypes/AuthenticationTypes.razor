@@ -31,6 +31,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.h6">Authentication types</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="search"
@@ -121,7 +122,7 @@ else
             { d => d.Model, new AuthenticationTypeViewModel() },
             { d => d.IsCreate, true }
         };
-        var dlg = await DialogService.ShowAsync<AuthenticationTypeDialog>("Create authentication type", parameters);
+        var dlg = await DialogService.ShowAsync<AuthenticationTypeDialog>("Create authentication type", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: AuthenticationTypeViewModel input })
         {
@@ -143,7 +144,7 @@ else
             { d => d.Model, copy },
             { d => d.IsCreate, false }
         };
-        var dlg = await DialogService.ShowAsync<AuthenticationTypeDialog>("Edit authentication type", parameters);
+        var dlg = await DialogService.ShowAsync<AuthenticationTypeDialog>("Edit authentication type", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: AuthenticationTypeViewModel input })
         {

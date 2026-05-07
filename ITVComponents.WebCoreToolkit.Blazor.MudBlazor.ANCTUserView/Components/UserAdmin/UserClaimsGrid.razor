@@ -19,6 +19,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.subtitle2">Claims</MudText>
             <MudSpacer />
             @if (CanWrite)
@@ -87,7 +88,7 @@ else
             { d => d.Model, new UserClaimViewModel() },
             { d => d.IsCreate, true }
         };
-        var dlg = await DialogService.ShowAsync<UserClaimDialog>("Add claim", parameters);
+        var dlg = await DialogService.ShowAsync<UserClaimDialog>("Add claim", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: UserClaimViewModel input })
         {
@@ -111,7 +112,7 @@ else
             { d => d.Model, copy },
             { d => d.IsCreate, false }
         };
-        var dlg = await DialogService.ShowAsync<UserClaimDialog>("Edit claim", parameters);
+        var dlg = await DialogService.ShowAsync<UserClaimDialog>("Edit claim", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: UserClaimViewModel input })
         {

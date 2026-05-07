@@ -28,6 +28,16 @@ namespace ITVComponents.WebCoreToolkit.Options
         public bool UseBackgroundTasks { get; set; }
         public int TaskQueueCapacity { get; set; } = 100;
         public bool UseLocalization { get; set; }
+
+        /// <summary>
+        /// ResourcesPath that <see cref="Microsoft.Extensions.Localization.LocalizationOptions"/>
+        /// will be configured with when <see cref="UseLocalization"/> is true. <c>null</c> (the
+        /// default) preserves the historical toolkit behavior of <c>"Resources"</c>; an empty
+        /// string opts out of any path prefix entirely (resource type FullName is used as-is for
+        /// the resource base name); any other string sets the path explicitly.
+        /// </summary>
+        public string? ResourcesPath { get; set; }
+
         public bool UsePageModelHandlerFactory { get; set; }
         public bool UseSharedAssets { get; set; }
         public List<CultureConfigOption> CultureConfig { get; set; } = new();

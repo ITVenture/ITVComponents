@@ -35,6 +35,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.h6">Roles for tenant @effectiveTenantId</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="search"
@@ -138,7 +139,7 @@ else
             { d => d.IsCreate, true },
             { d => d.AllowSystemRole, isSysAdmin }
         };
-        var dlg = await DialogService.ShowAsync<RoleDialog>("Create role", parameters);
+        var dlg = await DialogService.ShowAsync<RoleDialog>("Create role", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: RoleViewModel input })
         {
@@ -164,7 +165,7 @@ else
             { d => d.IsCreate, false },
             { d => d.AllowSystemRole, isSysAdmin }
         };
-        var dlg = await DialogService.ShowAsync<RoleDialog>("Edit role", parameters);
+        var dlg = await DialogService.ShowAsync<RoleDialog>("Edit role", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: RoleViewModel input })
         {

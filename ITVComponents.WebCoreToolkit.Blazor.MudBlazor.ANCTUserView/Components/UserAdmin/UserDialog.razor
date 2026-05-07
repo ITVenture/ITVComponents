@@ -11,7 +11,7 @@
             <MudCheckBox @bind-Value="Model.TwoFactorEnabled" Label="Two-factor enabled" />
             <MudCheckBox @bind-Value="Model.LockoutEnabled" Label="Lockout enabled" />
             <MudDatePicker @bind-Date="lockoutDate" Label="Locked until" Editable="true" Clearable="true" />
-            <MudNumericField @bind-Value="Model.AuthenticationTypeId" Label="Authentication type id" />
+            <ForeignKeySelect T="int?" @bind-Value="Model.AuthenticationTypeId" Table="AuthenticationTypes" Label="Authentication type" />
         </MudForm>
     </DialogContent>
     <DialogActions>

@@ -32,6 +32,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.h6">Users</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="search"
@@ -146,7 +147,7 @@ else
             { d => d.Model, new UserViewModel() },
             { d => d.IsCreate, true }
         };
-        var dlg = await DialogService.ShowAsync<UserDialog>("Create user", parameters);
+        var dlg = await DialogService.ShowAsync<UserDialog>("Create user", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: UserViewModel input })
         {
@@ -171,7 +172,7 @@ else
             { d => d.Model, copy },
             { d => d.IsCreate, false }
         };
-        var dlg = await DialogService.ShowAsync<UserDialog>("Edit user", parameters);
+        var dlg = await DialogService.ShowAsync<UserDialog>("Edit user", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: UserViewModel input })
         {

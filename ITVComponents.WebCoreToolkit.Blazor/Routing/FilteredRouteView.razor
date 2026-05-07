@@ -1,0 +1,52 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.Extensions.Options
+@using ITVComponents.WebCoreToolkit.Blazor.Routing
+
+@inject IOptions<BlazorRoutingOptions> RoutingOptions
+
+@if (RoutingOptions.Value.ShouldRenderType(RouteData.PageType))
+{
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <RouteView RouteData="@RouteData" DefaultLayout="@DefaultLayout" />
+    }
+}
+else if (NotFoundContent is not null)
+{
+    @NotFoundContent
+}
+else
+{
+    <p role="alert">Not found.</p>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public RouteData RouteData { get; set; } = default!;
+
+    /// <summary>
+    /// The layout type used by the underlying <see cref="RouteView"/> when rendering
+    /// pages that don't declare their own <c>@layout</c>. Ignored when
+    /// <see cref="ChildContent"/> is provided.
+    /// </summary>
+    [Parameter] public Type? DefaultLayout { get; set; }
+
+    /// <summary>
+    /// Optional fragment to render when the routed page type is allowed. Use this
+    /// to wrap the route render with custom views (e.g. <c>&lt;AuthorizeRouteView&gt;</c>).
+    /// If null, a plain <see cref="RouteView"/> with <see cref="DefaultLayout"/> is used.
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Optional fragment to render when the routed page type is excluded by the
+    /// configured <see cref="BlazorRoutingOptions.TypeFilters"/>. If null, a minimal
+    /// "Not found." paragraph is rendered.
+    /// </summary>
+    [Parameter] public RenderFragment? NotFoundContent { get; set; }
+}

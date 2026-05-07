@@ -13,6 +13,7 @@
              Hover="true"
              Dense="true">
     <ToolBarContent>
+        <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
         <MudText Typo="Typo.subtitle2">Claim mappings</MudText>
         <MudSpacer />
         @if (CanWrite)
@@ -73,7 +74,7 @@
             { d => d.Model, new AuthenticationClaimMappingViewModel { AuthenticationTypeId = AuthenticationTypeId } },
             { d => d.IsCreate, true }
         };
-        var dlg = await DialogService.ShowAsync<AuthClaimMappingDialog>("Add claim mapping", parameters);
+        var dlg = await DialogService.ShowAsync<AuthClaimMappingDialog>("Add claim mapping", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: AuthenticationClaimMappingViewModel input })
         {
@@ -102,7 +103,7 @@
             { d => d.Model, copy },
             { d => d.IsCreate, false }
         };
-        var dlg = await DialogService.ShowAsync<AuthClaimMappingDialog>("Edit claim mapping", parameters);
+        var dlg = await DialogService.ShowAsync<AuthClaimMappingDialog>("Edit claim mapping", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: AuthenticationClaimMappingViewModel input })
         {

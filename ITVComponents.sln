@@ -205,8 +205,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages", "ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.csproj", "{0F882015-7B27-40B5-869B-430DC5AB494D}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCIP", "ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCIP", "{83E0151F-E938-CB49-C2AB-997F7F8BBE49}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AspNetCoreTenantSecurityUserView", "ITVComponents.WebCoreToolkit.Blazor.MudBlazor.ANCTUserView\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AspNetCoreTenantSecurityUserView.csproj", "{09275601-E408-4AD3-AA33-E0A193C58328}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.Blazor.MudBlazor.TenantSecurityViews", "ITVComponents.WebCoreToolkit.Blazor.MudBlazor.TenantSecurityViews\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.TenantSecurityViews.csproj", "{D170461F-0046-49DA-94F3-645880C3E9F6}"

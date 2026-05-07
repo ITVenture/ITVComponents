@@ -31,6 +31,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.h6">Permissions</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="search"
@@ -119,7 +120,7 @@ else
             { d => d.Model, new PermissionViewModel { TenantId = effectiveTenantId } },
             { d => d.IsCreate, true }
         };
-        var dlg = await DialogService.ShowAsync<PermissionDialog>("Create permission", parameters);
+        var dlg = await DialogService.ShowAsync<PermissionDialog>("Create permission", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: PermissionViewModel input })
         {
@@ -145,7 +146,7 @@ else
             { d => d.Model, copy },
             { d => d.IsCreate, false }
         };
-        var dlg = await DialogService.ShowAsync<PermissionDialog>("Edit permission", parameters);
+        var dlg = await DialogService.ShowAsync<PermissionDialog>("Edit permission", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: PermissionViewModel input })
         {

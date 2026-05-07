@@ -32,6 +32,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.h6">Users</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="search"
@@ -51,7 +52,6 @@ else
             }
         </ToolBarContent>
         <Columns>
-            <HierarchyColumn T="UserViewModel" />
             <PropertyColumn Property="x => x.UserName" Title="User name" />
             <PropertyColumn Property="x => x.Email" Title="Email" />
             <PropertyColumn Property="x => x.EmailConfirmed" Title="Verified" />
@@ -62,58 +62,17 @@ else
             }
             <TemplateColumn T="UserViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWritePermission)
-                    {
-                        <MudStack Row="true" Spacing="1">
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details" OnClick="@(() => OpenDetailDialog(context.Item))" />
+                        @if (hasWritePermission)
+                        {
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteUser(context.Item))" />
-                        </MudStack>
-                    }
+                        }
+                    </MudStack>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
-        <ChildRowContent>
-            @{
-                var u = context.Item;
-                var userId = isSysAdmin && u.TenantId == null ? u.Id : null;
-                var isTenantUser = u.TenantId != null && int.TryParse(u.Id, out var parsedTuid);
-                int? tuid = isTenantUser ? int.Parse(u.Id!) : null;
-            }
-            <MudPaper Elevation="0" Class="pa-2">
-                <MudTabs Elevation="0" Rounded="true">
-                    @if (userId is not null)
-                    {
-                        <MudTabPanel Text="Properties">
-                            <UserPropertiesGrid UserId="@userId" CanWrite="@hasPropWrite" CanView="@hasPropView" />
-                        </MudTabPanel>
-                        <MudTabPanel Text="Logins">
-                            <UserLoginsGrid UserId="@userId" CanWrite="@hasLoginWrite" CanView="@hasLoginView" />
-                        </MudTabPanel>
-                        <MudTabPanel Text="Tokens">
-                            <UserTokensGrid UserId="@userId" CanWrite="@hasTokenWrite" CanView="@hasTokenView" />
-                        </MudTabPanel>
-                        <MudTabPanel Text="Claims">
-                            <UserClaimsGrid UserId="@userId" CanWrite="@hasClaimWrite" CanView="@hasClaimView" />
-                        </MudTabPanel>
-                        <MudTabPanel Text="Tenants">
-                            <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.TenantsForUserGrid UserId="@userId" />
-                        </MudTabPanel>
-                    }
-                    @if (tuid is not null && u.TenantId is not null)
-                    {
-                        <MudTabPanel Text="Roles">
-                            <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.RolesForTenantUserGrid TenantUserId="@tuid.Value" TenantId="@u.TenantId.Value" />
-                        </MudTabPanel>
-                    }
-                    @if (userId is null && tuid is null)
-                    {
-                        <MudTabPanel Text="Info">
-                            <MudAlert Severity="Severity.Info">No detail tabs available for this row.</MudAlert>
-                        </MudTabPanel>
-                    }
-                </MudTabs>
-            </MudPaper>
-        </ChildRowContent>
         <PagerContent>
             <MudDataGridPager T="UserViewModel" />
         </PagerContent>
@@ -176,6 +135,26 @@ else
         if (grid is not null) await grid.ReloadServerData();
     }
 
+    private async Task OpenDetailDialog(UserViewModel user)
+    {
+        var parameters = new DialogParameters<UserDetailDialog>
+        {
+            { d => d.User, user },
+            { d => d.IsSysAdmin, isSysAdmin },
+            { d => d.HasPropView, hasPropView },
+            { d => d.HasPropWrite, hasPropWrite },
+            { d => d.HasLoginView, hasLoginView },
+            { d => d.HasLoginWrite, hasLoginWrite },
+            { d => d.HasTokenView, hasTokenView },
+            { d => d.HasTokenWrite, hasTokenWrite },
+            { d => d.HasClaimView, hasClaimView },
+            { d => d.HasClaimWrite, hasClaimWrite }
+        };
+        var title = string.IsNullOrEmpty(user.UserName) ? "User details" : $"User: {user.UserName}";
+        var dlg = await DialogService.ShowAsync<UserDetailDialog>(title, parameters, EditDialogDefaults.Detail);
+        await dlg.Result;
+    }
+
     private async Task OpenCreateDialog()
     {
         var parameters = new DialogParameters<UserDialog>
@@ -183,7 +162,7 @@ else
             { d => d.Model, new UserViewModel() },
             { d => d.IsCreate, true }
         };
-        var dlg = await DialogService.ShowAsync<UserDialog>("Create user", parameters);
+        var dlg = await DialogService.ShowAsync<UserDialog>("Create user", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: UserViewModel input })
         {
@@ -223,7 +202,7 @@ else
             { d => d.Model, copy },
             { d => d.IsCreate, false }
         };
-        var dlg = await DialogService.ShowAsync<UserDialog>("Edit user", parameters);
+        var dlg = await DialogService.ShowAsync<UserDialog>("Edit user", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: UserViewModel input })
         {

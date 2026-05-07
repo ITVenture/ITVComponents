@@ -8,6 +8,7 @@ using ITVComponents.EFRepo.DynamicData;
 using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.Logging;
 using ITVComponents.TypeConversion;
+using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
@@ -51,7 +52,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
 
         public ForeignKeyOptions CustomFkSettings { get; } = null;
 
-        public IEnumerable ReadForeignKey(string tableName, string id = null, Dictionary<string, object> postedFilter = null)
+        public IEnumerable ReadForeignKey(string tableName, string id = null,
+            Dictionary<string, object> postedFilter = null)
+        {
+            return ReadForeignKey(tableName, id, postedFilter, out _);
+        }
+
+        public IEnumerable<ForeignKeyData<T>> ReadForeignKey<T>(string tableName, string id = null, Dictionary<string, object> postedFilter = null)
+        {
+            return ReadForeignKey(tableName, id, postedFilter, out var pkType).CastForeignKey<T>(pkType);
+        }
+
+        private IEnumerable ReadForeignKey(string tableName, string id, Dictionary<string, object> postedFilter, out Type pkType)
         {
             var desc = src.DescribeTable(tableName, true, out _);
             var idColumnCount = desc.Count(n => n.IsPrimaryKey);
@@ -71,6 +83,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             var t = typeof(ForeignKeyData<>).MakeGenericType(idColumn.Type.ManagedType);
             var keyAlias = src.SyntaxProvider.FormatColumnName("Key");
             var labelAlias = src.SyntaxProvider.FormatColumnName("Label");
+            pkType = idColumn.Type.ManagedType;
             if (id != null)
             {
                 return src.SqlQuery($"Select {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} {keyAlias}, {src.SyntaxProvider.FormatColumnName(stringCol.ColumnName)} {labelAlias} from {src.SyntaxProvider.FormatTableName(tableName)} where {src.SyntaxProvider.FormatColumnName(idColumn.ColumnName)} = [->p0]", t, id);
@@ -80,15 +93,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             {
                 var values = new List<object>();
                 var tmpAddition = (from tf in postedFilter
-                    join d in desc on tf.Key.ToLower() equals d.ColumnName.ToLower()
-                    select new CompareFilter
-                    {
-                        Value = TypeConverter.TryConvert(tf.Value, d.Type.ManagedType), Operator = CompareOperator.Equal,
-                        PropertyName = d.ColumnName
-                    }).ToArray();
+                                   join d in desc on tf.Key.ToLower() equals d.ColumnName.ToLower()
+                                   select new CompareFilter
+                                   {
+                                       Value = TypeConverter.TryConvert(tf.Value, d.Type.ManagedType),
+                                       Operator = CompareOperator.Equal,
+                                       PropertyName = d.ColumnName
+                                   }).ToArray();
 
                 LogEnvironment.LogDebugEvent($"tmpAddition has {tmpAddition.Length} entries.", LogSeverity.Report);
-                var ca = fimo as CompositeFilter ;
+                var ca = fimo as CompositeFilter;
                 if (tmpAddition.Length != 0 && ca is not { Operator: BoolOperator.And })
                 {
                     fimo = ca = new CompositeFilter
@@ -114,8 +128,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
                     if (n == "Label")
                     {
                         return (from u in desc
-                            where u.Type.ManagedType == typeof(string)
-                            select u).ToArray();
+                                where u.Type.ManagedType == typeof(string)
+                                select u).ToArray();
                     }
 
                     return (from u in desc where u.ColumnName.Equals(n, StringComparison.OrdinalIgnoreCase) select u)

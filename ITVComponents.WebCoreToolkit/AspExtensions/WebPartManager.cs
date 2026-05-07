@@ -213,16 +213,14 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             var allMethods = t.GetMethods(true).Where(n => Attribute.IsDefined(n, typeof(WebPartRegistrationMethodAttribute)));
             foreach (var method in allMethods)
             {
+                var methodParams = method.GetParameters();
                 var attr = Attribute.GetCustomAttribute(method, typeof(WebPartRegistrationMethodAttribute));
                 if (attr is LoadWebPartConfigAttribute)
                 {
                     var dic = new Dictionary<string, object>();
                     if (!string.IsNullOrEmpty(cfgPath))
                     {
-                        dic.Add("DEFAULT", method.Invoke(null,
-                                        BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod,
-                                        null,
-                                        new object[] { config, cfgPath }, null));
+                        dic.Add("DEFAULT", SaveExecuteMethod(method, new object[] { config, cfgPath }, methodParams));
                     }
 
                     if (cfgPaths != null && cfgPaths.Count != 0)
@@ -231,10 +229,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                         {
                             if (tmp.Key != Global.PartTypeLoadBehaviorOption)
                             {
-                                dic.Add(tmp.Key, method.Invoke(null,
-                                    BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod,
-                                    null,
-                                    new object[] { config, tmp.Key, tmp.Value }, null));
+                                dic.Add(tmp.Key, SaveExecuteMethod(method, new object[] { config, tmp.Key, tmp.Value }, methodParams));
                             }
                             else
                             {
@@ -446,6 +441,31 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             }
 
             return false;
+        }
+
+        private object SaveExecuteMethod(MethodInfo method, object[] arguments, ParameterInfo[] methodParams)
+        {
+            if (arguments.Length != methodParams.Length)
+            {
+                throw new InvalidOperationException(
+                    $"Tried to invoke {method.DeclaringType?.FullName}.{method.Name} with {arguments.Length} Parameters. But {methodParams.Length} are expected!");
+            }
+
+            if (arguments.Length == methodParams.Length && (from s in arguments.Select((p, i) => new { p=new{Value=p, ParameterType=p.GetType()}, i })
+                    join t in methodParams.Select((p, i) => new { p, i }) on s.i equals t.i
+                    where s.p.ParameterType == t.p.ParameterType ||
+                          t.p.ParameterType.IsAssignableFrom(s.p.ParameterType) ||
+                          s.p.Value == null && t.p.ParameterType.IsClass
+                    select new { s, t }).Count() == arguments.Length)
+            {
+                return method.Invoke(null,
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod,
+                    null,
+                    arguments, null);
+            }
+
+            throw new InvalidOperationException(
+                $"Tried to invoke {method.DeclaringType?.FullName}.{method.Name}. At least one parameter type is incompatible!");
         }
     }
 }

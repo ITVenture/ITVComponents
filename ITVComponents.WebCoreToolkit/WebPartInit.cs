@@ -190,7 +190,7 @@ namespace ITVComponents.WebCoreToolkit
                             o.ConfigureCulture(p);
                         }
                     }
-                });
+                }, options.ResourcesPath ?? "Resources");
             }
 
             if (options.UsePageModelHandlerFactory)

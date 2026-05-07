@@ -67,20 +67,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         public static IEnumerable ReadForeignKey(this DbContext context, string tableName, IServiceProvider services,
             string id = null, Dictionary<string, object> postedFilter = null)
         {
+            return ReadForeignKey(context, tableName, services, out _, id, postedFilter);
+        }
+
+        public static IEnumerable<ForeignKeyData<T>> ReadForeignKey<T>(this DbContext context, string tableName, IServiceProvider services,
+            string id = null, Dictionary<string, object> postedFilter = null)
+        {
+            var tmp = ReadForeignKey(context, tableName, services, out var pkType, id, postedFilter);
+            return tmp.CastForeignKey<T>(pkType);
+        }
+
+        private static IEnumerable ReadForeignKey(this DbContext context, string tableName, IServiceProvider services, out Type keyType,
+            string id = null, Dictionary<string, object> postedFilter = null)
+        {
             if (context is IForeignKeyProvider provider)
             {
                 IEnumerable retVal;
                 if (postedFilter == null && id == null)
                 {
-                    retVal = provider.GetForeignKeyFilterQuery(tableName);
+                    retVal = provider.GetForeignKeyFilterQuery(tableName, out keyType);
                 }
                 else if (id != null)
                 {
-                    retVal = provider.GetForeignKeyResolveQuery(tableName, id);
+                    retVal = provider.GetForeignKeyResolveQuery(tableName, id, out keyType);
                 }
                 else
                 {
-                    retVal = provider.GetForeignKeyFilterQuery(tableName, postedFilter);
+                    retVal = provider.GetForeignKeyFilterQuery(tableName, postedFilter, out keyType);
                 }
 
                 if (retVal != null)
@@ -103,7 +116,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 }
 
                 var keyProp = GetKey(context, dbSet.EntityType, out var isKeyless);
-                var keyType = !isKeyless ? keyProp.PropertyType : typeof(string);
+                keyType = !isKeyless ? keyProp.PropertyType : typeof(string);
                 FilterBase fib = null;
                 Sort[] so = null;
                 if (id == null)

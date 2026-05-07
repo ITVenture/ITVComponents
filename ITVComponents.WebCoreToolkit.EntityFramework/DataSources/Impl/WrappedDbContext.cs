@@ -40,5 +40,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
         {
             return decoratedContext.ReadForeignKey(tableName, services, id, postedFilter);
         }
+
+        public IEnumerable<ForeignKeyData<T>> ReadForeignKey<T>(string tableName, string id = null, Dictionary<string, object> postedFilter = null)
+        {
+            return decoratedContext.ReadForeignKey<T>(tableName, services, id, postedFilter);
+        }
     }
 }

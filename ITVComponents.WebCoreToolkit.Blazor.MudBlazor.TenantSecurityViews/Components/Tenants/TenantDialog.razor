@@ -4,7 +4,7 @@
             <MudTextField @bind-Value="Model.TenantName" Label="Tenant name" Required="true" RequiredError="Tenant name is required" />
             <MudTextField @bind-Value="Model.DisplayName" Label="Display name" />
             <MudTextField @bind-Value="Model.TimeZone" Label="Time zone" Placeholder="e.g. Europe/Zurich" />
-            <MudNumericField @bind-Value="Model.TenantTypeId" Label="Tenant type id" />
+            <ForeignKeySelect T="int?" @bind-Value="Model.TenantTypeId" Table="TenantTypes" Label="Tenant type" />
         </MudForm>
     </DialogContent>
     <DialogActions>

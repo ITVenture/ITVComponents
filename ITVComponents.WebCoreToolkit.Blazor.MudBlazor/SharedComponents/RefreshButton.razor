@@ -1,0 +1,25 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+@* Reusable refresh icon button for MudDataGrid toolbars.
+   Pattern: <RefreshButton OnClick="ReloadGrid" /> as the first element of <ToolBarContent>. *@
+
+<MudTooltip Text="@Tooltip">
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Size="@Size"
+                   Color="@Color"
+                   OnClick="OnClick"
+                   Disabled="@Disabled"
+                   aria-label="@Tooltip" />
+</MudTooltip>
+
+@code {
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    [Parameter] public string Tooltip { get; set; } = "Refresh";
+
+    [Parameter] public Size Size { get; set; } = Size.Small;
+
+    [Parameter] public Color Color { get; set; } = Color.Default;
+
+    [Parameter] public bool Disabled { get; set; }
+}

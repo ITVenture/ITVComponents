@@ -56,13 +56,23 @@ namespace ITVComponents.WebCoreToolkit.Cookies
                 cookieValue  = id;
             }
 
+            // Blazor Server / Interactive: in einem SignalR-Circuit ist die ursprüngliche
+            // HTTP-Response längst gesendet (Headers read-only). Cookie-Set würde
+            // InvalidOperationException werfen. Wir schlucken den Set silently — Caller
+            // (z.B. CookiePermissionScope) berechnet das Token beim nächsten Aufruf neu.
+            var response = httpContext.HttpContext?.Response;
+            if (response is null || response.HasStarted)
+            {
+                return;
+            }
+
             if (cookieOptions != null)
             {
-                httpContext.HttpContext.Response.Cookies.Append(cookieKey, cookieValue, cookieOptions);
+                response.Cookies.Append(cookieKey, cookieValue, cookieOptions);
             }
             else
             {
-                httpContext.HttpContext.Response.Cookies.Append(cookieKey, cookieValue);
+                response.Cookies.Append(cookieKey, cookieValue);
             }
         }
     }

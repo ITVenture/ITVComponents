@@ -1,0 +1,79 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@typeparam T
+
+@using ITVComponents.WebCoreToolkit.EntityFramework.Extensions
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using Microsoft.Extensions.Logging
+
+@inject IServiceProvider Services
+@inject ILogger<ForeignKeySelect<T>> logger;
+
+@* Mud dropdown that pulls FK options in-process via Toolkit's ContextForFkQuery,
+   the same code path the /ForeignKey/{connection}/{table} HTTP endpoint uses.
+   Items are expected to expose Id and Caption (Name/DisplayName as fallbacks). *@
+
+<MudSelect T="T"
+           Value="Value"
+           ValueChanged="ValueChanged"
+           Label="@Label"
+           Required="@Required"
+           Clearable="@Clearable"
+           Disabled="@(Disabled || _items.Count == 0)">
+    @foreach (var item in _items)
+    {
+        <MudSelectItem T="T" Value="@item.Id">@item.Caption</MudSelectItem>
+    }
+</MudSelect>
+
+@code {
+    [Parameter] public T Value { get; set; } = default!;
+    [Parameter] public EventCallback<T> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Connection { get; set; } = "sys";
+    [Parameter, EditorRequired] public string Table { get; set; } = string.Empty;
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public bool Clearable { get; set; } = true;
+    [Parameter] public bool Disabled { get; set; }
+
+    private record Item(T Id, string Caption);
+    private readonly List<Item> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.Yield();
+        try
+        {
+            var src = Services.ContextForFkQuery(Connection, null);
+            if (src is null) return;
+            var raw = src.ReadForeignKey<T>(Table);
+            if (raw is null) return;
+            //var underlying = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+            foreach (var obj in raw)
+            {
+                /*if (obj is null) continue;
+                var t = obj.GetType();
+                var idVal = (t.GetProperty("Id") ?? t.GetProperty("id"))?.GetValue(obj);
+                var capProp = t.GetProperty("Caption") ?? t.GetProperty("Name") ?? t.GetProperty("DisplayName");
+                var capVal = capProp?.GetValue(obj);
+                if (idVal is null) continue;
+                T typedId;
+                try
+                {
+                    typedId = (T)Convert.ChangeType(idVal, underlying);
+                }
+                catch
+                {
+                    continue;
+                }*/
+                _items.Add(new Item(obj.Key, obj.Label));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error loading foreign key options for table {Table}", Table);
+            // Best-effort: swallow loader errors so the dialog still renders. The user
+            // can still pick "no value" via Clearable; selecting an unknown value would
+            // need the full list, but at least the form does not crash.
+        }
+    }
+}

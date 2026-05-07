@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources
@@ -12,5 +13,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources
     {
         ForeignKeyOptions CustomFkSettings { get; }
         IEnumerable ReadForeignKey(string tableName, string id = null, Dictionary<string, object> postedFilter = null);
+
+        IEnumerable<ForeignKeyData<T>> ReadForeignKey<T>(string tableName, string id = null, Dictionary<string, object> postedFilter = null);
     }
 }

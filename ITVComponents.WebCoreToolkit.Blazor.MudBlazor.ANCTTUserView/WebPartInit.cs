@@ -1,9 +1,12 @@
 using System.Reflection;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
+using ITVComponents.WebCoreToolkit;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blazor.Extensions;
+using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,21 +16,22 @@ namespace ITVComponents.WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blaz
 [WebPart]
 public static class WebPartInit
 {
+    // Mirrors the MVC AspNetCoreTreeTenantSecurityUserView WebPartInit: a single
+    // DetailConfigPath in appsettings-parts.json drives this part — WebPartManager
+    // then dispatches the 2-arg overload and stores the result under the "DEFAULT" key.
     [LoadWebPartConfig]
-    public static object? LoadOptions(IConfiguration config, string key, string path)
+    public static object? LoadOptions(IConfiguration config, string path)
     {
-        if (key == "ContextSettings")
-        {
-            return config.GetSection<SecurityContextOptions>(path);
-        }
-
-        return null;
+        return config.GetSection<SecurityContextOptions>(path);
     }
 
     [ServiceRegistrationMethod]
     public static void RegisterServices(IServiceCollection services,
-        [WebPartConfig("ContextSettings")] SecurityContextOptions? options)
+        [WebPartConfig] SecurityContextOptions? options,
+        [WebPartConfig(Global.PartTypeLoadBehaviorOption)] AssemblyPartTypeLoadBehaviorOptions? partTypeLoadBehavior)
     {
+        services.AddBlazorRoutingAssembly(typeof(WebPartInit).Assembly, partTypeLoadBehavior);
+
         if (options is { ConfigureContext: true, ContextType: { Length: > 0 } contextTypeName })
         {
             var dic = new Dictionary<string, object>();

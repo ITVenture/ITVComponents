@@ -90,6 +90,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Glob
                 o.ConfigureGlobalFilter<TExternalOAuthService>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TExternalOAuthServiceState>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantName.ToLower() == CurrentTenant && sq.ExpiresAt > DateTimeOffset.UtcNow && !sq.Used);
                 o.ConfigureGlobalFilter<TExternalOAuthServiceTenantLogin>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantName.ToLower() == CurrentTenant);
+                o.ConfigureGlobalFilter<TAppPermission>(ap => ShowAllTenants || !FilterAvailable || ap.Permission.TenantId == null && !HideGlobals || ap.Permission.TenantId != null && ap.Permission.Tenant.TenantName.ToLower() == CurrentTenant);
+                o.ConfigureGlobalFilter<TAssetTemplateGrant>(atg => ShowAllTenants || !FilterAvailable || atg.Permission.TenantId == null && !HideGlobals || atg.Permission.TenantId != null && atg.Permission.Tenant.TenantName.ToLower() == CurrentTenant);
+                o.ConfigureGlobalFilter<TGlobalRolePermission>(grp => ShowAllTenants || !FilterAvailable || grp.Permission.TenantId == null && !HideGlobals || grp.Permission.TenantId != null && grp.Permission.Tenant.TenantName.ToLower() == CurrentTenant);
+                o.ConfigureGlobalFilter<TGRoleLRole>(grr => ShowAllTenants || !FilterAvailable || grr.LocalRole.Tenant.TenantName.ToLower() == CurrentTenant);
+                o.ConfigureGlobalFilter<TWidgetLocalization>(dwl => ShowAllTenants || !FilterAvailable || dwl.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
             });
         }
 

@@ -20,6 +20,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.subtitle2">Properties</MudText>
             <MudSpacer />
             @if (CanWrite)
@@ -89,7 +90,7 @@ else
             { d => d.Model, new CustomUserPropertyViewModel() },
             { d => d.IsCreate, true }
         };
-        var dlg = await DialogService.ShowAsync<UserPropertyDialog>("Add property", parameters);
+        var dlg = await DialogService.ShowAsync<UserPropertyDialog>("Add property", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: CustomUserPropertyViewModel input })
         {
@@ -113,7 +114,7 @@ else
             { d => d.Model, copy },
             { d => d.IsCreate, false }
         };
-        var dlg = await DialogService.ShowAsync<UserPropertyDialog>("Edit property", parameters);
+        var dlg = await DialogService.ShowAsync<UserPropertyDialog>("Edit property", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: CustomUserPropertyViewModel input })
         {

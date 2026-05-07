@@ -244,9 +244,25 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>a the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection ConfigureLocalization(this IServiceCollection services, Action<CultureOptions> options)
         {
+            return ConfigureLocalization(services, options, "Resources");
+        }
+
+        /// <summary>
+        /// Initializes the WebApplications language settings with a custom resources path.
+        /// </summary>
+        /// <param name="services">the service-collection where ot inject the settings</param>
+        /// <param name="options">the options-configurator</param>
+        /// <param name="resourcesPath">the path that <see cref="Microsoft.Extensions.Localization.LocalizationOptions.ResourcesPath"/> is set to.
+        /// Pass <c>null</c> or empty to leave it unset — the resource type's <c>FullName</c> is then used as-is for the resource base name.</param>
+        /// <returns>a the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection ConfigureLocalization(this IServiceCollection services, Action<CultureOptions> options, string? resourcesPath)
+        {
             return services.Configure(options).AddLocalization(l =>
             {
-                l.ResourcesPath = "Resources";
+                if (!string.IsNullOrEmpty(resourcesPath))
+                {
+                    l.ResourcesPath = resourcesPath;
+                }
             });
         }
         
