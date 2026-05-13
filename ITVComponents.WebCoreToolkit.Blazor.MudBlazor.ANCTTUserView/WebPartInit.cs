@@ -1,4 +1,3 @@
-using System.Reflection;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit;
@@ -7,9 +6,11 @@ using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace ITVComponents.WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blazor;
 
@@ -37,7 +38,11 @@ public static class WebPartInit
             var dic = new Dictionary<string, object>();
             var contextType = (Type)ExpressionParser.Parse(contextTypeName, dic);
 
-            var userViewMethod = typeof(DependencyInjectionExtensions)
+            var userView = typeof(DependencyInjectionExtensions).GetMethod<Func<IServiceCollection, AssemblyPartTypeLoadBehaviorOptions?, IServiceCollection>>(contextType, nameof(DependencyInjectionExtensions.AddMudBlazorTreeTenantSecurityUserView));
+            var tenantView = typeof(DependencyInjectionExtensions).GetMethod<Func<IServiceCollection, AssemblyPartTypeLoadBehaviorOptions?, IServiceCollection>>(contextType, nameof(DependencyInjectionExtensions.AddMudBlazorTreeTenantSecurityViews));
+            userView(services, partTypeLoadBehavior);
+            tenantView(services, partTypeLoadBehavior);
+            /*var userViewMethod = typeof(DependencyInjectionExtensions)
                 .GetMethods(BindingFlags.Public | BindingFlags.Static)
                 .First(m => m.Name == nameof(DependencyInjectionExtensions.AddMudBlazorTreeTenantSecurityUserView)
                             && m.IsGenericMethodDefinition);
@@ -47,7 +52,7 @@ public static class WebPartInit
                 .GetMethods(BindingFlags.Public | BindingFlags.Static)
                 .First(m => m.Name == nameof(DependencyInjectionExtensions.AddMudBlazorTreeTenantSecurityViews)
                             && m.IsGenericMethodDefinition);
-            tsvMethod.MakeGenericMethod(contextType).Invoke(null, new object[] { services });
+            tsvMethod.MakeGenericMethod(contextType).Invoke(null, new object[] { services });*/
         }
     }
 }

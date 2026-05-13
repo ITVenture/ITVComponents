@@ -1,0 +1,36 @@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.SystemName" Label="System name" Required="true" RequiredError="System name is required" MaxLength="100" />
+            <MudTextField @bind-Value="Model.DisplayName" Label="Display name" MaxLength="1024" />
+            <MudTextField @bind-Value="Model.TitleTemplate" Label="Title template" MaxLength="2048" />
+            <ForeignKeyAutocomplete T="int" Table="DiagnosticsQueries" @bind-Value="Model.DiagnosticsQueryId" Label="Diagnostics query" />
+            <MudTextField @bind-Value="Model.Area" Label="Area" />
+            <MudTextField @bind-Value="Model.CustomQueryString" Label="Custom query string" Lines="3" />
+            <MudTextField @bind-Value="Model.Template" Label="Template" Lines="10" Variant="Variant.Outlined" Class="mt-3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public DashboardWidgetViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+
+    private MudForm? form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) return;
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

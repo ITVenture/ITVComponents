@@ -47,24 +47,8 @@
             if (src is null) return;
             var raw = src.ReadForeignKey<T>(Table);
             if (raw is null) return;
-            //var underlying = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
             foreach (var obj in raw)
             {
-                /*if (obj is null) continue;
-                var t = obj.GetType();
-                var idVal = (t.GetProperty("Id") ?? t.GetProperty("id"))?.GetValue(obj);
-                var capProp = t.GetProperty("Caption") ?? t.GetProperty("Name") ?? t.GetProperty("DisplayName");
-                var capVal = capProp?.GetValue(obj);
-                if (idVal is null) continue;
-                T typedId;
-                try
-                {
-                    typedId = (T)Convert.ChangeType(idVal, underlying);
-                }
-                catch
-                {
-                    continue;
-                }*/
                 _items.Add(new Item(obj.Key, obj.Label));
             }
         }

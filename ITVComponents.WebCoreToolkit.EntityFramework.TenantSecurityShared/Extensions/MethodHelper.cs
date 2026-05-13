@@ -15,23 +15,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         public static TMethod GetMethod<TMethod>(this Type staticClass, Type contextType, string methodName)
             where TMethod : Delegate
         {
-            var scb = typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>);
-            var ifs = contextType.GetInterfaces().FirstOrDefault(n =>
-                n.IsGenericType && n.GetGenericTypeDefinition() == scb);
-            if (ifs != null)
+            var rawTypes = contextType.GetSecurityContextArguments();
+            var meth = staticClass.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Where(n => n.IsGenericMethodDefinition && n.Name == methodName)
+                .Select(m => new { raw = m, finalized = TryFinalizeMethod(m, rawTypes) })
+                .FirstOrDefault(n => n.finalized != null);
+            if (meth != null)
             {
-                //var rawTypes = new[] { contextType }.Concat(ifs.GetGenericArguments()).ToArray();
-                var rawTypes = ifs.GetSecurityContextArguments();
-                var meth = staticClass.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                    .Where(n => n.IsGenericMethodDefinition && n.Name == methodName)
-                    .Select(m => new {raw = m, finalized = TryFinalizeMethod(m, rawTypes)})
-                    .FirstOrDefault(n => n.finalized != null);
-                if (meth != null)
-                {
-                    var impl = meth.finalized;
-                    var fx = impl.CreateDelegate<TMethod>();
-                    return fx;
-                }
+                var impl = meth.finalized;
+                var fx = impl.CreateDelegate<TMethod>();
+                return fx;
             }
 
             return null;

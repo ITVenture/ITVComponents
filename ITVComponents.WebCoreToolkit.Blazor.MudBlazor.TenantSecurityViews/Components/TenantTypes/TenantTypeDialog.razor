@@ -1,0 +1,32 @@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.TenantTypeName" Label="Name" Required="true" RequiredError="Name is required" />
+            <ForeignKeySelect T="int?" @bind-Value="Model.TenantTemplateId" Table="TenantTemplates" Label="Tenant template" />
+            <MudTextField @bind-Value="Model.TypeMetaData" Label="Type metadata (JSON)" Lines="4" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public TenantTypeViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+
+    private MudForm? form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) return;
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

@@ -1,0 +1,167 @@
+@inject INavigationAdminHandler Handler
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="NavigationMenuViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="25"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <RefreshButton OnClick="ReloadGrid" />
+        <MudText Typo="Typo.subtitle1">@(ParentId is null ? "Top level" : "Child items")</MudText>
+        <MudSpacer />
+        <MudTextField @bind-Value="search"
+                      Placeholder="Search…"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      IconSize="Size.Medium"
+                      Class="mt-0"
+                      DebounceInterval="300"
+                      OnDebounceIntervalElapsed="ReloadGrid" />
+        @if (HasWrite)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                Add item
+            </MudButton>
+        }
+    </ToolBarContent>
+    <Columns>
+        <HierarchyColumn T="NavigationMenuViewModel" ButtonDisabledFunc="@(item => item.ChildCount == 0)" />
+        <PropertyColumn Property="x => x.DisplayName" Title="Name" />
+        <PropertyColumn Property="x => x.Url" Title="URL" />
+        <PropertyColumn Property="x => x.SortOrder" Title="Sort" />
+        <PropertyColumn Property="x => x.IsPublic" Title="Public" />
+        <TemplateColumn T="NavigationMenuViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                @if (HasWrite)
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    </MudStack>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <ChildRowContent>
+        <MudPaper Elevation="0" Class="pa-2 ml-4">
+            <NavigationTreeGrid ParentId="@context.Item.NavigationMenuId"
+                                CurrentUser="@CurrentUser"
+                                HasWrite="@HasWrite"
+                                AllParents="@AllParents"
+                                AllTenants="@AllTenants"
+                                OnDataChanged="@OnDataChanged" />
+        </MudPaper>
+    </ChildRowContent>
+    <PagerContent>
+        <MudDataGridPager T="NavigationMenuViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter] public int? ParentId { get; set; }
+    [Parameter, EditorRequired] public System.Security.Claims.ClaimsPrincipal CurrentUser { get; set; } = default!;
+    [Parameter] public bool HasWrite { get; set; }
+    [Parameter] public IReadOnlyList<NavigationParentChoice> AllParents { get; set; } = Array.Empty<NavigationParentChoice>();
+    [Parameter] public IReadOnlyList<TenantChoice> AllTenants { get; set; } = Array.Empty<TenantChoice>();
+    [Parameter] public EventCallback OnDataChanged { get; set; }
+
+    private MudDataGrid<NavigationMenuViewModel>? grid;
+    private string? search;
+
+    private async Task<GridData<NavigationMenuViewModel>> LoadData(GridState<NavigationMenuViewModel> state, CancellationToken ct)
+    {
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            Search = search
+        };
+        var result = await Handler.ListAsync(CurrentUser, ParentId, query);
+        return new GridData<NavigationMenuViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<NavigationDialog>
+        {
+            { d => d.Model, new NavigationMenuViewModel { ParentId = ParentId } },
+            { d => d.IsCreate, true },
+            { d => d.AllParents, AllParents },
+            { d => d.AllTenants, AllTenants }
+        };
+        var dlg = await DialogService.ShowAsync<NavigationDialog>("Create navigation item", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: NavigationMenuViewModel input })
+        {
+            var created = await Handler.CreateAsync(CurrentUser, input);
+            if (created != null)
+            {
+                Snackbar.Add("Navigation item created", Severity.Success);
+                await ReloadGrid();
+                if (OnDataChanged.HasDelegate) await OnDataChanged.InvokeAsync();
+            }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(NavigationMenuViewModel item)
+    {
+        var copy = new NavigationMenuViewModel
+        {
+            NavigationMenuId = item.NavigationMenuId,
+            DisplayName = item.DisplayName,
+            Url = item.Url,
+            ParentId = item.ParentId,
+            SortOrder = item.SortOrder,
+            PermissionId = item.PermissionId,
+            FeatureId = item.FeatureId,
+            SpanClass = item.SpanClass,
+            IsPublic = item.IsPublic,
+            Tenants = item.Tenants.ToArray(),
+            ChildCount = item.ChildCount
+        };
+        var parameters = new DialogParameters<NavigationDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false },
+            { d => d.AllParents, AllParents },
+            { d => d.AllTenants, AllTenants }
+        };
+        var dlg = await DialogService.ShowAsync<NavigationDialog>("Edit navigation item", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: NavigationMenuViewModel input })
+        {
+            var updated = await Handler.UpdateAsync(CurrentUser, input);
+            if (updated != null)
+            {
+                Snackbar.Add("Navigation item updated", Severity.Success);
+                await ReloadGrid();
+                if (OnDataChanged.HasDelegate) await OnDataChanged.InvokeAsync();
+            }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(NavigationMenuViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete navigation item", $"Really delete '{item.DisplayName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteAsync(CurrentUser, item.NavigationMenuId);
+        if (success)
+        {
+            Snackbar.Add("Navigation item deleted", Severity.Success);
+            await ReloadGrid();
+            if (OnDataChanged.HasDelegate) await OnDataChanged.InvokeAsync();
+        }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

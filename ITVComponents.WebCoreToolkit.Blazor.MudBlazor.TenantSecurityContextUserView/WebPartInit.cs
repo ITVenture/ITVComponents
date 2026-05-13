@@ -39,8 +39,8 @@ public static class WebPartInit
         {
             var dic = new Dictionary<string, object>();
             var contextType = (Type)ExpressionParser.Parse(contextTypeName, dic);
-            var method = typeof(DependencyInjectionExtensions).GetMethod<Action<IServiceCollection>>(contextType, nameof(DependencyInjectionExtensions.AddMudBlazorTscUserView));
-            method(services);
+            var method = typeof(DependencyInjectionExtensions).GetMethod<Action<IServiceCollection, AssemblyPartTypeLoadBehaviorOptions?>>(contextType, nameof(DependencyInjectionExtensions.AddMudBlazorTscUserView));
+            method(services, partTypeLoadBehavior);
         }
     }
 }

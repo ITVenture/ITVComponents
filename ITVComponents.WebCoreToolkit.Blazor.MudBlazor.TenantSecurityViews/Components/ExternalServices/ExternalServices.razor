@@ -1,0 +1,180 @@
+@page "/Connectivity/Services"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IExternalServiceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>External services</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">External services</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view external services.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="ExternalOAuthServiceViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
+            <MudText Typo="Typo.h6">External services</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add service
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="ExternalOAuthServiceViewModel" />
+            <PropertyColumn Property="x => x.UniqueConnectionName" Title="Name" />
+            <PropertyColumn Property="x => x.AuthenticationType" Title="Type" />
+            <PropertyColumn Property="x => x.Global" Title="Global" />
+            <TemplateColumn T="ExternalOAuthServiceViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <MudTabs Elevation="0" Rounded="true">
+                    <MudTabPanel Text="Tenant logins">
+                        <ExternalServiceLoginsGrid OAuthServiceId="@context.Item.OAuthServiceId" CanWrite="@hasWrite" />
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="ExternalOAuthServiceViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<ExternalOAuthServiceViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private bool isSysAdmin;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Services.Connections.View", "Services.Connections.Write");
+        hasWrite = Handler.HasPermission(currentUser, "Services.Connections.Write");
+        isSysAdmin = Handler.HasPermission(currentUser, "Sysadmin");
+    }
+
+    private async Task<GridData<ExternalOAuthServiceViewModel>> LoadData(GridState<ExternalOAuthServiceViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<ExternalOAuthServiceViewModel> { Items = Array.Empty<ExternalOAuthServiceViewModel>(), TotalItems = 0 };
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+        var result = await Handler.ListAsync(currentUser, query);
+        return new GridData<ExternalOAuthServiceViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<ExternalServiceDialog>
+        {
+            { d => d.Model, new ExternalOAuthServiceViewModel() },
+            { d => d.IsCreate, true },
+            { d => d.AllowGlobal, isSysAdmin }
+        };
+        var dlg = await DialogService.ShowAsync<ExternalServiceDialog>("Create service", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: ExternalOAuthServiceViewModel input })
+        {
+            var created = await Handler.CreateAsync(currentUser!, input);
+            if (created != null) { Snackbar.Add("Service created", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(ExternalOAuthServiceViewModel item)
+    {
+        var copy = new ExternalOAuthServiceViewModel
+        {
+            OAuthServiceId = item.OAuthServiceId,
+            UniqueConnectionName = item.UniqueConnectionName,
+            AuthorizationEndpoint = item.AuthorizationEndpoint,
+            TokenEndpoint = item.TokenEndpoint,
+            RevocationEndpoint = item.RevocationEndpoint,
+            ClientId = item.ClientId,
+            ClientSecret = null,
+            Scope = item.Scope,
+            Global = item.Global,
+            AuthenticationType = item.AuthenticationType,
+            TenantId = item.TenantId
+        };
+        var parameters = new DialogParameters<ExternalServiceDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false },
+            { d => d.AllowGlobal, isSysAdmin }
+        };
+        var dlg = await DialogService.ShowAsync<ExternalServiceDialog>("Edit service", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: ExternalOAuthServiceViewModel input })
+        {
+            var updated = await Handler.UpdateAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Service updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(ExternalOAuthServiceViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete service", $"Really delete '{item.UniqueConnectionName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteAsync(currentUser!, item.OAuthServiceId);
+        if (success) { Snackbar.Add("Service deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

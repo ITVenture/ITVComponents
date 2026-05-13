@@ -92,7 +92,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
             }
             
             NavigationMenu retVal = new NavigationMenu();
-            retVal.Children.AddRange(SelectNavigation(null, explicitTenant));
+            retVal.Children.AddRange(SelectNavigation(null, explicitTenant).ToArray());
             return retVal;
         }
 
@@ -114,7 +114,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
                 if ((!options.Value.CheckPermissions || string.IsNullOrEmpty(ret.RequiredPermission) || services.VerifyUserPermissions(new[] {ret.RequiredPermission})) &&
                     (!options.Value.CheckFeatures || string.IsNullOrEmpty(ret.RequiredFeature) || services.VerifyActivatedFeatures(new[]{ret.RequiredFeature}, out _)))
                 {
-                    ret.Children.AddRange(SelectNavigation(item.NavigationMenuId,explicitTenant));
+                    ret.Children.AddRange(SelectNavigation(item.NavigationMenuId,explicitTenant).ToArray());
                     if (!string.IsNullOrEmpty(item.Url))
                     {
                         var queryName = $"counter4{item.Url.Replace("/","_")}";

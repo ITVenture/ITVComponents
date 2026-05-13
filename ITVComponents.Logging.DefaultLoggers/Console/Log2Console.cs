@@ -168,30 +168,24 @@ namespace ITVComponents.Logging.DefaultLoggers.Console
         /// <param name="context">provides additional information about the logging-context in which the message was generated</param>
         protected override void Log(string eventText, int severity, string context)
         {
-            lock (consoleLock)
-            {
-                LogSeverity effective = LogEnvironment.GetClosestSeverity(severity);
-                switch (effective)
-                {
-                    case LogSeverity.Error:
-                    {
-                        System.Console.ForegroundColor = ConsoleColor.Red;
-                        break;
-                    }
-                    case LogSeverity.Warning:
-                    {
-                        System.Console.ForegroundColor = ConsoleColor.Yellow;
-                        break;
-                    }
-                    case LogSeverity.Report:
-                    {
-                        System.Console.ForegroundColor = ConsoleColor.Gray;
-                        break;
-                    }
-                }
+            LogSeverity effective = LogEnvironment.GetClosestSeverity(severity);
+            //System.Console.WriteLine("{0} -> {1}", context, eventText);
+            System.Console.WriteLine($"{FormatLogLevel(effective),-12} - {DateTime.Now:g} - [{severity,-7}] - {context} - {eventText}");
+        }
 
-                System.Console.WriteLine("{0} -> {1}", context, eventText);
-                System.Console.ForegroundColor = ConsoleColor.Gray;
+        private string FormatLogLevel(LogSeverity logLevel)
+        {
+            //Console.WriteLine("\x1b[38;5;161m{0}\x1b[0m", "Holdrio!");
+            switch (logLevel)
+            {
+                case LogSeverity.Report:
+                    return "\x1b[38;2;59;168;57mINFO\x1b[0m";
+                case LogSeverity.Warning:
+                    return "\x1b[38;2;191;191;23mWARN\x1b[0m";
+                case LogSeverity.Error:
+                    return "\x1b[38;2;252;3;3mERROR\x1b[0m";
+                default:
+                    return "UNKNOWN";
             }
         }
     }

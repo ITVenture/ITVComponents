@@ -1,14 +1,18 @@
 @page "/Account/ExternalLoginCallback"
+@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
 
+@using Microsoft.Extensions.DependencyInjection
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+@using ITVComponents.WebCoreToolkit.Security
 
 @inject IPageHandlerProvider<ExternalLoginModel, IExternalLoginHandler> HandlerProvider
 @inject IStringLocalizer<IdentityMessages> L
 @inject ILogger<ExternalLoginCallback> Logger
 @inject NavigationManager Nav
+@inject IServiceProvider Services
 
 @code {
     [SupplyParameterFromQuery]
@@ -50,6 +54,8 @@
         {
             Logger.LogInformation("{Name} logged in with {LoginProvider} provider.",
                 status.LoginUserName, status.ProviderName);
+            // Force the tenant-scope cookie write before the Blazor circuit takes over (see Login.razor).
+            _ = Services.GetService<IPermissionScope>()?.PermissionPrefix;
             Nav.NavigateTo(returnUrl, forceLoad: true);
             return;
         }

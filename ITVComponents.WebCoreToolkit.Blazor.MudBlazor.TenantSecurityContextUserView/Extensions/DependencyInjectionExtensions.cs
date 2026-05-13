@@ -1,3 +1,4 @@
+using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
@@ -7,6 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
+using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.TenantSecurityContextUserView.Blazor.Handlers.Impl;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,7 +39,7 @@ public static class DependencyInjectionExtensions
     TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
     TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
-    TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>(this IServiceCollection services)
+    TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>(this IServiceCollection services, AssemblyPartTypeLoadBehaviorOptions? partTypeLoadBehavior = null)
         where TContext : DbContext, ISecurityContext<TTenant, int, TscModels.User, TRole, TPermission, TUserRole, TRolePermission,
         TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery,
         TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty,
@@ -92,16 +94,29 @@ public static class DependencyInjectionExtensions
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     //where TUser : class
     {
-        services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly);
-        services.AddScoped<IUserAdminHandler, TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRole, TRolePermission,
-    TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu,
-    TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization,
-    TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
-    TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
-    TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
-    TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
-    TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
+        partTypeLoadBehavior ??= new AssemblyPartTypeLoadBehaviorOptions
+        {
+            DefaultBehavior = TypeRegisterBehavior.Use
+        };
+        services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
+
+        if (partTypeLoadBehavior.ShouldLoadType(
+                typeof(TscUserAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+        {
+            services
+                .AddScoped<IUserAdminHandler, TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRole,
+                    TRolePermission,
+                    TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu,
+                    TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization
+                    ,
+                    TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
+                    TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
+                    TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
+                    TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
+        }
+
         return services;
     }
 }

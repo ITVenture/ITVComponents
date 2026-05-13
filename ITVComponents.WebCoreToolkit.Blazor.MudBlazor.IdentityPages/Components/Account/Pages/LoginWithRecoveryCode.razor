@@ -1,15 +1,19 @@
 @page "/Account/LoginWithRecoveryCode"
+@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
 
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.Extensions.DependencyInjection
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+@using ITVComponents.WebCoreToolkit.Security
 
 @inject IPageHandlerProvider<LoginWithRecoveryCodeModel, ILoginWithRecoveryCodeHandler> HandlerProvider
 @inject IStringLocalizer<IdentityMessages> L
 @inject ILogger<LoginWithRecoveryCode> Logger
 @inject NavigationManager Nav
+@inject IServiceProvider Services
 
 <PageTitle>@L["Recovery code verification"]</PageTitle>
 
@@ -84,6 +88,8 @@
             if (result.Succeeded)
             {
                 Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", userId);
+                // Force the tenant-scope cookie write before the Blazor circuit takes over (see Login.razor).
+                _ = Services.GetService<IPermissionScope>()?.PermissionPrefix;
                 Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
                 return;
             }

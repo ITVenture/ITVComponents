@@ -1,0 +1,119 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IDashboardWidgetAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="DashboardWidgetLocalizationViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+        <MudText Typo="Typo.subtitle2">Localizations</MudText>
+        <MudSpacer />
+        @if (CanWrite)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                Add locale
+            </MudButton>
+        }
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.LocaleName" Title="Locale" />
+        <PropertyColumn Property="x => x.DisplayName" Title="Display name" />
+        <PropertyColumn Property="x => x.TitleTemplate" Title="Title template" />
+        <TemplateColumn T="DashboardWidgetLocalizationViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                @if (CanWrite)
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    </MudStack>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="DashboardWidgetLocalizationViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int DashboardWidgetId { get; set; }
+    [Parameter] public bool CanWrite { get; set; }
+
+    private MudDataGrid<DashboardWidgetLocalizationViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<DashboardWidgetLocalizationViewModel>> LoadData(GridState<DashboardWidgetLocalizationViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<DashboardWidgetLocalizationViewModel> { Items = Array.Empty<DashboardWidgetLocalizationViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListLocalesAsync(currentUser, DashboardWidgetId, query);
+        return new GridData<DashboardWidgetLocalizationViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<WidgetLocalizationDialog>
+        {
+            { d => d.Model, new DashboardWidgetLocalizationViewModel() },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<WidgetLocalizationDialog>("Add localization", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: DashboardWidgetLocalizationViewModel input })
+        {
+            var created = await Handler.CreateLocaleAsync(currentUser!, DashboardWidgetId, input);
+            if (created != null) { Snackbar.Add("Localization added", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to add", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(DashboardWidgetLocalizationViewModel item)
+    {
+        var copy = new DashboardWidgetLocalizationViewModel
+        {
+            DashboardWidgetLocalizationId = item.DashboardWidgetLocalizationId,
+            DashboardWidgetId = item.DashboardWidgetId,
+            LocaleName = item.LocaleName,
+            DisplayName = item.DisplayName,
+            TitleTemplate = item.TitleTemplate,
+            Template = item.Template
+        };
+        var parameters = new DialogParameters<WidgetLocalizationDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false }
+        };
+        var dlg = await DialogService.ShowAsync<WidgetLocalizationDialog>("Edit localization", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: DashboardWidgetLocalizationViewModel input })
+        {
+            var updated = await Handler.UpdateLocaleAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Localization updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(DashboardWidgetLocalizationViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete localization", $"Really delete locale '{item.LocaleName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteLocaleAsync(currentUser!, item.DashboardWidgetLocalizationId);
+        if (success) { Snackbar.Add("Localization deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

@@ -447,12 +447,14 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>the provided ServiceCollection for method chaining</returns>
         public static IServiceCollection UsePageModelHandlerFactory(this IServiceCollection services, Action<PageHandlerFactoryOptions> configure = null)
         {
-            return services.AddSingleton<IPageModelFactory, PageModelFactory>()
+            services.AddSingleton<IPageModelFactory, PageModelFactory>()
                 .AddScoped(typeof(IPageHandlerProvider<,>), typeof(FinalPageHandler<,>));
             if (configure != null)
             {
                 ConfigurePageModelHandlerFactory(services, configure);
             }
+
+            return services;
         }
 
         public static IServiceCollection ConfigurePageModelHandlerFactory(this IServiceCollection services,

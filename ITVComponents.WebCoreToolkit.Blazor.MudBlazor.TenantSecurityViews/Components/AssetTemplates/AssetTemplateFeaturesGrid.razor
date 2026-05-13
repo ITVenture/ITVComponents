@@ -1,0 +1,72 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IAssetTemplateAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="AssetTemplateFeatureAssignmentViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+        <MudText Typo="Typo.subtitle2">Features</MudText>
+        <MudSpacer />
+    </ToolBarContent>
+    <Columns>
+        <TemplateColumn T="AssetTemplateFeatureAssignmentViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                <MudCheckBox T="bool"
+                             Value="context.Item.Assigned"
+                             Disabled="!CanWrite"
+                             ValueChanged="@(v => Toggle(context.Item, v))" />
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="x => x.FeatureName" Title="Feature" />
+        <PropertyColumn Property="x => x.Description" Title="Description" />
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="AssetTemplateFeatureAssignmentViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int AssetTemplateId { get; set; }
+    [Parameter] public bool CanWrite { get; set; }
+
+    private MudDataGrid<AssetTemplateFeatureAssignmentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<AssetTemplateFeatureAssignmentViewModel>> LoadData(GridState<AssetTemplateFeatureAssignmentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<AssetTemplateFeatureAssignmentViewModel> { Items = Array.Empty<AssetTemplateFeatureAssignmentViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListFeaturesForTemplateAsync(currentUser, AssetTemplateId, query);
+        return new GridData<AssetTemplateFeatureAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(AssetTemplateFeatureAssignmentViewModel item, bool newValue)
+    {
+        if (!CanWrite || currentUser is null) return;
+        var ok = await Handler.SetFeatureForTemplateAsync(currentUser, AssetTemplateId, item.FeatureId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Feature granted" : "Feature revoked", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

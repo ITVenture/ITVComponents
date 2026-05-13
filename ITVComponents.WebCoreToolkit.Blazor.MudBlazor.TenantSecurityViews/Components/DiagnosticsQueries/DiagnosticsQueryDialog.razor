@@ -1,0 +1,58 @@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.DiagnosticsQueryName" Label="Name" Required="true" RequiredError="Name is required" MaxLength="128" />
+            <MudTextField @bind-Value="Model.DbContext" Label="DbContext" Required="true" RequiredError="DbContext is required" MaxLength="128" />
+            <MudCheckBox @bind-Value="Model.AutoReturn" Label="Auto return" />
+            <ForeignKeyAutocomplete T="int" Table="Permissions" @bind-Value="Model.PermissionId" Label="Required permission" />
+            <MudTextField @bind-Value="Model.QueryText" Label="Query text" Lines="10" Variant="Variant.Outlined" Class="mt-3" />
+            <MudSelect T="int" MultiSelection="true"
+                       SelectedValues="@selectedTenants"
+                       SelectedValuesChanged="@OnTenantsChanged"
+                       Label="Tenants"
+                       AnchorOrigin="Origin.BottomCenter">
+                @foreach (var t in AllTenants)
+                {
+                    <MudSelectItem T="int" Value="@t.TenantId">@t.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public DiagnosticsQueryViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+    [Parameter] public IReadOnlyList<TenantChoice> AllTenants { get; set; } = Array.Empty<TenantChoice>();
+
+    private MudForm? form;
+    private IReadOnlyCollection<int> selectedTenants = Array.Empty<int>();
+
+    protected override void OnInitialized()
+    {
+        selectedTenants = Model.Tenants.ToList();
+    }
+
+    private void OnTenantsChanged(IEnumerable<int> values)
+    {
+        var arr = values.ToArray();
+        selectedTenants = arr;
+        Model.Tenants = arr;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) return;
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

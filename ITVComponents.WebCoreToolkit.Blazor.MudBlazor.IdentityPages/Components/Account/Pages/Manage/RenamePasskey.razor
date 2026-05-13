@@ -1,0 +1,138 @@
+@page "/Account/Manage/RenamePasskey/{Id}"
+@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using System.Buffers.Text
+@using System.ComponentModel.DataAnnotations
+@using System.Linq
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+
+@inject IPageHandlerProvider<PasskeyPageModel, IPasskeyHandler> PasskeyProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject NavigationManager Nav
+
+<PageTitle>@L["Rename passkey"]</PageTitle>
+
+@if (!PasskeyProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (loadError is not null)
+{
+    <MudAlert Severity="Severity.Error">@loadError</MudAlert>
+}
+else if (passkey is not null)
+{
+    <MudText Typo="Typo.h5" GutterBottom="true">
+        @if (passkey.Name is { } name)
+        {
+            @string.Format(L["Rename passkey '{0}'"], name)
+        }
+        else
+        {
+            @L["Name your new passkey"]
+        }
+    </MudText>
+
+    <EditForm Model="Input" OnValidSubmit="Rename" FormName="rename-passkey" method="post">
+        <DataAnnotationsValidator />
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3">@errorMessage</MudAlert>
+        }
+
+        <ValidationSummary class="text-danger" role="alert" />
+
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.Name" id="Input.Name" class="form-control" placeholder="@L["My laptop"]" />
+            <label for="Input.Name">@L["Passkey name"]</label>
+            <ValidationMessage For="() => Input.Name" class="text-danger" />
+        </div>
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+            @L["Save"]
+        </MudButton>
+    </EditForm>
+}
+
+@code {
+    private UserPasskeyInfo? passkey;
+    private string? loadError;
+    private string? errorMessage;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        if (!PasskeyProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Id))
+        {
+            loadError = L["Missing credential identifier."];
+            return;
+        }
+
+        byte[] credentialId;
+        try
+        {
+            credentialId = Base64Url.DecodeFromChars(Id);
+        }
+        catch (FormatException)
+        {
+            loadError = L["The passkey identifier is not in a valid format."];
+            return;
+        }
+
+        passkey = await PasskeyProvider.Handler.GetUserPasskeyAsync(HttpContext.User, credentialId);
+        if (passkey is null)
+        {
+            loadError = L["The requested passkey could not be found."];
+        }
+    }
+
+    private async Task Rename()
+    {
+        if (!PasskeyProvider.Handler.UsePage || passkey is null)
+        {
+            return;
+        }
+
+        passkey.Name = Input.Name;
+        var result = await PasskeyProvider.Handler.AddOrUpdateUserPasskeyAsync(HttpContext.User, passkey);
+        if (!result.Succeeded)
+        {
+            errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
+            return;
+        }
+
+        Nav.NavigateTo(
+            Nav.GetUriWithQueryParameters("Account/Manage/Passkeys",
+                new Dictionary<string, object?> { ["status"] = L["Passkey renamed."].Value }),
+            forceLoad: true);
+    }
+
+    public sealed class InputModel
+    {
+        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [StringLength(200, MinimumLength = 1)]
+        public string Name { get; set; } = "";
+    }
+}

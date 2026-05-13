@@ -1,0 +1,68 @@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.DisplayName" Label="Display name" Required="true" RequiredError="Name is required" />
+            <MudTextField @bind-Value="Model.Url" Label="URL" MaxLength="1024" />
+            <MudSelect T="int?" @bind-Value="Model.ParentId" Label="Parent" Clearable="true" AnchorOrigin="Origin.BottomCenter">
+                <MudSelectItem T="int?" Value="@((int?)null)">(none)</MudSelectItem>
+                @foreach (var p in AllParents.Where(p => p.NavigationMenuId != Model.NavigationMenuId))
+                {
+                    <MudSelectItem T="int?" Value="@((int?)p.NavigationMenuId)">@p.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+            <MudNumericField T="int?" @bind-Value="Model.SortOrder" Label="Sort order" />
+            <ForeignKeyAutocomplete T="int?" Table="Permissions" @bind-Value="Model.PermissionId" Label="Permission" Clearable="true" />
+            <ForeignKeyAutocomplete T="int?" Table="Features" @bind-Value="Model.FeatureId" Label="Feature" Clearable="true" />
+            <MudTextField @bind-Value="Model.SpanClass" Label="Span class (icon)" />
+            <MudCheckBox @bind-Value="Model.IsPublic" Label="Public" />
+            <MudSelect T="int" MultiSelection="true"
+                       SelectedValues="@selectedTenants"
+                       SelectedValuesChanged="@OnTenantsChanged"
+                       Label="Tenants"
+                       AnchorOrigin="Origin.BottomCenter">
+                @foreach (var t in AllTenants)
+                {
+                    <MudSelectItem T="int" Value="@t.TenantId">@t.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public NavigationMenuViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+    [Parameter] public IReadOnlyList<NavigationParentChoice> AllParents { get; set; } = Array.Empty<NavigationParentChoice>();
+    [Parameter] public IReadOnlyList<TenantChoice> AllTenants { get; set; } = Array.Empty<TenantChoice>();
+
+    private MudForm? form;
+    private IReadOnlyCollection<int> selectedTenants = Array.Empty<int>();
+
+    protected override void OnInitialized()
+    {
+        selectedTenants = Model.Tenants.ToList();
+    }
+
+    private void OnTenantsChanged(IEnumerable<int> values)
+    {
+        var arr = values.ToArray();
+        selectedTenants = arr;
+        Model.Tenants = arr;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) return;
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

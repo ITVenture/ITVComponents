@@ -1,0 +1,152 @@
+@page "/Security/TrustedComponents"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject ITrustedComponentAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Trusted components</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Trusted components</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view trusted components.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="TrustedComponentViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
+            <MudText Typo="Typo.h6">Trusted components</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add trusted component
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.FullQualifiedTypeName" Title="Component type" />
+            <PropertyColumn Property="x => x.TargetQualifiedTypeName" Title="Target type" />
+            <PropertyColumn Property="x => x.Description" Title="Description" />
+            <TemplateColumn T="TrustedComponentViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="TrustedComponentViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<TrustedComponentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "TrustedComponents.View", "TrustedComponents.Write");
+        hasWrite = Handler.HasPermission(currentUser, "TrustedComponents.Write");
+    }
+
+    private async Task<GridData<TrustedComponentViewModel>> LoadData(GridState<TrustedComponentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<TrustedComponentViewModel> { Items = Array.Empty<TrustedComponentViewModel>(), TotalItems = 0 };
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+        var result = await Handler.ListAsync(currentUser, query);
+        return new GridData<TrustedComponentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<TrustedComponentDialog> { { d => d.Model, new TrustedComponentViewModel() }, { d => d.IsCreate, true } };
+        var dlg = await DialogService.ShowAsync<TrustedComponentDialog>("Add trusted component", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TrustedComponentViewModel input })
+        {
+            var created = await Handler.CreateAsync(currentUser!, input);
+            if (created != null) { Snackbar.Add("Trusted component added", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(TrustedComponentViewModel item)
+    {
+        var copy = new TrustedComponentViewModel
+        {
+            TrustedFullAccessComponentId = item.TrustedFullAccessComponentId,
+            FullQualifiedTypeName = item.FullQualifiedTypeName,
+            TargetQualifiedTypeName = item.TargetQualifiedTypeName,
+            Description = item.Description,
+            TrustLevelConfig = item.TrustLevelConfig
+        };
+        var parameters = new DialogParameters<TrustedComponentDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<TrustedComponentDialog>("Edit trusted component", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TrustedComponentViewModel input })
+        {
+            var updated = await Handler.UpdateAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Trusted component updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(TrustedComponentViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete trusted component", $"Really delete the entry for '{item.FullQualifiedTypeName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteAsync(currentUser!, item.TrustedFullAccessComponentId);
+        if (success) { Snackbar.Add("Trusted component deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

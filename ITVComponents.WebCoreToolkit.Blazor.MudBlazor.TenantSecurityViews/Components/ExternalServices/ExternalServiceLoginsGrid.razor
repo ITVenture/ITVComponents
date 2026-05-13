@@ -1,0 +1,72 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IExternalServiceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="ExternalOAuthServiceTenantLoginViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+        <MudText Typo="Typo.subtitle2">Tenant logins</MudText>
+        <MudSpacer />
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.TenantName" Title="Tenant" />
+        <PropertyColumn Property="x => x.Revoked" Title="Revoked" />
+        <TemplateColumn T="ExternalOAuthServiceTenantLoginViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                @if (CanWrite && !context.Item.Revoked)
+                {
+                    <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined" OnClick="@(() => Revoke(context.Item))">
+                        Revoke
+                    </MudButton>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="ExternalOAuthServiceTenantLoginViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int OAuthServiceId { get; set; }
+    [Parameter] public bool CanWrite { get; set; }
+
+    private MudDataGrid<ExternalOAuthServiceTenantLoginViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<ExternalOAuthServiceTenantLoginViewModel>> LoadData(GridState<ExternalOAuthServiceTenantLoginViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<ExternalOAuthServiceTenantLoginViewModel> { Items = Array.Empty<ExternalOAuthServiceTenantLoginViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListLoginsAsync(currentUser, OAuthServiceId, query);
+        return new GridData<ExternalOAuthServiceTenantLoginViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Revoke(ExternalOAuthServiceTenantLoginViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Revoke login", $"Revoke login for tenant '{item.TenantName}'?", yesText: "Revoke", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.RevokeLoginAsync(currentUser!, item.ExternalOAuthServiceTenantLoginId);
+        if (success)
+        {
+            item.Revoked = true;
+            Snackbar.Add("Login revoked", Severity.Success);
+        }
+        else Snackbar.Add("Failed to revoke", Severity.Error);
+    }
+}

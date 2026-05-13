@@ -1,0 +1,194 @@
+@page "/Account/Manage/Passkeys"
+@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+
+@layout ManageLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using System.Buffers.Text
+@using System.Linq
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
+
+@inject IPageHandlerProvider<PasskeyPageModel, IPasskeyHandler> PasskeyProvider
+@inject IStringLocalizer<IdentityMessages> L
+@inject NavigationManager Nav
+
+<PageTitle>@L["Passkeys"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Passkeys"]</MudText>
+
+@if (!PasskeyProvider.Handler.UsePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(StatusMessage))
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">@StatusMessage</MudAlert>
+    }
+
+    @if (currentPasskeys is { Count: > 0 })
+    {
+        <MudTable Items="currentPasskeys" Hover="true" Dense="true" Class="mb-3">
+            <HeaderContent>
+                <MudTh>@L["Name"]</MudTh>
+                <MudTh Style="width: 120px;">@L["Actions"]</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="passkey">
+                @{
+                    var credentialId = Base64Url.EncodeToString(passkey.CredentialId);
+                }
+                <MudTd DataLabel="@L["Name"]">@(passkey.Name ?? L["Unnamed passkey"].Value)</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Href="@($"Account/Manage/RenamePasskey/{credentialId}")"
+                                   Color="Color.Primary"
+                                   Title="@L["Rename"]" />
+                    <form @formname="@($"delete-passkey-{credentialId}")" @onsubmit="DeletePasskey" method="post" class="d-inline">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="CredentialId" value="@credentialId" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       ButtonType="ButtonType.Submit"
+                                       Color="Color.Error"
+                                       Title="@L["Delete"]" />
+                    </form>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+    else
+    {
+        <MudText Class="mb-3">@L["You have no passkeys registered."]</MudText>
+    }
+
+    <form @formname="add-passkey" @onsubmit="AddPasskey" method="post">
+        <AntiforgeryToken />
+        @if (currentPasskeys is { Count: var c } && c >= PasskeyProvider.Handler.MaxPasskeysPerUser)
+        {
+            <MudAlert Severity="Severity.Warning">@L["You have reached the maximum number of passkeys."]</MudAlert>
+        }
+        else
+        {
+            <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="btn btn-primary">
+                @L["Add a new passkey"]
+            </PasskeySubmit>
+        }
+    </form>
+}
+
+@code {
+    private IList<UserPasskeyInfo>? currentPasskeys;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "status")]
+    private string? StatusMessage { get; set; }
+
+    [SupplyParameterFromForm]
+    private string? CredentialId { get; set; }
+
+    [SupplyParameterFromForm(FormName = "add-passkey")]
+    private PasskeyInputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        if (!PasskeyProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        currentPasskeys = await PasskeyProvider.Handler.GetUserPasskeysAsync(HttpContext.User);
+    }
+
+    private async Task AddPasskey()
+    {
+        if (!PasskeyProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(Input.Error))
+        {
+            RedirectToSelf(Input.Error);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Input.CredentialJson))
+        {
+            RedirectToSelf(L["No passkey was provided by the browser."].Value);
+            return;
+        }
+
+        if (currentPasskeys is { Count: var c } && c >= PasskeyProvider.Handler.MaxPasskeysPerUser)
+        {
+            RedirectToSelf(L["You have reached the maximum number of passkeys."].Value);
+            return;
+        }
+
+        var attestation = await PasskeyProvider.Handler.PerformPasskeyAttestationAsync(Input.CredentialJson);
+        if (!attestation.Succeeded || attestation.Passkey is null)
+        {
+            RedirectToSelf(attestation.Failure?.Message ?? L["Passkey attestation failed."].Value);
+            return;
+        }
+
+        var add = await PasskeyProvider.Handler.AddOrUpdateUserPasskeyAsync(HttpContext.User, attestation.Passkey);
+        if (!add.Succeeded)
+        {
+            RedirectToSelf(string.Join(", ", add.Errors.Select(e => e.Description)));
+            return;
+        }
+
+        // Immediately prompt the user to name the new credential.
+        var credentialIdBase64Url = Base64Url.EncodeToString(attestation.Passkey.CredentialId);
+        Nav.NavigateTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}", forceLoad: true);
+    }
+
+    private async Task DeletePasskey()
+    {
+        if (!PasskeyProvider.Handler.UsePage)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(CredentialId))
+        {
+            RedirectToSelf(L["Missing credential identifier."].Value);
+            return;
+        }
+
+        byte[] credentialId;
+        try
+        {
+            credentialId = Base64Url.DecodeFromChars(CredentialId);
+        }
+        catch (FormatException)
+        {
+            RedirectToSelf(L["The passkey identifier is not in a valid format."].Value);
+            return;
+        }
+
+        var result = await PasskeyProvider.Handler.RemoveUserPasskeyAsync(HttpContext.User, credentialId);
+        if (!result.Succeeded)
+        {
+            RedirectToSelf(string.Join(", ", result.Errors.Select(e => e.Description)));
+            return;
+        }
+
+        RedirectToSelf(L["Passkey deleted."].Value);
+    }
+
+    private void RedirectToSelf(string status)
+    {
+        Nav.NavigateTo(
+            Nav.GetUriWithQueryParameters("Account/Manage/Passkeys",
+                new Dictionary<string, object?> { ["status"] = status }),
+            forceLoad: true);
+    }
+}

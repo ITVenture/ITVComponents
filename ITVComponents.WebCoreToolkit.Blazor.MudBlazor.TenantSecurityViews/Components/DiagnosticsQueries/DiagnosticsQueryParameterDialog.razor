@@ -1,0 +1,41 @@
+@using QueryParameterTypes = ITVComponents.WebCoreToolkit.EntityFramework.Models.QueryParameterTypes
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.ParameterName" Label="Parameter name" Required="true" RequiredError="Name is required" MaxLength="128" />
+            <MudSelect T="QueryParameterTypes" @bind-Value="Model.ParameterType" Label="Type">
+                @foreach (var pt in Enum.GetValues<QueryParameterTypes>())
+                {
+                    <MudSelectItem T="QueryParameterTypes" Value="@pt">@pt</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="Model.Format" Label="Format" MaxLength="64" />
+            <MudCheckBox @bind-Value="Model.Optional" Label="Optional" />
+            <MudTextField @bind-Value="Model.DefaultValue" Label="Default value" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public DiagnosticsQueryParameterViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+
+    private MudForm? form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) return;
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

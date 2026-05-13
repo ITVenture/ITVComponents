@@ -1,0 +1,54 @@
+@page "/Security/Navigation"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject INavigationAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Navigation</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Navigation</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view navigation.</MudAlert>
+}
+else
+{
+    <NavigationTreeGrid ParentId="@null"
+                        CurrentUser="@currentUser"
+                        HasWrite="@hasWrite"
+                        AllParents="@allParents"
+                        AllTenants="@allTenants"
+                        OnDataChanged="@ReloadChoices" />
+}
+
+@code {
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private IReadOnlyList<NavigationParentChoice> allParents = Array.Empty<NavigationParentChoice>();
+    private IReadOnlyList<TenantChoice> allTenants = Array.Empty<TenantChoice>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Navigation.View", "Navigation.Write");
+        hasWrite = Handler.HasPermission(currentUser, "Navigation.Write");
+        if (hasView) await ReloadChoices();
+    }
+
+    private async Task ReloadChoices()
+    {
+        if (currentUser is null) return;
+        allParents = await Handler.ListAllNavigationItemsAsync(currentUser);
+        allTenants = await Handler.ListAllTenantsAsync(currentUser);
+    }
+}

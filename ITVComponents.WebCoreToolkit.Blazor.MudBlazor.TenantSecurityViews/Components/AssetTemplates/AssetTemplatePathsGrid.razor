@@ -1,0 +1,114 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IAssetTemplateAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="AssetTemplatePathViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+        <MudText Typo="Typo.subtitle2">Paths</MudText>
+        <MudSpacer />
+        @if (CanWrite)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                Add path
+            </MudButton>
+        }
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.PathTemplate" Title="Path template" />
+        <TemplateColumn T="AssetTemplatePathViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                @if (CanWrite)
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    </MudStack>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="AssetTemplatePathViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int AssetTemplateId { get; set; }
+    [Parameter] public bool CanWrite { get; set; }
+
+    private MudDataGrid<AssetTemplatePathViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<AssetTemplatePathViewModel>> LoadData(GridState<AssetTemplatePathViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<AssetTemplatePathViewModel> { Items = Array.Empty<AssetTemplatePathViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListPathsAsync(currentUser, AssetTemplateId, query);
+        return new GridData<AssetTemplatePathViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<AssetTemplatePathDialog>
+        {
+            { d => d.Model, new AssetTemplatePathViewModel() },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<AssetTemplatePathDialog>("Add path", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AssetTemplatePathViewModel input })
+        {
+            var created = await Handler.CreatePathAsync(currentUser!, AssetTemplateId, input);
+            if (created != null) { Snackbar.Add("Path added", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to add", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(AssetTemplatePathViewModel item)
+    {
+        var copy = new AssetTemplatePathViewModel
+        {
+            AssetTemplatePathId = item.AssetTemplatePathId,
+            AssetTemplateId = item.AssetTemplateId,
+            PathTemplate = item.PathTemplate
+        };
+        var parameters = new DialogParameters<AssetTemplatePathDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false }
+        };
+        var dlg = await DialogService.ShowAsync<AssetTemplatePathDialog>("Edit path", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AssetTemplatePathViewModel input })
+        {
+            var updated = await Handler.UpdatePathAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Path updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(AssetTemplatePathViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete path", $"Really delete '{item.PathTemplate}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeletePathAsync(currentUser!, item.AssetTemplatePathId);
+        if (success) { Snackbar.Add("Path deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

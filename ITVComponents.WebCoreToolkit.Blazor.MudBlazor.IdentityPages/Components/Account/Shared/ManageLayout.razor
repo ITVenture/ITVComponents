@@ -1,23 +1,40 @@
 @inherits LayoutComponentBase
 
+@using Microsoft.AspNetCore.Components
 @using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Options
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Options
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
 
 @inject IStringLocalizer<IdentityMessages> L
+@inject IOptions<IdentityLayoutOptions> LayoutOpts
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
-    <MudText Typo="Typo.h4" GutterBottom="true">@L["Manage your account"]</MudText>
-    <MudText Typo="Typo.h5" GutterBottom="true">@L["Change your account settings"]</MudText>
-    <MudDivider Class="my-3" />
+@{
+    RenderFragment manageBody = @<text>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+            <MudText Typo="Typo.h4" GutterBottom="true">@L["Manage your account"]</MudText>
+            <MudText Typo="Typo.h5" GutterBottom="true">@L["Change your account settings"]</MudText>
+            <MudDivider Class="my-3" />
 
-    <MudGrid>
-        <MudItem xs="12" md="3">
-            <MudPaper Elevation="1" Class="pa-2">
-                <ManageNavMenu />
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="9">
-            @Body
-        </MudItem>
-    </MudGrid>
-</MudContainer>
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudPaper Elevation="1" Class="pa-2">
+                        <ManageNavMenu />
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="9">
+                    @Body
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
+    </text>;
+}
+
+@if (LayoutOpts.Value.OuterLayoutType is { } outer)
+{
+    <LayoutView Layout="outer">@manageBody</LayoutView>
+}
+else
+{
+    @manageBody
+}

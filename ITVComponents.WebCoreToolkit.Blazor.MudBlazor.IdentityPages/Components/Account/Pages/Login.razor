@@ -1,18 +1,23 @@
 @page "/Account/Login"
+@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Http
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.DependencyInjection
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using MudBlazor
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account
+@using ITVComponents.WebCoreToolkit.Security
 
 @inject IPageHandlerProvider<LoginModel, ILoginHandler> HandlerProvider
+@inject IPageHandlerProvider<PasskeyPageModel, IPasskeyHandler> PasskeyProvider
 @inject IStringLocalizer<IdentityMessages> L
 @inject NavigationManager Nav
+@inject IServiceProvider Services
 @inject ILogger<Login> Logger
 
 <PageTitle>@L["Log in"]</PageTitle>
@@ -27,7 +32,7 @@
         }
         else
         {
-            <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
+            <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
                 <DataAnnotationsValidator />
 
                 @if (!string.IsNullOrEmpty(errorMessage))
@@ -38,7 +43,7 @@
                 <MudText Typo="Typo.subtitle1" GutterBottom="true">@L["Use a local account to log in."]</MudText>
 
                 <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" type="email" />
+                    <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" type="email" />
                     <label for="Input.Email">@L["Email"]</label>
                     <ValidationMessage For="() => Input.Email" class="text-danger" />
                 </div>
@@ -58,6 +63,17 @@
                     @L["Login_Button"]
                 </MudButton>
 
+                @if (PasskeyProvider.Handler.UsePage)
+                {
+                    <MudDivider Class="my-3" />
+                    <div class="d-flex justify-content-center">
+                        <MudText Typo="Typo.caption" Class="me-2 align-self-center">@L["Or"]</MudText>
+                        <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn btn-link">
+                            @L["Sign in with a passkey"]
+                        </PasskeySubmit>
+                    </div>
+                }
+
                 <MudDivider Class="my-3" />
 
                 <MudStack Spacing="1">
@@ -75,6 +91,7 @@
 
 @code {
     private string? errorMessage;
+    private EditContext editContext = default!;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -91,6 +108,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        Input ??= new();
+        editContext = new EditContext(Input);
+
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
@@ -104,12 +124,47 @@
             return;
         }
 
-        var result = await HandlerProvider.Handler.LoginUserWithPassword(
-            Input.Email, Input.Password, Input.RememberMe);
+        // Passkey path takes precedence — the JS web-component fills Input.Passkey before submitting.
+        if (!string.IsNullOrEmpty(Input.Passkey?.Error))
+        {
+            errorMessage = Input.Passkey.Error;
+            return;
+        }
+
+        SignInResult result;
+        if (!string.IsNullOrEmpty(Input.Passkey?.CredentialJson))
+        {
+            if (!PasskeyProvider.Handler.UsePage)
+            {
+                errorMessage = L["Passkeys are not enabled."];
+                return;
+            }
+
+            Console.WriteLine($"[PASSKEY-PROBE] POST /Account/Login incoming cookies: {string.Join(", ", HttpContext.Request.Cookies.Keys)}");
+            var preAuth = await HttpContext.AuthenticateAsync(Microsoft.AspNetCore.Identity.IdentityConstants.TwoFactorUserIdScheme);
+            Console.WriteLine($"[PASSKEY-PROBE] AuthenticateAsync(TwoFactorUserIdScheme) Succeeded={preAuth.Succeeded}, hasPrincipal={preAuth.Principal is not null}, propsItems={(preAuth.Properties is null ? "<null>" : string.Join("|", preAuth.Properties.Items.Select(kv => $"{kv.Key}={(kv.Value is null ? "<null>" : kv.Value.Length + "ch")}")))}");
+
+            result = await PasskeyProvider.Handler.PasskeySignInAsync(Input.Passkey.CredentialJson);
+        }
+        else
+        {
+            if (!editContext.Validate())
+            {
+                return;
+            }
+
+            result = await HandlerProvider.Handler.LoginUserWithPassword(
+                Input.Email, Input.Password, Input.RememberMe);
+        }
 
         if (result.Succeeded)
         {
             Logger.LogInformation("User logged in.");
+            // Force the tenant-scope cookie write before the Blazor circuit (after
+            // NavigateTo+forceLoad) takes over, where Response.HasStarted is true and
+            // the cookie write would be silently skipped. Optional: no-op if the host
+            // does not register IPermissionScope.
+            _ = Services.GetService<IPermissionScope>()?.PermissionPrefix;
             Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
             return;
         }
@@ -148,5 +203,7 @@
         public string Password { get; set; } = "";
 
         public bool RememberMe { get; set; }
+
+        public PasskeyInputModel? Passkey { get; set; }
     }
 }

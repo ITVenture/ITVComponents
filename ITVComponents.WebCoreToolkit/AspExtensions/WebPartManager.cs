@@ -253,6 +253,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                 else if (attr is CustomConfiguratorAttribute cca &&
                          MethodMatches(method, MakeCustomConfigCall(cca.ConfiguredObjectType)))
                 {
+
                     RegisterCustomMethod(cca.ConfiguredObjectType, new MethodRef { ConfigurationName = configPath, Method = method });
                 }
             }
@@ -306,13 +307,14 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
 
                         try
                         {
+                            LogEnvironment.LogDebugEvent($"Invoke method {t.Method.DeclaringType?.FullName}{t.Method.Name} with {defaults?.Length??0} defaults and {opt?.Count??0} additional arguments.", LogSeverity.Report);
                             //t.Method.Invoke(null, new[] { services, opt });
                             InvokeMethod(t.Method, defaults, opt);
                         }
                         catch (Exception ex)
                         {
                             LogEnvironment.LogEvent(
-                                $"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.Message}",
+                                $"Failed to register {t.Method.DeclaringType.AssemblyQualifiedName}: {ex.OutlineException()}",
                                 LogSeverity.Error);
                         }
                     }

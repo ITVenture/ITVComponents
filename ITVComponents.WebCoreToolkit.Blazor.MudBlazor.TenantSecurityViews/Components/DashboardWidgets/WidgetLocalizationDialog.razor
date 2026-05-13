@@ -1,0 +1,33 @@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.LocaleName" Label="Locale" Required="true" RequiredError="Locale is required" MaxLength="20" />
+            <MudTextField @bind-Value="Model.DisplayName" Label="Display name" Required="true" RequiredError="Display name is required" MaxLength="1024" />
+            <MudTextField @bind-Value="Model.TitleTemplate" Label="Title template" Required="true" RequiredError="Title template is required" MaxLength="2048" />
+            <MudTextField @bind-Value="Model.Template" Label="Template" Required="true" RequiredError="Template is required" Lines="10" Variant="Variant.Outlined" Class="mt-3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public DashboardWidgetLocalizationViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+
+    private MudForm? form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) return;
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+}

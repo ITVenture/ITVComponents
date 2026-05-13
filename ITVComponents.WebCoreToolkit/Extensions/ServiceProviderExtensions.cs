@@ -225,6 +225,13 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var assetProvider = provider.GetService<ISharedAssetAdapter>();
             var userProvider = provider.GetService<IContextUserProvider>();
             IQueryCollection refQ;
+            if (userProvider.HttpContext?.Request == null)
+            {
+                securityRepository = null;
+                identities = null;
+                return false;
+            }
+
             if (((refQ=userProvider.HttpContext.Request.Query).ContainsKey(Global.FixedAssetRequestQueryParameter)
                 || (refQ = userProvider.HttpContext.Request.GetRefererQuery()) != null && refQ.ContainsKey(Global.FixedAssetRequestQueryParameter)) && 
                 userProvider.User.HasClaim(n => n.Type == ClaimTypes.FixedUserScope))

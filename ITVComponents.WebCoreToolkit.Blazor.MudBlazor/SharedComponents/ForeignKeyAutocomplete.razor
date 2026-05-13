@@ -11,8 +11,7 @@
 @* Mud autocomplete (typeahead) over FK options resolved via Toolkit's ContextForFkQuery.
    - ServerFilter=false (default): loads the full list once, filters client-side on Label.
    - ServerFilter=true: queries IWrappedFkSource.ReadForeignKey(table, postedFilter: ...) per
-     keystroke. Caller supplies a FilterBuilder that turns the typed text into a postedFilter
-     dictionary (typically wrapping the consumer's FilterBase EF-expression builder).        *@
+     keystroke with a Contains-on-Label filter from EFRepo.Expressions.Models.                *@
 
 <MudAutocomplete T="T"
                  Value="Value"
@@ -40,7 +39,7 @@
 
     /// <summary>
     /// false (default): full list fetched once, filtered client-side on Label substring.
-    /// true: SearchFunc queries the FK source per keystroke; supply <see cref="FilterBuilder"/>.
+    /// true: SearchFunc queries the FK source per keystroke with a Contains-on-Label filter.
     /// </summary>
     [Parameter] public bool ServerFilter { get; set; }
 

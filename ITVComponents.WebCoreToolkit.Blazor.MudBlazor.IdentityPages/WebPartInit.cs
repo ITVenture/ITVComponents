@@ -1,3 +1,4 @@
+using ITVComponents.Logging;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit;
 using ITVComponents.WebCoreToolkit.AspExtensions;
@@ -5,6 +6,9 @@ using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Endpoints;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Handlers;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Services.Impl;
 using Microsoft.AspNetCore.Builder;
@@ -52,6 +56,28 @@ public static class WebPartInit
                 op.ExternalLoginPage = options.ExternalLoginPage;
             }
         });
+
+        // IPasskeyHandler is consumed by Blazor pages (Login/Passkeys/RenamePasskey) and the
+        // MapMudBlazorIdentityPagesEndpoints endpoints — but ANCIP doesn't know about it, so we
+        // wire it here. Generic variant when an IdentityUserType is configured; falls back to
+        // PasskeyHandler (UsePage=false) when TUser can't be resolved.
+        if (options.RegisterPageHandlers
+            && !string.IsNullOrEmpty(options.IdentityUserType)
+            && Type.GetType(options.IdentityUserType) is { } tuserType)
+        {
+            services.ConfigurePageModelHandlerFactory(ha =>
+            {
+                ha.ConfigureHandlerType(typeof(PasskeyPageModel), typeof(IPasskeyHandler), typeof(PasskeyHandler<>), false);
+                ha.ConfigureGenericArgument("TUser", tuserType);
+            });
+        }
+        else
+        {
+            services.ConfigurePageModelHandlerFactory(ha =>
+            {
+                ha.ConfigureHandlerType<PasskeyPageModel, IPasskeyHandler, PasskeyHandler>(false);
+            });
+        }
 
         if (options.UseDefaultMailSender)
         {

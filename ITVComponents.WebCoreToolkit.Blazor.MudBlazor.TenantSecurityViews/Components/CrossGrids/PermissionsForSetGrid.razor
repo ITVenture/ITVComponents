@@ -1,0 +1,84 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IPermissionSetAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view permission assignments.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="AppPermissionAssignmentViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Permissions</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <TemplateColumn T="AppPermissionAssignmentViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudCheckBox T="bool"
+                                 Value="context.Item.Assigned"
+                                 Disabled="!hasWrite"
+                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.PermissionName" Title="Permission" />
+            <PropertyColumn Property="x => x.Description" Title="Description" />
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="AppPermissionAssignmentViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int AppPermissionSetId { get; set; }
+
+    private MudDataGrid<AppPermissionAssignmentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Apps.PermissionSets.View", "Apps.PermissionSets.Write");
+        hasWrite = Handler.HasPermission(currentUser, "Apps.PermissionSets.Write");
+    }
+
+    private async Task<GridData<AppPermissionAssignmentViewModel>> LoadData(GridState<AppPermissionAssignmentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<AppPermissionAssignmentViewModel> { Items = Array.Empty<AppPermissionAssignmentViewModel>(), TotalItems = 0 };
+
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListPermissionsForSetAsync(currentUser, AppPermissionSetId, query);
+        return new GridData<AppPermissionAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(AppPermissionAssignmentViewModel item, bool newValue)
+    {
+        if (!hasWrite || currentUser is null) return;
+        var ok = await Handler.SetPermissionForSetAsync(currentUser, AppPermissionSetId, item.PermissionId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Permission assigned" : "Permission unassigned", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update assignment", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

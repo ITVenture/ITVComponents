@@ -1,4 +1,4 @@
-using System.Reflection;
+using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit;
@@ -6,10 +6,12 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor;
 
@@ -38,12 +40,8 @@ public static class WebPartInit
         {
             var dic = new Dictionary<string, object>();
             var contextType = (Type)ExpressionParser.Parse(contextTypeName, dic);
-
-            var openMethod = typeof(DependencyInjectionExtensions)
-                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .First(m => m.Name == nameof(DependencyInjectionExtensions.AddMudBlazorTenantSecurityViews)
-                            && m.IsGenericMethodDefinition);
-            openMethod.MakeGenericMethod(contextType).Invoke(null, new object[] { services });
+            var method = typeof(DependencyInjectionExtensions).GetMethod<Func<IServiceCollection, AssemblyPartTypeLoadBehaviorOptions?, IServiceCollection>>(contextType, nameof(DependencyInjectionExtensions.AddMudBlazorTenantSecurityViews));
+            method(services, partTypeLoadBehavior);
         }
     }
 }
