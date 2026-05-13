@@ -50,8 +50,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Loca
             }
         }
 
-        public LocalizedString this[string name, params object[] arguments] =>
-            new (name, string.Format(this[name].Value, arguments));
+        public LocalizedString this[string name, params object[] arguments]
+        {
+            get
+            {
+                var inner = this[name];
+                return inner.ResourceNotFound
+                    ? inner
+                    : new LocalizedString(name, string.Format(inner.Value, arguments));
+            }
+        }
 
 
         private IEnumerable<LocalizedString> WithContext(
