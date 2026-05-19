@@ -33,7 +33,7 @@
         else
         {
             <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
-                <DataAnnotationsValidator />
+                <ToolkitDataAnnotationsValidator />
 
                 @if (!string.IsNullOrEmpty(errorMessage))
                 {
@@ -140,10 +140,6 @@
                 return;
             }
 
-            Console.WriteLine($"[PASSKEY-PROBE] POST /Account/Login incoming cookies: {string.Join(", ", HttpContext.Request.Cookies.Keys)}");
-            var preAuth = await HttpContext.AuthenticateAsync(Microsoft.AspNetCore.Identity.IdentityConstants.TwoFactorUserIdScheme);
-            Console.WriteLine($"[PASSKEY-PROBE] AuthenticateAsync(TwoFactorUserIdScheme) Succeeded={preAuth.Succeeded}, hasPrincipal={preAuth.Principal is not null}, propsItems={(preAuth.Properties is null ? "<null>" : string.Join("|", preAuth.Properties.Items.Select(kv => $"{kv.Key}={(kv.Value is null ? "<null>" : kv.Value.Length + "ch")}")))}");
-
             result = await PasskeyProvider.Handler.PasskeySignInAsync(Input.Passkey.CredentialJson);
         }
         else
@@ -194,11 +190,14 @@
 
     public sealed class InputModel
     {
-        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        // Required: no explicit ErrorMessage — ToolkitDataAnnotationsValidator auto-maps the
+        // attribute to its DefaultModelMessages topic-key via AttributeTranslationOptions.
+        // EmailAddress: explicit key because DataTypeAttribute subclasses are not auto-mapped.
+        [Required]
         [EmailAddress(ErrorMessage = "ITV:DataTypeAttribute.EmailAddress_ValidationError")]
         public string Email { get; set; } = "";
 
-        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [Required]
         [DataType(DataType.Password)]
         public string Password { get; set; } = "";
 
