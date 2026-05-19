@@ -31,7 +31,7 @@
             <MudDivider Class="my-3" />
 
             <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="login-with-2fa">
-                <DataAnnotationsValidator />
+                <ToolkitDataAnnotationsValidator />
 
                 @if (!string.IsNullOrEmpty(errorMessage))
                 {
@@ -129,7 +129,7 @@
 
     public sealed class InputModel
     {
-        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [Required]
         [StringLength(7, MinimumLength = 6)]
         [DataType(DataType.Text)]
         public string TwoFactorCode { get; set; } = "";

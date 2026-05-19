@@ -95,7 +95,7 @@ else
             </MudText>
 
             <EditForm Model="Input" method="post" OnValidSubmit="OnVerify" FormName="enable-authenticator">
-                <DataAnnotationsValidator />
+                <ToolkitDataAnnotationsValidator />
 
                 @if (!string.IsNullOrEmpty(errorMessage))
                 {
@@ -232,8 +232,8 @@ else
 
     public sealed class InputModel
     {
-        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
-        [StringLength(7, MinimumLength = 6, ErrorMessage = "ITV:DataTypeAttribute.StringLength_ValidationError")]
+        [Required]
+        [StringLength(7, MinimumLength = 6)]
         [DataType(DataType.Text)]
         public string Code { get; set; } = "";
     }

@@ -40,7 +40,7 @@ else if (passkey is not null)
     </MudText>
 
     <EditForm Model="Input" OnValidSubmit="Rename" FormName="rename-passkey" method="post">
-        <DataAnnotationsValidator />
+        <ToolkitDataAnnotationsValidator />
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
@@ -131,7 +131,7 @@ else if (passkey is not null)
 
     public sealed class InputModel
     {
-        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [Required]
         [StringLength(200, MinimumLength = 1)]
         public string Name { get; set; } = "";
     }

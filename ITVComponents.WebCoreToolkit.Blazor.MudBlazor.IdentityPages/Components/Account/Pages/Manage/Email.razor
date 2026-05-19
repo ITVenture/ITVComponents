@@ -60,7 +60,7 @@ else
     </div>
 
     <EditForm Model="Input" method="post" OnValidSubmit="OnChangeEmail" FormName="change-email">
-        <DataAnnotationsValidator />
+        <ToolkitDataAnnotationsValidator />
 
         <div class="form-floating mb-3">
             <InputText @bind-Value="Input.NewEmail" id="Input.NewEmail" class="form-control" autocomplete="email" type="email" />
@@ -217,7 +217,7 @@ else
 
     public sealed class InputModel
     {
-        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [Required]
         [EmailAddress(ErrorMessage = "ITV:DataTypeAttribute.EmailAddress_ValidationError")]
         public string NewEmail { get; set; } = "";
     }

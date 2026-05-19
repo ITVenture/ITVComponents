@@ -313,6 +313,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             o.MapAttribute(typeof(RegularExpressionAttribute),"ITV");
             o.MapAttribute(typeof(StringLengthAttribute),"ITV");
             o.MapAttribute(typeof(RequiredAttribute), "ITV");
+            o.MapAttribute(typeof(CompareAttribute), "ITV");
             o.AddTopicCallback(typeof(StringLengthAttribute), (attribute, s) =>
             {
                 var sla = (StringLengthAttribute)attribute;

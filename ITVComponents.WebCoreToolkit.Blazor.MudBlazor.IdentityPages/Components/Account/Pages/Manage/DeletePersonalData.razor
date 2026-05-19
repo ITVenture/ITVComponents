@@ -37,7 +37,7 @@ else
     </MudAlert>
 
     <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="delete-user">
-        <DataAnnotationsValidator />
+        <ToolkitDataAnnotationsValidator />
 
         @if (errors.Count > 0)
         {
@@ -134,7 +134,7 @@ else
 
     public sealed class InputModel
     {
-        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [Required]
         [DataType(DataType.Password)]
         public string Password { get; set; } = "";
     }

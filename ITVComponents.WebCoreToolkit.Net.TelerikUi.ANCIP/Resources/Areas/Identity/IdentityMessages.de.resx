@@ -543,4 +543,208 @@ Bitte bestätigen sie ihre E-Mail Adresse &lt;a href='{1}'&gt;hier&lt;/a&gt;.</v
   <data name="Username is required." xml:space="preserve">
     <value>Der Benutzername wird benötigt.</value>
   </data>
+  <data name=" and " xml:space="preserve">
+    <value> und </value>
+  </data>
+  <data name=" or Google Authenticator for " xml:space="preserve">
+    <value> oder Google Authenticator für </value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>Aktionen</value>
+  </data>
+  <data name="Add a new passkey" xml:space="preserve">
+    <value>Neuen Passkey hinzufügen</value>
+  </data>
+  <data name="Android" xml:space="preserve">
+    <value>Android</value>
+  </data>
+  <data name="Authenticator app" xml:space="preserve">
+    <value>Authenticator-App</value>
+  </data>
+  <data name="Authenticator code" xml:space="preserve">
+    <value>Authenticator-Code</value>
+  </data>
+  <data name="Back to 2FA settings" xml:space="preserve">
+    <value>Zurück zu den 2FA-Einstellungen</value>
+  </data>
+  <data name="Click here to log in." xml:space="preserve">
+    <value>Klicken Sie hier, um sich anzumelden.</value>
+  </data>
+  <data name="Confirm new password" xml:space="preserve">
+    <value>Neues Passwort bestätigen</value>
+  </data>
+  <data name="Confirm password" xml:space="preserve">
+    <value>Passwort bestätigen</value>
+  </data>
+  <data name="Continue" xml:space="preserve">
+    <value>Weiter</value>
+  </data>
+  <data name="Current password" xml:space="preserve">
+    <value>Aktuelles Passwort</value>
+  </data>
+  <data name="Disabling 2FA does not change the keys used in authenticator apps. If you wish to change the key used in an authenticator app you should " xml:space="preserve">
+    <value>Das Deaktivieren von 2FA ändert nicht die in Authenticator-Apps verwendeten Schlüssel. Wenn Sie den in einer Authenticator-App verwendeten Schlüssel ändern möchten, sollten Sie </value>
+  </data>
+  <data name="Download a two-factor authenticator app like Microsoft Authenticator for " xml:space="preserve">
+    <value>Laden Sie eine Zwei-Faktor-Authenticator-App wie Microsoft Authenticator herunter für </value>
+  </data>
+  <data name="Email confirmed" xml:space="preserve">
+    <value>E-Mail bestätigt</value>
+  </data>
+  <data name="Generate two-factor authentication recovery codes" xml:space="preserve">
+    <value>Wiederherstellungscodes für Zwei-Faktor-Authentifizierung generieren</value>
+  </data>
+  <data name="Generating new recovery codes does not change the keys used in authenticator apps." xml:space="preserve">
+    <value>Das Generieren neuer Wiederherstellungscodes ändert nicht die in Authenticator-Apps verwendeten Schlüssel.</value>
+  </data>
+  <data name="If you wish to change the key used in an authenticator app you should " xml:space="preserve">
+    <value>Wenn Sie den in einer Authenticator-App verwendeten Schlüssel ändern möchten, sollten Sie </value>
+  </data>
+  <data name="Invalid recovery code entered." xml:space="preserve">
+    <value>Ungültiger Wiederherstellungscode eingegeben.</value>
+  </data>
+  <data name="Log in with a recovery code" xml:space="preserve">
+    <value>Mit Wiederherstellungscode anmelden</value>
+  </data>
+  <data name="Missing credential identifier." xml:space="preserve">
+    <value>Fehlende Anmeldedaten-Kennung.</value>
+  </data>
+  <data name="My laptop" xml:space="preserve">
+    <value>Mein Laptop</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Name your new passkey" xml:space="preserve">
+    <value>Benennen Sie Ihren neuen Passkey</value>
+  </data>
+  <data name="New email" xml:space="preserve">
+    <value>Neue E-Mail</value>
+  </data>
+  <data name="New password" xml:space="preserve">
+    <value>Neues Passwort</value>
+  </data>
+  <data name="No passkey was provided by the browser." xml:space="preserve">
+    <value>Es wurde kein Passkey vom Browser bereitgestellt.</value>
+  </data>
+  <data name="Once you have scanned the QR code or input the key above, your two factor authentication app will provide you with a unique code. Enter the code in the confirmation box below." xml:space="preserve">
+    <value>Sobald Sie den QR-Code gescannt oder den obigen Schlüssel eingegeben haben, liefert Ihre Zwei-Faktor-Authentifizierungs-App einen eindeutigen Code. Geben Sie diesen Code im Bestätigungsfeld unten ein.</value>
+  </data>
+  <data name="Or" xml:space="preserve">
+    <value>Oder</value>
+  </data>
+  <data name="Passkey attestation failed." xml:space="preserve">
+    <value>Passkey-Bestätigung fehlgeschlagen.</value>
+  </data>
+  <data name="Passkey deleted." xml:space="preserve">
+    <value>Passkey gelöscht.</value>
+  </data>
+  <data name="Passkey name" xml:space="preserve">
+    <value>Passkey-Name</value>
+  </data>
+  <data name="Passkey renamed." xml:space="preserve">
+    <value>Passkey umbenannt.</value>
+  </data>
+  <data name="Passkeys" xml:space="preserve">
+    <value>Passkeys</value>
+  </data>
+  <data name="Passkeys are not enabled." xml:space="preserve">
+    <value>Passkeys sind nicht aktiviert.</value>
+  </data>
+  <data name="Personal Data" xml:space="preserve">
+    <value>Persönliche Daten</value>
+  </data>
+  <data name="Phone number" xml:space="preserve">
+    <value>Telefonnummer</value>
+  </data>
+  <data name="Recovery Code" xml:space="preserve">
+    <value>Wiederherstellungscode</value>
+  </data>
+  <data name="Recovery Codes" xml:space="preserve">
+    <value>Wiederherstellungscodes</value>
+  </data>
+  <data name="Remember me?" xml:space="preserve">
+    <value>Angemeldet bleiben?</value>
+  </data>
+  <data name="Remember this machine" xml:space="preserve">
+    <value>Dieses Gerät merken</value>
+  </data>
+  <data name="Remove" xml:space="preserve">
+    <value>Entfernen</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>Umbenennen</value>
+  </data>
+  <data name="Rename passkey" xml:space="preserve">
+    <value>Passkey umbenennen</value>
+  </data>
+  <data name="Rename passkey '{0}'" xml:space="preserve">
+    <value>Passkey '{0}' umbenennen</value>
+  </data>
+  <data name="Reset password" xml:space="preserve">
+    <value>Passwort zurücksetzen</value>
+  </data>
+  <data name="Reset your password." xml:space="preserve">
+    <value>Setzen Sie Ihr Passwort zurück.</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Speichern</value>
+  </data>
+  <data name="Scan the QR Code or enter this key" xml:space="preserve">
+    <value>Scannen Sie den QR-Code oder geben Sie diesen Schlüssel ein</value>
+  </data>
+  <data name="Sign in with a passkey" xml:space="preserve">
+    <value>Mit Passkey anmelden</value>
+  </data>
+  <data name="The current browser has been forgotten. When you login again from this browser you will be prompted for your 2fa code." xml:space="preserve">
+    <value>Der aktuelle Browser wurde vergessen. Wenn Sie sich von diesem Browser erneut anmelden, werden Sie nach Ihrem 2FA-Code gefragt.</value>
+  </data>
+  <data name="The passkey identifier is not in a valid format." xml:space="preserve">
+    <value>Die Passkey-Kennung hat kein gültiges Format.</value>
+  </data>
+  <data name="The requested passkey could not be found." xml:space="preserve">
+    <value>Der angeforderte Passkey wurde nicht gefunden.</value>
+  </data>
+  <data name="This action only disables 2FA." xml:space="preserve">
+    <value>Diese Aktion deaktiviert nur 2FA.</value>
+  </data>
+  <data name="This page is not available." xml:space="preserve">
+    <value>Diese Seite ist nicht verfügbar.</value>
+  </data>
+  <data name="Unnamed passkey" xml:space="preserve">
+    <value>Unbenannter Passkey</value>
+  </data>
+  <data name="Username" xml:space="preserve">
+    <value>Benutzername</value>
+  </data>
+  <data name="You have no passkeys registered." xml:space="preserve">
+    <value>Sie haben keine Passkeys registriert.</value>
+  </data>
+  <data name="You have no recovery codes left." xml:space="preserve">
+    <value>Sie haben keine Wiederherstellungscodes mehr.</value>
+  </data>
+  <data name="You have reached the maximum number of passkeys." xml:space="preserve">
+    <value>Sie haben die maximale Anzahl an Passkeys erreicht.</value>
+  </data>
+  <data name="You must enable two-factor authentication before you can generate recovery codes." xml:space="preserve">
+    <value>Sie müssen die Zwei-Faktor-Authentifizierung aktivieren, bevor Sie Wiederherstellungscodes generieren können.</value>
+  </data>
+  <data name="You must generate a new set of recovery codes before you can log in with a recovery code." xml:space="preserve">
+    <value>Sie müssen neue Wiederherstellungscodes generieren, bevor Sie sich mit einem Wiederherstellungscode anmelden können.</value>
+  </data>
+  <data name="You should generate a new set of recovery codes." xml:space="preserve">
+    <value>Sie sollten neue Wiederherstellungscodes generieren.</value>
+  </data>
+  <data name="Your password has been reset." xml:space="preserve">
+    <value>Ihr Passwort wurde zurückgesetzt.</value>
+  </data>
+  <data name="iOS" xml:space="preserve">
+    <value>iOS</value>
+  </data>
+  <data name="into your two factor authenticator app. Spaces and casing do not matter." xml:space="preserve">
+    <value>in Ihre Zwei-Faktor-Authenticator-App ein. Leerzeichen und Gross-/Kleinschreibung sind unerheblich.</value>
+  </data>
+  <data name="reset your authenticator keys." xml:space="preserve">
+    <value>Authenticator-Schlüssel zurücksetzen.</value>
+  </data>
 </root>

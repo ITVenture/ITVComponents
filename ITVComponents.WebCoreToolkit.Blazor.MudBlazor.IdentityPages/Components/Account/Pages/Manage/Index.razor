@@ -36,7 +36,7 @@ else
     }
 
     <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="manage-index">
-        <DataAnnotationsValidator />
+        <ToolkitDataAnnotationsValidator />
 
         @if (errors.Count > 0)
         {

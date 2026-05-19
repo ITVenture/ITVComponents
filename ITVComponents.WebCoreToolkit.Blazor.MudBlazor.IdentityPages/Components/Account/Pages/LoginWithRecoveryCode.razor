@@ -33,7 +33,7 @@
             <MudDivider Class="my-3" />
 
             <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="login-with-recovery-code">
-                <DataAnnotationsValidator />
+                <ToolkitDataAnnotationsValidator />
 
                 @if (!string.IsNullOrEmpty(errorMessage))
                 {
@@ -112,7 +112,7 @@
 
     public sealed class InputModel
     {
-        [Required(ErrorMessage = "ITV:DataTypeAttribute.Required_ValidationError")]
+        [Required]
         [DataType(DataType.Text)]
         public string RecoveryCode { get; set; } = "";
     }
