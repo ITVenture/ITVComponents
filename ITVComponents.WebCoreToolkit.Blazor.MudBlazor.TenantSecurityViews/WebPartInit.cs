@@ -36,6 +36,14 @@ public static class WebPartInit
     {
         services.AddBlazorRoutingAssembly(typeof(WebPartInit).Assembly, partTypeLoadBehavior);
 
+        // Client-side assets emitted by the host's single <ITVentureReferences />.
+        // BlazorMonaco powers the code editors (DiagnosticsQueries / Dashboard widgets / HealthScripts).
+        services.AddToolkitClientScript("_content/BlazorMonaco/jsInterop.js");
+        services.AddToolkitClientScript("_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js");
+        services.AddToolkitClientScript("_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js");
+        // WidgetRenderer click-action delegation (asset ships with the base MudBlazor library).
+        services.AddToolkitClientScript("_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor/widget-actions.js");
+
         if (options is { ConfigureContext: true, ContextType: { Length: > 0 } contextTypeName })
         {
             var dic = new Dictionary<string, object>();

@@ -7,7 +7,8 @@
             <ForeignKeyAutocomplete T="int" Table="DiagnosticsQueries" @bind-Value="Model.DiagnosticsQueryId" Label="Diagnostics query" />
             <MudTextField @bind-Value="Model.Area" Label="Area" />
             <MudTextField @bind-Value="Model.CustomQueryString" Label="Custom query string" Lines="3" />
-            <MudTextField @bind-Value="Model.Template" Label="Template" Lines="10" Variant="Variant.Outlined" Class="mt-3" />
+            <MudText Typo="Typo.caption" Class="mt-3">Template (Scriban)</MudText>
+            <CodeEditor @ref="templateEditor" Value="@Model.Template" Language="html" Height="280" />
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -23,6 +24,7 @@
     [Parameter] public bool IsCreate { get; set; }
 
     private MudForm? form;
+    private CodeEditor? templateEditor;
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -31,6 +33,7 @@
         if (form is null) return;
         await form.Validate();
         if (!form.IsValid) return;
+        if (templateEditor is not null) Model.Template = await templateEditor.GetValueAsync();
         MudDialog.Close(DialogResult.Ok(Model));
     }
 }

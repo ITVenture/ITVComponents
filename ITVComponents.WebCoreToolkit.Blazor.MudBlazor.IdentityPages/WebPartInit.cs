@@ -35,6 +35,8 @@ public static class WebPartInit
         [WebPartConfig] IdentityUiOptions? options,
         [WebPartConfig(Global.PartTypeLoadBehaviorOption)] AssemblyPartTypeLoadBehaviorOptions? partTypeLoadBehavior)
     {
+        services.AddToolkitClientScript(
+            "_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages/PasskeySubmit.js", true);
         services.AddBlazorRoutingAssembly(typeof(WebPartInit).Assembly, partTypeLoadBehavior);
 
         if (options is null)

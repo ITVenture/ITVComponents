@@ -1,0 +1,40 @@
+@*
+    Emits the union of every client-side stylesheet and script that the referenced WebCoreToolkit
+    libraries registered (see AddToolkitClientScript / AddToolkitClientStyleSheet, typically called
+    from each library's WebPartInit). Replaces hand-maintained <link>/<script> tags with one line.
+
+    Placement: put this in the STATICALLY rendered host shell (App.razor <head>/<body> or _Host.cshtml).
+    Script tags only execute when present in the initial document HTML — inside an interactive
+    component the browser ignores them. Use Kind to split styles into <head> and scripts before
+    </body> if desired; the default emits both where placed.
+*@
+@using ITVComponents.WebCoreToolkit.Blazor.Resources
+@using Microsoft.Extensions.Options
+@inject IOptions<ClientResourceOptions> Options
+
+@if (Kind != ResourceKind.Scripts)
+{
+    @foreach (var css in Options.Value.StyleSheets)
+    {
+        <link rel="stylesheet" href="@css.Href" integrity="@css.Integrity" crossorigin="@css.CrossOrigin" />
+    }
+}
+@if (Kind != ResourceKind.StyleSheets)
+{
+    @foreach (var js in Options.Value.Scripts)
+    {
+        <script src="@js.Src" type="@(js.Module ? "module" : null)" defer="@js.Defer" async="@js.Async" integrity="@js.Integrity" crossorigin="@js.CrossOrigin"></script>
+    }
+}
+
+@code {
+    /// <summary>Which resource kinds to emit at this location. Defaults to both.</summary>
+    [Parameter] public ResourceKind Kind { get; set; } = ResourceKind.All;
+
+    public enum ResourceKind
+    {
+        All,
+        StyleSheets,
+        Scripts
+    }
+}

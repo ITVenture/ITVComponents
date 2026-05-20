@@ -1,0 +1,56 @@
+@*
+    Thin wrapper around BlazorMonaco's StandaloneCodeEditor for the code-editing dialogs
+    (DiagnosticsQueries / Dashboard widgets / HealthScripts). Value is supplied once as the initial
+    text; the host pulls the edited text back via GetValueAsync() on save (avoids a server round-trip
+    per keystroke that a two-way @bind would cause under Blazor Server).
+
+    Consumer host setup — include once in the host page (App.razor / _Host.cshtml), after the Blazor script:
+        <script src="_content/BlazorMonaco/jsInterop.js"></script>
+        <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
+        <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
+*@
+@using BlazorMonaco
+@using BlazorMonaco.Editor
+
+<div class="itv-code-editor-host" style="@($"height:{Height}px;border:1px solid var(--mud-palette-lines-inputs);border-radius:var(--mud-default-borderradius);overflow:hidden;")">
+    <StandaloneCodeEditor @ref="editor" ConstructionOptions="BuildOptions" />
+</div>
+
+@code {
+    /// <summary>Initial editor text. Read back via <see cref="GetValueAsync"/>.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    /// <summary>Monaco language id, e.g. "sql", "javascript", "html".</summary>
+    [Parameter] public string Language { get; set; } = "plaintext";
+
+    [Parameter] public int Height { get; set; } = 320;
+
+    [Parameter] public bool ReadOnly { get; set; }
+
+    private StandaloneCodeEditor? editor;
+
+    private StandaloneEditorConstructionOptions BuildOptions(StandaloneCodeEditor _)
+        => new StandaloneEditorConstructionOptions
+        {
+            Language = Language,
+            Value = Value ?? string.Empty,
+            AutomaticLayout = true,
+            ReadOnly = ReadOnly,
+            Minimap = new EditorMinimapOptions { Enabled = false },
+            ScrollBeyondLastLine = false,
+            FontSize = 13
+        };
+
+    /// <summary>Returns the current editor content (falls back to the initial value if not yet initialised).</summary>
+    public async Task<string> GetValueAsync()
+        => editor is null ? (Value ?? string.Empty) : await editor.GetValue();
+
+    /// <summary>Switches the syntax highlighting language at runtime without losing the current text.</summary>
+    public async Task SetLanguageAsync(string languageId)
+    {
+        Language = languageId;
+        if (editor is null) return;
+        var model = await editor.GetModel();
+        if (model is not null) await Global.SetModelLanguage(model, languageId);
+    }
+}

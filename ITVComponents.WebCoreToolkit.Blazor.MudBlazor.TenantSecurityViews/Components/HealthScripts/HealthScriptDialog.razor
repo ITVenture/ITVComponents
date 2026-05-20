@@ -2,7 +2,12 @@
     <DialogContent>
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.HealthScriptName" Label="Name" Required="true" RequiredError="Name is required" MaxLength="128" />
-            <MudTextField @bind-Value="Model.Script" Label="Script" Lines="20" Required="true" RequiredError="Script is required" Variant="Variant.Outlined" Class="mt-3" />
+            <MudText Typo="Typo.caption" Class="mt-3" Color="@(scriptError ? Color.Error : Color.Default)">Script</MudText>
+            <CodeEditor @ref="scriptEditor" Value="@Model.Script" Language="javascript" Height="400" />
+            @if (scriptError)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Error">Script is required</MudText>
+            }
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -18,6 +23,8 @@
     [Parameter] public bool IsCreate { get; set; }
 
     private MudForm? form;
+    private CodeEditor? scriptEditor;
+    private bool scriptError;
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -25,7 +32,9 @@
     {
         if (form is null) return;
         await form.Validate();
-        if (!form.IsValid) return;
+        if (scriptEditor is not null) Model.Script = await scriptEditor.GetValueAsync();
+        scriptError = string.IsNullOrWhiteSpace(Model.Script);
+        if (!form.IsValid || scriptError) return;
         MudDialog.Close(DialogResult.Ok(Model));
     }
 }

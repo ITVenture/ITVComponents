@@ -1,0 +1,6 @@
+/* Monaco's StandaloneCodeEditor renders a child div with auto height, which collapses to ~5px.
+   Force it to fill the fixed-height host so AutomaticLayout measures the intended size. */
+.itv-code-editor-host ::deep > div {
+    height: 100%;
+    width: 100%;
+}

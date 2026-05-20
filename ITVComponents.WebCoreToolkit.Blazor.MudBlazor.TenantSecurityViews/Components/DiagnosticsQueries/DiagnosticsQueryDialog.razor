@@ -5,7 +5,14 @@
             <MudTextField @bind-Value="Model.DbContext" Label="DbContext" Required="true" RequiredError="DbContext is required" MaxLength="128" />
             <MudCheckBox @bind-Value="Model.AutoReturn" Label="Auto return" />
             <ForeignKeyAutocomplete T="int" Table="Permissions" @bind-Value="Model.PermissionId" Label="Required permission" />
-            <MudTextField @bind-Value="Model.QueryText" Label="Query text" Lines="10" Variant="Variant.Outlined" Class="mt-3" />
+            <div class="d-flex align-center justify-space-between mt-3">
+                <MudText Typo="Typo.caption">Query text</MudText>
+                <MudToggleGroup T="string" Value="@editorLanguage" ValueChanged="OnLanguageChanged" Size="Size.Small" Color="Color.Primary" CheckMark="false">
+                    <MudToggleItem Value="@("sql")" Text="SQL" />
+                    <MudToggleItem Value="@("csharp")" Text="C#" />
+                </MudToggleGroup>
+            </div>
+            <CodeEditor @ref="queryEditor" Value="@Model.QueryText" Language="@editorLanguage" Height="280" />
             <MudSelect T="int" MultiSelection="true"
                        SelectedValues="@selectedTenants"
                        SelectedValuesChanged="@OnTenantsChanged"
@@ -32,7 +39,15 @@
     [Parameter] public IReadOnlyList<TenantChoice> AllTenants { get; set; } = Array.Empty<TenantChoice>();
 
     private MudForm? form;
+    private CodeEditor? queryEditor;
+    private string editorLanguage = "sql";
     private IReadOnlyCollection<int> selectedTenants = Array.Empty<int>();
+
+    private async Task OnLanguageChanged(string language)
+    {
+        editorLanguage = language;
+        if (queryEditor is not null) await queryEditor.SetLanguageAsync(language);
+    }
 
     protected override void OnInitialized()
     {
@@ -53,6 +68,7 @@
         if (form is null) return;
         await form.Validate();
         if (!form.IsValid) return;
+        if (queryEditor is not null) Model.QueryText = await queryEditor.GetValueAsync();
         MudDialog.Close(DialogResult.Ok(Model));
     }
 }
