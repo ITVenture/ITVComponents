@@ -1,10 +1,12 @@
 using System.Security.Claims;
+using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,7 +37,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     where TRolePermission : RolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
     where TTenantUser : TenantUser<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>, new()
     where TNavigationMenu : NavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation>
-    where TTenantNavigation : TenantNavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation>
+    where TTenantNavigation : TenantNavigationMenu<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation>, new()
     where TQuery : DiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
     where TTenantQuery : TenantDiagnosticsQuery<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
     where TQueryParameter : DiagnosticsQueryParameter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TQuery, TQueryParameter, TTenantQuery>
@@ -62,8 +64,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     where TWebPluginConstant : WebPluginConstant<TTenant>
     where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
     where TSequence : Sequence<TTenant>
-    where TTenantSetting : TenantSetting<TTenant>
-    where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+    where TTenantSetting : TenantSetting<TTenant>, new()
+    where TTenantFeatureActivation : TenantFeatureActivation<TTenant>, new()
     where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
     where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
     where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -75,11 +77,13 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 {
     private readonly TContext db;
     private readonly IServiceProvider services;
+    private readonly ISecurityRepository securityRepository;
 
-    public TenantAdminHandler(TContext db, IServiceProvider services)
+    public TenantAdminHandler(TContext db, IServiceProvider services, ISecurityRepository securityRepository)
     {
         this.db = db;
         this.services = services;
+        this.securityRepository = securityRepository;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -92,7 +96,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         return new AdminContext
         {
             IsSysAdmin = sysAdmin,
-            CurrentTenantId = sysAdmin ? null : db.CurrentTenantId
+            CurrentTenantId = db.CurrentTenantId
         };
     }
 
@@ -219,6 +223,226 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         if (!assigned && existing != null)
         {
             db.TenantUsers.Remove(existing);
+            await db.SaveChangesAsync();
+            return true;
+        }
+
+        return true;
+    }
+
+    public async Task<PagedResult<TenantSettingViewModel>> ListSettingsAsync(ClaimsPrincipal user, int tenantId, ListQuery query)
+    {
+        if (!HasPermission(user, "Tenants.View", "Tenants.WriteSettings"))
+            return new PagedResult<TenantSettingViewModel>();
+        ApplyContextScope(IsSysAdmin());
+
+        var q = db.TenantSettings.AsNoTracking().Where(s => s.TenantId == tenantId);
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var s = query.Search.Trim();
+            q = q.Where(x => x.SettingsKey.Contains(s));
+        }
+        var total = await q.CountAsync();
+        var items = await q.OrderBy(s => s.SettingsKey)
+            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            .Select(s => new TenantSettingViewModel
+            {
+                TenantSettingId = s.TenantSettingId,
+                TenantId = s.TenantId,
+                SettingsKey = s.SettingsKey,
+                SettingsValue = s.SettingsValue,
+                JsonSetting = s.JsonSetting
+            })
+            .ToListAsync();
+        return new PagedResult<TenantSettingViewModel> { Items = items, TotalCount = total };
+    }
+
+    public async Task<TenantSettingViewModel?> CreateSettingAsync(ClaimsPrincipal user, int tenantId, TenantSettingViewModel input)
+    {
+        if (!HasPermission(user, "Tenants.WriteSettings")) return null;
+        ApplyContextScope(IsSysAdmin());
+
+        var value = await MaybeEncryptJsonAsync(tenantId, input.JsonSetting, input.SettingsValue);
+
+        var entity = new TTenantSetting
+        {
+            TenantId = tenantId,
+            SettingsKey = input.SettingsKey,
+            SettingsValue = value,
+            JsonSetting = input.JsonSetting
+        };
+        db.TenantSettings.Add(entity);
+        await db.SaveChangesAsync();
+        input.TenantSettingId = entity.TenantSettingId;
+        input.TenantId = tenantId;
+        input.SettingsValue = value;
+        return input;
+    }
+
+    public async Task<TenantSettingViewModel?> UpdateSettingAsync(ClaimsPrincipal user, TenantSettingViewModel input)
+    {
+        if (!HasPermission(user, "Tenants.WriteSettings")) return null;
+        ApplyContextScope(IsSysAdmin());
+
+        var entity = await db.TenantSettings.FirstOrDefaultAsync(s => s.TenantSettingId == input.TenantSettingId);
+        if (entity == null) return null;
+        entity.SettingsKey = input.SettingsKey;
+        entity.SettingsValue = await MaybeEncryptJsonAsync(entity.TenantId, input.JsonSetting, input.SettingsValue);
+        entity.JsonSetting = input.JsonSetting;
+        await db.SaveChangesAsync();
+        input.SettingsValue = entity.SettingsValue;
+        return input;
+    }
+
+    private async Task<string> MaybeEncryptJsonAsync(int tenantId, bool isJsonSetting, string raw)
+    {
+        if (!isJsonSetting || string.IsNullOrEmpty(raw)) return raw;
+        var tenantPassword = await db.Tenants.AsNoTracking()
+            .Where(t => t.TenantId == tenantId)
+            .Select(t => t.TenantPassword)
+            .FirstOrDefaultAsync();
+        // EncryptJsonValues uses the default encryptor when password is null/empty,
+        // matching Telerik TenantControllerStruct.CreateSetting / UpdateSetting behaviour.
+        return raw.EncryptJsonValues(tenantPassword);
+    }
+
+    public async Task<bool> DeleteSettingAsync(ClaimsPrincipal user, int tenantSettingId)
+    {
+        if (!HasPermission(user, "Tenants.WriteSettings")) return false;
+        ApplyContextScope(IsSysAdmin());
+
+        var entity = await db.TenantSettings.FirstOrDefaultAsync(s => s.TenantSettingId == tenantSettingId);
+        if (entity == null) return false;
+        db.TenantSettings.Remove(entity);
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<PagedResult<TenantFeatureActivationAssignmentViewModel>> ListFeatureActivationsForTenantAsync(
+        ClaimsPrincipal user, int tenantId, ListQuery query)
+    {
+        if (!HasPermission(user, "Sysadmin"))
+            return new PagedResult<TenantFeatureActivationAssignmentViewModel>();
+        ApplyContextScope(IsSysAdmin());
+
+        var q = from f in db.Features.AsNoTracking()
+                join a in db.TenantFeatureActivations.Where(x => x.TenantId == tenantId)
+                    on f.FeatureId equals a.FeatureId into aj
+                from act in aj.DefaultIfEmpty()
+                select new TenantFeatureActivationAssignmentViewModel
+                {
+                    TenantId = tenantId,
+                    FeatureId = f.FeatureId,
+                    FeatureName = f.FeatureName,
+                    Assigned = act != null,
+                    TenantFeatureActivationId = act != null ? (int?)act.TenantFeatureActivationId : null,
+                    ActivationStart = act != null ? act.ActivationStart : null,
+                    ActivationEnd = act != null ? act.ActivationEnd : null
+                };
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var s = query.Search.Trim();
+            q = q.Where(x => x.FeatureName.Contains(s));
+        }
+        var total = await q.CountAsync();
+        var items = await q.OrderBy(x => x.FeatureName)
+            .Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        return new PagedResult<TenantFeatureActivationAssignmentViewModel> { Items = items, TotalCount = total };
+    }
+
+    public async Task<bool> SetFeatureActivationForTenantAsync(
+        ClaimsPrincipal user, int tenantId, int featureId, bool assigned, DateTime? activationStart, DateTime? activationEnd)
+    {
+        if (!HasPermission(user, "Sysadmin")) return false;
+        ApplyContextScope(IsSysAdmin());
+
+        var existing = await db.TenantFeatureActivations
+            .FirstOrDefaultAsync(a => a.TenantId == tenantId && a.FeatureId == featureId);
+
+        if (assigned)
+        {
+            if (existing == null)
+            {
+                db.TenantFeatureActivations.Add(new TTenantFeatureActivation
+                {
+                    TenantId = tenantId,
+                    FeatureId = featureId,
+                    ActivationStart = activationStart,
+                    ActivationEnd = activationEnd
+                });
+            }
+            else
+            {
+                existing.ActivationStart = activationStart;
+                existing.ActivationEnd = activationEnd;
+            }
+            await db.SaveChangesAsync();
+            return true;
+        }
+
+        if (existing != null)
+        {
+            db.TenantFeatureActivations.Remove(existing);
+            await db.SaveChangesAsync();
+        }
+        return true;
+    }
+
+    public async Task<PagedResult<TenantNavigationAssignmentViewModel>> ListNavigationForTenantAsync(
+        ClaimsPrincipal user, int tenantId, ListQuery query)
+    {
+        if (!HasPermission(user, "Tenants.AssignNav", "Sysadmin"))
+            return new PagedResult<TenantNavigationAssignmentViewModel>();
+        ApplyContextScope(IsSysAdmin());
+
+        var q = from n in db.Navigation.AsNoTracking()
+                join tn in db.TenantNavigation.Where(x => x.TenantId == tenantId)
+                    on n.NavigationMenuId equals tn.NavigationMenuId into tnj
+                from t in tnj.DefaultIfEmpty()
+                select new TenantNavigationAssignmentViewModel
+                {
+                    TenantId = tenantId,
+                    NavigationMenuId = n.NavigationMenuId,
+                    DisplayName = n.DisplayName,
+                    Url = n.Url,
+                    Assigned = t != null
+                };
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var s = query.Search.Trim();
+            q = q.Where(x => x.DisplayName.Contains(s) || (x.Url != null && x.Url.Contains(s)));
+        }
+        var total = await q.CountAsync();
+        var items = await q.OrderBy(x => x.DisplayName)
+            .Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        return new PagedResult<TenantNavigationAssignmentViewModel> { Items = items, TotalCount = total };
+    }
+
+    public async Task<bool> SetNavigationForTenantAsync(
+        ClaimsPrincipal user, int tenantId, int navigationMenuId, bool assigned)
+    {
+        if (!HasPermission(user, "Tenants.AssignNav", "Sysadmin")) return false;
+        ApplyContextScope(IsSysAdmin());
+
+        var existing = await db.TenantNavigation
+            .FirstOrDefaultAsync(n => n.TenantId == tenantId && n.NavigationMenuId == navigationMenuId);
+
+        if (assigned && existing == null)
+        {
+            db.TenantNavigation.Add(new TTenantNavigation
+            {
+                TenantId = tenantId,
+                NavigationMenuId = navigationMenuId
+            });
+            await db.SaveChangesAsync();
+            return true;
+        }
+
+        if (!assigned && existing != null)
+        {
+            db.TenantNavigation.Remove(existing);
             await db.SaveChangesAsync();
             return true;
         }

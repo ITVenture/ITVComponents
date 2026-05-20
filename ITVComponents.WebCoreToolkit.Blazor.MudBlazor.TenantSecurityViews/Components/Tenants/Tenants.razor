@@ -55,13 +55,14 @@ else
             <PropertyColumn Property="x => x.TimeZone" Title="Time zone" />
             <TemplateColumn T="TenantViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
-                        <MudStack Row="true" Spacing="1">
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details" OnClick="@(() => OpenDetail(context.Item))" />
+                        @if (hasWrite)
+                        {
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
-                        </MudStack>
-                    }
+                        }
+                    </MudStack>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -159,5 +160,13 @@ else
         var success = await Handler.DeleteTenantAsync(currentUser!, tenant.TenantId);
         if (success) { Snackbar.Add("Tenant deleted", Severity.Success); await ReloadGrid(); }
         else Snackbar.Add("Failed to delete tenant", Severity.Error);
+    }
+
+    private async Task OpenDetail(TenantViewModel tenant)
+    {
+        var parameters = new DialogParameters<TenantDetailDialog> { { d => d.Tenant, tenant } };
+        var title = string.IsNullOrEmpty(tenant.DisplayName) ? $"Tenant: {tenant.TenantName}" : $"Tenant: {tenant.DisplayName}";
+        var dlg = await DialogService.ShowAsync<TenantDetailDialog>(title, parameters, EditDialogDefaults.Detail);
+        await dlg.Result;
     }
 }

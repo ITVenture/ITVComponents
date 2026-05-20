@@ -1,0 +1,105 @@
+@page "/Util/Cultures"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IDbResourceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Cultures</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Cultures</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view cultures.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="CultureViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="50"
+                 Hover="true" Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.h6">Cultures</MudText>
+            <MudSpacer />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">Add culture</MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" />
+            <TemplateColumn T="CultureViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent><MudDataGridPager T="CultureViewModel" /></PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<CultureViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView, hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "DbCultures.View", "DbCultures.Write");
+        hasWrite = Handler.HasPermission(currentUser, "DbCultures.Write");
+    }
+
+    private async Task<GridData<CultureViewModel>> LoadData(GridState<CultureViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView) return new GridData<CultureViewModel>();
+        var result = await Handler.ListCulturesAsync(currentUser, new ListQuery { Page = state.Page, PageSize = state.PageSize });
+        return new GridData<CultureViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var p = new DialogParameters<CultureDialog> { { d => d.Model, new CultureViewModel() }, { d => d.IsCreate, true } };
+        var dlg = await DialogService.ShowAsync<CultureDialog>("Create culture", p, EditDialogDefaults.Edit);
+        var r = await dlg.Result;
+        if (r is { Canceled: false, Data: CultureViewModel m } && await Handler.CreateCultureAsync(currentUser!, m) != null)
+        { Snackbar.Add("Culture created", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+    }
+
+    private async Task OpenEdit(CultureViewModel item)
+    {
+        var p = new DialogParameters<CultureDialog> { { d => d.Model, new CultureViewModel { CultureId = item.CultureId, Name = item.Name } }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<CultureDialog>("Edit culture", p, EditDialogDefaults.Edit);
+        var r = await dlg.Result;
+        if (r is { Canceled: false, Data: CultureViewModel m } && await Handler.UpdateCultureAsync(currentUser!, m) != null)
+        { Snackbar.Add("Culture updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+    }
+
+    private async Task Delete(CultureViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete culture", $"Really delete '{item.Name}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        if (await Handler.DeleteCultureAsync(currentUser!, item.CultureId))
+        { Snackbar.Add("Culture deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

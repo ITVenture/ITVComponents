@@ -1,0 +1,155 @@
+@page "/Security/GlobalRoles"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IGlobalRoleAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Global roles</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Global roles</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view global roles.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="GlobalRoleViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
+            <MudText Typo="Typo.h6">Global roles</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add global role
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="GlobalRoleViewModel" />
+            <PropertyColumn Property="x => x.RoleName" Title="Name" />
+            <PropertyColumn Property="x => x.RoleDescription" Title="Description" />
+            <TemplateColumn T="GlobalRoleViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <MudTabs Elevation="0" Rounded="true">
+                    <MudTabPanel Text="Permissions">
+                        <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.PermissionsForGlobalRoleGrid
+                            GlobalRoleId="@context.Item.GlobalRoleId" />
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="GlobalRoleViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<GlobalRoleViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "GlobalRoles.View", "GlobalRoles.Write", "Sysadmin");
+        hasWrite = Handler.HasPermission(currentUser, "GlobalRoles.Write", "Sysadmin");
+    }
+
+    private async Task<GridData<GlobalRoleViewModel>> LoadData(GridState<GlobalRoleViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<GlobalRoleViewModel> { Items = Array.Empty<GlobalRoleViewModel>(), TotalItems = 0 };
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+        var result = await Handler.ListAsync(currentUser, query);
+        return new GridData<GlobalRoleViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<GlobalRoleDialog> { { d => d.Model, new GlobalRoleViewModel() }, { d => d.IsCreate, true } };
+        var dlg = await DialogService.ShowAsync<GlobalRoleDialog>("Create global role", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: GlobalRoleViewModel input })
+        {
+            var created = await Handler.CreateAsync(currentUser!, input);
+            if (created != null) { Snackbar.Add("Global role created", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(GlobalRoleViewModel item)
+    {
+        var copy = new GlobalRoleViewModel { GlobalRoleId = item.GlobalRoleId, RoleName = item.RoleName, RoleDescription = item.RoleDescription };
+        var parameters = new DialogParameters<GlobalRoleDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<GlobalRoleDialog>("Edit global role", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: GlobalRoleViewModel input })
+        {
+            var updated = await Handler.UpdateAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Global role updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(GlobalRoleViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete global role", $"Really delete '{item.RoleName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteAsync(currentUser!, item.GlobalRoleId);
+        if (success) { Snackbar.Add("Global role deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

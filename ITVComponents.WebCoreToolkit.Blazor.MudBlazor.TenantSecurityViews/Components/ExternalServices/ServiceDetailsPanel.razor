@@ -1,0 +1,114 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
+
+@inject IExternalServiceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (details is null)
+{
+    <MudAlert Severity="Severity.Warning">Service details unavailable.</MudAlert>
+}
+else
+{
+    <MudSimpleTable Dense="true" Hover="true" Style="max-width: 800px;">
+        <thead>
+            <tr><th>Parameter</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Unique connection name</td><td>@details.UniqueConnectionName</td></tr>
+            <tr><td>Authentication type</td><td>@details.AuthenticationType</td></tr>
+            <tr><td>Global</td><td>@details.Global</td></tr>
+            @if (details.AuthenticationType is ExternalServiceAuthenticationType.OAuthAuthorizationFlow
+                or ExternalServiceAuthenticationType.OAuthClientCredentialsFlow
+                or ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow)
+            {
+                <tr><td>Authorization endpoint</td><td>@details.AuthorizationEndpoint</td></tr>
+                <tr><td>Token endpoint</td><td>@details.TokenEndpoint</td></tr>
+                <tr><td>Revocation endpoint</td><td>@details.RevocationEndpoint</td></tr>
+                <tr><td>Client ID</td><td>@details.ClientId</td></tr>
+                <tr><td>Scope</td><td>@details.Scope</td></tr>
+            }
+            else if (details.AuthenticationType == ExternalServiceAuthenticationType.ApiKey)
+            {
+                <tr><td>API key header</td><td>@details.ClientId</td></tr>
+            }
+            else if (details.AuthenticationType == ExternalServiceAuthenticationType.Basic)
+            {
+                <tr><td>Username</td><td>@details.ClientId</td></tr>
+            }
+            <tr><td>Redirect URI</td><td><code>@details.RedirectUri</code></td></tr>
+            <tr><td>Connection status</td>
+                <td>
+                    @if (details.IsConnected)
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">Connected</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Not connected</MudChip>
+                    }
+                </td>
+            </tr>
+        </tbody>
+    </MudSimpleTable>
+
+    @if (details.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
+    {
+        <MudStack Row="true" Class="mt-3" Spacing="2">
+            @if (!details.IsConnected)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Link" Color="Color.Primary" Variant="Variant.Filled" OnClick="StartAuthorizeFlow">
+                    Start authorize flow
+                </MudButton>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2"><em>To revoke this connection, open the Tenant logins tab.</em></MudText>
+            }
+        </MudStack>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public int OAuthServiceId { get; set; }
+
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private ExternalServiceDetailsViewModel? details;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        details = await Handler.GetDetailsAsync(currentUser, OAuthServiceId);
+        loading = false;
+    }
+
+    private void StartAuthorizeFlow()
+    {
+        if (details is null) return;
+        if (string.IsNullOrEmpty(details.AuthorizationEndpoint))
+        {
+            Snackbar.Add("No authorization endpoint configured", Severity.Error);
+            return;
+        }
+        var redirectAbsolute = new Uri(new Uri(Navigation.BaseUri), details.RedirectUri.TrimStart('/')).ToString();
+        var queryParams = new Dictionary<string, string?>
+        {
+            ["client_id"] = details.ClientId ?? string.Empty,
+            ["redirect_uri"] = redirectAbsolute,
+            ["response_type"] = "code",
+            ["scope"] = details.Scope ?? string.Empty,
+            ["state"] = $"svc_{details.OAuthServiceId}"
+        };
+        var authorizeUrl = QueryHelpers.AddQueryString(details.AuthorizationEndpoint, queryParams);
+        Navigation.NavigateTo(authorizeUrl, forceLoad: true);
+    }
+}

@@ -1,0 +1,98 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IDbResourceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view strings.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="LocalizationStringViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="25" Hover="true" Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Strings</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search" Placeholder="Search…" DebounceInterval="300" OnDebounceIntervalElapsed="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Class="mt-0" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">Add string</MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.LocalizationKey" Title="Key" />
+            <PropertyColumn Property="x => x.LocalizationValue" Title="Value" />
+            <TemplateColumn T="LocalizationStringViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent><MudDataGridPager T="LocalizationStringViewModel" /></PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int LocalizationCultureId { get; set; }
+
+    private MudDataGrid<LocalizationStringViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView, hasWrite;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "DbResources.View", "DbResources.Write");
+        hasWrite = Handler.HasPermission(currentUser, "DbResources.Write");
+    }
+
+    private async Task<GridData<LocalizationStringViewModel>> LoadData(GridState<LocalizationStringViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView) return new GridData<LocalizationStringViewModel>();
+        var result = await Handler.ListStringsAsync(currentUser, LocalizationCultureId, new ListQuery { Page = state.Page, PageSize = state.PageSize, Search = search });
+        return new GridData<LocalizationStringViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var p = new DialogParameters<LocalizationStringDialog> { { d => d.Model, new LocalizationStringViewModel { LocalizationCultureId = LocalizationCultureId } }, { d => d.IsCreate, true } };
+        var dlg = await DialogService.ShowAsync<LocalizationStringDialog>("Create string", p, EditDialogDefaults.Edit);
+        var r = await dlg.Result;
+        if (r is { Canceled: false, Data: LocalizationStringViewModel m } && await Handler.CreateStringAsync(currentUser!, LocalizationCultureId, m) != null)
+        { Snackbar.Add("String created", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+    }
+
+    private async Task OpenEdit(LocalizationStringViewModel item)
+    {
+        var copy = new LocalizationStringViewModel { LocalizationStringId = item.LocalizationStringId, LocalizationCultureId = item.LocalizationCultureId, LocalizationKey = item.LocalizationKey, LocalizationValue = item.LocalizationValue };
+        var p = new DialogParameters<LocalizationStringDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<LocalizationStringDialog>("Edit string", p, EditDialogDefaults.Edit);
+        var r = await dlg.Result;
+        if (r is { Canceled: false, Data: LocalizationStringViewModel m } && await Handler.UpdateStringAsync(currentUser!, m) != null)
+        { Snackbar.Add("String updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+    }
+
+    private async Task Delete(LocalizationStringViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete string", $"Really delete '{item.LocalizationKey}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        if (await Handler.DeleteStringAsync(currentUser!, item.LocalizationStringId))
+        { Snackbar.Add("String deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

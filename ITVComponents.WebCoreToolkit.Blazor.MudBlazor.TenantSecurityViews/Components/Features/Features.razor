@@ -50,6 +50,7 @@ else
             }
         </ToolBarContent>
         <Columns>
+            <HierarchyColumn T="FeatureViewModel" />
             <PropertyColumn Property="x => x.FeatureName" Title="Name" />
             <PropertyColumn Property="x => x.FeatureDescription" Title="Description" />
             <PropertyColumn Property="x => x.Enabled" Title="Enabled" />
@@ -65,6 +66,18 @@ else
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <MudTabs Elevation="0" Rounded="true">
+                    <MudTabPanel Text="Modules">
+                        <TemplateModulesGrid FeatureId="@context.Item.FeatureId" />
+                    </MudTabPanel>
+                    <MudTabPanel Text="Tenant activations">
+                        <FeatureActivationsGrid FeatureId="@context.Item.FeatureId" />
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </ChildRowContent>
         <PagerContent>
             <MudDataGridPager T="FeatureViewModel" />
         </PagerContent>

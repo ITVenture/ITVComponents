@@ -1,0 +1,125 @@
+@*
+    Renders a Scriban template (loaded from configuration / DB) against a data payload, and
+    forwards click-actions to .NET via a JS click-delegation helper.
+
+    Consumer setup: include the JS helper once in the host page's <head> or before </body>:
+        <script src="_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor/widget-actions.js"></script>
+
+    Template authoring (templates are trusted — Sysadmin / Tenant-Admin authored, rendered as raw HTML):
+        <div class="card">
+            <h3>{{ title }}</h3>
+            {% for row in rows %}
+              <button data-widget-action="drill" data-widget-arg="{{ row.id }}">{{ row.name }}</button>
+            {% endfor %}
+        </div>
+*@
+@using Microsoft.AspNetCore.Components
+@using Scriban
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div @ref="hostElement">
+    @((MarkupString)renderedHtml)
+</div>
+
+@code {
+    /// <summary>
+    /// Scriban template source. Templates are assumed to come from trusted authors (Sysadmins /
+    /// Tenant-Admins) — the output is rendered as raw HTML via <c>MarkupString</c>, no extra
+    /// HTML-encoding is applied. Use Scriban's <c>{{ value | html.escape }}</c> filter inside the
+    /// template if a specific value needs to be encoded.
+    /// </summary>
+    [Parameter, EditorRequired] public string TemplateSource { get; set; } = "";
+
+    /// <summary>
+    /// Data object exposed to the template as the model root. Properties are addressed as
+    /// <c>{{ property_name }}</c> (Scriban converts PascalCase to snake_case by default;
+    /// use the <c>MemberRenamer</c> on <see cref="ScribanContextFactory"/> to override).
+    /// </summary>
+    [Parameter] public object? Data { get; set; }
+
+    /// <summary>
+    /// Fired when a template element with <c>data-widget-action</c> is clicked. The action name
+    /// comes from that attribute, the optional argument from <c>data-widget-arg</c>.
+    /// </summary>
+    [Parameter] public EventCallback<WidgetAction> OnAction { get; set; }
+
+    /// <summary>
+    /// Optional callback invoked when the template fails to parse / render. If null the rendered
+    /// HTML falls back to a small error placeholder so the rest of the dashboard keeps working.
+    /// </summary>
+    [Parameter] public EventCallback<Exception> OnRenderError { get; set; }
+
+    private ElementReference hostElement;
+    private string renderedHtml = "";
+    private DotNetObjectReference<WidgetRenderer>? selfRef;
+    private string? lastTemplateSource;
+    private object? lastData;
+
+    protected override void OnParametersSet()
+    {
+        // Avoid recompiling the template on every parameter set — only when source/data actually change.
+        if (ReferenceEquals(lastTemplateSource, TemplateSource) && ReferenceEquals(lastData, Data)) return;
+        lastTemplateSource = TemplateSource;
+        lastData = Data;
+        Render();
+    }
+
+    private void Render()
+    {
+        if (string.IsNullOrEmpty(TemplateSource))
+        {
+            renderedHtml = "";
+            return;
+        }
+
+        try
+        {
+            var template = Template.Parse(TemplateSource);
+            if (template.HasErrors)
+            {
+                renderedHtml = $"<div class=\"mud-alert mud-alert-text-warning\">Template parse error: {string.Join("; ", template.Messages)}</div>";
+                return;
+            }
+            renderedHtml = template.Render(Data ?? new { }, member => member.Name);
+        }
+        catch (Exception ex)
+        {
+            if (OnRenderError.HasDelegate)
+            {
+                _ = OnRenderError.InvokeAsync(ex);
+            }
+            renderedHtml = $"<div class=\"mud-alert mud-alert-text-error\">Widget render failed: {System.Net.WebUtility.HtmlEncode(ex.Message)}</div>";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            selfRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("itvWidgets.attachActions", hostElement, selfRef);
+            }
+            catch (JSDisconnectedException) { /* circuit gone — nothing to clean up */ }
+        }
+    }
+
+    [JSInvokable]
+    public Task InvokeAction(string action, string? arg)
+        => OnAction.HasDelegate ? OnAction.InvokeAsync(new WidgetAction(action, arg)) : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("itvWidgets.detachActions", hostElement);
+        }
+        catch (JSDisconnectedException) { /* circuit gone */ }
+        catch (Exception) { /* element already detached */ }
+
+        selfRef?.Dispose();
+    }
+}

@@ -1,0 +1,127 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject ITenantAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">Sysadmin permission required to view feature activations.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="TenantFeatureActivationAssignmentViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Feature activations</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search" Placeholder="Search…" DebounceInterval="300" OnDebounceIntervalElapsed="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Class="mt-0" />
+        </ToolBarContent>
+        <Columns>
+            <TemplateColumn T="TenantFeatureActivationAssignmentViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudCheckBox T="bool"
+                                 Value="context.Item.Assigned"
+                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.FeatureName" Title="Feature" />
+            <TemplateColumn T="TenantFeatureActivationAssignmentViewModel" Title="Start" Sortable="false">
+                <CellTemplate>
+                    @if (context.Item.Assigned)
+                    {
+                        <MudDatePicker Date="@context.Item.ActivationStart"
+                                       DateChanged="@(d => UpdateRange(context.Item, d, context.Item.ActivationEnd))"
+                                       Editable="true"
+                                       Clearable="true"
+                                       Variant="Variant.Text" />
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2">@context.Item.ActivationStart?.ToString("yyyy-MM-dd")</MudText>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="TenantFeatureActivationAssignmentViewModel" Title="End" Sortable="false">
+                <CellTemplate>
+                    @if (context.Item.Assigned)
+                    {
+                        <MudDatePicker Date="@context.Item.ActivationEnd"
+                                       DateChanged="@(d => UpdateRange(context.Item, context.Item.ActivationStart, d))"
+                                       Editable="true"
+                                       Clearable="true"
+                                       Variant="Variant.Text" />
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2">@context.Item.ActivationEnd?.ToString("yyyy-MM-dd")</MudText>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent><MudDataGridPager T="TenantFeatureActivationAssignmentViewModel" /></PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int TenantId { get; set; }
+
+    private MudDataGrid<TenantFeatureActivationAssignmentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Sysadmin");
+    }
+
+    private async Task<GridData<TenantFeatureActivationAssignmentViewModel>> LoadData(GridState<TenantFeatureActivationAssignmentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView) return new GridData<TenantFeatureActivationAssignmentViewModel>();
+        var result = await Handler.ListFeatureActivationsForTenantAsync(currentUser, TenantId, new ListQuery { Page = state.Page, PageSize = state.PageSize, Search = search });
+        return new GridData<TenantFeatureActivationAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(TenantFeatureActivationAssignmentViewModel item, bool newValue)
+    {
+        if (currentUser is null || !hasView) return;
+        var ok = await Handler.SetFeatureActivationForTenantAsync(currentUser, TenantId, item.FeatureId, newValue, item.ActivationStart, item.ActivationEnd);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Feature activated" : "Feature deactivated", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update activation", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+
+    private async Task UpdateRange(TenantFeatureActivationAssignmentViewModel item, DateTime? start, DateTime? end)
+    {
+        if (currentUser is null || !hasView || !item.Assigned) return;
+        if (item.ActivationStart == start && item.ActivationEnd == end) return;
+        item.ActivationStart = start;
+        item.ActivationEnd = end;
+        var ok = await Handler.SetFeatureActivationForTenantAsync(currentUser, TenantId, item.FeatureId, true, start, end);
+        if (ok)
+        {
+            Snackbar.Add("Activation period updated", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update activation period", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

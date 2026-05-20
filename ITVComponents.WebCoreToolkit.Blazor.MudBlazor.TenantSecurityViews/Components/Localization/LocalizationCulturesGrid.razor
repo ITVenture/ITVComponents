@@ -1,0 +1,89 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IDbResourceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view cultures for this resource.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="LocalizationCultureViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10" Hover="true" Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Cultures</MudText>
+            <MudSpacer />
+            @if (hasWrite)
+            {
+                <MudNumericField @bind-Value="newCultureId" Label="Culture ID" Style="max-width: 140px;" />
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="AddCulture">Add culture</MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="LocalizationCultureViewModel" />
+            <PropertyColumn Property="x => x.CultureName" Title="Culture" />
+            <TemplateColumn T="LocalizationCultureViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <LocalizationStringsGrid LocalizationCultureId="@context.Item.LocalizationCultureId" />
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent><MudDataGridPager T="LocalizationCultureViewModel" /></PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int LocalizationId { get; set; }
+
+    private MudDataGrid<LocalizationCultureViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView, hasWrite;
+    private int newCultureId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "DbResources.View", "DbResources.Write");
+        hasWrite = Handler.HasPermission(currentUser, "DbResources.Write");
+    }
+
+    private async Task<GridData<LocalizationCultureViewModel>> LoadData(GridState<LocalizationCultureViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView) return new GridData<LocalizationCultureViewModel>();
+        var result = await Handler.ListLocalizationCulturesAsync(currentUser, LocalizationId, new ListQuery { Page = state.Page, PageSize = state.PageSize });
+        return new GridData<LocalizationCultureViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task AddCulture()
+    {
+        if (newCultureId <= 0) { Snackbar.Add("Enter a valid culture ID", Severity.Warning); return; }
+        if (await Handler.CreateLocalizationCultureAsync(currentUser!, LocalizationId, new LocalizationCultureViewModel { CultureId = newCultureId }) != null)
+        { Snackbar.Add("Culture added", Severity.Success); newCultureId = 0; if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to add culture", Severity.Error);
+    }
+
+    private async Task Delete(LocalizationCultureViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Remove culture", $"Remove culture '{item.CultureName}' from this resource?", yesText: "Remove", cancelText: "Cancel");
+        if (ok != true) return;
+        if (await Handler.DeleteLocalizationCultureAsync(currentUser!, item.LocalizationCultureId))
+        { Snackbar.Add("Culture removed", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to remove", Severity.Error);
+    }
+}

@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;

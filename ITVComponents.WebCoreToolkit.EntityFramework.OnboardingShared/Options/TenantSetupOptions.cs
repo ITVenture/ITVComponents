@@ -1,7 +1,10 @@
-﻿using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.Configuration;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Options
+namespace ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Options
 {
+    /// <summary>
+    /// Provider-agnostic options for the tenant onboarding flow.
+    /// </summary>
     [SettingName("TenantSetup")]
     public class TenantSetupOptions
     {

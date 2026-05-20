@@ -1,0 +1,88 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IExternalServiceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudStack Row="true" Spacing="2" Class="mb-2">
+                <MudSelect T="string" @bind-Value="Model.Verb" Label="HTTP verb" Style="max-width: 140px;">
+                    @foreach (var verb in HttpVerbs)
+                    {
+                        <MudSelectItem Value="@verb">@verb</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudTextField @bind-Value="Model.TargetUrl" Label="Target URL" Required="true" />
+            </MudStack>
+            <MudTextField @bind-Value="Model.ActionBodyContentType" Label="Body content type" Class="mb-2" />
+            <MudTextField @bind-Value="Model.HttpActionBody" Label="Body" Lines="4" Class="mb-2" />
+            <MudTextField @bind-Value="Model.CustomHeaders"
+                          Label="Custom headers (Name: Value; Name: Value)"
+                          HelperText="Semicolon-separated. e.g. 'Accept: application/json; X-Tenant: 42'" />
+        </MudForm>
+
+        @if (result is not null)
+        {
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle2">Result</MudText>
+            <MudStack Row="true" Class="mb-2" Spacing="2">
+                <MudChip T="string" Color="@(result.IsSuccess ? Color.Success : Color.Error)" Size="Size.Small">
+                    @result.StatusCode (@(result.IsSuccess ? "OK" : "Failed"))
+                </MudChip>
+                @if (!string.IsNullOrEmpty(result.ErrorMessage))
+                {
+                    <MudText Color="Color.Error">@result.ErrorMessage</MudText>
+                }
+            </MudStack>
+            <MudPaper Class="pa-2" Style="max-height: 300px; overflow: auto; background: var(--mud-palette-background-grey);">
+                <pre style="white-space: pre-wrap; word-break: break-word; margin: 0;">@result.Content</pre>
+            </MudPaper>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Send" Disabled="sending" StartIcon="@Icons.Material.Filled.PlayArrow">
+            @(sending ? "Sending…" : "Send")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public int OAuthServiceId { get; set; }
+
+    private MudForm? form;
+    private ExternalServiceTestRequestViewModel Model { get; set; } = new();
+    private ExternalServiceTestResultViewModel? result;
+    private bool sending;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    private static readonly string[] HttpVerbs = new[] { "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        Model.OAuthServiceId = OAuthServiceId;
+    }
+
+    private async Task Send()
+    {
+        if (form is null || currentUser is null) return;
+        await form.Validate();
+        if (!form.IsValid) { Snackbar.Add("Please correct invalid fields", Severity.Warning); return; }
+        sending = true;
+        try
+        {
+            result = await Handler.PerformTestAsync(currentUser, Model);
+        }
+        finally
+        {
+            sending = false;
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+}

@@ -4,7 +4,7 @@
     <LangVersion>9</LangVersion>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE026</Version>
+    <Version>5.0.0-PRE031</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <!--RazorCompileOnBuild>true</RazorCompileOnBuild>

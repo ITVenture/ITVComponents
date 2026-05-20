@@ -8,6 +8,7 @@ using ITVComponents.EFRepo.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,14 @@ using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
 {
+    /// <summary>
+    /// Reference implementation showing how a consumer should derive its own DbContext
+    /// from <see cref="AspNetSecurityContext{TContext}"/> and implement
+    /// <see cref="ISecurityContextWithOnboarding"/>. Note the <c>ConfigureExpressionProperty</c>
+    /// calls in the runtime constructor — those are required so the global filters in
+    /// <see cref="ModelBuilderExtensions.ConfigureDefaultFilters{TContext}"/> can resolve
+    /// <c>UserId</c> and <c>UserMail</c> at query time.
+    /// </summary>
     internal class fubar:AspNetSecurityContext<fubar>, ISecurityContextWithOnboarding
     {
         private string currentUserId;
@@ -42,6 +51,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
         public DbSet<CompanyInfo> Companies { get; set; }
         public DbSet<Employee> Employees { get; set; }
         public DbSet<EmployeeRole> EmployeeRoles { get; set; }
+        public DbSet<Plan> Plans { get; set; }
+        public DbSet<TenantSubscription> TenantSubscriptions { get; set; }
 
         private string GetUserId()
         {

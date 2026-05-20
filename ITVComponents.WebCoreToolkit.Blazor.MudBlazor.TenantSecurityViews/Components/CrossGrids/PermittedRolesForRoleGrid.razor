@@ -1,0 +1,85 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IRoleAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view role inheritance.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="RoleRoleAssignmentViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Permitted roles</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <TemplateColumn T="RoleRoleAssignmentViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudCheckBox T="bool"
+                                 Value="context.Item.Assigned"
+                                 Disabled="!hasWrite"
+                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.RoleName" Title="Role" />
+            <PropertyColumn Property="x => x.IsSystemRole" Title="System" />
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="RoleRoleAssignmentViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int PermissiveRoleId { get; set; }
+    [Parameter, EditorRequired] public int TenantId { get; set; }
+
+    private MudDataGrid<RoleRoleAssignmentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Roles.AssignRole", "Roles.View");
+        hasWrite = Handler.HasPermission(currentUser, "Roles.AssignRole");
+    }
+
+    private async Task<GridData<RoleRoleAssignmentViewModel>> LoadData(GridState<RoleRoleAssignmentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<RoleRoleAssignmentViewModel> { Items = Array.Empty<RoleRoleAssignmentViewModel>(), TotalItems = 0 };
+
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListPermittedRolesForRoleAsync(currentUser, PermissiveRoleId, TenantId, query);
+        return new GridData<RoleRoleAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(RoleRoleAssignmentViewModel item, bool newValue)
+    {
+        if (!hasWrite || currentUser is null) return;
+        var ok = await Handler.SetPermittedRoleForRoleAsync(currentUser, PermissiveRoleId, item.PermittedRoleId, TenantId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Role inheritance set" : "Role inheritance removed", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update inheritance (cyclic?)", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

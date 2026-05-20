@@ -1,6 +1,7 @@
 ﻿using ITVComponents.WebCoreToolkit.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -17,5 +18,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
         DbSet<Employee> Employees { get; set; }
 
         DbSet<EmployeeRole> EmployeeRoles { get; set; }
+
+        DbSet<Plan> Plans { get; set; }
+
+        DbSet<TenantSubscription> TenantSubscriptions { get; set; }
     }
 }

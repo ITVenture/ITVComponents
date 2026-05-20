@@ -3,6 +3,13 @@ using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
 
 namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers;
 
+public enum NavigationMoveAnchor
+{
+    Above,
+    Into,
+    Below
+}
+
 public interface INavigationAdminHandler
 {
     bool HasPermission(ClaimsPrincipal user, params string[] permissions);
@@ -14,4 +21,6 @@ public interface INavigationAdminHandler
 
     Task<IReadOnlyList<NavigationParentChoice>> ListAllNavigationItemsAsync(ClaimsPrincipal user);
     Task<IReadOnlyList<TenantChoice>> ListAllTenantsAsync(ClaimsPrincipal user);
+
+    Task<bool> MoveAsync(ClaimsPrincipal user, int draggedItemId, int? anchorItemId, NavigationMoveAnchor anchor);
 }

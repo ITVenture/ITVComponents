@@ -1,0 +1,119 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IFeatureActivationAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">Sysadmin permission required.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="FeatureActivationViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Tenant activations</MudText>
+            <MudSpacer />
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
+                Activate for tenant
+            </MudButton>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.TenantId" Title="Tenant ID" />
+            <PropertyColumn Property="x => x.TenantDisplayName" Title="Tenant" />
+            <PropertyColumn Property="x => x.ActivationStart" Title="Start" />
+            <PropertyColumn Property="x => x.ActivationEnd" Title="End" />
+            <TemplateColumn T="FeatureActivationViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="FeatureActivationViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int FeatureId { get; set; }
+
+    private MudDataGrid<FeatureActivationViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Sysadmin");
+    }
+
+    private async Task<GridData<FeatureActivationViewModel>> LoadData(GridState<FeatureActivationViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<FeatureActivationViewModel> { Items = Array.Empty<FeatureActivationViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListActivationsAsync(currentUser, FeatureId, query);
+        return new GridData<FeatureActivationViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<FeatureActivationDialog>
+        {
+            { d => d.Model, new FeatureActivationViewModel { FeatureId = FeatureId } },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<FeatureActivationDialog>("Activate feature for tenant", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: FeatureActivationViewModel input })
+        {
+            var created = await Handler.CreateActivationAsync(currentUser!, input);
+            if (created != null) { Snackbar.Add("Activation created", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to create activation", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(FeatureActivationViewModel item)
+    {
+        var copy = new FeatureActivationViewModel
+        {
+            TenantFeatureActivationId = item.TenantFeatureActivationId,
+            FeatureId = item.FeatureId,
+            TenantId = item.TenantId,
+            TenantDisplayName = item.TenantDisplayName,
+            ActivationStart = item.ActivationStart,
+            ActivationEnd = item.ActivationEnd
+        };
+        var parameters = new DialogParameters<FeatureActivationDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<FeatureActivationDialog>("Edit activation", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: FeatureActivationViewModel input })
+        {
+            var updated = await Handler.UpdateActivationAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Activation updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to update activation", Severity.Error);
+        }
+    }
+
+    private async Task Delete(FeatureActivationViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete activation", $"Really revoke activation for tenant '{item.TenantDisplayName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteActivationAsync(currentUser!, item.TenantFeatureActivationId);
+        if (success) { Snackbar.Add("Activation deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete activation", Severity.Error);
+    }
+}

@@ -23,4 +23,9 @@ public interface IRoleAdminHandler
         ClaimsPrincipal user, int roleId, int tenantId, ListQuery query);
     Task<bool> SetPermissionAssignmentForRoleAsync(
         ClaimsPrincipal user, int roleId, int permissionId, int tenantId, bool assigned);
+
+    Task<PagedResult<RoleRoleAssignmentViewModel>> ListPermittedRolesForRoleAsync(
+        ClaimsPrincipal user, int permissiveRoleId, int tenantId, ListQuery query);
+    Task<bool> SetPermittedRoleForRoleAsync(
+        ClaimsPrincipal user, int permissiveRoleId, int permittedRoleId, int tenantId, bool assigned);
 }

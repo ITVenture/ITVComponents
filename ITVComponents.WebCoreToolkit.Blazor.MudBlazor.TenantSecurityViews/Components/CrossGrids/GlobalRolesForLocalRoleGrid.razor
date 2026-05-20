@@ -1,0 +1,82 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IGlobalRoleAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view global-role assignments.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="GlobalRoleForLocalRoleAssignmentViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Global roles</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <TemplateColumn T="GlobalRoleForLocalRoleAssignmentViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudCheckBox T="bool"
+                                 Value="context.Item.Assigned"
+                                 Disabled="!hasWrite"
+                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.RoleName" Title="Global role" />
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="GlobalRoleForLocalRoleAssignmentViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int LocalRoleId { get; set; }
+
+    private MudDataGrid<GlobalRoleForLocalRoleAssignmentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "GlobalRoles.View", "GlobalRoles.AssignRole", "Sysadmin");
+        hasWrite = Handler.HasPermission(currentUser, "GlobalRoles.AssignRole", "Sysadmin");
+    }
+
+    private async Task<GridData<GlobalRoleForLocalRoleAssignmentViewModel>> LoadData(GridState<GlobalRoleForLocalRoleAssignmentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<GlobalRoleForLocalRoleAssignmentViewModel> { Items = Array.Empty<GlobalRoleForLocalRoleAssignmentViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListGlobalRolesForLocalRoleAsync(currentUser, LocalRoleId, query);
+        return new GridData<GlobalRoleForLocalRoleAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(GlobalRoleForLocalRoleAssignmentViewModel item, bool newValue)
+    {
+        if (!hasWrite || currentUser is null) return;
+        var ok = await Handler.SetGlobalRoleForLocalRoleAsync(currentUser, item.GlobalRoleId, LocalRoleId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Global role assigned" : "Global role unassigned", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update assignment", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

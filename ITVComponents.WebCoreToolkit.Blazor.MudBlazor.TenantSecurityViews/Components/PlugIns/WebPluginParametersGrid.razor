@@ -1,0 +1,123 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IPlugInAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view plugin parameters.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="WebPluginGenericParameterViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Generic parameters</MudText>
+            <MudSpacer />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
+                    Add parameter
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.GenericTypeName" Title="Generic type" />
+            <PropertyColumn Property="x => x.TypeExpression" Title="Expression" />
+            <TemplateColumn T="WebPluginGenericParameterViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="WebPluginGenericParameterViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int WebPluginId { get; set; }
+
+    private MudDataGrid<WebPluginGenericParameterViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "PlugIns.View", "PlugIns.Write");
+        hasWrite = Handler.HasPermission(currentUser, "PlugIns.Write");
+    }
+
+    private async Task<GridData<WebPluginGenericParameterViewModel>> LoadData(GridState<WebPluginGenericParameterViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<WebPluginGenericParameterViewModel> { Items = Array.Empty<WebPluginGenericParameterViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListPluginParametersAsync(currentUser, WebPluginId, query);
+        return new GridData<WebPluginGenericParameterViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<WebPluginGenericParameterDialog>
+        {
+            { d => d.Model, new WebPluginGenericParameterViewModel { WebPluginId = WebPluginId } },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<WebPluginGenericParameterDialog>("Create parameter", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: WebPluginGenericParameterViewModel input })
+        {
+            var created = await Handler.CreatePluginParameterAsync(currentUser!, WebPluginId, input);
+            if (created != null) { Snackbar.Add("Parameter created", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(WebPluginGenericParameterViewModel item)
+    {
+        var copy = new WebPluginGenericParameterViewModel
+        {
+            WebPluginGenericParameterId = item.WebPluginGenericParameterId,
+            WebPluginId = item.WebPluginId,
+            GenericTypeName = item.GenericTypeName,
+            TypeExpression = item.TypeExpression
+        };
+        var parameters = new DialogParameters<WebPluginGenericParameterDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<WebPluginGenericParameterDialog>("Edit parameter", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: WebPluginGenericParameterViewModel input })
+        {
+            var updated = await Handler.UpdatePluginParameterAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Parameter updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(WebPluginGenericParameterViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete parameter", $"Really delete '{item.GenericTypeName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeletePluginParameterAsync(currentUser!, item.WebPluginGenericParameterId);
+        if (success) { Snackbar.Add("Parameter deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

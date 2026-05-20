@@ -76,11 +76,18 @@ else
     private System.Security.Claims.ClaimsPrincipal? currentUser;
     private bool hasView;
     private bool hasWrite;
+    private bool isSysAdmin;
     private int? effectiveTenantId;
     private string? search;
 
     [SupplyParameterFromQuery(Name = "tenantId")]
     private int? TenantIdQuery { get; set; }
+
+    /// <summary>
+    /// Optional parameter that overrides <c>tenantId</c> query parameter and the user's current tenant.
+    /// Used when the page is rendered as a sub-component inside <c>TenantDetailDialog</c>.
+    /// </summary>
+    [Parameter] public int? EmbeddedTenantId { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -89,7 +96,11 @@ else
         hasView = Handler.HasPermission(currentUser, "Permissions.View", "Permissions.Write");
         hasWrite = Handler.HasPermission(currentUser, "Permissions.Write");
         var ctx = Handler.GetContext(currentUser);
-        effectiveTenantId = ctx.IsSysAdmin ? TenantIdQuery : ctx.CurrentTenantId;
+        isSysAdmin = ctx.IsSysAdmin;
+        // Sysadmins default to the global catalog (tenantId=null) — they manage global permissions
+        // unless they explicitly scope to a tenant via ?tenantId=. Tenant-users fall back to their
+        // own tenant (the handler ignores the param for non-sysadmins anyway).
+        effectiveTenantId = EmbeddedTenantId ?? TenantIdQuery ?? (isSysAdmin ? (int?)null : ctx.CurrentTenantId);
     }
 
     private async Task<GridData<PermissionViewModel>> LoadData(GridState<PermissionViewModel> state, CancellationToken ct)

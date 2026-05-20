@@ -19,6 +19,13 @@ else if (!hasView)
 {
     <MudAlert Severity="Severity.Warning">No permission to view navigation.</MudAlert>
 }
+else if (!choicesLoaded)
+{
+    @* Wait for ReloadChoices to finish before rendering the tree grid.
+       Otherwise the grid's own LoadData starts in parallel with ReloadChoices
+       and both compete for the same scoped DbContext → "second operation" crash. *@
+    <MudProgressCircular Indeterminate="true" />
+}
 else
 {
     <NavigationTreeGrid ParentId="@null"
@@ -33,6 +40,7 @@ else
     private System.Security.Claims.ClaimsPrincipal? currentUser;
     private bool hasView;
     private bool hasWrite;
+    private bool choicesLoaded;
     private IReadOnlyList<NavigationParentChoice> allParents = Array.Empty<NavigationParentChoice>();
     private IReadOnlyList<TenantChoice> allTenants = Array.Empty<TenantChoice>();
 
@@ -42,7 +50,22 @@ else
         currentUser = auth.User;
         hasView = Handler.HasPermission(currentUser, "Navigation.View", "Navigation.Write");
         hasWrite = Handler.HasPermission(currentUser, "Navigation.Write");
-        if (hasView) await ReloadChoices();
+        // Choices are loaded in OnAfterRenderAsync — see comment there.
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Two DB queries (ListAllNavigationItemsAsync + ListAllTenantsAsync) are too slow
+        // to complete reliably inside the static-SSR HTTP-request scope. If the scope
+        // disposes mid-flight, the next `services.GetService<>()` inside the handler throws
+        // ObjectDisposedException. Loading after the first interactive render keeps the work
+        // strictly inside the persistent Circuit scope.
+        if (firstRender && hasView && !choicesLoaded)
+        {
+            await ReloadChoices();
+            choicesLoaded = true;  // flip AFTER queries finish so the tree grid renders only then
+            StateHasChanged();
+        }
     }
 
     private async Task ReloadChoices()

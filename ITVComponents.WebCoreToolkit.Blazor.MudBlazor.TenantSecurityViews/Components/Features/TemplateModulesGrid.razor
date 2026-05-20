@@ -1,0 +1,134 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IFeatureAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view template modules.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="TemplateModuleViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Template modules</MudText>
+            <MudSpacer />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
+                    Add module
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="TemplateModuleViewModel" />
+            <PropertyColumn Property="x => x.TemplateModuleName" Title="Name" />
+            <TemplateColumn T="TemplateModuleViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <MudTabs Elevation="0" Rounded="true">
+                    <MudTabPanel Text="Configurators">
+                        <TemplateModuleConfiguratorsGrid TemplateModuleId="@context.Item.TemplateModuleId" />
+                    </MudTabPanel>
+                    <MudTabPanel Text="Scripts">
+                        <TemplateModuleScriptsGrid TemplateModuleId="@context.Item.TemplateModuleId" />
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="TemplateModuleViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int FeatureId { get; set; }
+
+    private MudDataGrid<TemplateModuleViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Features.View", "Features.Write");
+        hasWrite = Handler.HasPermission(currentUser, "Features.Write");
+    }
+
+    private async Task<GridData<TemplateModuleViewModel>> LoadData(GridState<TemplateModuleViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<TemplateModuleViewModel> { Items = Array.Empty<TemplateModuleViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListTemplateModulesAsync(currentUser, FeatureId, query);
+        return new GridData<TemplateModuleViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<TemplateModuleDialog>
+        {
+            { d => d.Model, new TemplateModuleViewModel { FeatureId = FeatureId } },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<TemplateModuleDialog>("Create module", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TemplateModuleViewModel input })
+        {
+            var created = await Handler.CreateTemplateModuleAsync(currentUser!, FeatureId, input);
+            if (created != null) { Snackbar.Add("Module created", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to create module", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(TemplateModuleViewModel item)
+    {
+        var copy = new TemplateModuleViewModel
+        {
+            TemplateModuleId = item.TemplateModuleId,
+            TemplateModuleName = item.TemplateModuleName,
+            FeatureId = item.FeatureId
+        };
+        var parameters = new DialogParameters<TemplateModuleDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<TemplateModuleDialog>("Edit module", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TemplateModuleViewModel input })
+        {
+            var updated = await Handler.UpdateTemplateModuleAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Module updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to update module", Severity.Error);
+        }
+    }
+
+    private async Task Delete(TemplateModuleViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete module", $"Really delete '{item.TemplateModuleName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteTemplateModuleAsync(currentUser!, item.TemplateModuleId);
+        if (success) { Snackbar.Add("Module deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete module", Severity.Error);
+    }
+}

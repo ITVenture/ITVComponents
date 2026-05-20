@@ -71,6 +71,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
         private bool showAllTenants = false;
         private int? currentTenantId;
         private string bufferedTenantName;
+        private bool currentTenantIdResolved;
+        private bool resolvingCurrentTenantId;
         private Dictionary<string, bool> componentSpecialTrusts;
 
         public AspNetTreeSecurityContext(DbContextModelBuilderOptions<TImpl> modelBuilderOptions,
@@ -184,19 +186,40 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                     return null;
                 }
 
-                if (string.IsNullOrEmpty(CurrentTenant))
+                var current = CurrentTenant;
+                if (string.IsNullOrEmpty(current))
                 {
                     return null;
                 }
 
-                if (currentTenantId != null && bufferedTenantName == CurrentTenant)
+                // Re-entrancy guard: the Tenants lookup below itself carries the global filter
+                // which evaluates CurrentTenantIdForFiltering → CurrentTenantId. Returning the
+                // current (possibly null) buffered value avoids a "second operation on the same
+                // context" crash and the filter is bypassed at most once during resolution.
+                if (resolvingCurrentTenantId)
                 {
                     return currentTenantId;
                 }
 
-                bufferedTenantName = tenantProvider.PermissionPrefix;
-                return currentTenantId =Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())
-                    ?.TenantId;
+                // Memoize the resolved value (including null) so subsequent calls never re-query.
+                if (currentTenantIdResolved && bufferedTenantName == current)
+                {
+                    return currentTenantId;
+                }
+
+                resolvingCurrentTenantId = true;
+                try
+                {
+                    bufferedTenantName = current;
+                    currentTenantId = Tenants
+                        .FirstOrDefault(n => n.TenantName.ToLower() == current)?.TenantId;
+                    currentTenantIdResolved = true;
+                    return currentTenantId;
+                }
+                finally
+                {
+                    resolvingCurrentTenantId = false;
+                }
             }
         }
 

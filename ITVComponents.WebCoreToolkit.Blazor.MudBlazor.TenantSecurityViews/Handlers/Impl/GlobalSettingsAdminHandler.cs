@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using ITVComponents.Json;
+using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -49,12 +51,19 @@ public class GlobalSettingsAdminHandler : IGlobalSettingsAdminHandler
     public async Task<GlobalSettingViewModel?> CreateAsync(ClaimsPrincipal user, GlobalSettingViewModel input)
     {
         if (!HasPermission(user, "GlobalSettings.Write")) return null;
+        var settingsVal = input.SettingsValue;
+        if (!string.IsNullOrEmpty(settingsVal) && input.JsonSetting)
+        {
+            settingsVal = settingsVal.EncryptJsonValues();
+        }
+
         var entity = new GlobalSetting
         {
             SettingsKey = input.SettingsKey,
-            SettingsValue = input.SettingsValue,
+            SettingsValue = settingsVal,
             JsonSetting = input.JsonSetting
         };
+        
         db.GlobalSettings.Add(entity);
         await db.SaveChangesAsync();
         input.GlobalSettingId = entity.GlobalSettingId;
@@ -66,8 +75,14 @@ public class GlobalSettingsAdminHandler : IGlobalSettingsAdminHandler
         if (!HasPermission(user, "GlobalSettings.Write")) return null;
         var entity = await db.GlobalSettings.FirstOrDefaultAsync(g => g.GlobalSettingId == input.GlobalSettingId);
         if (entity == null) return null;
+        var settingsVal = input.SettingsValue;
+        if (!string.IsNullOrEmpty(settingsVal) && input.JsonSetting)
+        {
+            settingsVal = settingsVal.EncryptJsonValues();
+        }
+
         entity.SettingsKey = input.SettingsKey;
-        entity.SettingsValue = input.SettingsValue;
+        entity.SettingsValue = settingsVal;
         entity.JsonSetting = input.JsonSetting;
         await db.SaveChangesAsync();
         return input;

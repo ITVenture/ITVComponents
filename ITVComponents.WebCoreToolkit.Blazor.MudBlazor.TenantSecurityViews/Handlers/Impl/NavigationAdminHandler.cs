@@ -199,6 +199,76 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         return true;
     }
 
+    public async Task<bool> MoveAsync(ClaimsPrincipal user, int draggedItemId, int? anchorItemId, NavigationMoveAnchor anchor)
+    {
+        if (!HasPermission(user, "Navigation.Write")) return false;
+        if (draggedItemId == anchorItemId) return false;
+
+        var dragged = await db.Navigation.FirstOrDefaultAsync(n => n.NavigationMenuId == draggedItemId);
+        if (dragged == null) return false;
+
+        int? newParentId;
+        TNavigationMenu? anchorItem = null;
+        if (anchorItemId is null)
+        {
+            newParentId = null;
+        }
+        else
+        {
+            anchorItem = await db.Navigation.FirstOrDefaultAsync(n => n.NavigationMenuId == anchorItemId.Value);
+            if (anchorItem == null) return false;
+            newParentId = anchor == NavigationMoveAnchor.Into ? anchorItem.NavigationMenuId : anchorItem.ParentId;
+        }
+
+        if (newParentId.HasValue && await IsDescendantOrSelfAsync(newParentId.Value, draggedItemId)) return false;
+
+        var siblings = await db.Navigation
+            .Where(n => n.ParentId == newParentId && n.NavigationMenuId != draggedItemId)
+            .OrderBy(n => n.SortOrder ?? int.MaxValue).ThenBy(n => n.NavigationMenuId)
+            .ToListAsync();
+
+        const int step = 1000;
+        for (var i = 0; i < siblings.Count; i++) siblings[i].SortOrder = (i + 1) * step;
+
+        int targetIndex;
+        if (anchorItem is null || anchor == NavigationMoveAnchor.Into)
+        {
+            targetIndex = siblings.Count;
+        }
+        else
+        {
+            var anchorIndex = siblings.FindIndex(n => n.NavigationMenuId == anchorItem.NavigationMenuId);
+            if (anchorIndex < 0) anchorIndex = siblings.Count;
+            targetIndex = anchor == NavigationMoveAnchor.Above ? anchorIndex : anchorIndex + 1;
+        }
+
+        var prevOrder = targetIndex == 0 ? 0 : (siblings[targetIndex - 1].SortOrder ?? 0);
+        var nextOrder = targetIndex >= siblings.Count ? prevOrder + 2 * step : (siblings[targetIndex].SortOrder ?? prevOrder + 2 * step);
+        dragged.ParentId = newParentId;
+        dragged.SortOrder = (prevOrder + nextOrder) / 2;
+
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    private async Task<bool> IsDescendantOrSelfAsync(int candidateId, int draggedId)
+    {
+        if (candidateId == draggedId) return true;
+        var current = candidateId;
+        var guard = 0;
+        while (true)
+        {
+            if (++guard > 256) return true;
+            var parentId = await db.Navigation
+                .Where(n => n.NavigationMenuId == current)
+                .Select(n => n.ParentId)
+                .FirstOrDefaultAsync();
+            if (parentId is null) return false;
+            if (parentId.Value == draggedId) return true;
+            current = parentId.Value;
+        }
+    }
+
     public async Task<IReadOnlyList<NavigationParentChoice>> ListAllNavigationItemsAsync(ClaimsPrincipal user)
     {
         if (!HasPermission(user, "Navigation.View", "Navigation.Write"))

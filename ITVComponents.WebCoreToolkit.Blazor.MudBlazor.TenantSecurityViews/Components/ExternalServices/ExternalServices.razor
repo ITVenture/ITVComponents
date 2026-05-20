@@ -69,6 +69,17 @@ else
         <ChildRowContent>
             <MudPaper Elevation="0" Class="pa-2">
                 <MudTabs Elevation="0" Rounded="true">
+                    <MudTabPanel Text="Details">
+                        <ServiceDetailsPanel OAuthServiceId="@context.Item.OAuthServiceId" />
+                    </MudTabPanel>
+                    <MudTabPanel Text="Test request">
+                        <MudButton StartIcon="@Icons.Material.Filled.PlayArrow"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   OnClick="@(() => OpenTestDialog(context.Item.OAuthServiceId))">
+                            Open test form
+                        </MudButton>
+                    </MudTabPanel>
                     <MudTabPanel Text="Tenant logins">
                         <ExternalServiceLoginsGrid OAuthServiceId="@context.Item.OAuthServiceId" CanWrite="@hasWrite" />
                     </MudTabPanel>
@@ -176,5 +187,12 @@ else
         var success = await Handler.DeleteAsync(currentUser!, item.OAuthServiceId);
         if (success) { Snackbar.Add("Service deleted", Severity.Success); await ReloadGrid(); }
         else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+
+    private async Task OpenTestDialog(int oauthServiceId)
+    {
+        var parameters = new DialogParameters<TestFormDialog> { { d => d.OAuthServiceId, oauthServiceId } };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Large, FullWidth = true };
+        await DialogService.ShowAsync<TestFormDialog>("Test request", parameters, options);
     }
 }

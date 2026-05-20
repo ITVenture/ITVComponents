@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
@@ -57,9 +58,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Extens
                 || CurrentTenantId != null && er.Employee.TenantId == CurrentTenantId
                 || er.Employee.UserId == UserId && er.Employee.InvitationStatus == InvitationStatus.Committed
                 || er.Employee.EMail == UserMail && er.Employee.InvitationStatus == InvitationStatus.Pending;
+            Expression<Func<TenantSubscription, bool>> subscriptionExpression = ts => !FilterAvailable
+                || ShowAllTenants
+                || CurrentTenantId != null && ts.TenantId == CurrentTenantId;
             target.ConfigureGlobalFilter(companyExpression);
             target.ConfigureGlobalFilter(employeeExpression);
             target.ConfigureGlobalFilter(employeeRoleExpression);
+            target.ConfigureGlobalFilter(subscriptionExpression);
         }
     }
 }

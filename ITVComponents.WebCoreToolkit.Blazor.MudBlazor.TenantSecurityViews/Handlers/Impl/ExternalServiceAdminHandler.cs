@@ -1,10 +1,15 @@
+using System.Net.Http;
 using System.Security.Claims;
+using System.Text;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.ExternalServiceConnect;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
 using Microsoft.EntityFrameworkCore;
@@ -77,12 +82,14 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     private readonly TContext db;
     private readonly IServiceProvider services;
     private readonly ISecurityRepository secRepo;
+    private readonly IOAuthHttpClientFactory? oauthClientFactory;
 
-    public ExternalServiceAdminHandler(TContext db, IServiceProvider services, ISecurityRepository secRepo)
+    public ExternalServiceAdminHandler(TContext db, IServiceProvider services, ISecurityRepository secRepo, IOAuthHttpClientFactory? oauthClientFactory = null)
     {
         this.db = db;
         this.services = services;
         this.secRepo = secRepo;
+        this.oauthClientFactory = oauthClientFactory;
         this.db.ShowAllTenants = true;
         this.db.HideGlobals = false;
     }
@@ -224,6 +231,80 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         entity.Revoked = true;
         await db.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<ExternalServiceDetailsViewModel?> GetDetailsAsync(ClaimsPrincipal user, int oauthServiceId)
+    {
+        if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write")) return null;
+        var entity = await db.ExternalOAuthServices.AsNoTracking().FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
+        if (entity == null) return null;
+
+        var serviceDef = entity.ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(true);
+        var isConnected = entity.AuthenticationType != ExternalServiceAuthenticationType.OAuthAuthorizationFlow
+            || await db.ExternalOAuthServiceTenantLogins.AnyAsync(l => l.OAuthServiceId == oauthServiceId && !l.Revoked);
+
+        return new ExternalServiceDetailsViewModel
+        {
+            OAuthServiceId = entity.OAuthServiceId,
+            UniqueConnectionName = entity.UniqueConnectionName,
+            GlobalUniqueConnectionName = serviceDef.GlobalUniqueConnectionName,
+            AuthenticationType = entity.AuthenticationType,
+            AuthorizationEndpoint = entity.AuthorizationEndpoint,
+            TokenEndpoint = entity.TokenEndpoint,
+            RevocationEndpoint = entity.RevocationEndpoint,
+            ClientId = entity.ClientId,
+            Scope = entity.Scope,
+            Global = entity.Global,
+            RedirectUri = serviceDef.RedirectUri(),
+            IsConnected = isConnected
+        };
+    }
+
+    public async Task<ExternalServiceTestResultViewModel> PerformTestAsync(ClaimsPrincipal user, ExternalServiceTestRequestViewModel request)
+    {
+        if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write"))
+            return new ExternalServiceTestResultViewModel { ErrorMessage = "Insufficient permission", IsSuccess = false };
+        if (oauthClientFactory == null)
+            return new ExternalServiceTestResultViewModel { ErrorMessage = "OAuth client factory is not registered", IsSuccess = false };
+
+        var entity = await db.ExternalOAuthServices.AsNoTracking().FirstOrDefaultAsync(n => n.OAuthServiceId == request.OAuthServiceId);
+        if (entity == null)
+            return new ExternalServiceTestResultViewModel { ErrorMessage = "Service not found", IsSuccess = false };
+
+        var serviceDef = entity.ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(true);
+
+        try
+        {
+            using var client = oauthClientFactory.Create(serviceDef.GlobalUniqueConnectionName);
+            var httpMethod = new HttpMethod(request.Verb.ToUpperInvariant());
+            using var message = new HttpRequestMessage(httpMethod, request.TargetUrl);
+            if (!string.IsNullOrEmpty(request.HttpActionBody))
+            {
+                message.Content = new StringContent(request.HttpActionBody, new UTF8Encoding(), request.ActionBodyContentType);
+            }
+            if (!string.IsNullOrEmpty(request.CustomHeaders))
+            {
+                foreach (var h in request.CustomHeaders.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var idx = h.IndexOf(':');
+                    if (idx <= 0) continue;
+                    message.Headers.TryAddWithoutValidation(h.Substring(0, idx).Trim(), h.Substring(idx + 1).Trim());
+                }
+            }
+
+            using var result = await client.SendAsync(message);
+            var body = await result.Content.ReadAsStringAsync();
+            return new ExternalServiceTestResultViewModel
+            {
+                StatusCode = (int)result.StatusCode,
+                Content = body,
+                IsSuccess = result.IsSuccessStatusCode
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ExternalServiceTestResultViewModel { ErrorMessage = ex.Message, IsSuccess = false };
+        }
     }
 
     private void EncryptSecret(TExternalOAuthService entity, string? secret)

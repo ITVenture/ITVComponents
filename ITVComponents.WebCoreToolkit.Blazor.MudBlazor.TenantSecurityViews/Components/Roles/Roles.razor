@@ -77,6 +77,15 @@ else
                             RoleId="@context.Item.RoleId"
                             TenantId="@context.Item.TenantId" />
                     </MudTabPanel>
+                    <MudTabPanel Text="Permitted roles">
+                        <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.PermittedRolesForRoleGrid
+                            PermissiveRoleId="@context.Item.RoleId"
+                            TenantId="@context.Item.TenantId" />
+                    </MudTabPanel>
+                    <MudTabPanel Text="Global roles">
+                        <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.GlobalRolesForLocalRoleGrid
+                            LocalRoleId="@context.Item.RoleId" />
+                    </MudTabPanel>
                 </MudTabs>
             </MudPaper>
         </ChildRowContent>
@@ -98,6 +107,12 @@ else
     [SupplyParameterFromQuery(Name = "tenantId")]
     private int? TenantIdQuery { get; set; }
 
+    /// <summary>
+    /// Optional parameter that overrides <c>tenantId</c> query parameter and the user's current tenant.
+    /// Used when the page is rendered as a sub-component inside <c>TenantDetailDialog</c>.
+    /// </summary>
+    [Parameter] public int? EmbeddedTenantId { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
@@ -106,7 +121,7 @@ else
         hasWrite = Handler.HasPermission(currentUser, "Roles.Write");
         var ctx = Handler.GetContext(currentUser);
         isSysAdmin = ctx.IsSysAdmin;
-        effectiveTenantId = isSysAdmin ? TenantIdQuery : ctx.CurrentTenantId;
+        effectiveTenantId = EmbeddedTenantId ?? TenantIdQuery ?? ctx.CurrentTenantId;
     }
 
     private async Task<GridData<RoleViewModel>> LoadData(GridState<RoleViewModel> state, CancellationToken ct)

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -64,7 +65,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
     where TSequence : Sequence<TTenant>
     where TTenantSetting : TenantSetting<TTenant>
     where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
-    where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
+    where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>, new()
     where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
     where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
     where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -92,7 +93,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         return new AdminContext
         {
             IsSysAdmin = sysAdmin,
-            CurrentTenantId = sysAdmin ? null : db.CurrentTenantId
+            CurrentTenantId = db.CurrentTenantId
         };
     }
 
@@ -317,6 +318,86 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         if (!assigned && existing != null)
         {
             db.RolePermissions.Remove(existing);
+            await db.SaveChangesAsync();
+            return true;
+        }
+
+        return true;
+    }
+
+    public async Task<PagedResult<RoleRoleAssignmentViewModel>> ListPermittedRolesForRoleAsync(
+        ClaimsPrincipal user, int permissiveRoleId, int tenantId, ListQuery query)
+    {
+        if (!services.VerifyUserPermissions(new[] { "Roles.AssignRole", "Roles.View" }))
+            return new PagedResult<RoleRoleAssignmentViewModel>();
+
+        var sysAdmin = IsSysAdmin();
+        ApplyContextScope(sysAdmin);
+        var effectiveTenantId = sysAdmin ? tenantId : db.CurrentTenantId ?? tenantId;
+
+        var assignedIds = await db.RoleRoles
+            .Where(rr => rr.PermissiveRoleId == permissiveRoleId)
+            .Select(rr => rr.PermittedRoleId!.Value)
+            .ToListAsync();
+        var assignedSet = new HashSet<int>(assignedIds);
+
+        var q = db.SecurityRoles.AsNoTracking()
+            .Where(r => r.TenantId == effectiveTenantId);
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var s = query.Search.Trim();
+            q = q.Where(r => r.RoleName.Contains(s));
+        }
+
+        var total = await q.CountAsync();
+        var items = await q.OrderBy(r => r.RoleName)
+            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            .Select(r => new RoleRoleAssignmentViewModel
+            {
+                PermissiveRoleId = permissiveRoleId,
+                PermittedRoleId = r.RoleId,
+                RoleName = r.RoleName,
+                TenantId = r.TenantId,
+                IsSystemRole = r.IsSystemRole,
+                Assigned = false
+            })
+            .ToListAsync();
+
+        var filtered = items
+            .Where(i => !db.IsCyclicRoleInheritance(permissiveRoleId, i.PermittedRoleId))
+            .ToList();
+        foreach (var item in filtered)
+        {
+            item.Assigned = assignedSet.Contains(item.PermittedRoleId);
+        }
+        return new PagedResult<RoleRoleAssignmentViewModel> { Items = filtered, TotalCount = total };
+    }
+
+    public async Task<bool> SetPermittedRoleForRoleAsync(
+        ClaimsPrincipal user, int permissiveRoleId, int permittedRoleId, int tenantId, bool assigned)
+    {
+        if (!services.VerifyUserPermissions(new[] { "Roles.AssignRole" })) return false;
+        ApplyContextScope(IsSysAdmin());
+
+        if (assigned && db.IsCyclicRoleInheritance(permissiveRoleId, permittedRoleId)) return false;
+
+        var existing = await db.RoleRoles.FirstOrDefaultAsync(rr =>
+            rr.PermissiveRoleId == permissiveRoleId && rr.PermittedRoleId == permittedRoleId);
+
+        if (assigned && existing == null)
+        {
+            db.RoleRoles.Add(new TRoleRole
+            {
+                PermissiveRoleId = permissiveRoleId,
+                PermittedRoleId = permittedRoleId
+            });
+            await db.SaveChangesAsync();
+            return true;
+        }
+
+        if (!assigned && existing != null)
+        {
+            db.RoleRoles.Remove(existing);
             await db.SaveChangesAsync();
             return true;
         }

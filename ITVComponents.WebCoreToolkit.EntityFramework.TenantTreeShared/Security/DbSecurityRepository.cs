@@ -100,6 +100,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>
             bufferedServices= new ConcurrentDictionary<string, ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>>();
 
+        // Per-instance memoization for IsAuthenticated. The repository is scoped together with the
+        // DbContext (per circuit / per request) so each entry is naturally scoped to the same lifetime.
+        // Needed because Blazor Server schedules async OnAfterRenderAsync callbacks for sibling
+        // components in parallel; both can land in HasPermission → IsAuthenticated which triggers a
+        // GetRawUserQuery EF query against the *same* scoped DbContext while another query is
+        // still enumerating its DataReader → "A second operation was started on this context".
+        private readonly ConcurrentDictionary<string, bool> isAuthenticatedCache = new();
+
         protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions,
             ILogger logger)
         {
@@ -266,6 +274,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
             var t = securityContext.CurrentTenantId;
+            var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, t, scope: null);
+            // ConcurrentDictionary.GetOrAdd serializes concurrent first-time lookups by key:
+            // only one caller runs the EF query, others block on the same Lazy<>.Value.
+            return isAuthenticatedCache.GetOrAdd(cacheKey, _ => IsAuthenticatedCore(userLabels, userAuthenticationType, t));
+        }
+
+        private bool IsAuthenticatedCore(string[] userLabels, string userAuthenticationType, int? t)
+        {
             if (t != null)
             {
                 var ti = t.Value;
@@ -297,6 +313,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
 
         public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
         {
+            var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, tenantId: null, scope: forScope);
+            return isAuthenticatedCache.GetOrAdd(cacheKey, _ => IsAuthenticatedScopedCore(userLabels, forScope, userAuthenticationType));
+        }
+
+        private bool IsAuthenticatedScopedCore(string[] userLabels, string forScope, string userAuthenticationType)
+        {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
             using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                 new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = true });
@@ -305,7 +327,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             {
                 var ti = t.Value;
                 IQueryable<UserTenantLevel<TUser>> tenantUsers;
-               
+
                 if (isUser)
                 {
                     //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
@@ -326,6 +348,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             }
 
             return false;
+        }
+
+        private static string BuildAuthCacheKey(string[] userLabels, string userAuthenticationType, int? tenantId, string scope)
+        {
+            // Stable, allocation-cheap cache key. userLabels can be null when only the OAuth-flow runs.
+            var labels = userLabels is null || userLabels.Length == 0 ? "-" : string.Join("", userLabels);
+            return $"{labels}{userAuthenticationType ?? "-"}{tenantId?.ToString() ?? "-"}{scope ?? "-"}";
         }
 
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType,

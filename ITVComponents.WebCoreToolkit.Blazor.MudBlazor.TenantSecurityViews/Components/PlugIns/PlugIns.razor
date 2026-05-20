@@ -1,0 +1,162 @@
+@page "/Util/PlugIns"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IPlugInAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Plug-ins</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Plug-ins</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view plug-ins.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="WebPluginViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
+            <MudText Typo="Typo.h6">Plug-ins</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add plug-in
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="WebPluginViewModel" />
+            <PropertyColumn Property="x => x.UniqueName" Title="Name" />
+            <PropertyColumn Property="x => x.AutoLoad" Title="Auto-load" />
+            <PropertyColumn Property="x => x.Transient" Title="Transient" />
+            <TemplateColumn T="WebPluginViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <WebPluginParametersGrid WebPluginId="@context.Item.WebPluginId" />
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="WebPluginViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<WebPluginViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private string? search;
+
+    [SupplyParameterFromQuery(Name = "tenantId")]
+    private int? TenantIdQuery { get; set; }
+
+    /// <summary>
+    /// Optional parameter that overrides <c>tenantId</c> query parameter.
+    /// Used when the page is rendered as a sub-component inside <c>TenantDetailDialog</c>.
+    /// </summary>
+    [Parameter] public int? EmbeddedTenantId { get; set; }
+
+    private int? EffectiveTenantId => EmbeddedTenantId ?? TenantIdQuery;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "PlugIns.View", "PlugIns.Write");
+        hasWrite = Handler.HasPermission(currentUser, "PlugIns.Write");
+    }
+
+    private async Task<GridData<WebPluginViewModel>> LoadData(GridState<WebPluginViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<WebPluginViewModel> { Items = Array.Empty<WebPluginViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize, Search = search };
+        var result = await Handler.ListPluginsAsync(currentUser, EffectiveTenantId, query);
+        return new GridData<WebPluginViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<WebPluginDialog> { { d => d.Model, new WebPluginViewModel() }, { d => d.IsCreate, true } };
+        var dlg = await DialogService.ShowAsync<WebPluginDialog>("Create plug-in", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: WebPluginViewModel input })
+        {
+            var created = await Handler.CreatePluginAsync(currentUser!, EffectiveTenantId, input);
+            if (created != null) { Snackbar.Add("Plug-in created", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(WebPluginViewModel item)
+    {
+        var copy = new WebPluginViewModel
+        {
+            WebPluginId = item.WebPluginId,
+            TenantId = item.TenantId,
+            UniqueName = item.UniqueName,
+            Constructor = item.Constructor,
+            AutoLoad = item.AutoLoad,
+            Transient = item.Transient,
+            StartupRegistrationConstructor = item.StartupRegistrationConstructor
+        };
+        var parameters = new DialogParameters<WebPluginDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<WebPluginDialog>("Edit plug-in", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: WebPluginViewModel input })
+        {
+            var updated = await Handler.UpdatePluginAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Plug-in updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(WebPluginViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete plug-in", $"Really delete '{item.UniqueName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeletePluginAsync(currentUser!, item.WebPluginId);
+        if (success) { Snackbar.Add("Plug-in deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

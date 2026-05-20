@@ -1,0 +1,87 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IModuleVideoAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view streams.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="TutorialStreamViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10" Hover="true" Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Streams</MudText>
+            <MudSpacer />
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.LanguageTag" Title="Language" />
+            <PropertyColumn Property="x => x.ContentType" Title="Content type" />
+            <TemplateColumn T="TutorialStreamViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent><MudDataGridPager T="TutorialStreamViewModel" /></PagerContent>
+    </MudDataGrid>
+    @if (hasWrite)
+    {
+        <MudText Typo="Typo.caption" Class="mt-2"><em>Note: stream blob uploads are not part of this view; manage media via the platform's file-handler endpoint.</em></MudText>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public int VideoTutorialId { get; set; }
+
+    private MudDataGrid<TutorialStreamViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView, hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "ModuleHelp.View", "ModuleHelp.Write");
+        hasWrite = Handler.HasPermission(currentUser, "ModuleHelp.Write");
+    }
+
+    private async Task<GridData<TutorialStreamViewModel>> LoadData(GridState<TutorialStreamViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView) return new GridData<TutorialStreamViewModel>();
+        var result = await Handler.ListStreamsAsync(currentUser, VideoTutorialId, new ListQuery { Page = state.Page, PageSize = state.PageSize });
+        return new GridData<TutorialStreamViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenEdit(TutorialStreamViewModel item)
+    {
+        var copy = new TutorialStreamViewModel { TutorialStreamId = item.TutorialStreamId, VideoTutorialId = item.VideoTutorialId, LanguageTag = item.LanguageTag, ContentType = item.ContentType };
+        var p = new DialogParameters<TutorialStreamDialog> { { d => d.Model, copy } };
+        var dlg = await DialogService.ShowAsync<TutorialStreamDialog>("Edit stream", p, EditDialogDefaults.Edit);
+        var r = await dlg.Result;
+        if (r is { Canceled: false, Data: TutorialStreamViewModel m } && await Handler.UpdateStreamAsync(currentUser!, m) != null)
+        { Snackbar.Add("Stream updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+    }
+
+    private async Task Delete(TutorialStreamViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete stream", $"Really delete the {item.LanguageTag} stream?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        if (await Handler.DeleteStreamAsync(currentUser!, item.TutorialStreamId))
+        { Snackbar.Add("Stream deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

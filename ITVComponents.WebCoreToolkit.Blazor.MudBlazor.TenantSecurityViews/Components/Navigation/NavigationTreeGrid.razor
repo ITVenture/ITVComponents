@@ -1,7 +1,10 @@
 @inject INavigationAdminHandler Handler
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
+<div @ref="hostEl" data-nav-dnd-host="@hostId">
 <MudDataGrid T="NavigationMenuViewModel"
              @ref="grid"
              ServerData="LoadData"
@@ -29,6 +32,20 @@
         }
     </ToolBarContent>
     <Columns>
+        @if (HasWrite)
+        {
+            <TemplateColumn T="NavigationMenuViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @* Single drag/drop cell — source AND target. JS picks above/into/below from mouse-Y. *@
+                    <span draggable="true"
+                          data-nav-dnd-id="@context.Item.NavigationMenuId"
+                          title="Drag to reorder or to move under another parent"
+                          style="display:inline-flex;align-items:center;padding:0 4px;">
+                        <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" />
+                    </span>
+                </CellTemplate>
+            </TemplateColumn>
+        }
         <HierarchyColumn T="NavigationMenuViewModel" ButtonDisabledFunc="@(item => item.ChildCount == 0)" />
         <PropertyColumn Property="x => x.DisplayName" Title="Name" />
         <PropertyColumn Property="x => x.Url" Title="URL" />
@@ -48,6 +65,9 @@
     </Columns>
     <ChildRowContent>
         <MudPaper Elevation="0" Class="pa-2 ml-4">
+            @* Pass OnDataChanged straight through (no self-reload). This bubbles only the page-level
+               choices refresh upward; it deliberately does NOT reload ancestor grids, so their
+               expansion state is preserved when a drop happens in a descendant. *@
             <NavigationTreeGrid ParentId="@context.Item.NavigationMenuId"
                                 CurrentUser="@CurrentUser"
                                 HasWrite="@HasWrite"
@@ -60,6 +80,7 @@
         <MudDataGridPager T="NavigationMenuViewModel" />
     </PagerContent>
 </MudDataGrid>
+</div>
 
 @code {
     [Parameter] public int? ParentId { get; set; }
@@ -71,6 +92,11 @@
 
     private MudDataGrid<NavigationMenuViewModel>? grid;
     private string? search;
+
+    private ElementReference hostEl;
+    private readonly string hostId = Guid.NewGuid().ToString("N");
+    private DotNetObjectReference<NavigationTreeGrid>? selfRef;
+    private bool jsAttached;
 
     private async Task<GridData<NavigationMenuViewModel>> LoadData(GridState<NavigationMenuViewModel> state, CancellationToken ct)
     {
@@ -87,6 +113,60 @@
     private async Task ReloadGrid()
     {
         if (grid is not null) await grid.ReloadServerData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && HasWrite && !jsAttached)
+        {
+            selfRef = DotNetObjectReference.Create(this);
+            try
+            {
+                // Side-effect import — first call fetches and runs the helper (installs
+                // document-level listeners + window.itvNavDnd); subsequent calls hit the
+                // module cache. _content path matches this assembly's name.
+                await JS.InvokeAsync<IJSObjectReference>("import",
+                    "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.TenantSecurityViews/navigation-dnd.js");
+                await JS.InvokeVoidAsync("itvNavDnd.attach", hostEl, selfRef);
+                jsAttached = true;
+            }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { /* circuit gone */ }
+            catch { /* swallow — grid stays usable without DnD */ }
+        }
+    }
+
+    [JSInvokable]
+    public async Task HandleDrop(int draggedId, int anchorId, string zone)
+    {
+        if (!HasWrite) return;
+        var anchor = zone switch
+        {
+            "above" => NavigationMoveAnchor.Above,
+            "below" => NavigationMoveAnchor.Below,
+            _ => NavigationMoveAnchor.Into
+        };
+        var ok = await Handler.MoveAsync(CurrentUser, draggedId, anchorId, anchor);
+        if (ok)
+        {
+            Snackbar.Add("Navigation item moved", Severity.Success);
+            await ReloadGrid();
+            if (OnDataChanged.HasDelegate) await OnDataChanged.InvokeAsync();
+        }
+        else
+        {
+            Snackbar.Add("Move not allowed (cycle or missing permission)", Severity.Warning);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (jsAttached)
+        {
+            try { await JS.InvokeVoidAsync("itvNavDnd.detach", hostEl); }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch { /* element gone */ }
+        }
+        selfRef?.Dispose();
     }
 
     private async Task OpenCreate()

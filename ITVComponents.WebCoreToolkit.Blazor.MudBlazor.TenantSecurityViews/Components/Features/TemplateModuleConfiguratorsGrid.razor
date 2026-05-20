@@ -1,0 +1,132 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IFeatureAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view configurators.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="TemplateModuleConfiguratorViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Configurators</MudText>
+            <MudSpacer />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
+                    Add configurator
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="TemplateModuleConfiguratorViewModel" />
+            <PropertyColumn Property="x => x.Name" Title="Name" />
+            <PropertyColumn Property="x => x.DisplayName" Title="Display name" />
+            <PropertyColumn Property="x => x.ConfiguratorTypeBack" Title="Type" />
+            <TemplateColumn T="TemplateModuleConfiguratorViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <TemplateModuleConfiguratorParametersGrid TemplateModuleConfiguratorId="@context.Item.TemplateModuleConfiguratorId" />
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="TemplateModuleConfiguratorViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int TemplateModuleId { get; set; }
+
+    private MudDataGrid<TemplateModuleConfiguratorViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Features.View", "Features.Write");
+        hasWrite = Handler.HasPermission(currentUser, "Features.Write");
+    }
+
+    private async Task<GridData<TemplateModuleConfiguratorViewModel>> LoadData(GridState<TemplateModuleConfiguratorViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<TemplateModuleConfiguratorViewModel> { Items = Array.Empty<TemplateModuleConfiguratorViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListConfiguratorsAsync(currentUser, TemplateModuleId, query);
+        return new GridData<TemplateModuleConfiguratorViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<TemplateModuleConfiguratorDialog>
+        {
+            { d => d.Model, new TemplateModuleConfiguratorViewModel { TemplateModuleId = TemplateModuleId } },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<TemplateModuleConfiguratorDialog>("Create configurator", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TemplateModuleConfiguratorViewModel input })
+        {
+            var created = await Handler.CreateConfiguratorAsync(currentUser!, TemplateModuleId, input);
+            if (created != null) { Snackbar.Add("Configurator created", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to create configurator", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(TemplateModuleConfiguratorViewModel item)
+    {
+        var copy = new TemplateModuleConfiguratorViewModel
+        {
+            TemplateModuleConfiguratorId = item.TemplateModuleConfiguratorId,
+            Name = item.Name,
+            CustomConfiguratorView = item.CustomConfiguratorView,
+            ConfiguratorTypeBack = item.ConfiguratorTypeBack,
+            DisplayName = item.DisplayName,
+            TemplateModuleId = item.TemplateModuleId
+        };
+        var parameters = new DialogParameters<TemplateModuleConfiguratorDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<TemplateModuleConfiguratorDialog>("Edit configurator", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TemplateModuleConfiguratorViewModel input })
+        {
+            var updated = await Handler.UpdateConfiguratorAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Configurator updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to update configurator", Severity.Error);
+        }
+    }
+
+    private async Task Delete(TemplateModuleConfiguratorViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete configurator", $"Really delete '{item.Name}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteConfiguratorAsync(currentUser!, item.TemplateModuleConfiguratorId);
+        if (success) { Snackbar.Add("Configurator deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete configurator", Severity.Error);
+    }
+}

@@ -1,0 +1,37 @@
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.SettingsKey" Label="Key" Required="true" MaxLength="100" />
+            <MudCheckBox @bind-Value="Model.JsonSetting" Label="JSON setting" />
+            <MudTextField @bind-Value="Model.SettingsValue"
+                          Label="Value"
+                          Required="true"
+                          Lines="6"
+                          HelperText="For JSON settings, sensitive `encrypt:`-prefixed leaf values are encrypted server-side using the tenant password." />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public TenantSettingViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+
+    private MudForm? form;
+
+    private async Task Save()
+    {
+        if (form is null) return;
+        await form.Validate();
+        if (!form.IsValid) { Snackbar.Add("Please correct invalid fields", Severity.Warning); return; }
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

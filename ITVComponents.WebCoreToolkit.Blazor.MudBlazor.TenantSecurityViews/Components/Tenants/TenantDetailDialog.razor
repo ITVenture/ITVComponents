@@ -1,0 +1,45 @@
+@using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.Permissions
+@using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.Roles
+@using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.PlugIns
+@using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.Sequences
+
+<MudDialog>
+    <DialogContent>
+        <MudTabs Elevation="0" Rounded="true" Outlined="true" PanelClass="pa-2">
+            <MudTabPanel Text="Settings">
+                <TenantSettingsGrid TenantId="@Tenant.TenantId" />
+            </MudTabPanel>
+            <MudTabPanel Text="Feature activations">
+                <TenantFeatureActivationsGrid TenantId="@Tenant.TenantId" />
+            </MudTabPanel>
+            <MudTabPanel Text="Navigation">
+                <TenantNavigationGrid TenantId="@Tenant.TenantId" />
+            </MudTabPanel>
+            <MudTabPanel Text="Permissions">
+                <Permissions EmbeddedTenantId="@Tenant.TenantId" />
+            </MudTabPanel>
+            <MudTabPanel Text="Roles">
+                <Roles EmbeddedTenantId="@Tenant.TenantId" />
+            </MudTabPanel>
+            <MudTabPanel Text="Plug-ins">
+                <PlugIns EmbeddedTenantId="@Tenant.TenantId" />
+            </MudTabPanel>
+            <MudTabPanel Text="Plug-in constants">
+                <PlugInConstants EmbeddedTenantId="@Tenant.TenantId" />
+            </MudTabPanel>
+            <MudTabPanel Text="Sequences">
+                <Sequences EmbeddedTenantId="@Tenant.TenantId" />
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public TenantViewModel Tenant { get; set; } = default!;
+
+    private void Close() => MudDialog.Close();
+}

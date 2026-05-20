@@ -26,3 +26,13 @@ public sealed class RoleAssignmentViewModel
     public bool Assigned { get; set; }
     public bool IsSystemRole { get; set; }
 }
+
+public sealed class RoleRoleAssignmentViewModel
+{
+    public int PermissiveRoleId { get; set; }
+    public int PermittedRoleId { get; set; }
+    public string RoleName { get; set; } = "";
+    public int TenantId { get; set; }
+    public bool Assigned { get; set; }
+    public bool IsSystemRole { get; set; }
+}

@@ -1,0 +1,152 @@
+@page "/Util/PlugInConstants"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IPlugInAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Plug-in constants</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Plug-in constants</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view plug-in constants.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="WebPluginConstantViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
+            <MudText Typo="Typo.h6">Plug-in constants</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add constant
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" />
+            <PropertyColumn Property="x => x.Value" Title="Value" />
+            <TemplateColumn T="WebPluginConstantViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="WebPluginConstantViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<WebPluginConstantViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+    private string? search;
+
+    [SupplyParameterFromQuery(Name = "tenantId")]
+    private int? TenantIdQuery { get; set; }
+
+    /// <summary>
+    /// Optional parameter that overrides <c>tenantId</c> query parameter.
+    /// Used when the page is rendered as a sub-component inside <c>TenantDetailDialog</c>.
+    /// </summary>
+    [Parameter] public int? EmbeddedTenantId { get; set; }
+
+    private int? EffectiveTenantId => EmbeddedTenantId ?? TenantIdQuery;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "PlugInConstants.View", "PlugInConstants.Write");
+        hasWrite = Handler.HasPermission(currentUser, "PlugInConstants.Write");
+    }
+
+    private async Task<GridData<WebPluginConstantViewModel>> LoadData(GridState<WebPluginConstantViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<WebPluginConstantViewModel> { Items = Array.Empty<WebPluginConstantViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize, Search = search };
+        var result = await Handler.ListConstantsAsync(currentUser, EffectiveTenantId, query);
+        return new GridData<WebPluginConstantViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<WebPluginConstantDialog> { { d => d.Model, new WebPluginConstantViewModel() }, { d => d.IsCreate, true } };
+        var dlg = await DialogService.ShowAsync<WebPluginConstantDialog>("Create constant", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: WebPluginConstantViewModel input })
+        {
+            var created = await Handler.CreateConstantAsync(currentUser!, EffectiveTenantId, input);
+            if (created != null) { Snackbar.Add("Constant created", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to create", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(WebPluginConstantViewModel item)
+    {
+        var copy = new WebPluginConstantViewModel
+        {
+            WebPluginConstantId = item.WebPluginConstantId,
+            TenantId = item.TenantId,
+            Name = item.Name,
+            Value = item.Value
+        };
+        var parameters = new DialogParameters<WebPluginConstantDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<WebPluginConstantDialog>("Edit constant", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: WebPluginConstantViewModel input })
+        {
+            var updated = await Handler.UpdateConstantAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Constant updated", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(WebPluginConstantViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete constant", $"Really delete '{item.Name}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteConstantAsync(currentUser!, item.WebPluginConstantId);
+        if (success) { Snackbar.Add("Constant deleted", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

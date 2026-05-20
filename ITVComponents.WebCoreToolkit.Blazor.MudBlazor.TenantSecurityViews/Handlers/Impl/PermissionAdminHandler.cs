@@ -92,7 +92,7 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         return new AdminContext
         {
             IsSysAdmin = sysAdmin,
-            CurrentTenantId = sysAdmin ? null : db.CurrentTenantId
+            CurrentTenantId = db.CurrentTenantId
         };
     }
 

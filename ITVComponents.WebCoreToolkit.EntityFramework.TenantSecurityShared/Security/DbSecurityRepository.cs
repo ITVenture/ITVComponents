@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -88,6 +89,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
     {
         private readonly ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
         private readonly ILogger logger;
+
+        // Per-instance memoization for IsAuthenticated. The repository is scoped together with the
+        // DbContext (per circuit / per request). Without this, parallel async lifecycle callbacks
+        // can each trigger an EF query against the same scoped DbContext concurrently → "A second
+        // operation was started on this context" crash. See [[feedback-dbcontext-reentry]].
+        private readonly ConcurrentDictionary<string, bool> isAuthenticatedCache = new();
 
         protected DbSecurityRepository(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext,
             ILogger logger)
@@ -277,6 +284,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         public virtual bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
             var t = securityContext.CurrentTenantId;
+            var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, t, scope: null);
+            return isAuthenticatedCache.GetOrAdd(cacheKey, _ => IsAuthenticatedCore(userLabels, userAuthenticationType, t));
+        }
+
+        private bool IsAuthenticatedCore(string[] userLabels, string userAuthenticationType, int? t)
+        {
             if (t != null)
             {
                 var ti = t.Value;
@@ -304,6 +317,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
 
         public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
         {
+            var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, tenantId: null, scope: forScope);
+            return isAuthenticatedCache.GetOrAdd(cacheKey, _ => IsAuthenticatedScopedCore(userLabels, forScope, userAuthenticationType));
+        }
+
+        private bool IsAuthenticatedScopedCore(string[] userLabels, string forScope, string userAuthenticationType)
+        {
             using var tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
             var t = securityContext.Tenants.FirstOrDefault(n => n.TenantName == forScope)?.TenantId;
             if (t != null)
@@ -329,6 +348,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             }
 
             return false;
+        }
+
+        private static string BuildAuthCacheKey(string[] userLabels, string userAuthenticationType, int? tenantId, string scope)
+        {
+            var labels = userLabels is null || userLabels.Length == 0 ? "-" : string.Join("", userLabels);
+            return $"{labels}{userAuthenticationType ?? "-"}{tenantId?.ToString() ?? "-"}{scope ?? "-"}";
         }
 
         /// <summary>

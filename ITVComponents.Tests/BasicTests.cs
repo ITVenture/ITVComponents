@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json.Serialization;
 using ITVComponents.Json;
+using ITVComponents.Json.Converters;
 using ITVComponents.Security;
 using Microsoft.VisualStudio.TestPlatform.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -39,6 +40,39 @@ namespace ITVComponents.Tests
         }
 
         [TestMethod]
+        public void TestEncryptJsonValuesFromString()
+        {
+            PasswordSecurity.InitializeAes("So long and thanks for all the fish");
+            var json = "{\"Fu\":\"encrypt:Bar\",\"Other\":\"plain\",\"Nested\":{\"Secret\":\"encrypt:Baz\"}}";
+            var encrypted = json.EncryptJsonValues();
+
+            // The encrypt: markers must be gone — the values were actually encrypted, not passed through.
+            Assert.IsFalse(encrypted.Contains("encrypt:Bar"));
+            Assert.IsFalse(encrypted.Contains("encrypt:Baz"));
+
+            var node = System.Text.Json.Nodes.JsonNode.Parse(encrypted);
+            Assert.AreEqual("Bar", node["Fu"].GetValue<string>().Decrypt());
+            Assert.AreEqual("plain", node["Other"].GetValue<string>());
+            Assert.AreEqual("Baz", node["Nested"]["Secret"].GetValue<string>().Decrypt());
+        }
+
+        [TestMethod]
+        public void TestEncryptJsonValueAttribute()
+        {
+            PasswordSecurity.InitializeAes("So long and thanks for all the fish");
+            var bag = new SecretBag { Secret = "encrypt:hunter2", Plain = "encrypt:nope" };
+            var json = JsonHelper.ToJson(bag, SerializationTypingMode.StaticTyping, null);
+
+            // [EncryptJsonValue] member is encrypted (marker gone); unmarked member is passed through.
+            Assert.IsFalse(json.Contains("encrypt:hunter2"));
+            Assert.IsTrue(json.Contains("encrypt:nope"));
+
+            var node = System.Text.Json.Nodes.JsonNode.Parse(json);
+            Assert.AreEqual("hunter2", node["Secret"].GetValue<string>().Decrypt());
+            Assert.AreEqual("encrypt:nope", node["Plain"].GetValue<string>());
+        }
+
+        [TestMethod]
         public void TestCustomJson()
         {
             var fu = new Fubar { Fu = "Bar" };
@@ -72,6 +106,14 @@ namespace ITVComponents.Tests
         public class Fubar
         {
             public string Fu { get; set; }
+        }
+
+        public class SecretBag
+        {
+            [EncryptJsonValue]
+            public string Secret { get; set; }
+
+            public string Plain { get; set; }
         }
 
         [JsonPolymorphic]

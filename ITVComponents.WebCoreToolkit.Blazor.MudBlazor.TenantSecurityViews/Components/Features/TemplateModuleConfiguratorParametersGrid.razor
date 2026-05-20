@@ -1,0 +1,125 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IFeatureAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view configurator parameters.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="TemplateModuleConfiguratorParameterViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
+            <MudText Typo="Typo.subtitle2">Parameters</MudText>
+            <MudSpacer />
+            @if (hasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
+                    Add parameter
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.ParameterName" Title="Name" />
+            <PropertyColumn Property="x => x.DisplayName" Title="Display name" />
+            <PropertyColumn Property="x => x.ParameterValue" Title="Value" />
+            <TemplateColumn T="TemplateModuleConfiguratorParameterViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    @if (hasWrite)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="TemplateModuleConfiguratorParameterViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int TemplateModuleConfiguratorId { get; set; }
+
+    private MudDataGrid<TemplateModuleConfiguratorParameterViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Features.View", "Features.Write");
+        hasWrite = Handler.HasPermission(currentUser, "Features.Write");
+    }
+
+    private async Task<GridData<TemplateModuleConfiguratorParameterViewModel>> LoadData(GridState<TemplateModuleConfiguratorParameterViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<TemplateModuleConfiguratorParameterViewModel> { Items = Array.Empty<TemplateModuleConfiguratorParameterViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListConfiguratorParametersAsync(currentUser, TemplateModuleConfiguratorId, query);
+        return new GridData<TemplateModuleConfiguratorParameterViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<TemplateModuleConfiguratorParameterDialog>
+        {
+            { d => d.Model, new TemplateModuleConfiguratorParameterViewModel { TemplateModuleConfiguratorId = TemplateModuleConfiguratorId } },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<TemplateModuleConfiguratorParameterDialog>("Create parameter", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TemplateModuleConfiguratorParameterViewModel input })
+        {
+            var created = await Handler.CreateConfiguratorParameterAsync(currentUser!, TemplateModuleConfiguratorId, input);
+            if (created != null) { Snackbar.Add("Parameter created", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to create parameter", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(TemplateModuleConfiguratorParameterViewModel item)
+    {
+        var copy = new TemplateModuleConfiguratorParameterViewModel
+        {
+            TemplateModuleCfgParameterId = item.TemplateModuleCfgParameterId,
+            ParameterName = item.ParameterName,
+            DisplayName = item.DisplayName,
+            ParameterValue = item.ParameterValue,
+            TemplateModuleConfiguratorId = item.TemplateModuleConfiguratorId
+        };
+        var parameters = new DialogParameters<TemplateModuleConfiguratorParameterDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<TemplateModuleConfiguratorParameterDialog>("Edit parameter", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TemplateModuleConfiguratorParameterViewModel input })
+        {
+            var updated = await Handler.UpdateConfiguratorParameterAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Parameter updated", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+            else Snackbar.Add("Failed to update parameter", Severity.Error);
+        }
+    }
+
+    private async Task Delete(TemplateModuleConfiguratorParameterViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete parameter", $"Really delete '{item.ParameterName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteConfiguratorParameterAsync(currentUser!, item.TemplateModuleCfgParameterId);
+        if (success) { Snackbar.Add("Parameter deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete parameter", Severity.Error);
+    }
+}
