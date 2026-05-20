@@ -12,6 +12,10 @@ namespace ITVComponents.NewtonsoftJson
     {
         private static readonly Encoding Utf8NoBom = new UTF8Encoding(false);
 
+        private static readonly IContractResolver encryptResolver = new EncryptAwareContractResolver();
+
+        private static readonly IContractResolver encryptCamelResolver = new EncryptAwareCamelCaseContractResolver();
+
         /// <summary>
         /// Serializer-settings configuring newtonsoft to type-full-qualify each serialized object
         /// </summary>
@@ -275,10 +279,9 @@ namespace ITVComponents.NewtonsoftJson
             }
 
             tmp = tmp.Copy();
-            if (useCamelCase)
-            {
-                tmp.ContractResolver = new CamelCasePropertyNamesContractResolver();
-            }
+            // Always use an encrypt-aware resolver so [EncryptJsonValue]-marked members get the
+            // Newtonsoft encrypt converter. Singletons keep Newtonsoft's per-resolver contract cache warm.
+            tmp.ContractResolver = useCamelCase ? encryptCamelResolver : encryptResolver;
 
             return tmp;
         }

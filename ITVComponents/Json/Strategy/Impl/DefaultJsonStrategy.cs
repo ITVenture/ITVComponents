@@ -36,6 +36,7 @@ namespace ITVComponents.Json.Strategy.Impl
         {
             DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(SimpleContract), "SimpleContract");
             defaultContract.Modifiers.Add(ProcessTypeExtensions);
+            defaultContract.Modifiers.Add(ApplyEncryptAttributes);
             strongTypedSerializerSettings = BuildSerializerOptions(false);
             strongTypedSerializerSettingsWithReferences = BuildSerializerOptions(true);
         }
@@ -56,22 +57,51 @@ namespace ITVComponents.Json.Strategy.Impl
 
         public string EncryptJsonValues(string jsonString, string password)
         {
+            // System.Text.Json does NOT invoke a JsonConverter<string> for the string values held
+            // inside a parsed JsonNode DOM — the tree is written verbatim. So we cannot rely on the
+            // converter here (as the typed-object overloads do); instead we walk the DOM and apply
+            // the exact same transform to every string value.
+            var converter = new JsonStringEncryptConverter(password);
+            var node = JsonNode.Parse(jsonString);
+            node = EncryptNodeStrings(node, converter);
             var setng = GetSerializer(SerializationTypingMode.StaticTyping, true, false);
-            //var settings = simpleSerializerSettingsWithReferences.Copy();
-            /*new JsonSerializerSettings
+            return Serialize(node, setng);
+        }
+
+        private static JsonNode EncryptNodeStrings(JsonNode node, JsonStringEncryptConverter converter)
+        {
+            switch (node)
             {
-                CheckAdditionalContent = true,
-                ConstructorHandling = ConstructorHandling.Default,
-                Formatting = Formatting.Indented,
-                MissingMemberHandling = MissingMemberHandling.Ignore,
-                ObjectCreationHandling = ObjectCreationHandling.Auto,
-                NullValueHandling = NullValueHandling.Include,
-                PreserveReferencesHandling = PreserveReferencesHandling.Objects,
-            }*/
-            ;
-            setng.Converters.Add(new JsonStringEncryptConverter(password));
-            var tmp = DeserializeObject(jsonString, setng);
-            return Serialize(tmp, setng);
+                case JsonValue val when val.TryGetValue<string>(out var s):
+                    var transformed = converter.Transform(s);
+                    return transformed == null ? null : JsonValue.Create(transformed);
+
+                case JsonObject obj:
+                    foreach (var key in obj.Select(p => p.Key).ToList())
+                    {
+                        var child = obj[key];
+                        var replaced = EncryptNodeStrings(child, converter);
+                        // Containers come back as the same reference (mutated in place); only leaf
+                        // string values are swapped for a fresh, parent-less node — reassign just those
+                        // to preserve property order and avoid "node already has a parent".
+                        if (!ReferenceEquals(replaced, child))
+                            obj[key] = replaced;
+                    }
+                    return obj;
+
+                case JsonArray arr:
+                    for (var i = 0; i < arr.Count; i++)
+                    {
+                        var child = arr[i];
+                        var replaced = EncryptNodeStrings(child, converter);
+                        if (!ReferenceEquals(replaced, child))
+                            arr[i] = replaced;
+                    }
+                    return arr;
+
+                default:
+                    return node;
+            }
         }
 
         public string EncryptJsonValues(object rawObject, string password)
@@ -466,6 +496,32 @@ namespace ITVComponents.Json.Strategy.Impl
             }
 
             return retVal;
+        }
+
+        private static void ApplyEncryptAttributes(JsonTypeInfo typeInfo)
+        {
+            if (typeInfo.Kind != JsonTypeInfoKind.Object)
+            {
+                return;
+            }
+
+            foreach (var property in typeInfo.Properties)
+            {
+                // Don't clobber an explicit [JsonConverter]; only act on plain string members that
+                // carry the strategy-neutral [EncryptJsonValue] marker.
+                if (property.PropertyType != typeof(string) || property.CustomConverter != null)
+                {
+                    continue;
+                }
+
+                if (property.AttributeProvider?.GetCustomAttributes(typeof(EncryptJsonValueAttribute), true) is { Length: > 0 } attrs
+                    && attrs[0] is EncryptJsonValueAttribute enc)
+                {
+                    property.CustomConverter = string.IsNullOrEmpty(enc.Entropy)
+                        ? new JsonStringEncryptConverter()
+                        : new JsonStringEncryptConverter(enc.Entropy);
+                }
+            }
         }
 
         private void ProcessTypeExtensions(JsonTypeInfo obj)

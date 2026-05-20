@@ -48,30 +48,47 @@ namespace ITVComponents.Json.Converters
 
         public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
         {
-            var stringValue = value;
-            if (string.IsNullOrEmpty(stringValue))
+            var stringValue = Transform(value);
+            if (stringValue == null)
             {
                 writer.WriteNullValue();
                 return;
             }
 
-            if (stringValue.StartsWith("encrypt:", StringComparison.OrdinalIgnoreCase))
+            writer.WriteStringValue(stringValue);
+        }
+
+        /// <summary>
+        /// Applies the encryption transform to a single string value following the same rules as
+        /// <see cref="Write"/>: null/empty becomes <c>null</c>, an <c>encrypt:</c>-prefixed value is
+        /// encrypted using the configured mode, any other value is returned unchanged. Exposed so the
+        /// JSON-DOM path can reuse the exact same logic (System.Text.Json does not run string
+        /// converters over the values inside a parsed <see cref="System.Text.Json.Nodes.JsonNode"/>).
+        /// </summary>
+        public string Transform(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return null;
+            }
+
+            if (value.StartsWith("encrypt:", StringComparison.OrdinalIgnoreCase))
             {
                 if (mode == JsonValueEncryptionMode.defaultKey)
                 {
-                    stringValue = stringValue.Substring(8).Encrypt();
+                    return value.Substring(8).Encrypt();
                 }
-                else if (mode == JsonValueEncryptionMode.stringEntropy)
+                if (mode == JsonValueEncryptionMode.stringEntropy)
                 {
-                    stringValue = stringValue.Substring(8).Encrypt(targetEntropy);
+                    return value.Substring(8).Encrypt(targetEntropy);
                 }
-                else if (mode == JsonValueEncryptionMode.binaryKey)
+                if (mode == JsonValueEncryptionMode.binaryKey)
                 {
-                    stringValue = AesEncryptor.Encrypt(stringValue.Substring(8), encryptionKey);
+                    return AesEncryptor.Encrypt(value.Substring(8), encryptionKey);
                 }
             }
 
-            writer.WriteStringValue(stringValue);
+            return value;
         }
 
         /// <inheritdoc />
