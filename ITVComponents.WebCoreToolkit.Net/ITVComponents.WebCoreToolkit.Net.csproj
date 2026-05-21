@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.ServiceShared\ITVComponents.WebCoreToolkit.ServiceShared.csproj" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources\TextsAndMessages.resx">

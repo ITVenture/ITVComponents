@@ -8,6 +8,7 @@ using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
+using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHandlers
