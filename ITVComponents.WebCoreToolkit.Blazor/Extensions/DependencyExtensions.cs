@@ -42,6 +42,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
             return services;
         }
 
+        /// <summary>
+        /// Registers the circuit-scoped <see cref="ScopedPermissionScope"/> as the <see cref="IPermissionScope"/>
+        /// for a Blazor host. Because the registration is scoped, one instance lives per circuit == per browser
+        /// tab, so different tabs can carry different tenants at the same time without a browser-wide cookie.
+        /// The tenant is taken from the route/query (<see cref="ScopedPermissionScopeOptions.RouteOverrideParam"/>)
+        /// and validated against the user's eligible scopes by the shared resolution engine. Requires
+        /// <see cref="AddBlazorContextUser"/> (the scope resolves the ambient user/route via
+        /// <see cref="IContextUserProvider"/>).
+        /// </summary>
+        /// <param name="services">the service collection to register into</param>
+        /// <param name="options">configures the scoped-permission-scope options</param>
+        /// <returns>the service collection for chaining</returns>
+        public static IServiceCollection AddBlazorPermissionScope(this IServiceCollection services, Action<ScopedPermissionScopeOptions> options)
+        {
+            return services.Configure(options)
+                .AddScoped<IPermissionScope, ScopedPermissionScope>();
+        }
+
         public static IServiceCollection ConfigureStubComponents(this IServiceCollection services, Action<StubComponentConfiguration> configure)
         {
             return services.Configure(configure);
