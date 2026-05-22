@@ -9,7 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options;
-using Microsoft.AspNetCore.Http;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
@@ -49,7 +49,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
 
                 if (context != null)
                 {
-                    var user = services.GetService<IHttpContextAccessor>()?.HttpContext?.User;
+                    var user = services.GetService<IContextUserProvider>()?.User;
                     return context.RunDiagnosticsQuery(qr, user, services, options.Arguments).Cast<object>().FirstOrDefault();
                     /*if (p.Property.PropertyType == typeof(SimpleTriStateResult))
                     {

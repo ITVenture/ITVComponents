@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -27,22 +28,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
     {
         private readonly IServiceProvider services;
         private readonly IWebPluginHelper pluginProvider;
-        private readonly IHttpContextAccessor httpContext;
         private readonly ICoreSystemContext sysContext;
         private ConcurrentDictionary<Type, object> bufferedServices = new ConcurrentDictionary<Type, object>();
         private ConcurrentDictionary<string, IPlugin> bufferedPlugins = new ConcurrentDictionary<string, IPlugin>();
 
         private ConcurrentDictionary<Type, object> bufferedHandlers =
             new ConcurrentDictionary<Type, object>();
-        private IRequestCultureFeature cult = null;
         private IPluginFactory factory;
 
         public TemplateHandlerFactory(IServiceProvider services, IWebPluginHelper pluginProvider,
-            IHttpContextAccessor httpContext, ICoreSystemContext sysContext)
+            ICoreSystemContext sysContext)
         {
             this.services = services;
             this.pluginProvider = pluginProvider;
-            this.httpContext = httpContext;
             this.sysContext = sysContext;
         }
 
@@ -139,14 +137,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Temp
 
         private string Translate(string text)
         {
-            cult ??= httpContext.HttpContext.Features.Get<IRequestCultureFeature>();
-            string currentCulture = null;
-            if (cult != null)
-            {
-                currentCulture = cult.RequestCulture.UICulture.Name;
-            }
-
-            return text.Translate(currentCulture);
+            // Host-neutral: the localization middleware (MVC) and the Blazor circuit both set
+            // CultureInfo.CurrentUICulture, so we no longer reach into HttpContext.Features here.
+            return text.Translate(CultureInfo.CurrentUICulture?.Name);
         }
 
         public void Dispose()

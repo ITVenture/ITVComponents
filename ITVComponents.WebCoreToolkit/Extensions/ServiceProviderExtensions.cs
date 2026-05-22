@@ -202,16 +202,16 @@ namespace ITVComponents.WebCoreToolkit.Extensions
 
         public static ISecurityRepository GetAssetSecurityRepository(this IServiceProvider services, ISecurityRepository decorated)
         {
-            var httpContext = services.GetService<IHttpContextAccessor>();
-            var authUser = httpContext.HttpContext.User.Identities.FirstOrDefault(n => n.IsAuthenticated);
+            var userProvider = services.GetService<IContextUserProvider>();
+            var authUser = userProvider.User.Identities.FirstOrDefault(n => n.IsAuthenticated);
             var decorator = new SecurityRepository();
             decorator.PushRepo(decorated);
-            if (authUser != null && 
+            if (authUser != null &&
                 authUser.HasClaim(n => n.Type == ClaimTypes.FixedUserScope) &&
                 authUser.HasClaim(n => n.Type == ClaimTypes.FixedAssetFeature) &&
                 authUser.HasClaim(n => n.Type == ClaimTypes.FixedAssetPermission))
             {
-                var repo = new AssetSecurityRepository(httpContext.HttpContext.User, decorated);
+                var repo = new AssetSecurityRepository(userProvider.User, decorated);
                 decorator.PushRepo(repo);
             }
 

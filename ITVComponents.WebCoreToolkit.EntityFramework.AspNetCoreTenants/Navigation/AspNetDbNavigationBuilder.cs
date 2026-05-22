@@ -17,8 +17,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Navigat
     internal class AspNetDbNavigationBuilder<TImpl>: TenantSecurityShared.Navigation.DbNavigationBuilder<Tenant, string, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>
     where TImpl:AspNetSecurityContext<TImpl>
     {
-        public AspNetDbNavigationBuilder(TImpl securityContext, IServiceProvider services, IPermissionScope permissionScope, IHttpContextAccessor httpContext, IOptions<ToolkitPolicyOptions> options):
-            base(securityContext,services, permissionScope, httpContext, options)
+        public AspNetDbNavigationBuilder(TImpl securityContext, IServiceProvider services, IPermissionScope permissionScope, IContextUserProvider contextUser, IOptions<ToolkitPolicyOptions> options):
+            base(securityContext,services, permissionScope, contextUser, options)
         {
         }
     }
