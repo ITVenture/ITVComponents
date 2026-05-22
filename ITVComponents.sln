@@ -219,6 +219,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.ServiceShared", "ITVComponents.WebCoreToolkit.ServiceShared\ITVComponents.WebCoreToolkit.ServiceShared.csproj", "{43E75D05-9485-4E15-88AF-F331CFB6A0C9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.Tests", "ITVComponents.WebCoreToolkit.Tests\ITVComponents.WebCoreToolkit.Tests.csproj", "{7A466607-D2D5-437F-9715-685FBE1CD46B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1525,6 +1527,18 @@ Global
 		{43E75D05-9485-4E15-88AF-F331CFB6A0C9}.Release|x86.Build.0 = Release|Any CPU
 		{43E75D05-9485-4E15-88AF-F331CFB6A0C9}.Release|x64.ActiveCfg = Release|Any CPU
 		{43E75D05-9485-4E15-88AF-F331CFB6A0C9}.Release|x64.Build.0 = Release|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Debug|x86.Build.0 = Debug|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Debug|x64.Build.0 = Debug|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Release|x86.ActiveCfg = Release|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Release|x86.Build.0 = Release|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Release|x64.ActiveCfg = Release|Any CPU
+		{7A466607-D2D5-437F-9715-685FBE1CD46B}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
