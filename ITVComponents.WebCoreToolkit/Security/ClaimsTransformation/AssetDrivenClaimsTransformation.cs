@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
 {
     public class AssetDrivenClaimsTransformation : ICollectedClaimsProvider
     {
-        private readonly IContextUserProvider userProvider;
+        private readonly IHttpContextUserProvider userProvider;
         private readonly IServiceScopeFactory serviceProvider;
         public const string ITVentureIssuerString = "IT-Venture WebCore-Toolkit -- Shared Assets";
 
@@ -22,7 +22,7 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
         /// </summary>
         /// <param name="userProvider">provides access to the current http-context</param>
         /// <param name="serviceProvider">the service-provider that enables this object to get registered services</param>
-        public AssetDrivenClaimsTransformation(IContextUserProvider userProvider, IServiceScopeFactory serviceProvider)
+        public AssetDrivenClaimsTransformation(IHttpContextUserProvider userProvider, IServiceScopeFactory serviceProvider)
         {
             this.userProvider = userProvider;
             this.serviceProvider = serviceProvider;

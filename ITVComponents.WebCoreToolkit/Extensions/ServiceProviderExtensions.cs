@@ -223,9 +223,9 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         {
             denied = false;
             var assetProvider = provider.GetService<ISharedAssetAdapter>();
-            var userProvider = provider.GetService<IContextUserProvider>();
+            var userProvider = provider.GetService<IHttpContextUserProvider>();
             IQueryCollection refQ;
-            if (userProvider.HttpContext?.Request == null)
+            if (userProvider?.HttpContext?.Request == null)
             {
                 securityRepository = null;
                 identities = null;

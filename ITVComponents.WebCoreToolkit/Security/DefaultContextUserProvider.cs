@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace ITVComponents.WebCoreToolkit.Security
 {
-    public class DefaultContextUserProvider:IContextUserProvider
+    public class DefaultContextUserProvider:IHttpContextUserProvider
     {
         private readonly IHttpContextAccessor httpContext;
 

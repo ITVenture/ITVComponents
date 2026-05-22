@@ -110,7 +110,10 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>the same serviceCollection for method-chaining</returns>
         public static IServiceCollection UseContextUserAccessor(this IServiceCollection services)
         {
-            return services.AddHttpContextAccessor().AddScoped<IContextUserProvider, DefaultContextUserProvider>();
+            return services.AddHttpContextAccessor()
+                .AddScoped<DefaultContextUserProvider>()
+                .AddScoped<IHttpContextUserProvider>(sp => sp.GetRequiredService<DefaultContextUserProvider>())
+                .AddScoped<IContextUserProvider>(sp => sp.GetRequiredService<DefaultContextUserProvider>());
         }
 
         /// <summary>

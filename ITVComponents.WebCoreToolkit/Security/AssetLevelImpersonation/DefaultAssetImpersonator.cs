@@ -14,10 +14,10 @@ namespace ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation
     internal class DefaultAssetImpersonator:IImpersonationControl
     {
         private IPermissionScope permissionScope;
-        private readonly IContextUserProvider userProvider;
+        private readonly IHttpContextUserProvider userProvider;
         private readonly ISharedAssetAdapter assetAdapter;
         private SecurityRepository securityRepository;
-        public DefaultAssetImpersonator(IPermissionScope permissionScope, ISecurityRepository securityRepository, IContextUserProvider userProvider, ISharedAssetAdapter assetAdapter)
+        public DefaultAssetImpersonator(IPermissionScope permissionScope, ISecurityRepository securityRepository, IHttpContextUserProvider userProvider, ISharedAssetAdapter assetAdapter)
         {
             this.permissionScope = permissionScope;
             this.userProvider = userProvider;

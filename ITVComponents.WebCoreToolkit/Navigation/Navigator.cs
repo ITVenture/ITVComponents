@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -41,21 +42,9 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         {
             var currentPath = userProvider.RequestPath;
             var retVal = builder.GetNavigationRoot();
-            IRequestCultureFeature cult = null;
-            try
-            {
-                cult = userProvider.HttpContext.Features.Get<IRequestCultureFeature>();
-            }
-            catch
-            {
-            }
-
-            string currentCulture = null;
-            if (cult != null)
-            {
-                currentCulture = cult.RequestCulture.UICulture.Name;
-                
-            }
+            // Host-neutral: the request-localization middleware (MVC) and the Blazor circuit both set
+            // CultureInfo.CurrentUICulture, so we no longer reach into HttpContext.Features here.
+            string currentCulture = CultureInfo.CurrentUICulture?.Name;
 
            retVal.CleanUp(currentPath, currentCulture);
             return retVal;
