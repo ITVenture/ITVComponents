@@ -4,6 +4,8 @@ using ITVComponents.WebCoreToolkit.Blazor.Configuration;
 using ITVComponents.WebCoreToolkit.Blazor.Localization;
 using ITVComponents.WebCoreToolkit.Blazor.Resources;
 using ITVComponents.WebCoreToolkit.Blazor.Routing;
+using ITVComponents.WebCoreToolkit.Blazor.Security;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
@@ -22,6 +24,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
         public static IServiceCollection UseBlazorAttributeMessages(this IServiceCollection services)
         {
             services.AddSingleton<IAttributeMessageLocalizer, AttributeMessageLocalizer>();
+            return services;
+        }
+
+        /// <summary>
+        /// Registers the circuit-scoped <see cref="BlazorContextUserProvider"/> as the host-neutral
+        /// <see cref="IContextUserProvider"/> for a Blazor host. Place a single
+        /// <c>&lt;ContextUserInitializer /&gt;</c> near the application root so the synchronous
+        /// <see cref="IContextUserProvider.User"/> getter is seeded after the first interactive render.
+        /// </summary>
+        /// <param name="services">the service collection to register into</param>
+        /// <returns>the service collection for chaining</returns>
+        public static IServiceCollection AddBlazorContextUser(this IServiceCollection services)
+        {
+            services.AddScoped<BlazorContextUserProvider>();
+            services.AddScoped<IContextUserProvider>(sp => sp.GetRequiredService<BlazorContextUserProvider>());
             return services;
         }
 
