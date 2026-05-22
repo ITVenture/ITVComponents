@@ -10,10 +10,7 @@ using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.Json;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core.Native;
-using ITVComponents.WebCoreToolkit.Net.FileHandling;
 using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
@@ -104,14 +101,14 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
         }
 
         /// <summary>
-        /// Gets the ActionResult for the complete upload process
+        /// Gets the response for the complete upload process
         /// </summary>
-        /// <returns>an action result as a reaction of the given upload request</returns>
-        public IResult GetUploadResult()
+        /// <returns>a response carrying the computed configuration changes as JSON</returns>
+        public FileUploadResponse GetUploadResult()
         {
             var tmp = changes.ToArray();
             changes.Clear();
-            return Results.Content(JsonHelper.ToJson(tmp, SerializationTypingMode.StaticTyping, null), "application/json");
+            return FileUploadResponse.Text(JsonHelper.ToJson(tmp, SerializationTypingMode.StaticTyping, null), "application/json");
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

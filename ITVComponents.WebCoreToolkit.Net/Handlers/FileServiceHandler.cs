@@ -307,14 +307,15 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                         {
                             return Results.Ok();
                         }
-                        else if (arh != null)
+
+                        var uploadResponse = arh != null ? await arh.GetUploadResult() : rfh.GetUploadResult();
+                        if (uploadResponse == null)
                         {
-                            return await arh.GetUploadResult();
+                            return Results.Ok();
                         }
-                        else
-                        {
-                            return rfh.GetUploadResult();
-                        }
+
+                        return Results.Bytes(uploadResponse.Content ?? Array.Empty<byte>(), uploadResponse.ContentType,
+                            !string.IsNullOrEmpty(uploadResponse.DownloadName) ? uploadResponse.DownloadName : null);
                     }
                     catch (Exception ex)
                     {

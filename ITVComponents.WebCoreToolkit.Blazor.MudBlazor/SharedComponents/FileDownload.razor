@@ -1,0 +1,125 @@
+@*
+    Reusable in-process file download. Resolves the named FileHandler-plugin via DI and reads the file
+    through IAsyncFileHandler/IFileHandler.ReadFile — then streams the bytes to the browser via a
+    DotNetStreamReference (no MVC /File endpoint, no pre-built redirect URL).
+*@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using System.IO
+@using System.Security.Principal
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.ServiceShared.Extensions
+@using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
+@using global::MudBlazor
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IServiceProvider Services
+@inject AuthenticationStateProvider AuthState
+
+<MudButton StartIcon="@StartIcon" Variant="@Variant" Color="@Color" OnClick="Download" Disabled="@(busy || Disabled)">
+    @if (busy)
+    {
+        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+    }
+    @ButtonText
+</MudButton>
+
+@code {
+    /// <summary>Name of the FileHandler plugin that serves the download (resolved in-process via DI).</summary>
+    [Parameter, EditorRequired] public string DownloadModule { get; set; } = "";
+
+    /// <summary>The file-identifier passed to the handler's ReadFile (e.g. the configuration section to export).</summary>
+    [Parameter] public string FileIdentifier { get; set; } = "";
+
+    [Parameter] public string ButtonText { get; set; } = "Download";
+    [Parameter] public string StartIcon { get; set; } = Icons.Material.Filled.Download;
+    [Parameter] public Variant Variant { get; set; } = Variant.Filled;
+    [Parameter] public Color Color { get; set; } = Color.Primary;
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Raised when the download could not be served (handler missing or file not found).</summary>
+    [Parameter] public EventCallback<string> OnError { get; set; }
+
+    private bool busy;
+    private IJSObjectReference? module;
+
+    private async Task EnsureModuleAsync()
+        => module ??= await JS.InvokeAsync<IJSObjectReference>("import",
+            "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor/file-transfer.js");
+
+    private async Task Download()
+    {
+        busy = true;
+        try
+        {
+            var handler = Services.GetFileHandler(DownloadModule);
+            var authState = await AuthState.GetAuthenticationStateAsync();
+            IIdentity? identity = authState.User.Identity;
+
+            Stream? content = null;
+            var downloadName = "download.bin";
+            var contentType = "application/octet-stream";
+            var disposals = new List<IDisposable>();
+
+            if (handler is IAsyncFileHandler asyncHandler)
+            {
+                var result = await asyncHandler.ReadFile(FileIdentifier, identity);
+                if (result is { Success: true, FileContent: not null })
+                {
+                    content = result.FileContent;
+                    downloadName = result.DownloadName ?? downloadName;
+                    contentType = result.ContentType ?? contentType;
+                    disposals.AddRange(result.DeferredDisposals);
+                }
+            }
+            else if (handler is IFileHandler syncHandler)
+            {
+                var fileDownload = true;
+                if (syncHandler.ReadFile(FileIdentifier, identity, ref downloadName, ref contentType, ref fileDownload, out var bytes)
+                    && bytes != null)
+                {
+                    content = new MemoryStream(bytes);
+                    disposals.Add(content);
+                }
+            }
+            else
+            {
+                await OnError.InvokeAsync($"No file-handler '{DownloadModule}' found.");
+                return;
+            }
+
+            if (content is null)
+            {
+                await OnError.InvokeAsync("The requested file was not found.");
+                return;
+            }
+
+            try
+            {
+                await EnsureModuleAsync();
+                using var streamRef = new DotNetStreamReference(content, leaveOpen: false);
+                await module!.InvokeVoidAsync("downloadFromStream", downloadName, contentType, streamRef);
+            }
+            finally
+            {
+                foreach (var d in disposals)
+                {
+                    try { d.Dispose(); } catch { }
+                }
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try { await module.DisposeAsync(); }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch { }
+        }
+    }
+}

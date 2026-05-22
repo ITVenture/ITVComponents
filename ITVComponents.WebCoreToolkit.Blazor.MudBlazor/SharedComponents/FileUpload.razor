@@ -1,0 +1,212 @@
+@*
+    Reusable, strategy-neutral file upload. Resolves the named FileHandler-plugin in-process (via DI) and
+    streams the picked browser file(s) straight to its IAsyncFileHandler/IFileHandler.AddFile — no MVC
+    /File endpoint required. Validation feedback comes back as FileOperationResult; a responding handler's
+    payload (e.g. a config diff) is surfaced via OnUploaded. The JS helper only opens the native picker.
+*@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using System.IO
+@using System.Text
+@using System.Security.Principal
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.ServiceShared.Extensions
+@using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
+@using global::MudBlazor
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IServiceProvider Services
+@inject AuthenticationStateProvider AuthState
+
+<MudPaper Class="pa-4" Outlined="true">
+    <InputFile id="@inputId" OnChange="OnFilesSelected" multiple="@Multiple" accept="@Accept" style="display:none" />
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudButton StartIcon="@Icons.Material.Filled.AttachFile"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="PickFiles"
+                   Disabled="@busy">
+            @(Multiple ? MultiButtonText : ButtonText)
+        </MudButton>
+        @if (selected.Count > 0)
+        {
+            <MudText Typo="Typo.body2">@string.Join(", ", selected.Select(f => f.Name))</MudText>
+        }
+        @if (!AutoUpload && selected.Count > 0)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.CloudUpload" Color="Color.Secondary" OnClick="Upload" Disabled="@busy">Upload</MudButton>
+        }
+        @if (busy)
+        {
+            <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+        }
+    </MudStack>
+</MudPaper>
+
+@code {
+    /// <summary>Name of the FileHandler plugin that processes the upload (resolved in-process via DI).</summary>
+    [Parameter, EditorRequired] public string UploadModule { get; set; } = "";
+
+    /// <summary>Reason passed to the handler; drives the required-permission lookup.</summary>
+    [Parameter, EditorRequired] public string UploadReason { get; set; } = "";
+
+    /// <summary>Optional hint forwarded to the handler (e.g. an id when replacing a file).</summary>
+    [Parameter] public string? UploadHint { get; set; }
+
+    [Parameter] public bool Multiple { get; set; }
+
+    /// <summary>File picker filter, e.g. ".json,.zip".</summary>
+    [Parameter] public string? Accept { get; set; }
+
+    /// <summary>Upload immediately after selection (default) or wait for an explicit Upload button.</summary>
+    [Parameter] public bool AutoUpload { get; set; } = true;
+
+    /// <summary>Maximum accepted size per file in bytes (default 50 MB).</summary>
+    [Parameter] public long MaxFileSize { get; set; } = 50L * 1024 * 1024;
+
+    [Parameter] public string ButtonText { get; set; } = "Choose file";
+    [Parameter] public string MultiButtonText { get; set; } = "Choose files";
+
+    /// <summary>Raised after each upload attempt with the handler's status and (optional) response payload.</summary>
+    [Parameter] public EventCallback<FileUploadResult> OnUploaded { get; set; }
+
+    private readonly string inputId = "itvup_" + Guid.NewGuid().ToString("N");
+    private List<IBrowserFile> selected = new();
+    private bool busy;
+    private IJSObjectReference? module;
+
+    private async Task EnsureModuleAsync()
+        => module ??= await JS.InvokeAsync<IJSObjectReference>("import",
+            "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor/file-transfer.js");
+
+    private async Task PickFiles()
+    {
+        await EnsureModuleAsync();
+        await module!.InvokeVoidAsync("clickInput", inputId);
+    }
+
+    private async Task OnFilesSelected(InputFileChangeEventArgs e)
+    {
+        selected = e.GetMultipleFiles(int.MaxValue).ToList();
+        if (AutoUpload)
+        {
+            await Upload();
+        }
+    }
+
+    private async Task Upload()
+    {
+        if (selected.Count == 0) return;
+        busy = true;
+        try
+        {
+            var result = await UploadInProcessAsync();
+            await OnUploaded.InvokeAsync(result);
+            if (result.Success)
+            {
+                selected.Clear();
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task<FileUploadResult> UploadInProcessAsync()
+    {
+        var handler = Services.GetFileHandler(UploadModule);
+        var asyncHandler = handler as IAsyncFileHandler;
+        var syncHandler = handler as IFileHandler;
+        if (asyncHandler is null && syncHandler is null)
+        {
+            return new FileUploadResult { Success = false, Message = $"No file-handler '{UploadModule}' found." };
+        }
+
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        IIdentity? identity = authState.User.Identity;
+
+        var requiredPermissions = asyncHandler?.PermissionsForReason(UploadReason)
+                                  ?? syncHandler!.PermissionsForReason(UploadReason);
+        if (requiredPermissions is { Length: > 0 } && !Services.VerifyUserPermissions(requiredPermissions))
+        {
+            return new FileUploadResult { Success = false, Message = "Not authorized for this upload." };
+        }
+
+        bool Verify(string n, byte[] c) => true;
+
+        foreach (var file in selected)
+        {
+            byte[] bytes;
+            await using (var stream = file.OpenReadStream(MaxFileSize))
+            using (var ms = new MemoryStream())
+            {
+                await stream.CopyToAsync(ms);
+                bytes = ms.ToArray();
+            }
+
+            FileOperationResult uploadResult;
+            if (asyncHandler != null)
+            {
+                uploadResult = string.IsNullOrEmpty(UploadHint)
+                    ? await asyncHandler.AddFile(file.Name, bytes, identity, Verify)
+                    : await asyncHandler.AddFile(file.Name, bytes, UploadHint, identity);
+            }
+            else
+            {
+                uploadResult = string.IsNullOrEmpty(UploadHint)
+                    ? syncHandler!.AddFile(file.Name, bytes, identity, Verify)
+                    : syncHandler!.AddFile(file.Name, bytes, UploadHint, identity);
+            }
+
+            if (uploadResult is { Success: false })
+            {
+                var message = uploadResult.Errors is { Count: > 0 }
+                    ? string.Join(Environment.NewLine, uploadResult.Errors.Select(er => er.Message))
+                    : "Upload failed.";
+                return new FileUploadResult { Success = false, Message = message };
+            }
+        }
+
+        // surface a responding handler's payload (e.g. the configuration diff)
+        FileUploadResponse? response = null;
+        if (asyncHandler is IAsyncRespondingFileHandler arh)
+        {
+            response = await arh.GetUploadResult();
+        }
+        else if (syncHandler is IRespondingFileHandler rfh)
+        {
+            response = rfh.GetUploadResult();
+        }
+
+        if (response is not null)
+        {
+            return new FileUploadResult
+            {
+                Success = true,
+                ContentType = response.ContentType,
+                Message = response.Content is { Length: > 0 } ? Encoding.UTF8.GetString(response.Content) : ""
+            };
+        }
+
+        return new FileUploadResult { Success = true, Message = "Upload complete." };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try { await module.DisposeAsync(); }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch { }
+        }
+    }
+
+    public sealed class FileUploadResult
+    {
+        public bool Success { get; set; }
+        public string? ContentType { get; set; }
+        public string? Message { get; set; }
+    }
+}

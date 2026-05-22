@@ -30,6 +30,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor\ITVComponents.WebCoreToolkit.Blazor.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.ServiceShared\ITVComponents.WebCoreToolkit.ServiceShared.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\" />
