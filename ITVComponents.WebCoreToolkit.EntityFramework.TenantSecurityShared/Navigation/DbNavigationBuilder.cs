@@ -124,7 +124,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Navi
                         if (qry != null && services.VerifyUserPermissions(new []{qry.Permission.PermissionName}))
                         {
                             var ctx = services.ContextForDiagnosticsQuery(queryName, null, out var def);
-                            var l = ctx.RunDiagnosticsQuery(def, httpContext.HttpContext, new Dictionary<string, object>()).Cast<object>().FirstOrDefault();
+                            var l = ctx.RunDiagnosticsQuery(def, httpContext.HttpContext?.User, services, new Dictionary<string, object>()).Cast<object>().FirstOrDefault();
                             if (l != null)
                             {
                                 ret.CounterVal = $"{l}";

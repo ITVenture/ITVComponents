@@ -8,10 +8,10 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.ViewModel;
 using ITVComponents.WebCoreToolkit.Routing;
+using ITVComponents.WebCoreToolkit.ServiceShared.Diagnostics;
 using ITVComponents.WebCoreToolkit.Tokens;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -39,22 +39,24 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
             var op = context.RequestServices.GetService<IOptions<NetFileLinkOptions>>();
             var contextObj = new
             {
-                HttpContext = context,
                 User = context.User.Identity,
                 CurrentClaims = new Dictionary<string, IList<string>>(from c in context.User.Claims
                     group c by c.Type
                     into g
-                    select new KeyValuePair<string, IList<string>>(g.Key, g.Select(n => n.Value).ToList()))
+                    select new KeyValuePair<string, IList<string>>(g.Key, g.Select(n => n.Value).ToList())),
+                Services = context.RequestServices
             };
 
             var queryArg = new Dictionary<string, string>(context.Request.Query.Select(n =>
                 new KeyValuePair<string, string>(n.Key, Tools.TranslateValue(n.Value.ToString(), contextObj))));
             if (string.IsNullOrEmpty(fileHandler) || !Regex.IsMatch(fileHandler, "^\\w+$"))
             {
-                var dbContext = context.RequestServices.ContextForDiagnosticsQuery(diagnosticsQueryName, area, out var diagQuery);
-                if (dbContext != null)
+                var diagnosticsService = context.RequestServices.GetService<IDiagnosticsQueryService>() ?? new DiagnosticsQueryService();
+                var queryContext = new DiagnosticsQueryContext(context.User, context.RequestServices);
+                var result = diagnosticsService.Execute(diagnosticsQueryName, area, queryContext, queryArg);
+                if (result != null)
                 {
-                    return Results.Json(dbContext.RunDiagnosticsQuery(diagQuery, context, queryArg), new JsonSerializerOptions());
+                    return Results.Json(result, new JsonSerializerOptions());
                 }
             }
             else

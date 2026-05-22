@@ -7,7 +7,7 @@ using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.Tokens;
-using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling.Special
@@ -82,8 +82,9 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling.Special
             var queryName = data["$$QUERYNAME"];
             var area = data["$$QUERYAREA"];
             var ctx = services.ContextForDiagnosticsQuery(queryName, area, out var query);
-            var httpContext = services.GetService<IHttpContextAccessor>();
-            var result = ctx.RunDiagnosticsQuery(query, httpContext?.HttpContext, data).Cast<object>().ToArray();
+            var principal = downloadingIdentity as ClaimsPrincipal
+                ?? new ClaimsPrincipal(downloadingIdentity as ClaimsIdentity ?? new ClaimsIdentity(downloadingIdentity));
+            var result = ctx.RunDiagnosticsQuery(query, principal, services, data).Cast<object>().ToArray();
             return await MaterializeQueryData(result, queryName, downloadingIdentity);
         }
 

@@ -12,7 +12,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
-using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
@@ -26,7 +26,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             this.src = src;
         }
         
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, HttpContext httpContext, IDictionary<string, string> queryArguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, ClaimsPrincipal user, IServiceProvider services, IDictionary<string, string> queryArguments)
         {
             var arguments = DiagnoseQueryHelper.BuildArguments(query, queryArguments, out var argumentsValid);
             if (argumentsValid)
@@ -35,10 +35,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             }
 
             throw new InvalidOperationException(
-                $"Invalid arguments were passed for {httpContext.Request.Path}. (Diagnostics-QueryName: {query.DiagnosticsQueryName})");
+                $"Invalid arguments were passed for Diagnostics-Query {query.DiagnosticsQueryName}.");
         }
 
-        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, HttpContext httpContext, IDictionary<string, object> arguments)
+        public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, ClaimsPrincipal user, IServiceProvider services, IDictionary<string, object> arguments)
         {
             var arg = DiagnoseQueryHelper.VerifyArguments(query, arguments, out var argumentsValid);
             if (argumentsValid)
@@ -47,7 +47,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
             }
 
             throw new InvalidOperationException(
-                $"Invalid arguments were passed for {httpContext.Request.Path}. (Diagnostics-QueryName: {query.DiagnosticsQueryName})");
+                $"Invalid arguments were passed for Diagnostics-Query {query.DiagnosticsQueryName}.");
         }
 
         public ForeignKeyOptions CustomFkSettings { get; } = null;

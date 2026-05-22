@@ -28,6 +28,7 @@ using System.Linq.Expressions;
 using System.Net.Http;
 using System.Reflection;
 using System.Security;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,7 +54,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             NativeScriptHelper.AddUsing(RosDiagConfig, "#S#ITVComponents.WebCoreToolkit.EntityFramework.Models");
             NativeScriptHelper.AddUsing(RosDiagConfig, "#S#ITVComponents.Decisions");
             NativeScriptHelper.AddUsing(RosDiagConfig, "#S#ITVComponents.Decisions.Entities.Results");
-            NativeScriptHelper.AddUsing(RosDiagConfig, "#S#Microsoft.AspNetCore.Http");
+            NativeScriptHelper.AddReference(RosDiagConfig, "#S#System.Security.Claims");
+            NativeScriptHelper.AddUsing(RosDiagConfig, "#S#System.Security.Claims");
             NativeScriptHelper.RunLinqQuery(RosDiagConfig, new[] { "Fubar" }, "Fubar", "InitDummy", "return null;", new Dictionary<string, object>());
         }
 
@@ -247,23 +249,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
         }
 
-        public static IEnumerable RunDiagnosticsQuery(this DbContext context, HttpContext httpContext, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
+        public static IEnumerable RunDiagnosticsQuery(this DbContext context, ClaimsPrincipal user, IServiceProvider services, DiagnosticsQueryDefinition query, IDictionary<string, string> arguments)
         {
             var queryText = CreateDiagQuery(context, query, arguments, out var args);
-            return RunQuery(context, query.DiagnosticsQueryName, queryText, RosDiagConfig, args, httpContext);
+            return RunQuery(context, query.DiagnosticsQueryName, queryText, RosDiagConfig, args, user, services);
         }
 
-        public static IEnumerable RunDiagnosticsQuery(this DbContext context, HttpContext httpContext, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
+        public static IEnumerable RunDiagnosticsQuery(this DbContext context, ClaimsPrincipal user, IServiceProvider services, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
         {
             var args = new Dictionary<string, object>(arguments);
             var queryText = CreateDiagQuery(context, query, args);
-            return RunQuery(context, query.DiagnosticsQueryName, queryText, RosDiagConfig, args, httpContext);
+            return RunQuery(context, query.DiagnosticsQueryName, queryText, RosDiagConfig, args, user, services);
         }
 
-        private static IEnumerable RunQuery(DbContext context, string queryLabel, string query, string configName, IDictionary<string, object> data, HttpContext httpContext)
+        private static IEnumerable RunQuery(DbContext context, string queryLabel, string query, string configName, IDictionary<string, object> data, ClaimsPrincipal user, IServiceProvider services)
         {
             data ??= new Dictionary<string, object>();
-            data["HttpContext"] = httpContext;
+            data["User"] = user;
+            data["Services"] = services;
             return (IEnumerable)NativeScriptHelper.RunLinqQuery(configName, context, "Db", queryLabel, query, data);
         }
 
@@ -271,7 +274,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         {
             ConfigureLinqForContext(context, RosDiagConfig, query.QueryText, out var contextType);
             StringBuilder fullQuery = new StringBuilder($@"{contextType.Name} db = Global.Db;
-HttpContext context = Global.HttpContext;
+ClaimsPrincipal User = Global.User;
+IServiceProvider Services = Global.Services;
 ");
             if (DiagnoseQueryHelper.VerifyArguments(query, arguments, fullQuery))
             {
@@ -288,7 +292,8 @@ HttpContext context = Global.HttpContext;
         {
             ConfigureLinqForContext(context, RosDiagConfig, query.QueryText, out var contextType);
             StringBuilder fullQuery = new StringBuilder($@"{contextType.Name} db = Global.Db;
-HttpContext context = Global.HttpContext;
+ClaimsPrincipal User = Global.User;
+IServiceProvider Services = Global.Services;
 ");
             queryArguments = new Dictionary<string, object>();
             if (DiagnoseQueryHelper.BuildArguments(query, arguments, queryArguments, fullQuery))

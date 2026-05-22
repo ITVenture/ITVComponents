@@ -49,8 +49,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations
 
                 if (context != null)
                 {
-                    var httpContext = services.GetService<IHttpContextAccessor>();
-                    return context.RunDiagnosticsQuery(qr, httpContext?.HttpContext, options.Arguments).Cast<object>().FirstOrDefault();
+                    var user = services.GetService<IHttpContextAccessor>()?.HttpContext?.User;
+                    return context.RunDiagnosticsQuery(qr, user, services, options.Arguments).Cast<object>().FirstOrDefault();
                     /*if (p.Property.PropertyType == typeof(SimpleTriStateResult))
                     {
                         p.Property.SetValue(ret, context.RunDiagnosticsQuery(qr, queryArguments).Cast<SimpleTriStateResult>().FirstOrDefault());
