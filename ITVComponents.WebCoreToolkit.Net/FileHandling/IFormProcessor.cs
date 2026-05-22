@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using Microsoft.Extensions.Primitives;
 
 namespace ITVComponents.WebCoreToolkit.Net.FileHandling

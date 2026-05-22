@@ -11,9 +11,9 @@ using ITVComponents.Json;
 using ITVComponents.Plugins;
 using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
+using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
@@ -57,10 +57,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
         /// </summary>
         /// <param name="name">the file-name</param>
         /// <param name="content">the file-content</param>
-        /// <param name="ms">a model-state dictionary that is used to reflect eventual invalidities back the the file-endpointhandler</param>
         /// <param name="uploadingIdentity">the identity that is uploading the given file</param>
         /// <param name="verifyNextedFile">callback that allows a File-Handler to process nested files</param>
-        public void AddFile(string name, byte[] content, ModelStateDictionary ms, IIdentity uploadingIdentity, Func<string, byte[], bool> verifyNextedFile)
+        public FileOperationResult AddFile(string name, byte[] content, IIdentity uploadingIdentity, Func<string, byte[], bool> verifyNextedFile)
         {
             throw new InvalidOperationException("uploadHint missing!");
         }
@@ -71,12 +70,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.FileHandlers
         /// <param name="name">the file-name</param>
         /// <param name="content">the file-content</param>
         /// <param name="uploadHint">a hint that helps the Uploader-module to decide what to do with the uploaded file</param>
-        /// <param name="ms">a model-state dictionary that is used to reflect eventual invalidities back the the file-endpointhandler</param>
         /// <param name="uploadingIdentity">the identity that is uploading the given file</param>
-        public void AddFile(string name, byte[] content, string uploadHint, ModelStateDictionary ms, IIdentity uploadingIdentity)
+        public FileOperationResult AddFile(string name, byte[] content, string uploadHint, IIdentity uploadingIdentity)
         {
             string fileType = uploadHint;
             changes.AddRange(handler.PerformCompare(name, fileType, content,  uploadingIdentity));
+            return FileOperationResult.Ok();
         }
 
         /// <summary>

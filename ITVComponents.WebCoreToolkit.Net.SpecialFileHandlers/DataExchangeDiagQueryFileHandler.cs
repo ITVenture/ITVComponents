@@ -12,9 +12,8 @@ using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Configuration;
-using ITVComponents.WebCoreToolkit.Net.FileHandling;
-using ITVComponents.WebCoreToolkit.Net.FileHandling.Special;
 using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
+using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling.Special;
 using ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers.Config;
 using Microsoft.Extensions.DependencyInjection;
 

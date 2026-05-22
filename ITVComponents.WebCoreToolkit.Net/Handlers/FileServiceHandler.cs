@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
 using ITVComponents.WebCoreToolkit.Net.FileHandling;
+using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using ITVComponents.WebCoreToolkit.Net.Handlers.Model;
 using ITVComponents.WebCoreToolkit.Net.Options;
 using ITVComponents.WebCoreToolkit.Net.ViewModel;
@@ -219,72 +220,61 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 &&
                                            context.RequestServices.VerifyUserPermissions(requiredPermissions)))
                 {
-                    var ms = new ModelStateDictionary();
                     try
                     {
                         foreach(var section in files)
                         {
-                            
+
                                 if (!section.IsFormData)
                                 {
                                     if (VerifyFile(section.FileName, section.Content, options, out var deniedReason))
                                     {
+                                        FileOperationResult uploadResult;
                                         if (string.IsNullOrEmpty(uploadHint))
                                         {
                                             if (asyncHandler != null)
                                             {
-                                                await(!hasAsset
-                                                    ? asyncHandler.AddFile(section.FileName, section.Content, ms,
+                                                uploadResult = await(!hasAsset
+                                                    ? asyncHandler.AddFile(section.FileName, section.Content,
                                                         context.User?.Identity,
                                                         (n, c) => VerifyFile(n, c, options, out _))
-                                                    : asyncHandler.AddFile(section.FileName, section.Content, (string)assetKey, ms,
+                                                    : asyncHandler.AddFile(section.FileName, section.Content, (string)assetKey,
                                                         context.User, (n, c) => VerifyFile(n, c, options, out _)));
                                             }
                                             else
                                             {
-                                                if (!hasAsset)
-                                                {
-                                                    syncHandler.AddFile(section.FileName, section.Content, ms, context.User?.Identity,
-                                                        (n, c) => VerifyFile(n, c, options, out _));
-                                                }
-                                                else
-                                                {
-                                                    syncHandler.AddFile(section.FileName, section.Content, (string)assetKey, ms,
+                                                uploadResult = !hasAsset
+                                                    ? syncHandler.AddFile(section.FileName, section.Content, context.User?.Identity,
+                                                        (n, c) => VerifyFile(n, c, options, out _))
+                                                    : syncHandler.AddFile(section.FileName, section.Content, (string)assetKey,
                                                         context.User, (n, c) => VerifyFile(n, c, options, out _));
-                                                }
                                             }
                                         }
                                         else
                                         {
                                             if (asyncHandler != null)
                                             {
-                                                await(!hasAsset
-                                                    ? asyncHandler.AddFile(section.FileName, section.Content, uploadHint, ms,
+                                                uploadResult = await(!hasAsset
+                                                    ? asyncHandler.AddFile(section.FileName, section.Content, uploadHint,
                                                         context.User?.Identity)
                                                     : asyncHandler.AddFile(section.FileName, section.Content, uploadHint,
-                                                        (string)assetKey, ms, context.User));
+                                                        (string)assetKey, context.User));
                                             }
                                             else
                                             {
-                                                if (!hasAsset)
-                                                {
-                                                    syncHandler.AddFile(section.FileName, section.Content, uploadHint, ms,
-                                                        context.User?.Identity);
-                                                }
-                                                else
-                                                {
-                                                    syncHandler.AddFile(section.FileName, section.Content, uploadHint, (string)assetKey,
-                                                        ms,
+                                                uploadResult = !hasAsset
+                                                    ? syncHandler.AddFile(section.FileName, section.Content, uploadHint,
+                                                        context.User?.Identity)
+                                                    : syncHandler.AddFile(section.FileName, section.Content, uploadHint, (string)assetKey,
                                                         context.User);
-                                                }
                                             }
                                         }
 
-                                        if (!ms.IsValid)
+                                        if (uploadResult is { Success: false })
                                         {
-                                            return Results.BadRequest(string.Join(Environment.NewLine,
-                                                (from t in ms where t.Key == "File" select t.Value.Errors)
-                                                .SelectMany(m => m).Select(i => i.ErrorMessage)));
+                                            return Results.BadRequest(uploadResult.Errors == null || uploadResult.Errors.Count == 0
+                                                ? "Upload failed."
+                                                : string.Join(Environment.NewLine, uploadResult.Errors.Select(e => e.Message)));
                                         }
                                     }
                                     else

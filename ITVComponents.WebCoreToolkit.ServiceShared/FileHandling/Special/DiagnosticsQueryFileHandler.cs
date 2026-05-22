@@ -1,25 +1,18 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Security.Principal;
-using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
-using ITVComponents.WebCoreToolkit.EntityFramework.Models;
-using ITVComponents.WebCoreToolkit.Security;
-using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using ITVComponents.WebCoreToolkit.Tokens;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.WebCoreToolkit.Net.FileHandling.Special
+namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling.Special
 {
-    public abstract class DiagnosticsQueryFileHandler:IAsyncFileHandler,IPlugin
+    public abstract class DiagnosticsQueryFileHandler : IAsyncFileHandler, IPlugin
     {
         private readonly IServiceProvider services;
 
@@ -64,12 +57,7 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling.Special
         /// <summary>
         /// Adds a file to this fileHandler instance
         /// </summary>
-        /// <param name="name">the file-name</param>
-        /// <param name="content">the file-content</param>
-        /// <param name="ms">a model-state dictionary that is used to reflect eventual invalidities back the the file-endpointhandler</param>
-        /// <param name="uploadingIdentity">the identity that is uploading the given file</param>
-        /// <param name="verifyNextedFile">callback that allows a File-Handler to process nested files</param>
-        public Task AddFile(string name, byte[] content, ModelStateDictionary ms, IIdentity uploadingIdentity, Func<string, byte[], bool> verifyNextedFile)
+        public Task<FileOperationResult> AddFile(string name, byte[] content, IIdentity uploadingIdentity, Func<string, byte[], bool> verifyNestedFile)
         {
             throw new NotImplementedException();
         }
@@ -77,12 +65,7 @@ namespace ITVComponents.WebCoreToolkit.Net.FileHandling.Special
         /// <summary>
         /// Adds a file to this fileHandler instance
         /// </summary>
-        /// <param name="name">the file-name</param>
-        /// <param name="content">the file-content</param>
-        /// <param name="uploadHint">a hint that helps the Uploader-module to decide what to do with the uploaded file</param>
-        /// <param name="ms">a model-state dictionary that is used to reflect eventual invalidities back the the file-endpointhandler</param>
-        /// <param name="uploadingIdentity">the identity that is uploading the given file</param>
-        public Task AddFile(string name, byte[] content, string uploadHint, ModelStateDictionary ms, IIdentity uploadingIdentity)
+        public Task<FileOperationResult> AddFile(string name, byte[] content, string uploadHint, IIdentity uploadingIdentity)
         {
             throw new NotImplementedException();
         }

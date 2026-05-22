@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.Net.FileHandling;
+using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.Extensions.DependencyInjection;

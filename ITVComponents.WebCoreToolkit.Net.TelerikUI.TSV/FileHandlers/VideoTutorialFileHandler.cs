@@ -7,9 +7,7 @@ using ITVComponents.EFRepo.Extensions;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
-using ITVComponents.WebCoreToolkit.Net.FileHandling;
 using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHandlers
 {
@@ -44,12 +42,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHan
             return null;
         }
 
-        public Task AddFile(string name, byte[] content, ModelStateDictionary ms, IIdentity uploadingIdentity, Func<string, byte[], bool> verifyNextedFile)
+        public Task<FileOperationResult> AddFile(string name, byte[] content, IIdentity uploadingIdentity, Func<string, byte[], bool> verifyNextedFile)
         {
             throw new InvalidOperationException("Upload-Hint required!");
         }
 
-        public async Task AddFile(string name, byte[] content, string uploadHint, ModelStateDictionary ms, IIdentity uploadingIdentity)
+        public async Task<FileOperationResult> AddFile(string name, byte[] content, string uploadHint, IIdentity uploadingIdentity)
         {
             var ok = uploadHint.StartsWith("##VID#");
             if (ok)
@@ -84,6 +82,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.FileHan
             {
                 throw new InvalidOperationException("Invalid Uploadhint provided!");
             }
+
+            return FileOperationResult.Ok();
         }
 
         public async Task<AsyncReadFileResult> ReadFile(string fileIdentifier, IIdentity downloadingIdentity)
