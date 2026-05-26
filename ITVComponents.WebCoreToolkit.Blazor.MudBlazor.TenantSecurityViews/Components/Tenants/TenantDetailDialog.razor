@@ -2,6 +2,10 @@
 @using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.Roles
 @using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.PlugIns
 @using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.Sequences
+@using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers
+@using Microsoft.Extensions.DependencyInjection
+
+@inject IServiceProvider Services
 
 <MudDialog>
     <DialogContent>
@@ -21,6 +25,12 @@
             <MudTabPanel Text="Roles">
                 <Roles EmbeddedTenantId="@Tenant.TenantId" />
             </MudTabPanel>
+            @if (usersGridType is not null)
+            {
+                <MudTabPanel Text="Users">
+                    <DynamicComponent Type="usersGridType" Parameters="usersGridParameters" />
+                </MudTabPanel>
+            }
             <MudTabPanel Text="Plug-ins">
                 <PlugIns EmbeddedTenantId="@Tenant.TenantId" />
             </MudTabPanel>
@@ -40,6 +50,15 @@
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter, EditorRequired] public TenantViewModel Tenant { get; set; } = default!;
+
+    private Type? usersGridType;
+    private IDictionary<string, object> usersGridParameters = new Dictionary<string, object>();
+
+    protected override void OnParametersSet()
+    {
+        usersGridType = Services.GetService<TenantUsersGridDescriptor>()?.GridComponentType;
+        usersGridParameters = new Dictionary<string, object> { ["TenantId"] = Tenant.TenantId };
+    }
 
     private void Close() => MudDialog.Close();
 }

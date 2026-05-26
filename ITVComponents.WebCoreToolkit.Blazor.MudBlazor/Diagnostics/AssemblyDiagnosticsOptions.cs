@@ -1,0 +1,37 @@
+namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics;
+
+/// <summary>
+/// Host configuration for the AssemblyDiagnostics view. Read through
+/// <c>IHierarchySettings&lt;AssemblyDiagnosticsOptions&gt;</c>, so the value can be supplied from the
+/// database via Global- or Tenant-Settings (requires <c>UseHierarchySettings()</c> + activated scoped/global
+/// settings on the host) and falls back to a default instance when not configured. When
+/// <see cref="UseConfigExchange"/> is false (default) the Configuration-Exchange tab is hidden.
+/// </summary>
+public class AssemblyDiagnosticsOptions
+{
+    public bool UseConfigExchange { get; set; }
+
+    /// <summary>Name of the FileHandler plugin that receives an uploaded configuration (route {UploadModule}).</summary>
+    public string ConfigUploadModule { get; set; } = "ConfigExchange";
+
+    /// <summary>Upload reason passed to the handler (route {UploadReason}); drives the permission lookup.</summary>
+    public string ConfigUploadReason { get; set; } = "ApplyConfig";
+
+    /// <summary>
+    /// Name of the FileHandler plugin that serves the configuration download in-process (via ReadFile).
+    /// When set, an in-process streaming download is offered and <see cref="ConfigDownloadUrl"/> is ignored.
+    /// </summary>
+    public string? ConfigDownloadModule { get; set; }
+
+    /// <summary>File-identifier passed to the download handler's ReadFile (e.g. the configuration section).</summary>
+    public string ConfigDownloadIdentifier { get; set; } = "";
+
+    /// <summary>
+    /// Optional pre-built URL for downloading the current configuration (legacy MVC /File flow). Used only as a
+    /// fallback when <see cref="ConfigDownloadModule"/> is not set. When both are empty the download link is hidden.
+    /// </summary>
+    public string? ConfigDownloadUrl { get; set; }
+
+    /// <summary>Comma-separated file picker filter for the config upload, e.g. ".json,.zip".</summary>
+    public string ConfigAccept { get; set; } = ".json";
+}

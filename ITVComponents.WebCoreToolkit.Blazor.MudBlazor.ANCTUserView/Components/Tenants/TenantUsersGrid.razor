@@ -1,0 +1,105 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids
+
+@inject IUserAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Info">No permission to view users for this tenant.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="UserViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 Filterable="false"
+                 RowsPerPage="10"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
+            <MudText Typo="Typo.subtitle2">Users</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="UserViewModel" />
+            <PropertyColumn Property="x => x.UserName" Title="User name" />
+            <PropertyColumn Property="x => x.Email" Title="Email" />
+            <PropertyColumn Property="x => x.Enabled" Title="Active" />
+        </Columns>
+        <ChildRowContent>
+            @{
+                var item = context.Item;
+            }
+            @if (int.TryParse(item.Id, out var tenantUserId))
+            {
+                <MudPaper Elevation="0" Class="pa-2">
+                    <RolesForTenantUserGrid TenantUserId="@tenantUserId" TenantId="@TenantId" />
+                </MudPaper>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Class="ma-2">
+                    Role assignment requires a tenant-scoped user record.
+                </MudAlert>
+            }
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="UserViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int TenantId { get; set; }
+
+    private MudDataGrid<UserViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "Users.View", "Users.Write");
+    }
+
+    private async Task<GridData<UserViewModel>> LoadData(GridState<UserViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+            return new GridData<UserViewModel> { Items = Array.Empty<UserViewModel>(), TotalItems = 0 };
+
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new UserListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search,
+            TenantId = TenantId
+        };
+        var result = await Handler.ListUsersAsync(currentUser, query);
+        return new GridData<UserViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+}

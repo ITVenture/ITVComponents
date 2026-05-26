@@ -1,4 +1,5 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
+using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Components.Tenants;
 using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers.Impl;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
@@ -8,6 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.CustomUserProperty;
 using DashboardParam = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.DashboardParam;
@@ -51,6 +53,11 @@ public static class DependencyInjectionExtensions
                 FlatTenantSetting, FlatTenantFeatureActivation,
                 FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin,
                 BaseTenantContextSecurityTrustConfig>>();
+        }
+
+        if (partTypeLoadBehavior.ShouldLoadType(typeof(TenantUsersGrid)))
+        {
+            services.AddTenantUsersGrid<TenantUsersGrid>();
         }
 
         return services;

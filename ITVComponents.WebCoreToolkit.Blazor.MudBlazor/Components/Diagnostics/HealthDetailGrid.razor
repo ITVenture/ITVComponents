@@ -1,0 +1,43 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics
+@inject IAssemblyDiagnosticsAdminHandler Handler
+
+@if (loading)
+{
+    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="ma-2" />
+}
+else if (details.Count == 0)
+{
+    <MudText Typo="Typo.body2" Class="ma-2">No detail results.</MudText>
+}
+else
+{
+    <MudSimpleTable Dense="true" Hover="true" Class="ma-2">
+        <thead>
+            <tr><th>Name</th><th>Result</th><th>Message</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var d in details)
+            {
+                <tr>
+                    <td>@d.Name</td>
+                    <td>@d.Result</td>
+                    <td>@d.Message</td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+}
+
+@code {
+    [Parameter, EditorRequired] public System.Security.Claims.ClaimsPrincipal CurrentUser { get; set; } = default!;
+    [Parameter, EditorRequired] public string CheckName { get; set; } = "";
+
+    private bool loading = true;
+    private IReadOnlyList<HealthTestViewModel> details = Array.Empty<HealthTestViewModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        details = await Handler.ListHealthDetailAsync(CurrentUser, CheckName);
+        loading = false;
+    }
+}

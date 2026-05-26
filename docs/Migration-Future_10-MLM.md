@@ -209,9 +209,24 @@ services.AddBlazorPermissionScope(o =>
 services.AddWebCoreToolkitServiceShared();
 ```
 
-**Eine `<ContextUserInitializer />`-Komponente nahe der App-Wurzel platzieren** (einmal) — sie seedet den
-synchronen `User`-Getter nach dem ersten interaktiven Render und hält ihn über
-`AuthenticationStateChanged` aktuell.
+**Zwei unsichtbare Wurzel-Komponenten platzieren** (jeweils genau einmal, z.B. im `MainLayout` oder direkt
+in `App.razor`):
+
+```razor
+<ContextUserInitializer />
+<TenantUrlGuard />
+```
+
+- `<ContextUserInitializer />` seedet den synchronen `User`-Getter nach dem ersten interaktiven Render
+  und hält ihn über `AuthenticationStateChanged` aktuell.
+- `<TenantUrlGuard />` hält die Tenant-Auswahl URL-seitig haftend: er merkt sich pro Circuit den zuletzt
+  aus `?tenant=` gelesenen Wert und reinjiziert ihn in jede interne Navigation, die ohne den Parameter
+  startet. Auth-Pfade (`/Account/`, `/Identity/Account/`, `/Logout`, `/Login`, `/signin-*`, `/signout-*`)
+  bleiben unangetastet; weitere Hosts-spezifische Ausnahmen können über
+  `ScopedPermissionScopeOptions.AuthPathExclusions` ergänzt werden.
+
+**Folge:** ein F5 auf einer beliebigen Page (auch Profile-Pages mit Full-Reload) findet den Tenant noch
+in der Adresszeile und löst korrekt auf; ein Click auf einen normalen `NavLink` verliert ihn nicht mehr.
 
 **Tenant-Wechsel innerhalb eines Tabs (v1):** Der Tenant-Picker navigiert mit **`forceLoad: true`** auf
 die tenant-tragende URL (z.B. `?tenant=Kunde42`). Dadurch wird die Circuit neu aufgebaut → frische
@@ -249,4 +264,4 @@ navigationManager.NavigateTo($"{basePath}?tenant={Uri.EscapeDataString(selectedT
 | 3 | DiagnosticsQuery-Texte | `context.User`→`User`, `context.RequestServices`→`Services` |
 | 4 | `IContextUserProvider` | `HttpContext`-Member → `IHttpContextUserProvider` |
 | 5 | `CookieScopeOptions.DefaultScopeExpression` | `Func<HttpContext,…>` → `Func<IContextUserProvider,…>` |
-| 6 | Blazor-Host | `AddBlazorContextUser()` + `<ContextUserInitializer/>` + `AddBlazorPermissionScope(…)` + `AddWebCoreToolkitServiceShared()` |
+| 6 | Blazor-Host | `AddBlazorContextUser()` + `<ContextUserInitializer/>` + `<TenantUrlGuard/>` + `AddBlazorPermissionScope(…)` + `AddWebCoreToolkitServiceShared()` |

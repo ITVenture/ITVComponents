@@ -1,5 +1,6 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
+using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -8,6 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.F
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
+using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -384,6 +386,23 @@ public static class DependencyInjectionExtensions
             services.AddScoped<IModuleVideoAdminHandler, ModuleVideoAdminHandler>();
         }
 
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the strategy-specific Blazor component that renders the "Users" tab inside the
+    /// <c>TenantDetailDialog</c>. Each UserView library (flat ASP.NET Identity, tree ASP.NET Identity, or
+    /// TenantSecurityContext) calls this from its own setup so the dialog can render the matching grid via
+    /// <c>DynamicComponent</c>. If nothing is registered, the tab is omitted.
+    /// </summary>
+    /// <typeparam name="TComponent">a Blazor component that accepts an <c>int TenantId</c> parameter and
+    /// renders the tenant-user list for the given strategy</typeparam>
+    /// <param name="services">the service collection to register into</param>
+    /// <returns>the service collection for chaining</returns>
+    public static IServiceCollection AddTenantUsersGrid<TComponent>(this IServiceCollection services)
+        where TComponent : IComponent
+    {
+        services.AddSingleton(new TenantUsersGridDescriptor(typeof(TComponent)));
         return services;
     }
 }

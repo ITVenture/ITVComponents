@@ -4,7 +4,12 @@
       "Bash(dotnet build *)",
       "Bash(dotnet sln *)",
       "Bash(dotnet test *)",
-      "Bash(dotnet restore *)"
+      "Bash(dotnet restore *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\users\\\\mw\\\\source\\\\cleanworkspace\\\\ITVComponents-Public\\\\ITVComponents.WebCoreToolkit.Net\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(git commit *)",
+      "Bash(git add *)",
+      "Bash(grep -v \"\\\\.csproj$\")"
     ]
   }
 }

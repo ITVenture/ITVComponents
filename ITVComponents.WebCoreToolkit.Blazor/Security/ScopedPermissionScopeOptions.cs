@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
@@ -31,5 +32,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         /// re-resolved from the security repository. Defaults to 30, matching the cookie strategy.
         /// </summary>
         public int RenewalMinutes { get; set; } = 30;
+
+        /// <summary>
+        /// Gets the list of (case-insensitive) URL-path prefixes that <see cref="TenantUrlGuard"/> must
+        /// <em>not</em> rewrite. Defaults cover the common ASP.NET Core Identity / auth endpoints so the tenant
+        /// query never leaks into login/logout/account flows. Add hosts-specific routes (e.g. callback paths)
+        /// as needed.
+        /// </summary>
+        public IList<string> AuthPathExclusions { get; } = new List<string>
+        {
+            "/Account/",
+            "/Identity/Account/",
+            "/Logout",
+            "/Login",
+            "/signin-",
+            "/signout-"
+        };
     }
 }

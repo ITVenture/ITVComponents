@@ -1,6 +1,7 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blazor.Components.Tenants;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model;
@@ -8,6 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Mode
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +43,11 @@ public static class DependencyInjectionExtensions
                 HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState,
                 HierarchyExternalOAuthServiceTenantLogin,
                 HierarchyTenantContextSecurityTrustConfig>>();
+        }
+
+        if (partTypeLoadBehavior.ShouldLoadType(typeof(TenantUsersGrid)))
+        {
+            services.AddTenantUsersGrid<TenantUsersGrid>();
         }
 
         return services;

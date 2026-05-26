@@ -1,0 +1,213 @@
+@page "/Util/AssemblyDiagnostics"
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Configuration
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+@inject IAssemblyDiagnosticsAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IHierarchySettings<AssemblyDiagnosticsOptions> Options
+@inject ISnackbar Snackbar
+
+<PageTitle>Assembly diagnostics</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Assembly diagnostics</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasView)
+{
+    <MudAlert Severity="Severity.Warning">No permission to view assembly diagnostics.</MudAlert>
+}
+else
+{
+    <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+        <MudTabPanel Text="Assemblies">
+            <MudDataGrid T="AssemblyInfoViewModel" Items="@assemblies" Filterable="false" SortMode="SortMode.Multiple"
+                         QuickFilter="@AssemblyFilter" Hover="true" Dense="true" RowsPerPage="50">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">Loaded assemblies (@assemblies.Count)</MudText>
+                    <MudSpacer />
+                    <MudTextField @bind-Value="assemblySearch" Placeholder="Search…" Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" />
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="x => x.FullName" Title="Assembly" />
+                    <PropertyColumn Property="x => x.AssemblyVersion" Title="Version" />
+                    <PropertyColumn Property="x => x.LoadContext" Title="Load context" />
+                    <PropertyColumn Property="x => x.RuntimeVersion" Title="Runtime" />
+                    <PropertyColumn Property="x => x.Location" Title="Location" />
+                    <PropertyColumn Property="x => x.IsDynamic" Title="Dynamic" />
+                    <PropertyColumn Property="x => x.IsCollectible" Title="Collectible" />
+                </Columns>
+                <PagerContent><MudDataGridPager T="AssemblyInfoViewModel" /></PagerContent>
+            </MudDataGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Claims">
+            <MudDataGrid T="ClaimInfoViewModel" Items="@claims" Filterable="false" SortMode="SortMode.Multiple"
+                         QuickFilter="@ClaimFilter" Hover="true" Dense="true" RowsPerPage="50">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">Current user claims (@claims.Count)</MudText>
+                    <MudSpacer />
+                    <MudTextField @bind-Value="claimSearch" Placeholder="Search…" Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" />
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="x => x.Type" Title="Type" />
+                    <PropertyColumn Property="x => x.Value" Title="Value" />
+                    <PropertyColumn Property="x => x.ValueType" Title="Value type" />
+                    <PropertyColumn Property="x => x.Issuer" Title="Issuer" />
+                </Columns>
+                <PagerContent><MudDataGridPager T="ClaimInfoViewModel" /></PagerContent>
+            </MudDataGrid>
+        </MudTabPanel>
+
+        @if (Handler.HealthAvailable)
+        {
+            <MudTabPanel Text="Health">
+                <MudDataGrid T="HealthTestViewModel" Items="@health" Filterable="false" Hover="true" Dense="true">
+                    <ToolBarContent>
+                        <MudText Typo="Typo.h6">Health checks</MudText>
+                        <MudSpacer />
+                        <MudButton StartIcon="@Icons.Material.Filled.Refresh" Variant="Variant.Text" OnClick="ReloadHealth">Re-run</MudButton>
+                    </ToolBarContent>
+                    <Columns>
+                        <HierarchyColumn T="HealthTestViewModel" ButtonDisabledFunc="@(x => !x.HasDetails)" />
+                        <TemplateColumn T="HealthTestViewModel" Title="Result" Sortable="false">
+                            <CellTemplate>
+                                <MudChip T="string" Size="Size.Small" Color="@HealthColor(context.Item.Result)">@context.Item.Result</MudChip>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <PropertyColumn Property="x => x.Name" Title="Name" />
+                        <PropertyColumn Property="x => x.Description" Title="Description" />
+                        <PropertyColumn Property="x => x.Tags" Title="Tags" />
+                        <PropertyColumn Property="x => x.Message" Title="Message" />
+                    </Columns>
+                    <ChildRowContent>
+                        <HealthDetailGrid CurrentUser="@currentUser" CheckName="@context.Item.Name" />
+                    </ChildRowContent>
+                </MudDataGrid>
+            </MudTabPanel>
+        }
+
+        @if (Options.Value.UseConfigExchange)
+        {
+            <MudTabPanel Text="Configuration exchange">
+                @if (!string.IsNullOrEmpty(Options.Value.ConfigDownloadModule))
+                {
+                    <div class="mb-4">
+                        <FileDownload DownloadModule="@Options.Value.ConfigDownloadModule"
+                                      FileIdentifier="@Options.Value.ConfigDownloadIdentifier"
+                                      ButtonText="Download configuration"
+                                      OnError="OnDownloadError" />
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(Options.Value.ConfigDownloadUrl))
+                {
+                    <MudButton Href="@Options.Value.ConfigDownloadUrl" Target="_blank"
+                               StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Filled" Color="Color.Primary" Class="mb-4">
+                        Download configuration
+                    </MudButton>
+                }
+                <FileUpload UploadModule="@Options.Value.ConfigUploadModule"
+                            UploadReason="@Options.Value.ConfigUploadReason"
+                            Accept="@Options.Value.ConfigAccept"
+                            Multiple="false"
+                            ButtonText="Choose configuration file"
+                            OnUploaded="OnConfigUploaded" />
+                @if (configResult is not null)
+                {
+                    <MudAlert Severity="@(configResult.Success ? Severity.Success : Severity.Error)" Class="mt-4">
+                        <pre style="margin:0;white-space:pre-wrap;word-break:break-word;">@configResult.Message</pre>
+                    </MudAlert>
+                }
+            </MudTabPanel>
+        }
+    </MudTabs>
+}
+
+@code {
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool loaded;
+
+    private IReadOnlyList<AssemblyInfoViewModel> assemblies = Array.Empty<AssemblyInfoViewModel>();
+    private IReadOnlyList<ClaimInfoViewModel> claims = Array.Empty<ClaimInfoViewModel>();
+    private IReadOnlyList<HealthTestViewModel> health = Array.Empty<HealthTestViewModel>();
+
+    private string? assemblySearch;
+    private string? claimSearch;
+
+    private FileUpload.FileUploadResult? configResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission(currentUser, "AssemblyDiagnostics.View");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && hasView && !loaded)
+        {
+            assemblies = Handler.ListAssemblies(currentUser!);
+            claims = Handler.ListClaims(currentUser!);
+            if (Handler.HealthAvailable)
+            {
+                health = await Handler.ListHealthAsync(currentUser!);
+            }
+            loaded = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ReloadHealth()
+    {
+        if (currentUser is null) return;
+        health = await Handler.ListHealthAsync(currentUser);
+    }
+
+    private async Task OnConfigUploaded(FileUpload.FileUploadResult result)
+    {
+        configResult = result;
+        Snackbar.Add(result.Success ? "Configuration uploaded" : "Configuration upload failed",
+            result.Success ? Severity.Success : Severity.Error);
+        await Task.CompletedTask;
+    }
+
+    private void OnDownloadError(string message)
+        => Snackbar.Add(message, Severity.Error);
+
+    private bool AssemblyFilter(AssemblyInfoViewModel x)
+    {
+        if (string.IsNullOrWhiteSpace(assemblySearch)) return true;
+        var s = assemblySearch.Trim();
+        return (x.FullName?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (x.LoadContext?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (x.Location?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private bool ClaimFilter(ClaimInfoViewModel x)
+    {
+        if (string.IsNullOrWhiteSpace(claimSearch)) return true;
+        var s = claimSearch.Trim();
+        return (x.Type?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (x.Value?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private static Color HealthColor(string? result) => result switch
+    {
+        "Healthy" => Color.Success,
+        "Degraded" => Color.Warning,
+        "Unhealthy" => Color.Error,
+        _ => Color.Default
+    };
+}

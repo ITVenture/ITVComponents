@@ -9,7 +9,9 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.TenantSecurityContextUserView.Blazor.Components.Tenants;
 using ITVComponents.WebCoreToolkit.TenantSecurityContextUserView.Blazor.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty;
@@ -115,6 +117,11 @@ public static class DependencyInjectionExtensions
                     TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
+        }
+
+        if (partTypeLoadBehavior.ShouldLoadType(typeof(TenantUsersGrid)))
+        {
+            services.AddTenantUsersGrid<TenantUsersGrid>();
         }
 
         return services;
