@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE035</Version>
+    <Version>5.0.0-PRE038</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -31,9 +31,9 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net\ITVComponents.WebCoreToolkit.Net.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Telerik.UI.for.AspNet.Core" Version="2024.1.319" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="4.14.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="4.14.0" />
+    <PackageReference Include="Telerik.UI.for.AspNet.Core" Version="2026.2.520" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="5.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\js\" />

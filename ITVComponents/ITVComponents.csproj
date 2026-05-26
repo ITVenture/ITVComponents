@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE035</Version>
+    <Version>5.0.0-PRE038</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <Authors>mw</Authors>
@@ -21,16 +21,16 @@
     <Compile Remove="Settings\XmlSettingsSection.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="microsoft.csharp" Version="4.7.0" />
-    <PackageReference Include="microsoft.extensions.configuration" Version="10.0.0" />
-    <PackageReference Include="microsoft.extensions.configuration.binder" Version="10.0.0" />
-    <PackageReference Include="microsoft.extensions.configuration.Json" Version="10.0.0" />
-    <PackageReference Include="microsoft.extensions.primitives" Version="10.0.0" />
+    <PackageReference Include="microsoft.extensions.configuration" Version="10.0.8" />
+    <PackageReference Include="microsoft.extensions.configuration.binder" Version="10.0.8" />
+    <PackageReference Include="microsoft.extensions.configuration.Json" Version="10.0.8" />
+    <PackageReference Include="microsoft.extensions.primitives" Version="10.0.8" />
     <!--PackageReference Include="newtonsoft.json" Version="13.0.3" /-->
-    <PackageReference Include="system.directoryservices" Version="10.0.0" />
-    <PackageReference Include="system.directoryservices.accountmanagement" Version="10.0.0" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
-    <PackageReference Include="System.Security.Principal.Windows" Version="5.0.0" />
+    <PackageReference Include="system.directoryservices" Version="10.0.8" />
+    <PackageReference Include="system.directoryservices.accountmanagement" Version="10.0.8" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.8" />
+    <!-- Microsoft.CSharp and System.Security.Principal.Windows removed: in-box on net10.0
+         (see dotnet/runtime#54365). -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
