@@ -30,7 +30,6 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.Extensions.Logging;
-using SkiaSharp;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.Models.CustomUserProperty;
 using Feature = ITVComponents.WebCoreToolkit.Models.Feature;
 using ILogger = Microsoft.Extensions.Logging.ILogger;

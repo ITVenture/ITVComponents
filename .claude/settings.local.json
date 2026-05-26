@@ -9,7 +9,15 @@
       "Bash(Select-Object Name)",
       "Bash(git commit *)",
       "Bash(git add *)",
-      "Bash(grep -v \"\\\\.csproj$\")"
+      "Bash(grep -v \"\\\\.csproj$\")",
+      "Bash(gh issue *)",
+      "Bash(dotnet add *)",
+      "Bash(xargs grep -l 'Version=\"10\\\\.0\\\\.0\"')",
+      "Bash(xargs -0 sed -i 's/Version=\"10\\\\.0\\\\.0\"/Version=\"10.0.8\"/g')",
+      "Bash(xargs grep -l '<Version>10\\\\.0\\\\.0</Version>')",
+      "Bash(xargs -0 sed -i ' *)",
+      "Bash(xargs -0 sed -i 's|Include=\"google\\\\.protobuf\" version=\"3\\\\.28\\\\.3\"|Include=\"google.protobuf\" version=\"3.35.0\"|g')",
+      "Bash(xargs grep -l \"SixLabors.ImageSharp\")"
     ]
   }
 }

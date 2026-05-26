@@ -158,7 +158,6 @@ Settings for sheet-search: {ImportWorkSheetDecider}", ParserEventSeverity.Warnin
                     break;
                     }
                 case CellType.Error:
-                case CellType.Unknown:
                     {
                         value = "[ERROR]";
                         break;

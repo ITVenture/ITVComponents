@@ -17,8 +17,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         /// Gets or sets the route/query value name that selects the tenant for the current circuit (e.g. "tenant").
         /// The value taken from the route must be one of the user's eligible scopes — the eligibility gate is
         /// enforced server-side by the shared resolution engine. Leave null/empty to disable route-based selection.
+        /// In <see cref="TenantSource.PathSegment"/> mode this is just the key under which
+        /// <see cref="BlazorContextUserProvider"/> publishes the first base-URI segment to the engine.
         /// </summary>
         public string? RouteOverrideParam { get; set; }
+
+        /// <summary>
+        /// Gets or sets where the tenant value is read from. Defaults to <see cref="TenantSource.Query"/> for
+        /// backward compatibility; set to <see cref="TenantSource.PathSegment"/> when the host emits a dynamic
+        /// <c>&lt;base href="/{tenant}/"&gt;</c> and the URL carries the tenant as its first path segment.
+        /// </summary>
+        public TenantSource TenantSource { get; set; } = TenantSource.Query;
 
         /// <summary>
         /// Gets or sets the expression that picks a default scope when the route carries none (or an ineligible

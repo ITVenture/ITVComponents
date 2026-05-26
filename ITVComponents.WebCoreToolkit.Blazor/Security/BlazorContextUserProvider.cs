@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.Security
 {
@@ -21,12 +22,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
 
         private readonly AuthenticationStateProvider authStateProvider;
         private readonly NavigationManager navigation;
+        private readonly IOptions<ScopedPermissionScopeOptions> scopeOptions;
         private ClaimsPrincipal user = Anonymous;
 
-        public BlazorContextUserProvider(AuthenticationStateProvider authStateProvider, NavigationManager navigation, IServiceProvider services)
+        public BlazorContextUserProvider(AuthenticationStateProvider authStateProvider, NavigationManager navigation, IServiceProvider services, IOptions<ScopedPermissionScopeOptions> scopeOptions)
         {
             this.authStateProvider = authStateProvider;
             this.navigation = navigation;
+            this.scopeOptions = scopeOptions;
             Services = services;
             authStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         }
@@ -38,7 +41,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         public IServiceProvider Services { get; }
 
         /// <inheritdoc/>
-        public IDictionary<string, object> RouteData => ParseQuery(navigation.Uri);
+        public IDictionary<string, object> RouteData
+        {
+            get
+            {
+                var result = ParseQuery(navigation.Uri);
+                var opts = scopeOptions.Value;
+                if (opts.TenantSource == TenantSource.PathSegment
+                    && !string.IsNullOrEmpty(opts.RouteOverrideParam))
+                {
+                    var segment = ExtractFirstBaseSegment(navigation.BaseUri);
+                    if (!string.IsNullOrEmpty(segment))
+                    {
+                        result[opts.RouteOverrideParam!] = segment;
+                    }
+                }
+                return result;
+            }
+        }
 
         /// <inheritdoc/>
         public string RequestPath
@@ -69,6 +89,23 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             catch
             {
                 // a failed revalidation must not crash the circuit; keep the previous principal
+            }
+        }
+
+        private static string? ExtractFirstBaseSegment(string baseUri)
+        {
+            try
+            {
+                var path = new Uri(baseUri).AbsolutePath;
+                if (string.IsNullOrEmpty(path)) return null;
+                var trimmed = path.Trim('/');
+                if (trimmed.Length == 0) return null;
+                var slash = trimmed.IndexOf('/');
+                return slash < 0 ? trimmed : trimmed.Substring(0, slash);
+            }
+            catch
+            {
+                return null;
             }
         }
 

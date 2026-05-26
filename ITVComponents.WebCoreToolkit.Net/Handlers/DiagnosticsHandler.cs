@@ -19,7 +19,6 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi.Attributes;
 namespace ITVComponents.WebCoreToolkit.Net.Handlers
 {
     internal static class DiagnosticsHandler

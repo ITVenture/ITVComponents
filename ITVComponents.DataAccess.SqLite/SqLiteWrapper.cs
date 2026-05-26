@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
@@ -28,7 +28,7 @@ namespace ITVComponents.DataAccess.SqLite
         /// <summary>
         /// the connection used to communicate with the sql database
         /// </summary>
-        private SQLiteConnection connection;
+        private SqliteConnection connection;
 
         /// <summary>
         /// the Initializer-object that can be used to initialize the database at any time.
@@ -65,7 +65,7 @@ namespace ITVComponents.DataAccess.SqLite
                 throw new ArgumentException("the provided database-file does not exist!", nameof(fileName));
             }
 
-            connection = new SQLiteConnection($"Data Source={this.fileName};Version=3;");
+            connection = new SqliteConnection($"Data Source={this.fileName}");
             connection.Open();
             if (initRequired)
             {
@@ -503,10 +503,12 @@ namespace ITVComponents.DataAccess.SqLite
             {
                 try
                 {
-                    IDbDataAdapter adapter = GetAdapter(cmd);
-                    DataSet set = new DataSet();
-                    adapter.Fill(set);
-                    return set.Tables[0];
+                    using (IDataReader reader = cmd.ExecuteReader())
+                    {
+                        var table = new DataTable();
+                        table.Load(reader);
+                        return table;
+                    }
                 }
                 finally
                 {
@@ -531,7 +533,7 @@ namespace ITVComponents.DataAccess.SqLite
                 {
                     paramName = $"@{name}";
                 }
-                return new SQLiteParameter(paramName, value ?? DBNull.Value)
+                return new SqliteParameter(paramName, value ?? DBNull.Value)
                 {
                     IsNullable = value == null
                 };
@@ -670,7 +672,7 @@ namespace ITVComponents.DataAccess.SqLite
                 Thread.Sleep(10);
             }
 
-            IDbCommand retVal = new SQLiteCommand(command, connection);
+            IDbCommand retVal = new SqliteCommand(command, connection);
             if (commandTimeout != 0)
             {
                 retVal.CommandTimeout = commandTimeout;
@@ -734,7 +736,7 @@ namespace ITVComponents.DataAccess.SqLite
                                 {
                                     throw new InvalidOperationException("Unable to open the database!");
                                 }
-                                connection = new SQLiteConnection($"Data Source={fileName};Version=3;");
+                                connection = new SqliteConnection($"Data Source={fileName}");
                                 connection.Open();
                                 if (initRequired)
                                 {
@@ -771,36 +773,15 @@ namespace ITVComponents.DataAccess.SqLite
         }
 
         /// <summary>
-        /// Gets a data adapter for the provided command
-        /// </summary>
-        /// <param name="command">the command for which to generate a data adapter</param>
-        /// <returns>a data-adapter for the given command</returns>
-        private IDbDataAdapter GetAdapter(IDbCommand command)
-        {
-            return new SQLiteDataAdapter((SQLiteCommand)command);
-        }
-
-        /// <summary>
         /// Checks whether the File needs to be initialized first.
         /// </summary>
         /// <returns>a value indicating whether the db-file needs to be initialized first</returns>
         private bool CheckSqLiteFile()
         {
-            bool retVal = false;
-            if (!File.Exists(fileName))
-            {
-                try
-                {
-                    SQLiteConnection.CreateFile(fileName);
-                    retVal = true;
-                }
-                catch (Exception ex)
-                {
-                    LogEnvironment.LogEvent($"Unable to initialize the SqLite-Database -> {ex}.", LogSeverity.Error);
-                }
-            }
-
-            return retVal;
+            // Microsoft.Data.Sqlite creates the file on first Connection.Open() with the default
+            // Mode=ReadWriteCreate, so no explicit "CreateFile" is needed — we just have to signal
+            // the initializer that a fresh database is about to be born.
+            return !File.Exists(fileName);
         }
     }
 }

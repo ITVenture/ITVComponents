@@ -1,20 +1,30 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.Security
 {
     /// <summary>
     /// Invisible root component that keeps the tenant selection sticky across in-circuit navigation and full
-    /// page refreshes. Reads the configured <see cref="ScopedPermissionScopeOptions.RouteOverrideParam"/> from
-    /// the current URL, remembers its value for the lifetime of the circuit, and reinjects it into every
-    /// outgoing internal navigation that lacks the parameter — so the address bar always carries the active
-    /// tenant and a hard refresh (F5) on any page resolves back to the same scope. The eligibility check stays
-    /// with the shared <see cref="ScopedPermissionScope"/> resolution engine; this component only preserves
-    /// the URL evidence of the user's choice.
+    /// page refreshes. Two modes, driven by <see cref="ScopedPermissionScopeOptions.TenantSource"/>:
+    /// <list type="bullet">
+    ///   <item><description><b>Query</b>: remembers the last value of <c>?tenant=…</c> seen in the URL and
+    ///   re-injects it into every outgoing internal navigation that lacks the parameter.</description></item>
+    ///   <item><description><b>PathSegment</b>: relies on the host emitting <c>&lt;base href="/{tenant}/"&gt;</c>
+    ///   so relative navigations automatically carry the prefix; only catches absolute-path navigations
+    ///   (e.g. <c>NavigateTo("/users")</c>) that would escape the tenant prefix and rewrites them under the
+    ///   current base path.</description></item>
+    /// </list>
+    /// In both modes auth-relevant paths (<see cref="ScopedPermissionScopeOptions.AuthPathExclusions"/>) are
+    /// left untouched, and the eligibility check stays with the shared <see cref="ScopedPermissionScope"/>
+    /// resolution engine — this component only preserves the URL evidence of the user's choice.
     /// <para>
     /// Place a single <c>&lt;TenantUrlGuard /&gt;</c> near the application root (next to
     /// <see cref="ContextUserInitializer"/>).
@@ -26,20 +36,36 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
 
         [Inject] private IOptions<ScopedPermissionScopeOptions> Options { get; set; } = default!;
 
+        [Inject] private IContextUserProvider ContextUser { get; set; } = default!;
+
+        private static readonly HashSet<string> EmptyScopes = new HashSet<string>(StringComparer.Ordinal);
+
         private IDisposable? handlerRegistration;
         private string? currentTenant;
+        private string? basePath;
+        private ClaimsPrincipal? cachedPrincipal;
+        private HashSet<string>? cachedEligibles;
 
         /// <inheritdoc/>
         protected override void OnInitialized()
         {
-            var paramName = Options.Value.RouteOverrideParam;
+            var opts = Options.Value;
+            var paramName = opts.RouteOverrideParam;
             if (string.IsNullOrEmpty(paramName))
             {
                 return;
             }
 
-            currentTenant = ReadTenant(Navigation.Uri, paramName);
-            Navigation.LocationChanged += OnLocationChanged;
+            if (opts.TenantSource == TenantSource.PathSegment)
+            {
+                basePath = ExtractBasePath(Navigation.BaseUri);
+            }
+            else
+            {
+                currentTenant = ReadTenantQuery(Navigation.Uri, paramName);
+                Navigation.LocationChanged += OnLocationChanged;
+            }
+
             handlerRegistration = Navigation.RegisterLocationChangingHandler(OnLocationChanging);
         }
 
@@ -54,29 +80,102 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         private ValueTask OnLocationChanging(LocationChangingContext context)
         {
             var opts = Options.Value;
-            var paramName = opts.RouteOverrideParam;
-            if (string.IsNullOrEmpty(paramName) || string.IsNullOrEmpty(currentTenant))
+            if (string.IsNullOrEmpty(opts.RouteOverrideParam))
             {
                 return ValueTask.CompletedTask;
             }
 
-            var target = context.TargetLocation;
-            if (!IsInternal(target, out var absoluteTarget))
+            return opts.TenantSource == TenantSource.PathSegment
+                ? HandlePathSegment(context, opts)
+                : HandleQuery(context, opts);
+        }
+
+        private ValueTask HandlePathSegment(LocationChangingContext context, ScopedPermissionScopeOptions opts)
+        {
+            if (string.IsNullOrEmpty(basePath) || basePath == "/")
             {
                 return ValueTask.CompletedTask;
             }
 
-            if (IsExcludedPath(absoluteTarget.AbsolutePath, opts.AuthPathExclusions))
+            if (!TryToAbsolute(context.TargetLocation, out var absolute) || !IsSameOrigin(absolute))
             {
                 return ValueTask.CompletedTask;
             }
 
-            if (HasParam(absoluteTarget.Query, paramName))
+            var rewritten = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath!,
+                absolute,
+                opts.AuthPathExclusions,
+                GetEligibleScopes());
+
+            if (rewritten == null)
             {
                 return ValueTask.CompletedTask;
             }
 
-            var rewritten = AppendQuery(absoluteTarget, paramName, currentTenant!);
+            context.PreventNavigation();
+            Navigation.NavigateTo(rewritten, replace: true);
+            return ValueTask.CompletedTask;
+        }
+
+        private ISet<string> GetEligibleScopes()
+        {
+            var user = ContextUser.User;
+            if (!ReferenceEquals(user, cachedPrincipal))
+            {
+                cachedPrincipal = user;
+                cachedEligibles = ComputeEligibles(user);
+            }
+            return cachedEligibles ?? (ISet<string>)EmptyScopes;
+        }
+
+        private HashSet<string> ComputeEligibles(ClaimsPrincipal? user)
+        {
+            if (user?.Identity == null || !user.Identity.IsAuthenticated)
+            {
+                return new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            var services = ContextUser.Services;
+            var mapper = services?.GetService<IUserNameMapper>();
+            var repo = services?.GetService<ISecurityRepository>();
+            if (mapper == null || repo == null)
+            {
+                return new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            return TenantPathPrefixMiddleware.ResolveEligibleScopes(user, mapper, repo)
+                .Select(s => s.ScopeName)
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToHashSet(StringComparer.Ordinal);
+        }
+
+        private ValueTask HandleQuery(LocationChangingContext context, ScopedPermissionScopeOptions opts)
+        {
+            var paramName = opts.RouteOverrideParam!;
+            if (string.IsNullOrEmpty(currentTenant))
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            if (!TryToAbsolute(context.TargetLocation, out var absolute) || !IsSameOrigin(absolute))
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            if (IsExcludedPath(absolute.AbsolutePath, opts.AuthPathExclusions))
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            if (HasParam(absolute.Query, paramName))
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            var separator = string.IsNullOrEmpty(absolute.Query) ? "?" : "&";
+            var pair = $"{Uri.EscapeDataString(paramName)}={Uri.EscapeDataString(currentTenant!)}";
+            var rewritten = absolute.PathAndQuery + absolute.Fragment + separator + pair;
             context.PreventNavigation();
             Navigation.NavigateTo(rewritten, replace: true);
             return ValueTask.CompletedTask;
@@ -90,25 +189,29 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 return;
             }
 
-            var observed = ReadTenant(args.Location, paramName);
+            var observed = ReadTenantQuery(args.Location, paramName);
             if (!string.IsNullOrEmpty(observed))
             {
                 currentTenant = observed;
             }
         }
 
-        private bool IsInternal(string target, out Uri absolute)
+        private bool TryToAbsolute(string target, out Uri absolute)
         {
             try
             {
                 absolute = Navigation.ToAbsoluteUri(target);
+                return true;
             }
             catch
             {
                 absolute = null!;
                 return false;
             }
+        }
 
+        private bool IsSameOrigin(Uri absolute)
+        {
             var baseUri = new Uri(Navigation.BaseUri);
             return absolute.Scheme == baseUri.Scheme
                 && string.Equals(absolute.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase)
@@ -148,7 +251,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             return false;
         }
 
-        private static string? ReadTenant(string uri, string paramName)
+        private static string? ReadTenantQuery(string uri, string paramName)
         {
             string query;
             try { query = new Uri(uri, UriKind.RelativeOrAbsolute).IsAbsoluteUri ? new Uri(uri).Query : ExtractRelativeQuery(uri); }
@@ -179,12 +282,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             return qIdx >= 0 ? uri.Substring(qIdx) : string.Empty;
         }
 
-        private string AppendQuery(Uri absolute, string paramName, string value)
+        private static string ExtractBasePath(string baseUri)
         {
-            var separator = string.IsNullOrEmpty(absolute.Query) ? "?" : "&";
-            var pair = $"{Uri.EscapeDataString(paramName)}={Uri.EscapeDataString(value)}";
-            var relative = absolute.PathAndQuery + absolute.Fragment;
-            return $"{relative}{separator}{pair}";
+            try
+            {
+                var path = new Uri(baseUri).AbsolutePath;
+                return string.IsNullOrEmpty(path) ? "/" : path;
+            }
+            catch
+            {
+                return "/";
+            }
         }
     }
 }

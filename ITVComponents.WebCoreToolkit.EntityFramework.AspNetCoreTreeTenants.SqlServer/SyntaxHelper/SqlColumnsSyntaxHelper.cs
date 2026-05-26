@@ -18,7 +18,7 @@ using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Linq;
 using TargetInterface = ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.IHierarchySecurityContext<ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.HierarchyTenant, string, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.User, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Role, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Permission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.UserRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RolePermission,
     ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.HierarchyTenantUser, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RoleRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GlobalRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GlobalRolePermission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.GRoleLRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.NavigationMenu, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.TenantNavigationMenu, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.DiagnosticsQuery,

@@ -6,6 +6,7 @@ using ITVComponents.WebCoreToolkit.Blazor.Resources;
 using ITVComponents.WebCoreToolkit.Blazor.Routing;
 using ITVComponents.WebCoreToolkit.Blazor.Security;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
@@ -56,9 +57,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
         /// <returns>the service collection for chaining</returns>
         public static IServiceCollection AddBlazorPermissionScope(this IServiceCollection services, Action<ScopedPermissionScopeOptions> options)
         {
+            services.AddHttpContextAccessor();
             return services.Configure(options)
                 .AddScoped<IPermissionScope, ScopedPermissionScope>();
         }
+
+        /// <summary>
+        /// Registers the <see cref="TenantPathPrefixMiddleware"/> in the request pipeline. Validates the
+        /// first URL path segment against the authenticated user's eligible scopes (via
+        /// <see cref="ISecurityRepository.GetEligibleScopes"/>): unknown/ineligible segments yield 404, the
+        /// root ("/") redirects to the user's default scope, auth and Blazor-internal paths pass through.
+        /// No-op when <see cref="ScopedPermissionScopeOptions.TenantSource"/> is not
+        /// <see cref="TenantSource.PathSegment"/>. Place AFTER <c>UseAuthentication</c>/<c>UseAuthorization</c>
+        /// and BEFORE <c>MapRazorComponents</c>.
+        /// </summary>
+        /// <param name="app">the application builder</param>
+        /// <returns>the application builder for chaining</returns>
+        public static IApplicationBuilder UseTenantPathPrefix(this IApplicationBuilder app)
+            => app.UseMiddleware<TenantPathPrefixMiddleware>();
 
         public static IServiceCollection ConfigureStubComponents(this IServiceCollection services, Action<StubComponentConfiguration> configure)
         {

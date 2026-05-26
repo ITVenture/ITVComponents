@@ -242,6 +242,94 @@ navigationManager.NavigateTo($"{basePath}?tenant={Uri.EscapeDataString(selectedT
 > zur Laufzeit zu verifizierender Schritt vorgesehen. Verschiedene **Tabs** sind in jedem Fall sauber
 > isoliert.
 
+### Optional: Pfad-Modus statt Query (`/{tenant}/...`)
+
+Wer das MVC-Muster `/{tenant}/modul/...` in Blazor abbilden will, statt `?tenant=…` im Query zu führen,
+schaltet `ScopedPermissionScopeOptions.TenantSource` auf `PathSegment`. Die gesamte Validierung
+(Segment ↔ Eligible-Scopes, Default-Redirect, 404 bei Unbekannt/Ineligibel) übernimmt das Toolkit —
+der Host braucht nur die folgenden drei Stellen:
+
+**1) DI-Option setzen** (einzige Konfig-Zeile):
+
+```csharp
+services.AddBlazorPermissionScope(o =>
+{
+    o.RouteOverrideParam   = "tenant";
+    o.TenantSource         = TenantSource.PathSegment;   // <- statt default Query
+    o.DefaultScopeExpression = (contextUser, eligibles) => eligibles.FirstOrDefault()?.ScopeName;
+});
+```
+
+`AddBlazorPermissionScope` registriert intern `AddHttpContextAccessor()` mit; der `<TenantBaseHref />`
+ist damit ohne extra Setup einsatzbereit.
+
+**2) Middleware in der Pipeline** (eine Zeile, NACH der Authentifizierung, VOR `MapRazorComponents`):
+
+```csharp
+app.UseAuthentication();    // ← falls dein Host sie nicht schon implizit durch
+app.UseAuthorization();     //    Endpoint-Routing/[Authorize] aktiviert
+app.UseTenantPathPrefix();  // ← NEU
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+```
+
+`UseTenantPathPrefix` muss laufen, NACHDEM `HttpContext.User` populiert ist (Cookie-Schema o.ä. wurde
+ausgewertet). In den meisten Blazor-Server-Setups passiert das durch explizite
+`UseAuthentication`/`UseAuthorization`-Aufrufe; einige Hosts haben das Cookie-Schema implizit verdrahtet
+und brauchen die Aufrufe nicht — der Middleware-Aufruf bleibt in beiden Fällen identisch. Wenn der User
+zum Zeitpunkt des Middleware-Runs noch anonym ist, wird durchgereicht und `[Authorize]` löst die
+Challenge aus; nach erfolgter Anmeldung trifft die nächste Request wieder die Validation.
+
+Was die Middleware bei einem eligible Segment tut: sie strippt es aus `Request.Path` und hängt es an
+`Request.PathBase` (Standard-`UsePathBase`-Muster). Endpoint-Routing matched dann gegen die flachen
+`@page "/foo"`-Routes der Library, NICHT gegen `@page "/{tenant}/foo"`. Ohne diesen Strip würde jede
+Page einen 404 produzieren.
+
+`UseTenantPathPrefix` ist im Query-Modus ein No-Op — die Aufruf-Zeile kann also fest stehen bleiben,
+selbst wenn `TenantSource` später wieder umgestellt wird.
+
+**3) `<base href>` über die Toolkit-Komponente** statt statischem `<base href="/" />` in `App.razor`:
+
+```razor
+<head>
+    <!-- ... -->
+    <TenantBaseHref />
+    <!-- ... -->
+</head>
+```
+
+Liest den vom Middleware validierten Segment aus `HttpContext.Items` und gibt entweder `/{tenant}/`
+oder (Query-Modus / Default-Pfad) `/` aus. Auch dieser Tag ist modus-tolerant — eine `App.razor`,
+die `<TenantBaseHref />` einbindet, läuft in beiden Modi.
+
+**Was das Toolkit damit für dich automatisch macht:**
+
+| Request | Toolkit-Verhalten |
+|---|---|
+| `/` (angemeldet) | Redirect 302 → `/{first-eligible}/` |
+| `/Kunde42/...` (eligible) | `PathBase=/Kunde42`, `Path=/...`, `<base href="/Kunde42/" />` |
+| `/EvilCorp/...` (nicht eligible, oder existiert nicht) | **404** (kein Info-Leak) |
+| `/` oder beliebig (User hat 0 eligible Scopes) | **403** |
+| `/Identity/Account/Login`, `/_blazor`, `/_framework/...` | Pass-through (Auth/Blazor-Internals) |
+| Anonymous | Pass-through; `[Authorize]` darunter handelt Challenge ab |
+
+Die Skip-Liste (`AuthPathExclusions`) ist konfigurierbar — Standardwerte decken die üblichen
+ASP.NET-Identity-Endpunkte ab; Hosts können eigene Callback-Pfade ergänzen.
+
+**Tenant-Picker** (im Host):
+
+```csharp
+navigationManager.NavigateTo($"/{selected}/", forceLoad: true);
+```
+
+**Was bleibt:** `<TenantUrlGuard />` (fängt absolute Links wie `NavigateTo("/users")` ab und biegt sie
+unter den aktuellen Tenant-Pfad um), `<ContextUserInitializer />` (Principal-Seed). Der
+Eligibility-Gate des `ScopedPermissionScope` ist als zweite Verteidigungslinie weiterhin aktiv — das
+Middleware blockiert ineligible Segmente schon vor dem Render, der Scope schützt zusätzlich für
+Fälle, in denen ein Konsument am Middleware vorbei kommt (z.B. Background-Tasks).
+
+**Was wegfällt:** Query-Parameter `?tenant=…`, eigenhändige Host-Validierung, und mögliche
+Kollisionen mit modul-eigenen Query-Strings.
+
 ---
 
 ## 6. Verifikation auf eurer Seite
