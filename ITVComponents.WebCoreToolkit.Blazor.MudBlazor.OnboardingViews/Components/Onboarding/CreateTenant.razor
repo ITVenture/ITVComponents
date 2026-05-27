@@ -1,0 +1,73 @@
+@namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Components.Onboarding
+@page "/Account/Onboarding/CreateTenant"
+@using Microsoft.AspNetCore.Authorization
+@using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Components.Shared
+@attribute [Authorize]
+
+@inject IOnboardingHandler Handler
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Register a new tenant</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="my-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">Register a new tenant</MudText>
+    <MudText Typo="Typo.body1" Class="mb-4">
+        Personal tenants are billed to a single natural person; company tenants are billed to an
+        organisation and can invite employees later.
+    </MudText>
+
+    <EditForm Model="model" OnValidSubmit="OnSubmitAsync">
+        <DataAnnotationsValidator />
+
+        <BillingProfileForm Model="model"
+                            ShowParentTenantPicker="Handler.UseHierarchy"
+                            EligibleParents="parents" />
+
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">
+            <MudButton Href="/Account/Onboarding/MyTenants" Variant="Variant.Text" Color="Color.Default">Cancel</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy">
+                @(busy ? "Creating..." : "Create tenant")
+            </MudButton>
+        </MudStack>
+
+        <ValidationSummary />
+    </EditForm>
+</MudContainer>
+
+@code {
+    private BillingProfileViewModel model = new();
+    private TenantPickerItem[] parents = Array.Empty<TenantPickerItem>();
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            parents = await Handler.ListEligibleParentsAsync(state.User);
+        }
+    }
+
+    private async Task OnSubmitAsync()
+    {
+        busy = true;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var id = await Handler.CreateTenantAsync(state.User, model);
+            if (id is null)
+            {
+                Snackbar.Add("Could not create the tenant. Please try again.", Severity.Error);
+                return;
+            }
+            Snackbar.Add("Tenant created.", Severity.Success);
+            Nav.NavigateTo("/Account/Onboarding/MyTenants");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

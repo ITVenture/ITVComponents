@@ -1,0 +1,35 @@
+@namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Components.Shared
+
+@* Small section-paper wrapping the seven address fields. Reused for default + invoice. *@
+
+<MudPaper Class="pa-4 mb-3" Outlined="true">
+    <MudText Typo="Typo.h6" GutterBottom="true">@Title</MudText>
+    <MudGrid Spacing="2">
+        <MudItem xs="12">
+            <MudTextField @bind-Value="Address.Name" Label="Recipient name" For="@(() => Address.Name)" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Address.Addition1" Label="Address line 2" For="@(() => Address.Addition1)" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTextField @bind-Value="Address.Addition2" Label="Address line 3" For="@(() => Address.Addition2)" />
+        </MudItem>
+        <MudItem xs="12" sm="8">
+            <MudTextField @bind-Value="Address.Street" Label="Street" For="@(() => Address.Street)" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudTextField @bind-Value="Address.Number" Label="Number" For="@(() => Address.Number)" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudTextField @bind-Value="Address.Zip" Label="ZIP" For="@(() => Address.Zip)" />
+        </MudItem>
+        <MudItem xs="12" sm="8">
+            <MudTextField @bind-Value="Address.City" Label="City" For="@(() => Address.City)" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public AddressInput Address { get; set; } = default!;
+}

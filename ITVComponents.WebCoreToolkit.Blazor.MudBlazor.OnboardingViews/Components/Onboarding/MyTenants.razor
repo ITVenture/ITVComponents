@@ -1,0 +1,96 @@
+@namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Components.Onboarding
+@page "/Account/Onboarding/MyTenants"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
+@inject IOnboardingHandler Handler
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>My tenants</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3">
+        <MudText Typo="Typo.h4">My tenants</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Href="/Account/Onboarding/CreateTenant" StartIcon="@Icons.Material.Filled.Add">
+            Register a new tenant
+        </MudButton>
+    </MudStack>
+
+    @if (loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+    else if (tenants.Length == 0)
+    {
+        <MudPaper Class="pa-4" Outlined="true">
+            <MudText Typo="Typo.body1">You don't participate in any tenants yet. Click "Register a new tenant" to get started.</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudDataGrid T="ParticipatingTenantViewModel" Items="tenants" Hover="true" Dense="true">
+            <Columns>
+                <PropertyColumn Property="x => x.Name" Title="Name" />
+                <PropertyColumn Property="x => x.ProfileType" Title="Type" />
+                <PropertyColumn Property="x => x.DefaultEmail" Title="E-mail" />
+                <PropertyColumn Property="x => x.StatusText" Title="Status" />
+                <TemplateColumn T="ParticipatingTenantViewModel" Title="" Sortable="false">
+                    <CellTemplate>
+                        @if (context.Item.Status == InvitationStatus.Pending)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="() => AcceptAsync(context.Item)">
+                                Accept invitation
+                            </MudButton>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+        </MudDataGrid>
+    }
+</MudContainer>
+
+@code {
+    private ParticipatingTenantViewModel[] tenants = Array.Empty<ParticipatingTenantViewModel>();
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            if (state.User.Identity?.IsAuthenticated == true)
+            {
+                tenants = await Handler.ListMyTenantsAsync(state.User);
+            }
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task AcceptAsync(ParticipatingTenantViewModel item)
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var ok = await Handler.AcceptInvitationAsync(state.User, item.BillingProfileId);
+        if (ok)
+        {
+            Snackbar.Add("Invitation accepted.", Severity.Success);
+            await ReloadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Could not accept the invitation.", Severity.Error);
+        }
+    }
+}

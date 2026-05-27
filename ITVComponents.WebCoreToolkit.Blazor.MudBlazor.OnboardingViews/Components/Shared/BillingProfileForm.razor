@@ -1,0 +1,103 @@
+@namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Components.Shared
+
+@* Reusable billing-profile editor. The ProfileType toggle drives which set of personal-vs-company
+   fields is shown; the @bind on each field still posts to the same view model so a host can switch
+   between strategies without losing in-flight data. Address sub-cards stack vertically; the invoice
+   address is gated by UseInvoiceAddr. Parent-tenant picker is only rendered for hierarchy hosts. *@
+
+<MudPaper Class="pa-4 mb-3" Outlined="true">
+    <MudStack Spacing="3">
+        <MudToggleGroup T="ProfileType" SelectionMode="SelectionMode.SingleSelection" Value="Model.ProfileType" ValueChanged="OnProfileTypeChanged" Color="Color.Primary">
+            <MudToggleItem Value="@ProfileType.Personal" Text="Personal" />
+            <MudToggleItem Value="@ProfileType.Company" Text="Company" />
+        </MudToggleGroup>
+
+        @if (Model.ProfileType == ProfileType.Personal)
+        {
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="Model.FirstName" Label="First name" For="@(() => Model.FirstName)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="Model.LastName" Label="Last name" For="@(() => Model.LastName)" />
+                </MudItem>
+            </MudGrid>
+        }
+        else
+        {
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="Model.CompanyName" Label="Company name" For="@(() => Model.CompanyName)" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="Model.VatNumber" Label="VAT number" For="@(() => Model.VatNumber)" />
+                </MudItem>
+            </MudGrid>
+        }
+
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="Model.Email" Label="Contact e-mail" For="@(() => Model.Email)" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="Model.PhoneNumber" Label="Phone" For="@(() => Model.PhoneNumber)" />
+            </MudItem>
+        </MudGrid>
+    </MudStack>
+</MudPaper>
+
+@if (ShowParentTenantPicker)
+{
+    <MudPaper Class="pa-4 mb-3" Outlined="true">
+        <MudSelect T="int?" Value="Model.ParentTenantId" ValueChanged="v => Model.ParentTenantId = v"
+                   Label="Parent tenant" Clearable="true" Dense="true">
+            @foreach (var t in EligibleParents)
+            {
+                <MudSelectItem T="int?" Value="@((int?)t.TenantId)">@t.DisplayName</MudSelectItem>
+            }
+        </MudSelect>
+        <MudText Typo="Typo.caption" Class="mt-1">Leave empty to create a top-level tenant.</MudText>
+    </MudPaper>
+}
+
+<AddressEditor Title="Default address" Address="Model.DefaultAddress" />
+
+<MudPaper Class="pa-4 mb-3" Outlined="true">
+    <MudSwitch T="bool" Value="Model.UseInvoiceAddr" ValueChanged="v => Model.UseInvoiceAddr = v"
+               Label="Use a separate invoice address" Color="Color.Primary" />
+</MudPaper>
+
+@if (Model.UseInvoiceAddr)
+{
+    <AddressEditor Title="Invoice address" Address="Model.InvoiceAddress" />
+}
+
+<MudPaper Class="pa-4 mb-3" Outlined="true">
+    <MudCheckBox T="bool" Value="Model.AcceptTos" ValueChanged="v => Model.AcceptTos = v"
+                 Label="I accept the terms of service." Color="Color.Primary" />
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public BillingProfileViewModel Model { get; set; } = default!;
+
+    /// <summary>Set by the host page to render the parent-tenant picker when the hierarchy strategy is active.</summary>
+    [Parameter] public bool ShowParentTenantPicker { get; set; }
+
+    /// <summary>Tenants the user may pick as a parent. Empty for the flat strategy.</summary>
+    [Parameter] public IReadOnlyList<TenantPickerItem> EligibleParents { get; set; } = Array.Empty<TenantPickerItem>();
+
+    private void OnProfileTypeChanged(ProfileType type)
+    {
+        Model.ProfileType = type;
+        if (type == ProfileType.Personal)
+        {
+            Model.CompanyName = null;
+            Model.VatNumber = null;
+        }
+        else
+        {
+            Model.FirstName = null;
+            Model.LastName = null;
+        }
+    }
+}
