@@ -21,7 +21,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.8" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ITVComponents.GenericService.WebService\ITVComponents.GenericService.WebService.csproj" />
+    <ProjectReference Include="..\ITVComponents.GenericService\ITVComponents.GenericService.csproj" />
     <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.MessagingShared\ITVComponents.InterProcessCommunication.MessagingShared.csproj" />
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.Shared\ITVComponents.InterProcessCommunication.Shared.csproj" />
