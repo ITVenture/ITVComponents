@@ -2,7 +2,7 @@
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;
-using ITVComponents.TypeConversion.DefaultConverters;
+using ITVComponents.Plugins.TypeConversion.DefaultConverters;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.TypeConversion.Tests

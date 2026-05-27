@@ -4,8 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using ITVComponents.TypeConversion;
 
-namespace ITVComponents.TypeConversion.DefaultConverters
+namespace ITVComponents.Plugins.TypeConversion.DefaultConverters
 {
     public class PrimitiveJsonElementConverter : TypeConversionPlugin
     {

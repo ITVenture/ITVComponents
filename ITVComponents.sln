@@ -93,8 +93,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.WindowsAuthentication", "ITVComponents.WebCoreToolkit.WindowsAuthentication\ITVComponents.WebCoreToolkit.WindowsAuthentication.csproj", "{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.TypeConversion.DefaultConverters", "ITVComponents.TypeConversion.DefaultConverters\ITVComponents.TypeConversion.DefaultConverters.csproj", "{E9C10611-1898-4842-8403-D945AC9FCA99}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.EFRepo.SqlServer", "ITVComponents.EFRepo.SqlServer\ITVComponents.EFRepo.SqlServer.csproj", "{4EB4D7FE-E413-4ADA-B411-C0F7903C24B9}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net", "ITVComponents.WebCoreToolkit.Net\ITVComponents.WebCoreToolkit.Net.csproj", "{2A4C58A8-11EB-4931-B432-DB4CBFC6A8BE}"
@@ -763,18 +761,6 @@ Global
 		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|x86.Build.0 = Release|Any CPU
 		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|x64.ActiveCfg = Release|Any CPU
 		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|x64.Build.0 = Release|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Debug|x86.Build.0 = Debug|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Debug|x64.Build.0 = Debug|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Release|x86.ActiveCfg = Release|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Release|x86.Build.0 = Release|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Release|x64.ActiveCfg = Release|Any CPU
-		{E9C10611-1898-4842-8403-D945AC9FCA99}.Release|x64.Build.0 = Release|Any CPU
 		{4EB4D7FE-E413-4ADA-B411-C0F7903C24B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4EB4D7FE-E413-4ADA-B411-C0F7903C24B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4EB4D7FE-E413-4ADA-B411-C0F7903C24B9}.Debug|x86.ActiveCfg = Debug|Any CPU

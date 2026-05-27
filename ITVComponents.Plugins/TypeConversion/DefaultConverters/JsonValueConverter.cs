@@ -5,8 +5,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using ITVComponents.TypeConversion;
 
-namespace ITVComponents.TypeConversion.DefaultConverters
+namespace ITVComponents.Plugins.TypeConversion.DefaultConverters
 {
     public class JsonValueConverter:TypeConversionPlugin
     {

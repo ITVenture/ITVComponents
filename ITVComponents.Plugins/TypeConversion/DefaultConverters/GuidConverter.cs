@@ -4,8 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Logging;
+using ITVComponents.TypeConversion;
 
-namespace ITVComponents.TypeConversion.DefaultConverters
+namespace ITVComponents.Plugins.TypeConversion.DefaultConverters
 {
     /// <summary>
     /// A Default instance of a String-to-GUID-Converter
