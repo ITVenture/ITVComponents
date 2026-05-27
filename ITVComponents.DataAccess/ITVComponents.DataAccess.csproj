@@ -15,9 +15,6 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="SkiaSharp" version="3.119.2" />
-  </ItemGroup>
-  <ItemGroup>
     <!-- Resources -->
     <EmbeddedResource Update="Resources\DataAccessResources.resx" Generator="ResXFileCodeGenerator" LastGenOutput="DataAccessResources.Designer.cs" />
     <Compile Update="Resources\DataAccessResources.Designer.cs" AutoGen="True" DependentUpon="DataAccessResources.resx" DesignTime="True" />

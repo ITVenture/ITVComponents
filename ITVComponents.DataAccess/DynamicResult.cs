@@ -16,7 +16,6 @@ using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
 using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
-using SkiaSharp;
 using TypeConverter = ITVComponents.TypeConversion.TypeConverter;
 
 namespace ITVComponents.DataAccess
@@ -355,10 +354,6 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
                     {
                         v= new object();
                     }
-                    else if (value is SKImage)
-                    {
-                        v = new byte[0];
-                    }
 
                     types.Add(name/*.ToUpper()*/, v?.GetType() ?? typeof(object));
                 }
@@ -372,29 +367,19 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
                 {
                     if (!t.IsAssignableFrom(value.GetType()) && !(value is DynamicResult) && !(value is SmartProperty))
                     {
-                        if (value is SKImage img && t == typeof(byte[]))
+                        LogEnvironment.LogDebugEvent(null, string.Format("Target-Type for {0} is: {1}", name, t.FullName),
+                                                (int)LogSeverity.Report, "DataAccess");
+                        if (value is IConvertible)
                         {
-                            MemoryStream mst = new MemoryStream();
-                            img.Encode(SKEncodedImageFormat.Png,60).SaveTo(mst);
-                            mst.Close();
-                            value = mst.ToArray();
-                        }
-                        else
-                        {
-                            LogEnvironment.LogDebugEvent(null, string.Format("Target-Type for {0} is: {1}", name, t.FullName),
-                                                    (int)LogSeverity.Report, "DataAccess");
-                            if (value is IConvertible)
+                            try
                             {
-                                try
-                                {
-                                    value = TypeConverter.Convert(value, t);
-                                }
-                                catch (Exception ex)
-                                {
-                                    LogEnvironment.LogEvent(
-                                        string.Format("Error while converting new value of {0} to type {1}: {2}", name,
-                                                      t.FullName, ex), LogSeverity.Warning, "DataAccess");
-                                }
+                                value = TypeConverter.Convert(value, t);
+                            }
+                            catch (Exception ex)
+                            {
+                                LogEnvironment.LogEvent(
+                                    string.Format("Error while converting new value of {0} to type {1}: {2}", name,
+                                                  t.FullName, ex), LogSeverity.Warning, "DataAccess");
                             }
                         }
                     }
@@ -514,11 +499,6 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
             object v = values[name /*.ToUpper()*/];
             if (v.GetType() != type && !(v is DBNull))
             {
-                if (v is byte[] barr && typeof(SKImage).IsAssignableFrom(type))
-                {
-                    v = SKImage.FromEncodedData(SKData.Create(new MemoryStream(barr)));
-                }
-                else
                 if (v is DynamicResult)
                 {
                     v = (v as DynamicResult).GetIndexValue();
