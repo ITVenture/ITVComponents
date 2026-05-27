@@ -6,8 +6,12 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
+using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Options;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
 
@@ -76,11 +80,13 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
 {
     private readonly TContext db;
     private readonly IServiceProvider services;
+    private readonly IOptions<TenantOptions<TTenant>> tenantOptions;
 
-    public RoleAdminHandler(TContext db, IServiceProvider services)
+    public RoleAdminHandler(TContext db, IServiceProvider services, IOptions<TenantOptions<TTenant>> tenantOptions)
     {
         this.db = db;
         this.services = services;
+        this.tenantOptions = tenantOptions;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -333,44 +339,60 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
 
         var sysAdmin = IsSysAdmin();
         ApplyContextScope(sysAdmin);
-        var effectiveTenantId = sysAdmin ? tenantId : db.CurrentTenantId ?? tenantId;
-
-        var assignedIds = await db.RoleRoles
-            .Where(rr => rr.PermissiveRoleId == permissiveRoleId)
-            .Select(rr => rr.PermittedRoleId!.Value)
-            .ToListAsync();
-        var assignedSet = new HashSet<int>(assignedIds);
-
-        var q = db.SecurityRoles.AsNoTracking()
-            .Where(r => r.TenantId == effectiveTenantId);
-        if (!string.IsNullOrWhiteSpace(query.Search))
+        var effectiveTenantId = new[] { sysAdmin ? tenantId : db.CurrentTenantId ?? tenantId };
+        IDisposable treeAccessCfg = null;
+        var ov = tenantOptions.Value;
+        if (ov.UseHierarchy && ov.ConfigureTree != null && ov.AddDirectParent != null)
         {
-            var s = query.Search.Trim();
-            q = q.Where(r => r.RoleName.Contains(s));
+            var acs = services.GetService<ISecurityAccessProvider>();
+            treeAccessCfg = ov.ConfigureTree(db, acs);
+            effectiveTenantId = ov.AddDirectParent(db, effectiveTenantId);
         }
 
-        var total = await q.CountAsync();
-        var items = await q.OrderBy(r => r.RoleName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
-            .Select(r => new RoleRoleAssignmentViewModel
+        try
+        {
+            var assignedIds = await db.RoleRoles
+                .Where(rr => rr.PermissiveRoleId == permissiveRoleId)
+                .Select(rr => rr.PermittedRoleId!.Value)
+                .ToListAsync();
+            var assignedSet = new HashSet<int>(assignedIds);
+
+            var q = db.SecurityRoles.AsNoTracking()
+                .Where(r => effectiveTenantId.AsEnumerable().Contains(r.TenantId));
+            if (!string.IsNullOrWhiteSpace(query.Search))
             {
-                PermissiveRoleId = permissiveRoleId,
-                PermittedRoleId = r.RoleId,
-                RoleName = r.RoleName,
-                TenantId = r.TenantId,
-                IsSystemRole = r.IsSystemRole,
-                Assigned = false
-            })
-            .ToListAsync();
+                var s = query.Search.Trim();
+                q = q.Where(r => r.RoleName.Contains(s));
+            }
 
-        var filtered = items
-            .Where(i => !db.IsCyclicRoleInheritance(permissiveRoleId, i.PermittedRoleId))
-            .ToList();
-        foreach (var item in filtered)
-        {
-            item.Assigned = assignedSet.Contains(item.PermittedRoleId);
+            var total = await q.CountAsync();
+            var items = await q.OrderBy(r => r.RoleName)
+                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+                .Select(r => new RoleRoleAssignmentViewModel
+                {
+                    PermissiveRoleId = permissiveRoleId,
+                    PermittedRoleId = r.RoleId,
+                    RoleName = r.RoleName,
+                    TenantId = r.TenantId,
+                    IsSystemRole = r.IsSystemRole,
+                    Assigned = false
+                })
+                .ToListAsync();
+
+            var filtered = items
+                .Where(i => !db.IsCyclicRoleInheritance(permissiveRoleId, i.PermittedRoleId))
+                .ToList();
+            foreach (var item in filtered)
+            {
+                item.Assigned = assignedSet.Contains(item.PermittedRoleId);
+            }
+
+            return new PagedResult<RoleRoleAssignmentViewModel> { Items = filtered, TotalCount = total };
         }
-        return new PagedResult<RoleRoleAssignmentViewModel> { Items = filtered, TotalCount = total };
+        finally
+        {
+            treeAccessCfg?.Dispose();
+        }
     }
 
     public async Task<bool> SetPermittedRoleForRoleAsync(

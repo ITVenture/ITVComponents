@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.ForeignKeys;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
@@ -74,11 +75,13 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 {
     private readonly TContext db;
     private readonly IServiceProvider services;
+    private readonly IForeignKeyWriteTracker fkWriteTracker;
 
-    public DiagnosticsQueryAdminHandler(TContext db, IServiceProvider services)
+    public DiagnosticsQueryAdminHandler(TContext db, IServiceProvider services, IForeignKeyWriteTracker fkWriteTracker)
     {
         this.db = db;
         this.services = services;
+        this.fkWriteTracker = fkWriteTracker;
         this.db.ShowAllTenants = true;
         this.db.HideGlobals = false;
     }
@@ -141,6 +144,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
         ApplyTenants(entity, input.Tenants);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("DiagnosticsQueries");
 
         input.DiagnosticsQueryId = entity.DiagnosticsQueryId;
         return input;
@@ -161,6 +165,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
         ApplyTenants(entity, input.Tenants);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("DiagnosticsQueries");
         return input;
     }
 
@@ -177,6 +182,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
         db.DiagnosticsQueryParameters.RemoveRange(entity.Parameters);
         db.DiagnosticsQueries.Remove(entity);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("DiagnosticsQueries");
         return true;
     }
 

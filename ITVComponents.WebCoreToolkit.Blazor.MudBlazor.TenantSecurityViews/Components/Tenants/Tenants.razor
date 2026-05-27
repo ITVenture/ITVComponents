@@ -53,6 +53,14 @@ else
             <PropertyColumn Property="x => x.TenantName" Title="Name" />
             <PropertyColumn Property="x => x.DisplayName" Title="Display name" />
             <PropertyColumn Property="x => x.TimeZone" Title="Time zone" />
+            @if (Handler.UseHierarchy)
+            {
+                <ForeignKeyColumn TItem="TenantViewModel" TProperty="int?"
+                                  Property="x => x.ParentTenantId"
+                                  Table="Tenants"
+                                  Title="Parent tenant" />
+            }
+
             <TemplateColumn T="TenantViewModel" Title="" Sortable="false">
                 <CellTemplate>
                     <MudStack Row="true" Spacing="1">
@@ -113,7 +121,8 @@ else
         var parameters = new DialogParameters<TenantDialog>
         {
             { d => d.Model, new TenantViewModel() },
-            { d => d.IsCreate, true }
+            { d => d.IsCreate, true },
+            {d => d.UseHierarchy, Handler.UseHierarchy}
         };
         var dlg = await DialogService.ShowAsync<TenantDialog>("Create tenant", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
@@ -138,7 +147,8 @@ else
         var parameters = new DialogParameters<TenantDialog>
         {
             { d => d.Model, copy },
-            { d => d.IsCreate, false }
+            { d => d.IsCreate, false },
+            {d => d.UseHierarchy, Handler.UseHierarchy}
         };
         var dlg = await DialogService.ShowAsync<TenantDialog>("Edit tenant", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;

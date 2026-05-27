@@ -7,6 +7,8 @@ public interface ITenantAdminHandler
 {
     AdminContext GetContext(ClaimsPrincipal user);
 
+    bool UseHierarchy { get; }
+    
     bool HasPermission(ClaimsPrincipal user, params string[] permissions);
 
     Task<PagedResult<TenantViewModel>> ListTenantsAsync(ClaimsPrincipal user, ListQuery query);

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.ForeignKeys;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
@@ -75,11 +76,13 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 {
     private readonly TContext db;
     private readonly IServiceProvider services;
+    private readonly IForeignKeyWriteTracker fkWriteTracker;
 
-    public PermissionAdminHandler(TContext db, IServiceProvider services)
+    public PermissionAdminHandler(TContext db, IServiceProvider services, IForeignKeyWriteTracker fkWriteTracker)
     {
         this.db = db;
         this.services = services;
+        this.fkWriteTracker = fkWriteTracker;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -150,6 +153,7 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         };
         db.Permissions.Add(entity);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("Permissions");
         input.PermissionId = entity.PermissionId;
         input.TenantId = effectiveTenantId;
         input.IsGlobal = effectiveTenantId == null;
@@ -168,6 +172,7 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         entity.PermissionName = input.PermissionName;
         entity.Description = input.Description;
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("Permissions");
         return input;
     }
 
@@ -182,6 +187,7 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
         db.Permissions.Remove(entity);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("Permissions");
         return true;
     }
 

@@ -5,10 +5,13 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.ForeignKeys;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Options;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
 
@@ -78,13 +81,19 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     private readonly TContext db;
     private readonly IServiceProvider services;
     private readonly ISecurityRepository securityRepository;
+    private readonly IOptions<TenantOptions<TTenant>> tenantOptions;
+    private readonly IForeignKeyWriteTracker fkWriteTracker;
 
-    public TenantAdminHandler(TContext db, IServiceProvider services, ISecurityRepository securityRepository)
+    public TenantAdminHandler(TContext db, IServiceProvider services, ISecurityRepository securityRepository, IOptions<TenantOptions<TTenant>> tenantOptions, IForeignKeyWriteTracker fkWriteTracker)
     {
         this.db = db;
         this.services = services;
         this.securityRepository = securityRepository;
+        this.tenantOptions = tenantOptions;
+        this.fkWriteTracker = fkWriteTracker;
     }
+    
+    public bool UseHierarchy => tenantOptions.Value.UseHierarchy;
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
         => services.VerifyUserPermissions(permissions);
@@ -117,15 +126,20 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             (_, true) => q.OrderByDescending(t => t.TenantName),
             _ => q.OrderBy(t => t.TenantName)
         };
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
-            .Select(t => new TenantViewModel
+        var tenantSelect = tenantOptions.Value.SelectTenant;
+        if (tenantSelect == null)
+        {
+            tenantSelect = t => new TenantViewModel
             {
                 TenantId = t.TenantId,
                 TenantName = t.TenantName,
                 DisplayName = t.DisplayName,
                 TimeZone = t.TimeZone,
                 TenantTypeId = t.TenantTypeId
-            }).ToListAsync();
+            };
+        }
+        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            .Select(tenantSelect).ToListAsync();
         return new PagedResult<TenantViewModel> { Items = items, TotalCount = total };
     }
 
@@ -133,15 +147,23 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     {
         if (!services.VerifyUserPermissions(new[] { "Tenants.Write" })) return null;
         ApplyContextScope(IsSysAdmin());
-        var entity = new TTenant
+        var entity = new TTenant();
+        var tenantAssign = tenantOptions.Value.UpdateTenant;
+        if (tenantAssign == null)
         {
-            TenantName = input.TenantName,
-            DisplayName = input.DisplayName,
-            TimeZone = input.TimeZone,
-            TenantTypeId = input.TenantTypeId
-        };
+            entity.TenantName = input.TenantName;
+            entity.DisplayName = input.DisplayName;
+            entity.TimeZone = input.TimeZone;
+            entity.TenantTypeId = input.TenantTypeId;
+        }
+        else
+        {
+            tenantAssign(entity, input);
+        }
+
         db.Tenants.Add(entity);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("Tenants");
         input.TenantId = entity.TenantId;
         return input;
     }
@@ -152,11 +174,22 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         ApplyContextScope(IsSysAdmin());
         var entity = await db.Tenants.FirstOrDefaultAsync(n => n.TenantId == input.TenantId);
         if (entity == null) return null;
-        entity.TenantName = input.TenantName;
-        entity.DisplayName = input.DisplayName;
-        entity.TimeZone = input.TimeZone;
-        entity.TenantTypeId = input.TenantTypeId;
+        var tenantAssign = tenantOptions.Value.UpdateTenant;
+        if (tenantAssign == null)
+        {
+            tenantAssign = (e, i) =>
+            {
+                e.TenantName = i.TenantName;
+                e.DisplayName = i.DisplayName;
+                e.TimeZone = i.TimeZone;
+                e.TenantTypeId = i.TenantTypeId;
+            };
+        }
+
+        tenantAssign(entity, input);
+
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("Tenants");
         return input;
     }
 
@@ -168,6 +201,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         if (entity == null) return false;
         db.Tenants.Remove(entity);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("Tenants");
         return true;
     }
 

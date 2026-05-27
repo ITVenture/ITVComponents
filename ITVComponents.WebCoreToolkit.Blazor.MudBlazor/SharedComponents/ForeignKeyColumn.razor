@@ -1,0 +1,46 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@typeparam TItem
+@typeparam TProperty
+
+@using System.Linq.Expressions
+
+@* MudDataGrid column wrapper that renders the FK label instead of the raw key.
+   PropertyColumn is reused so MudDataGrid keeps its built-in sort/filter machinery
+   on the underlying key value. *@
+
+<PropertyColumn Property="Property"
+                Title="@Title"
+                Sortable="Sortable"
+                Filterable="Filterable">
+    <CellTemplate>
+        <ForeignKeyLabel T="TProperty"
+                         Value="_getter(context.Item)"
+                         Connection="@Connection"
+                         Table="@Table"
+                         EmptyText="@EmptyText"
+                         Fallback="@Fallback" />
+    </CellTemplate>
+</PropertyColumn>
+
+@code {
+    [Parameter, EditorRequired] public Expression<Func<TItem, TProperty>> Property { get; set; } = default!;
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Connection { get; set; } = "sys";
+    [Parameter, EditorRequired] public string Table { get; set; } = string.Empty;
+    [Parameter] public bool Sortable { get; set; } = true;
+    [Parameter] public bool Filterable { get; set; } = false;
+    [Parameter] public string EmptyText { get; set; } = string.Empty;
+    [Parameter] public Func<TProperty, string>? Fallback { get; set; }
+
+    private Func<TItem, TProperty> _getter = default!;
+    private Expression<Func<TItem, TProperty>>? _compiledFor;
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_compiledFor, Property))
+        {
+            _getter = Property.Compile();
+            _compiledFor = Property;
+        }
+    }
+}

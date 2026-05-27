@@ -5,6 +5,10 @@
             <MudTextField @bind-Value="Model.DisplayName" Label="Display name" />
             <MudTextField @bind-Value="Model.TimeZone" Label="Time zone" Placeholder="e.g. Europe/Zurich" />
             <ForeignKeySelect T="int?" @bind-Value="Model.TenantTypeId" Table="TenantTypes" Label="Tenant type" />
+            @if (UseHierarchy)
+            {
+                <ForeignKeySelect T="int?" @bind-Value="Model.ParentTenantId" Table="Tenants" Label="Parent tenant" />
+            }
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -18,6 +22,7 @@
 
     [Parameter, EditorRequired] public TenantViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
+    [Parameter] public bool UseHierarchy { get; set; }
 
     private MudForm? form;
 

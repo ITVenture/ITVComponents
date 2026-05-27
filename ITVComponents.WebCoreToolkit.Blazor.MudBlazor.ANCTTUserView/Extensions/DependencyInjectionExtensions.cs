@@ -12,6 +12,8 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Options;
+using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blazor.Extensions;
@@ -78,6 +80,54 @@ public static class DependencyInjectionExtensions
                 HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState,
                 HierarchyExternalOAuthServiceTenantLogin,
                 HierarchyTenantContextSecurityTrustConfig>>();
+            services.Configure<TenantOptions<HierarchyTenant>>(o =>
+            {
+                o.UseHierarchy = true;
+                o.SelectTenant = tenant => new TenantViewModel
+                {
+                    TenantTypeId = tenant.TenantTypeId,
+                    DisplayName = tenant.DisplayName,
+                    ParentTenantId = tenant.ParentTenantId,
+                    TenantId = tenant.TenantId,
+                    TenantName = tenant.TenantName,
+                    TimeZone = tenant.TimeZone
+                };
+
+                o.UpdateTenant = (tenant, model) =>
+                {
+                    tenant.ParentTenantId = model.ParentTenantId;
+                    tenant.TenantTypeId = model.TenantTypeId;
+                    tenant.DisplayName = model.DisplayName;
+                    tenant.TenantName = model.TenantName;
+                    tenant.TimeZone = model.TimeZone;
+                };
+                o.ConfigureTree = (ctx, acs) =>
+                {
+                    if (ctx is TContext tcx)
+                    {
+                        return acs.CreateForCaller(tcx, new HierarchyTenantContextSecurityTrustConfig
+                        {
+                            IncludeParentTree = true
+                        });
+                    }
+
+                    return null;
+                };
+
+                o.AddDirectParent = (ctx, id) =>
+                {
+                    if (ctx is TContext tcx)
+                    {
+                        var tn = tcx.Tenants.First(n => id.AsEnumerable().Contains(n.TenantId));
+                        if (tn.ParentTenantId != null)
+                        {
+                            return [tn.TenantId, tn.ParentTenantId.Value];
+                        }
+                    }
+
+                    return id;
+                };
+            });
         }
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(RoleAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))

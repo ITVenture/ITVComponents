@@ -2,6 +2,7 @@
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazorLib.Config;
+using ITVComponents.WebCoreToolkit.Blazor.SharedComponents;
 using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazorLib
         [ServiceRegistrationMethod]
         public static void RegisterServices(IServiceCollection services, [WebPartConfig]WebPartConfig config)
         {
+            services.AddToolkitForeignKeyCache();
             if (config.UseViews)
             {
                 services.AddMudBlazorDiagnostics();

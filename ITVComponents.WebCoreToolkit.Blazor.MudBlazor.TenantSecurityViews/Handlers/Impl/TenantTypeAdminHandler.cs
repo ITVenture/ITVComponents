@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.ForeignKeys;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -11,11 +12,13 @@ public class TenantTypeAdminHandler : ITenantTypeAdminHandler
 {
     private readonly ICoreSystemContext db;
     private readonly IServiceProvider services;
+    private readonly IForeignKeyWriteTracker fkWriteTracker;
 
-    public TenantTypeAdminHandler(ICoreSystemContext db, IServiceProvider services)
+    public TenantTypeAdminHandler(ICoreSystemContext db, IServiceProvider services, IForeignKeyWriteTracker fkWriteTracker)
     {
         this.db = db;
         this.services = services;
+        this.fkWriteTracker = fkWriteTracker;
         this.db.ShowAllTenants = true;
     }
 
@@ -57,6 +60,7 @@ public class TenantTypeAdminHandler : ITenantTypeAdminHandler
         };
         db.TenantTypes.Add(entity);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("TenantTypes");
         input.TenantTypeId = entity.TenantTypeId;
         return input;
     }
@@ -70,6 +74,7 @@ public class TenantTypeAdminHandler : ITenantTypeAdminHandler
         entity.TypeMetaData = input.TypeMetaData;
         entity.TenantTemplateId = input.TenantTemplateId;
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("TenantTypes");
         return input;
     }
 
@@ -80,6 +85,7 @@ public class TenantTypeAdminHandler : ITenantTypeAdminHandler
         if (entity == null) return false;
         db.TenantTypes.Remove(entity);
         await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("TenantTypes");
         return true;
     }
 }

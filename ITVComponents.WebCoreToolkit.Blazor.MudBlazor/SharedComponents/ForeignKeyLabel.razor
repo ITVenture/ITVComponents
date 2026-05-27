@@ -1,0 +1,68 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@typeparam T
+
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.ForeignKeys
+@using Microsoft.Extensions.Logging
+
+@inject IForeignKeyLabelCache Cache
+@inject ILogger<ForeignKeyLabel<T>> logger
+
+@* Display counterpart to <ForeignKeySelect/>. Renders the FK label for a given key
+   via IForeignKeyLabelCache (Scoped, write-tracker-invalidated). Use inside a grid
+   TemplateColumn or wherever raw FK ids show up. *@
+
+@if (Value is null)
+{
+    @EmptyText
+}
+else
+{
+    @(_label ?? FallbackFor(Value))
+}
+
+@code {
+    [Parameter] public T? Value { get; set; }
+    [Parameter] public string Connection { get; set; } = "sys";
+    [Parameter, EditorRequired] public string Table { get; set; } = string.Empty;
+
+    /// <summary>Text shown when <see cref="Value"/> is null.</summary>
+    [Parameter] public string EmptyText { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional custom fallback when the label cannot be resolved (key not in source).
+    /// Defaults to <c>Value.ToString()</c> so the user at least sees the raw key.
+    /// </summary>
+    [Parameter] public Func<T, string>? Fallback { get; set; }
+
+    private string? _label;
+    private T? _resolvedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Value is null)
+        {
+            _label = null;
+            _resolvedFor = default;
+            return;
+        }
+
+        if (EqualityComparer<T>.Default.Equals(Value, _resolvedFor) && _label is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            _label = await Cache.GetLabelAsync(Connection, Table, Value);
+            _resolvedFor = Value;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error resolving foreign key label for table {Table}", Table);
+            _label = null;
+        }
+    }
+
+    private string FallbackFor(T value)
+        => Fallback is not null ? Fallback(value) : value?.ToString() ?? string.Empty;
+}
