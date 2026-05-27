@@ -20,7 +20,6 @@
     <ProjectReference Include="..\ITVComponents.Logging.DefaultLoggers\ITVComponents.Logging.DefaultLoggers.csproj" />
     <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
-    <ProjectReference Include="..\ITVComponents.UserInterface.DefaultLayouts\ITVComponents.UserInterface.DefaultLayouts.csproj" />
     <ProjectReference Include="..\ITVComponents.UserInterface\ITVComponents.UserInterface.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>

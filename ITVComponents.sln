@@ -71,8 +71,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.SimpleReporti
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.UserInterface", "ITVComponents.UserInterface\ITVComponents.UserInterface.csproj", "{9C94607E-7B80-4BC6-9C87-58E60B8C31DE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.UserInterface.DefaultLayouts", "ITVComponents.UserInterface.DefaultLayouts\ITVComponents.UserInterface.DefaultLayouts.csproj", "{0232633C-1AF9-46B4-9CCB-725D90D25146}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.InterProcessCommunication.Shared", "ITVComponents.InterProcessCommunication.Shared\ITVComponents.InterProcessCommunication.Shared.csproj", "{98228009-9F81-4480-A5C7-5B653E591182}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.IPC.Management.Configuration.UI", "ITVComponents.IPC.Management.Configuration.UI\ITVComponents.IPC.Management.Configuration.UI.csproj", "{CF877CEA-414E-42AB-80D4-AC09035AD1E9}"
@@ -633,18 +631,6 @@ Global
 		{9C94607E-7B80-4BC6-9C87-58E60B8C31DE}.Release|x86.Build.0 = Release|Any CPU
 		{9C94607E-7B80-4BC6-9C87-58E60B8C31DE}.Release|x64.ActiveCfg = Release|Any CPU
 		{9C94607E-7B80-4BC6-9C87-58E60B8C31DE}.Release|x64.Build.0 = Release|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Debug|x86.Build.0 = Debug|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Debug|x64.Build.0 = Debug|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Release|x86.ActiveCfg = Release|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Release|x86.Build.0 = Release|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Release|x64.ActiveCfg = Release|Any CPU
-		{0232633C-1AF9-46B4-9CCB-725D90D25146}.Release|x64.Build.0 = Release|Any CPU
 		{98228009-9F81-4480-A5C7-5B653E591182}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{98228009-9F81-4480-A5C7-5B653E591182}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{98228009-9F81-4480-A5C7-5B653E591182}.Debug|x86.ActiveCfg = Debug|Any CPU
