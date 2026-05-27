@@ -11,5 +11,6 @@
   </Target>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
   </ItemGroup>
 </Project>
