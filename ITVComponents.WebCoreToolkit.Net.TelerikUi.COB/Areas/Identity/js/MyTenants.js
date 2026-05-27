@@ -9,7 +9,7 @@ ITVenture.Pages.Identity.MyTenants = {
         var item = table.dataItem(tr);
         var url = "~/Identity/Account/Manage/MyTenants?handler=AcceptInvitation";
         var postObj = {
-            CompanyInfoId : item.CompanyInfoId
+            BillingProfileId : item.BillingProfileId
         }
 
         //var result = ITVenture.Ajax.ajaxFormPost

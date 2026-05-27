@@ -36,12 +36,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
             var usr = await userManager.GetUserAsync(HttpContext.User);
             if (usr != null)
             {
-                MyTenants = (from t in dbContext.Companies
+                MyTenants = (from t in dbContext.BillingProfiles
                     join u in dbContext.Employees
-                        on new { t.CompanyInfoId, Email = usr.Email } equals new { u.CompanyInfoId, Email = u.EMail }
+                        on new { t.BillingProfileId, Email = usr.Email } equals new { u.BillingProfileId, Email = u.EMail }
                     select new ParticipatingTenantViewModel
                     {
-                        CompanyInfoId = t.CompanyInfoId,
+                        BillingProfileId = t.BillingProfileId,
                         DefaultEmail = t.Email,
                         Name = t.DefaultAddress != null ? t.DefaultAddress.Name : "",
                         StatusText = localizer[$"TUStatusTxt_{u.InvitationStatus}"],
@@ -60,10 +60,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
             var usr = await userManager.GetUserAsync(HttpContext.User);
             if (usr != null)
             {
-                var tmp = (from t in dbContext.Companies
-                    join u in dbContext.Employees on new { t.CompanyInfoId, Email = usr.Email } equals new
-                        { u.CompanyInfoId, Email = u.EMail }
-                    where t.CompanyInfoId == info.CompanyInfoId && u.InvitationStatus == InvitationStatus.Pending
+                var tmp = (from t in dbContext.BillingProfiles
+                    join u in dbContext.Employees on new { t.BillingProfileId, Email = usr.Email } equals new
+                        { u.BillingProfileId, Email = u.EMail }
+                    where t.BillingProfileId == info.BillingProfileId && u.InvitationStatus == InvitationStatus.Pending
                     select u).FirstOrDefault();
                 if (tmp != null)
                 {
@@ -112,7 +112,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
 
         public class ParticipatingTenantViewModel
         {
-            public int CompanyInfoId { get; set; }
+            public int BillingProfileId { get; set; }
             public string DefaultEmail { get; set; }
             public string Name { get; set; }
             public string StatusText { get; set; }
@@ -122,7 +122,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
 
         public class TenantInfoShort
         {
-            public int CompanyInfoId { get; set; }
+            public int BillingProfileId { get; set; }
         }
     }
 }

@@ -32,11 +32,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Extens
 
         public static void ConfigureDefaultFilters<TContext>(DbContextModelBuilderOptions<TContext> target)
         {
-            Expression<Func<CompanyInfo, bool>> companyExpression = ci => !FilterAvailable
+            Expression<Func<BillingProfile, bool>> billingProfileExpression = bp => !FilterAvailable
                                                                           || ShowAllTenants ||
                                                                           CurrentTenantId != null &&
-                                                                          ci.TenantId == CurrentTenantId ||
-                                                                          ci.Employees.Any(n =>
+                                                                          bp.TenantId == CurrentTenantId ||
+                                                                          bp.Employees.Any(n =>
                                                                               n.UserId == UserId &&
                                                                               n.InvitationStatus ==
                                                                               InvitationStatus.Committed
@@ -61,7 +61,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Extens
             Expression<Func<TenantSubscription, bool>> subscriptionExpression = ts => !FilterAvailable
                 || ShowAllTenants
                 || CurrentTenantId != null && ts.TenantId == CurrentTenantId;
-            target.ConfigureGlobalFilter(companyExpression);
+            target.ConfigureGlobalFilter(billingProfileExpression);
             target.ConfigureGlobalFilter(employeeExpression);
             target.ConfigureGlobalFilter(employeeRoleExpression);
             target.ConfigureGlobalFilter(subscriptionExpression);

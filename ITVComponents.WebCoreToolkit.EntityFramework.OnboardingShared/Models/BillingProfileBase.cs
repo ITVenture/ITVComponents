@@ -6,10 +6,13 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models
 {
     /// <summary>
-    /// Generic base for the per-tenant CompanyInfo entity. Concrete derivatives bind the
+    /// Generic base for the per-tenant BillingProfile entity. Concrete derivatives bind the
     /// type parameters to the consumer-specific Tenant / User / TenantUser / Employee / Address types.
+    /// A BillingProfile represents the bill-to party for a tenant and is discriminated via
+    /// <see cref="ProfileType"/> into a personal (single natural person) and a company
+    /// (organisation with employees) shape.
     /// </summary>
-    public abstract class CompanyInfoBase<TTenant, TUserId, TUser, TTenantUser, TEmployee, TDefaultAddress, TInvoiceAddress>
+    public abstract class BillingProfileBase<TTenant, TUserId, TUser, TTenantUser, TEmployee, TDefaultAddress, TInvoiceAddress>
         where TTenant : Tenant
         where TUser : class
         where TTenantUser : class
@@ -18,7 +21,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models
         where TInvoiceAddress : class
     {
         [Key]
-        public int CompanyInfoId { get; set; }
+        public int BillingProfileId { get; set; }
+
+        public ProfileType ProfileType { get; set; }
 
         public TUserId OwnerUserId { get; set; }
 
@@ -33,6 +38,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models
 
         [MaxLength(256)]
         public string Email { get; set; }
+
+        [MaxLength(256)]
+        public string FirstName { get; set; }
+
+        [MaxLength(256)]
+        public string LastName { get; set; }
+
+        [MaxLength(1024)]
+        public string CompanyName { get; set; }
+
+        [MaxLength(64)]
+        public string VatNumber { get; set; }
 
         [ForeignKey(nameof(TenantId))]
         public virtual TTenant Tenant { get; set; }

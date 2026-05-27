@@ -4,7 +4,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TreeCustomerOnboarding.Models
 {
-    public class HierarchyCompanyInfo : CompanyInfoBase<HierarchyTenant, string, User, HierarchyTenantUser, HierarchyEmployee, HierarchyDefaultAddress, HierarchyInvoiceAddress>
+    public class HierarchyBillingProfile : BillingProfileBase<HierarchyTenant, string, User, HierarchyTenantUser, HierarchyEmployee, HierarchyDefaultAddress, HierarchyInvoiceAddress>
     {
     }
 }

@@ -35,7 +35,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding.Helper
                 { nameof(BinderEmployee.EMail), emp.EMail },
                 { nameof(BinderEmployee.UserId), emp.UserId },
                 { nameof(BinderEmployee.TenantUserId), emp.TenantUserId },
-                { nameof(BinderEmployee.CompanyInfoId), emp.CompanyInfoId }
+                { nameof(BinderEmployee.BillingProfileId), emp.BillingProfileId }
             };
         }
 

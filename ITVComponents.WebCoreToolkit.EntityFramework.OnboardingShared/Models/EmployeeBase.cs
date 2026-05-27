@@ -7,19 +7,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models
     /// <summary>
     /// Generic base for an Employee within a customer-onboarded Tenant.
     /// Concrete derivatives bind the type parameters to the consumer-specific Tenant / User / TenantUser / Role types.
+    /// For personal-profile tenants there are typically zero employee rows; company-profile
+    /// tenants hold one or more employee rows (the owner plus any invited users).
     /// </summary>
-    public abstract class EmployeeBase<TTenant, TUserId, TUser, TTenantUser, TRole, TCompanyInfo, TEmployee, TEmployeeRole>
+    public abstract class EmployeeBase<TTenant, TUserId, TUser, TTenantUser, TRole, TBillingProfile, TEmployee, TEmployeeRole>
         where TTenant : Tenant
         where TUser : class
         where TTenantUser : class
         where TRole : class
-        where TCompanyInfo : class
+        where TBillingProfile : class
         where TEmployee : class
         where TEmployeeRole : class
     {
         public int EmployeeId { get; set; }
 
-        public int CompanyInfoId { get; set; }
+        public int BillingProfileId { get; set; }
 
         public int TenantId { get; set; }
 
@@ -35,8 +37,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models
 
         public int? TenantUserId { get; set; }
 
-        [ForeignKey(nameof(CompanyInfoId))]
-        public virtual TCompanyInfo Company { get; set; }
+        [ForeignKey(nameof(BillingProfileId))]
+        public virtual TBillingProfile BillingProfile { get; set; }
 
         [ForeignKey(nameof(UserId))]
         public virtual TUser User { get; set; }

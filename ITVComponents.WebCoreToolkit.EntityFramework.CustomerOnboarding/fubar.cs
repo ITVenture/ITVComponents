@@ -48,7 +48,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
             base.OnModelCreating(modelBuilder);
         }
 
-        public DbSet<CompanyInfo> Companies { get; set; }
+        public DbSet<BillingProfile> BillingProfiles { get; set; }
         public DbSet<Employee> Employees { get; set; }
         public DbSet<EmployeeRole> EmployeeRoles { get; set; }
         public DbSet<Plan> Plans { get; set; }

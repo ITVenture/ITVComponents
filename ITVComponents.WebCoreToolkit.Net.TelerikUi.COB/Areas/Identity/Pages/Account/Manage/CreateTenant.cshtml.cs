@@ -131,8 +131,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
             dbContext.Tenants.Add(tenant);
             var admin = new TenantUser { Enabled = true, Tenant = tenant, UserId = user.Id };
             dbContext.TenantUsers.Add(admin);
-            var company = new CompanyInfo
+            var profile = new BillingProfile
             {
+                ProfileType = ProfileType.Company,
+                CompanyName = Input.Name,
                 DefaultAddress = new DefaultAddress
                 {
                     Name = Input.Name,
@@ -163,12 +165,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Pages.Ac
                     : null
             };
 
-            dbContext.Companies.Add(company);
+            dbContext.BillingProfiles.Add(profile);
             dbContext.Employees.Add(new Employee
             {
                 InvitationStatus = InvitationStatus.Committed,
                 EMail = user.Email,
-                Company = company,
+                BillingProfile = profile,
                 User = user,
                 TenantUser = admin,
                 FirstName = "Admin",

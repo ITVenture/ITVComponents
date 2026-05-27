@@ -27,10 +27,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TreeCustomerOnboarding.Ex
 
         public static void ConfigureDefaultFilters<TContext>(DbContextModelBuilderOptions<TContext> target)
         {
-            Expression<Func<HierarchyCompanyInfo, bool>> companyExpression = ci => !FilterAvailable
+            Expression<Func<HierarchyBillingProfile, bool>> billingProfileExpression = bp => !FilterAvailable
                 || ShowAllTenants
-                || CurrentTenantId != null && ci.TenantId == CurrentTenantId
-                || ci.Employees.Any(n => n.UserId == UserId && n.InvitationStatus == InvitationStatus.Committed
+                || CurrentTenantId != null && bp.TenantId == CurrentTenantId
+                || bp.Employees.Any(n => n.UserId == UserId && n.InvitationStatus == InvitationStatus.Committed
                                          || n.EMail == UserMail && n.InvitationStatus == InvitationStatus.Pending);
 
             Expression<Func<HierarchyEmployee, bool>> employeeExpression = em => !FilterAvailable
@@ -49,7 +49,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TreeCustomerOnboarding.Ex
                 || ShowAllTenants
                 || CurrentTenantId != null && ts.TenantId == CurrentTenantId;
 
-            target.ConfigureGlobalFilter(companyExpression);
+            target.ConfigureGlobalFilter(billingProfileExpression);
             target.ConfigureGlobalFilter(employeeExpression);
             target.ConfigureGlobalFilter(employeeRoleExpression);
             target.ConfigureGlobalFilter(subscriptionExpression);

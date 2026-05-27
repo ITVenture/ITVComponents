@@ -4,11 +4,11 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models
 {
     /// <summary>
-    /// Abstract base for company addresses (default / invoice).
-    /// Concrete subclasses bind <typeparamref name="TCompanyInfo"/> to the consumer-specific CompanyInfo derivative.
+    /// Abstract base for billing-profile addresses (default / invoice).
+    /// Concrete subclasses bind <typeparamref name="TBillingProfile"/> to the consumer-specific BillingProfile derivative.
     /// </summary>
-    public abstract class AddressBase<TCompanyInfo>
-        where TCompanyInfo : class
+    public abstract class AddressBase<TBillingProfile>
+        where TBillingProfile : class
     {
         [Key]
         public int AddressId { get; set; }
@@ -34,9 +34,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models
         [MaxLength(256), Required]
         public string City { get; set; }
 
-        public int CompanyInfoId { get; set; }
+        public int BillingProfileId { get; set; }
 
-        [ForeignKey(nameof(CompanyInfoId))]
-        public virtual TCompanyInfo CompanyInfo { get; set; }
+        [ForeignKey(nameof(BillingProfileId))]
+        public virtual TBillingProfile BillingProfile { get; set; }
     }
 }
