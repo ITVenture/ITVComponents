@@ -20,7 +20,6 @@
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.GRpc\ITVComponents.InterProcessCommunication.Grpc.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
     <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Authentication\ITVComponents.WebCoreToolkit.Authentication.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
 </Project>
