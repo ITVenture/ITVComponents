@@ -1,7 +1,7 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding;
-using ITVComponents.WebCoreToolkit.EntityFramework.TreeCustomerOnboarding;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Handlers.Impl;

@@ -17,7 +17,14 @@
       "Bash(xargs grep -l '<Version>10\\\\.0\\\\.0</Version>')",
       "Bash(xargs -0 sed -i ' *)",
       "Bash(xargs -0 sed -i 's|Include=\"google\\\\.protobuf\" version=\"3\\\\.28\\\\.3\"|Include=\"google.protobuf\" version=\"3.35.0\"|g')",
-      "Bash(xargs grep -l \"SixLabors.ImageSharp\")"
+      "Bash(xargs grep -l \"SixLabors.ImageSharp\")",
+      "PowerShell(dotnet build *)",
+      "Bash(mkdir -p ITVComponents.DataAccess/Linq)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(rm -rf ITVComponents.DataAccess.Linq)",
+      "Bash(git checkout *)",
+      "Bash(git reset *)"
     ]
   }
 }

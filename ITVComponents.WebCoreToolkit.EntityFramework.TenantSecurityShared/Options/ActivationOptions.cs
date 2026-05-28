@@ -33,6 +33,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
         public bool ActivateFilters { get; set; }
         public bool ActivateTemplateFactory { get; set; }
 
+        /// <summary>
+        /// Selects the tenant-security strategy (flat vs. hierarchical tenants). Read by the
+        /// onboarding WebPart to activate the matching global filters; intended as the single
+        /// place where the strategy is configured once the tenant-security packages converge.
+        /// </summary>
+        public TenantStrategy Strategy { get; set; }
+
         /*public bool ActivateCreateModifyAttributes { get; set; }
 
         public bool UseUTCForCreateModifyAttributes { get; set; }*/

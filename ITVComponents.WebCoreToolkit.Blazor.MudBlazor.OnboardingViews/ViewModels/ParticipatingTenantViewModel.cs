@@ -1,4 +1,4 @@
-using ITVComponents.WebCoreToolkit.EntityFramework.OnboardingShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 
 namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.ViewModels;
 

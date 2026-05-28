@@ -1,0 +1,26 @@
+using ITVComponents.WebCoreToolkit.DependencyInjection;
+using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree
+{
+    [ExplicitlyExpose]
+    public interface IHierarchySecurityContextWithOnboarding : IHierarchySecurityContext<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting, HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>
+    {
+        DbSet<HierarchyBillingProfile> BillingProfiles { get; set; }
+
+        DbSet<HierarchyEmployee> Employees { get; set; }
+
+        DbSet<HierarchyEmployeeRole> EmployeeRoles { get; set; }
+
+        DbSet<Plan> Plans { get; set; }
+
+        DbSet<HierarchyTenantSubscription> TenantSubscriptions { get; set; }
+    }
+}

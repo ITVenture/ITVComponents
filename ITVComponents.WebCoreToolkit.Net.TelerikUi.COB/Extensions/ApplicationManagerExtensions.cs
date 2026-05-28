@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Extensions
 {
