@@ -75,13 +75,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.InterProcessCommunication.Grpc", "ITVComponents.InterProcessCommunication.GRpc\ITVComponents.InterProcessCommunication.Grpc.csproj", "{9575068E-FE0C-4C7A-B3D5-31A67D36E1B3}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.ApiKeyAuthentication", "ITVComponents.WebCoreToolkit.ApiKeyAuthentication\ITVComponents.WebCoreToolkit.ApiKeyAuthentication.csproj", "{94302954-C139-4B25-9396-09EB4D240B96}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.Tests", "ITVComponents.Tests\ITVComponents.Tests.csproj", "{C56C0880-6965-46C1-895A-72407825E438}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.InterProcessExtensions", "ITVComponents.WebCoreToolkit.InterProcessExtensions\ITVComponents.WebCoreToolkit.InterProcessExtensions.csproj", "{18651314-2AF6-4E8B-8D03-2822D1921B0C}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.WindowsAuthentication", "ITVComponents.WebCoreToolkit.WindowsAuthentication\ITVComponents.WebCoreToolkit.WindowsAuthentication.csproj", "{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.EFRepo.SqlServer", "ITVComponents.EFRepo.SqlServer\ITVComponents.EFRepo.SqlServer.csproj", "{4EB4D7FE-E413-4ADA-B411-C0F7903C24B9}"
 EndProject
@@ -117,7 +113,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.AnonymousAssetAccess", "ITVComponents.WebCoreToolkit.AnonymousAssetAccess\ITVComponents.WebCoreToolkit.AnonymousAssetAccess.csproj", "{F969EB59-4FB0-47EE-8856-6163229C282B}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.OpenIdAuthentication", "ITVComponents.WebCoreToolkit.OpenIdAuthentication\ITVComponents.WebCoreToolkit.OpenIdAuthentication.csproj", "{1D39C7DD-03C3-4430-95A1-D85FB8AD0037}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Authentication", "ITVComponents.WebCoreToolkit.Authentication\ITVComponents.WebCoreToolkit.Authentication.csproj", "{1D39C7DD-03C3-4430-95A1-D85FB8AD0037}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net.OpenShiftHealth", "ITVComponents.WebCoreToolkit.Net.OpenShiftHealth\ITVComponents.WebCoreToolkit.Net.OpenShiftHealth.csproj", "{A1081ADD-41BF-4222-9015-5FED1325A6F0}"
 EndProject
@@ -639,18 +635,6 @@ Global
 		{9575068E-FE0C-4C7A-B3D5-31A67D36E1B3}.Release|x86.Build.0 = Release|Any CPU
 		{9575068E-FE0C-4C7A-B3D5-31A67D36E1B3}.Release|x64.ActiveCfg = Release|Any CPU
 		{9575068E-FE0C-4C7A-B3D5-31A67D36E1B3}.Release|x64.Build.0 = Release|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Debug|x86.Build.0 = Debug|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Debug|x64.Build.0 = Debug|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Release|Any CPU.Build.0 = Release|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Release|x86.ActiveCfg = Release|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Release|x86.Build.0 = Release|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Release|x64.ActiveCfg = Release|Any CPU
-		{94302954-C139-4B25-9396-09EB4D240B96}.Release|x64.Build.0 = Release|Any CPU
 		{C56C0880-6965-46C1-895A-72407825E438}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C56C0880-6965-46C1-895A-72407825E438}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C56C0880-6965-46C1-895A-72407825E438}.Debug|x86.ActiveCfg = Debug|Any CPU
@@ -675,18 +659,6 @@ Global
 		{18651314-2AF6-4E8B-8D03-2822D1921B0C}.Release|x86.Build.0 = Release|Any CPU
 		{18651314-2AF6-4E8B-8D03-2822D1921B0C}.Release|x64.ActiveCfg = Release|Any CPU
 		{18651314-2AF6-4E8B-8D03-2822D1921B0C}.Release|x64.Build.0 = Release|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Debug|x86.Build.0 = Debug|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Debug|x64.Build.0 = Debug|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|x86.ActiveCfg = Release|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|x86.Build.0 = Release|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|x64.ActiveCfg = Release|Any CPU
-		{38CF96A5-41C3-4A7B-AC16-03E7DBF702D2}.Release|x64.Build.0 = Release|Any CPU
 		{4EB4D7FE-E413-4ADA-B411-C0F7903C24B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4EB4D7FE-E413-4ADA-B411-C0F7903C24B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4EB4D7FE-E413-4ADA-B411-C0F7903C24B9}.Debug|x86.ActiveCfg = Debug|Any CPU

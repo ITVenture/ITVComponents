@@ -1,7 +1,7 @@
 ﻿using System;
 using ITVComponents.GenericService.ServiceSecurity;
-using ITVComponents.WebCoreToolkit.ApiKeyAuthentication;
-using ITVComponents.WebCoreToolkit.ApiKeyAuthentication.Extensions;
+using ITVComponents.WebCoreToolkit.Authentication.ApiKey;
+using ITVComponents.WebCoreToolkit.Authentication.ApiKey.Extensions;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Authentication;

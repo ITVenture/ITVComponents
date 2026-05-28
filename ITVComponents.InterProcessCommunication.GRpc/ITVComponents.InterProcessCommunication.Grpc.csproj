@@ -26,7 +26,7 @@
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.MessagingShared\ITVComponents.InterProcessCommunication.MessagingShared.csproj" />
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.Shared\ITVComponents.InterProcessCommunication.Shared.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.ApiKeyAuthentication\ITVComponents.WebCoreToolkit.ApiKeyAuthentication.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Authentication\ITVComponents.WebCoreToolkit.Authentication.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
   <ItemGroup>
