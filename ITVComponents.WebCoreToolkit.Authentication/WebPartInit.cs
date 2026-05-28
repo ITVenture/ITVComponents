@@ -56,13 +56,14 @@ namespace ITVComponents.WebCoreToolkit.Authentication
         }
 
         [ServiceRegistrationMethod]
-        public static void ConfigureAuthOptions(IServiceCollection services,
+        public static void RegisterServices(IServiceCollection services,
             [WebPartConfig("OpenId")] OpenIdConnectOptions openIdConfig,
             [WebPartConfig("Microsoft")] MicrosoftConnectOptions microsoftConfig,
             [WebPartConfig("Google")] GoogleConnectOptions googleConfig,
             [WebPartConfig("Facebook")] FacebookConnectOptions facebookConfig,
             [WebPartConfig("Bearer")] BearerConnectOptions bearerConfig,
             [WebPartConfig("LogoConfig")] OpenIdLogoConfig logoConfig,
+            [WebPartConfig("ApiKey")] ApiKeyWebPartOptions apiKeyConfig,
             [SharedObjectHeap]ISharedObjHeap sharedObjects)
         {
             //--openid connect
@@ -180,17 +181,12 @@ namespace ITVComponents.WebCoreToolkit.Authentication
                     }
                 });
             }
-        }
 
-        [ServiceRegistrationMethod]
-        public static void RegisterApiKeyServices(IServiceCollection services,
-            [WebPartConfig("ApiKey")] ApiKeyWebPartOptions webPartCfg,
-            [SharedObjectHeap]ISharedObjHeap sharedObjects)
-        {
-            if (webPartCfg != null)
+            //-- api-key
+            if (apiKeyConfig != null)
             {
                 var l = sharedObjects.Property<List<string>>("SignInSchemes", true);
-                l.Value.AddIfMissing(webPartCfg.AuthenticationType, true);
+                l.Value.AddIfMissing(apiKeyConfig.AuthenticationType, true);
                 services.UseDefaultApiKeyResolver();
             }
         }
@@ -212,7 +208,8 @@ namespace ITVComponents.WebCoreToolkit.Authentication
             [WebPartConfig("Microsoft")] MicrosoftConnectOptions microsoftConfig,
             [WebPartConfig("Google")] GoogleConnectOptions googleConfig,
             [WebPartConfig("Facebook")] FacebookConnectOptions facebookConfig,
-            [WebPartConfig("Bearer")] BearerConnectOptions bearerConfig)
+            [WebPartConfig("Bearer")] BearerConnectOptions bearerConfig,
+            [WebPartConfig("ApiKey")] ApiKeyWebPartOptions apiKeyConfig)
         {
             if (openIdConfig != null)
             {
@@ -238,15 +235,10 @@ namespace ITVComponents.WebCoreToolkit.Authentication
             {
                 auth.BearerQuick(bearerConfig);
             }
-        }
 
-        [AuthenticationRegistrationMethod]
-        public static void RegisterApiKeyAuthenticator(AuthenticationBuilder auth,
-            [WebPartConfig("ApiKey")] ApiKeyWebPartOptions webPartCfg)
-        {
-            if (webPartCfg != null)
+            if (apiKeyConfig != null)
             {
-                auth.AddApiKeySupport(o => o.AuthenticationType = webPartCfg.AuthenticationType);
+                auth.AddApiKeySupport(o => o.AuthenticationType = apiKeyConfig.AuthenticationType);
             }
         }
     }
