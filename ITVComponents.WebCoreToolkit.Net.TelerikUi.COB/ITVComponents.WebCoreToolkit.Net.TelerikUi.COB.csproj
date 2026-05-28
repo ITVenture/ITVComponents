@@ -17,7 +17,7 @@
     <Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" />
   </Target>
   <ItemGroup>
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EmailDnsValidation\ITVComponents.WebCoreToolkit.EmailDnsValidation.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Extras\ITVComponents.WebCoreToolkit.Extras.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants\ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Onboarding\ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.csproj" />

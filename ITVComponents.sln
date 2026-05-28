@@ -67,8 +67,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.IPC.Managemen
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit", "ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj", "{4E17F01B-3CE3-4721-A605-E74252612922}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.DbLessConfig", "ITVComponents.WebCoreToolkit.DbLessConfig\ITVComponents.WebCoreToolkit.DbLessConfig.csproj", "{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Saml", "ITVComponents.WebCoreToolkit.Saml\ITVComponents.WebCoreToolkit.Saml.csproj", "{18F8B78A-3614-4E0D-B796-14F1082714BB}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.EntityFramework", "ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj", "{14173851-7093-44EF-A8A1-581E36F2AD8F}"
@@ -97,8 +95,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.TypeConversio
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.GenericService", "ITVComponents.GenericService\ITVComponents.GenericService.csproj", "{2485C5C5-369E-4202-820C-6B12F0DB960B}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.ScheduledBackgroundProcessing", "ITVComponents.WebCoreToolkit.ScheduledBackgroundProcessing\ITVComponents.WebCoreToolkit.ScheduledBackgroundProcessing.csproj", "{AFE6D34C-5046-4288-8E9D-56E0F5809D88}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers", "ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers\ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers.csproj", "{0B1FB7BB-AE47-41E0-BE3B-803CD95D41E1}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared", "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.csproj", "{41B96ED7-4043-444E-BB4F-561DD3B8D812}"
@@ -109,9 +105,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView", "ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCTUserView\ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.csproj", "{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.EmailDnsValidation", "ITVComponents.WebCoreToolkit.EmailDnsValidation\ITVComponents.WebCoreToolkit.EmailDnsValidation.csproj", "{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.AnonymousAssetAccess", "ITVComponents.WebCoreToolkit.AnonymousAssetAccess\ITVComponents.WebCoreToolkit.AnonymousAssetAccess.csproj", "{F969EB59-4FB0-47EE-8856-6163229C282B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Extras", "ITVComponents.WebCoreToolkit.Extras\ITVComponents.WebCoreToolkit.Extras.csproj", "{F969EB59-4FB0-47EE-8856-6163229C282B}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.WebCoreToolkit.Authentication", "ITVComponents.WebCoreToolkit.Authentication\ITVComponents.WebCoreToolkit.Authentication.csproj", "{1D39C7DD-03C3-4430-95A1-D85FB8AD0037}"
 EndProject
@@ -585,18 +579,6 @@ Global
 		{4E17F01B-3CE3-4721-A605-E74252612922}.Release|x86.Build.0 = Release|Any CPU
 		{4E17F01B-3CE3-4721-A605-E74252612922}.Release|x64.ActiveCfg = Release|Any CPU
 		{4E17F01B-3CE3-4721-A605-E74252612922}.Release|x64.Build.0 = Release|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Debug|x86.Build.0 = Debug|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Debug|x64.Build.0 = Debug|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Release|x86.ActiveCfg = Release|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Release|x86.Build.0 = Release|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Release|x64.ActiveCfg = Release|Any CPU
-		{75BFB4ED-6A41-4679-8DF1-E940FDB5BD1F}.Release|x64.Build.0 = Release|Any CPU
 		{18F8B78A-3614-4E0D-B796-14F1082714BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{18F8B78A-3614-4E0D-B796-14F1082714BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{18F8B78A-3614-4E0D-B796-14F1082714BB}.Debug|x86.ActiveCfg = Debug|Any CPU
@@ -765,18 +747,6 @@ Global
 		{2485C5C5-369E-4202-820C-6B12F0DB960B}.Release|x86.Build.0 = Release|Any CPU
 		{2485C5C5-369E-4202-820C-6B12F0DB960B}.Release|x64.ActiveCfg = Release|Any CPU
 		{2485C5C5-369E-4202-820C-6B12F0DB960B}.Release|x64.Build.0 = Release|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Debug|x86.Build.0 = Debug|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Debug|x64.Build.0 = Debug|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Release|Any CPU.Build.0 = Release|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Release|x86.ActiveCfg = Release|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Release|x86.Build.0 = Release|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Release|x64.ActiveCfg = Release|Any CPU
-		{AFE6D34C-5046-4288-8E9D-56E0F5809D88}.Release|x64.Build.0 = Release|Any CPU
 		{0B1FB7BB-AE47-41E0-BE3B-803CD95D41E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0B1FB7BB-AE47-41E0-BE3B-803CD95D41E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0B1FB7BB-AE47-41E0-BE3B-803CD95D41E1}.Debug|x86.ActiveCfg = Debug|Any CPU
@@ -837,18 +807,6 @@ Global
 		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Release|x86.Build.0 = Release|Any CPU
 		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Release|x64.ActiveCfg = Release|Any CPU
 		{2A5BF8BF-A4E1-4CA2-B9EF-E274EC6D7FD5}.Release|x64.Build.0 = Release|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Debug|x86.Build.0 = Debug|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Debug|x64.Build.0 = Debug|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Release|x86.ActiveCfg = Release|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Release|x86.Build.0 = Release|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Release|x64.ActiveCfg = Release|Any CPU
-		{4293F81C-F3A3-4EFA-A4F9-75361CEA4568}.Release|x64.Build.0 = Release|Any CPU
 		{F969EB59-4FB0-47EE-8856-6163229C282B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F969EB59-4FB0-47EE-8856-6163229C282B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F969EB59-4FB0-47EE-8856-6163229C282B}.Debug|x86.ActiveCfg = Debug|Any CPU

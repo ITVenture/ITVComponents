@@ -24,7 +24,9 @@
       "Bash(git rm *)",
       "Bash(rm -rf ITVComponents.DataAccess.Linq)",
       "Bash(git checkout *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(git ls-files *)",
+      "Bash(xargs -0 -r sed -i -e 's/ITVComponents\\\\.WebCoreToolkit\\\\.AnonymousAssetAccess/ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess/g' -e 's/ITVComponents\\\\.WebCoreToolkit\\\\.EmailDnsValidation/ITVComponents.WebCoreToolkit.Extras.EmailDnsValidation/g' -e 's/ITVComponents\\\\.WebCoreToolkit\\\\.DbLessConfig/ITVComponents.WebCoreToolkit.Extras.DbLessConfig/g' -e 's/ITVComponents\\\\.WebCoreToolkit\\\\.ScheduledBackgroundProcessing/ITVComponents.WebCoreToolkit.Extras.ScheduledBackgroundProcessing/g')"
     ]
   }
 }

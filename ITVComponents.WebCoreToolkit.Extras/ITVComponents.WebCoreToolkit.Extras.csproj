@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE040</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DnsClient" Version="1.8.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.ParallelProcessing\ITVComponents.ParallelProcessing.csproj" />
+    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
+    <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+  </ItemGroup>
+</Project>

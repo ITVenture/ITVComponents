@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler;
-using ITVComponents.WebCoreToolkit.EmailDnsValidation;
+using ITVComponents.WebCoreToolkit.Extras.EmailDnsValidation;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Models;

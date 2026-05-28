@@ -8,7 +8,7 @@ using ITVComponents.Json;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.Configuration;
-using ITVComponents.WebCoreToolkit.EmailDnsValidation;
+using ITVComponents.WebCoreToolkit.Extras.EmailDnsValidation;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
