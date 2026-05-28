@@ -9,8 +9,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.CommandLinePa
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.DataAccess", "ITVComponents.DataAccess\ITVComponents.DataAccess.csproj", "{5532ABAF-AB44-4F5E-B204-6F6ABD2E3F7B}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.DataAccess.Linq", "ITVComponents.DataAccess.Linq\ITVComponents.DataAccess.Linq.csproj", "{D7D17135-119C-4A25-838D-1FA874776A62}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.DataAccess.Remote", "ITVComponents.DataAccess.Remote\ITVComponents.DataAccess.Remote.csproj", "{04D2B477-2D1A-466A-B37A-E91B038AC2D5}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ITVComponents.DataAccess.SqLite", "ITVComponents.DataAccess.SqLite\ITVComponents.DataAccess.SqLite.csproj", "{A0DF39E7-EA31-4406-B212-22F67561BEFA}"
@@ -257,18 +255,6 @@ Global
 		{5532ABAF-AB44-4F5E-B204-6F6ABD2E3F7B}.Release|x86.Build.0 = Release|Any CPU
 		{5532ABAF-AB44-4F5E-B204-6F6ABD2E3F7B}.Release|x64.ActiveCfg = Release|Any CPU
 		{5532ABAF-AB44-4F5E-B204-6F6ABD2E3F7B}.Release|x64.Build.0 = Release|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Debug|x86.Build.0 = Debug|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Debug|x64.Build.0 = Debug|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Release|x86.ActiveCfg = Release|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Release|x86.Build.0 = Release|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Release|x64.ActiveCfg = Release|Any CPU
-		{D7D17135-119C-4A25-838D-1FA874776A62}.Release|x64.Build.0 = Release|Any CPU
 		{04D2B477-2D1A-466A-B37A-E91B038AC2D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{04D2B477-2D1A-466A-B37A-E91B038AC2D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{04D2B477-2D1A-466A-B37A-E91B038AC2D5}.Debug|x86.ActiveCfg = Debug|Any CPU
