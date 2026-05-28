@@ -17,16 +17,16 @@ namespace ITVComponents.WebCoreToolkit.Authentication.ApiKey
             this.securityRepository = securityRepository;
         }
 
-        public Task<Models.ApiKey> Execute(string providedApiKey, string authenticationScheme)
+        public Task<ApiKeyInfo> Execute(string providedApiKey, string authenticationScheme)
         {
             var apiKeyUser = securityRepository.Users.FirstOrDefault(n => n.UserName.Equals(providedApiKey, StringComparison.OrdinalIgnoreCase) && n.AuthenticationType == authenticationScheme);
             if (apiKeyUser != null)
             {
-                Models.ApiKey retVal = new Models.ApiKey(providedApiKey, DateTime.Now);
+                ApiKeyInfo retVal = new ApiKeyInfo(providedApiKey, DateTime.Now);
                 return Task.FromResult(retVal);
             }
 
-            return Task.FromResult<Models.ApiKey>(null);
+            return Task.FromResult<ApiKeyInfo>(null);
         }
     }
 }

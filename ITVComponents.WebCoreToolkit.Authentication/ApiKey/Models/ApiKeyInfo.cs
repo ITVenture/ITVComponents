@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.Authentication.ApiKey.Models
 {
-    public class ApiKey
+    public class ApiKeyInfo
     {
-        public ApiKey(string key, DateTime created)
+        public ApiKeyInfo(string key, DateTime created)
         {
             Key = key ?? throw new ArgumentNullException(nameof(key));
             Created = created;

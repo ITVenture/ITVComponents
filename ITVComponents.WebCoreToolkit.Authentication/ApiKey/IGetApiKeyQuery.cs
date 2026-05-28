@@ -9,6 +9,6 @@ namespace ITVComponents.WebCoreToolkit.Authentication.ApiKey
 {
     public interface IGetApiKeyQuery
     {
-        Task<Models.ApiKey> Execute(string providedApiKey, string authenticationScheme);
+        Task<ApiKeyInfo> Execute(string providedApiKey, string authenticationScheme);
     }
 }
