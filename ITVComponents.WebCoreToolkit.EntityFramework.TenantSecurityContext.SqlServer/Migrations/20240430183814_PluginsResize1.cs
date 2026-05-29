@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Migrations
 {
     public partial class PluginsResize1 : Migration
     {

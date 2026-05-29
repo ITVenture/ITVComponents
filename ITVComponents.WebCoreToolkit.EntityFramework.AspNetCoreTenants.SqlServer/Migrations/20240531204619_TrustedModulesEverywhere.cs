@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Migrations
 {
     public partial class TrustedModulesEverywhere : Migration
     {

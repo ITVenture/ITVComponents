@@ -1,7 +1,7 @@
-﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Migrations
 {
     public partial class ExtendedMultiTenantSupportFeatures : Migration
     {

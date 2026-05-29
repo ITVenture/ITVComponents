@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Migrations
 {
     [DbContext(typeof(SecurityContext))]
     [Migration("20210305075300_ExtendedMultiTenantSupportFeatures")]

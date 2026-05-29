@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Migrations
 {
     public partial class DiagnosticsTables : Migration
     {

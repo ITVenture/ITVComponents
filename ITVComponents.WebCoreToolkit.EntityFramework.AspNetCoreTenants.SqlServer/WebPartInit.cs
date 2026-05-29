@@ -7,14 +7,16 @@ using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer.SyntaxHelper;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer
 {
@@ -66,16 +68,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
                     services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
                 }
 
-                if (!AspNetCoreTenants.WebPartInit.ContextTypeInitialized)
+                if (!TenantSecurityInitializer.ContextTypeInitialized)
                 {
-                    AspNetCoreTenants.WebPartInit.SetContextType(t);
+                    TenantSecurityInitializer.SetContextType(t, IdentityStrategy.CoreIdentity, TenantStrategy.Flat);
                 }
             }
 
             if (partActivation.ActivateDbContext)
             {
                 var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
-                AspNetCoreTenants.WebPartInit.DependencyInit.UseDbIdentities(services, (services, options) =>
+                TenantSecurityInitializer.DependencyInit.UseDbIdentities(services, (services, options) =>
                 {
                     options.UseSqlServer(partActivation.ConnectionStringName);
                     manager.CustomObjectConfig(options, services);
@@ -83,7 +85,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServ
                 /*if (t != null)
                 {
                     //services.AddDbContext<>()
-                    AspNetCoreTenants.WebPartInit.DependencyInit.UseDbIdentities(services, (services,options) =>
+                    TenantSecurityInitializer.DependencyInit.UseDbIdentities(services, (services,options) =>
                     {
                         options.UseSqlServer(partActivation.ConnectionStringName);
                         manager.CustomObjectConfig(options, services);

@@ -1,5 +1,5 @@
 ﻿using System;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 

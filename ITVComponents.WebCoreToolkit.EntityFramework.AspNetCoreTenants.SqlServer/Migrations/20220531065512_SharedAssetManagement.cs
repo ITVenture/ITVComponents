@@ -1,7 +1,7 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Migrations
 {
     public partial class SharedAssetManagement : Migration
     {

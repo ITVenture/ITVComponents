@@ -6,14 +6,16 @@ using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.SyntaxHelper;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql
 {
@@ -58,16 +60,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Pos
                     services.ConfigureMethods(t, bld => PostgreSqlColumnsSyntaxHelper.ConfigureMethods(bld));
                 }
 
-                if (!TenantSecurityContext.WebPartInit.ContextTypeInitialized)
+                if (!TenantSecurityInitializer.ContextTypeInitialized)
                 {
-                    TenantSecurityContext.WebPartInit.SetContextType(t);
+                    TenantSecurityInitializer.SetContextType(t, IdentityStrategy.BasicTenantSecurity, TenantStrategy.Flat);
                 }
             }
 
             if (partActivation.ActivateDbContext)
             {
                 var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
-                TenantSecurityContext.WebPartInit.DependencyInit.UseDbIdentities(services, (services, options) =>
+                TenantSecurityInitializer.DependencyInit.UseDbIdentities(services, (services, options) =>
                 {
                     options.UseNpgsql(partActivation.ConnectionStringName);
                     manager.CustomObjectConfig(options, services);

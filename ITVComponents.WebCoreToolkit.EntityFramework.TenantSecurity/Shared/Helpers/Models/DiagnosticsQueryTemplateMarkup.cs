@@ -1,0 +1,25 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
+
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models
+{
+    [JsonDerivedType(typeof(DiagnosticsQueryTemplateMarkup), "base")]
+    public class DiagnosticsQueryTemplateMarkup
+    {
+        public string DiagnosticsQueryName { get; set; }
+
+        public string DbContext { get; set; }
+
+        public bool AutoReturn { get; set; }
+
+        public string QueryText { get; set; }
+
+        public string Permission { get; set; }
+
+        public DiagnosticsQueryParameterTemplateMarkup[] Parameters { get; set; }
+    }
+}

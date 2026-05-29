@@ -1,8 +1,8 @@
 ﻿using System;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Migrations
 {
     public partial class InitialContext : Migration
     {

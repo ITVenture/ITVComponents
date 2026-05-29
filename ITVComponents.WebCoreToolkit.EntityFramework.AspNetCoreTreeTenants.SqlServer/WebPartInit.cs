@@ -7,11 +7,13 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.SqlServer.SyntaxHelper;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.SqlServer
 {
@@ -68,16 +70,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
                     });
                 }
 
-                if (!AspNetCoreTreeTenants.WebPartInit.ContextTypeInitialized)
+                if (!TenantSecurityInitializer.ContextTypeInitialized)
                 {
-                    AspNetCoreTreeTenants.WebPartInit.SetContextType(t);
+                    TenantSecurityInitializer.SetContextType(t, IdentityStrategy.CoreIdentity, TenantStrategy.Tree);
                 }
             }
 
             if (partActivation.ActivateDbContext)
             {
                 var manager = sharedObjects.Property<WebPartManager>("WebPartManager").Value;
-                AspNetCoreTreeTenants.WebPartInit.DependencyInit.UseDbIdentities(services, (services, options) =>
+                TenantSecurityInitializer.DependencyInit.UseDbIdentities(services, (services, options) =>
                 {
                     options.UseSqlServer(partActivation.ConnectionStringName);
                     manager.CustomObjectConfig(options, services);

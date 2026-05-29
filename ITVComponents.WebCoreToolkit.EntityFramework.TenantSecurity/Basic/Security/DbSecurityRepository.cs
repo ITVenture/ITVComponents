@@ -1,0 +1,72 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using ITVComponents.Formatting;
+using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.WebCoreToolkit.EntityFramework.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
+using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.Extensions.Logging;
+
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Security
+{
+    internal class DbSecurityRepository<TImpl>:Shared.Security.DbSecurityRepository<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser,RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant, AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> where TImpl:SecurityContext<TImpl>
+    {
+        public DbSecurityRepository(TImpl securityContext, ILogger<DbSecurityRepository<TImpl>> logger):base(securityContext, logger)
+        {
+        }
+
+        protected override IEnumerable<UserRole> AllRoles(User user)
+        {
+            return user.TenantUsers.SelectMany(u => u.Roles);
+        }
+
+        protected override Expression<Func<User, bool>> UserFilter(WebCoreToolkit.Models.User user)
+        {
+            return (n =>
+                n.UserName.ToLower() == user.UserName.ToLower() && (n.AuthenticationType == null || user.AuthenticationType == null || n.AuthenticationType.AuthenticationTypeName == user.AuthenticationType));
+        }
+
+        protected override Expression<Func<User, bool>> UserFilter(string[] userLabels, string authType)
+        {
+            var lbl = (from t in userLabels select t.ToLower()).ToArray();
+            return n => lbl.Contains(n.UserName.ToLower()) &&
+                        (n.AuthenticationType == null || n.AuthenticationType.AuthenticationTypeName == authType);
+        }
+
+        protected override WebCoreToolkit.Models.User SelectUser(User src)
+        {
+            return new WebCoreToolkit.Models.User
+            {
+                UserName = src.UserName,
+                AuthenticationType = src.AuthenticationType?.AuthenticationTypeName
+            };
+        }
+
+        protected override IEnumerable<CustomUserProperty<int, User>> UserProps(User user)
+        {
+            return user.UserProperties;
+        }
+
+        protected override Expression<Func<User, int>> UserId { get; } = (user) => user.UserId;
+        protected override BaseTenantContextSecurityTrustConfig ConfigureTrustConfigImpl(BaseTenantContextSecurityTrustConfig trustConfig, string callingMethod)
+        {
+            return trustConfig;
+        }
+
+        protected override FlatExternalOAuthService GetExternalServiceInternal(IBaseTenantContext<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> context, string name)
+        {
+            return context.ExternalOAuthServices.FirstOrDefault(n => n.CalculatedUniqueServiceName == name) ?? context.ExternalOAuthServices.FirstOrDefault(n =>
+                    n.UniqueConnectionName == name && n.TenantId != null &&
+                    n.TenantId == context.CurrentTenantId) ??
+                context.ExternalOAuthServices.FirstOrDefault(n =>
+                    n.UniqueConnectionName == name && n.TenantId == null);
+        }
+    }
+}

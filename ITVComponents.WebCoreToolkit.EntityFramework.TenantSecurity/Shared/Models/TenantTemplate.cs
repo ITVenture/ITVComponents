@@ -1,0 +1,22 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models
+{
+    public class TenantTemplate
+    {
+        [Key]
+        public int TenantTemplateId { get; set; }
+
+        [Required, MaxLength(512)]
+        public string Name { get; set; }
+
+        public string Description { get; set; }
+
+        public string Markup { get; set; }
+    }
+}
