@@ -1,10 +1,10 @@
-using System.Security.Claims;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
+﻿using System.Security.Claims;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Options;

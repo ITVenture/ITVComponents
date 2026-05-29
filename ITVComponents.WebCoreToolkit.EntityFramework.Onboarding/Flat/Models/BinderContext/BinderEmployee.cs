@@ -1,10 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.BinderContext.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.BinderContext.Model;
 using ITVComponents.EFRepo.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.BinderModels;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.BinderModels;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models.BinderContext
 {

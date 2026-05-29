@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -29,8 +29,7 @@
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
     <ProjectReference Include="..\ITVComponents.Scripting.CScript\ITVComponents.Scripting.CScript.csproj" />
     <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants\ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared\ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />

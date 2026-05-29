@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewComponents

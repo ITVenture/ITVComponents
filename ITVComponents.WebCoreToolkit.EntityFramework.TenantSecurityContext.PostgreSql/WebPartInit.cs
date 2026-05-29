@@ -7,8 +7,8 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.PostgreSql.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.PostgreSql.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.PostgreSql
 {
     [WebPart]
     public static class WebPartInit

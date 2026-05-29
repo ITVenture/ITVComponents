@@ -1,11 +1,11 @@
 using System.Linq;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;

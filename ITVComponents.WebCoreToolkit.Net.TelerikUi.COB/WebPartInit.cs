@@ -2,7 +2,7 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.AspExtensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +17,7 @@ using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Extensions;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage;

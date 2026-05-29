@@ -1,10 +1,10 @@
-using System.Security.Claims;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+﻿using System.Security.Claims;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
 using Microsoft.EntityFrameworkCore;
-using DbLocale = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Localization;
+using DbLocale = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Localization;
 
 namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
 

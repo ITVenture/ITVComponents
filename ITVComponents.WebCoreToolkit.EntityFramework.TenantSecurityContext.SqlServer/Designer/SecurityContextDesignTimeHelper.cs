@@ -1,10 +1,10 @@
 ﻿using ITVComponents.EFRepo.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.SqlServer.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.SqlServer.SyntaxHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.SqlServer.Designer
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.SqlServer.Designer
 {
     public class SecurityContextDesignTimeHelper:IDesignTimeDbContextFactory<SecurityContext>
     {

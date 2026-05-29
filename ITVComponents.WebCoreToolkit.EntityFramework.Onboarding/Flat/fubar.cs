@@ -5,7 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;

@@ -5,9 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
@@ -18,7 +18,7 @@ using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Feature = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Feature;
+using Feature = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Feature;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.Util.Controllers
 {

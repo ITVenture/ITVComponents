@@ -4,8 +4,8 @@ using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.AspExtensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
@@ -17,9 +17,9 @@ using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.CustomUserProperty;
-using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission;
-using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Models.User;
+using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.CustomUserProperty;
+using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission;
+using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.Areas.Security.Controllers
 {
@@ -34,7 +34,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserVi
         public UserController(TContext db, IServiceProvider services)
         {
             this.db = db;
-            if (!services.VerifyUserPermissions(new[] {EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
+            if (!services.VerifyUserPermissions(new[] {EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission.Sysadmin}))
             {
                 db.HideGlobals = true;
                 isSysAdmin = false;

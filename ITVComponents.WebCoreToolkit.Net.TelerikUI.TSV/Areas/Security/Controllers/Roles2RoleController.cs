@@ -1,7 +1,7 @@
-﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
@@ -74,7 +74,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         public Roles2RoleController(TContext db, IServiceProvider services)
         {
             this.db = db;
-            if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }))
+            if (!services.VerifyUserPermissions(new[] { EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission.Sysadmin }))
             {
                 db.HideGlobals = true;
                 isSysAdmin = false;

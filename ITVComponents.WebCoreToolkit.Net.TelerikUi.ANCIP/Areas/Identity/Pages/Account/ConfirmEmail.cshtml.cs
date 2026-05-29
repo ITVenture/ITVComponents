@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account;
-//using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
+//using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;

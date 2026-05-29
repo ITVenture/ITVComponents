@@ -1,4 +1,4 @@
-﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;

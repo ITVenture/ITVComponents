@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.SqlServer.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.SqlServer.Migrations
 {
     [DbContext(typeof(AspNetTreeSecurityContext))]
     [Migration("20241125155855_InitialTreeTenantBuild")]

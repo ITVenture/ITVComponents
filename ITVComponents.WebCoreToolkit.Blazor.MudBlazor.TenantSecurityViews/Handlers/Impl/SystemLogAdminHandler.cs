@@ -1,5 +1,5 @@
-using System.Security.Claims;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared;
+﻿using System.Security.Claims;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
 using Microsoft.EntityFrameworkCore;

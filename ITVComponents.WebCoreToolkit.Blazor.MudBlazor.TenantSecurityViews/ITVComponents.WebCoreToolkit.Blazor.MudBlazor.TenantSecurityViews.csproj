@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -23,7 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\" />

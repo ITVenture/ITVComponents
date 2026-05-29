@@ -6,7 +6,7 @@
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
 @using Kendo.Mvc.UI
-@using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission
+@using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel.ExternalOAuthServiceViewModel
 @{
     var isAdmin = Context.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });

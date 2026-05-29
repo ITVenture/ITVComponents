@@ -9,15 +9,15 @@ using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extras.EmailDnsValidation;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.FlatTenantModels;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.DTO;
 using ITVComponents.WebCoreToolkit.Options;
@@ -32,7 +32,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using User = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User;
+using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.COB.Areas.Identity.Controllers
 {

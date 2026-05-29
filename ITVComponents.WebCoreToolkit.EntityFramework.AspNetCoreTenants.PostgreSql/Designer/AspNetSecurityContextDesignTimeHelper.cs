@@ -1,10 +1,10 @@
 ﻿using ITVComponents.EFRepo.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.PostgreSql.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql.Designer
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.PostgreSql.Designer
 {
     public class AspNetSecurityContextDesignTimeHelper:IDesignTimeDbContextFactory<AspNetSecurityContext>
     {

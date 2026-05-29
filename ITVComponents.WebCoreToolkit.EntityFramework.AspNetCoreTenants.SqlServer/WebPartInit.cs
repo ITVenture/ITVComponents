@@ -8,7 +8,7 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.SqlServer.SyntaxHelper;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.AspNetCore.Identity;
@@ -18,7 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.SqlServer
 {
     [WebPart]
     public static class WebPartInit

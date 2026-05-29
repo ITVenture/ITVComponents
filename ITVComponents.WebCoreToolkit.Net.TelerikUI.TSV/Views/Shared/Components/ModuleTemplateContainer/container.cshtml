@@ -4,9 +4,9 @@
 @using ITVComponents.EFRepo.DynamicData
 @using ITVComponents.Plugins.PluginServices
 @using ITVComponents.WebCoreToolkit.EntityFramework.Models
-@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models
-@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.ModuleConfigHandling
-@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.TemplateHandling
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ModuleConfigHandling
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.TemplateHandling
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Data
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewComponents
@@ -15,7 +15,7 @@
 @using Microsoft.AspNetCore.Routing
 @using Microsoft.Extensions.Localization
 @inject ITemplateHandlerFactory factory
-@model ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TemplateModule
+@model ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.TemplateModule
 @{
     var cult = Context.Features.Get<IRequestCultureFeature>();
     string currentCulture = null;

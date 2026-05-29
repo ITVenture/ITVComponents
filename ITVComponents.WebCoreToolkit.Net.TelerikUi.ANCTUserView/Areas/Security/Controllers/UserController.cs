@@ -4,9 +4,9 @@ using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.AspExtensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
@@ -18,8 +18,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.CustomUserProperty;
-using User = ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models.User;
+using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.CustomUserProperty;
+using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.User;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.Areas.Security.Controllers
 {
@@ -34,7 +34,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUse
         public UserController(TContext db, IServiceProvider services)
         {
             this.db = db;
-            if (!services.VerifyUserPermissions(new[] {EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
+            if (!services.VerifyUserPermissions(new[] {EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission.Sysadmin}))
             {
                 db.HideGlobals = true;
                 isSysAdmin = false;

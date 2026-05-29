@@ -1,4 +1,4 @@
-﻿using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.Models;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
 using Microsoft.Extensions.DependencyInjection;

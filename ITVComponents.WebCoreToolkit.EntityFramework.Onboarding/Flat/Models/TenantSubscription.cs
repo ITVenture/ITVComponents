@@ -1,5 +1,5 @@
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models
 {

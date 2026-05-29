@@ -12,7 +12,7 @@ Html.Kendo().TabStrip().Name($"RolesAssignment{Model.RoleId}")
     .SelectedIndex(0)
     .Items(item =>
     {
-        if (!Model.IsSystemRole || Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}))
+        if (!Model.IsSystemRole || Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission.Sysadmin}))
         {
             item.Add().Text("Berechtigungen").LoadContentFrom("PermissionTable", "Permission", new {roleId = Model.RoleId, tenantId = Model.TenantId});
         }

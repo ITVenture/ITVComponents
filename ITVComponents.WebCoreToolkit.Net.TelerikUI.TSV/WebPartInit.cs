@@ -7,7 +7,7 @@ using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData.Extensions;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Options;

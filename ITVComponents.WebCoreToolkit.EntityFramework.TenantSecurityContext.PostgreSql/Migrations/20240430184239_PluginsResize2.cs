@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.Migrations
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.PostgreSql.Migrations
 {
     public partial class PluginsResize2 : Migration
     {

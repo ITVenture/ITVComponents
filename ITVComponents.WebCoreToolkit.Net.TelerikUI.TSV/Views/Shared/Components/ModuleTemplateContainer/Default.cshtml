@@ -8,7 +8,7 @@
 @using ITVComponents.WebCoreToolkit.Routing
 @using Microsoft.AspNetCore.Routing
 @using Microsoft.Extensions.Localization
-@model ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.TemplateModule
+@model ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.TemplateModule
 
 @(await Component.InvokeAsync(typeof(ModuleTemplateContainer), new { templateName = ViewData["templateName"], module=Model, subElement = "scripts" }))
 

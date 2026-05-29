@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.PostgreSql.SyntaxHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.Extensions
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.PostgreSql.Extensions
 {
     public static class DependencyExtensions
     {

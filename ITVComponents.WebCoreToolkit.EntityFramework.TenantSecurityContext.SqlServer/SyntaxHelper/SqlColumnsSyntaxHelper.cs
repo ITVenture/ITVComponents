@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.SqlServer.SyntaxHelper
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.SqlServer.SyntaxHelper
 {
     public static class SqlColumnsSyntaxHelper
     {

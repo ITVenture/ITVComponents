@@ -12,7 +12,7 @@
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using Kendo.Mvc.UI
 @using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
-@using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission
+@using ToolkitPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission
 @{
     var tmp = Html.Kendo().Grid<UserViewModel>().Name($"UsersFor{ViewData["roleId"]}_{ViewData["tenantId"]}")
         //.HtmlAttributes(new { style = "width:50vw;" })
@@ -20,7 +20,7 @@
         {
             columns.Bound(c => c.UserName).Title(TextsAndMessagesHelper.IWCN_General_Name);
             //columns.ForeignKey(c => c.AuthenticationTypeId, c => c.Ajax().Read(r => r.Url("/ForeignKey/sys/AuthenticationTypes")).ServerOperation(true), "Key", "Label").Title("Anmeldungstyp");
-            if (Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }) && ViewData["roleId"] == null && ViewData["tenantId"] == null)
+            if (Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission.Sysadmin }) && ViewData["roleId"] == null && ViewData["tenantId"] == null)
             {
                 columns.AjaxFk(c => c.AuthenticationTypeId, "sys", "AuthenticationTypes", "Id", 2, filterable: true).Filterable(true);
                 columns.Bound(c => c.NormalizedUserName);
@@ -49,7 +49,7 @@
                 if (Context.RequestServices.VerifyUserPermissions(new[] {"Users.Write"}))
                     columns.Command(ga =>
                     {
-                        if (Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin}) && ViewData["tenantId"] == null)
+                        if (Context.RequestServices.VerifyUserPermissions(new[] {ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission.Sysadmin}) && ViewData["tenantId"] == null)
                         {
                             ga.Edit();
                         }
@@ -62,7 +62,7 @@
         .ToolBar(toolbar =>
         {
             toolbar.RefreshTable();
-            if (ViewData["roleId"] == null && ViewData["tenantId"] == null && Context.RequestServices.VerifyUserPermissions(new []{"Users.Write"}) && Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }))
+            if (ViewData["roleId"] == null && ViewData["tenantId"] == null && Context.RequestServices.VerifyUserPermissions(new []{"Users.Write"}) && Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission.Sysadmin }))
             {
                 toolbar.Create();
             }
@@ -86,7 +86,7 @@
 .Sortable(c => c.Enabled(true))
 .Filterable(f => f.Enabled(true))
 .Resizable(c => c.Columns(true));
-    if (ViewData["tenantId"] == null && Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.ToolkitPermission.Sysadmin }))
+    if (ViewData["tenantId"] == null && Context.RequestServices.VerifyUserPermissions(new[] { ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.ToolkitPermission.Sysadmin }))
     {
         tmp.ClientDetailTemplateId("UserDetails");
     }

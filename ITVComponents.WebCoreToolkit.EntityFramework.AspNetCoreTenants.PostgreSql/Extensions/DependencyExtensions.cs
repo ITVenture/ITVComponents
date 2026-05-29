@@ -3,10 +3,10 @@ using System.Security;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.PostgreSql.SyntaxHelper;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.PostgreSql.Extensions
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.PostgreSql.Extensions
 {
     public static class DependencyExtensions
     {

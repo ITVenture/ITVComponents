@@ -1,10 +1,10 @@
-using ITVComponents.WebCoreToolkit.DependencyInjection;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model;
+﻿using ITVComponents.WebCoreToolkit.DependencyInjection;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.TreeModels;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
 using Microsoft.EntityFrameworkCore;
 

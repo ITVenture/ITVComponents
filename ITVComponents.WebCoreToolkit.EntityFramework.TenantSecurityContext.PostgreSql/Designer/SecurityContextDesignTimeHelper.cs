@@ -1,10 +1,10 @@
 ﻿using ITVComponents.EFRepo.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.PostgreSql.SyntaxHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.PostgreSql.Designer
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.PostgreSql.Designer
 {
     // --force nicht vergessen bei dotnet ef migrations remove
     public class SecurityContextDesignTimeHelper:IDesignTimeDbContextFactory<SecurityContext>

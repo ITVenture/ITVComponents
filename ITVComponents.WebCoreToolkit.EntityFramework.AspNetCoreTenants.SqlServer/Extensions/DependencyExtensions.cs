@@ -3,10 +3,10 @@ using System.Security;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.SqlServer.SyntaxHelper;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants.SqlServer.Extensions
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.SqlServer.Extensions
 {
     public static class DependencyExtensions
     {

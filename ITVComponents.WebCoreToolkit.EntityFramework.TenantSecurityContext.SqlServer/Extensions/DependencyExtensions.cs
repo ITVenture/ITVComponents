@@ -2,11 +2,11 @@
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.SqlServer.SyntaxHelper;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.SqlServer.SyntaxHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.SqlServer.Extensions
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.SqlServer.Extensions
 {
     public static class DependencyExtensions
     {

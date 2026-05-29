@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
-using ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTenants;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.EntityFrameworkCore;
 
