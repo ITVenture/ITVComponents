@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
@@ -6,17 +6,24 @@ using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.SqlServer.SyntaxHelper;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using FlatSyntax = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.SqlServer.SyntaxHelper.SqlColumnsSyntaxHelper;
+using TreeSyntax = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.SqlServer.SyntaxHelper.SqlColumnsSyntaxHelper;
+using BasicSyntax = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.SqlServer.SyntaxHelper.SqlColumnsSyntaxHelper;
 
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity;
-
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.SqlServer
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.SqlServer
 {
+    /// <summary>
+    /// Consolidated SqlServer provider WebPart for the tenant-security package. Replaces the three per-strategy
+    /// provider WebPartInit classes (AspNetCoreTenants.SqlServer, AspNetCoreTreeTenants.SqlServer,
+    /// TenantSecurityContext.SqlServer). One method per registration aspect; the active combination is selected
+    /// via <see cref="ActivationOptions.Identity"/> (CoreIdentity vs. BasicTenantSecurity) and
+    /// <see cref="ActivationOptions.Strategy"/> (Flat vs. Tree).
+    /// </summary>
     [WebPart]
     public static class WebPartInit
     {
@@ -40,21 +47,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 return retVal;
             }
 
-            return null;//config.GetSection<UserViewOptions>(path);
+            return null;
         }
 
         [ServiceRegistrationMethod]
-        public static void RegisterServices(IServiceCollection services, [WebPartConfig("ContextSettings")]SecurityContextOptions contextOptions,
-            [WebPartConfig("ActivationSettings")]ActivationOptions partActivation,
-            [SharedObjectHeap]ISharedObjHeap sharedObjects)
+        public static void RegisterServices(IServiceCollection services,
+            [WebPartConfig("ContextSettings")] SecurityContextOptions contextOptions,
+            [WebPartConfig("ActivationSettings")] ActivationOptions partActivation,
+            [SharedObjectHeap] ISharedObjHeap sharedObjects)
         {
-            /*Type t = null;
-            if (!string.IsNullOrEmpty(contextOptions.ContextType))
-            {
-                var dic = new Dictionary<string, object>();
-                t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
-                services.ConfigureMethods(t, bld => SqlColumnsSyntaxHelper.ConfigureMethods(bld));
-            }*/
+            var identity = partActivation.Identity;
+            var strategy = partActivation.Strategy;
 
             if (contextOptions.ConfigureContext)
             {
@@ -65,14 +68,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     t = (Type)ExpressionParser.Parse(contextOptions.ContextType, dic);
                     services.ConfigureMethods(t, bld =>
                     {
-                        SqlColumnsSyntaxHelper.ConfigureMethods(bld);
-                        SqlColumnsSyntaxHelper.ConfigureVirtualTables(bld);
+                        switch (identity, strategy)
+                        {
+                            case (IdentityStrategy.CoreIdentity, TenantStrategy.Flat):
+                                FlatSyntax.ConfigureMethods(bld);
+                                break;
+                            case (IdentityStrategy.CoreIdentity, TenantStrategy.Tree):
+                                TreeSyntax.ConfigureMethods(bld);
+                                TreeSyntax.ConfigureVirtualTables(bld);
+                                break;
+                            case (IdentityStrategy.BasicTenantSecurity, TenantStrategy.Flat):
+                                BasicSyntax.ConfigureMethods(bld);
+                                break;
+                        }
                     });
                 }
 
                 if (!TenantSecurityInitializer.ContextTypeInitialized)
                 {
-                    TenantSecurityInitializer.SetContextType(t, IdentityStrategy.CoreIdentity, TenantStrategy.Tree);
+                    TenantSecurityInitializer.SetContextType(t, identity, strategy);
                 }
             }
 
@@ -84,23 +98,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     options.UseSqlServer(partActivation.ConnectionStringName);
                     manager.CustomObjectConfig(options, services);
                 });
-                /*if (t != null)
-                {
-                    //services.AddDbContext<>()
-                    AspNetCoreTenants.WebPartInit.DependencyInit.UseDbIdentities(services, (services,options) =>
-                    {
-                        options.UseSqlServer(partActivation.ConnectionStringName);
-                        manager.CustomObjectConfig(options, services);
-                    });
-                }
-                else
-                {
-                    services.UseDbIdentities((services, options) =>
-                    {
-                        options.UseSqlServer(partActivation.ConnectionStringName);
-                        manager.CustomObjectConfig(options, services);
-                    });
-                }*/
             }
         }
     }
