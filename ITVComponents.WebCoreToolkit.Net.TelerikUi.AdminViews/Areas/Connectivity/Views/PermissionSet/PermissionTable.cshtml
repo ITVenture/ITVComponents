@@ -1,0 +1,4 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.ViewComponents
+
+@model int
+@await Component.InvokeAsync(typeof(ShowTable),new{customViewData = new Dictionary<string,object>{{"roleId",Model} } })

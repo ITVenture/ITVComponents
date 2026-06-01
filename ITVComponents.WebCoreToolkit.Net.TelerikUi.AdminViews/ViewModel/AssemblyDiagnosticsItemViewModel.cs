@@ -1,0 +1,15 @@
+﻿namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.ViewModel
+{
+    public class AssemblyDiagnosticsItemViewModel
+    {
+        public string AssemblyVersion { get; set; }
+        public string FullName { get; set; }
+
+        public string Location { get; set; }
+
+        public bool IsDynamic{get; set;}
+        public string LoadContext { get; set; }
+        public string RuntimeVersion { get; set; }
+        public bool IsCollectible { get; set; }
+    }
+}

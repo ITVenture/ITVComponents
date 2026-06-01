@@ -1,0 +1,27 @@
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Resources.TextsAndMessagesHelper;
+
+namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Areas.Security.Controllers
+{
+    [Area("Security"), Authorize("HasFeature(ITVAdminViews)")]
+    public class TenantPermissionController : Controller
+    {
+        public IActionResult Index(int? permissionId, int? roleId)
+        {
+            if (permissionId == null && roleId == null)
+            {
+                return BadRequest(TextsAndMessagesHelper.IWCN_TPC_Permission_Or_Role_Selection);
+            }
+
+            if (permissionId != null && roleId != null)
+            {
+                return BadRequest(TextsAndMessagesHelper.IWCN_TPC_Permission_Or_Role_Selection);
+            }
+
+            ViewData["permissionId"] = permissionId;
+            ViewData["roleId"] = roleId;
+            return PartialView();
+        }
+    }
+}

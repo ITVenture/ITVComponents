@@ -4,16 +4,16 @@
 @using System.Collections
 @using ITVComponents.WebCoreToolkit.EntityFramework.Models
 @using ITVComponents.WebCoreToolkit.Extensions
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.ViewModel
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using Kendo.Mvc.UI
 @using Kendo.Mvc.UI.Fluent
 @using Microsoft.AspNetCore.Localization
 @using TenantViewModel = ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTreeTenantSecurityUserView.ViewModel.HierarchyTenantViewModel
-@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Resources.TextsAndMessagesHelper
 @{
     var requestLocalizer = Context.Features.Get<IRequestCultureFeature>();
     var showDetailsCaption = requestLocalizer?.GetIWCN_TV_Edit_Details() ?? TextsAndMessagesHelper.IWCN_TV_Edit_Details;

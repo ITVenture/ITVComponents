@@ -12,7 +12,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.ViewModel;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;

@@ -23,7 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi.ANCIP\ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages\ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\" />

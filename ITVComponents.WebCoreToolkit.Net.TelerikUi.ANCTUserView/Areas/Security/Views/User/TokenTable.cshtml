@@ -4,12 +4,12 @@
 @using System.Collections
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.ViewModels
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.Resources
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.ViewModel
 @using ITVComponents.WebCoreToolkit.Net.ViewModel
 @using Kendo.Mvc.UI
-@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Resources.TextsAndMessagesHelper
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Resources.TextsAndMessagesHelper
 @{
     var tmp = Html.Kendo().Grid<UserTokenViewModel>().Name($"UserTokensFor{ViewData["userId"]}")
         //.HtmlAttributes(new { style = "width:50vw;" })

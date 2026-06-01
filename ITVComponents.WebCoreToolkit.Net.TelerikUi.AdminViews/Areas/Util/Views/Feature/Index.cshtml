@@ -1,0 +1,25 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Options
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.ViewComponents
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@inject IOptions<ViewOptions> viewOptions
+@{
+    Layout = viewOptions.Value.LayoutPage;
+}
+@{
+
+    ViewBag.Title = "Features";
+}
+@await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", ViewData["tenantId"] } } })
+    
+    
+@Html.DetailViewScript("FeatureModules", "ModulesOf#=FeatureId#", "~/Util/Feature/ModuleTable?featureId=#=FeatureId#")
+@Html.DetailViewScript("FeatureModulesDetails", "ModuleDetailsOf#=FeatureId#_#=TemplateModuleId#", "~/Util/Feature/ModuleDetails?featureId=#=FeatureId#&templateModuleId=#=TemplateModuleId#")
+@Html.DetailViewScript("ModuleConfiguratorParameters", "ParamsOf#=TemplateModuleId#_#=TemplateModuleConfiguratorId#", "~/Util/Feature/ModuleConfigParamTable?templateModuleId=#=TemplateModuleId#&templateModuleConfiguratorId=#=TemplateModuleConfiguratorId#")

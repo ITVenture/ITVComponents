@@ -1,0 +1,6 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Options
+@using Microsoft.Extensions.Options
+@inject IOptions<ViewOptions> viewOptions
+@{
+    Layout = viewOptions.Value.LayoutPage;
+}

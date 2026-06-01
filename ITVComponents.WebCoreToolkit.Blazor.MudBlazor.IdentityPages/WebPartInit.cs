@@ -9,8 +9,8 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Endpoints;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Handlers;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Handlers.Impl;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Options;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Services.Impl;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Options;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Services.Impl;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.Extensions.Configuration;
@@ -21,7 +21,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages;
 [WebPart]
 public static class WebPartInit
 {
-    // Mirrors the MVC TelerikUi.AspNetCoreIdentityPages WebPartInit: a single
+    // Mirrors the MVC TelerikUi.IdentityPages WebPartInit: a single
     // DetailConfigPath drives this part — WebPartManager dispatches the 2-arg
     // overload and stores the result under the "DEFAULT" key.
     [LoadWebPartConfig]

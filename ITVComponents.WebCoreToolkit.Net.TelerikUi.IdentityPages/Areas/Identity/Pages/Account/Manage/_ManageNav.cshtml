@@ -1,0 +1,22 @@
+﻿@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@using Microsoft.Extensions.Localization
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Services
+@inject IManageNavigator navigator
+@inject IServiceProvider services
+<ul class="nav nav-pills flex-column">
+    @foreach (var page in navigator.NavPages)
+    {
+        <li class="nav-item"><a class="nav-link @navigator.PageNavClass(ViewContext, page.NavTag)" id="@(page.NavLinkId)" asp-page="@(page.PageLink)">@(page.LocalName(services))</a></li>
+    }
+    
+    @*<li class="nav-item"><a class="nav-link @ManageNavPages.EmailNavClass(ViewContext)" id="email" asp-page="./Email">@localizer["Email"]</a></li>
+    <li class="nav-item"><a class="nav-link @ManageNavPages.ChangePasswordNavClass(ViewContext)" id="change-password" asp-page="./ChangePassword">@localizer["Password"]</a></li>
+    @if (hasExternalLogins)
+    {
+        <li id="external-logins" class="nav-item"><a id="external-login" class="nav-link @ManageNavPages.ExternalLoginsNavClass(ViewContext)" asp-page="./ExternalLogins">@localizer["External logins"]</a></li>
+    }
+    <li class="nav-item"><a class="nav-link @ManageNavPages.TwoFactorAuthenticationNavClass(ViewContext)" id="two-factor" asp-page="./TwoFactorAuthentication">@localizer["Two-factor authentication"]</a></li>
+    <li class="nav-item"><a class="nav-link @ManageNavPages.PersonalDataNavClass(ViewContext)" id="personal-data" asp-page="./PersonalData">@localizer["Personal data"]</a></li>
+    <li class="nav-item"><a class="nav-link @ManageNavPages.MyTenantsClass(ViewContext)" id="my-tenants" asp-page="./MyTenants">@localizer["My Tenants"]</a></li>*@
+</ul>

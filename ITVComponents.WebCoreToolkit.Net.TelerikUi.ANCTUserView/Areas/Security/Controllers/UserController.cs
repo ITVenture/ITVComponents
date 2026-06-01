@@ -11,7 +11,7 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.ViewModels;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.ViewModel;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.ViewModel;
 using Kendo.Mvc.Extensions;
 using Kendo.Mvc.UI;
 using Microsoft.AspNetCore.Authorization;

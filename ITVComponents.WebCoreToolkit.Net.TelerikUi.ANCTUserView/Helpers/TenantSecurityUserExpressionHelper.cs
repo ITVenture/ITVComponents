@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq.Expressions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Helpers;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.Helpers
 {

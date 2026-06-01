@@ -1,0 +1,41 @@
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
+@using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata
+@using System.Text.Encodings.Web
+@using System.Collections
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Models
+@using ITVComponents.WebCoreToolkit.Net.Options
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Extensions
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.ViewComponents
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.ViewModel
+@using ITVComponents.WebCoreToolkit.Net.ViewModel
+@using ITVComponents.WebCoreToolkit.Routing
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Options
+@using TextsAndMessagesHelper = ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Resources.TextsAndMessagesHelper
+@inject IUrlFormat urlFormatter;
+@inject IOptions<NetFileLinkOptions> fileLinkOptions
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Options.ConfigExchangeOptions
+
+@if (!fileLinkOptions.Value.FileTokenAsQuery)
+{
+    <a href="@(urlFormatter.FormatUrl("[SlashPermissionScope]/File"))/@(ViewData["ConfigLink"])">Download Configuration</a>
+}
+else
+{
+    <a href="@(urlFormatter.FormatUrl("[SlashPermissionScope]/File"))?FileToken=@(ViewData["ConfigLink"])">Download Configuration</a>
+}
+
+
+@(await Component.InvokeAsync(typeof(ConfigurationDiffViewer), new { 
+    postTarget=urlFormatter.FormatUrl("[SlashPermissionScope]/Util/AssemblyDiagnostics/ApplyChanges"), 
+    uploadModuleName=Model.UploadModuleName,
+    handlerReason=Model.HandlerReason,
+    uploadHintCallback=Model.UploadHintCallback,
+    resultCallback=Model.ResultCallback,
+    handlerTarget=Model.HandlerTarget,
+    idExtension=Model.IdExtension,
+    uploaderDivId=Model.UploaderDivId,
+    resultTab=Model.ResultTab
+}))

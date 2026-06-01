@@ -1,0 +1,14 @@
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Areas.Identity.Pages.Account
+{
+    [AllowAnonymous]
+    public class ResetPasswordConfirmationModel : PageModel
+    {
+        public void OnGet()
+        {
+
+        }
+    }
+}

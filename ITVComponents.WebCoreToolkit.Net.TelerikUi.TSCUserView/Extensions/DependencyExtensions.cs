@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.Helpers;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Helpers;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityContextUserView.Extensions

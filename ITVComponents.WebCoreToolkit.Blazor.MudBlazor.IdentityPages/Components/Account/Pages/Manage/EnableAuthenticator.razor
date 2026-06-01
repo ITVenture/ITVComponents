@@ -10,9 +10,9 @@
 @using Microsoft.Extensions.Logging
 @using QRCoder
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Areas.Identity.Pages.Account.Manage
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Areas.Identity
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Areas.Identity.Pages.Account.Manage
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<EnableAuthenticatorModel, IEnableAuthenticatorHandler> HandlerProvider
 @inject IStringLocalizer<IdentityMessages> L
@@ -210,7 +210,7 @@ else
         }
     }
 
-    private async Task ReloadInitDataAsync(ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account.Models.UserQueryTicket user)
+    private async Task ReloadInitDataAsync(ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.PageHandlers.Identity.Account.Models.UserQueryTicket user)
     {
         var initData = await HandlerProvider.Handler.LoadSharedKeyAndQrData(user);
         if (initData.Success)

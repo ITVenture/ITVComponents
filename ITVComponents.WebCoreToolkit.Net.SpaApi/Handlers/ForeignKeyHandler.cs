@@ -9,7 +9,7 @@ using ITVComponents.WebCoreToolkit.Net.SpaApi.Handlers.Model;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-//using ITVComponents.WebCoreToolkit.Net.TelerikUi.Extensions;
+//using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Net.SpaApi.Handlers
 {

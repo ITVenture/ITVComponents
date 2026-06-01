@@ -1,0 +1,42 @@
+﻿@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Resources
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.ViewModel
+@using Kendo.Mvc.UI
+@model ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.ViewModel.ExternalServiceTestDataViewModel
+@{
+    var verbs = (ForeignKeyData<int>[])ViewData["httpVerbs"];
+}
+
+<div>
+    <form id="ServiceTest@(Model.OAuthServiceId)" onsubmit="ITVenture.Pages.ExternalOAuthServices.submitTestData(event)">
+        <div class="container col">
+            @(Html.HiddenFor(model => model.OAuthServiceId))
+            <div class="form-group row">
+                @((Html.Kendo().DropDownListFor(model => model.ActionTypeId).HtmlAttributes(new { @class = "col-sm-2" }).BindTo(verbs).DataValueField("Key").DataTextField("Label")))
+                <div class="col-sm-5">
+                    @(Html.Kendo().TextBoxFor(model => model.TargetUrl).HtmlAttributes(new { required = "required" }))
+                    @(Html.ValidationMessageFor(model => model.TargetUrl, "", new { @class = "text-danger" }))
+                </div>
+            </div>
+            <div class="form-group row">
+                <div class="col-sm-7">
+                    @(Html.Kendo().TextAreaFor(model => model.HttpActionBody))
+                </div>
+            </div>
+            <div class="form-group row">
+                @(Html.LabelFor(model => model.ActionBodyContentType, new { @class = "col-sm-2" }))
+                <div class="col-sm-5">
+                    @(Html.Kendo().TextBoxFor(model => model.ActionBodyContentType))
+                </div>
+            </div>
+            <div class="form-group row">
+                @(Html.LabelFor(model => model.CustomHeaders, new { @class = "col-sm-2" }))
+                <div class="col-sm-5">
+                    @(Html.Kendo().TextBoxFor(model => model.CustomHeaders))
+                </div>
+            </div>
+        </div>
+    </form>
+    @(Html.Kendo().Button().Name("RunApiTestForm").Content("Fire!").Events(ev => ev.Click("ITVenture.Pages.ExternalOAuthServices.RunServiceTest")))
+    <div id="ServiceTest@(Model.OAuthServiceId)Result"></div>
+</div>

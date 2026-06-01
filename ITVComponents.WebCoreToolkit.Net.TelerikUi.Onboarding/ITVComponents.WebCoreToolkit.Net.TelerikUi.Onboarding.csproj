@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor" ToolsVersion="15.0">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE040</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+    <RazorCompileOnPublish>true</RazorCompileOnPublish>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <LangVersion>9</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" />
+  </Target>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Extras\ITVComponents.WebCoreToolkit.Extras.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Onboarding\ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.InterProcessExtensions\ITVComponents.WebCoreToolkit.InterProcessExtensions.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages\ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews\ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.8" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="5.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="wwwroot\js\" />
+  </ItemGroup>
+  <Target Name="MyPreCompileTarget" BeforeTargets="Build">
+    <Exec Command="npx webpack" />
+  </Target>
+</Project>
