@@ -9,6 +9,11 @@ Blazor dieselben Services teilen. Die neue, framework-neutrale Assembly heißt
 Reihenfolge der Abschnitte = empfohlene Reihenfolge der Migration. Pro Abschnitt: **was bricht** →
 **wie anpassen**.
 
+> **Companion-Dokument:** Die **Paket-Konsolidierung** (NuGet-ID-Umbenennungen 103→71, `using`-Sweeps,
+> WebPart-Config-Key-Änderungen) ist separat in
+> [`Migration-Future_10-MLM-Packaging.md`](Migration-Future_10-MLM-Packaging.md) beschrieben. Für die
+> PRE041-Testpakete **beide** Dokumente durcharbeiten.
+
 ---
 
 ## 0. Neue Assembly-Referenz
