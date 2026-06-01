@@ -1,0 +1,248 @@
+@page "/Security/Users"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IUserAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Users</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Users</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!hasViewPermission)
+{
+    <MudAlert Severity="Severity.Warning">You do not have permission to view users.</MudAlert>
+}
+else
+{
+    <MudDataGrid T="UserViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 Filterable="false"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="ReloadGrid" />
+            <MudText Typo="Typo.h6">Users</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="search"
+                          Placeholder="Search…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0"
+                          Immediate="false"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+            @if (hasWritePermission)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreateDialog">
+                    Add user
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.UserName" Title="User name" />
+            @if (Handler.SupportsEmail)
+            {
+                <PropertyColumn Property="x => x.Email" Title="Email" />
+                <PropertyColumn Property="x => x.EmailConfirmed" Title="Verified" />
+                <PropertyColumn Property="x => x.LockoutEnd" Title="Locked until" />
+            }
+            @if (Handler.ShowAuthenticationType)
+            {
+                <PropertyColumn Property="x => x.AuthenticationTypeId" Title="Auth type" />
+            }
+            @if (!isSysAdmin)
+            {
+                <PropertyColumn Property="x => x.Enabled" Title="Enabled" />
+            }
+            <TemplateColumn T="UserViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details" OnClick="@(() => OpenDetailDialog(context.Item))" />
+                        @if (hasWritePermission)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteUser(context.Item))" />
+                        }
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="UserViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<UserViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool isSysAdmin;
+    private bool hasViewPermission;
+    private bool hasWritePermission;
+    private bool hasPropView, hasPropWrite, hasLoginView, hasLoginWrite, hasTokenView, hasTokenWrite, hasClaimView, hasClaimWrite;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+
+        hasViewPermission = Handler.HasPermission(currentUser, "Users.View", "Users.Write");
+        hasWritePermission = Handler.HasPermission(currentUser, "Users.Write");
+        hasPropView = Handler.HasPermission(currentUser, "Users.Properties.View", "Users.Properties.Write");
+        hasPropWrite = Handler.HasPermission(currentUser, "Users.Properties.Write");
+        hasLoginView = Handler.SupportsLogins && Handler.HasPermission(currentUser, "Users.Logins.View", "Users.Logins.Write");
+        hasLoginWrite = Handler.SupportsLogins && Handler.HasPermission(currentUser, "Users.Logins.Write");
+        hasTokenView = Handler.SupportsTokens && Handler.HasPermission(currentUser, "Users.Tokens.View", "Users.Tokens.Write");
+        hasTokenWrite = Handler.SupportsTokens && Handler.HasPermission(currentUser, "Users.Tokens.Write");
+        hasClaimView = Handler.SupportsClaims && Handler.HasPermission(currentUser, "Users.Claims.View", "Users.Claims.Write");
+        hasClaimWrite = Handler.SupportsClaims && Handler.HasPermission(currentUser, "Users.Claims.Write");
+
+        var ctx = Handler.GetContext(currentUser);
+        isSysAdmin = ctx.IsSysAdmin;
+    }
+
+    private async Task<GridData<UserViewModel>> LoadData(GridState<UserViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<UserViewModel> { Items = Array.Empty<UserViewModel>(), TotalItems = 0 };
+
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new UserListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+
+        var result = await Handler.ListUsersAsync(currentUser, query);
+        return new GridData<UserViewModel>
+        {
+            Items = result.Items,
+            TotalItems = result.TotalCount
+        };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenDetailDialog(UserViewModel user)
+    {
+        var parameters = new DialogParameters<UserDetailDialog>
+        {
+            { d => d.User, user },
+            { d => d.IsSysAdmin, isSysAdmin },
+            { d => d.HasPropView, hasPropView },
+            { d => d.HasPropWrite, hasPropWrite },
+            { d => d.HasLoginView, hasLoginView },
+            { d => d.HasLoginWrite, hasLoginWrite },
+            { d => d.HasTokenView, hasTokenView },
+            { d => d.HasTokenWrite, hasTokenWrite },
+            { d => d.HasClaimView, hasClaimView },
+            { d => d.HasClaimWrite, hasClaimWrite }
+        };
+        var title = string.IsNullOrEmpty(user.UserName) ? "User details" : $"User: {user.UserName}";
+        var dlg = await DialogService.ShowAsync<UserDetailDialog>(title, parameters, EditDialogDefaults.Detail);
+        await dlg.Result;
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<UserDialog>
+        {
+            { d => d.Model, new UserViewModel() },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<UserDialog>("Create user", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: UserViewModel input })
+        {
+            var created = await Handler.CreateUserAsync(currentUser!, input);
+            if (created != null)
+            {
+                Snackbar.Add("User created", Severity.Success);
+                await ReloadGrid();
+            }
+            else
+            {
+                Snackbar.Add("Failed to create user", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenEditDialog(UserViewModel user)
+    {
+        var copy = new UserViewModel
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            AuthenticationTypeId = user.AuthenticationTypeId,
+            TenantId = user.TenantId,
+            Email = user.Email,
+            EmailConfirmed = user.EmailConfirmed,
+            PhoneNumber = user.PhoneNumber,
+            PhoneNumberConfirmed = user.PhoneNumberConfirmed,
+            TwoFactorEnabled = user.TwoFactorEnabled,
+            LockoutEnd = user.LockoutEnd,
+            LockoutEnabled = user.LockoutEnabled,
+            AccessFailedCount = user.AccessFailedCount,
+            Enabled = user.Enabled
+        };
+        var parameters = new DialogParameters<UserDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false }
+        };
+        var dlg = await DialogService.ShowAsync<UserDialog>("Edit user", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: UserViewModel input })
+        {
+            var updated = await Handler.UpdateUserAsync(currentUser!, input);
+            if (updated != null)
+            {
+                Snackbar.Add("User updated", Severity.Success);
+                await ReloadGrid();
+            }
+            else
+            {
+                Snackbar.Add("Failed to update user", Severity.Error);
+            }
+        }
+    }
+
+    private async Task DeleteUser(UserViewModel user)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync(
+            "Delete user",
+            $"Really delete user '{user.UserName}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+
+        var deleted = await Handler.DeleteUserAsync(currentUser!, user.Id ?? "", user.TenantId);
+        if (deleted)
+        {
+            Snackbar.Add("User deleted", Severity.Success);
+            await ReloadGrid();
+        }
+        else
+        {
+            Snackbar.Add("Failed to delete user", Severity.Error);
+        }
+    }
+}
