@@ -18,9 +18,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat
         DbSet<Employee> Employees { get; set; }
 
         DbSet<EmployeeRole> EmployeeRoles { get; set; }
-
-        DbSet<Plan> Plans { get; set; }
-
-        DbSet<TenantSubscription> TenantSubscriptions { get; set; }
     }
 }

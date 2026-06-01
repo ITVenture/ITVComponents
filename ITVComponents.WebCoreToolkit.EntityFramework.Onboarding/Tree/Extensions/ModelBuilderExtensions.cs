@@ -45,14 +45,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Extension
                 || er.Employee.UserId == UserId && er.Employee.InvitationStatus == InvitationStatus.Committed
                 || er.Employee.EMail == UserMail && er.Employee.InvitationStatus == InvitationStatus.Pending;
 
-            Expression<Func<HierarchyTenantSubscription, bool>> subscriptionExpression = ts => !FilterAvailable
-                || ShowAllTenants
-                || CurrentTenantId != null && ts.TenantId == CurrentTenantId;
-
             target.ConfigureGlobalFilter(billingProfileExpression);
             target.ConfigureGlobalFilter(employeeExpression);
             target.ConfigureGlobalFilter(employeeRoleExpression);
-            target.ConfigureGlobalFilter(subscriptionExpression);
         }
     }
 }

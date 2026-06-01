@@ -18,9 +18,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree
         DbSet<HierarchyEmployee> Employees { get; set; }
 
         DbSet<HierarchyEmployeeRole> EmployeeRoles { get; set; }
-
-        DbSet<Plan> Plans { get; set; }
-
-        DbSet<HierarchyTenantSubscription> TenantSubscriptions { get; set; }
     }
 }

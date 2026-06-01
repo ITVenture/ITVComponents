@@ -58,13 +58,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Extension
                 || CurrentTenantId != null && er.Employee.TenantId == CurrentTenantId
                 || er.Employee.UserId == UserId && er.Employee.InvitationStatus == InvitationStatus.Committed
                 || er.Employee.EMail == UserMail && er.Employee.InvitationStatus == InvitationStatus.Pending;
-            Expression<Func<TenantSubscription, bool>> subscriptionExpression = ts => !FilterAvailable
-                || ShowAllTenants
-                || CurrentTenantId != null && ts.TenantId == CurrentTenantId;
             target.ConfigureGlobalFilter(billingProfileExpression);
             target.ConfigureGlobalFilter(employeeExpression);
             target.ConfigureGlobalFilter(employeeRoleExpression);
-            target.ConfigureGlobalFilter(subscriptionExpression);
         }
     }
 }
