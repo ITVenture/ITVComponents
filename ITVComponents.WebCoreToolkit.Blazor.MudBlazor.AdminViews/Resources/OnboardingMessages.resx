@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Onb_Register" xml:space="preserve"><value>Register a new tenant</value></data>
+  <data name="Onb_Intro" xml:space="preserve"><value>Personal tenants are billed to a single natural person; company tenants are billed to an organisation and can invite employees later.</value></data>
+  <data name="Onb_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Onb_Creating" xml:space="preserve"><value>Creating…</value></data>
+  <data name="Onb_CreateTenant" xml:space="preserve"><value>Create tenant</value></data>
+  <data name="Onb_CreateFailed" xml:space="preserve"><value>Could not create the tenant. Please try again.</value></data>
+  <data name="Onb_TenantCreated" xml:space="preserve"><value>Tenant created.</value></data>
+  <data name="Onb_MyTenants" xml:space="preserve"><value>My tenants</value></data>
+  <data name="Onb_NoTenants" xml:space="preserve"><value>You don't participate in any tenants yet. Use "Register a new tenant" to get started.</value></data>
+  <data name="Onb_Col_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Onb_Col_Type" xml:space="preserve"><value>Type</value></data>
+  <data name="Onb_Col_Email" xml:space="preserve"><value>E-mail</value></data>
+  <data name="Onb_Col_Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Onb_AcceptInvitation" xml:space="preserve"><value>Accept invitation</value></data>
+  <data name="Onb_InvitationAccepted" xml:space="preserve"><value>Invitation accepted.</value></data>
+  <data name="Onb_AcceptFailed" xml:space="preserve"><value>Could not accept the invitation.</value></data>
+  <data name="Onb_Personal" xml:space="preserve"><value>Personal</value></data>
+  <data name="Onb_Company" xml:space="preserve"><value>Company</value></data>
+  <data name="Onb_FirstName" xml:space="preserve"><value>First name</value></data>
+  <data name="Onb_LastName" xml:space="preserve"><value>Last name</value></data>
+  <data name="Onb_CompanyName" xml:space="preserve"><value>Company name</value></data>
+  <data name="Onb_VatNumber" xml:space="preserve"><value>VAT number</value></data>
+  <data name="Onb_ContactEmail" xml:space="preserve"><value>Contact e-mail</value></data>
+  <data name="Onb_Phone" xml:space="preserve"><value>Phone</value></data>
+  <data name="Onb_ParentTenant" xml:space="preserve"><value>Parent tenant</value></data>
+  <data name="Onb_ParentHint" xml:space="preserve"><value>Leave empty to create a top-level tenant.</value></data>
+  <data name="Onb_DefaultAddress" xml:space="preserve"><value>Default address</value></data>
+  <data name="Onb_UseInvoiceAddr" xml:space="preserve"><value>Use a separate invoice address</value></data>
+  <data name="Onb_InvoiceAddress" xml:space="preserve"><value>Invoice address</value></data>
+  <data name="Onb_AcceptTos" xml:space="preserve"><value>I accept the terms of service.</value></data>
+  <data name="Onb_RecipientName" xml:space="preserve"><value>Recipient name</value></data>
+  <data name="Onb_AddressLine2" xml:space="preserve"><value>Address line 2</value></data>
+  <data name="Onb_AddressLine3" xml:space="preserve"><value>Address line 3</value></data>
+  <data name="Onb_Street" xml:space="preserve"><value>Street</value></data>
+  <data name="Onb_Number" xml:space="preserve"><value>Number</value></data>
+  <data name="Onb_Zip" xml:space="preserve"><value>ZIP</value></data>
+  <data name="Onb_City" xml:space="preserve"><value>City</value></data>
+</root>

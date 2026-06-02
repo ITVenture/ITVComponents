@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Onb_Register" xml:space="preserve"><value>Créer un nouveau locataire</value></data>
+  <data name="Onb_Intro" xml:space="preserve"><value>Les locataires personnels sont facturés à une personne physique ; les locataires d'entreprise à une organisation et peuvent inviter des employés plus tard.</value></data>
+  <data name="Onb_Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="Onb_Creating" xml:space="preserve"><value>Création…</value></data>
+  <data name="Onb_CreateTenant" xml:space="preserve"><value>Créer le locataire</value></data>
+  <data name="Onb_CreateFailed" xml:space="preserve"><value>Impossible de créer le locataire. Veuillez réessayer.</value></data>
+  <data name="Onb_TenantCreated" xml:space="preserve"><value>Locataire créé.</value></data>
+  <data name="Onb_MyTenants" xml:space="preserve"><value>Mes locataires</value></data>
+  <data name="Onb_NoTenants" xml:space="preserve"><value>Vous ne participez encore à aucun locataire. Utilisez « Créer un nouveau locataire » pour commencer.</value></data>
+  <data name="Onb_Col_Name" xml:space="preserve"><value>Nom</value></data>
+  <data name="Onb_Col_Type" xml:space="preserve"><value>Type</value></data>
+  <data name="Onb_Col_Email" xml:space="preserve"><value>E-mail</value></data>
+  <data name="Onb_Col_Status" xml:space="preserve"><value>Statut</value></data>
+  <data name="Onb_AcceptInvitation" xml:space="preserve"><value>Accepter l'invitation</value></data>
+  <data name="Onb_InvitationAccepted" xml:space="preserve"><value>Invitation acceptée.</value></data>
+  <data name="Onb_AcceptFailed" xml:space="preserve"><value>Impossible d'accepter l'invitation.</value></data>
+  <data name="Onb_Personal" xml:space="preserve"><value>Particulier</value></data>
+  <data name="Onb_Company" xml:space="preserve"><value>Entreprise</value></data>
+  <data name="Onb_FirstName" xml:space="preserve"><value>Prénom</value></data>
+  <data name="Onb_LastName" xml:space="preserve"><value>Nom</value></data>
+  <data name="Onb_CompanyName" xml:space="preserve"><value>Raison sociale</value></data>
+  <data name="Onb_VatNumber" xml:space="preserve"><value>N° de TVA</value></data>
+  <data name="Onb_ContactEmail" xml:space="preserve"><value>E-mail de contact</value></data>
+  <data name="Onb_Phone" xml:space="preserve"><value>Téléphone</value></data>
+  <data name="Onb_ParentTenant" xml:space="preserve"><value>Locataire parent</value></data>
+  <data name="Onb_ParentHint" xml:space="preserve"><value>Laisser vide pour créer un locataire de premier niveau.</value></data>
+  <data name="Onb_DefaultAddress" xml:space="preserve"><value>Adresse par défaut</value></data>
+  <data name="Onb_UseInvoiceAddr" xml:space="preserve"><value>Utiliser une adresse de facturation distincte</value></data>
+  <data name="Onb_InvoiceAddress" xml:space="preserve"><value>Adresse de facturation</value></data>
+  <data name="Onb_AcceptTos" xml:space="preserve"><value>J'accepte les conditions d'utilisation.</value></data>
+  <data name="Onb_RecipientName" xml:space="preserve"><value>Nom du destinataire</value></data>
+  <data name="Onb_AddressLine2" xml:space="preserve"><value>Adresse ligne 2</value></data>
+  <data name="Onb_AddressLine3" xml:space="preserve"><value>Adresse ligne 3</value></data>
+  <data name="Onb_Street" xml:space="preserve"><value>Rue</value></data>
+  <data name="Onb_Number" xml:space="preserve"><value>Numéro</value></data>
+  <data name="Onb_Zip" xml:space="preserve"><value>Code postal</value></data>
+  <data name="Onb_City" xml:space="preserve"><value>Ville</value></data>
+</root>

@@ -8,15 +8,16 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<OnboardingMessages> L
 
-<PageTitle>My tenants</PageTitle>
+<PageTitle>@L["Onb_MyTenants"]</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
     <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3">
-        <MudText Typo="Typo.h4">My tenants</MudText>
+        <MudText Typo="Typo.h4">@L["Onb_MyTenants"]</MudText>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    Href="/Account/Onboarding/CreateTenant" StartIcon="@Icons.Material.Filled.Add">
-            Register a new tenant
+            @L["Onb_Register"]
         </MudButton>
     </MudStack>
 
@@ -27,24 +28,24 @@
     else if (tenants.Length == 0)
     {
         <MudPaper Class="pa-4" Outlined="true">
-            <MudText Typo="Typo.body1">You don't participate in any tenants yet. Click "Register a new tenant" to get started.</MudText>
+            <MudText Typo="Typo.body1">@L["Onb_NoTenants"]</MudText>
         </MudPaper>
     }
     else
     {
         <MudDataGrid T="ParticipatingTenantViewModel" Items="tenants" Hover="true" Dense="true">
             <Columns>
-                <PropertyColumn Property="x => x.Name" Title="Name" />
-                <PropertyColumn Property="x => x.ProfileType" Title="Type" />
-                <PropertyColumn Property="x => x.DefaultEmail" Title="E-mail" />
-                <PropertyColumn Property="x => x.StatusText" Title="Status" />
+                <PropertyColumn Property="x => x.Name" Title="@(L["Onb_Col_Name"])" />
+                <PropertyColumn Property="x => x.ProfileType" Title="@(L["Onb_Col_Type"])" />
+                <PropertyColumn Property="x => x.DefaultEmail" Title="@(L["Onb_Col_Email"])" />
+                <PropertyColumn Property="x => x.StatusText" Title="@(L["Onb_Col_Status"])" />
                 <TemplateColumn T="ParticipatingTenantViewModel" Title="" Sortable="false">
                     <CellTemplate>
                         @if (context.Item.Status == InvitationStatus.Pending)
                         {
                             <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
                                        OnClick="() => AcceptAsync(context.Item)">
-                                Accept invitation
+                                @L["Onb_AcceptInvitation"]
                             </MudButton>
                         }
                     </CellTemplate>
@@ -86,12 +87,12 @@
         var ok = await Handler.AcceptInvitationAsync(state.User, item.BillingProfileId);
         if (ok)
         {
-            Snackbar.Add("Invitation accepted.", Severity.Success);
+            Snackbar.Add(L["Onb_InvitationAccepted"], Severity.Success);
             await ReloadAsync();
         }
         else
         {
-            Snackbar.Add("Could not accept the invitation.", Severity.Error);
+            Snackbar.Add(L["Onb_AcceptFailed"], Severity.Error);
         }
     }
 }

@@ -9,14 +9,14 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<OnboardingMessages> L
 
-<PageTitle>Register a new tenant</PageTitle>
+<PageTitle>@L["Onb_Register"]</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="my-4">
-    <MudText Typo="Typo.h4" GutterBottom="true">Register a new tenant</MudText>
+    <MudText Typo="Typo.h4" GutterBottom="true">@L["Onb_Register"]</MudText>
     <MudText Typo="Typo.body1" Class="mb-4">
-        Personal tenants are billed to a single natural person; company tenants are billed to an
-        organisation and can invite employees later.
+        @L["Onb_Intro"]
     </MudText>
 
     <EditForm Model="model" OnValidSubmit="OnSubmitAsync">
@@ -27,9 +27,9 @@
                             EligibleParents="parents" />
 
         <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">
-            <MudButton Href="/Account/Onboarding/MyTenants" Variant="Variant.Text" Color="Color.Default">Cancel</MudButton>
+            <MudButton Href="/Account/Onboarding/MyTenants" Variant="Variant.Text" Color="Color.Default">@L["Onb_Cancel"]</MudButton>
             <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy">
-                @(busy ? "Creating..." : "Create tenant")
+                @(busy ? L["Onb_Creating"].Value : L["Onb_CreateTenant"].Value)
             </MudButton>
         </MudStack>
 
@@ -60,10 +60,10 @@
             var id = await Handler.CreateTenantAsync(state.User, model);
             if (id is null)
             {
-                Snackbar.Add("Could not create the tenant. Please try again.", Severity.Error);
+                Snackbar.Add(L["Onb_CreateFailed"], Severity.Error);
                 return;
             }
-            Snackbar.Add("Tenant created.", Severity.Success);
+            Snackbar.Add(L["Onb_TenantCreated"], Severity.Success);
             Nav.NavigateTo("/Account/Onboarding/MyTenants");
         }
         finally

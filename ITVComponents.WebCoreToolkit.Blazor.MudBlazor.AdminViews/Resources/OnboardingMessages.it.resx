@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Onb_Register" xml:space="preserve"><value>Crea un nuovo tenant</value></data>
+  <data name="Onb_Intro" xml:space="preserve"><value>I tenant personali vengono fatturati a una singola persona fisica; i tenant aziendali a un'organizzazione e possono invitare dipendenti in seguito.</value></data>
+  <data name="Onb_Cancel" xml:space="preserve"><value>Annulla</value></data>
+  <data name="Onb_Creating" xml:space="preserve"><value>Creazione…</value></data>
+  <data name="Onb_CreateTenant" xml:space="preserve"><value>Crea tenant</value></data>
+  <data name="Onb_CreateFailed" xml:space="preserve"><value>Impossibile creare il tenant. Riprova.</value></data>
+  <data name="Onb_TenantCreated" xml:space="preserve"><value>Tenant creato.</value></data>
+  <data name="Onb_MyTenants" xml:space="preserve"><value>I miei tenant</value></data>
+  <data name="Onb_NoTenants" xml:space="preserve"><value>Non partecipi ancora a nessun tenant. Usa "Crea un nuovo tenant" per iniziare.</value></data>
+  <data name="Onb_Col_Name" xml:space="preserve"><value>Nome</value></data>
+  <data name="Onb_Col_Type" xml:space="preserve"><value>Tipo</value></data>
+  <data name="Onb_Col_Email" xml:space="preserve"><value>E-mail</value></data>
+  <data name="Onb_Col_Status" xml:space="preserve"><value>Stato</value></data>
+  <data name="Onb_AcceptInvitation" xml:space="preserve"><value>Accetta invito</value></data>
+  <data name="Onb_InvitationAccepted" xml:space="preserve"><value>Invito accettato.</value></data>
+  <data name="Onb_AcceptFailed" xml:space="preserve"><value>Impossibile accettare l'invito.</value></data>
+  <data name="Onb_Personal" xml:space="preserve"><value>Privato</value></data>
+  <data name="Onb_Company" xml:space="preserve"><value>Azienda</value></data>
+  <data name="Onb_FirstName" xml:space="preserve"><value>Nome</value></data>
+  <data name="Onb_LastName" xml:space="preserve"><value>Cognome</value></data>
+  <data name="Onb_CompanyName" xml:space="preserve"><value>Ragione sociale</value></data>
+  <data name="Onb_VatNumber" xml:space="preserve"><value>Partita IVA</value></data>
+  <data name="Onb_ContactEmail" xml:space="preserve"><value>E-mail di contatto</value></data>
+  <data name="Onb_Phone" xml:space="preserve"><value>Telefono</value></data>
+  <data name="Onb_ParentTenant" xml:space="preserve"><value>Tenant principale</value></data>
+  <data name="Onb_ParentHint" xml:space="preserve"><value>Lasciare vuoto per creare un tenant di primo livello.</value></data>
+  <data name="Onb_DefaultAddress" xml:space="preserve"><value>Indirizzo predefinito</value></data>
+  <data name="Onb_UseInvoiceAddr" xml:space="preserve"><value>Usa un indirizzo di fatturazione separato</value></data>
+  <data name="Onb_InvoiceAddress" xml:space="preserve"><value>Indirizzo di fatturazione</value></data>
+  <data name="Onb_AcceptTos" xml:space="preserve"><value>Accetto i termini di servizio.</value></data>
+  <data name="Onb_RecipientName" xml:space="preserve"><value>Nome del destinatario</value></data>
+  <data name="Onb_AddressLine2" xml:space="preserve"><value>Indirizzo riga 2</value></data>
+  <data name="Onb_AddressLine3" xml:space="preserve"><value>Indirizzo riga 3</value></data>
+  <data name="Onb_Street" xml:space="preserve"><value>Via</value></data>
+  <data name="Onb_Number" xml:space="preserve"><value>Numero</value></data>
+  <data name="Onb_Zip" xml:space="preserve"><value>CAP</value></data>
+  <data name="Onb_City" xml:space="preserve"><value>Città</value></data>
+</root>

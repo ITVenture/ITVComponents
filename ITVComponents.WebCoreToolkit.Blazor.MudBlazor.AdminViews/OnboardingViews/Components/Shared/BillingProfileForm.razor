@@ -1,4 +1,5 @@
 @namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Components.Shared
+@inject IStringLocalizer<OnboardingMessages> L
 
 @* Reusable billing-profile editor. The ProfileType toggle drives which set of personal-vs-company
    fields is shown; the @bind on each field still posts to the same view model so a host can switch
@@ -8,18 +9,18 @@
 <MudPaper Class="pa-4 mb-3" Outlined="true">
     <MudStack Spacing="3">
         <MudToggleGroup T="ProfileType" SelectionMode="SelectionMode.SingleSelection" Value="Model.ProfileType" ValueChanged="OnProfileTypeChanged" Color="Color.Primary">
-            <MudToggleItem Value="@ProfileType.Personal" Text="Personal" />
-            <MudToggleItem Value="@ProfileType.Company" Text="Company" />
+            <MudToggleItem Value="@ProfileType.Personal" Text="@(L["Onb_Personal"])" />
+            <MudToggleItem Value="@ProfileType.Company" Text="@(L["Onb_Company"])" />
         </MudToggleGroup>
 
         @if (Model.ProfileType == ProfileType.Personal)
         {
             <MudGrid Spacing="2">
                 <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="Model.FirstName" Label="First name" For="@(() => Model.FirstName)" />
+                    <MudTextField @bind-Value="Model.FirstName" Label="@(L["Onb_FirstName"])" For="@(() => Model.FirstName)" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="Model.LastName" Label="Last name" For="@(() => Model.LastName)" />
+                    <MudTextField @bind-Value="Model.LastName" Label="@(L["Onb_LastName"])" For="@(() => Model.LastName)" />
                 </MudItem>
             </MudGrid>
         }
@@ -27,20 +28,20 @@
         {
             <MudGrid Spacing="2">
                 <MudItem xs="12" sm="8">
-                    <MudTextField @bind-Value="Model.CompanyName" Label="Company name" For="@(() => Model.CompanyName)" />
+                    <MudTextField @bind-Value="Model.CompanyName" Label="@(L["Onb_CompanyName"])" For="@(() => Model.CompanyName)" />
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudTextField @bind-Value="Model.VatNumber" Label="VAT number" For="@(() => Model.VatNumber)" />
+                    <MudTextField @bind-Value="Model.VatNumber" Label="@(L["Onb_VatNumber"])" For="@(() => Model.VatNumber)" />
                 </MudItem>
             </MudGrid>
         }
 
         <MudGrid Spacing="2">
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="Model.Email" Label="Contact e-mail" For="@(() => Model.Email)" />
+                <MudTextField @bind-Value="Model.Email" Label="@(L["Onb_ContactEmail"])" For="@(() => Model.Email)" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="Model.PhoneNumber" Label="Phone" For="@(() => Model.PhoneNumber)" />
+                <MudTextField @bind-Value="Model.PhoneNumber" Label="@(L["Onb_Phone"])" For="@(() => Model.PhoneNumber)" />
             </MudItem>
         </MudGrid>
     </MudStack>
@@ -50,31 +51,31 @@
 {
     <MudPaper Class="pa-4 mb-3" Outlined="true">
         <MudSelect T="int?" Value="Model.ParentTenantId" ValueChanged="v => Model.ParentTenantId = v"
-                   Label="Parent tenant" Clearable="true" Dense="true">
+                   Label="@(L["Onb_ParentTenant"])" Clearable="true" Dense="true">
             @foreach (var t in EligibleParents)
             {
                 <MudSelectItem T="int?" Value="@((int?)t.TenantId)">@t.DisplayName</MudSelectItem>
             }
         </MudSelect>
-        <MudText Typo="Typo.caption" Class="mt-1">Leave empty to create a top-level tenant.</MudText>
+        <MudText Typo="Typo.caption" Class="mt-1">@L["Onb_ParentHint"]</MudText>
     </MudPaper>
 }
 
-<AddressEditor Title="Default address" Address="Model.DefaultAddress" />
+<AddressEditor Title="@(L["Onb_DefaultAddress"])" Address="Model.DefaultAddress" />
 
 <MudPaper Class="pa-4 mb-3" Outlined="true">
     <MudSwitch T="bool" Value="Model.UseInvoiceAddr" ValueChanged="v => Model.UseInvoiceAddr = v"
-               Label="Use a separate invoice address" Color="Color.Primary" />
+               Label="@(L["Onb_UseInvoiceAddr"])" Color="Color.Primary" />
 </MudPaper>
 
 @if (Model.UseInvoiceAddr)
 {
-    <AddressEditor Title="Invoice address" Address="Model.InvoiceAddress" />
+    <AddressEditor Title="@(L["Onb_InvoiceAddress"])" Address="Model.InvoiceAddress" />
 }
 
 <MudPaper Class="pa-4 mb-3" Outlined="true">
     <MudCheckBox T="bool" Value="Model.AcceptTos" ValueChanged="v => Model.AcceptTos = v"
-                 Label="I accept the terms of service." Color="Color.Primary" />
+                 Label="@(L["Onb_AcceptTos"])" Color="Color.Primary" />
 </MudPaper>
 
 @code {
