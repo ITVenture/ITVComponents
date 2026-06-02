@@ -87,7 +87,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         }
 
         [HttpPost]
-        public IActionResult Read([DataSourceRequest] DataSourceRequest request, int tenantId, [FromQuery] int roleId)
+        public IActionResult Read([DataSourceRequest] DataSourceRequest request, [FromQuery]int tenantId, [FromQuery] int roleId)
         {
             if (!isSysAdmin)
             {
@@ -101,7 +101,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                              select new RoleViewModel
                              {
                                  RoleId = p.RoleId,
-                                 PermissiveRoleId = roleId,
+                                  PermissiveRoleId = roleId,
                                  RoleName = p.RoleName,
                                  Assigned = s != null,
                                  TenantId = tenantId,

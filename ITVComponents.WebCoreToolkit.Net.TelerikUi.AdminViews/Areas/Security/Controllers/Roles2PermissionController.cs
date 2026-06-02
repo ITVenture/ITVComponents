@@ -96,7 +96,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             }
 
             return Json((from p in db.SecurityRoles
-                join r in db.RolePermissions /*.Where(n => n.RoleId != null)*/
+                join r in db.RolePermissions.Where(n => n.OriginId == null && n.RoleRoleId == null) /*.Where(n => n.RoleId != null)*/
                     on new { p.RoleId, p.TenantId, PermissionId = permissionId } equals new
                         { RoleId = r.RoleId, r.TenantId, r.PermissionId } into lj
                 from s in lj.DefaultIfEmpty()
@@ -128,7 +128,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
                 var model = db.RolePermissions.FirstOrDefault(n =>
                     n.PermissionId == viewModel.PermissionId && n.RoleId == viewModel.RoleId &&
-                    n.TenantId == viewModel.TenantId);
+                    n.TenantId == viewModel.TenantId && n.OriginId == null && n.RoleRoleId == null);
                 if ((model == null) == viewModel.Assigned)
                 {
                     if (model == null)
