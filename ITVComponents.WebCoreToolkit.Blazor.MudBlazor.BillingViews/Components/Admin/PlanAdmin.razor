@@ -5,10 +5,11 @@
 @inject IBillingHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<BillingMessages> L
 
-<PageTitle>Plans</PageTitle>
+<PageTitle>@L["Plans_Title"]</PageTitle>
 
-<MudText Typo="Typo.h5" GutterBottom="true">Billing plans</MudText>
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Plans_Title"]</MudText>
 
 @if (currentUser is null)
 {
@@ -16,21 +17,21 @@
 }
 else if (!canAdmin)
 {
-    <MudAlert Severity="Severity.Warning">You do not have permission to administer plans.</MudAlert>
+    <MudAlert Severity="Severity.Warning">@L["NoAdminPermission"]</MudAlert>
 }
 else
 {
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-3" OnClick="@(() => Edit(new PlanViewModel()))">
-        New plan
+        @L["NewPlan"]
     </MudButton>
 
     <MudTable Items="plans" Dense="true" Hover="true">
         <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Price</MudTh>
-            <MudTh>Interval</MudTh>
-            <MudTh>Active</MudTh>
-            <MudTh>Provider price</MudTh>
+            <MudTh>@L["Col_Name"]</MudTh>
+            <MudTh>@L["Col_Price"]</MudTh>
+            <MudTh>@L["Col_Interval"]</MudTh>
+            <MudTh>@L["Col_Active"]</MudTh>
+            <MudTh>@L["Col_ProviderPrice"]</MudTh>
             <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
@@ -43,7 +44,7 @@ else
                 <MudStack Row="true" Spacing="1">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
                     <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="@busy" OnClick="@(() => Push(context.PlanId))">
-                        Push to Stripe
+                        @L["PushToStripe"]
                     </MudButton>
                 </MudStack>
             </MudTd>
@@ -53,27 +54,27 @@ else
     @if (editModel is not null)
     {
         <MudPaper Class="pa-4 mt-4" Outlined="true">
-            <MudText Typo="Typo.h6">@(editModel.PlanId == 0 ? "New plan" : $"Edit: {editModel.Name}")</MudText>
+            <MudText Typo="Typo.h6">@(editModel.PlanId == 0 ? L["NewPlan"].Value : L["EditPlan", editModel.Name].Value)</MudText>
             <MudGrid>
-                <MudItem xs="12" sm="6"><MudTextField @bind-Value="editModel.Name" Label="Name" Required="true" /></MudItem>
-                <MudItem xs="12" sm="6"><MudTextField @bind-Value="editModel.Description" Label="Description" /></MudItem>
-                <MudItem xs="6" sm="3"><MudNumericField T="decimal" @bind-Value="editModel.Amount" Label="Amount" /></MudItem>
-                <MudItem xs="6" sm="3"><MudTextField @bind-Value="editModel.Currency" Label="Currency" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="editModel.Name" Label="@(L["Col_Name"])" Required="true" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="editModel.Description" Label="@(L["Field_Description"])" /></MudItem>
+                <MudItem xs="6" sm="3"><MudNumericField T="decimal" @bind-Value="editModel.Amount" Label="@(L["Field_Amount"])" /></MudItem>
+                <MudItem xs="6" sm="3"><MudTextField @bind-Value="editModel.Currency" Label="@(L["Field_Currency"])" /></MudItem>
                 <MudItem xs="6" sm="3">
-                    <MudSelect T="BillingInterval" @bind-Value="editModel.BillingInterval" Label="Interval">
+                    <MudSelect T="BillingInterval" @bind-Value="editModel.BillingInterval" Label="@(L["Col_Interval"])">
                         @foreach (var interval in System.Enum.GetValues<BillingInterval>())
                         {
                             <MudSelectItem T="BillingInterval" Value="@interval">@interval</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="6" sm="3"><MudNumericField T="int?" @bind-Value="editModel.TrialDays" Label="Trial days" /></MudItem>
-                <MudItem xs="12"><MudTextField @bind-Value="featureKeysText" Label="Feature keys (comma-separated)" /></MudItem>
-                <MudItem xs="12"><MudCheckBox T="bool" @bind-Value="editModel.IsActive" Label="Active" /></MudItem>
+                <MudItem xs="6" sm="3"><MudNumericField T="int?" @bind-Value="editModel.TrialDays" Label="@(L["Field_TrialDays"])" /></MudItem>
+                <MudItem xs="12"><MudTextField @bind-Value="featureKeysText" Label="@(L["Field_FeatureKeys"])" /></MudItem>
+                <MudItem xs="12"><MudCheckBox T="bool" @bind-Value="editModel.IsActive" Label="@(L["Col_Active"])" /></MudItem>
             </MudGrid>
             <MudStack Row="true" Spacing="2" Class="mt-2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy" OnClick="Save">Save</MudButton>
-                <MudButton Variant="Variant.Text" OnClick="@(() => editModel = null)">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy" OnClick="Save">@L["Save"]</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="@(() => editModel = null)">@L["Cancel"]</MudButton>
             </MudStack>
         </MudPaper>
     }
@@ -132,13 +133,13 @@ else
         try
         {
             await Handler.SavePlanAsync(editModel);
-            Snackbar.Add("Plan saved.", Severity.Success);
+            Snackbar.Add(L["PlanSaved"], Severity.Success);
             editModel = null;
             await Reload();
         }
         catch (System.Exception ex)
         {
-            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+            Snackbar.Add(L["SaveFailed", ex.Message], Severity.Error);
         }
         finally
         {
@@ -152,12 +153,12 @@ else
         try
         {
             await Handler.PushPlanAsync(planId);
-            Snackbar.Add("Pushed to Stripe.", Severity.Success);
+            Snackbar.Add(L["PushedToStripe"], Severity.Success);
             await Reload();
         }
         catch (System.Exception ex)
         {
-            Snackbar.Add($"Push failed: {ex.Message}", Severity.Error);
+            Snackbar.Add(L["PushFailed", ex.Message], Severity.Error);
         }
         finally
         {

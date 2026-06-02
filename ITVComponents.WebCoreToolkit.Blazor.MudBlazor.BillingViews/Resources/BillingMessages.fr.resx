@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Subscription_Title" xml:space="preserve"><value>Abonnement</value></data>
+  <data name="NoManagePermission" xml:space="preserve"><value>Vous n'êtes pas autorisé à gérer l'abonnement.</value></data>
+  <data name="CurrentSubscription" xml:space="preserve"><value>Abonnement actuel</value></data>
+  <data name="CancelsAtPeriodEnd" xml:space="preserve"><value>Annulation à la fin de la période</value></data>
+  <data name="CurrentPeriodEnds" xml:space="preserve"><value>La période actuelle se termine le : {0}</value></data>
+  <data name="AddOnSuffix" xml:space="preserve"><value>(option)</value></data>
+  <data name="ManageSubscription" xml:space="preserve"><value>Gérer l'abonnement</value></data>
+  <data name="ChoosePlan" xml:space="preserve"><value>Choisissez une formule à souscrire.</value></data>
+  <data name="OptionalAddOns" xml:space="preserve"><value>Options supplémentaires</value></data>
+  <data name="TrialChip" xml:space="preserve"><value>Essai de {0} jours</value></data>
+  <data name="Subscribe" xml:space="preserve"><value>S'abonner</value></data>
+  <data name="CheckoutFailed" xml:space="preserve"><value>Impossible de démarrer le paiement : {0}</value></data>
+  <data name="NoPortal" xml:space="preserve"><value>Aucun portail client disponible pour le moment.</value></data>
+  <data name="Plans_Title" xml:space="preserve"><value>Forfaits de facturation</value></data>
+  <data name="NoAdminPermission" xml:space="preserve"><value>Vous n'êtes pas autorisé à administrer les forfaits.</value></data>
+  <data name="NewPlan" xml:space="preserve"><value>Nouveau forfait</value></data>
+  <data name="Col_Name" xml:space="preserve"><value>Nom</value></data>
+  <data name="Col_Price" xml:space="preserve"><value>Prix</value></data>
+  <data name="Col_Interval" xml:space="preserve"><value>Intervalle</value></data>
+  <data name="Col_Active" xml:space="preserve"><value>Actif</value></data>
+  <data name="Col_ProviderPrice" xml:space="preserve"><value>Prix fournisseur</value></data>
+  <data name="PushToStripe" xml:space="preserve"><value>Envoyer vers Stripe</value></data>
+  <data name="EditPlan" xml:space="preserve"><value>Modifier : {0}</value></data>
+  <data name="Field_Description" xml:space="preserve"><value>Description</value></data>
+  <data name="Field_Amount" xml:space="preserve"><value>Montant</value></data>
+  <data name="Field_Currency" xml:space="preserve"><value>Devise</value></data>
+  <data name="Field_TrialDays" xml:space="preserve"><value>Jours d'essai</value></data>
+  <data name="Field_FeatureKeys" xml:space="preserve"><value>Clés de fonctionnalité (séparées par des virgules)</value></data>
+  <data name="Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="PlanSaved" xml:space="preserve"><value>Forfait enregistré.</value></data>
+  <data name="SaveFailed" xml:space="preserve"><value>Échec de l'enregistrement : {0}</value></data>
+  <data name="PushedToStripe" xml:space="preserve"><value>Envoyé vers Stripe.</value></data>
+  <data name="PushFailed" xml:space="preserve"><value>Échec de l'envoi : {0}</value></data>
+</root>

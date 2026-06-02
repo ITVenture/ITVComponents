@@ -6,10 +6,11 @@
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<BillingMessages> L
 
-<PageTitle>Subscription</PageTitle>
+<PageTitle>@L["Subscription_Title"]</PageTitle>
 
-<MudText Typo="Typo.h5" GutterBottom="true">Subscription</MudText>
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Subscription_Title"]</MudText>
 
 @if (currentUser is null)
 {
@@ -17,48 +18,48 @@
 }
 else if (!canManage)
 {
-    <MudAlert Severity="Severity.Warning">You do not have permission to manage the subscription.</MudAlert>
+    <MudAlert Severity="Severity.Warning">@L["NoManagePermission"]</MudAlert>
 }
 else if (overview.HasSubscription)
 {
     <MudCard Class="mb-4">
         <MudCardContent>
-            <MudText Typo="Typo.h6">Current subscription</MudText>
+            <MudText Typo="Typo.h6">@L["CurrentSubscription"]</MudText>
             <MudStack Row="true" Spacing="2" Class="my-2">
                 <MudChip T="string" Color="@StatusColor(overview.Status)">@overview.Status</MudChip>
                 @if (overview.CancelAtPeriodEnd)
                 {
-                    <MudChip T="string" Color="Color.Warning">Cancels at period end</MudChip>
+                    <MudChip T="string" Color="Color.Warning">@L["CancelsAtPeriodEnd"]</MudChip>
                 }
             </MudStack>
             @if (overview.CurrentPeriodEnd is { } end)
             {
-                <MudText Typo="Typo.body2">Current period ends: @end.ToString("d")</MudText>
+                <MudText Typo="Typo.body2">@L["CurrentPeriodEnds", end.ToString("d")]</MudText>
             }
             <MudList T="string" Dense="true" Class="mt-2">
                 @foreach (var item in overview.Items)
                 {
                     <MudListItem T="string" Icon="@(item.IsAddOn ? Icons.Material.Filled.Add : Icons.Material.Filled.Star)">
-                        @item.Name @(item.IsAddOn ? "(add-on)" : "")
+                        @item.Name @(item.IsAddOn ? L["AddOnSuffix"].Value : "")
                     </MudListItem>
                 }
             </MudList>
         </MudCardContent>
         <MudCardActions>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Settings" OnClick="OpenPortal">
-                Manage subscription
+                @L["ManageSubscription"]
             </MudButton>
         </MudCardActions>
     </MudCard>
 }
 else
 {
-    <MudText Typo="Typo.body1" Class="mb-3">Choose a plan to subscribe.</MudText>
+    <MudText Typo="Typo.body1" Class="mb-3">@L["ChoosePlan"]</MudText>
 
     @if (addOns.Count > 0)
     {
         <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
-            <MudText Typo="Typo.subtitle2">Optional add-ons</MudText>
+            <MudText Typo="Typo.subtitle2">@L["OptionalAddOns"]</MudText>
             @foreach (var addOn in addOns)
             {
                 <MudCheckBox T="bool"
@@ -83,7 +84,7 @@ else
                         }
                         @if (plan.TrialDays is > 0)
                         {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@plan.TrialDays-day trial</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@L["TrialChip", plan.TrialDays]</MudChip>
                         }
                         @if (plan.FeatureKeys.Count > 0)
                         {
@@ -98,7 +99,7 @@ else
                     <MudCardActions>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy"
                                    OnClick="@(() => Subscribe(plan.PlanId))">
-                            Subscribe
+                            @L["Subscribe"]
                         </MudButton>
                     </MudCardActions>
                 </MudCard>
@@ -159,7 +160,7 @@ else
         }
         catch (System.Exception ex)
         {
-            Snackbar.Add($"Could not start checkout: {ex.Message}", Severity.Error);
+            Snackbar.Add(L["CheckoutFailed", ex.Message], Severity.Error);
             busy = false;
         }
     }
@@ -169,7 +170,7 @@ else
         var url = await Handler.OpenPortalAsync(currentUser!, Nav.Uri);
         if (string.IsNullOrEmpty(url))
         {
-            Snackbar.Add("No customer portal available yet.", Severity.Info);
+            Snackbar.Add(L["NoPortal"], Severity.Info);
             return;
         }
 
