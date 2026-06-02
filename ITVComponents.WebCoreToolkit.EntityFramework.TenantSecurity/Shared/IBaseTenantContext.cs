@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared
 {
     [ExplicitlyExpose]
-    public interface IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> :IUserAwareContext, ICoreSystemContext<TTrustConfig> 
+    public interface IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> :IUserAwareContext, ICoreSystemContext<TTrustConfig>, ITenantScopeContext
     where TTenant: Tenant
     where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
     where TWebPluginConstant: WebPluginConstant<TTenant>

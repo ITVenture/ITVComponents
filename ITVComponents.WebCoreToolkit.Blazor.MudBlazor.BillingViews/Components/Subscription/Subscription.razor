@@ -1,0 +1,198 @@
+@page "/Account/Manage/Subscription"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@inject IBillingHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Subscription</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Subscription</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!canManage)
+{
+    <MudAlert Severity="Severity.Warning">You do not have permission to manage the subscription.</MudAlert>
+}
+else if (overview.HasSubscription)
+{
+    <MudCard Class="mb-4">
+        <MudCardContent>
+            <MudText Typo="Typo.h6">Current subscription</MudText>
+            <MudStack Row="true" Spacing="2" Class="my-2">
+                <MudChip T="string" Color="@StatusColor(overview.Status)">@overview.Status</MudChip>
+                @if (overview.CancelAtPeriodEnd)
+                {
+                    <MudChip T="string" Color="Color.Warning">Cancels at period end</MudChip>
+                }
+            </MudStack>
+            @if (overview.CurrentPeriodEnd is { } end)
+            {
+                <MudText Typo="Typo.body2">Current period ends: @end.ToString("d")</MudText>
+            }
+            <MudList T="string" Dense="true" Class="mt-2">
+                @foreach (var item in overview.Items)
+                {
+                    <MudListItem T="string" Icon="@(item.IsAddOn ? Icons.Material.Filled.Add : Icons.Material.Filled.Star)">
+                        @item.Name @(item.IsAddOn ? "(add-on)" : "")
+                    </MudListItem>
+                }
+            </MudList>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Settings" OnClick="OpenPortal">
+                Manage subscription
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+}
+else
+{
+    <MudText Typo="Typo.body1" Class="mb-3">Choose a plan to subscribe.</MudText>
+
+    @if (addOns.Count > 0)
+    {
+        <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+            <MudText Typo="Typo.subtitle2">Optional add-ons</MudText>
+            @foreach (var addOn in addOns)
+            {
+                <MudCheckBox T="bool"
+                             Value="@selectedAddOns.Contains(addOn.AddOnId)"
+                             ValueChanged="@(v => ToggleAddOn(addOn.AddOnId, v))"
+                             Label="@($"{addOn.Name} — {FormatPrice(addOn.Amount, addOn.Currency, addOn.BillingInterval)}")" />
+            }
+        </MudPaper>
+    }
+
+    <MudGrid>
+        @foreach (var plan in plans)
+        {
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Outlined="true">
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6">@plan.Name</MudText>
+                        <MudText Typo="Typo.subtitle1">@FormatPrice(plan.Amount, plan.Currency, plan.BillingInterval)</MudText>
+                        @if (!string.IsNullOrEmpty(plan.Description))
+                        {
+                            <MudText Typo="Typo.body2" Class="my-1">@plan.Description</MudText>
+                        }
+                        @if (plan.TrialDays is > 0)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@plan.TrialDays-day trial</MudChip>
+                        }
+                        @if (plan.FeatureKeys.Count > 0)
+                        {
+                            <MudList T="string" Dense="true">
+                                @foreach (var key in plan.FeatureKeys)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Check">@key</MudListItem>
+                                }
+                            </MudList>
+                        }
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy"
+                                   OnClick="@(() => Subscribe(plan.PlanId))">
+                            Subscribe
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool canManage;
+    private bool busy;
+    private SubscriptionOverviewViewModel overview = new();
+    private IReadOnlyList<PlanViewModel> plans = System.Array.Empty<PlanViewModel>();
+    private IReadOnlyList<AddOnViewModel> addOns = System.Array.Empty<AddOnViewModel>();
+    private readonly HashSet<int> selectedAddOns = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        canManage = Handler.CanManage(currentUser);
+        if (!canManage)
+        {
+            return;
+        }
+
+        overview = await Handler.GetOverviewAsync(currentUser);
+        if (!overview.HasSubscription)
+        {
+            plans = await Handler.GetActivePlansAsync();
+            addOns = await Handler.GetActiveAddOnsAsync();
+        }
+    }
+
+    private void ToggleAddOn(int addOnId, bool selected)
+    {
+        if (selected)
+        {
+            selectedAddOns.Add(addOnId);
+        }
+        else
+        {
+            selectedAddOns.Remove(addOnId);
+        }
+    }
+
+    private async Task Subscribe(int planId)
+    {
+        busy = true;
+        try
+        {
+            var basePath = Nav.BaseUri.TrimEnd('/');
+            var success = $"{basePath}/Account/Manage/Subscription?checkout=success";
+            var cancel = $"{basePath}/Account/Manage/Subscription?checkout=cancel";
+            var url = await Handler.StartCheckoutAsync(currentUser!, planId, selectedAddOns.ToList(), success, cancel);
+            Nav.NavigateTo(url, forceLoad: true);
+        }
+        catch (System.Exception ex)
+        {
+            Snackbar.Add($"Could not start checkout: {ex.Message}", Severity.Error);
+            busy = false;
+        }
+    }
+
+    private async Task OpenPortal()
+    {
+        var url = await Handler.OpenPortalAsync(currentUser!, Nav.Uri);
+        if (string.IsNullOrEmpty(url))
+        {
+            Snackbar.Add("No customer portal available yet.", Severity.Info);
+            return;
+        }
+
+        Nav.NavigateTo(url, forceLoad: true);
+    }
+
+    private static Color StatusColor(SubscriptionStatus status) => status switch
+    {
+        SubscriptionStatus.Active => Color.Success,
+        SubscriptionStatus.Trialing => Color.Info,
+        SubscriptionStatus.PastDue => Color.Warning,
+        SubscriptionStatus.Canceled => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string FormatPrice(decimal amount, string? currency, BillingInterval interval)
+    {
+        var suffix = interval switch
+        {
+            BillingInterval.Monthly => "/mo",
+            BillingInterval.Yearly => "/yr",
+            _ => ""
+        };
+        return $"{amount:0.00} {(currency ?? "EUR").ToUpperInvariant()}{suffix}";
+    }
+}
