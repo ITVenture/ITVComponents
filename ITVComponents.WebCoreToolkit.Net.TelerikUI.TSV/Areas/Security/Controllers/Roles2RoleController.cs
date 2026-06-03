@@ -87,7 +87,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.S
         }
 
         [HttpPost]
-        public IActionResult Read([DataSourceRequest] DataSourceRequest request, int tenantId, [FromQuery] int roleId)
+        public IActionResult Read([DataSourceRequest] DataSourceRequest request, [FromQuery]int tenantId, [FromQuery] int roleId)
         {
             if (!isSysAdmin)
             {
