@@ -45,6 +45,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
             JsonHelper.ExtendNativeProtocolType<PlugInTemplateMarkup, HierarchyPlugInTemplateMarkup>("treeCapable");
             JsonHelper.ExtendNativeProtocolType<ConstTemplateMarkup, HierarchyWebPluginConstantTemplateMarkup>("treeCapable");
             JsonHelper.ExtendNativeProtocolType<SettingTemplateMarkup, HierarchyTenantSettingTemplateMarkup>("treeCapable");
+            JsonHelper.ExtendNativeProtocolType<ExternalOAuthServiceTemplateMarkup, HierarchyExternalOAuthServiceTemplateMarkup>("treeCapable");
         }
 
         [LoadWebPartConfig]
