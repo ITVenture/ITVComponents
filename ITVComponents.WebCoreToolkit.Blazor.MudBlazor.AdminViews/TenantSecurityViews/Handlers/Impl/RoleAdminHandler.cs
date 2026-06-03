@@ -261,7 +261,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         if (role.IsSystemRole && !sysAdmin) return new PagedResult<PermissionAssignmentViewModel>();
 
         var assignedPermissionIds = await db.RolePermissions
-            .Where(rp => rp.RoleId == roleId && rp.TenantId == effectiveTenantId)
+            .Where(rp => rp.RoleId == roleId && rp.TenantId == effectiveTenantId && rp.RoleRoleId == null && rp.OriginId == null)
             .Select(rp => rp.PermissionId)
             .ToListAsync();
         var assignedSet = new HashSet<int>(assignedPermissionIds);
@@ -307,7 +307,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         if (role.IsSystemRole && !sysAdmin) return false;
 
         var existing = await db.RolePermissions.FirstOrDefaultAsync(n =>
-            n.PermissionId == permissionId && n.RoleId == roleId && n.TenantId == tenantId);
+            n.PermissionId == permissionId && n.RoleId == roleId && n.TenantId == tenantId && n.OriginId == null && n.RoleRoleId == null);
 
         if (assigned && existing == null)
         {

@@ -144,7 +144,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                 }
 
                 return Json((from p in db.Permissions
-                    join r in db.RolePermissions/*.Where(n => n.RoleId != null)*/ on new {p.PermissionId, TenantId = p.TenantId ?? tenantId.Value, RoleId = roleId.Value} equals new {r.PermissionId, r.TenantId, RoleId=r.RoleId} into lj
+                    join r in db.RolePermissions.Where(n => n.RoleRoleId == null && n.OriginId == null)/*.Where(n => n.RoleId != null)*/ on new {p.PermissionId, TenantId = p.TenantId ?? tenantId.Value, RoleId = roleId.Value} equals new {r.PermissionId, r.TenantId, RoleId=r.RoleId} into lj
                     from s in lj.DefaultIfEmpty()
                     where (p.TenantId == null && isSysAdmin) || p.TenantId == tenantId
                     select new PermissionViewModel
@@ -247,7 +247,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
                 if (tenantId != null && !role.IsSystemRole || isSysAdmin)
                 {
-                    var model = db.RolePermissions.FirstOrDefault(n => n.PermissionId == viewModel.PermissionId && n.RoleId == viewModel.RoleId && n.TenantId == tenantId.Value);
+                    var model = db.RolePermissions.FirstOrDefault(n => n.PermissionId == viewModel.PermissionId && n.RoleId == viewModel.RoleId && n.TenantId == tenantId.Value && n.OriginId == null && n.RoleRoleId == null);
                     if ((model == null) == viewModel.Assigned)
                     {
                         if (model == null)
