@@ -37,5 +37,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         public HealthScriptTemplateMarkup[] HealthScripts { get; set; }
         public GlobalRoleTemplateMarkup[] GlobalRoles { get; set; }
         public AssetTemplateMarkup[] AssetTemplates { get; set; }
+
+        public ExternalOAuthServiceTemplateMarkup[] ExternalOAuthServices { get; set; }
+
+        public TemplateModuleTemplateMarkup[] TemplateModules { get; set; }
     }
 }

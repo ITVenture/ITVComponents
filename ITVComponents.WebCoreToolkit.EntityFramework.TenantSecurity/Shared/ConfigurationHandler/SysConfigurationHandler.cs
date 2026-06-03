@@ -125,6 +125,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                         CompareTrustedModules(sys.TrustedModules, upSys.TrustedModules);
                         CompareHealthScripts(sys.HealthScripts, upSys.HealthScripts);
                         CompareAssetTemplates(sys.AssetTemplates, upSys.AssetTemplates);
+                        // Skip (instead of deleting everything) when an older config-export lacks these newer sections.
+                        if (upSys.ExternalOAuthServices != null)
+                        {
+                            CompareExternalOAuthServices(sys.ExternalOAuthServices, upSys.ExternalOAuthServices);
+                        }
+
+                        if (upSys.TemplateModules != null)
+                        {
+                            CompareTemplateModules(sys.TemplateModules, upSys.TemplateModules);
+                        }
                     }
 
                     break;
@@ -195,7 +205,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                         .Include(n => n.Grants).ThenInclude(n => n.Permission)
                         .Include(n => n.PathTemplates)
                         .Include(n => n.RequiredFeature)
-                        .Include(n => n.RequiredPermission).AsEnumerable().Select(n => SelectAssetTemplateMarkup(n)).ToArray()
+                        .Include(n => n.RequiredPermission).AsEnumerable().Select(n => SelectAssetTemplateMarkup(n)).ToArray(),
+                    ExternalOAuthServices = DbContext.ExternalOAuthServices.Where(n => n.TenantId == null).AsEnumerable()
+                        .Select(n => SelectExternalOAuthServiceTemplateMarkup(n)).ToArray(),
+                    TemplateModules = DbContext.TemplateModules.Include(n => n.RequiredFeature)
+                        .Include(n => n.Configurators).ThenInclude(c => c.ViewComponentParameters)
+                        .Include(n => n.Scripts).AsEnumerable().Select(n => SelectTemplateModuleTemplateMarkup(n)).ToArray()
                 };
 
 
@@ -214,6 +229,55 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 Grants = assetTemplateInst.Grants.Select(n => n.Permission.PermissionName).ToArray(),
                 FeatureGrants = assetTemplateInst.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray(),
                 PathTemplates = assetTemplateInst.PathTemplates.Select(n => n.PathTemplate).ToArray()
+            };
+        }
+
+        protected virtual ExternalOAuthServiceTemplateMarkup SelectExternalOAuthServiceTemplateMarkup(TExternalOAuthService serviceInst)
+        {
+            return new ExternalOAuthServiceTemplateMarkup
+            {
+                UniqueConnectionName = serviceInst.UniqueConnectionName,
+                AuthorizationEndpoint = serviceInst.AuthorizationEndpoint,
+                TokenEndpoint = serviceInst.TokenEndpoint,
+                RevocationEndpoint = serviceInst.RevocationEndpoint,
+                ClientId = serviceInst.ClientId,
+                Scope = serviceInst.Scope,
+                Global = serviceInst.Global,
+                AuthenticationType = serviceInst.AuthenticationType
+                // NOTE: ClientSecret is deliberately NOT extracted — secrets must not travel with the system config.
+            };
+        }
+
+        protected virtual TemplateModuleTemplateMarkup SelectTemplateModuleTemplateMarkup(TemplateModule moduleInst)
+        {
+            return new TemplateModuleTemplateMarkup
+            {
+                TemplateModuleName = moduleInst.TemplateModuleName,
+                RequiredFeature = moduleInst.RequiredFeature?.FeatureName,
+                Configurators = moduleInst.Configurators.Select(c => SelectTemplateModuleConfiguratorTemplateMarkup(c)).ToArray(),
+                Scripts = moduleInst.Scripts.Select(s => s.ScriptFile).ToArray()
+            };
+        }
+
+        protected virtual TemplateModuleConfiguratorTemplateMarkup SelectTemplateModuleConfiguratorTemplateMarkup(TemplateModuleConfigurator configuratorInst)
+        {
+            return new TemplateModuleConfiguratorTemplateMarkup
+            {
+                Name = configuratorInst.Name,
+                DisplayName = configuratorInst.DisplayName,
+                CustomConfiguratorView = configuratorInst.CustomConfiguratorView,
+                ConfiguratorTypeBack = configuratorInst.ConfiguratorTypeBack,
+                Parameters = configuratorInst.ViewComponentParameters.Select(p => SelectTemplateModuleConfiguratorParameterTemplateMarkup(p)).ToArray()
+            };
+        }
+
+        protected virtual TemplateModuleConfiguratorParameterTemplateMarkup SelectTemplateModuleConfiguratorParameterTemplateMarkup(TemplateModuleConfiguratorParameter parameterInst)
+        {
+            return new TemplateModuleConfiguratorParameterTemplateMarkup
+            {
+                ParameterName = parameterInst.ParameterName,
+                DisplayName = parameterInst.DisplayName,
+                ParameterValue = parameterInst.ParameterValue
             };
         }
 
@@ -1910,6 +1974,364 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         }
 
         /// <summary>
+        /// Compares the global (TenantId == null) external-oauth-service configurations between two systems.
+        /// ClientSecret is never transported; on insert the secret is created empty and must be set on the target afterwards.
+        /// </summary>
+        /// <param name="sysServices">the current system that is the compare-target</param>
+        /// <param name="upSysServices">the system-definition that was uploaded as json</param>
+        private void CompareExternalOAuthServices(ExternalOAuthServiceTemplateMarkup[] sysServices, ExternalOAuthServiceTemplateMarkup[] upSysServices)
+        {
+            sysServices ??= Array.Empty<ExternalOAuthServiceTemplateMarkup>();
+            var keyName = "UniqueConnectionName";
+            var entityName = "ExternalOAuthServices";
+            var groups = (from t in sysServices select t.UniqueConnectionName.ToLower()).Union(from t in upSysServices select t.UniqueConnectionName.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in sysServices on c equals a1.UniqueConnectionName.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in upSysServices on c equals a2.UniqueConnectionName.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Name = na1?.UniqueConnectionName ?? na2.UniqueConnectionName, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                Change change = null;
+                if (c.Original != null && c.New == null)
+                {
+                    change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> { { keyName, $"{c.Original.UniqueConnectionName}" }, { "TenantId", null } }, EntityName = entityName, Apply = true };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyName, c.New.UniqueConnectionName));
+                    change.Details.Add(MakeDetail("AuthorizationEndpoint", c.New.AuthorizationEndpoint));
+                    change.Details.Add(MakeDetail("TokenEndpoint", c.New.TokenEndpoint));
+                    change.Details.Add(MakeDetail("RevocationEndpoint", c.New.RevocationEndpoint));
+                    change.Details.Add(MakeDetail("ClientId", c.New.ClientId));
+                    change.Details.Add(MakeDetail("Scope", c.New.Scope));
+                    change.Details.Add(MakeDetail("Global", c.New.Global.ToString(), "Entity.Global=(NewValueRaw==\"True\")"));
+                    change.Details.Add(MakeDetail("AuthenticationType", c.New.AuthenticationType.ToString()));
+                    // ClientSecret is required by the schema but must not be cloned -> create empty; target-admin sets it later.
+                    change.Details.Add(MakeDetail("ClientSecret", string.Empty));
+                    RegisterChange(change);
+                }
+                else if (c.Original != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.UniqueConnectionName}" }, { "TenantId", null } }, EntityName = entityName, Apply = true };
+                    if ((c.New.AuthorizationEndpoint != c.Original.AuthorizationEndpoint && !string.IsNullOrWhiteSpace(c.New.AuthorizationEndpoint) && !string.IsNullOrWhiteSpace(c.Original.AuthorizationEndpoint)) || (string.IsNullOrWhiteSpace(c.New.AuthorizationEndpoint) != string.IsNullOrWhiteSpace(c.Original.AuthorizationEndpoint)))
+                    {
+                        change.Details.Add(MakeDetail("AuthorizationEndpoint", c.New.AuthorizationEndpoint, currentValue: c.Original.AuthorizationEndpoint));
+                    }
+
+                    if ((c.New.TokenEndpoint != c.Original.TokenEndpoint && !string.IsNullOrWhiteSpace(c.New.TokenEndpoint) && !string.IsNullOrWhiteSpace(c.Original.TokenEndpoint)) || (string.IsNullOrWhiteSpace(c.New.TokenEndpoint) != string.IsNullOrWhiteSpace(c.Original.TokenEndpoint)))
+                    {
+                        change.Details.Add(MakeDetail("TokenEndpoint", c.New.TokenEndpoint, currentValue: c.Original.TokenEndpoint));
+                    }
+
+                    if ((c.New.RevocationEndpoint != c.Original.RevocationEndpoint && !string.IsNullOrWhiteSpace(c.New.RevocationEndpoint) && !string.IsNullOrWhiteSpace(c.Original.RevocationEndpoint)) || (string.IsNullOrWhiteSpace(c.New.RevocationEndpoint) != string.IsNullOrWhiteSpace(c.Original.RevocationEndpoint)))
+                    {
+                        change.Details.Add(MakeDetail("RevocationEndpoint", c.New.RevocationEndpoint, currentValue: c.Original.RevocationEndpoint));
+                    }
+
+                    if ((c.New.ClientId != c.Original.ClientId && !string.IsNullOrWhiteSpace(c.New.ClientId) && !string.IsNullOrWhiteSpace(c.Original.ClientId)) || (string.IsNullOrWhiteSpace(c.New.ClientId) != string.IsNullOrWhiteSpace(c.Original.ClientId)))
+                    {
+                        change.Details.Add(MakeDetail("ClientId", c.New.ClientId, currentValue: c.Original.ClientId));
+                    }
+
+                    if ((c.New.Scope != c.Original.Scope && !string.IsNullOrWhiteSpace(c.New.Scope) && !string.IsNullOrWhiteSpace(c.Original.Scope)) || (string.IsNullOrWhiteSpace(c.New.Scope) != string.IsNullOrWhiteSpace(c.Original.Scope)))
+                    {
+                        change.Details.Add(MakeDetail("Scope", c.New.Scope, currentValue: c.Original.Scope));
+                    }
+
+                    if (c.New.Global != c.Original.Global)
+                    {
+                        change.Details.Add(MakeDetail("Global", c.New.Global.ToString(), "Entity.Global=(NewValueRaw==\"True\")", c.Original.Global.ToString()));
+                    }
+
+                    if (c.New.AuthenticationType != c.Original.AuthenticationType)
+                    {
+                        change.Details.Add(MakeDetail("AuthenticationType", c.New.AuthenticationType.ToString(), currentValue: c.Original.AuthenticationType.ToString()));
+                    }
+
+                    // ClientSecret is intentionally never updated here.
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+                }
+
+                if (change != null)
+                {
+                    PostProcessExternalOAuthServiceChange(change, c.New, c.Original);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Compares the template-module configurations between two systems. Template-modules are a 3-level structure:
+        /// module -> configurator -> parameter (plus module -> script). Configurators are unique only within their module,
+        /// so the configurator/parameter level resolves its parent via a module-qualified, null-safe linq-filter.
+        /// </summary>
+        /// <param name="sysModules">the current system that is the compare-target</param>
+        /// <param name="upSysModules">the system-definition that was uploaded as json</param>
+        private void CompareTemplateModules(TemplateModuleTemplateMarkup[] sysModules, TemplateModuleTemplateMarkup[] upSysModules)
+        {
+            sysModules ??= Array.Empty<TemplateModuleTemplateMarkup>();
+            var keyName = "TemplateModuleName";
+            var entityName = "TemplateModules";
+            var groups = (from t in sysModules select t.TemplateModuleName.ToLower()).Union(from t in upSysModules select t.TemplateModuleName.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in sysModules on c equals a1.TemplateModuleName.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in upSysModules on c equals a2.TemplateModuleName.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Name = na1?.TemplateModuleName ?? na2.TemplateModuleName, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                Change change = null;
+                if (c.Original != null && c.New == null)
+                {
+                    // Deleting the module cascades to its configurators/parameters/scripts via the required FKs.
+                    change = new Change { ChangeType = ChangeType.Delete, Key = new Dictionary<string, string> { { keyName, $"{c.Original.TemplateModuleName}" } }, EntityName = entityName, Apply = true };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyName, c.New.TemplateModuleName));
+                    change.Details.Add(MakeDetail("RequiredFeature", c.New.RequiredFeature, MakeLinqAssign<TContext>("RequiredFeature", "Features", "FeatureName")));
+                    RegisterChange(change);
+                    RegisterModuleConfigurators(c.New.TemplateModuleName, c.New.Configurators);
+                    RegisterModuleScripts(c.New.TemplateModuleName, c.New.Scripts);
+                }
+                else if (c.Original != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Update, Key = new Dictionary<string, string> { { keyName, $"{c.Original.TemplateModuleName}" } }, EntityName = entityName, Apply = true };
+                    if ((c.New.RequiredFeature != c.Original.RequiredFeature && !string.IsNullOrWhiteSpace(c.New.RequiredFeature) && !string.IsNullOrWhiteSpace(c.Original.RequiredFeature)) || (string.IsNullOrWhiteSpace(c.New.RequiredFeature) != string.IsNullOrWhiteSpace(c.Original.RequiredFeature)))
+                    {
+                        change.Details.Add(MakeDetail("RequiredFeature", c.New.RequiredFeature, MakeLinqAssign<TContext>("RequiredFeature", "Features", "FeatureName"), c.Original.RequiredFeature));
+                    }
+
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+
+                    RegisterModuleConfigurators(c.New.TemplateModuleName, c.New.Configurators, c.Original.Configurators);
+                    RegisterModuleScripts(c.New.TemplateModuleName, c.New.Scripts, c.Original.Scripts);
+                }
+
+                if (change != null)
+                {
+                    PostProcessTemplateModuleChange(change, c.New, c.Original);
+                }
+            }
+        }
+
+        private void RegisterModuleScripts(string templateModuleName, string[] scripts, string[] originalScripts = null)
+        {
+            scripts ??= Array.Empty<string>();
+            originalScripts ??= Array.Empty<string>();
+            var keyNames = new[] { "ScriptFile", "ParentModule" };
+            var entityName = "TemplateModuleScripts";
+            var keyExp = new Dictionary<string, string>
+            {
+                { keyNames[1], MakeLinqQuery<TContext>("TemplateModules", "TemplateModuleName", filterValueVariable: "Value") }
+            };
+            var groups = (from t in originalScripts select t.ToLower()).Union(from t in scripts select t.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in originalScripts on c equals a1.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in scripts on c equals a2.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                // A script has no payload beyond its name + parent, so it can only be added or removed.
+                if (c.Original != null && c.New == null)
+                {
+                    var change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string> { { keyNames[0], c.Original }, { keyNames[1], templateModuleName } },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], c.New));
+                    change.Details.Add(MakeDetail(keyNames[1], templateModuleName, MakeLinqAssign<TContext>(keyNames[1], "TemplateModules", "TemplateModuleName")));
+                    RegisterChange(change);
+                }
+            }
+        }
+
+        private void RegisterModuleConfigurators(string templateModuleName, TemplateModuleConfiguratorTemplateMarkup[] configurators, TemplateModuleConfiguratorTemplateMarkup[] originalConfigurators = null)
+        {
+            configurators ??= Array.Empty<TemplateModuleConfiguratorTemplateMarkup>();
+            originalConfigurators ??= Array.Empty<TemplateModuleConfiguratorTemplateMarkup>();
+            var keyNames = new[] { "Name", "ParentModule" };
+            var entityName = "TemplateModuleConfigurators";
+            var keyExp = new Dictionary<string, string>
+            {
+                { keyNames[1], MakeLinqQuery<TContext>("TemplateModules", "TemplateModuleName", filterValueVariable: "Value") }
+            };
+            var groups = (from t in originalConfigurators select t.Name.ToLower()).Union(from t in configurators select t.Name.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in originalConfigurators on c equals a1.Name.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in configurators on c equals a2.Name.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                Change change = null;
+                if (c.Original != null && c.New == null)
+                {
+                    // Deleting the configurator cascades to its parameters via the required FK.
+                    change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string> { { keyNames[0], c.Original.Name }, { keyNames[1], templateModuleName } },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], c.New.Name));
+                    change.Details.Add(MakeDetail("ConfiguratorTypeBack", c.New.ConfiguratorTypeBack));
+                    change.Details.Add(MakeDetail("CustomConfiguratorView", c.New.CustomConfiguratorView));
+                    change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName));
+                    change.Details.Add(MakeDetail(keyNames[1], templateModuleName, MakeLinqAssign<TContext>(keyNames[1], "TemplateModules", "TemplateModuleName")));
+                    RegisterChange(change);
+                    RegisterConfiguratorParameters(templateModuleName, c.New.Name, c.New.Parameters);
+                }
+                else if (c.Original != null)
+                {
+                    change = new Change
+                    {
+                        ChangeType = ChangeType.Update,
+                        Key = new Dictionary<string, string> { { keyNames[0], c.Original.Name }, { keyNames[1], templateModuleName } },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    if ((c.New.ConfiguratorTypeBack != c.Original.ConfiguratorTypeBack && !string.IsNullOrWhiteSpace(c.New.ConfiguratorTypeBack) && !string.IsNullOrWhiteSpace(c.Original.ConfiguratorTypeBack)) || (string.IsNullOrWhiteSpace(c.New.ConfiguratorTypeBack) != string.IsNullOrWhiteSpace(c.Original.ConfiguratorTypeBack)))
+                    {
+                        change.Details.Add(MakeDetail("ConfiguratorTypeBack", c.New.ConfiguratorTypeBack, currentValue: c.Original.ConfiguratorTypeBack));
+                    }
+
+                    if ((c.New.CustomConfiguratorView != c.Original.CustomConfiguratorView && !string.IsNullOrWhiteSpace(c.New.CustomConfiguratorView) && !string.IsNullOrWhiteSpace(c.Original.CustomConfiguratorView)) || (string.IsNullOrWhiteSpace(c.New.CustomConfiguratorView) != string.IsNullOrWhiteSpace(c.Original.CustomConfiguratorView)))
+                    {
+                        change.Details.Add(MakeDetail("CustomConfiguratorView", c.New.CustomConfiguratorView, currentValue: c.Original.CustomConfiguratorView));
+                    }
+
+                    if ((c.New.DisplayName != c.Original.DisplayName && !string.IsNullOrWhiteSpace(c.New.DisplayName) && !string.IsNullOrWhiteSpace(c.Original.DisplayName)) || (string.IsNullOrWhiteSpace(c.New.DisplayName) != string.IsNullOrWhiteSpace(c.Original.DisplayName)))
+                    {
+                        change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName));
+                    }
+
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+
+                    RegisterConfiguratorParameters(templateModuleName, c.New.Name, c.New.Parameters, c.Original.Parameters);
+                }
+
+                if (change != null)
+                {
+                    PostProcessTemplateModuleConfiguratorChange(templateModuleName, change, c.New, c.Original);
+                }
+            }
+        }
+
+        private void RegisterConfiguratorParameters(string templateModuleName, string configuratorName, TemplateModuleConfiguratorParameterTemplateMarkup[] parameters, TemplateModuleConfiguratorParameterTemplateMarkup[] originalParameters = null)
+        {
+            parameters ??= Array.Empty<TemplateModuleConfiguratorParameterTemplateMarkup>();
+            originalParameters ??= Array.Empty<TemplateModuleConfiguratorParameterTemplateMarkup>();
+            var keyNames = new[] { "ParameterName", "ParentConfigurator" };
+            var entityName = "TemplateModuleConfiguratorParameters";
+            // Configurators are unique only per module, so resolve the parent configurator module-qualified.
+            // The navigation check is null-guarded so the in-memory (Local) scan never NRE's on not-yet-loaded navigations;
+            // existing configurators are matched through the translated SQL branch.
+            var parentFilter = $"(n.ParentModule != null && n.ParentModule.TemplateModuleName == \"{templateModuleName}\")";
+            var keyExp = new Dictionary<string, string>
+            {
+                { keyNames[1], MakeLinqQuery<TContext>("TemplateModuleConfigurators", "Name", additionalWhere: parentFilter, filterValueVariable: "Value") }
+            };
+            var groups = (from t in originalParameters select t.ParameterName.ToLower()).Union(from t in parameters select t.ParameterName.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in originalParameters on c equals a1.ParameterName.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in parameters on c equals a2.ParameterName.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                Change change = null;
+                if (c.Original != null && c.New == null)
+                {
+                    change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string> { { keyNames[0], c.Original.ParameterName }, { keyNames[1], configuratorName } },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], c.New.ParameterName));
+                    change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName));
+                    change.Details.Add(MakeDetail("ParameterValue", c.New.ParameterValue));
+                    change.Details.Add(MakeDetail(keyNames[1], configuratorName, MakeLinqAssign<TContext>(keyNames[1], "TemplateModuleConfigurators", "Name", additionalWhere: parentFilter)));
+                    RegisterChange(change);
+                }
+                else if (c.Original != null)
+                {
+                    change = new Change
+                    {
+                        ChangeType = ChangeType.Update,
+                        Key = new Dictionary<string, string> { { keyNames[0], c.Original.ParameterName }, { keyNames[1], configuratorName } },
+                        EntityName = entityName,
+                        Apply = true,
+                        KeyExpression = keyExp
+                    };
+                    if ((c.New.ParameterValue != c.Original.ParameterValue && !string.IsNullOrWhiteSpace(c.New.ParameterValue) && !string.IsNullOrWhiteSpace(c.Original.ParameterValue)) || (string.IsNullOrWhiteSpace(c.New.ParameterValue) != string.IsNullOrWhiteSpace(c.Original.ParameterValue)))
+                    {
+                        change.Details.Add(MakeDetail("ParameterValue", c.New.ParameterValue, currentValue: c.Original.ParameterValue));
+                    }
+
+                    if ((c.New.DisplayName != c.Original.DisplayName && !string.IsNullOrWhiteSpace(c.New.DisplayName) && !string.IsNullOrWhiteSpace(c.Original.DisplayName)) || (string.IsNullOrWhiteSpace(c.New.DisplayName) != string.IsNullOrWhiteSpace(c.Original.DisplayName)))
+                    {
+                        change.Details.Add(MakeDetail("DisplayName", c.New.DisplayName, currentValue: c.Original.DisplayName));
+                    }
+
+                    if (change.Details.Count != 0)
+                    {
+                        RegisterChange(change);
+                    }
+                }
+
+                if (change != null)
+                {
+                    PostProcessTemplateModuleConfiguratorParameterChange(templateModuleName, configuratorName, change, c.New, c.Original);
+                }
+            }
+        }
+
+        /// <summary>
         /// Compares the plugin-configurations between two systems
         /// </summary>
         /// <param name="sysPlugins">the current system that is the compare-target</param>
@@ -1977,6 +2399,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         protected virtual void PostProcessConstantChange(Change change, ConstTemplateMarkup @new, ConstTemplateMarkup original)
         {
         }
+
+        protected virtual void PostProcessExternalOAuthServiceChange(Change change, ExternalOAuthServiceTemplateMarkup @new, ExternalOAuthServiceTemplateMarkup original)
+        {
+        }
+
+        protected virtual void PostProcessTemplateModuleChange(Change change, TemplateModuleTemplateMarkup @new, TemplateModuleTemplateMarkup original)
+        {
+        }
+
+        protected virtual void PostProcessTemplateModuleConfiguratorChange(string templateModuleName, Change change, TemplateModuleConfiguratorTemplateMarkup @new, TemplateModuleConfiguratorTemplateMarkup original)
+        {
+        }
+
+        protected virtual void PostProcessTemplateModuleConfiguratorParameterChange(string templateModuleName, string configuratorName, Change change, TemplateModuleConfiguratorParameterTemplateMarkup @new, TemplateModuleConfiguratorParameterTemplateMarkup original)
+        {
+        }
+
         protected virtual void PostProcessPermissionChange(Change change, PermissionTemplateMarkup @new, PermissionTemplateMarkup original)
         {
         }
