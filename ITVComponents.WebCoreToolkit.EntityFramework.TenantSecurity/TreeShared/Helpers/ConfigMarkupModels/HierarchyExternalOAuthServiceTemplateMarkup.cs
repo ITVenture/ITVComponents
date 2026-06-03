@@ -1,0 +1,9 @@
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
+
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.ConfigMarkupModels
+{
+    public class HierarchyExternalOAuthServiceTemplateMarkup : ExternalOAuthServiceTemplateMarkup
+    {
+        public bool Inheritable { get; set; }
+    }
+}

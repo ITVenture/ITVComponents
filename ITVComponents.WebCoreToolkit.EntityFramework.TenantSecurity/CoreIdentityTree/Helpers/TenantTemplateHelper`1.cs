@@ -118,5 +118,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
 
             return retVal;
         }
+
+        protected override ExternalOAuthServiceTemplateMarkup SelectExternalOAuthServiceTemplateMarkup(HierarchyExternalOAuthService serviceInst)
+        {
+            var tmp = base.SelectExternalOAuthServiceTemplateMarkup(serviceInst);
+            return new HierarchyExternalOAuthServiceTemplateMarkup
+            {
+                UniqueConnectionName = tmp.UniqueConnectionName,
+                AuthorizationEndpoint = tmp.AuthorizationEndpoint,
+                TokenEndpoint = tmp.TokenEndpoint,
+                RevocationEndpoint = tmp.RevocationEndpoint,
+                ClientId = tmp.ClientId,
+                Scope = tmp.Scope,
+                Global = tmp.Global,
+                AuthenticationType = tmp.AuthenticationType,
+                Inheritable = serviceInst.Inheritable
+            };
+        }
+
+        protected override HierarchyExternalOAuthService GetExternalOAuthService(int tenantId, ExternalOAuthServiceTemplateMarkup service, bool addIfMissing)
+        {
+            var retVal = base.GetExternalOAuthService(tenantId, service, addIfMissing);
+            if (retVal != null && service is HierarchyExternalOAuthServiceTemplateMarkup hsvc)
+            {
+                retVal.Inheritable = hsvc.Inheritable;
+            }
+
+            return retVal;
+        }
     }
 }

@@ -66,7 +66,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGlobalRolePermission : GlobalRolePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGRoleLRole : GRoleLRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>, new()
-        where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
         where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
         where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
@@ -116,6 +116,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 var permissions = (from t in db.Permissions
                     where t.TenantId == tenant.TenantId
                     select t).AsEnumerable().Select(SelectPermissionTemplateMarkup).ToArray();
+
+                var externalServices = (from t in db.ExternalOAuthServices
+                    where t.TenantId == tenant.TenantId
+                    select t).AsEnumerable().Select(SelectExternalOAuthServiceTemplateMarkup).ToArray();
                 return new TenantTemplateMarkup
                 {
                     Features = features,
@@ -125,7 +129,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     Roles = roles,
                     Navigation = menus,
                     Queries = queries,
-                    ExplicitPermissions = permissions
+                    ExplicitPermissions = permissions,
+                    ExternalOAuthServices = externalServices
                 };
             }
         }
@@ -202,6 +207,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 ParamName = tenantSettingInst.SettingsKey.Replace("[","[[").Replace("]","]]"),
                 Value = tenantSettingInst.SettingsValue.Replace("[", "[[").Replace("]", "]]"),
                 IsJsonSetting = tenantSettingInst.JsonSetting
+            };
+        }
+
+        protected virtual ExternalOAuthServiceTemplateMarkup SelectExternalOAuthServiceTemplateMarkup(TExternalOAuthService serviceInst)
+        {
+            return new ExternalOAuthServiceTemplateMarkup
+            {
+                UniqueConnectionName = serviceInst.UniqueConnectionName,
+                AuthorizationEndpoint = serviceInst.AuthorizationEndpoint,
+                TokenEndpoint = serviceInst.TokenEndpoint,
+                RevocationEndpoint = serviceInst.RevocationEndpoint,
+                ClientId = serviceInst.ClientId,
+                Scope = serviceInst.Scope,
+                Global = serviceInst.Global,
+                AuthenticationType = serviceInst.AuthenticationType
             };
         }
 
@@ -469,6 +489,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                                                         select t);
             }
 
+            if (template.ExternalOAuthServices != null)
+            {
+                var svcNames = new List<string>();
+                foreach (var svc in template.ExternalOAuthServices)
+                {
+                    svcNames.Add(svc.UniqueConnectionName);
+                    var tmp = GetExternalOAuthService(tenant.TenantId, svc, true);
+                    if (tmp.OAuthServiceId != 0)
+                    {
+                        // Existing service: refresh the non-secret config. ClientSecret is intentionally left
+                        // untouched (templates never carry secrets).
+                        tmp.AuthorizationEndpoint = svc.AuthorizationEndpoint;
+                        tmp.TokenEndpoint = svc.TokenEndpoint;
+                        tmp.RevocationEndpoint = svc.RevocationEndpoint;
+                        tmp.ClientId = svc.ClientId;
+                        tmp.Scope = svc.Scope;
+                        tmp.Global = svc.Global;
+                        tmp.AuthenticationType = svc.AuthenticationType;
+                    }
+                }
+
+                db.ExternalOAuthServices.RemoveRange(from t in db.ExternalOAuthServices.Where(n => n.TenantId == tenant.TenantId)
+                                                     join r in svcNames
+                                                         on t.UniqueConnectionName.ToLower() equals r.ToLower() into lj
+                                                     from l in lj.DefaultIfEmpty()
+                                                     where string.IsNullOrEmpty(l)
+                                                     select t);
+            }
+
             db.Permissions.RemoveRange(from p in db.Permissions.Where(n => n.TenantId == tenant.TenantId)
                                        join
                                            r in pns on p.PermissionName.ToLower() equals r.ToLower() into lj
@@ -684,11 +733,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     }
                 }
 
+                if (template.ExternalOAuthServices != null)
+                {
+                    foreach (var svc in template.ExternalOAuthServices)
+                    {
+                        var tmp = GetExternalOAuthService(tenant.TenantId, svc, false);
+                        if (tmp != null)
+                        {
+                            RevokeExternalOAuthService(tenant.TenantId, tmp);
+                            db.ExternalOAuthServices.Remove(tmp);
+                        }
+                    }
+                }
+
                 db.SaveChanges();
                 RemoveUnUsedPermissions(tenant.TenantId, permissionsToCheck);
                 db.SaveChanges();
                 afterRevoke?.Invoke(db);
             }
+        }
+
+        protected virtual void RevokeExternalOAuthService(int tenantId, TExternalOAuthService service)
+        {
         }
 
         protected virtual void RevokeFeature(int tenantId, TTenantFeatureActivation feature)
@@ -879,6 +945,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                         db.GenericPluginParams.Remove(i.O);
                     }
                 }
+            }
+
+            return retVal;
+        }
+
+        protected virtual TExternalOAuthService GetExternalOAuthService(int tenantId, ExternalOAuthServiceTemplateMarkup service, bool addIfMissing)
+        {
+            var retVal = db.ExternalOAuthServices.LocalFirstOrDefault(n => n.TenantId == tenantId && n.UniqueConnectionName == service.UniqueConnectionName);
+            if (retVal == null && addIfMissing)
+            {
+                retVal = new TExternalOAuthService
+                {
+                    TenantId = tenantId,
+                    UniqueConnectionName = service.UniqueConnectionName,
+                    AuthorizationEndpoint = service.AuthorizationEndpoint,
+                    TokenEndpoint = service.TokenEndpoint,
+                    RevocationEndpoint = service.RevocationEndpoint,
+                    ClientId = service.ClientId,
+                    ClientSecret = string.Empty, // secrets are never cloned via templates; admin sets per tenant
+                    Scope = service.Scope,
+                    Global = service.Global,
+                    AuthenticationType = service.AuthenticationType
+                };
+                db.ExternalOAuthServices.Add(retVal);
             }
 
             return retVal;
