@@ -83,14 +83,16 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     private readonly ISecurityRepository securityRepository;
     private readonly IOptions<TenantOptions<TTenant>> tenantOptions;
     private readonly IForeignKeyWriteTracker fkWriteTracker;
+    private readonly ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> templateHelper;
 
-    public TenantAdminHandler(TContext db, IServiceProvider services, ISecurityRepository securityRepository, IOptions<TenantOptions<TTenant>> tenantOptions, IForeignKeyWriteTracker fkWriteTracker)
+    public TenantAdminHandler(TContext db, IServiceProvider services, ISecurityRepository securityRepository, IOptions<TenantOptions<TTenant>> tenantOptions, IForeignKeyWriteTracker fkWriteTracker, ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> templateHelper)
     {
         this.db = db;
         this.services = services;
         this.securityRepository = securityRepository;
         this.tenantOptions = tenantOptions;
         this.fkWriteTracker = fkWriteTracker;
+        this.templateHelper = templateHelper;
     }
     
     public bool UseHierarchy => tenantOptions.Value.UseHierarchy;
@@ -482,6 +484,34 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         }
 
         return true;
+    }
+
+    public async Task<TenantTemplateViewModel?> ExtractTemplateAsync(ClaimsPrincipal user, int tenantId, string name, string? description)
+    {
+        if (!HasPermission(user, "TenantTemplates.Write")) return null;
+        ApplyContextScope(IsSysAdmin());
+
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.TenantId == tenantId);
+        if (tenant == null) return null;
+
+        var markup = templateHelper.ExtractTemplate(tenant);
+        var json = JsonHelper.ToJson(markup, SerializationTypingMode.NativePolymorphism);
+        var entity = new TenantTemplate
+        {
+            Name = name,
+            Description = description ?? string.Empty,
+            Markup = json
+        };
+        db.TenantTemplates.Add(entity);
+        await db.SaveChangesAsync();
+        fkWriteTracker.MarkWritten("TenantTemplates");
+        return new TenantTemplateViewModel
+        {
+            TenantTemplateId = entity.TenantTemplateId,
+            Name = entity.Name,
+            Description = entity.Description,
+            Markup = entity.Markup
+        };
     }
 
     private static TUserId ParseUserId(string userId)

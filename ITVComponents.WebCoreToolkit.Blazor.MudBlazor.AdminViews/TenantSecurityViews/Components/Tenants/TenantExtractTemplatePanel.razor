@@ -1,0 +1,82 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject ITenantAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@if (!hasWrite)
+{
+    <MudAlert Severity="Severity.Info">No permission to extract templates.</MudAlert>
+}
+else
+{
+    <MudStack Spacing="3" Class="pa-2" Style="max-width: 640px;">
+        <MudText Typo="Typo.subtitle2">Extract a tenant template from this tenant</MudText>
+        <MudText Typo="Typo.body2">
+            Creates a new tenant template that captures the current configuration of this tenant.
+            The template can afterwards be applied to other tenants.
+        </MudText>
+        <MudTextField @bind-Value="name" Label="Template name" Required="true" RequiredError="A name is required" Immediate="true" />
+        <MudTextField @bind-Value="description" Label="Description (optional)" Lines="2" />
+        <MudButton StartIcon="@Icons.Material.Filled.ContentCopy"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="@(busy || string.IsNullOrWhiteSpace(name))"
+                   OnClick="Extract">
+            @if (busy)
+            {
+                <MudProgressCircular Class="ms-n1 me-2" Size="Size.Small" Indeterminate="true" />
+                <MudText>Extracting…</MudText>
+            }
+            else
+            {
+                <MudText>Extract template</MudText>
+            }
+        </MudButton>
+    </MudStack>
+}
+
+@code {
+    [Parameter, EditorRequired] public int TenantId { get; set; }
+
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasWrite;
+    private bool busy;
+    private string? name;
+    private string? description;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasWrite = Handler.HasPermission(currentUser, "TenantTemplates.Write");
+    }
+
+    private async Task Extract()
+    {
+        if (currentUser is null || string.IsNullOrWhiteSpace(name)) return;
+        busy = true;
+        try
+        {
+            var result = await Handler.ExtractTemplateAsync(currentUser, TenantId, name.Trim(), description);
+            if (result != null)
+            {
+                Snackbar.Add($"Template '{result.Name}' created", Severity.Success);
+                name = null;
+                description = null;
+            }
+            else
+            {
+                Snackbar.Add("Failed to extract template", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to extract template: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

@@ -4,8 +4,11 @@
 @using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.Sequences
 @using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers
 @using Microsoft.Extensions.DependencyInjection
+@using Microsoft.AspNetCore.Components.Authorization
 
 @inject IServiceProvider Services
+@inject ITenantAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
 
 <MudDialog>
     <DialogContent>
@@ -40,6 +43,12 @@
             <MudTabPanel Text="Sequences">
                 <Sequences EmbeddedTenantId="@Tenant.TenantId" />
             </MudTabPanel>
+            @if (canExtractTemplate)
+            {
+                <MudTabPanel Text="Extract Template">
+                    <TenantExtractTemplatePanel TenantId="@Tenant.TenantId" />
+                </MudTabPanel>
+            }
         </MudTabs>
     </DialogContent>
     <DialogActions>
@@ -53,11 +62,18 @@
 
     private Type? usersGridType;
     private IDictionary<string, object> usersGridParameters = new Dictionary<string, object>();
+    private bool canExtractTemplate;
 
     protected override void OnParametersSet()
     {
         usersGridType = Services.GetService<TenantUsersGridDescriptor>()?.GridComponentType;
         usersGridParameters = new Dictionary<string, object> { ["TenantId"] = Tenant.TenantId };
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        canExtractTemplate = Handler.HasPermission(auth.User, "TenantTemplates.Write");
     }
 
     private void Close() => MudDialog.Close();

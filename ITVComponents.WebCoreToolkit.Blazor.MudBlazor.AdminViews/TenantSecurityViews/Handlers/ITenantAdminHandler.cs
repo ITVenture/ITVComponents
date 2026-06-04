@@ -35,4 +35,7 @@ public interface ITenantAdminHandler
         ClaimsPrincipal user, int tenantId, ListQuery query);
     Task<bool> SetNavigationForTenantAsync(
         ClaimsPrincipal user, int tenantId, int navigationMenuId, bool assigned);
+
+    Task<TenantTemplateViewModel?> ExtractTemplateAsync(
+        ClaimsPrincipal user, int tenantId, string name, string? description);
 }
