@@ -24,5 +24,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Options.Logging
         public bool LogCritical{get;set;}= true;
         public string[] CriticalFilters { get; set; }
         public bool LogNone { get; set; }
+
+        /// <summary>
+        /// Coalesces repeated identical events into a single summary event (with an occurrence-count) instead of
+        /// writing each one to the backend. Protects the log-store from spam during error-loops. Default: true.
+        /// </summary>
+        public bool ThrottleDuplicateEvents { get; set; } = true;
+
+        /// <summary>
+        /// The suppression-window (in seconds) for identical events while <see cref="ThrottleDuplicateEvents"/> is
+        /// enabled. Within the window repeated events are only counted; afterwards a single summary is emitted.
+        /// </summary>
+        public int ThrottleWindowSeconds { get; set; } = 10;
     }
 }

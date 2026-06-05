@@ -16,6 +16,18 @@ namespace ITVComponents.WebCoreToolkit.Logging
         public bool EnableDebugMessages { get; }
 
         /// <summary>
+        /// Indicates whether repeated identical events are coalesced into a single summary event instead of
+        /// being written individually. Protects the log-backend from spam during error-loops.
+        /// </summary>
+        public bool ThrottleDuplicates { get; }
+
+        /// <summary>
+        /// The time-window during which repeated identical events are suppressed and only counted. After the
+        /// window expires, a single summary event carrying the suppressed-count is emitted.
+        /// </summary>
+        public TimeSpan ThrottleWindow { get; }
+
+        /// <summary>
         /// Checks if the given <paramref name="logLevel" /> is enabled.
         /// </summary>
         /// <param name="logLevel">level to be checked.</param>
@@ -30,6 +42,13 @@ namespace ITVComponents.WebCoreToolkit.Logging
         /// <param name="logLevels">the log-levels to log</param>
         /// <param name="logFilters">the configured log-filters</param>
         void Configure(int[] logLevels, IDictionary<LogLevel, string[]> logFilters);
+
+        /// <summary>
+        /// Configures duplicate-event throttling for the log-backend.
+        /// </summary>
+        /// <param name="throttleDuplicates">whether to coalesce repeated identical events</param>
+        /// <param name="throttleWindow">the suppression window for identical events</param>
+        void ConfigureThrottle(bool throttleDuplicates, TimeSpan throttleWindow);
 
         /// <summary>
         /// Stops any logging activity during the life-time of the returned object

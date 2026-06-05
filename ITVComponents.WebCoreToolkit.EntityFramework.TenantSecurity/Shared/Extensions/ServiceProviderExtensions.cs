@@ -94,6 +94,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
                 }
 
                 target.Configure(l.ToArray(), filters);
+                target.ConfigureThrottle(opt.ThrottleDuplicateEvents,
+                    TimeSpan.FromSeconds(opt.ThrottleWindowSeconds > 0 ? opt.ThrottleWindowSeconds : 10));
             }
         }
 

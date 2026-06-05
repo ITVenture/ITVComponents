@@ -16,6 +16,8 @@ namespace ITVComponents.WebCoreToolkit.Logging
         private int globalDisable = 0;
         private int[] enabledLogLevels;
         private ConcurrentDictionary<LogLevel, string[]> logFilters = new ConcurrentDictionary<LogLevel, string[]>();
+        private bool throttleDuplicates = true;
+        private TimeSpan throttleWindow = TimeSpan.FromSeconds(10);
 
         private object modLock = new object();
 
@@ -41,6 +43,34 @@ namespace ITVComponents.WebCoreToolkit.Logging
                 lock (modLock)
                 {
                     return enabledLogLevels.Any(n => n is (int)LogLevel.Trace or (int)LogLevel.Debug);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Indicates whether repeated identical events are coalesced into a single summary event.
+        /// </summary>
+        public bool ThrottleDuplicates
+        {
+            get
+            {
+                lock (modLock)
+                {
+                    return throttleDuplicates;
+                }
+            }
+        }
+
+        /// <summary>
+        /// The time-window during which repeated identical events are suppressed and only counted.
+        /// </summary>
+        public TimeSpan ThrottleWindow
+        {
+            get
+            {
+                lock (modLock)
+                {
+                    return throttleWindow;
                 }
             }
         }
@@ -100,6 +130,15 @@ namespace ITVComponents.WebCoreToolkit.Logging
                 {
                     this.logFilters.TryAdd(i.Key, i.Value);
                 }
+            }
+        }
+
+        public void ConfigureThrottle(bool throttleDuplicates, TimeSpan throttleWindow)
+        {
+            lock (modLock)
+            {
+                this.throttleDuplicates = throttleDuplicates;
+                this.throttleWindow = throttleWindow > TimeSpan.Zero ? throttleWindow : TimeSpan.FromSeconds(10);
             }
         }
 
