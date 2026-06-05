@@ -27,8 +27,8 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
 
         Task<IReadOnlyList<AddOnViewModel>> GetActiveAddOnsAsync(CancellationToken cancellationToken = default);
 
-        /// <summary>Starts a checkout for the current tenant and returns the hosted URL to redirect to.</summary>
-        Task<string> StartCheckoutAsync(ClaimsPrincipal user, int planId, IReadOnlyCollection<int> addOnIds, string successUrl, string cancelUrl, CancellationToken cancellationToken = default);
+        /// <summary>Starts a checkout for the current tenant in the given currency and returns the hosted URL to redirect to.</summary>
+        Task<string> StartCheckoutAsync(ClaimsPrincipal user, int planId, IReadOnlyCollection<int> addOnIds, string successUrl, string cancelUrl, string? currency = null, CancellationToken cancellationToken = default);
 
         /// <summary>Opens the customer portal for the current tenant; null if there is no provider customer yet.</summary>
         Task<string?> OpenPortalAsync(ClaimsPrincipal user, string returnUrl, CancellationToken cancellationToken = default);

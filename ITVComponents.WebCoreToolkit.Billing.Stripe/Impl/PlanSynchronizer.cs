@@ -23,27 +23,38 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 
         public async Task SyncPlanAsync(int planId, CancellationToken cancellationToken = default)
         {
-            var plan = await db.Plans.FirstOrDefaultAsync(p => p.PlanId == planId, cancellationToken);
+            var plan = await db.Plans.Include(p => p.Prices).FirstOrDefaultAsync(p => p.PlanId == planId, cancellationToken);
             if (plan == null)
             {
                 return;
             }
 
             plan.ProviderProductId = await EnsureProductAsync(plan.ProviderProductId, plan.Name, plan.Description, plan.IsActive, cancellationToken);
-            plan.ProviderPriceId = await EnsurePriceAsync(plan.ProviderProductId!, plan.ProviderPriceId, plan.Amount, plan.Currency, plan.BillingInterval, cancellationToken);
+
+            // One immutable Stripe price per currency row.
+            foreach (var price in plan.Prices)
+            {
+                price.ProviderPriceId = await EnsurePriceAsync(plan.ProviderProductId!, price.ProviderPriceId, price.Amount, price.Currency, plan.BillingInterval, cancellationToken);
+            }
+
             await db.SaveChangesAsync(cancellationToken);
         }
 
         public async Task SyncAddOnAsync(int addOnId, CancellationToken cancellationToken = default)
         {
-            var addOn = await db.AddOns.FirstOrDefaultAsync(a => a.AddOnId == addOnId, cancellationToken);
+            var addOn = await db.AddOns.Include(a => a.Prices).FirstOrDefaultAsync(a => a.AddOnId == addOnId, cancellationToken);
             if (addOn == null)
             {
                 return;
             }
 
             addOn.ProviderProductId = await EnsureProductAsync(addOn.ProviderProductId, addOn.Name, addOn.Description, addOn.IsActive, cancellationToken);
-            addOn.ProviderPriceId = await EnsurePriceAsync(addOn.ProviderProductId!, addOn.ProviderPriceId, addOn.Amount, addOn.Currency, addOn.BillingInterval, cancellationToken);
+
+            foreach (var price in addOn.Prices)
+            {
+                price.ProviderPriceId = await EnsurePriceAsync(addOn.ProviderProductId!, price.ProviderPriceId, price.Amount, price.Currency, addOn.BillingInterval, cancellationToken);
+            }
+
             await db.SaveChangesAsync(cancellationToken);
         }
 

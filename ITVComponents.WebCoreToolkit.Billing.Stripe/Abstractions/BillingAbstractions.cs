@@ -10,9 +10,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions
         /// <summary>
         /// Creates a subscription-mode Checkout session and returns its hosted URL. The base
         /// <paramref name="planId"/> and each add-on become a line-item on one subscription. The tenant id is
-        /// stamped into subscription metadata so the webhook can attribute the resulting subscription.
+        /// stamped into subscription metadata so the webhook can attribute the resulting subscription. A
+        /// subscription is single-currency: the plan and every add-on must have a price in
+        /// <paramref name="currency"/> (null = the configured default currency).
         /// </summary>
-        Task<string> CreateCheckoutSessionAsync(int tenantId, int planId, IReadOnlyCollection<int> addOnIds, string successUrl, string cancelUrl, CancellationToken cancellationToken = default);
+        Task<string> CreateCheckoutSessionAsync(int tenantId, int planId, IReadOnlyCollection<int> addOnIds, string successUrl, string cancelUrl, string? currency = null, CancellationToken cancellationToken = default);
     }
 
     /// <summary>Creates a Stripe customer-portal session so the tenant can self-serve plan/add-on/payment changes.</summary>

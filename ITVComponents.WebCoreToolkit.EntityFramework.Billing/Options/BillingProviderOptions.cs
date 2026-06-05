@@ -23,5 +23,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
 
         /// <summary>URL the customer returns to after the provider customer-portal closes.</summary>
         public string? PortalReturnUrl { get; set; }
+
+        /// <summary>
+        /// ISO-4217 default currency used when a checkout does not specify one (e.g. "EUR"). Plans/add-ons
+        /// must carry a price in the requested currency. Defaults to "EUR".
+        /// </summary>
+        public string DefaultCurrency { get; set; } = "EUR";
     }
 }

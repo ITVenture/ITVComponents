@@ -27,13 +27,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models
 
         public BillingInterval BillingInterval { get; set; }
 
-        /// <summary>ISO-4217 currency code of <see cref="Amount"/> (e.g. "EUR", "CHF").</summary>
-        [MaxLength(3)]
-        public string? Currency { get; set; }
-
-        /// <summary>Recurring amount per <see cref="BillingInterval"/>, in the plan's <see cref="Currency"/>.</summary>
-        public decimal Amount { get; set; }
-
         /// <summary>Optional trial-period in days. Null = no trial.</summary>
         public int? TrialDays { get; set; }
 
@@ -45,11 +38,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models
         public string? ProviderProductId { get; set; }
 
         /// <summary>
-        /// Provider price identifier (e.g. Stripe price-ID), set when pushed to the provider. Provider prices
-        /// are typically immutable — a price change creates a new price and re-points this field.
+        /// Per-currency prices of this plan (one row per supported currency). A subscription is single-currency;
+        /// checkout picks the price matching the chosen currency. See <see cref="PlanPrice"/>.
         /// </summary>
-        [MaxLength(256)]
-        public string? ProviderPriceId { get; set; }
+        public virtual ICollection<PlanPrice> Prices { get; set; } = new List<PlanPrice>();
 
         public virtual ICollection<PlanFeature> Features { get; set; } = new List<PlanFeature>();
     }

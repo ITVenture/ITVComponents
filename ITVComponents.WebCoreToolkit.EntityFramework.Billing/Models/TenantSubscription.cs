@@ -31,6 +31,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models
 
         public SubscriptionStatus Status { get; set; }
 
+        /// <summary>
+        /// ISO-4217 currency of the subscription (all provider items share one currency). Set from the
+        /// provider items via webhook; used for display.
+        /// </summary>
+        [MaxLength(3)]
+        public string? Currency { get; set; }
+
         public DateTime? CurrentPeriodStart { get; set; }
 
         public DateTime? CurrentPeriodEnd { get; set; }

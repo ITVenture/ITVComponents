@@ -30,6 +30,10 @@
   <data name="Field_Description" xml:space="preserve"><value>Descrizione</value></data>
   <data name="Field_Amount" xml:space="preserve"><value>Importo</value></data>
   <data name="Field_Currency" xml:space="preserve"><value>Valuta</value></data>
+  <data name="PriceUnavailable" xml:space="preserve"><value>Non disponibile</value></data>
+  <data name="PricesPerCurrency" xml:space="preserve"><value>Prezzi per valuta</value></data>
+  <data name="NotPushed" xml:space="preserve"><value>non trasferito</value></data>
+  <data name="AddPrice" xml:space="preserve"><value>Aggiungi prezzo</value></data>
   <data name="Field_TrialDays" xml:space="preserve"><value>Giorni di prova</value></data>
   <data name="Field_FeatureKeys" xml:space="preserve"><value>Chiavi funzionalità (separate da virgole)</value></data>
   <data name="Save" xml:space="preserve"><value>Salva</value></data>

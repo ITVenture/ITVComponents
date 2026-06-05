@@ -90,6 +90,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
             var firstItem = sub.Items?.Data?.FirstOrDefault();
             local.CurrentPeriodStart = firstItem?.CurrentPeriodStart;
             local.CurrentPeriodEnd = firstItem?.CurrentPeriodEnd;
+            local.Currency = firstItem?.Price?.Currency?.ToUpperInvariant();
             local.Updated = DateTime.UtcNow;
 
             // Rebuild the line-items and collect the union of entitled feature keys.
@@ -99,11 +100,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                 local.Items.Clear();
             }
 
+            // Provider prices are per-currency rows; map each back to its owning plan/add-on (currency-agnostic).
             var priceIds = (sub.Items?.Data ?? new List<SubscriptionItem>()).Select(i => i.Price.Id).ToList();
-            var plans = await db.Plans.Include(p => p.Features)
-                .Where(p => p.ProviderPriceId != null && priceIds.Contains(p.ProviderPriceId)).ToListAsync(ct);
-            var addOns = await db.AddOns.Include(a => a.Features)
-                .Where(a => a.ProviderPriceId != null && priceIds.Contains(a.ProviderPriceId)).ToListAsync(ct);
+            var planPrices = await db.PlanPrices.Include(pp => pp.Plan).ThenInclude(p => p!.Features)
+                .Where(pp => pp.ProviderPriceId != null && priceIds.Contains(pp.ProviderPriceId)).ToListAsync(ct);
+            var addOnPrices = await db.AddOnPrices.Include(ap => ap.AddOn).ThenInclude(a => a!.Features)
+                .Where(ap => ap.ProviderPriceId != null && priceIds.Contains(ap.ProviderPriceId)).ToListAsync(ct);
 
             var featureKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in sub.Items?.Data ?? new List<SubscriptionItem>())
@@ -115,8 +117,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                     Quantity = (int)item.Quantity
                 };
 
-                var plan = plans.FirstOrDefault(p => p.ProviderPriceId == priceId);
-                var addOn = addOns.FirstOrDefault(a => a.ProviderPriceId == priceId);
+                var plan = planPrices.FirstOrDefault(pp => pp.ProviderPriceId == priceId)?.Plan;
+                var addOn = addOnPrices.FirstOrDefault(ap => ap.ProviderPriceId == priceId)?.AddOn;
                 if (plan != null)
                 {
                     line.PlanId = plan.PlanId;

@@ -12,9 +12,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing
     {
         DbSet<Plan> Plans { get; set; }
 
+        DbSet<PlanPrice> PlanPrices { get; set; }
+
         DbSet<PlanFeature> PlanFeatures { get; set; }
 
         DbSet<AddOn> AddOns { get; set; }
+
+        DbSet<AddOnPrice> AddOnPrices { get; set; }
 
         DbSet<AddOnFeature> AddOnFeatures { get; set; }
 

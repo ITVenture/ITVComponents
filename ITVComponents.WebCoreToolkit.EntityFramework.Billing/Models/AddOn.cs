@@ -25,19 +25,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models
 
         public BillingInterval BillingInterval { get; set; }
 
-        /// <summary>ISO-4217 currency code of <see cref="Amount"/>.</summary>
-        [MaxLength(3)]
-        public string? Currency { get; set; }
-
-        public decimal Amount { get; set; }
-
         /// <summary>Provider product identifier, set when pushed to the provider.</summary>
         [MaxLength(256)]
         public string? ProviderProductId { get; set; }
 
-        /// <summary>Provider price identifier, set when pushed to the provider.</summary>
-        [MaxLength(256)]
-        public string? ProviderPriceId { get; set; }
+        /// <summary>
+        /// Per-currency prices of this add-on (one row per supported currency). See <see cref="AddOnPrice"/>.
+        /// </summary>
+        public virtual ICollection<AddOnPrice> Prices { get; set; } = new List<AddOnPrice>();
 
         public virtual ICollection<AddOnFeature> Features { get; set; } = new List<AddOnFeature>();
     }

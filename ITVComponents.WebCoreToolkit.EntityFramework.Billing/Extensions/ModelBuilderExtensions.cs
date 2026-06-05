@@ -14,8 +14,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
         /// </summary>
         public static ModelBuilder ConfigureBilling(this ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Plan>().Property(p => p.Amount).HasPrecision(18, 2);
-            modelBuilder.Entity<AddOn>().Property(a => a.Amount).HasPrecision(18, 2);
+            modelBuilder.Entity<PlanPrice>().Property(p => p.Amount).HasPrecision(18, 2);
+            modelBuilder.Entity<AddOnPrice>().Property(p => p.Amount).HasPrecision(18, 2);
+
+            modelBuilder.Entity<PlanPrice>()
+                .HasOne(p => p.Plan).WithMany(p => p.Prices)
+                .HasForeignKey(p => p.PlanId).OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AddOnPrice>()
+                .HasOne(p => p.AddOn).WithMany(a => a.Prices)
+                .HasForeignKey(p => p.AddOnId).OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<PlanFeature>()
                 .HasOne(f => f.Plan).WithMany(p => p.Features)
