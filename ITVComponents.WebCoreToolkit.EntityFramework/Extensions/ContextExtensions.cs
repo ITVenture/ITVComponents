@@ -132,6 +132,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 
                                 fib = afi;
                             }
+                            else
+                            {
+                                fib = ExtendFilter(fib, dbSet.EntityType, postedFilter);
+                            }
 
                             so = postedFilter["parsedsort"] as Sort[];
                         }
@@ -142,18 +146,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                     fib = new CompositeFilter()
                     {
                         Operator = BoolOperator.And,
-                        Children = new FilterBase[]{new CompareFilter
+                        Children = new FilterBase[]
                         {
-                            Value = TypeConverter.Convert(id,keyType),
-                            Operator = CompareOperator.Equal,
-                            PropertyName = keyProp.Name
-                        }}
+                            new CompareFilter
+                            {
+                                Value = TypeConverter.Convert(id, keyType),
+                                Operator = CompareOperator.Equal,
+                                PropertyName = keyProp.Name
+                            }
+                        }
                     };
                 }
 
                 if (fib == null || fib is CompositeFilter cfi && (cfi.Children == null || cfi.Children.Length == 0))
                 {
-                    fib = selector?.GetCustomFilterAddition(postedFilter) ?? new CompositeFilter();
+                    fib = selector?.GetCustomFilterAddition(postedFilter) ??
+                          ExtendFilter(null, dbSet.EntityType, postedFilter);// new CompositeFilter();
                 }
 
                 if (so == null || so.Length == 0)
@@ -167,10 +175,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                     {
                         if (s == "Label")
                         {
-                            return new []{firstStringCol.Name};
+                            return new[] { firstStringCol.Name };
                         }
 
-                        return new []{s};
+                        return new[] { s };
                     }));
 
                 var method = LambdaHelper.GetMethodInfo(() => GetForeignKeySelection<object, object>(null, null, null))
@@ -343,6 +351,45 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             throw new InvalidOperationException("Table-Type was not found!");
         }
 
+        private static FilterBase ExtendFilter(FilterBase existingFilter, Type tableType,
+            IDictionary<string, object> postedFilter)
+        {
+            var filterableProps = tableType.GetProperties().Where(n => n.PropertyType == typeof(string) || n.PropertyType.IsValueType).ToArray();
+            var j = (from t in postedFilter join p in filterableProps on t.Key equals p.Name
+                select new { Prop = p, Value = t.Value }).ToArray();
+            var retVal = existingFilter;
+            if (j.Length != 0)
+            {
+                CompositeFilter cf;
+                if (retVal is not CompositeFilter { Operator: BoolOperator.And } val)
+                {
+                    var tmp = retVal;
+                    retVal = cf = new CompositeFilter() { Operator = BoolOperator.And };
+                    if (tmp != null)
+                    {
+                        cf.AddFilter(tmp);
+                    }
+                }
+                else
+                {
+                    cf = val;
+                }
+
+                foreach (var item in j)
+                {
+                    var tmpFilter = new CompareFilter
+                    {
+                        Operator = CompareOperator.Equal,
+                        PropertyName = item.Prop.Name,
+                        Value = item.Value
+                    };
+                    
+                    cf.AddFilter(tmpFilter);
+                }
+            }
+
+            return retVal;
+        }
         private static string CreateWhereClause(Type tableType, IDictionary<string, object> postedFilter, out string filterDecl)
         {
             var retVal = new StringBuilder();
