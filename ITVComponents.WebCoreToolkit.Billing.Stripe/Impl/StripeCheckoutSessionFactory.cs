@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -72,6 +73,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
             }
 
             var existing = await db.TenantSubscriptions.FirstOrDefaultAsync(s => s.TenantId == tenantId, cancellationToken);
+
+            // Guard against double-subscribing: a second subscription-mode checkout would create a parallel
+            // Stripe subscription and corrupt the single-subscription-per-tenant mirror. Plan/add-on changes
+            // for an active subscription go through the billing portal instead.
+            if (existing is { Status: SubscriptionStatus.Active or SubscriptionStatus.Trialing or SubscriptionStatus.PastDue })
+            {
+                throw new InvalidOperationException($"Tenant {tenantId} already has an active subscription — use the billing portal to change it.");
+            }
 
             var options = new SessionCreateOptions
             {

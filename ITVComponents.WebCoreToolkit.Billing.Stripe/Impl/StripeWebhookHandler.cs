@@ -24,12 +24,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
     {
         private readonly TContext db;
         private readonly IFeatureProvisioner provisioner;
+        private readonly IStripeClient client;
         private readonly StripeOptions options;
 
-        public StripeWebhookHandler(TContext db, IFeatureProvisioner provisioner, IOptions<StripeOptions> options)
+        public StripeWebhookHandler(TContext db, IFeatureProvisioner provisioner, IStripeClient client, IOptions<StripeOptions> options)
         {
             this.db = db;
             this.provisioner = provisioner;
+            this.client = client;
             this.options = options.Value;
         }
 
@@ -70,6 +72,21 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
             if (tenantId == null)
             {
                 return; // cannot attribute without the tenant marker
+            }
+
+            // Stripe delivers events at-least-once and NOT strictly ordered, so the event payload can be a
+            // stale snapshot. Re-read the authoritative current state to keep an older event from regressing a
+            // newer one (e.g. a late "updated" overwriting "canceled").
+            try
+            {
+                sub = await new SubscriptionService(client).GetAsync(
+                    sub.Id,
+                    new SubscriptionGetOptions { Expand = new List<string> { "items.data.price" } },
+                    cancellationToken: ct);
+            }
+            catch (StripeException)
+            {
+                // No longer retrievable (e.g. removed between event and handling) — fall back to the payload.
             }
 
             var local = await db.TenantSubscriptions.Include(s => s.Items)
@@ -134,6 +151,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                     {
                         featureKeys.Add(f.FeatureKey);
                     }
+                }
+                else
+                {
+                    // Price isn't in our catalog (e.g. created directly in Stripe, or an archived/re-pointed
+                    // price). Don't mirror an unattributable line with neither PlanId nor AddOnId.
+                    continue;
                 }
 
                 local.Items.Add(line);
