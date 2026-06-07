@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Helpers;
+using ITVComponents.WebCoreToolkit.IdentityShared.Helpers;
 using Microsoft.AspNetCore.Identity;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Helpers

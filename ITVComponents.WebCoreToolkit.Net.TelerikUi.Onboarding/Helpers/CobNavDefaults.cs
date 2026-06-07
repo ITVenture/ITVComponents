@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Services.Options;
+using ITVComponents.WebCoreToolkit.IdentityShared.Services.Options;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Helpers

@@ -19,13 +19,13 @@ using Microsoft.AspNetCore.Identity.UI.Services;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Areas.Identity.Pages.Account;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Areas.Identity.Pages.Account.Manage;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Extensions;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Helpers;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.PageHandlers.Identity.Account;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.PageHandlers.Identity.Account.Manage;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Services.Impl;
+using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity.Pages.Account;
+using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity.Pages.Account.Manage;
+using ITVComponents.WebCoreToolkit.IdentityShared.Extensions;
+using ITVComponents.WebCoreToolkit.IdentityShared.Helpers;
+using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account;
+using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage;
+using ITVComponents.WebCoreToolkit.IdentityShared.Services.Impl;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Helpers;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding

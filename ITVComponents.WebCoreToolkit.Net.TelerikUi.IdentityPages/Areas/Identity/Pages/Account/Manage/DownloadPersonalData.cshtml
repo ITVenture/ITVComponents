@@ -1,9 +1,9 @@
 ﻿@page
 @inject IStringLocalizer<IdentityMessages> localizer
 @inject IManageNavigator manageNavigator
-@using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Services
+@using ITVComponents.WebCoreToolkit.IdentityShared.Services
 @using Microsoft.Extensions.Localization
-@model ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Areas.Identity.Pages.Account.Manage.DownloadPersonalDataModel
+@model ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity.Pages.Account.Manage.DownloadPersonalDataModel
 @{
     ViewData["Title"] = localizer["Download Your Data"];
     manageNavigator.ActivePage = "personalData";

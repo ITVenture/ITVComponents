@@ -1,9 +1,9 @@
 using System.Text.Json;
 using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Handlers;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Areas.Identity;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.Areas.Identity.Pages.Account.Manage;
-using ITVComponents.WebCoreToolkit.Net.TelerikUi.IdentityPages.PageHandlers.Identity.Account.Manage;
+using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity;
+using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity.Pages.Account.Manage;
+using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
