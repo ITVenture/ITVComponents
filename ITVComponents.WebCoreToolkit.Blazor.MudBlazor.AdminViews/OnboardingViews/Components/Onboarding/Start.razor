@@ -1,0 +1,88 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Onboarding
+@page "/Account/Onboarding/Start"
+@rendermode @(RenderMode.InteractiveServer)
+@using Microsoft.AspNetCore.Authorization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using ITVComponents.WebCoreToolkit.Security
+@attribute [AllowAnonymous]
+
+@inject IOnboardingHandler Handler
+@inject IAccountConfirmationMailer Mailer
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+
+<PageTitle>@L["Onb_Start_Title"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="my-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">@L["Onb_Start_Title"]</MudText>
+    <MudText Typo="Typo.body1" Class="mb-4">@L["Onb_Start_Intro"]</MudText>
+
+    @if (done)
+    {
+        <MudAlert Severity="Severity.Success" Class="my-4">@L["Onb_Start_CheckMail"]</MudAlert>
+        <MudButton Href="/Account/Login" Variant="Variant.Filled" Color="Color.Primary">@L["Onb_Start_ToLogin"]</MudButton>
+    }
+    else
+    {
+        <EditForm Model="model" OnValidSubmit="OnSubmitAsync">
+            <DataAnnotationsValidator />
+
+            <BillingProfileForm Model="model" ShowParentTenantPicker="false" />
+
+            <MudPaper Class="pa-4 mb-3" Outlined="true">
+                <MudText Typo="Typo.h6" GutterBottom="true">@L["Onb_Start_Account"]</MudText>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="model.Password" Label="@(L["Onb_Start_Password"])"
+                                      For="@(() => model.Password)" InputType="InputType.Password" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="model.ConfirmPassword" Label="@(L["Onb_Start_ConfirmPassword"])"
+                                      For="@(() => model.ConfirmPassword)" InputType="InputType.Password" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">
+                <MudButton Href="/Account/Login" Variant="Variant.Text" Color="Color.Default">@L["Onb_Cancel"]</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy">
+                    @(busy ? L["Onb_Creating"].Value : L["Onb_Start_Submit"].Value)
+                </MudButton>
+            </MudStack>
+
+            <ValidationSummary />
+        </EditForm>
+    }
+</MudContainer>
+
+@code {
+    private DirectOnboardingViewModel model = new();
+    private bool busy;
+    private bool done;
+
+    private async Task OnSubmitAsync()
+    {
+        busy = true;
+        try
+        {
+            // The billing-profile e-mail doubles as the login e-mail.
+            var result = await Handler.StartOnboardingAsync(new OnboardingStartInput(model.Email, model.Password, model));
+            if (!result.Succeeded)
+            {
+                Snackbar.Add(string.Join(" ", result.Errors), Severity.Error);
+                return;
+            }
+
+            // Send the confirmation mail via the identity layer's own mailer (no Identity-UI dependency here).
+            var confirmUri = Nav.ToAbsoluteUri("/Account/ConfirmEmail").AbsoluteUri;
+            await Mailer.SendConfirmationAsync(result.UserId!, confirmUri, "/Account/Onboarding/MyTenants");
+
+            done = true;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

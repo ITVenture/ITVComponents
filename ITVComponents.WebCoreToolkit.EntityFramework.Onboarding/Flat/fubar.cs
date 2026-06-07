@@ -51,6 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat
         public DbSet<BillingProfile> BillingProfiles { get; set; }
         public DbSet<Employee> Employees { get; set; }
         public DbSet<EmployeeRole> EmployeeRoles { get; set; }
+        public DbSet<PendingOnboarding> PendingOnboardings { get; set; }
 
         private string GetUserId()
         {

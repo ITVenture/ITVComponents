@@ -61,6 +61,20 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            try
+            {
+                // Finish a deferred direct onboarding: the tenant is created on the first authenticated
+                // landing after the user confirmed their e-mail. Idempotent and best-effort.
+                await Handler.CompletePendingOnboardingAsync(state.User);
+            }
+            catch
+            {
+                // a failed completion must not block the tenant list
+            }
+        }
         await ReloadAsync();
     }
 

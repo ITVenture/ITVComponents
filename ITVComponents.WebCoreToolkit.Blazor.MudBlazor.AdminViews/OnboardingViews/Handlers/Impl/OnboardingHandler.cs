@@ -121,6 +121,12 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         return profile.BillingProfileId;
     }
 
+    public Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default)
+        => OnboardingPendingHelper.StartAsync(db, userManager, input, ct);
+
+    public Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default)
+        => OnboardingPendingHelper.CompleteAsync(db, userManager, user, CreateTenantAsync, ct);
+
     public async Task<ParticipatingTenantViewModel[]> ListMyTenantsAsync(ClaimsPrincipal user, CancellationToken ct = default)
     {
         var owner = await userManager.GetUserAsync(user);

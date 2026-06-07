@@ -87,4 +87,12 @@
   <data name="Onb_Number" xml:space="preserve"><value>Number</value></data>
   <data name="Onb_Zip" xml:space="preserve"><value>ZIP</value></data>
   <data name="Onb_City" xml:space="preserve"><value>City</value></data>
+  <data name="Onb_Start_Title" xml:space="preserve"><value>Create your account</value></data>
+  <data name="Onb_Start_Intro" xml:space="preserve"><value>Sign up and set up your tenant in a single step. You will receive an e-mail to confirm your address.</value></data>
+  <data name="Onb_Start_Account" xml:space="preserve"><value>Login</value></data>
+  <data name="Onb_Start_Password" xml:space="preserve"><value>Password</value></data>
+  <data name="Onb_Start_ConfirmPassword" xml:space="preserve"><value>Confirm password</value></data>
+  <data name="Onb_Start_Submit" xml:space="preserve"><value>Create account</value></data>
+  <data name="Onb_Start_CheckMail" xml:space="preserve"><value>Your account was created. Please confirm your e-mail address, then log in to finish setting up your tenant.</value></data>
+  <data name="Onb_Start_ToLogin" xml:space="preserve"><value>Go to login</value></data>
 </root>

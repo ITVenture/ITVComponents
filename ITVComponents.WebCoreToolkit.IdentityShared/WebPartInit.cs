@@ -17,6 +17,7 @@ using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.
 using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage.Impl.Generic;
 using ITVComponents.WebCoreToolkit.IdentityShared.Services;
 using ITVComponents.WebCoreToolkit.IdentityShared.Services.Impl;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -172,6 +173,14 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared
             if (options.UseDefaultMailSender)
             {
                 services.AddSingleton<IEmailSender, DefaultMailSender>();
+            }
+
+            // Confirmation mailer for account-creating flows outside the identity pages (e.g. direct
+            // onboarding). Generic over the configured user type so callers depend only on the abstraction.
+            if (tuserType != null)
+            {
+                services.AddScoped(typeof(IAccountConfirmationMailer),
+                    typeof(AccountConfirmationMailer<>).MakeGenericType(tuserType));
             }
         }
     }

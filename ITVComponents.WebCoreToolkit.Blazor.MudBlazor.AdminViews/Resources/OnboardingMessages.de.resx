@@ -41,4 +41,12 @@
   <data name="Onb_Number" xml:space="preserve"><value>Nummer</value></data>
   <data name="Onb_Zip" xml:space="preserve"><value>PLZ</value></data>
   <data name="Onb_City" xml:space="preserve"><value>Ort</value></data>
+  <data name="Onb_Start_Title" xml:space="preserve"><value>Konto erstellen</value></data>
+  <data name="Onb_Start_Intro" xml:space="preserve"><value>Registrieren und Mandant in einem Schritt einrichten. Sie erhalten eine E-Mail zur Bestätigung Ihrer Adresse.</value></data>
+  <data name="Onb_Start_Account" xml:space="preserve"><value>Anmeldung</value></data>
+  <data name="Onb_Start_Password" xml:space="preserve"><value>Passwort</value></data>
+  <data name="Onb_Start_ConfirmPassword" xml:space="preserve"><value>Passwort bestätigen</value></data>
+  <data name="Onb_Start_Submit" xml:space="preserve"><value>Konto erstellen</value></data>
+  <data name="Onb_Start_CheckMail" xml:space="preserve"><value>Ihr Konto wurde erstellt. Bitte bestätigen Sie Ihre E-Mail-Adresse und melden Sie sich an, um die Einrichtung des Mandanten abzuschließen.</value></data>
+  <data name="Onb_Start_ToLogin" xml:space="preserve"><value>Zur Anmeldung</value></data>
 </root>

@@ -33,6 +33,21 @@ public interface IOnboardingHandler
     Task<int?> CreateTenantAsync(ClaimsPrincipal user, BillingProfileViewModel input, CancellationToken ct = default);
 
     /// <summary>
+    /// Deferred direct onboarding (anonymous): creates the Identity user (unconfirmed) and parks the
+    /// requested tenant payload as a pending record keyed by e-mail. No tenant is created yet — that happens
+    /// on <see cref="CompletePendingOnboardingAsync"/>. The confirmation mail is sent separately via
+    /// <see cref="ITVComponents.WebCoreToolkit.Security.IAccountConfirmationMailer"/> using the returned user id.
+    /// </summary>
+    Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default);
+
+    /// <summary>
+    /// Completes any pending direct-onboarding for the now-authenticated user (matched by e-mail):
+    /// creates the tenant from the parked payload and marks the record committed. Idempotent — returns
+    /// <c>false</c> when there is nothing pending.
+    /// </summary>
+    Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default);
+
+    /// <summary>
     /// Lists all tenants the calling user participates in — both owned tenants and ones where
     /// the user has an open or accepted invitation.
     /// </summary>
@@ -64,3 +79,16 @@ public record TenantPickerItem(int TenantId, string DisplayName);
 /// exists, i.e. the user must pick a parent.
 /// </summary>
 public record OnboardingParentPolicy(bool ShowPicker, bool ParentRequired);
+
+/// <summary>
+/// Input for <see cref="IOnboardingHandler.StartOnboardingAsync"/>: the account credentials plus the
+/// tenant/billing-profile request that is parked until the user confirms their e-mail. An optional
+/// tenant-invitation token can pin the future parent tenant (tree flow).
+/// </summary>
+public record OnboardingStartInput(string Email, string Password, BillingProfileViewModel Profile, string? InvitationToken = null);
+
+/// <summary>
+/// Result of <see cref="IOnboardingHandler.StartOnboardingAsync"/>. On success carries the new user id
+/// (used to trigger the confirmation mail); on failure carries the Identity error descriptions.
+/// </summary>
+public record OnboardingStartResult(bool Succeeded, string? UserId, IReadOnlyList<string> Errors);
