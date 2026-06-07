@@ -23,7 +23,8 @@
         <DataAnnotationsValidator />
 
         <BillingProfileForm Model="model"
-                            ShowParentTenantPicker="Handler.UseHierarchy"
+                            ShowParentTenantPicker="Handler.ParentPolicy.ShowPicker"
+                            ParentRequired="Handler.ParentPolicy.ParentRequired"
                             EligibleParents="parents" />
 
         <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">

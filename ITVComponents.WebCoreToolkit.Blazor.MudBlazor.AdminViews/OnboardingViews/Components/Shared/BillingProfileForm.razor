@@ -51,7 +51,7 @@
 {
     <MudPaper Class="pa-4 mb-3" Outlined="true">
         <MudSelect T="int?" Value="Model.ParentTenantId" ValueChanged="v => Model.ParentTenantId = v"
-                   Label="@(L["Onb_ParentTenant"])" Clearable="true" Dense="true">
+                   Label="@(L["Onb_ParentTenant"])" Clearable="@(!ParentRequired)" Required="@ParentRequired" Dense="true">
             @foreach (var t in EligibleParents)
             {
                 <MudSelectItem T="int?" Value="@((int?)t.TenantId)">@t.DisplayName</MudSelectItem>
@@ -83,6 +83,9 @@
 
     /// <summary>Set by the host page to render the parent-tenant picker when the hierarchy strategy is active.</summary>
     [Parameter] public bool ShowParentTenantPicker { get; set; }
+
+    /// <summary>When true, a parent tenant must be picked (roots disallowed, no default fallback configured).</summary>
+    [Parameter] public bool ParentRequired { get; set; }
 
     /// <summary>Tenants the user may pick as a parent. Empty for the flat strategy.</summary>
     [Parameter] public IReadOnlyList<TenantPickerItem> EligibleParents { get; set; } = Array.Empty<TenantPickerItem>();

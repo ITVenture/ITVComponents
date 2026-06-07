@@ -58,11 +58,34 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
 
     public bool UseHierarchy => true;
 
+    public OnboardingParentPolicy ParentPolicy
+    {
+        get
+        {
+            var cfg = setupOptions.ValueOrDefault;
+            var hasDefault = !string.IsNullOrEmpty(cfg?.DefaultParentTenant);
+            var allowRoot = cfg?.AllowRootTenantCreation ?? true;
+            // A forced default parent hides the picker (auto-assigned). Otherwise show it; a pick is only
+            // mandatory when roots are disallowed and there is no default to fall back to.
+            return new OnboardingParentPolicy(ShowPicker: !hasDefault, ParentRequired: !allowRoot && !hasDefault);
+        }
+    }
+
     public async Task<int?> CreateTenantAsync(ClaimsPrincipal user, BillingProfileViewModel input, CancellationToken ct = default)
     {
         var owner = await userManager.GetUserAsync(user);
         if (owner == null)
         {
+            return null;
+        }
+
+        // Parent precedence: explicit pick (or, later, an invitation) wins; otherwise fall back to the
+        // configured DefaultParentTenant. If still none and roots are disabled, reject onboarding so no
+        // further root tenants can be created.
+        var parentId = await ResolveParentTenantIdAsync(input.ParentTenantId, ct);
+        if (parentId == null && !(setupOptions.ValueOrDefault?.AllowRootTenantCreation ?? true))
+        {
+            logger.LogWarning("Onboarding rejected: root-tenant creation is disabled but no parent could be resolved.");
             return null;
         }
 
@@ -75,7 +98,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             DisplayName = displayName,
             TenantName = Guid.NewGuid().ToString("N"),
             TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey()),
-            ParentTenantId = input.ParentTenantId
+            ParentTenantId = parentId
         };
         db.Tenants.Add(tenant);
 
@@ -252,6 +275,35 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             ctx.TenantUserRoles.Add(new UserRole { Role = role, User = admin });
             ctx.SaveChanges();
         });
+    }
+
+    /// <summary>
+    /// Resolves the parent tenant for a new tenant: an explicitly requested parent wins; otherwise the
+    /// DB-configured <c>DefaultParentTenant</c> (matched by TenantName, fallback DisplayName) is used.
+    /// Returns null when neither applies (root tenant — caller decides whether that is permitted).
+    /// </summary>
+    private async Task<int?> ResolveParentTenantIdAsync(int? requested, CancellationToken ct)
+    {
+        if (requested != null)
+        {
+            return requested;
+        }
+
+        var name = setupOptions.ValueOrDefault?.DefaultParentTenant;
+        if (string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+
+        var parentId = await db.Tenants.AsNoTracking()
+            .Where(t => t.TenantName == name || t.DisplayName == name)
+            .Select(t => (int?)t.TenantId)
+            .FirstOrDefaultAsync(ct);
+        if (parentId == null)
+        {
+            logger.LogWarning("Configured DefaultParentTenant '{Name}' was not found; new tenant gets no parent.", name);
+        }
+        return parentId;
     }
 
     private static TAddress? MapAddress<TAddress>(AddressInput input, string fallbackName)

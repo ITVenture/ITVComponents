@@ -18,6 +18,13 @@ public interface IOnboardingHandler
     bool UseHierarchy { get; }
 
     /// <summary>
+    /// Parent-tenant policy for the create-tenant UI in the hierarchy scenario. Derived from the
+    /// DB-backed <c>TenantSetupOptions</c> (AllowRootTenantCreation / DefaultParentTenant). The flat
+    /// strategy returns a no-op policy (no picker, not required).
+    /// </summary>
+    OnboardingParentPolicy ParentPolicy { get; }
+
+    /// <summary>
     /// Creates a tenant + billing profile for the calling user. For
     /// <see cref="ProfileType.Personal"/> no employee row is created; for
     /// <see cref="ProfileType.Company"/> the owner is recorded as employee #1.
@@ -49,3 +56,11 @@ public interface IOnboardingHandler
 /// Compact tenant projection used to populate parent-tenant pickers in the create-tenant flow.
 /// </summary>
 public record TenantPickerItem(int TenantId, string DisplayName);
+
+/// <summary>
+/// Drives the parent-tenant picker in the create-tenant page. <paramref name="ShowPicker"/> is false
+/// when a default parent is forced (auto-assigned) or the flat strategy is active.
+/// <paramref name="ParentRequired"/> is true when root tenants are disallowed and no default parent
+/// exists, i.e. the user must pick a parent.
+/// </summary>
+public record OnboardingParentPolicy(bool ShowPicker, bool ParentRequired);

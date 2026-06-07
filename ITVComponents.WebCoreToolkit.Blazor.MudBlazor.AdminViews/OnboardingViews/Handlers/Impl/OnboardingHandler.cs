@@ -56,6 +56,8 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
     public bool UseHierarchy => false;
 
+    public OnboardingParentPolicy ParentPolicy => new(false, false);
+
     public async Task<int?> CreateTenantAsync(ClaimsPrincipal user, BillingProfileViewModel input, CancellationToken ct = default)
     {
         var owner = await userManager.GetUserAsync(user);
