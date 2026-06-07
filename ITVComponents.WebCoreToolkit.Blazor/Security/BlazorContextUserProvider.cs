@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.Security
@@ -14,7 +15,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
     /// circuit, one instance == one browser tab — so different tabs naturally carry different ambient state.
     /// The (synchronous) <see cref="User"/> getter is served from a cached principal that is seeded once by
     /// <see cref="ContextUserInitializer"/> and kept current via <see cref="AuthenticationStateProvider"/>'s
-    /// change notification. Render-mode-neutral (Server and WebAssembly), no CircuitHandler dependency.
+    /// change notification. On static-SSR requests (no circuit) it falls back to the request's
+    /// <c>HttpContext.User</c>. Render-mode-neutral (Server and WebAssembly), no CircuitHandler dependency.
     /// </summary>
     public sealed class BlazorContextUserProvider : IContextUserProvider, IDisposable
     {
@@ -23,19 +25,41 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         private readonly AuthenticationStateProvider authStateProvider;
         private readonly NavigationManager navigation;
         private readonly IOptions<ScopedPermissionScopeOptions> scopeOptions;
+        private readonly IHttpContextAccessor httpContextAccessor;
         private ClaimsPrincipal user = Anonymous;
 
-        public BlazorContextUserProvider(AuthenticationStateProvider authStateProvider, NavigationManager navigation, IServiceProvider services, IOptions<ScopedPermissionScopeOptions> scopeOptions)
+        public BlazorContextUserProvider(AuthenticationStateProvider authStateProvider, NavigationManager navigation, IServiceProvider services, IOptions<ScopedPermissionScopeOptions> scopeOptions, IHttpContextAccessor httpContextAccessor)
         {
             this.authStateProvider = authStateProvider;
             this.navigation = navigation;
             this.scopeOptions = scopeOptions;
+            this.httpContextAccessor = httpContextAccessor;
             Services = services;
             authStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         }
 
         /// <inheritdoc/>
-        public ClaimsPrincipal User => user;
+        public ClaimsPrincipal User
+        {
+            get
+            {
+                // A live circuit seeds `user` (via ContextUserInitializer) and keeps it current through
+                // AuthenticationStateChanged, so prefer it whenever it carries an authenticated identity.
+                if (user.Identity?.IsAuthenticated == true)
+                {
+                    return user;
+                }
+
+                // Static SSR (e.g. [ExcludeFromInteractiveRouting] Identity pages) renders without a circuit:
+                // the ServerAuthenticationStateProvider-derived AuthenticationStateProvider never gets its state
+                // set, so both the seed and the change-event yield Anonymous. The HttpContext is available
+                // exactly in that window (and null inside a live circuit), so fall back to the request's
+                // authenticated user — otherwise scope resolution and navigation see an anonymous user on
+                // every Identity page.
+                var contextUser = httpContextAccessor.HttpContext?.User;
+                return contextUser?.Identity?.IsAuthenticated == true ? contextUser : user;
+            }
+        }
 
         /// <inheritdoc/>
         public IServiceProvider Services { get; }

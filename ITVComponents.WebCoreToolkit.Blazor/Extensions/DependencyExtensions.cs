@@ -38,6 +38,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
         /// <returns>the service collection for chaining</returns>
         public static IServiceCollection AddBlazorContextUser(this IServiceCollection services)
         {
+            // Needed for the static-SSR fallback in BlazorContextUserProvider.User (Identity pages render
+            // without a circuit, so the AuthenticationStateProvider yields Anonymous there). Idempotent.
+            services.AddHttpContextAccessor();
             services.AddScoped<BlazorContextUserProvider>();
             services.AddScoped<IContextUserProvider>(sp => sp.GetRequiredService<BlazorContextUserProvider>());
             return services;

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.Security;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -67,7 +68,7 @@ namespace ITVComponents.WebCoreToolkit.Tests
                 RouteOverrideParam = "tenant",
                 TenantSource = source
             });
-            return new BlazorContextUserProvider(auth, nav, new EmptyServiceProvider(), options);
+            return new BlazorContextUserProvider(auth, nav, new EmptyServiceProvider(), options, new HttpContextAccessor());
         }
 
         private sealed class TestNavigationManager : NavigationManager
