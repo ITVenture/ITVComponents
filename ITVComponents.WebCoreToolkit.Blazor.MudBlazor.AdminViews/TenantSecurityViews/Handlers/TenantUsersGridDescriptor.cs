@@ -1,7 +1,7 @@
 using System;
 using Microsoft.AspNetCore.Components;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
 {
     /// <summary>
     /// DI marker that names the strategy-specific Blazor component which renders the "Users" tab inside the

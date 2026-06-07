@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Text;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.EntityFrameworkCore;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Options
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Options
 {
     public class TenantOptions<TTenant> where TTenant : Tenant
     {

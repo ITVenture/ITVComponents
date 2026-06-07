@@ -85,14 +85,17 @@ Spalte **NS** = hat sich der C#-Namespace mit geändert? (Details in Abschnitt B
 
 | Alt (entfernt) | Neu | NS |
 |---|---|---|
-| `…Blazor.MudBlazor.TenantSecurityViews` | `…Blazor.MudBlazor.AdminViews` | nein |
-| `…Blazor.MudBlazor.AspNetCoreTenantSecurityUserView` | `…Blazor.MudBlazor.AdminViews` | nein |
-| `…Blazor.MudBlazor.AspNetCoreTreeTenantSecurityUserView` | `…Blazor.MudBlazor.AdminViews` | nein |
-| `…Blazor.MudBlazor.TenantSecurityContextUserView` | `…Blazor.MudBlazor.AdminViews` | nein |
-| `…Blazor.MudBlazor.OnboardingViews` | `…Blazor.MudBlazor.AdminViews` | nein |
+| `…Blazor.MudBlazor.TenantSecurityViews` | `…Blazor.MudBlazor.AdminViews` | **ja** |
+| `…Blazor.MudBlazor.AspNetCoreTenantSecurityUserView` | `…Blazor.MudBlazor.AdminViews` | **ja** |
+| `…Blazor.MudBlazor.AspNetCoreTreeTenantSecurityUserView` | `…Blazor.MudBlazor.AdminViews` | **ja** |
+| `…Blazor.MudBlazor.TenantSecurityContextUserView` | `…Blazor.MudBlazor.AdminViews` | **ja** |
+| `…Blazor.MudBlazor.OnboardingViews` | `…Blazor.MudBlazor.AdminViews` | **ja** |
 
 > **Bleiben separat:** `…Blazor.MudBlazor` (Basis) und `…Blazor.MudBlazor.IdentityPages`.
-> **Namespaces unverändert** — die Blazor-Familie nutzt durchgängig `ITVComponents.WebCoreToolkit.<Feature>.Blazor.*`; nur die NuGet-ID/Assembly heißt jetzt `…Blazor.MudBlazor.AdminViews`. Kein `using`-Sweep nötig.
+> **Namespaces angeglichen** (nachgezogen in Future_10): Die 5 Bereiche sind jetzt auf das Schema
+> `ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.<Bereich>.*` (RootNamespace + Ordnerpfad)
+> vereinheitlicht — früher trug jeder Bereich noch seinen Pre-Konsolidierungs-Root
+> `ITVComponents.WebCoreToolkit.<Bereich>.Blazor.*`. **`using`-Sweep nötig** → Abschnitt B.
 
 ---
 
@@ -152,6 +155,17 @@ Razor-/Asset-Spezifika (#19), in den **eigenen** cshtml/Layouts des Hosts:
 - `@addTagHelper *, ITVComponents.WebCoreToolkit.Net.TelerikUi` → `…Net.TelerikUi.AdminViews` (Assembly-Name!).
   Ebenso ein etwaiges `@addTagHelper *, …TenantSecurityViews` → `…AdminViews`.
 - `_content/ITVComponents.WebCoreToolkit.Net.TelerikUi[.TenantSecurityViews]/…` → `_content/…Net.TelerikUi.AdminViews/…` (Asset-Pfade kollabieren auf die neue Paket-ID, **ohne** Sub-Segment).
+
+### Blazor-MudBlazor (#20) — RootNamespace + Ordnerpfad
+```
+…WebCoreToolkit.TenantSecurityViews.Blazor                  →  …WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews
+…WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor     →  …WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView
+…WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blazor →  …WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTreeTenantSecurityUserView
+…WebCoreToolkit.TenantSecurityContextUserView.Blazor        →  …WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityContextUserView
+…WebCoreToolkit.OnboardingViews.Blazor                      →  …WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews
+```
+> 1:1-Präfix-Tausch; alle Sub-Segmente (`.Extensions`/`.Handlers[.Impl]`/`.ViewModels`/`.Options`/`.Components.*`) bleiben erhalten. Gilt für `.cs` **und** Razor (`@using`/`@namespace` in `_Imports.razor`). Die 5 alten Roots überlappen nicht, Reihenfolge egal.
+> **`global::MudBlazor`-Falle:** Der neue Root enthält das Segment `Blazor.MudBlazor` und beschattet damit den Library-Namespace `MudBlazor`. In jedem bereichseigenen `_Imports.razor` steht deshalb neben `@using global::MudBlazor` (Member-Import für unqualifizierte Nutzung) zusätzlich der Alias `@using MudBlazor = global::MudBlazor` — sonst scheitern qualifizierte (auch vom Razor-Generator emittierte) Referenzen wie `MudBlazor.CellContext<>` / `MudBlazor.InputType`. Eigene Host-Razor-Komponenten, die unter `…Blazor.MudBlazor.*` liegen, brauchen denselben Alias.
 
 ---
 

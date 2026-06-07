@@ -1,5 +1,5 @@
 ﻿using System.Security.Claims;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.ViewModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
@@ -9,7 +9,7 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
-namespace ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers.Impl;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Handlers.Impl;
 
 public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUserRole, TRolePermission,
     TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu,

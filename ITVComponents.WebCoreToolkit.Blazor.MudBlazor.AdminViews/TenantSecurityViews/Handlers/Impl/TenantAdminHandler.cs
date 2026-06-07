@@ -8,12 +8,12 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.
 using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.ForeignKeys;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Options;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Options;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers.Impl;
 
 public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission,
     TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu,

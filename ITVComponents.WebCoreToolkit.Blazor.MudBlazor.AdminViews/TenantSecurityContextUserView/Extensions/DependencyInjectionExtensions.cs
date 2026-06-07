@@ -1,5 +1,5 @@
 ﻿using ITVComponents.WebCoreToolkit.AspExtensions.Options;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Handlers;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
@@ -9,9 +9,9 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Components.Tenants;
-using ITVComponents.WebCoreToolkit.TenantSecurityContextUserView.Blazor.Handlers.Impl;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Components.Tenants;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityContextUserView.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.CustomUserProperty;
@@ -29,7 +29,7 @@ using TenantNavigationMenu = ITVComponents.WebCoreToolkit.EntityFramework.Tenant
 using TenantUser = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.TenantUser;
 using UserRole = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.UserRole;
 using TscModels = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
-namespace ITVComponents.WebCoreToolkit.TenantSecurityContextUserView.Blazor.Extensions;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityContextUserView.Extensions;
 
 public static class DependencyInjectionExtensions
 {

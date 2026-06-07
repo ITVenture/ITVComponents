@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
 
-namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Handlers;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers;
 
 /// <summary>
 /// Strategy-agnostic abstraction over the tenant-onboarding flow. The flat variant is bound

@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 
-namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.ViewModels;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
 
 /// <summary>
 /// Form-bound view model for creating (or editing) a <c>BillingProfile</c>.

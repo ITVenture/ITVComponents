@@ -13,12 +13,12 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Mod
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
-using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Handlers.Impl;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 
 /// <summary>
 /// Hierarchy-strategy onboarding handler. Operates against

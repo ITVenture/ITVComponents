@@ -11,12 +11,12 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
-using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Handlers.Impl;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 
 /// <summary>
 /// Flat-strategy onboarding handler. Operates against <c>ISecurityContextWithOnboarding</c>

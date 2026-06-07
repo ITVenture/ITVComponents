@@ -3,12 +3,12 @@ using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Handlers;
-using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Extensions;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Extensions;
 
 /// <summary>
 /// DI registrations for the OnboardingViews Blazor library. The host picks the strategy

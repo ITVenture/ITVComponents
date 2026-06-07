@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using ITVComponents.WebCoreToolkit.Models;
 
-namespace ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.ViewModels;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.ViewModels;
 
 public class CustomUserPropertyViewModel
 {

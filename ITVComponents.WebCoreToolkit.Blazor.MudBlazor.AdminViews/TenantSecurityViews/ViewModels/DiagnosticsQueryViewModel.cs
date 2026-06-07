@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 
 public class DiagnosticsQueryViewModel
 {

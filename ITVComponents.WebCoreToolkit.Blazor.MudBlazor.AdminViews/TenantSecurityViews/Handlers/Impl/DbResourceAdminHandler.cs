@@ -2,11 +2,11 @@
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using DbLocale = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Localization;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers.Impl;
 
 public class DbResourceAdminHandler : IDbResourceAdminHandler
 {

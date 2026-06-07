@@ -1,7 +1,7 @@
 ﻿using ITVComponents.WebCoreToolkit.AspExtensions.Options;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers.Impl;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Components.Tenants;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Handlers;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Components.Tenants;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model;
@@ -9,14 +9,13 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Hel
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers.Impl;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Options;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Extensions;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Options;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blazor.Extensions;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTreeTenantSecurityUserView.Extensions;
 
 public static class DependencyInjectionExtensions
 {
@@ -62,24 +61,31 @@ public static class DependencyInjectionExtensions
         {
             DefaultBehavior = TypeRegisterBehavior.Use
         };
-        services.AddBlazorRoutingAssembly(typeof(ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions.DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
+        // The tree security context satisfies every constraint of the generic flat registration
+        // (IHierarchySecurityContext : ISecurityContext, and every Hierarchy* model derives from the
+        // matching flat base model). So we reuse it verbatim with the Hierarchy* type arguments instead
+        // of duplicating handler registrations here. This also pulls in AddBlazorRoutingAssembly +
+        // AddTSVCoreServices and every admin handler (Asset/Navigation/Widget/Plugin/...), keeping the
+        // tree configuration in sync with the flat one automatically.
+        services.AddMudBlazorTenantSecurityViews<
+            TContext, HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission,
+            HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,
+            TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery,
+            DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,
+            AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature,
+            SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
+            ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
+            ClientApp, ClientAppPermission, ClientAppUser,
+            HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence,
+            HierarchyTenantSetting, HierarchyTenantFeatureActivation,
+            HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin,
+            HierarchyTenantContextSecurityTrustConfig>(partTypeLoadBehavior);
+
+        // Hierarchy-specific tenant behavior layered on top of the generic registration above
+        // (the flat method registers the handler but not the hierarchy tenant options).
         if (partTypeLoadBehavior.ShouldLoadType(
                 typeof(TenantAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
-            services.AddScoped<ITenantAdminHandler, TenantAdminHandler<
-                TContext, HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission,
-                HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,
-                TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery,
-                DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,
-                AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature,
-                SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
-                ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
-                ClientApp, ClientAppPermission, ClientAppUser,
-                HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence,
-                HierarchyTenantSetting, HierarchyTenantFeatureActivation,
-                HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState,
-                HierarchyExternalOAuthServiceTenantLogin,
-                HierarchyTenantContextSecurityTrustConfig>>();
             services.Configure<TenantOptions<HierarchyTenant>>(o =>
             {
                 o.UseHierarchy = true;
@@ -128,42 +134,6 @@ public static class DependencyInjectionExtensions
                     return id;
                 };
             });
-        }
-
-        if (partTypeLoadBehavior.ShouldLoadType(typeof(RoleAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
-        {
-            services.AddScoped<IRoleAdminHandler, RoleAdminHandler<
-                TContext, HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission,
-                HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,
-                TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery,
-                DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,
-                AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature,
-                SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
-                ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
-                ClientApp, ClientAppPermission, ClientAppUser,
-                HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence,
-                HierarchyTenantSetting, HierarchyTenantFeatureActivation,
-                HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin,
-                HierarchyTenantContextSecurityTrustConfig>>();
-        }
-
-        if (partTypeLoadBehavior.ShouldLoadType(
-                typeof(PermissionAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
-        {
-            services.AddScoped<IPermissionAdminHandler, PermissionAdminHandler<
-                TContext, HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission,
-                HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,
-                TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery,
-                DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,
-                AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature,
-                SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
-                ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
-                ClientApp, ClientAppPermission, ClientAppUser,
-                HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence,
-                HierarchyTenantSetting, HierarchyTenantFeatureActivation,
-                HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState,
-                HierarchyExternalOAuthServiceTenantLogin,
-                HierarchyTenantContextSecurityTrustConfig>>();
         }
 
         return services;

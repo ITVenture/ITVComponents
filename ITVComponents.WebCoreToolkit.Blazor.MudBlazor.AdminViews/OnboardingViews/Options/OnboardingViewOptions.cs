@@ -1,6 +1,6 @@
 using ITVComponents.WebCoreToolkit.Configuration;
 
-namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Options;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Options;
 
 /// <summary>
 /// WebPart-level options for the OnboardingViews Blazor library. Decides which

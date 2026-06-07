@@ -73,17 +73,17 @@ else
             <MudPaper Elevation="0" Class="pa-2">
                 <MudTabs Elevation="0" Rounded="true">
                     <MudTabPanel Text="Permissions">
-                        <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.PermissionsForRoleGrid
+                        <ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Components.CrossGrids.PermissionsForRoleGrid
                             RoleId="@context.Item.RoleId"
                             TenantId="@context.Item.TenantId" />
                     </MudTabPanel>
                     <MudTabPanel Text="Permitted roles">
-                        <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.PermittedRolesForRoleGrid
+                        <ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Components.CrossGrids.PermittedRolesForRoleGrid
                             PermissiveRoleId="@context.Item.RoleId"
                             TenantId="@context.Item.TenantId" />
                     </MudTabPanel>
                     <MudTabPanel Text="Global roles">
-                        <ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Components.CrossGrids.GlobalRolesForLocalRoleGrid
+                        <ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Components.CrossGrids.GlobalRolesForLocalRoleGrid
                             LocalRoleId="@context.Item.RoleId" />
                     </MudTabPanel>
                 </MudTabs>

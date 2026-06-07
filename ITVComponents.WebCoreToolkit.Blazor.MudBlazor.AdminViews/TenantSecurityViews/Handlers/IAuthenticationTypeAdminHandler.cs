@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Handlers;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers;
 
 public interface IAuthenticationTypeAdminHandler
 {

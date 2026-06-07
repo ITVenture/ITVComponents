@@ -1,6 +1,6 @@
 ﻿using System.Security.Claims;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Handlers;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.ViewModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
@@ -10,7 +10,7 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.EntityFrameworkCore;
 using TscModels = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityContextUserView.Blazor.Handlers.Impl;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityContextUserView.Handlers.Impl;
 
 public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRole, TRolePermission,
     TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu,

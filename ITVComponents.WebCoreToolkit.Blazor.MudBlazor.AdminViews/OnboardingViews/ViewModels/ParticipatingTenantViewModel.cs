@@ -1,6 +1,6 @@
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 
-namespace ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.ViewModels;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
 
 /// <summary>
 /// Read-only projection of a tenant that the current user participates in (either as owner or

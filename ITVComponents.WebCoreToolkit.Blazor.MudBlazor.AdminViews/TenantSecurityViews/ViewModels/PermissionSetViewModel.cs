@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 
 public class PermissionSetViewModel
 {

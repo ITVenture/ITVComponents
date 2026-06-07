@@ -10,14 +10,14 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
-using ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Options;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using TsvExt = ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions.DependencyInjectionExtensions;
-using FlatUserExt = ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Extensions.DependencyInjectionExtensions;
-using TreeUserExt = ITVComponents.WebCoreToolkit.AspNetCoreTreeTenantSecurityUserView.Blazor.Extensions.DependencyInjectionExtensions;
-using TscUserExt = ITVComponents.WebCoreToolkit.TenantSecurityContextUserView.Blazor.Extensions.DependencyInjectionExtensions;
-using OnboardingExt = ITVComponents.WebCoreToolkit.OnboardingViews.Blazor.Extensions.DependencyInjectionExtensions;
+using TsvExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Extensions.DependencyInjectionExtensions;
+using FlatUserExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Extensions.DependencyInjectionExtensions;
+using TreeUserExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTreeTenantSecurityUserView.Extensions.DependencyInjectionExtensions;
+using TscUserExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityContextUserView.Extensions.DependencyInjectionExtensions;
+using OnboardingExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Extensions.DependencyInjectionExtensions;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews;
 

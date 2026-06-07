@@ -1,7 +1,7 @@
 ﻿using ITVComponents.WebCoreToolkit.AspExtensions.Options;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Components.Tenants;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers;
-using ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Components.Tenants;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Handlers;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Handlers.Impl;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
@@ -9,7 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.Extensions;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.CustomUserProperty;
 using DashboardParam = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.DashboardParam;
@@ -24,7 +24,7 @@ using Tenant = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Share
 using TenantDiagnosticsQuery = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.TenantDiagnosticsQuery;
 using TenantNavigationMenu = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.TenantNavigationMenu;
 
-namespace ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.Extensions;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Extensions;
 
 public static class DependencyInjectionExtensions
 {

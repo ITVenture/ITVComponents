@@ -21,7 +21,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using CustomUserProperty = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.CustomUserProperty;
 using User = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.User;
 
-namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTenantSecurityUserView.Areas.Security.Controllers
+namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreTreeTenantSecurityUserView.Areas.Security.Controllers
 {
     [Authorize("HasPermission(Users.View,Users.Write),HasFeature(ITVAdminViews)"), Area("Security"), ConstructedGenericControllerConvention(ControllerName = "UserController")]
     public class UserController<TContext> : Controller

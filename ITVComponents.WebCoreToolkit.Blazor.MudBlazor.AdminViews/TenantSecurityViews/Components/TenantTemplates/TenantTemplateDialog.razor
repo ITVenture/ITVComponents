@@ -3,7 +3,8 @@
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" RequiredError="Name is required" />
             <MudTextField @bind-Value="Model.Description" Label="Description" Lines="3" />
-            <MudTextField @bind-Value="Model.Markup" Label="Markup" Lines="10" Placeholder="Template markup (XML/JSON/...)" />
+            <MudText Typo="Typo.caption" Class="mt-3">Markup</MudText>
+            <CodeEditor @ref="markupEditor" Value="@Model.Markup" Language="json" Height="400" />
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -19,6 +20,7 @@
     [Parameter] public bool IsCreate { get; set; }
 
     private MudForm? form;
+    private CodeEditor? markupEditor;
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -26,6 +28,7 @@
     {
         if (form is null) return;
         await form.Validate();
+        if (markupEditor is not null) Model.Markup = await markupEditor.GetValueAsync();
         if (!form.IsValid) return;
         MudDialog.Close(DialogResult.Ok(Model));
     }

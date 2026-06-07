@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 
-namespace ITVComponents.WebCoreToolkit.TenantSecurityViews.Blazor.ViewModels;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 
 public class ExternalOAuthServiceViewModel
 {

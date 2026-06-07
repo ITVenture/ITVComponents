@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ITVComponents.WebCoreToolkit.AspNetCoreTenantSecurityUserView.Blazor.ViewModels;
+namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.ViewModels;
 
 public class UserViewModel
 {
