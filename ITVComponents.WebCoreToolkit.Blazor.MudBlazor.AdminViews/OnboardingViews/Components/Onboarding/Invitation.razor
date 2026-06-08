@@ -1,0 +1,70 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Onboarding
+@page "/Account/Onboarding/Invitation/{Token}"
+@rendermode @(RenderMode.InteractiveServer)
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.DependencyInjection
+@attribute [AllowAnonymous]
+
+@inject IServiceProvider Services
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<OnboardingMessages> L
+
+<PageTitle>@L["Onb_Inv_Title"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="my-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">@L["Onb_Inv_Title"]</MudText>
+
+    @if (loading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (handler is null)
+    {
+        <MudAlert Severity="Severity.Error">@L["Onb_Inv_NotSupported"]</MudAlert>
+    }
+    else if (info is null)
+    {
+        <MudAlert Severity="Severity.Error">@L["Onb_Inv_Unknown"]</MudAlert>
+    }
+    else if (!info.IsAcceptable)
+    {
+        <MudAlert Severity="Severity.Warning">@L["Onb_Inv_NotAcceptable", info.Status.ToString()]</MudAlert>
+        <MudButton Href="/Account/Login" Variant="Variant.Text" Color="Color.Primary" Class="mt-3">@L["Onb_Start_ToLogin"]</MudButton>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">@L["Onb_Inv_Welcome", info.ParentTenantName]</MudAlert>
+        <MudText Typo="Typo.body1" Class="mb-4">@L["Onb_Inv_Continue"]</MudText>
+        <MudButton OnClick="Continue" Variant="Variant.Filled" Color="Color.Primary">@L["Onb_Inv_Accept"]</MudButton>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+
+    private ITenantInvitationHandler? handler;
+    private TenantInvitationInfo? info;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        handler = Services.GetService<ITenantInvitationHandler>();
+        if (handler != null)
+        {
+            info = await handler.ResolveTenantInvitationAsync(Token);
+        }
+        loading = false;
+    }
+
+    private async Task Continue()
+    {
+        // Logged-in: jump straight into the create-tenant form with the parent pinned by the token.
+        // Anonymous: route through the direct-onboarding sign-up, which parks the token until e-mail confirm.
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var target = state.User.Identity?.IsAuthenticated == true
+            ? $"/Account/Onboarding/CreateTenant?invitation={Uri.EscapeDataString(Token)}"
+            : $"/Account/Onboarding/Start?invitation={Uri.EscapeDataString(Token)}";
+        Nav.NavigateTo(target);
+    }
+}

@@ -1,0 +1,293 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Onboarding
+@page "/Account/Onboarding/Invitations"
+@rendermode @(RenderMode.InteractiveServer)
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.DependencyInjection
+@using ITVComponents.WebCoreToolkit.Security
+@attribute [Authorize]
+
+@inject IServiceProvider Services
+@inject IAppMailSender Mailer
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthState
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+
+<PageTitle>@L["Onb_Inv_AdminTitle"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">@L["Onb_Inv_AdminTitle"]</MudText>
+
+    @if (handler is null)
+    {
+        <MudAlert Severity="Severity.Error">@L["Onb_Inv_NotSupported"]</MudAlert>
+    }
+    else if (tenants.Length == 0)
+    {
+        <MudAlert Severity="Severity.Info">@L["Onb_NoTenants"]</MudAlert>
+    }
+    else
+    {
+        <MudPaper Class="pa-4 mb-4" Outlined="true">
+            <MudGrid Spacing="3" Class="align-end">
+                <MudItem xs="12" sm="5">
+                    <MudSelect T="int" Value="selectedTenantId" ValueChanged="OnTenantChanged" Label="@(L["Onb_Inv_Tenant"])" Dense="true">
+                        @foreach (var t in tenants)
+                        {
+                            <MudSelectItem T="int" Value="@t.TenantId">@t.DisplayName</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="7">
+                    <MudToggleGroup T="InviteKind" SelectionMode="SelectionMode.SingleSelection" Value="kind" ValueChanged="OnKindChanged" Color="Color.Primary">
+                        <MudToggleItem Value="@InviteKind.Tenant" Text="@(L["Onb_Inv_Tab_Tenant"])" />
+                        <MudToggleItem Value="@InviteKind.Employee" Text="@(L["Onb_Inv_Tab_Employee"])" />
+                    </MudToggleGroup>
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="email" Label="@(L["Onb_Inv_Email"])" InputType="InputType.Email" />
+                </MudItem>
+
+                @if (kind == InviteKind.Tenant)
+                {
+                    <MudItem xs="12" sm="3">
+                        <MudTextField @bind-Value="roleName" Label="@(L["Onb_Inv_Role"])" />
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudTextField @bind-Value="templateName" Label="@(L["Onb_Inv_Template"])" />
+                    </MudItem>
+                }
+                else
+                {
+                    <MudItem xs="12" sm="3">
+                        <MudTextField @bind-Value="firstName" Label="@(L["Onb_Inv_FirstName"])" />
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudTextField @bind-Value="lastName" Label="@(L["Onb_Inv_LastName"])" />
+                    </MudItem>
+                }
+
+                <MudItem xs="12" Class="d-flex justify-end">
+                    <MudButton OnClick="OnCreate" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy"
+                               StartIcon="@Icons.Material.Filled.Send">@L["Onb_Inv_Create"]</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @if (kind == InviteKind.Tenant)
+        {
+            <MudDataGrid T="TenantInvitationItem" Items="tenantInvitations" Dense="true" Hover="true" Elevation="0">
+                <Columns>
+                    <PropertyColumn Property="x => x.Email" Title="@(L["Onb_Col_Email"])" />
+                    <PropertyColumn Property="x => x.Status" Title="@(L["Onb_Col_Status"])" />
+                    <PropertyColumn Property="x => x.ExpiresUtc" Title="@(L["Onb_Inv_Col_Expires"])" Format="g" />
+                    <PropertyColumn Property="x => x.CreatedUtc" Title="@(L["Onb_Inv_Col_Created"])" Format="g" />
+                    <TemplateColumn Title="">
+                        <CellTemplate>
+                            <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd">
+                                <MudTooltip Text="@(L["Onb_Inv_Link"])">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                                   OnClick="@(() => CopyLink(context.Item.Token))" />
+                                </MudTooltip>
+                                @if (context.Item.Status == InvitationStatus.Pending)
+                                {
+                                    <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text"
+                                               OnClick="@(() => RevokeTenant(context.Item.TenantInvitationId))">@L["Onb_Inv_Revoke"]</MudButton>
+                                }
+                            </MudStack>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <NoRecordsContent>@L["Onb_Inv_NoneTenant"]</NoRecordsContent>
+            </MudDataGrid>
+        }
+        else
+        {
+            <MudDataGrid T="EmployeeInvitationItem" Items="employeeInvitations" Dense="true" Hover="true" Elevation="0">
+                <Columns>
+                    <PropertyColumn Property="x => x.Email" Title="@(L["Onb_Col_Email"])" />
+                    <PropertyColumn Property="@(x => (x.FirstName + " " + x.LastName).Trim())" Title="@(L["Onb_Col_Name"])" />
+                    <PropertyColumn Property="x => x.InvitationStatus" Title="@(L["Onb_Col_Status"])" />
+                    <TemplateColumn Title="">
+                        <CellTemplate>
+                            @if (context.Item.InvitationStatus == InvitationStatus.Pending)
+                            {
+                                <MudStack Row="true" Justify="Justify.FlexEnd">
+                                    <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text"
+                                               OnClick="@(() => RevokeEmployee(context.Item.EmployeeId))">@L["Onb_Inv_Revoke"]</MudButton>
+                                </MudStack>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <NoRecordsContent>@L["Onb_Inv_NoneEmployee"]</NoRecordsContent>
+            </MudDataGrid>
+        }
+    }
+</MudContainer>
+
+@code {
+    private enum InviteKind { Tenant, Employee }
+
+    private ITenantInvitationHandler? handler;
+    private TenantPickerItem[] tenants = Array.Empty<TenantPickerItem>();
+    private int selectedTenantId;
+    private InviteKind kind = InviteKind.Tenant;
+
+    private string email = "";
+    private string? roleName;
+    private string? templateName;
+    private string? firstName;
+    private string? lastName;
+    private bool busy;
+
+    private TenantInvitationItem[] tenantInvitations = Array.Empty<TenantInvitationItem>();
+    private EmployeeInvitationItem[] employeeInvitations = Array.Empty<EmployeeInvitationItem>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        handler = Services.GetService<ITenantInvitationHandler>();
+        if (handler is null)
+        {
+            return;
+        }
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        tenants = await handler.ListAdministrableTenantsAsync(state.User);
+        if (tenants.Length > 0)
+        {
+            selectedTenantId = tenants[0].TenantId;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task OnTenantChanged(int tenantId)
+    {
+        selectedTenantId = tenantId;
+        await ReloadAsync();
+    }
+
+    private async Task OnKindChanged(InviteKind value)
+    {
+        kind = value;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (handler is null || selectedTenantId == 0)
+        {
+            return;
+        }
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (kind == InviteKind.Tenant)
+        {
+            tenantInvitations = await handler.ListTenantInvitationsAsync(state.User, selectedTenantId);
+        }
+        else
+        {
+            employeeInvitations = await handler.ListEmployeeInvitationsAsync(state.User, selectedTenantId);
+        }
+    }
+
+    private async Task OnCreate()
+    {
+        if (handler is null || string.IsNullOrWhiteSpace(email))
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            if (kind == InviteKind.Tenant)
+            {
+                var result = await handler.CreateTenantInvitationAsync(state.User,
+                    new TenantInvitationInput(selectedTenantId, email.Trim(), RoleName: NullIfBlank(roleName), TemplateName: NullIfBlank(templateName)));
+                if (!result.Succeeded)
+                {
+                    Snackbar.Add(result.Error ?? L["Onb_Inv_Failed"].Value, Severity.Error);
+                    return;
+                }
+
+                Snackbar.Add(L["Onb_Inv_Created"], Severity.Success);
+                var link = Nav.ToAbsoluteUri($"/Account/Onboarding/Invitation/{result.Token}").AbsoluteUri;
+                await SendInvitationMailAsync(email.Trim(), link);
+            }
+            else
+            {
+                var ok = await handler.CreateEmployeeInvitationAsync(state.User,
+                    new EmployeeInvitationInput(selectedTenantId, email.Trim(), NullIfBlank(firstName), NullIfBlank(lastName)));
+                if (!ok)
+                {
+                    Snackbar.Add(L["Onb_Inv_Failed"], Severity.Error);
+                    return;
+                }
+
+                Snackbar.Add(L["Onb_Inv_Created"], Severity.Success);
+            }
+
+            email = "";
+            roleName = templateName = firstName = lastName = null;
+            await ReloadAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SendInvitationMailAsync(string recipient, string link)
+    {
+        try
+        {
+            await Mailer.SendMailAsync(recipient, L["Onb_Inv_MailSubject"], L["Onb_Inv_MailBody", link]);
+            Snackbar.Add(L["Onb_Inv_MailSent"], Severity.Success);
+        }
+        catch
+        {
+            // The invitation row exists regardless; surface the link so the admin can share it manually.
+            Snackbar.Add(L["Onb_Inv_MailFailed"], Severity.Warning);
+            await CopyLinkRaw(link);
+        }
+    }
+
+    private Task RevokeTenant(int id) => RunRevoke(async user => await handler!.RevokeTenantInvitationAsync(user, id));
+
+    private Task RevokeEmployee(int id) => RunRevoke(async user => await handler!.RevokeEmployeeInvitationAsync(user, id));
+
+    private async Task RunRevoke(Func<System.Security.Claims.ClaimsPrincipal, Task<bool>> revoke)
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (await revoke(state.User))
+        {
+            Snackbar.Add(L["Onb_Inv_Revoked"], Severity.Success);
+            await ReloadAsync();
+        }
+        else
+        {
+            Snackbar.Add(L["Onb_Inv_Failed"], Severity.Error);
+        }
+    }
+
+    private Task CopyLink(string token) => CopyLinkRaw(Nav.ToAbsoluteUri($"/Account/Onboarding/Invitation/{token}").AbsoluteUri);
+
+    private async Task CopyLinkRaw(string link)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", link);
+            Snackbar.Add(link, Severity.Info);
+        }
+        catch
+        {
+            Snackbar.Add(link, Severity.Info);
+        }
+    }
+
+    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

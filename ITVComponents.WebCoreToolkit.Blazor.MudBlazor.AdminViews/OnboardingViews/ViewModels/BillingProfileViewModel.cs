@@ -49,6 +49,14 @@ public class BillingProfileViewModel
     /// </summary>
     public int? ParentTenantId { get; set; }
 
+    /// <summary>
+    /// Optional tenant-invitation token (tree flow). Set programmatically from the accept link — not a
+    /// form field. When present, the hierarchy handler pins the parent tenant from the invitation
+    /// (overriding <see cref="ParentTenantId"/>) and marks the invitation committed once the tenant is
+    /// created. Serialized into the parked payload so the deferred (e-mail-confirm) flow carries it too.
+    /// </summary>
+    public string? InvitationToken { get; set; }
+
     [Range(typeof(bool), "true", "true", ErrorMessage = "You must accept the terms of service.")]
     public bool AcceptTos { get; set; }
 }

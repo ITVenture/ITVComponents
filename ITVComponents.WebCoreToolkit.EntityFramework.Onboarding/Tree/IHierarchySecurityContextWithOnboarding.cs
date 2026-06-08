@@ -19,5 +19,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree
         DbSet<HierarchyEmployee> Employees { get; set; }
 
         DbSet<HierarchyEmployeeRole> EmployeeRoles { get; set; }
+
+        /// <summary>
+        /// Parent-issued invitations to onboard a new sub-tenant (token-link flow). Tree-only — there is
+        /// no flat-strategy equivalent because the invitation pins a parent tenant.
+        /// </summary>
+        DbSet<TenantInvitation> TenantInvitations { get; set; }
     }
 }

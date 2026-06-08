@@ -61,13 +61,23 @@
     private bool busy;
     private bool done;
 
+    /// <summary>Optional tenant-invitation token carried over from the accept page; pins the future parent.</summary>
+    [SupplyParameterFromQuery(Name = "invitation")]
+    private string? InvitationToken { get; set; }
+
+    protected override void OnInitialized()
+    {
+        model.InvitationToken = InvitationToken;
+    }
+
     private async Task OnSubmitAsync()
     {
         busy = true;
         try
         {
-            // The billing-profile e-mail doubles as the login e-mail.
-            var result = await Handler.StartOnboardingAsync(new OnboardingStartInput(model.Email, model.Password, model));
+            // The billing-profile e-mail doubles as the login e-mail. The token (when present) is parked
+            // with the pending onboarding and re-applied on completion to pin the parent tenant.
+            var result = await Handler.StartOnboardingAsync(new OnboardingStartInput(model.Email, model.Password, model, InvitationToken));
             if (!result.Succeeded)
             {
                 Snackbar.Add(string.Join(" ", result.Errors), Severity.Error);

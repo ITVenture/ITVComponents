@@ -79,10 +79,12 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             return null;
         }
 
-        // Parent precedence: explicit pick (or, later, an invitation) wins; otherwise fall back to the
-        // configured DefaultParentTenant. If still none and roots are disabled, reject onboarding so no
-        // further root tenants can be created.
-        var parentId = await ResolveParentTenantIdAsync(input.ParentTenantId, ct);
+        // A valid invitation token pins the parent and, optionally, the template/role to apply.
+        var invitation = await ResolveInvitationAsync(input.InvitationToken, ct);
+
+        // Parent precedence: invitation wins; then explicit pick; then the configured DefaultParentTenant.
+        // If still none and roots are disabled, reject onboarding so no further root tenants can be created.
+        var parentId = invitation?.ParentTenantId ?? await ResolveParentTenantIdAsync(input.ParentTenantId, ct);
         if (parentId == null && !(setupOptions.ValueOrDefault?.AllowRootTenantCreation ?? true))
         {
             logger.LogWarning("Onboarding rejected: root-tenant creation is disabled but no parent could be resolved.");
@@ -140,9 +142,46 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
 
         await db.SaveChangesAsync(ct);
 
-        await ApplyTenantTemplateAsync(tenant, admin, ct);
+        await ApplyTenantTemplateAsync(tenant, admin, invitation?.TemplateName, invitation?.RoleName, ct);
+
+        if (invitation != null)
+        {
+            invitation.Status = InvitationStatus.Committed;
+            invitation.ChildTenantId = tenant.TenantId;
+            invitation.AcceptedByUserId = owner.Id;
+            await db.SaveChangesAsync(ct);
+        }
 
         return profile.BillingProfileId;
+    }
+
+    /// <summary>
+    /// Loads a still-pending invitation for the given token. Returns null when the token is empty, unknown
+    /// or already consumed/revoked. A past-due invitation is flipped to <see cref="InvitationStatus.Expired"/>
+    /// (persisted) and treated as null.
+    /// </summary>
+    private async Task<TenantInvitation> ResolveInvitationAsync(string token, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return null;
+        }
+
+        var invitation = await db.TenantInvitations
+            .FirstOrDefaultAsync(i => i.Token == token && i.Status == InvitationStatus.Pending, ct);
+        if (invitation == null)
+        {
+            return null;
+        }
+
+        if (invitation.ExpiresUtc < DateTime.UtcNow)
+        {
+            invitation.Status = InvitationStatus.Expired;
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+
+        return invitation;
     }
 
     public Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default)
@@ -256,18 +295,26 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             .ToArrayAsync(ct);
     }
 
-    private async Task ApplyTenantTemplateAsync(HierarchyTenant tenant, HierarchyTenantUser admin, CancellationToken ct)
+    /// <summary>
+    /// Applies a tenant template and grants the admin role. An invitation may override the configured
+    /// defaults: <paramref name="templateNameOverride"/> / <paramref name="adminRoleOverride"/> take
+    /// precedence over <c>TenantSetupOptions.BasicTenantTemplate</c> / <c>AdminUserRole</c> when set.
+    /// </summary>
+    private async Task ApplyTenantTemplateAsync(HierarchyTenant tenant, HierarchyTenantUser admin,
+        string templateNameOverride, string adminRoleOverride, CancellationToken ct)
     {
         var cfg = setupOptions.ValueOrDefault;
-        if (cfg == null || string.IsNullOrEmpty(cfg.BasicTenantTemplate))
+        var templateName = !string.IsNullOrEmpty(templateNameOverride) ? templateNameOverride : cfg?.BasicTenantTemplate;
+        var adminRole = !string.IsNullOrEmpty(adminRoleOverride) ? adminRoleOverride : cfg?.AdminUserRole;
+        if (string.IsNullOrEmpty(templateName))
         {
             return;
         }
 
-        var tmpl = await db.TenantTemplates.FirstOrDefaultAsync(n => n.Name == cfg.BasicTenantTemplate, ct);
+        var tmpl = await db.TenantTemplates.FirstOrDefaultAsync(n => n.Name == templateName, ct);
         if (tmpl == null)
         {
-            logger.LogWarning("Tenant template {Template} not found; skipping.", cfg.BasicTenantTemplate);
+            logger.LogWarning("Tenant template {Template} not found; skipping.", templateName);
             return;
         }
 
@@ -275,8 +322,8 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         tenantInitializer.ApplyTemplate(tenant, markup, baseCtx =>
         {
             if (baseCtx is not IHierarchySecurityContextWithOnboarding ctx) return;
-            if (string.IsNullOrEmpty(cfg.AdminUserRole)) return;
-            var role = ctx.SecurityRoles.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.RoleName == cfg.AdminUserRole);
+            if (string.IsNullOrEmpty(adminRole)) return;
+            var role = ctx.SecurityRoles.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.RoleName == adminRole);
             if (role == null) return;
             ctx.TenantUserRoles.Add(new UserRole { Role = role, User = admin });
             ctx.SaveChanges();

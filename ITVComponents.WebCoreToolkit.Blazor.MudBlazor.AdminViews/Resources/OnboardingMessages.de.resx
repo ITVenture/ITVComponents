@@ -49,4 +49,35 @@
   <data name="Onb_Start_Submit" xml:space="preserve"><value>Konto erstellen</value></data>
   <data name="Onb_Start_CheckMail" xml:space="preserve"><value>Ihr Konto wurde erstellt. Bitte bestätigen Sie Ihre E-Mail-Adresse und melden Sie sich an, um die Einrichtung des Mandanten abzuschließen.</value></data>
   <data name="Onb_Start_ToLogin" xml:space="preserve"><value>Zur Anmeldung</value></data>
+  <data name="Onb_Inv_Title" xml:space="preserve"><value>Mandanten-Einladung</value></data>
+  <data name="Onb_Inv_NotSupported" xml:space="preserve"><value>Mandanten-Einladungen sind in dieser Konfiguration nicht verfügbar.</value></data>
+  <data name="Onb_Inv_Unknown" xml:space="preserve"><value>Dieser Einladungslink ist ungültig.</value></data>
+  <data name="Onb_Inv_NotAcceptable" xml:space="preserve"><value>Diese Einladung kann nicht mehr verwendet werden (Status: {0}).</value></data>
+  <data name="Onb_Inv_Welcome" xml:space="preserve"><value>Sie wurden eingeladen, einen Mandanten unterhalb von {0} zu erstellen.</value></data>
+  <data name="Onb_Inv_Continue" xml:space="preserve"><value>Weiter zur Einrichtung Ihres Mandanten.</value></data>
+  <data name="Onb_Inv_Accept" xml:space="preserve"><value>Einladung annehmen</value></data>
+  <data name="Onb_Inv_ParentPinned" xml:space="preserve"><value>Der übergeordnete Mandant wird durch Ihre Einladung festgelegt.</value></data>
+  <data name="Onb_Inv_AdminTitle" xml:space="preserve"><value>Einladungen</value></data>
+  <data name="Onb_Inv_Tab_Tenant" xml:space="preserve"><value>Sub-Mandanten-Einladungen</value></data>
+  <data name="Onb_Inv_Tab_Employee" xml:space="preserve"><value>Mitarbeiter-Einladungen</value></data>
+  <data name="Onb_Inv_Tenant" xml:space="preserve"><value>Mandant</value></data>
+  <data name="Onb_Inv_Email" xml:space="preserve"><value>E-Mail des Empfängers</value></data>
+  <data name="Onb_Inv_Role" xml:space="preserve"><value>Admin-Rolle (optional)</value></data>
+  <data name="Onb_Inv_Template" xml:space="preserve"><value>Vorlage (optional)</value></data>
+  <data name="Onb_Inv_Create" xml:space="preserve"><value>Erstellen &amp; senden</value></data>
+  <data name="Onb_Inv_Revoke" xml:space="preserve"><value>Widerrufen</value></data>
+  <data name="Onb_Inv_Link" xml:space="preserve"><value>Einladungslink</value></data>
+  <data name="Onb_Inv_Created" xml:space="preserve"><value>Einladung erstellt.</value></data>
+  <data name="Onb_Inv_MailSent" xml:space="preserve"><value>Einladungs-E-Mail gesendet.</value></data>
+  <data name="Onb_Inv_MailFailed" xml:space="preserve"><value>Einladung erstellt, aber die E-Mail konnte nicht gesendet werden. Teilen Sie den Link manuell.</value></data>
+  <data name="Onb_Inv_Revoked" xml:space="preserve"><value>Einladung widerrufen.</value></data>
+  <data name="Onb_Inv_Failed" xml:space="preserve"><value>Die Einladung konnte nicht erstellt werden.</value></data>
+  <data name="Onb_Inv_Col_Expires" xml:space="preserve"><value>Läuft ab</value></data>
+  <data name="Onb_Inv_Col_Created" xml:space="preserve"><value>Erstellt</value></data>
+  <data name="Onb_Inv_FirstName" xml:space="preserve"><value>Vorname</value></data>
+  <data name="Onb_Inv_LastName" xml:space="preserve"><value>Nachname</value></data>
+  <data name="Onb_Inv_NoneTenant" xml:space="preserve"><value>Noch keine Sub-Mandanten-Einladungen.</value></data>
+  <data name="Onb_Inv_NoneEmployee" xml:space="preserve"><value>Noch keine Mitarbeiter-Einladungen.</value></data>
+  <data name="Onb_Inv_MailSubject" xml:space="preserve"><value>Sie wurden eingeladen, einen Mandanten zu erstellen</value></data>
+  <data name="Onb_Inv_MailBody" xml:space="preserve"><value>Hallo,&lt;br/&gt;Sie wurden eingeladen, einen Mandanten zu erstellen. Bitte &lt;a href='{0}'&gt;klicken Sie hier&lt;/a&gt;, um die Einladung anzunehmen.</value></data>
 </root>

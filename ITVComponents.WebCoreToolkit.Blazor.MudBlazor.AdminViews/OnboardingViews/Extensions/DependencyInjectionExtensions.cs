@@ -52,6 +52,11 @@ public static class DependencyInjectionExtensions
             services.AddScoped<IOnboardingHandler, HierarchyOnboardingHandler<TContext>>();
         }
 
+        if (partTypeLoadBehavior.ShouldLoadType(typeof(HierarchyTenantInvitationHandler<>)))
+        {
+            services.AddScoped<ITenantInvitationHandler, HierarchyTenantInvitationHandler<TContext>>();
+        }
+
         return services;
     }
 }

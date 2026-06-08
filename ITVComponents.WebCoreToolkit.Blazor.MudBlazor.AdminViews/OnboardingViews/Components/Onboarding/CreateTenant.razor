@@ -23,9 +23,14 @@
         <DataAnnotationsValidator />
 
         <BillingProfileForm Model="model"
-                            ShowParentTenantPicker="Handler.ParentPolicy.ShowPicker"
-                            ParentRequired="Handler.ParentPolicy.ParentRequired"
+                            ShowParentTenantPicker="@(!HasInvitation && Handler.ParentPolicy.ShowPicker)"
+                            ParentRequired="@(!HasInvitation && Handler.ParentPolicy.ParentRequired)"
                             EligibleParents="parents" />
+
+        @if (HasInvitation)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-3">@L["Onb_Inv_ParentPinned"]</MudAlert>
+        }
 
         <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">
             <MudButton Href="/Account/Onboarding/MyTenants" Variant="Variant.Text" Color="Color.Default">@L["Onb_Cancel"]</MudButton>
@@ -43,10 +48,17 @@
     private TenantPickerItem[] parents = Array.Empty<TenantPickerItem>();
     private bool busy;
 
+    /// <summary>When set (from an accept link), the parent tenant is pinned by the token; hide the picker.</summary>
+    [SupplyParameterFromQuery(Name = "invitation")]
+    private string? InvitationToken { get; set; }
+
+    private bool HasInvitation => !string.IsNullOrEmpty(InvitationToken);
+
     protected override async Task OnInitializedAsync()
     {
+        model.InvitationToken = InvitationToken;
         var state = await AuthState.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated == true)
+        if (state.User.Identity?.IsAuthenticated == true && !HasInvitation)
         {
             parents = await Handler.ListEligibleParentsAsync(state.User);
         }

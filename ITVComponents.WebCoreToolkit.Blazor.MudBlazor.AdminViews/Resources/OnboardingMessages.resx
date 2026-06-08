@@ -95,4 +95,35 @@
   <data name="Onb_Start_Submit" xml:space="preserve"><value>Create account</value></data>
   <data name="Onb_Start_CheckMail" xml:space="preserve"><value>Your account was created. Please confirm your e-mail address, then log in to finish setting up your tenant.</value></data>
   <data name="Onb_Start_ToLogin" xml:space="preserve"><value>Go to login</value></data>
+  <data name="Onb_Inv_Title" xml:space="preserve"><value>Tenant invitation</value></data>
+  <data name="Onb_Inv_NotSupported" xml:space="preserve"><value>Tenant invitations are not available in this configuration.</value></data>
+  <data name="Onb_Inv_Unknown" xml:space="preserve"><value>This invitation link is not valid.</value></data>
+  <data name="Onb_Inv_NotAcceptable" xml:space="preserve"><value>This invitation can no longer be used (status: {0}).</value></data>
+  <data name="Onb_Inv_Welcome" xml:space="preserve"><value>You have been invited to create a tenant under {0}.</value></data>
+  <data name="Onb_Inv_Continue" xml:space="preserve"><value>Continue to set up your tenant.</value></data>
+  <data name="Onb_Inv_Accept" xml:space="preserve"><value>Accept invitation</value></data>
+  <data name="Onb_Inv_ParentPinned" xml:space="preserve"><value>The parent tenant is set by your invitation.</value></data>
+  <data name="Onb_Inv_AdminTitle" xml:space="preserve"><value>Invitations</value></data>
+  <data name="Onb_Inv_Tab_Tenant" xml:space="preserve"><value>Sub-tenant invitations</value></data>
+  <data name="Onb_Inv_Tab_Employee" xml:space="preserve"><value>Employee invitations</value></data>
+  <data name="Onb_Inv_Tenant" xml:space="preserve"><value>Tenant</value></data>
+  <data name="Onb_Inv_Email" xml:space="preserve"><value>Recipient e-mail</value></data>
+  <data name="Onb_Inv_Role" xml:space="preserve"><value>Admin role (optional)</value></data>
+  <data name="Onb_Inv_Template" xml:space="preserve"><value>Template (optional)</value></data>
+  <data name="Onb_Inv_Create" xml:space="preserve"><value>Create &amp; send</value></data>
+  <data name="Onb_Inv_Revoke" xml:space="preserve"><value>Revoke</value></data>
+  <data name="Onb_Inv_Link" xml:space="preserve"><value>Invitation link</value></data>
+  <data name="Onb_Inv_Created" xml:space="preserve"><value>Invitation created.</value></data>
+  <data name="Onb_Inv_MailSent" xml:space="preserve"><value>Invitation e-mail sent.</value></data>
+  <data name="Onb_Inv_MailFailed" xml:space="preserve"><value>Invitation created, but the e-mail could not be sent. Share the link manually.</value></data>
+  <data name="Onb_Inv_Revoked" xml:space="preserve"><value>Invitation revoked.</value></data>
+  <data name="Onb_Inv_Failed" xml:space="preserve"><value>Could not create the invitation.</value></data>
+  <data name="Onb_Inv_Col_Expires" xml:space="preserve"><value>Expires</value></data>
+  <data name="Onb_Inv_Col_Created" xml:space="preserve"><value>Created</value></data>
+  <data name="Onb_Inv_FirstName" xml:space="preserve"><value>First name</value></data>
+  <data name="Onb_Inv_LastName" xml:space="preserve"><value>Last name</value></data>
+  <data name="Onb_Inv_NoneTenant" xml:space="preserve"><value>No sub-tenant invitations yet.</value></data>
+  <data name="Onb_Inv_NoneEmployee" xml:space="preserve"><value>No employee invitations yet.</value></data>
+  <data name="Onb_Inv_MailSubject" xml:space="preserve"><value>You have been invited to create a tenant</value></data>
+  <data name="Onb_Inv_MailBody" xml:space="preserve"><value>Hello,&lt;br/&gt;you have been invited to create a tenant. Please &lt;a href='{0}'&gt;click here&lt;/a&gt; to accept the invitation.</value></data>
 </root>

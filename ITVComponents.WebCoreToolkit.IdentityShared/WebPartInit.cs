@@ -173,6 +173,9 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared
             if (options.UseDefaultMailSender)
             {
                 services.AddSingleton<IEmailSender, DefaultMailSender>();
+                // Generic transactional-mail abstraction for non-identity flows (e.g. tenant invitations);
+                // contains the Identity-UI mail dependency in this assembly.
+                services.AddScoped<IAppMailSender, AppMailSender>();
             }
 
             // Confirmation mailer for account-creating flows outside the identity pages (e.g. direct
