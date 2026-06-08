@@ -247,6 +247,44 @@ navigationManager.NavigateTo($"{basePath}?tenant={Uri.EscapeDataString(selectedT
 > zur Laufzeit zu verifizierender Schritt vorgesehen. Verschiedene **Tabs** sind in jedem Fall sauber
 > isoliert.
 
+### Identity-Pages: static-SSR / Render-Mode-Grenze (Enhanced-Nav)
+
+Die Identity-Pages (`/Account/...`) tragen `[ExcludeFromInteractiveRouting]` und rendern als **static
+SSR ohne Circuit**. Liegt darum herum ein interaktives Shell-Nav (Root-Component aus dem `MainLayout`/
+`OuterLayout`), dann versucht **Enhanced-Navigation** zwischen zwei Identity-Seiten die interaktiven
+Root-Components per Circuit (`updateRootComponents`) zu reconcilen → SignalR-`send` schlägt fehl, sichtbar
+als JS-Exception aus `blazor.web.js` (`updateRootComponents`/`refreshRootComponents`).
+
+**Library-seitig bereits abgedeckt:** Das `ManageLayout` der IdentityPages-Lib kapselt seinen Inhalt
+(inkl. `ManageNavMenu`) in `<div data-enhance-nav="false">`. Navigation *innerhalb* des Manage-Bereichs
+(z.B. Profil → E-Mail) macht damit einen Full-Page-Load statt Enhanced-Nav — kein Circuit-Reconcile über
+die SSR-Grenze, keine Exception. Hierfür ist **kein Host-Eingriff nötig**.
+
+**Empfohlen für volle Abdeckung (Host-seitig):** Den *Eintritt* in die Identity-Seiten aus dem
+interaktiven Shell-Nav heraus (sowie Navigation zwischen Nicht-Manage-Account-Seiten unter dem Host-
+Default-Layout) deckt die Lib nicht ab — das gehört in die `App.razor` des Hosts. Render-Mode für
+Identity-Pages auf static setzen, sodass dort gar keine interaktive Root entsteht (Microsoft-Standard):
+
+```razor
+@* App.razor *@
+<Routes @rendermode="@RenderModeForPage" />
+@* … HeadOutlet analog … *@
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    private IComponentRenderMode? RenderModeForPage =>
+        HttpContext.GetEndpoint()?.Metadata
+            .GetMetadata<ExcludeFromInteractiveRoutingAttribute>() is null
+                ? InteractiveServer   // normale Seiten interaktiv
+                : null;               // Identity-Pages: static SSR, keine interaktive Root
+}
+```
+
+Voraussetzung: Das Shell-Nav darf nicht per *explizitem* `@rendermode="InteractiveServer"` auf der
+Komponente erzwungen sein (das überschriebe die seiten-bezogene Entscheidung) — den Render-Mode global
+über `<Routes>`/`App.razor` steuern.
+
 ### Optional: Pfad-Modus statt Query (`/{tenant}/...`)
 
 Wer das MVC-Muster `/{tenant}/modul/...` in Blazor abbilden will, statt `?tenant=…` im Query zu führen,

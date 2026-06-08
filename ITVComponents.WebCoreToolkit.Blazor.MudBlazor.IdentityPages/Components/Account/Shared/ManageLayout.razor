@@ -10,23 +10,32 @@
 @inject IOptions<IdentityLayoutOptions> LayoutOpts
 
 @{
+    @* Identity-Pages rendern als static SSR (ExcludeFromInteractiveRouting) und haben keinen
+       eigenen Circuit. Das umgebende OuterLayout bringt aber ein interaktives Nav-Menue als
+       Root-Component mit. Enhanced-Navigation zwischen zwei Manage-Seiten wuerde versuchen,
+       diese interaktiven Roots per Circuit (updateRootComponents) zu reconcilen -> SignalR-send
+       schlaegt fehl (JS-Exception in blazor.web.js). data-enhance-nav="false" erzwingt fuer alle
+       Navigation innerhalb dieses Bereichs (inkl. ManageNavMenu) einen Full-Page-Load, womit der
+       Circuit sauber neu aufgebaut statt ueber die SSR-Grenze reconciled wird. *@
     RenderFragment manageBody = @<text>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
-            <MudText Typo="Typo.h4" GutterBottom="true">@L["Manage your account"]</MudText>
-            <MudText Typo="Typo.h5" GutterBottom="true">@L["Change your account settings"]</MudText>
-            <MudDivider Class="my-3" />
+        <div data-enhance-nav="false">
+            <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+                <MudText Typo="Typo.h4" GutterBottom="true">@L["Manage your account"]</MudText>
+                <MudText Typo="Typo.h5" GutterBottom="true">@L["Change your account settings"]</MudText>
+                <MudDivider Class="my-3" />
 
-            <MudGrid>
-                <MudItem xs="12" md="3">
-                    <MudPaper Elevation="1" Class="pa-2">
-                        <ManageNavMenu />
-                    </MudPaper>
-                </MudItem>
-                <MudItem xs="12" md="9">
-                    @Body
-                </MudItem>
-            </MudGrid>
-        </MudContainer>
+                <MudGrid>
+                    <MudItem xs="12" md="3">
+                        <MudPaper Elevation="1" Class="pa-2">
+                            <ManageNavMenu />
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="9">
+                        @Body
+                    </MudItem>
+                </MudGrid>
+            </MudContainer>
+        </div>
     </text>;
 }
 
