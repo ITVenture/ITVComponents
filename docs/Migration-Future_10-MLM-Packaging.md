@@ -1,4 +1,9 @@
-# Migrationsleitfaden — Paket-Konsolidierung (Branch `Future_10`, PRE040→PRE041)
+# Migrationsleitfaden — Paket-Konsolidierung (Branch `Future_10`, PRE040→PRE044)
+
+> **Stand: `5.0.0-PRE047`** (publiziert). Die Paket-Konsolidierung selbst wurde mit **PRE044** abgeschlossen
+> und publiziert; die hier beschriebenen NuGet-/Namespace-/Config-Änderungen gelten unverändert bis PRE047.
+> Die nach der Konsolidierung gebauten **Onboarding-Flows** (neue EF-Tabellen etc.) stehen im Hauptdokument,
+> Abschnitt 6.
 
 Companion zu [`Migration-Future_10-MLM.md`](Migration-Future_10-MLM.md). Während jenes Dokument die
 **architektonischen** Breaking Changes beschreibt (ServiceShared, FileHandler, Diagnostics,

@@ -1,4 +1,7 @@
-# Migrationsleitfaden — Branch `Future_10` (Phasen 2–5)
+# Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
+
+> **Stand: `5.0.0-PRE047`** (publiziert). Dieses Dokument deckt die Cross-cutting-Refactors (Phasen 2–5)
+> **und** die danach gebauten Onboarding-Flows (2a/2b/2c, Abschnitt 6) ab.
 
 Dieser Leitfaden beschreibt, was im MLM-Projekt anzupassen ist, um auf den `Future_10`-Stand der
 ITVComponents-Toolkit zu wechseln. Es ist ein **Major-Release (5.0-PRExx)** mit bewussten Breaking
@@ -11,8 +14,8 @@ Reihenfolge der Abschnitte = empfohlene Reihenfolge der Migration. Pro Abschnitt
 
 > **Companion-Dokument:** Die **Paket-Konsolidierung** (NuGet-ID-Umbenennungen 103→71, `using`-Sweeps,
 > WebPart-Config-Key-Änderungen) ist separat in
-> [`Migration-Future_10-MLM-Packaging.md`](Migration-Future_10-MLM-Packaging.md) beschrieben. Für die
-> PRE041-Testpakete **beide** Dokumente durcharbeiten.
+> [`Migration-Future_10-MLM-Packaging.md`](Migration-Future_10-MLM-Packaging.md) beschrieben. Für den
+> aktuellen Stand (`5.0.0-PRE047`) **beide** Dokumente durcharbeiten.
 
 ---
 
@@ -375,9 +378,100 @@ Kollisionen mit modul-eigenen Query-Strings.
 
 ---
 
-## 6. Verifikation auf eurer Seite
+## 6. Onboarding-Flows (2a/2b/2c) — **neue EF-Tabellen + Config**
+
+Nach der Konsolidierung kam ein integrierterer Tenant-Onboarding-Flow dazu (nur **Blazor/MudBlazor**,
+**Tree-Szenario**; der Telerik-MVC-Onboarding-Wizard bleibt unangetastet). Drei Bausteine:
+**2a** Direkt-Onboarding (Account + Tenant in einem Schritt, deferred über E-Mail-Bestätigung),
+**2b** Tenant-Einladungen per Token-Link + vereinheitlichtes Invite-GUI, **2c** konfigurierbarer
+Zwangs-/Default-Parent. Alles in `…Blazor.MudBlazor.AdminViews` (OnboardingViews) bzw.
+`…EntityFramework.Onboarding`.
+
+### 6.1 EF-Migrationen — **Pflicht, sonst läuft der Flow nicht**
+
+Zwei **neue Entities** werden über die Onboarding-Context-Interfaces exponiert, die euer Security-DbContext
+implementiert — EF nimmt sie automatisch ins Modell auf:
+
+| Entity | aus | Interface (exponiert DbSet) | Hinweis |
+|---|---|---|---|
+| `PendingOnboarding` | 2a | `IOnboardingPendingContext` (beide Onboarding-Interfaces erben es) | Pre-Tenant-Onboarding-Intent, by-E-Mail |
+| `TenantInvitation` | 2b | `IHierarchySecurityContextWithOnboarding` (**nur Tree**) | **unique Index** auf `Token` |
+
+Zusätzlich hat das Enum `InvitationStatus` einen neuen Wert `Expired` bekommen — **als int gespeichert,
+ans Enum-Ende angehängt → kein Schema-Change**, bestehende Werte bleiben stabil.
+
+**Migration erzeugen + anwenden** (gegen euren konkreten Security-/Onboarding-Context):
+
+```bash
+dotnet ef migrations add OnboardingPendingAndInvitations \
+    --context <EuerHierarchySecurityContext> --project <EuerMigrationsProjekt>
+dotnet ef database update --context <EuerHierarchySecurityContext>
+```
+
+> **Gegencheck:** Die generierte Migration muss `CreateTable("PendingOnboarding")` **und**
+> `CreateTable("TenantInvitation")` (inkl. `CreateIndex` auf `Token`, `IsUnique: true`) enthalten. Fehlt
+> `TenantInvitation`, implementiert euer Context die **Tree**-Variante (`IHierarchySecurityContextWithOnboarding`)
+> nicht — im Flat-Szenario gibt es keine Tenant-Einladungen (by design).
+
+(Beide Tabellen sind für MLM neu. Falls ihr für `PendingOnboarding` aus 2a bereits separat migriert habt,
+bleibt jetzt nur `TenantInvitation` als Delta.)
+
+### 6.2 Config (2c) — `TenantSetupOptions`
+
+Der Onboarding-Flow liest die DB-gestützte GlobalSetting **`TenantSetup`** (Tabelle `GlobalSetting`,
+key/JSON-value) via `IGlobalSettings<TenantSetupOptions>`. **Neu in 2c**:
+
+| Feld | Typ | Default | Wirkung |
+|---|---|---|---|
+| `AllowRootTenantCreation` | bool | `true` | `false` → es entstehen keine neuen Root-Tenants; Onboarding ohne auflösbaren Parent wird **abgelehnt** |
+| `DefaultParentTenant` | string (TenantName) | – | Wenn gesetzt: Auto-/Zwangs-Parent, wenn weder Einladung noch freie Auswahl greift |
+
+(unverändert vorhanden: `BasicTenantTemplate`, `AdminUserRole`, `SubscriptionAssetKey`)
+
+Beispiel-`GlobalSetting`-Wert (`SettingName = "TenantSetup"`):
+
+```json
+{ "BasicTenantTemplate": "Standard", "AdminUserRole": "TenantAdmin",
+  "AllowRootTenantCreation": false, "DefaultParentTenant": "RootKunde" }
+```
+
+Parent-Präzedenz im Tree-Handler: **Einladungs-Token > freie Auswahl > `DefaultParentTenant`**. Bei
+`AllowRootTenantCreation:false` **und** keinem auflösbaren Parent wird abgelehnt. **Keine Aktion nötig**,
+wenn ihr bei den Defaults bleibt (Root erlaubt, freie Parent-Auswahl).
+
+### 6.3 DI + Mail
+
+- `AddMudBlazorHierarchyOnboardingViews<TContext>()` registriert jetzt **zusätzlich** den
+  `ITenantInvitationHandler` (Backend für Erstellen/Auflisten/Widerrufen + Token-Annahme) — **kein extra
+  Aufruf nötig**. Die Flat-Variante (`AddMudBlazorOnboardingViews<TContext>()`) bekommt ihn bewusst nicht.
+- **Mail:** Die Einladungs-Mail läuft über die neue Core-Abstraktion **`IAppMailSender`**. Sie wird von
+  IdentityShared automatisch registriert, wenn `UseDefaultMailSender` aktiv ist (derselbe Schalter, der schon
+  `IEmailSender`/Bestätigungsmail verdrahtet) — dann **keine Aktion**. Wer einen eigenen Mailversand fährt,
+  registriert eine eigene `IAppMailSender`-Implementierung. `…AdminViews` zieht dafür **kein** Identity.UI.
+
+### 6.4 Neue Routen + Navigation
+
+Die Pages leuchten über das Routing-Assembly automatisch auf — der Host muss nur ggf. Nav-Links setzen:
+
+| Route | Auth | Zweck | Nav nötig? |
+|---|---|---|---|
+| `/Account/Onboarding/Start` | anonym | Direkt-Onboarding (Account+Tenant), deferred (2a) | optional (z.B. von Login) |
+| `/Account/Onboarding/Invitation/{token}` | anonym | Einladungs-Annahme (2b) | nein (kommt per Mail-Link) |
+| `/Account/Onboarding/Invitations` | `[Authorize]` | Admin: Einladungen erstellen/verwalten (2b) | **ja** (Admin-Menü) |
+| `/Account/Onboarding/CreateTenant` | `[Authorize]` | Tenant anlegen (bestehend; akzeptiert jetzt `?invitation=`) | bestehend |
+| `/Account/Onboarding/MyTenants` | `[Authorize]` | eigene Tenants + Einladungen annehmen (bestehend) | bestehend |
+
+Der deferred 2a-Abschluss passiert idempotent beim ersten Login-Landing (`MyTenants`) bzw.
+E-Mail-Confirm — Voraussetzung ist nur, dass eure `/Account/ConfirmEmail`-Page erreichbar ist (Standard).
+
+---
+
+## 7. Verifikation auf eurer Seite
 
 - Build der gesamten Solution grün (alle eigenen FileHandler + Cookie-Scope-Config angepasst).
+- **Onboarding:** Migration angewendet (Tabellen `PendingOnboarding` + `TenantInvitation` existieren);
+  Admin erstellt unter `/Account/Onboarding/Invitations` eine Sub-Tenant-Einladung → Mail/Link kommt an →
+  Annahme über den Link legt einen Child-Tenant unter dem einladenden Parent an.
 - **Manueller Zwei-Tab-Check (Blazor):** zwei Tabs mit unterschiedlichem `?tenant=…` öffnen, in jedem
   eine tenant-spezifische Liste laden → jeder Tab zeigt ausschließlich seine Tenant-Daten, kein Überlauf.
 - **Negativ-Check:** `?tenant=` mit einem Tenant, für den der User **nicht** berechtigt ist → es darf der
@@ -396,3 +490,6 @@ Kollisionen mit modul-eigenen Query-Strings.
 | 4 | `IContextUserProvider` | `HttpContext`-Member → `IHttpContextUserProvider` |
 | 5 | `CookieScopeOptions.DefaultScopeExpression` | `Func<HttpContext,…>` → `Func<IContextUserProvider,…>` |
 | 6 | Blazor-Host | `AddBlazorContextUser()` + `<ContextUserInitializer/>` + `<TenantUrlGuard/>` + `AddBlazorPermissionScope(…)` + `AddWebCoreToolkitServiceShared()` |
+| 7 | **Onboarding EF** (2a/2b) | `dotnet ef migrations add` → neue Tabellen `PendingOnboarding` + `TenantInvitation` (unique `Token`); `InvitationStatus.Expired` = kein Schema-Change |
+| 8 | **Onboarding Config** (2c) | optional `TenantSetup`-GlobalSetting um `AllowRootTenantCreation` / `DefaultParentTenant` erweitern |
+| 9 | **Onboarding Mail/Nav** (2b) | `IAppMailSender` via `UseDefaultMailSender` (auto) oder eigene Impl; Nav-Link auf `/Account/Onboarding/Invitations` |
