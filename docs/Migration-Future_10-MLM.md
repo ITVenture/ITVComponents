@@ -258,35 +258,55 @@ SSR ohne Circuit**. Liegt darum herum ein interaktives Shell-Nav (Root-Component
 Root-Components per Circuit (`updateRootComponents`) zu reconcilen → SignalR-`send` schlägt fehl, sichtbar
 als JS-Exception aus `blazor.web.js` (`updateRootComponents`/`refreshRootComponents`).
 
-**Library-seitig bereits abgedeckt:** Das `ManageLayout` der IdentityPages-Lib kapselt seinen Inhalt
+**Library-seitig teil-abgedeckt:** Das `ManageLayout` der IdentityPages-Lib kapselt seinen Inhalt
 (inkl. `ManageNavMenu`) in `<div data-enhance-nav="false">`. Navigation *innerhalb* des Manage-Bereichs
-(z.B. Profil → E-Mail) macht damit einen Full-Page-Load statt Enhanced-Nav — kein Circuit-Reconcile über
-die SSR-Grenze, keine Exception. Hierfür ist **kein Host-Eingriff nötig**.
+(z.B. Profil → E-Mail) macht damit einen Full-Page-Load statt Enhanced-Nav. Das deckt aber **nur die
+library-eigenen Manage-Links** ab — nicht das **Host-Shell-/Template-Menü**, das aus eurem `MainLayout`
+kommt und außerhalb dieses `<div>` liegt.
 
-**Empfohlen für volle Abdeckung (Host-seitig):** Den *Eintritt* in die Identity-Seiten aus dem
-interaktiven Shell-Nav heraus (sowie Navigation zwischen Nicht-Manage-Account-Seiten unter dem Host-
-Default-Layout) deckt die Lib nicht ab — das gehört in die `App.razor` des Hosts. Render-Mode für
-Identity-Pages auf static setzen, sodass dort gar keine interaktive Root entsteht (Microsoft-Standard):
+**Pflicht für die volle Lösung (Host-seitig, in MLM):** Solange euer Shell-Nav als interaktive
+Root-Component über den static-SSR-Identity-Seiten liegt, ist es dort **tot** (Menü erscheint, reagiert
+aber nicht) und ein Klick auf einen Eintrag (z.B. die Template-Sample-Views) wirft genau die
+`updateRootComponents`-Exception. Lösung: in der `App.razor` den Render-Mode für Identity-Pages auf
+**static** setzen, sodass dort **gar keine** interaktive Root entsteht — dann ist das Menü auf Identity-
+Seiten statisches HTML (Links funktionieren als normale Anchor), und der Klick landet auf einer normalen
+Seite mit frischem Circuit.
+
+Das Toolkit liefert dafür die Extension **`HttpContext.AcceptsInteractiveRouting()`** (in
+`ITVComponents.WebCoreToolkit.Blazor.Extensions`, ab PRE048) — true für normale Seiten, false für die
+`[ExcludeFromInteractiveRouting]`-Identity-Pages:
 
 ```razor
 @* App.razor *@
-<Routes @rendermode="@RenderModeForPage" />
-@* … HeadOutlet analog … *@
+@using ITVComponents.WebCoreToolkit.Blazor.Extensions
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+
+<!DOCTYPE html>
+<html>
+<head>
+    @* … *@
+    <HeadOutlet @rendermode="RenderModeForPage" />
+</head>
+<body>
+    <Routes @rendermode="RenderModeForPage" />
+    @* … *@
+</body>
+</html>
 
 @code {
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
     private IComponentRenderMode? RenderModeForPage =>
-        HttpContext.GetEndpoint()?.Metadata
-            .GetMetadata<ExcludeFromInteractiveRoutingAttribute>() is null
-                ? InteractiveServer   // normale Seiten interaktiv
-                : null;               // Identity-Pages: static SSR, keine interaktive Root
+        HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
 }
 ```
 
-Voraussetzung: Das Shell-Nav darf nicht per *explizitem* `@rendermode="InteractiveServer"` auf der
-Komponente erzwungen sein (das überschriebe die seiten-bezogene Entscheidung) — den Render-Mode global
-über `<Routes>`/`App.razor` steuern.
+> **Voraussetzung:** Das Shell-Nav darf **nicht** per *explizitem* `@rendermode="InteractiveServer"` auf
+> der Komponente selbst (im `MainLayout`) erzwungen sein — ein per-Component-Render-Mode überschreibt die
+> seiten-bezogene Entscheidung, und die interaktive Root taucht auf den Identity-Seiten wieder auf. Den
+> Render-Mode **global über `<Routes>`/`App.razor`** steuern, nicht am Menü.
+
+Mit diesem Host-Fix wird der library-seitige `data-enhance-nav`-Schutz redundant (schadet aber nicht).
 
 ### Optional: Pfad-Modus statt Query (`/{tenant}/...`)
 
