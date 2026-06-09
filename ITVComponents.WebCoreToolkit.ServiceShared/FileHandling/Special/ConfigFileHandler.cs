@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,11 +10,9 @@ using ITVComponents.EFRepo.DataSync;
 using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.Json;
 using ITVComponents.Plugins;
-using ITVComponents.Scripting.CScript.Core.Native;
-using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using Microsoft.EntityFrameworkCore;
 
-namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.FileHandlers
+namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling.Special
 {
     public class ConfigFileHandler:IPlugin, IRespondingFileHandler
     {
