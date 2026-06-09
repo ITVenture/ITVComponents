@@ -4,9 +4,11 @@
 @using ITVComponents.EFRepo.Expressions.Models
 @using ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 @using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using Microsoft.Extensions.Logging
 @using SortDirection = ITVComponents.EFRepo.Expressions.Models.SortDirection
 
 @inject IServiceProvider Services
+@inject ILogger<ForeignKeyAutocomplete<T>> Logger
 
 @* Mud autocomplete (typeahead) over FK options resolved via Toolkit's ContextForFkQuery.
    - ServerFilter=false (default): loads the full list once, filters client-side on Label.
@@ -77,10 +79,9 @@
                 }
             }
         }
-        catch
+        catch(Exception ex)
         {
-            // Best-effort: leave caches empty — MudAutocomplete still renders, the dialog
-            // does not crash, and the user can clear the field via Clearable.
+            Logger.LogError(ex, "Error occurred while initializing ForeignKeyAutocomplete.");
         }
     }
 

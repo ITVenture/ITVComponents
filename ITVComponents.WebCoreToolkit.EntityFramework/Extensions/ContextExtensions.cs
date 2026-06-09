@@ -378,6 +378,13 @@ IServiceProvider Services = Global.Services;
         private static FilterBase ExtendFilter(FilterBase existingFilter, Type tableType,
             IDictionary<string, object> postedFilter)
         {
+            // No posted filter (e.g. the in-process Blazor FK label/selector path loads the full list
+            // without a grid filter) → there is nothing to add; return the filter unchanged.
+            if (postedFilter == null)
+            {
+                return existingFilter;
+            }
+
             var filterableProps = tableType.GetProperties().Where(n => n.PropertyType == typeof(string) || n.PropertyType.IsValueType).ToArray();
             var j = (from t in postedFilter join p in filterableProps on t.Key equals p.Name
                 select new { Prop = p, Value = t.Value }).ToArray();

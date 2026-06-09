@@ -101,14 +101,41 @@ else
 
     [Parameter] public string SubmitText { get; set; } = "Apply selected changes";
 
+    // The master checkbox owns its own display state: it drives ("set all") the detail flags when the user
+    // toggles it, but toggling a single detail must NOT move it back. Keyed by Change instance (reference equality).
+    private readonly Dictionary<Change, bool> masterState = new();
+    private List<Change>? trackedChanges;
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(trackedChanges, Changes))
+        {
+            trackedChanges = Changes;
+            masterState.Clear();
+        }
+
+        if (Changes is not null)
+        {
+            foreach (var c in Changes)
+            {
+                // Seed once per change: reflect the initial detail state (details default to Apply=true).
+                if (!masterState.ContainsKey(c))
+                {
+                    masterState[c] = c.Details is { Count: > 0 } ? c.Details.All(d => d.Apply) : c.Apply;
+                }
+            }
+        }
+    }
+
     private static bool IsActionable(ChangeType t)
         => t is ChangeType.Insert or ChangeType.Update or ChangeType.Delete;
 
-    private static bool IsSelected(Change c)
-        => c.Details is { Count: > 0 } ? c.Details.All(d => d.Apply) : c.Apply;
+    private bool IsSelected(Change c)
+        => masterState.TryGetValue(c, out var v) && v;
 
     private void ToggleChange(Change c, bool value)
     {
+        masterState[c] = value;
         c.Apply = value;
         if (c.Details is { Count: > 0 })
         {
