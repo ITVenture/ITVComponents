@@ -1,8 +1,13 @@
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Security.Claims;
+using System.Text;
+using ITVComponents.EFRepo.DataSync;
+using ITVComponents.EFRepo.DataSync.Models;
+using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Health;
+using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -99,5 +104,43 @@ public class AssemblyDiagnosticsAdminHandler : IAssemblyDiagnosticsAdminHandler
                     Message = m.StatusText
                 };
             }).ToList();
+    }
+
+    public string? ApplyConfigChanges(ClaimsPrincipal user, IEnumerable<Change> changes)
+    {
+        if (!HasPermission(user, ViewPermission)) return "Not authorized to apply configuration changes.";
+
+        var handler = ResolveConfigurationHandler();
+        if (handler == null) return "No configuration handler is registered on this host.";
+
+        var messages = new StringBuilder();
+        try
+        {
+            handler.ApplyChanges(changes, messages);
+        }
+        catch (Exception ex)
+        {
+            // A failed apply must not tear down the circuit — surface the reason to the reviewer.
+            messages.AppendLine(ex.Message);
+        }
+
+        return messages.Length != 0 ? messages.ToString() : null;
+    }
+
+    /// <summary>
+    /// Resolves the IConfigurationHandler the same way the MVC controller does: prefer the plugin-injection
+    /// wrapper (optionally a named instance via <c>ConfigHandlerName</c>), fall back to a directly registered
+    /// handler (the one ConfigFileHandler itself consumes).
+    /// </summary>
+    private IConfigurationHandler? ResolveConfigurationHandler()
+    {
+        var name = services.GetService<IHierarchySettings<AssemblyDiagnosticsOptions>>()?.Value.ConfigHandlerName;
+        var plugin = services.GetService<IInjectablePlugin<IConfigurationHandler>>();
+        if (plugin != null)
+        {
+            return string.IsNullOrEmpty(name) ? plugin.Instance : plugin.GetInstance(name);
+        }
+
+        return services.GetService<IConfigurationHandler>();
     }
 }

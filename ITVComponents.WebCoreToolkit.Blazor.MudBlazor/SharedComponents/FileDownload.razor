@@ -8,10 +8,12 @@
 @using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
 @using ITVComponents.WebCoreToolkit.ServiceShared.Service
 @using global::MudBlazor
+@using Microsoft.Extensions.Logging
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject IFileServiceHandler FileService
 @inject AuthenticationStateProvider AuthState
+@inject ILogger<FileDownload> Logger
 
 <MudButton StartIcon="@StartIcon" Variant="@Variant" Color="@Color" OnClick="Download" Disabled="@(busy || Disabled)">
     @if (busy)
@@ -88,6 +90,7 @@
             else
             {
                 await OnError.InvokeAsync("Permission denied for requested file.");
+                Logger.Log(LogLevel.Error, $"File-Request failed for {DownloadModule}/{DownloadReason}/{FileIdentifier}. Result: {result.Code} ({string.Join(Environment.NewLine, result.Errors.Select(n => $"{n.Key}: {n.Message}"))})");
             }
         }
         finally

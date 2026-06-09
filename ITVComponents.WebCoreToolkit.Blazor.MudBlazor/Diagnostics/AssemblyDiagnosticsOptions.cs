@@ -18,7 +18,15 @@ public class AssemblyDiagnosticsOptions
     public string ConfigUploadReason { get; set; } = "ApplyConfig";
 
     public string ConfigDownloadReason { get; set; }
-    
+
     /// <summary>Comma-separated file picker filter for the config upload, e.g. ".json,.zip".</summary>
     public string ConfigAccept { get; set; } = ".json";
+
+    public string ConfigDownloadIdentifier { get; set; }
+
+    /// <summary>
+    /// Optional explicit <c>IConfigurationHandler</c> plugin name used when applying the reviewed configuration
+    /// changes. When empty, the default registered handler is used (mirrors the MVC <c>ExplicitConfigHandler</c>).
+    /// </summary>
+    public string? ConfigHandlerName { get; set; }
 }

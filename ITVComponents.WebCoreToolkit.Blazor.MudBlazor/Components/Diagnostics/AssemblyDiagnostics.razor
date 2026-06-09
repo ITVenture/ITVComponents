@@ -7,6 +7,8 @@
 @using ITVComponents.WebCoreToolkit.Configuration
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using ITVComponents.EFRepo.DataSync.Models
+@using ITVComponents.Json
 
 @inject IAssemblyDiagnosticsAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
@@ -104,7 +106,8 @@ else
                 {
                     <div class="mb-4">
                         <FileDownload DownloadModule="@Options.Value.ConfigUploadModule"
-                                      FileIdentifier="@Options.Value.ConfigDownloadReason"
+                                      FileIdentifier="@Options.Value.ConfigDownloadIdentifier"
+                                      DownloadReason="@Options.Value.ConfigDownloadReason"
                                       ButtonText="Download configuration"
                                       OnError="OnDownloadError" />
                     </div>
@@ -112,14 +115,28 @@ else
                 
                 <FileUpload UploadModule="@Options.Value.ConfigUploadModule"
                             UploadReason="@Options.Value.ConfigUploadReason"
+                            UploadHint="@Options.Value.ConfigDownloadIdentifier"
                             Accept="@Options.Value.ConfigAccept"
                             Multiple="false"
                             ButtonText="Choose configuration file"
                             OnUploaded="OnConfigUploaded" />
-                @if (configResult is not null)
+                @if (configResult is { Success: false })
                 {
-                    <MudAlert Severity="@(configResult.Success ? Severity.Success : Severity.Error)" Class="mt-4">
+                    <MudAlert Severity="Severity.Error" Class="mt-4">
                         <pre style="margin:0;white-space:pre-wrap;word-break:break-word;">@configResult.Message</pre>
+                    </MudAlert>
+                }
+                else if (configChanges is not null)
+                {
+                    <div class="mt-4">
+                        <ConfigDiffEditor Changes="@configChanges" OnApply="ApplyConfigChangesAsync" Busy="@applyingConfig" />
+                    </div>
+                }
+
+                @if (applyMessage is not null)
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-4">
+                        <pre style="margin:0;white-space:pre-wrap;word-break:break-word;">@applyMessage</pre>
                     </MudAlert>
                 }
             </MudTabPanel>
@@ -140,6 +157,9 @@ else
     private string? claimSearch;
 
     private FileUpload.FileUploadResult? configResult;
+    private List<Change>? configChanges;
+    private string? applyMessage;
+    private bool applyingConfig;
 
     protected override async Task OnInitializedAsync()
     {
@@ -172,9 +192,53 @@ else
     private async Task OnConfigUploaded(FileUpload.FileUploadResult result)
     {
         configResult = result;
-        Snackbar.Add(result.Success ? "Configuration uploaded" : "Configuration upload failed",
+        configChanges = null;
+        applyMessage = null;
+
+        if (result.Success && !string.IsNullOrWhiteSpace(result.Message))
+        {
+            try
+            {
+                // The payload is the Change[] serialized by ConfigFileHandler.GetUploadResult (StaticTyping).
+                var parsed = JsonHelper.FromJsonString<Change[]>(result.Message, SerializationTypingMode.StaticTyping);
+                configChanges = parsed?.ToList() ?? new List<Change>();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Could not parse the configuration diff: {ex.Message}", Severity.Error);
+            }
+        }
+
+        Snackbar.Add(result.Success ? "Configuration analyzed" : "Configuration upload failed",
             result.Success ? Severity.Success : Severity.Error);
         await Task.CompletedTask;
+    }
+
+    private async Task ApplyConfigChangesAsync(List<Change> changes)
+    {
+        if (currentUser is null) return;
+
+        applyingConfig = true;
+        applyMessage = null;
+        StateHasChanged();
+        await Task.Yield();
+
+        try
+        {
+            var messages = Handler.ApplyConfigChanges(currentUser, changes);
+            applyMessage = messages;
+            Snackbar.Add(string.IsNullOrEmpty(messages) ? "Configuration applied" : "Configuration applied with messages",
+                string.IsNullOrEmpty(messages) ? Severity.Success : Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            applyMessage = ex.Message;
+            Snackbar.Add("Applying the configuration failed", Severity.Error);
+        }
+        finally
+        {
+            applyingConfig = false;
+        }
     }
 
     private void OnDownloadError(string message)

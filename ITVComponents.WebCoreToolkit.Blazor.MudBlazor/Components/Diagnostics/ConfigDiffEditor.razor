@@ -1,0 +1,163 @@
+@*
+    Structured, editable review of a configuration diff (the Change[] produced by ConfigFileHandler /
+    IConfigurationHandler.PerformCompare). One card per Change with a master checkbox that toggles the whole
+    entry, a change-mode icon, and a sub-table of editable ChangeDetail rows (Apply flag, current value,
+    editable new value). On submit the (mutated) Change list is handed back via OnApply for the host to apply.
+*@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics
+@using ITVComponents.EFRepo.DataSync.Models
+@using global::MudBlazor
+
+@if (Changes is { Count: > 0 })
+{
+    <MudStack Spacing="3">
+        @foreach (var change in Changes)
+        {
+            <MudPaper Outlined="true">
+                <MudToolBar Dense="true" Gutters="true">
+                    <MudCheckBox T="bool"
+                                 Value="@IsSelected(change)"
+                                 ValueChanged="@(v => ToggleChange(change, v))"
+                                 Disabled="@(!IsActionable(change.ChangeType))"
+                                 Color="Color.Primary"
+                                 Dense="true" />
+                    <MudIcon Icon="@ChangeIcon(change.ChangeType)" Color="@ChangeColor(change.ChangeType)" Class="mr-2" />
+                    <MudChip T="string" Size="Size.Small" Color="@ChangeColor(change.ChangeType)" Variant="Variant.Text" Class="mr-2">
+                        @change.ChangeType
+                    </MudChip>
+                    <MudText Typo="Typo.subtitle1">@change.EntityName</MudText>
+                    @if (change.Key is { Count: > 0 })
+                    {
+                        <MudText Typo="Typo.caption" Class="ml-3 mud-text-secondary">@KeyText(change.Key)</MudText>
+                    }
+                </MudToolBar>
+
+                @if (change.Details is { Count: > 0 })
+                {
+                    <MudSimpleTable Dense="true" Hover="true" Striped="true" Bordered="false" Style="overflow-x:auto;">
+                        <thead>
+                            <tr>
+                                <th style="width:64px;">Apply</th>
+                                <th style="width:22%;">Property</th>
+                                <th style="width:32%;">Current value</th>
+                                <th>New value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var detail in change.Details)
+                            {
+                                <tr>
+                                    <td><MudCheckBox T="bool" @bind-Value="detail.Apply" Dense="true" Color="Color.Primary" /></td>
+                                    <td>@(string.IsNullOrEmpty(detail.Name) ? detail.TargetProp : detail.Name)</td>
+                                    <td><div style="white-space:pre-wrap;word-break:break-word;" class="mud-text-secondary">@detail.CurrentValue</div></td>
+                                    <td>
+                                        <MudTextField T="string"
+                                                      @bind-Value="detail.NewValue"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Lines="@(detail.MultilineContent ? 4 : 1)"
+                                                      AutoGrow="@detail.MultilineContent" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+                else if (IsActionable(change.ChangeType))
+                {
+                    <MudText Typo="Typo.body2" Class="pa-3 mud-text-secondary">
+                        No editable properties — the whole entry is applied as-is when selected.
+                    </MudText>
+                }
+            </MudPaper>
+        }
+    </MudStack>
+
+    <MudButton StartIcon="@Icons.Material.Filled.Save"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               OnClick="Submit"
+               Disabled="@Busy"
+               Class="mt-4">
+        @SubmitText
+    </MudButton>
+}
+else
+{
+    <MudAlert Severity="Severity.Success" Class="mt-2">
+        No differences — the uploaded configuration matches the current system state.
+    </MudAlert>
+}
+
+@code {
+    /// <summary>The diff to review. Edited in place (Apply flags and NewValues) and handed back on submit.</summary>
+    [Parameter, EditorRequired] public List<Change> Changes { get; set; } = new();
+
+    /// <summary>Raised on submit with the reviewed/edited change list.</summary>
+    [Parameter] public EventCallback<List<Change>> OnApply { get; set; }
+
+    /// <summary>Disables the submit button while an apply is in flight.</summary>
+    [Parameter] public bool Busy { get; set; }
+
+    [Parameter] public string SubmitText { get; set; } = "Apply selected changes";
+
+    private static bool IsActionable(ChangeType t)
+        => t is ChangeType.Insert or ChangeType.Update or ChangeType.Delete;
+
+    private static bool IsSelected(Change c)
+        => c.Details is { Count: > 0 } ? c.Details.All(d => d.Apply) : c.Apply;
+
+    private void ToggleChange(Change c, bool value)
+    {
+        c.Apply = value;
+        if (c.Details is { Count: > 0 })
+        {
+            foreach (var d in c.Details)
+            {
+                d.Apply = value;
+            }
+        }
+    }
+
+    private async Task Submit()
+    {
+        // Normalize the change-level flag: a change with details is applied iff at least one detail is selected;
+        // a detail-less actionable change follows its own Apply flag (set via the master checkbox).
+        foreach (var c in Changes)
+        {
+            if (!IsActionable(c.ChangeType))
+            {
+                c.Apply = false;
+                continue;
+            }
+
+            if (c.Details is { Count: > 0 })
+            {
+                c.Apply = c.Details.Any(d => d.Apply);
+            }
+        }
+
+        await OnApply.InvokeAsync(Changes);
+    }
+
+    private static string ChangeIcon(ChangeType t) => t switch
+    {
+        ChangeType.Insert => Icons.Material.Filled.AddCircle,
+        ChangeType.Update => Icons.Material.Filled.Edit,
+        ChangeType.Delete => Icons.Material.Filled.RemoveCircle,
+        ChangeType.Warning => Icons.Material.Filled.Warning,
+        _ => Icons.Material.Filled.Info
+    };
+
+    private static Color ChangeColor(ChangeType t) => t switch
+    {
+        ChangeType.Insert => Color.Success,
+        ChangeType.Update => Color.Info,
+        ChangeType.Delete => Color.Error,
+        ChangeType.Warning => Color.Warning,
+        _ => Color.Default
+    };
+
+    private static string KeyText(Dictionary<string, string> key)
+        => string.Join(", ", key.Select(kv => $"{kv.Key}={kv.Value}"));
+}
