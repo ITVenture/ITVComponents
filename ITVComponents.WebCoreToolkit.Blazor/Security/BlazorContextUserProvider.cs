@@ -69,12 +69,28 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         {
             get
             {
-                var result = ParseQuery(navigation.Uri);
+                // Outside a live circuit/request — e.g. plugin initialization at startup (UsePluginsInit),
+                // where a permission-scoped query forces scope resolution — the scoped NavigationManager is
+                // not yet initialized and throws ('…NavigationManager has not been initialized') on Uri/BaseUri.
+                // There is no route context to read in that window, so yield empty route data and let scope
+                // resolution fall back to its default (no route-based tenant override without a request).
+                string uri, baseUri;
+                try
+                {
+                    uri = navigation.Uri;
+                    baseUri = navigation.BaseUri;
+                }
+                catch (InvalidOperationException)
+                {
+                    return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                var result = ParseQuery(uri);
                 var opts = scopeOptions.Value;
                 if (opts.TenantSource == TenantSource.PathSegment
                     && !string.IsNullOrEmpty(opts.RouteOverrideParam))
                 {
-                    var segment = ExtractFirstBaseSegment(navigation.BaseUri);
+                    var segment = ExtractFirstBaseSegment(baseUri);
                     if (!string.IsNullOrEmpty(segment))
                     {
                         result[opts.RouteOverrideParam!] = segment;
