@@ -100,22 +100,16 @@ else
         @if (Options.Value.UseConfigExchange)
         {
             <MudTabPanel Text="Configuration exchange">
-                @if (!string.IsNullOrEmpty(Options.Value.ConfigDownloadModule))
+                @if (!string.IsNullOrEmpty(Options.Value.ConfigUploadModule))
                 {
                     <div class="mb-4">
-                        <FileDownload DownloadModule="@Options.Value.ConfigDownloadModule"
-                                      FileIdentifier="@Options.Value.ConfigDownloadIdentifier"
+                        <FileDownload DownloadModule="@Options.Value.ConfigUploadModule"
+                                      FileIdentifier="@Options.Value.ConfigDownloadReason"
                                       ButtonText="Download configuration"
                                       OnError="OnDownloadError" />
                     </div>
                 }
-                else if (!string.IsNullOrEmpty(Options.Value.ConfigDownloadUrl))
-                {
-                    <MudButton Href="@Options.Value.ConfigDownloadUrl" Target="_blank"
-                               StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Filled" Color="Color.Primary" Class="mb-4">
-                        Download configuration
-                    </MudButton>
-                }
+                
                 <FileUpload UploadModule="@Options.Value.ConfigUploadModule"
                             UploadReason="@Options.Value.ConfigUploadReason"
                             Accept="@Options.Value.ConfigAccept"

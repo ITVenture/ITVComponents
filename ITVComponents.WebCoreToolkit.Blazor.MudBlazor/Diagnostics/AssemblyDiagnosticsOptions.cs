@@ -17,21 +17,8 @@ public class AssemblyDiagnosticsOptions
     /// <summary>Upload reason passed to the handler (route {UploadReason}); drives the permission lookup.</summary>
     public string ConfigUploadReason { get; set; } = "ApplyConfig";
 
-    /// <summary>
-    /// Name of the FileHandler plugin that serves the configuration download in-process (via ReadFile).
-    /// When set, an in-process streaming download is offered and <see cref="ConfigDownloadUrl"/> is ignored.
-    /// </summary>
-    public string? ConfigDownloadModule { get; set; }
-
-    /// <summary>File-identifier passed to the download handler's ReadFile (e.g. the configuration section).</summary>
-    public string ConfigDownloadIdentifier { get; set; } = "";
-
-    /// <summary>
-    /// Optional pre-built URL for downloading the current configuration (legacy MVC /File flow). Used only as a
-    /// fallback when <see cref="ConfigDownloadModule"/> is not set. When both are empty the download link is hidden.
-    /// </summary>
-    public string? ConfigDownloadUrl { get; set; }
-
+    public string ConfigDownloadReason { get; set; }
+    
     /// <summary>Comma-separated file picker filter for the config upload, e.g. ".json,.zip".</summary>
     public string ConfigAccept { get; set; } = ".json";
 }
