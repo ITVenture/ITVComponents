@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE045</Version>
+    <Version>5.0.0-PRE048</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <!--RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -30,5 +30,8 @@
       <Generator>
       </Generator>
     </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="FileHandling\" />
   </ItemGroup>
 </Project>
