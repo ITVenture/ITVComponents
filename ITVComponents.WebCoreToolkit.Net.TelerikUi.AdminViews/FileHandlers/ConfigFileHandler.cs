@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Principal;
 using System.Text;
@@ -76,39 +77,43 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.FileHandlers
         }
 
         /// <summary>
-        /// Reads a file with the given file-identifier. The method can alter the Download-Name and set the fileContent
+        /// Reads a file with the given file-identifier.
         /// </summary>
         /// <param name="fileIdentifier">the identifier of the file</param>
         /// <param name="downloadingIdentity">the identity that is downloading the requested file</param>
-        /// <param name="downloadName">the download-name of the file</param>
-        /// <param name="contentType">the content-type that is set in the result-header</param>
-        /// <param name="fileDownload">indicates whether the provided file should be served as file-download or as embeddable file-result</param>
-        /// <param name="fileContent">the content of the file</param>
-        /// <returns>a value indicating whether the file was found</returns>
-        public bool ReadFile(string fileIdentifier, IIdentity downloadingIdentity, ref string downloadName, ref string contentType,
-            ref bool fileDownload, out byte[] fileContent)
+        /// <returns>a <see cref="FileReadResult"/> carrying the requested configuration as JSON</returns>
+        public FileReadResult ReadFile(string fileIdentifier, IIdentity downloadingIdentity)
         {
             int colon = fileIdentifier.IndexOf(":");
             string fileType = colon != -1 ? fileIdentifier.Substring(0, colon) : fileIdentifier;
             var filterDic = colon != -1 ? ReadFilterDic(fileIdentifier.Substring(colon + 1)) : new Dictionary<string, int>();
             object desc = handler.DescribeConfig(fileType, filterDic, out var name);
             var descString = JsonHelper.ToJson(desc, SerializationTypingMode.NativePolymorphism, null);
-            fileContent = Encoding.UTF8.GetBytes(descString);
-            downloadName = $"{name}.json";
-            contentType = "application/json";
-            fileDownload = true;
-            return true;
+            return new FileReadResult
+            {
+                Success = true,
+                FileContent = new MemoryStream(Encoding.UTF8.GetBytes(descString)),
+                DownloadName = $"{name}.json",
+                ContentType = "application/json",
+                FileDownload = true
+            };
         }
 
         /// <summary>
         /// Gets the response for the complete upload process
         /// </summary>
         /// <returns>a response carrying the computed configuration changes as JSON</returns>
-        public FileUploadResponse GetUploadResult()
+        public FileReadResult GetUploadResult()
         {
             var tmp = changes.ToArray();
             changes.Clear();
-            return FileUploadResponse.Text(JsonHelper.ToJson(tmp, SerializationTypingMode.StaticTyping, null), "application/json");
+            var json = JsonHelper.ToJson(tmp, SerializationTypingMode.StaticTyping, null);
+            return new FileReadResult
+            {
+                Success = true,
+                FileContent = new MemoryStream(Encoding.UTF8.GetBytes(json ?? string.Empty)),
+                ContentType = "application/json"
+            };
         }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>

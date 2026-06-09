@@ -1,18 +1,16 @@
 @*
-    Reusable in-process file download. Resolves the named FileHandler-plugin via DI and reads the file
-    through IAsyncFileHandler/IFileHandler.ReadFile — then streams the bytes to the browser via a
-    DotNetStreamReference (no MVC /File endpoint, no pre-built redirect URL).
+    Reusable in-process file download. Delegates all plugin-handling (resolve, authorize, read) to the shared
+    IFileServiceHandler — then streams the returned content to the browser via a DotNetStreamReference
+    (no MVC /File endpoint, no pre-built redirect URL).
 *@
 @namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
-@using System.IO
-@using System.Security.Principal
 @using Microsoft.AspNetCore.Components.Authorization
-@using ITVComponents.WebCoreToolkit.ServiceShared.Extensions
 @using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
+@using ITVComponents.WebCoreToolkit.ServiceShared.Service
 @using global::MudBlazor
 @implements IAsyncDisposable
 @inject IJSRuntime JS
-@inject IServiceProvider Services
+@inject IFileServiceHandler FileService
 @inject AuthenticationStateProvider AuthState
 
 <MudButton StartIcon="@StartIcon" Variant="@Variant" Color="@Color" OnClick="Download" Disabled="@(busy || Disabled)">
@@ -26,6 +24,8 @@
 @code {
     /// <summary>Name of the FileHandler plugin that serves the download (resolved in-process via DI).</summary>
     [Parameter, EditorRequired] public string DownloadModule { get; set; } = "";
+
+    [Parameter, EditorRequired] public string DownloadReason { get; set; } = "";
 
     /// <summary>The file-identifier passed to the handler's ReadFile (e.g. the configuration section to export).</summary>
     [Parameter] public string FileIdentifier { get; set; } = "";
@@ -51,60 +51,43 @@
         busy = true;
         try
         {
-            var handler = Services.GetFileHandler(DownloadModule);
             var authState = await AuthState.GetAuthenticationStateAsync();
-            IIdentity? identity = authState.User.Identity;
+            var result = await FileService.ProcessFileDownload(DownloadModule, DownloadReason, FileIdentifier,
+                authState.User, defaultDownloadName: "download.bin", defaultContentType: "application/octet-stream");
 
-            Stream? content = null;
-            var downloadName = "download.bin";
-            var contentType = "application/octet-stream";
-            var disposals = new List<IDisposable>();
-
-            if (handler is IAsyncFileHandler asyncHandler)
+            if (result is { Code: FileOperationCode.OkWithContent, Success: true })
             {
-                var result = await asyncHandler.ReadFile(FileIdentifier, identity);
-                if (result is { Success: true, FileContent: not null })
+                var readResult = result.ReadResult;
+                try
                 {
-                    content = result.FileContent;
-                    downloadName = result.DownloadName ?? downloadName;
-                    contentType = result.ContentType ?? contentType;
-                    disposals.AddRange(result.DeferredDisposals);
+                    await EnsureModuleAsync();
+                    using var streamRef = new DotNetStreamReference(readResult.FileContent, leaveOpen: false);
+                    await module!.InvokeVoidAsync("downloadFromStream", readResult.DownloadName, readResult.ContentType, streamRef);
+                }
+                finally
+                {
+                    foreach (var d in readResult.DeferredDisposals)
+                    {
+                        try
+                        {
+                            d.Dispose();
+                        }
+                        catch
+                        {
+                        }
+                    }
                 }
             }
-            else if (handler is IFileHandler syncHandler)
+            else if (result.Code == FileOperationCode.NotFound)
             {
-                var fileDownload = true;
-                if (syncHandler.ReadFile(FileIdentifier, identity, ref downloadName, ref contentType, ref fileDownload, out var bytes)
-                    && bytes != null)
-                {
-                    content = new MemoryStream(bytes);
-                    disposals.Add(content);
-                }
+                var message = result.Errors is { Count: > 0 }
+                    ? string.Join(Environment.NewLine, result.Errors.Select(e => e.Message))
+                    : "The requested file was not found.";
+                await OnError.InvokeAsync(message);
             }
             else
             {
-                await OnError.InvokeAsync($"No file-handler '{DownloadModule}' found.");
-                return;
-            }
-
-            if (content is null)
-            {
-                await OnError.InvokeAsync("The requested file was not found.");
-                return;
-            }
-
-            try
-            {
-                await EnsureModuleAsync();
-                using var streamRef = new DotNetStreamReference(content, leaveOpen: false);
-                await module!.InvokeVoidAsync("downloadFromStream", downloadName, contentType, streamRef);
-            }
-            finally
-            {
-                foreach (var d in disposals)
-                {
-                    try { d.Dispose(); } catch { }
-                }
+                await OnError.InvokeAsync("Permission denied for requested file.");
             }
         }
         finally

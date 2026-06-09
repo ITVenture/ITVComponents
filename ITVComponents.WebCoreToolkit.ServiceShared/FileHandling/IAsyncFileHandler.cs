@@ -11,15 +11,8 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
     /// Framework-neutral: validation feedback is returned as <see cref="FileOperationResult"/>;
     /// the host edge (MVC / Blazor) maps it onto its own validation system.
     /// </summary>
-    public interface IAsyncFileHandler : IPlugin
+    public interface IAsyncFileHandler : IFileReasonPermissionProvider
     {
-        /// <summary>
-        /// Provides a list of Permissions that a user must have any of, to perform a specific task
-        /// </summary>
-        /// <param name="reason">the reason why this component is being invoked</param>
-        /// <returns>a list of required permissions</returns>
-        string[] PermissionsForReason(string reason);
-
         /// <summary>
         /// Adds a file to this fileHandler instance
         /// </summary>
@@ -80,7 +73,7 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
         /// <param name="fileIdentifier">the identifier of the file</param>
         /// <param name="downloadingIdentity">the identity that is downloading the requested file</param>
         /// <returns>a value indicating whether the file was found</returns>
-        Task<AsyncReadFileResult> ReadFile(string fileIdentifier, IIdentity downloadingIdentity);
+        Task<FileReadResult> ReadFile(string fileIdentifier, IIdentity downloadingIdentity);
 
         /// <summary>
         /// Reads a file with the given file-identifier. The method can alter the Download-Name and set the fileContent
@@ -89,7 +82,7 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
         /// <param name="downloadingIdentity">the identity that is downloading the requested file</param>
         /// <param name="assetKey">the asset-key of the resource that is being accessed by the calling client</param>
         /// <returns>a value indicating whether the file was found</returns>
-        public Task<AsyncReadFileResult> ReadFile(string fileIdentifier, ClaimsPrincipal downloadingIdentity, string assetKey)
+        public Task<FileReadResult> ReadFile(string fileIdentifier, ClaimsPrincipal downloadingIdentity, string assetKey)
         {
             if (string.IsNullOrEmpty(assetKey))
                 return ReadFile(fileIdentifier, downloadingIdentity.Identity);

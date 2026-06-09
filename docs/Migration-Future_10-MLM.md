@@ -71,28 +71,41 @@ public FileOperationResult AddFile(string fileName, byte[] content /*…*/)
 Der Aufruf-Rand mappt das Ergebnis selbst (MVC → ModelState, Blazor → `ValidationMessageStore`) — euer
 Handler kennt nur noch den neutralen Vertrag.
 
-Der **Read-Pfad** (`ReadFile` → `AsyncReadFileResult`) ist unverändert, nur der Namespace wandert nach
-`…ServiceShared.FileHandling`.
+Der **Read-Pfad** ist auf einen einzigen Träger vereinheitlicht: sowohl der async- als auch der sync-Handler
+geben jetzt `FileReadResult` zurück (Stream-basiert, mit `DeferredDisposals`). Der frühere sync-`ReadFile`
+mit `ref`/`out byte[]` entfällt:
+
+| vorher (sync) | nachher (sync) |
+|---|---|
+| `bool ReadFile(string id, IIdentity user, ref string downloadName, ref string contentType, ref bool fileDownload, out byte[] content)` | `FileReadResult ReadFile(string id, IIdentity user)` |
+
+Ein sync-Handler wrappt seine Bytes einfach in einen `MemoryStream`; `Success = false` signalisiert „nicht gefunden".
 
 ---
 
 ## 2. Responding-FileHandler / Config-Exchange (Phase 4) — **bricht eigene Responding-Handler**
 
 `IRespondingFileHandler` / `IAsyncRespondingFileHandler` liegen jetzt ebenfalls in ServiceShared, und
-`GetUploadResult()` gibt statt eines MVC-`IResult` ein neutrales **`FileUploadResponse`** zurück.
+`GetUploadResult()` gibt statt eines MVC-`IResult` denselben neutralen **`FileReadResult`** zurück wie der
+Read-Pfad (kein separates `FileUploadResponse` mehr).
 
 | vorher | nachher |
 |---|---|
 | `using ITVComponents.WebCoreToolkit.Net.FileHandling;` | `using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;` |
-| `IResult GetUploadResult()` | `FileUploadResponse GetUploadResult()` |
-| `Results.Text(json)` / `Results.Bytes(…)` | `FileUploadResponse.Text(json)` / `FileUploadResponse.Bytes(bytes, contentType, downloadName)` |
+| `IResult GetUploadResult()` | `FileReadResult GetUploadResult()` |
+| `Results.Text(json)` / `Results.Bytes(…)` | `new FileReadResult { Success = true, FileContent = new MemoryStream(bytes), ContentType = … }` |
 
 ```csharp
 // vorher
 public IResult GetUploadResult() => Results.Text(diffJson, "application/json");
 
 // nachher
-public FileUploadResponse GetUploadResult() => FileUploadResponse.Text(diffJson);
+public FileReadResult GetUploadResult() => new()
+{
+    Success = true,
+    FileContent = new MemoryStream(Encoding.UTF8.GetBytes(diffJson)),
+    ContentType = "application/json"
+};
 ```
 
 > `IFormProcessor` / `IAsyncFormProcessor` bleiben vorerst in `…Net.FileHandling` (kein Blazor-Pendant,
@@ -505,7 +518,8 @@ E-Mail-Confirm — Voraussetzung ist nur, dass eure `/Account/ConfirmEmail`-Page
 | # | Was | Aktion |
 |---|---|---|
 | 1 | `IFileHandler.AddFile` | `ModelStateDictionary` raus, `FileOperationResult` zurück; Namespace → `ServiceShared.FileHandling` |
-| 2 | `IRespondingFileHandler.GetUploadResult` | `IResult` → `FileUploadResponse`; Namespace → `ServiceShared.FileHandling` |
+| 1b | `IFileHandler.ReadFile` (sync) | `ref`/`out byte[]` → `FileReadResult ReadFile(id, identity)` (Stream-basiert, wie async) |
+| 2 | `IRespondingFileHandler.GetUploadResult` | `IResult` → `FileReadResult`; Namespace → `ServiceShared.FileHandling` |
 | 3 | DiagnosticsQuery-Texte | `context.User`→`User`, `context.RequestServices`→`Services` |
 | 4 | `IContextUserProvider` | `HttpContext`-Member → `IHttpContextUserProvider` |
 | 5 | `CookieScopeOptions.DefaultScopeExpression` | `Func<HttpContext,…>` → `Func<IContextUserProvider,…>` |

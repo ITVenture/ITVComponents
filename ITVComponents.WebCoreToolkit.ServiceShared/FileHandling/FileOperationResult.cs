@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
@@ -14,6 +15,17 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
         /// Gets or sets a value indicating whether the operation succeeded.
         /// </summary>
         public bool Success { get; set; }
+        
+        /// <summary>
+        /// Gets or sets the framework-neutral outcome code of the operation.
+        /// </summary>
+        public FileOperationCode Code { get; set; } = FileOperationCode.OK;
+
+        /// <summary>
+        /// Gets or sets the file/stream a responding handler produced for the completed upload
+        /// (set when <see cref="Code"/> is <see cref="FileOperationCode.OkWithContent"/>).
+        /// </summary>
+        public FileReadResult ReadResult { get; set; }
 
         /// <summary>
         /// Gets or sets the validation errors that were produced while processing the file.
@@ -26,16 +38,41 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
         public static FileOperationResult Ok() => new FileOperationResult { Success = true };
 
         /// <summary>
+        /// Creates a forbid result.
+        /// </summary>
+        public static FileOperationResult Forbid() => new FileOperationResult { Success = false, Code = FileOperationCode.Forbid };
+
+        /// <summary>
+        /// Creates a forbid result.
+        /// </summary>
+        public static FileOperationResult UnAuthorized() => new FileOperationResult { Success = false, Code = FileOperationCode.UnAuthorized };
+
+        /// <summary>
         /// Creates a failed result with the given errors.
         /// </summary>
-        public static FileOperationResult Fail(params FileError[] errors)
-            => new FileOperationResult { Success = false, Errors = errors ?? Array.Empty<FileError>() };
+        public static FileOperationResult Fail(FileOperationCode code, params FileError[] errors)
+            => new FileOperationResult { Success = false, Code = code, Errors = errors ?? Array.Empty<FileError>() };
 
         /// <summary>
         /// Creates a failed result with a single keyed error.
         /// </summary>
-        public static FileOperationResult Fail(string key, string message)
-            => Fail(new FileError(key, message));
+        public static FileOperationResult Fail(string key, string message, FileOperationCode code)
+            => Fail(code, new FileError(key, message));
+
+        public static FileOperationResult BadRequest(string exMessage) => Fail(FileOperationCode.BadRequest ,new FileError("BadRequest", exMessage));
+
+        /// <summary>
+        /// Creates a not-found result (e.g. the requested download was not produced by the handler).
+        /// </summary>
+        public static FileOperationResult NotFound(params FileError[] errors) => Fail(FileOperationCode.NotFound, errors);
+
+        public static FileOperationResult OkWithContent(FileReadResult uploadResponse) =>
+            new()
+            {
+                Success = true,
+                ReadResult = uploadResponse,
+                Code = FileOperationCode.OkWithContent
+            };
     }
 
     /// <summary>
@@ -71,5 +108,15 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
         /// Gets or sets the error message.
         /// </summary>
         public string Message { get; set; }
+    }
+
+    public enum FileOperationCode
+    {
+        OK,
+        OkWithContent,
+        BadRequest,
+        NotFound,
+        UnAuthorized,
+        Forbid
     }
 }

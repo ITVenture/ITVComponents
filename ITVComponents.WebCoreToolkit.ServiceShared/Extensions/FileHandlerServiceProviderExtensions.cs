@@ -20,7 +20,7 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Extensions
         /// <param name="services">the service-provider that holds injectable services</param>
         /// <param name="rawName">the expected raw-name of the file-handler</param>
         /// <returns>the resolved <see cref="IAsyncFileHandler"/> or <see cref="IFileHandler"/>, or null when not found</returns>
-        public static object GetFileHandler(this IServiceProvider services, string rawName)
+        public static IFileReasonPermissionProvider GetFileHandler(this IServiceProvider services, string rawName)
         {
             IWebPluginHelper plugins = services.GetService<IWebPluginHelper>();
             IPermissionScope scope = services.GetService<IPermissionScope>();

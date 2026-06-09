@@ -76,7 +76,7 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling.Special
         /// <param name="fileIdentifier">the identifier of the file</param>
         /// <param name="downloadingIdentity">the identity that is downloading the requested file</param>
         /// <returns>a value indicating whether the file was found</returns>
-        public async Task<AsyncReadFileResult> ReadFile(string fileIdentifier, IIdentity downloadingIdentity)
+        public async Task<FileReadResult> ReadFile(string fileIdentifier, IIdentity downloadingIdentity)
         {
             var data = fileIdentifier.DecompressToken<Dictionary<string, string>>();
             var queryName = data["$$QUERYNAME"];
@@ -95,7 +95,7 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling.Special
         /// <param name="queryName">the name of the query that was executed</param>
         /// <param name="downloadIdentity">the download-identity that was used to request the data</param>
         /// <returns>a file-read result that describes the retrieved data</returns>
-        protected abstract Task<AsyncReadFileResult> MaterializeQueryData(object[] data, string queryName, IIdentity downloadIdentity);
+        protected abstract Task<FileReadResult> MaterializeQueryData(object[] data, string queryName, IIdentity downloadIdentity);
 
         /// <summary>
         /// Raises the Disposed event

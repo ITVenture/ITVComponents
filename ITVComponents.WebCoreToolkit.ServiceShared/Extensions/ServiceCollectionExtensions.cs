@@ -1,5 +1,8 @@
 using ITVComponents.WebCoreToolkit.ServiceShared.Diagnostics;
+using ITVComponents.WebCoreToolkit.ServiceShared.Service;
+using ITVComponents.WebCoreToolkit.ServiceShared.Service.Impl;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.ServiceShared.Extensions
 {
@@ -10,13 +13,18 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Extensions
     public static class ServiceCollectionExtensions
     {
         /// <summary>
-        /// Registers the framework-neutral WebCoreToolkit services (currently the Diagnostics-Query service).
+        /// Registers the framework-neutral WebCoreToolkit services (the Diagnostics-Query service and the shared
+        /// file up-/download service handler).
         /// </summary>
         /// <param name="services">the service-collection to extend</param>
         /// <returns>the same service-collection for chaining</returns>
         public static IServiceCollection AddWebCoreToolkitServiceShared(this IServiceCollection services)
         {
-            return services.AddSingleton<IDiagnosticsQueryService, DiagnosticsQueryService>();
+            services.AddSingleton<IDiagnosticsQueryService, DiagnosticsQueryService>();
+            // Scoped: the handler resolves scoped collaborators through the injected IServiceProvider.
+            // TryAdd keeps it idempotent with the WebPart-discovered registration on an MVC host.
+            services.TryAddScoped<IFileServiceHandler, DefaultFileServiceHandler>();
+            return services;
         }
     }
 }

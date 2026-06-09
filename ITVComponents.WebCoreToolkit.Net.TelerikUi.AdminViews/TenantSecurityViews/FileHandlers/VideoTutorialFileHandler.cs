@@ -86,13 +86,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             return FileOperationResult.Ok();
         }
 
-        public async Task<AsyncReadFileResult> ReadFile(string fileIdentifier, IIdentity downloadingIdentity)
+        public async Task<FileReadResult> ReadFile(string fileIdentifier, IIdentity downloadingIdentity)
         {
             var ok = fileIdentifier.StartsWith("##VID#");
             if (ok)
             {
                 var idHint = fileIdentifier.Substring(6).Split("#").Select(n => int.Parse(n)).ToArray();
-                var retVal = new AsyncReadFileResult();
+                var retVal = new FileReadResult();
                 retVal.DeferredDisposals.Add(db.Database.UseConnection(out DbCommand cmd));
                 retVal.DeferredDisposals.Add(cmd);
                 cmd.CommandText = "Select Content from TutorialStreamBlob where TutorialStreamId = @streamId";

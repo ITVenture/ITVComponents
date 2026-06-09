@@ -50,7 +50,7 @@ namespace ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers
         /// <param name="queryName">the name of the query that was executed</param>
         /// <param name="downloadIdentity">the download-identity that was used to request the data</param>
         /// <returns>a file-read result that describes the retrieved data</returns>
-        protected override async Task<AsyncReadFileResult> MaterializeQueryData(object[] data, string queryName,
+        protected override async Task<FileReadResult> MaterializeQueryData(object[] data, string queryName,
             IIdentity downloadIdentity)
         {
             var settingsName = $"{UniqueName}CfgFor{queryName}";
@@ -102,7 +102,7 @@ namespace ITVComponents.WebCoreToolkit.Net.SpecialFileHandlers
             var dumpData = tmp.ToArray();
             tmp = new MemoryStream(dumpData);
             //tmp.Seek(0, SeekOrigin.Begin);
-            var retVal = new AsyncReadFileResult
+            var retVal = new FileReadResult
             {
                 DownloadName = cfg.DownloadName,
                 FileDownload = cfg.FileDownload,

@@ -10,15 +10,8 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
     /// Framework-neutral: validation feedback is returned as <see cref="FileOperationResult"/>;
     /// the host edge (MVC / Blazor) maps it onto its own validation system.
     /// </summary>
-    public interface IFileHandler : IPlugin
+    public interface IFileHandler : IFileReasonPermissionProvider
     {
-        /// <summary>
-        /// Provides a list of Permissions that a user must have any of, to perform a specific task
-        /// </summary>
-        /// <param name="reason">the reason why this component is being invoked</param>
-        /// <returns>a list of required permissions</returns>
-        string[] PermissionsForReason(string reason);
-
         /// <summary>
         /// Adds a file to this fileHandler instance
         /// </summary>
@@ -74,33 +67,24 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling
         }
 
         /// <summary>
-        /// Reads a file with the given file-identifier. The method can alter the Download-Name and set the fileContent
+        /// Reads a file with the given file-identifier.
         /// </summary>
         /// <param name="fileIdentifier">the identifier of the file</param>
         /// <param name="downloadingIdentity">the identity that is downloading the requested file</param>
-        /// <param name="downloadName">the download-name of the file</param>
-        /// <param name="contentType">the content-type that is set in the result-header</param>
-        /// <param name="fileDownload">indicates whether the provided file should be served as file-download or as embeddable file-result</param>
-        /// <param name="fileContent">the content of the file</param>
-        /// <returns>a value indicating whether the file was found</returns>
-        bool ReadFile(string fileIdentifier, IIdentity downloadingIdentity, ref string downloadName, ref string contentType, ref bool fileDownload, out byte[] fileContent);
+        /// <returns>a <see cref="FileReadResult"/> describing the requested file; <see cref="FileReadResult.Success"/> is <c>false</c> when the file was not found</returns>
+        FileReadResult ReadFile(string fileIdentifier, IIdentity downloadingIdentity);
 
         /// <summary>
-        /// Reads a file with the given file-identifier. The method can alter the Download-Name and set the fileContent
+        /// Reads a file with the given file-identifier.
         /// </summary>
         /// <param name="fileIdentifier">the identifier of the file</param>
         /// <param name="downloadingIdentity">the identity that is downloading the requested file</param>
         /// <param name="assetKey">the asset-key of the resource that is being accessed by the calling client</param>
-        /// <param name="downloadName">the download-name of the file</param>
-        /// <param name="contentType">the content-type that is set in the result-header</param>
-        /// <param name="fileDownload">indicates whether the provided file should be served as file-download or as embeddable file-result</param>
-        /// <param name="fileContent">the content of the file</param>
-        /// <returns>a value indicating whether the file was found</returns>
-        public bool ReadFile(string fileIdentifier, ClaimsPrincipal downloadingIdentity, string assetKey,
-            ref string downloadName, ref string contentType, ref bool fileDownload, out byte[] fileContent)
+        /// <returns>a <see cref="FileReadResult"/> describing the requested file; <see cref="FileReadResult.Success"/> is <c>false</c> when the file was not found</returns>
+        public FileReadResult ReadFile(string fileIdentifier, ClaimsPrincipal downloadingIdentity, string assetKey)
         {
             if (string.IsNullOrEmpty(assetKey))
-                return ReadFile(fileIdentifier, downloadingIdentity.Identity, ref downloadName, ref contentType, ref fileDownload, out fileContent);
+                return ReadFile(fileIdentifier, downloadingIdentity.Identity);
             throw new InvalidOperationException("Asset-Access is not supported by this FileHandler-instance");
         }
     }
