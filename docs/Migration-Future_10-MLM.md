@@ -537,6 +537,9 @@ Wer ihn direkt referenziert hat (unüblich, war `internal`), wechselt auf
 
 ### 7a. Permissions & Navigation ziehen sofort (gleicher Schalter)
 
+> **Gilt ab `5.0.0-PRE059`.** (Die FK-Label-Cache-Invalidierung aus Abschnitt 7 ist bereits in `PRE058`
+> enthalten; die hier beschriebene Permission-/Navigations-Invalidierung kam danach dazu.)
+
 Derselbe `UseEntityTracker`-Schalter speist jetzt zusätzlich eine **host-neutrale Invalidierung** für die
 beiden Puffer, die im Blazor-Betrieb dafür sorgten, dass **gewährte/entzogene Rechte und Menü-Änderungen
 nicht sofort zogen**:
