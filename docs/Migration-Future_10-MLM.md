@@ -601,7 +601,19 @@ Im Host das Menü (bzw. den zu aktualisierenden Bereich) im **interaktiven** Ren
 ruft vorab `IPermissionScope.Refresh()` (re-resolved Scope → frische Permissions/Features), sodass das
 Re-Render bereits gegen die neuen Rechte prüft. Parameter: `Watch` (Default `Navigation`),
 `RefreshPermissionScope` (Default `true`), `OnChanged` (EventCallback). Ohne aktiven Tracker ist die
-Komponente ein transparenter Pass-Through.
+Komponente ein transparenter Pass-Through. Sie hängt am non-generischen Signal (= **Security-Context**).
+
+Für einen **anderen DbContext** gibt es die per-Context-Variante **`ContextEntityChangeRefresher<TContext>`**
+(gleiche Parameter), die `IEntityChangeSignal<TContext>` abonniert:
+
+```razor
+<ContextEntityChangeRefresher TContext="MyOtherContext" Watch="Pricing" RefreshPermissionScope="false">
+    @* UI, die auf Writes in MyOtherContext reagieren soll *@
+</ContextEntityChangeRefresher>
+```
+
+(Ein **distinkter Name** ist nötig, weil Razor Komponenten-Tags über den einfachen Namen auflöst und eine
+gleichnamige generische Variante mit der nicht-generischen verschmelzen würde → Build-Fehler `RZ10009`.)
 
 > **Granularität:** Das Signal ist tabellen-/global-granular (nicht pro Tenant/User) — jeder relevante Write
 > invalidiert die Puffer aller Circuits. Bewusst gewählt: lieber ein Re-Select zu viel als stale Rechte.
