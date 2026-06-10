@@ -1,6 +1,8 @@
 @namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
 @typeparam T
+@implements IDisposable
 
+@using ITVComponents.EFRepo.Helpers
 @using ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 @using ITVComponents.WebCoreToolkit.EntityFramework.Models
 @using Microsoft.Extensions.Logging
@@ -10,7 +12,9 @@
 
 @* Mud dropdown that pulls FK options in-process via Toolkit's ContextForFkQuery,
    the same code path the /ForeignKey/{connection}/{table} HTTP endpoint uses.
-   Items are expected to expose Id and Caption (Name/DisplayName as fallbacks). *@
+   Items are expected to expose Id and Caption (Name/DisplayName as fallbacks).
+   When the EntityWriteTracker is active, the option list reloads as soon as the
+   backing table is written (e.g. a new entry added in another window). *@
 
 <MudSelect T="T"
            Value="Value"
@@ -37,10 +41,24 @@
 
     private record Item(T Id, string Caption);
     private readonly List<Item> _items = new();
+    private IEntityWriteTracker? _tracker;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadItemsAsync();
+
+        // Optional active refresh: only present when ActivationSettings.UseEntityTracker is on.
+        _tracker = Services.TrackerForContext(Connection, null);
+        if (_tracker != null)
+        {
+            _tracker.TableWritten += OnTableWritten;
+        }
+    }
+
+    private async Task LoadItemsAsync()
+    {
         await Task.Yield();
+        _items.Clear();
         try
         {
             var src = Services.ContextForFkQuery(Connection, null);
@@ -58,6 +76,29 @@
             // Best-effort: swallow loader errors so the dialog still renders. The user
             // can still pick "no value" via Clearable; selecting an unknown value would
             // need the full list, but at least the form does not crash.
+        }
+    }
+
+    private void OnTableWritten(string table)
+    {
+        if (!string.Equals(table, Table, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // The tracker raises on the writer's thread (possibly another circuit) → marshal to ours.
+        _ = InvokeAsync(async () =>
+        {
+            await LoadItemsAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        if (_tracker != null)
+        {
+            _tracker.TableWritten -= OnTableWritten;
         }
     }
 }

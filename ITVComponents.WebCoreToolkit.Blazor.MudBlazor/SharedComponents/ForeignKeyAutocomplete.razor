@@ -1,7 +1,9 @@
 @namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
 @typeparam T
+@implements IDisposable
 
 @using ITVComponents.EFRepo.Expressions.Models
+@using ITVComponents.EFRepo.Helpers
 @using ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 @using ITVComponents.WebCoreToolkit.EntityFramework.Models
 @using Microsoft.Extensions.Logging
@@ -12,8 +14,10 @@
 
 @* Mud autocomplete (typeahead) over FK options resolved via Toolkit's ContextForFkQuery.
    - ServerFilter=false (default): loads the full list once, filters client-side on Label.
+     When the EntityWriteTracker is active, the cached list reloads as soon as the backing
+     table is written (e.g. a new entry added in another window).
    - ServerFilter=true: queries IWrappedFkSource.ReadForeignKey(table, postedFilter: ...) per
-     keystroke with a Contains-on-Label filter from EFRepo.Expressions.Models.                *@
+     keystroke with a Contains-on-Label filter from EFRepo.Expressions.Models — already live.  *@
 
 <MudAutocomplete T="T"
                  Value="Value"
@@ -48,30 +52,30 @@
     private record Item(T Key, string Label);
     private readonly List<Item> _all = new();
     private readonly Dictionary<object, string> _captions = new();
+    private IEntityWriteTracker? _tracker;
 
     protected override async Task OnInitializedAsync()
     {
         await Task.Yield();
         try
         {
-            var src = Services.ContextForFkQuery(Connection, null);
-            if (src is null) return;
-
             if (!ServerFilter)
             {
-                var raw = src.ReadForeignKey<T>(Table);
-                foreach (var obj in raw)
+                await LoadAllAsync();
+
+                // Optional active refresh for the cached full list (only present with UseEntityTracker on).
+                _tracker = Services.TrackerForContext(Connection, null);
+                if (_tracker != null)
                 {
-                    if (obj.Key is null) continue;
-                    _all.Add(new Item(obj.Key, obj.Label));
-                    _captions[obj.Key] = obj.Label;
+                    _tracker.TableWritten += OnTableWritten;
                 }
             }
             else if (Value is not null)
             {
                 // Resolve the label for the current bound value so the input does not display
                 // the raw key while the user has not searched yet.
-                var one = src.ReadForeignKey<T>(Table, id: Value.ToString())
+                var src = Services.ContextForFkQuery(Connection, null);
+                var one = src?.ReadForeignKey<T>(Table, id: Value.ToString())
                     .FirstOrDefault();
                 if (one is { Key: not null })
                 {
@@ -83,6 +87,22 @@
         {
             Logger.LogError(ex, "Error occurred while initializing ForeignKeyAutocomplete.");
         }
+    }
+
+    private Task LoadAllAsync()
+    {
+        _all.Clear();
+        var src = Services.ContextForFkQuery(Connection, null);
+        if (src is null) return Task.CompletedTask;
+        var raw = src.ReadForeignKey<T>(Table);
+        foreach (var obj in raw)
+        {
+            if (obj.Key is null) continue;
+            _all.Add(new Item(obj.Key, obj.Label));
+            _captions[obj.Key] = obj.Label;
+        }
+
+        return Task.CompletedTask;
     }
 
     private Task<IEnumerable<T>> DoSearch(string text, CancellationToken ct)
@@ -129,9 +149,40 @@
         }
     }
 
+    private void OnTableWritten(string table)
+    {
+        if (!string.Equals(table, Table, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // The tracker raises on the writer's thread (possibly another circuit) → marshal to ours.
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await LoadAllAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error reloading ForeignKeyAutocomplete options for table {Table}", Table);
+            }
+
+            StateHasChanged();
+        });
+    }
+
     private string CaptionFor(T v)
     {
         if (v is null) return string.Empty;
         return _captions.TryGetValue(v, out var lbl) ? lbl : v.ToString() ?? string.Empty;
+    }
+
+    public void Dispose()
+    {
+        if (_tracker != null)
+        {
+            _tracker.TableWritten -= OnTableWritten;
+        }
     }
 }

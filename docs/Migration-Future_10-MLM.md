@@ -536,6 +536,12 @@ Wer ihn direkt referenziert hat (unüblich, war `internal`), wechselt auf
 > `UseEntityTracker:true`). Für Contexts ohne Tracker fällt der FK-Cache stillschweigend auf reines
 > TTL-Verhalten zurück — kein Fehler, nur etwas „langsamere" Frische.
 
+**Auch die FK-Auswahl-Komponenten** (`ForeignKeySelect`, `ForeignKeyAutocomplete` mit `ServerFilter=false`)
+laden bei aktivem Tracker ihre **Options-Liste** neu, sobald die hinterlegte Tabelle geschrieben wurde —
+z.B. ein neuer Authentication-Type, der in einem anderen Fenster erfasst wird, erscheint im offenen Dialog,
+ohne ihn neu zu öffnen. (Voraussetzung: der `Table`-Parameter entspricht dem DB-Tabellennamen, was bei den
+Toolkit-FK-Quellen der Fall ist. `ServerFilter=true` fragt ohnehin pro Tastendruck live ab.)
+
 ### 7a. Permissions & Navigation ziehen sofort (gleicher Schalter)
 
 > **Gilt ab `5.0.0-PRE059`.** (Die FK-Label-Cache-Invalidierung aus Abschnitt 7 ist bereits in `PRE058`
