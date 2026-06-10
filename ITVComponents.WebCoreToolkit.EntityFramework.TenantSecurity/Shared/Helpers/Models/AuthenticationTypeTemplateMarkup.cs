@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models
 {
-    [JsonDerivedType(typeof(AuthenticationTypeClaimTemplateMarkup), "base")]
+    [JsonDerivedType(typeof(AuthenticationTypeTemplateMarkup), "base")]
     public class AuthenticationTypeTemplateMarkup
     {
         public string AuthenticationTypeName { get; set; }

@@ -51,7 +51,7 @@ namespace ITVComponents.EFRepo.Expressions
 
         private static Expression BuildExpression<T>(FilterBase filter, ParameterExpression parameter, Func<string, string[]> redirectColumnName, Func<Type, string, bool> useProperty, Func<FilterBase, FilterBase> reconfigureFilter)
         {
-            filter = filter ?? new CompositeFilter { Operator = BoolOperator.And };
+            filter ??= new CompositeFilter { Operator = BoolOperator.And };
             FilterBase resultingFilter = reconfigureFilter?.Invoke(filter)??filter;
             if (resultingFilter is CompositeFilter comp)
             {

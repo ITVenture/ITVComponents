@@ -82,7 +82,6 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                 return true;
             }
 
-            Console.WriteLine("ick weees det net!");
             Console.WriteLine(JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping));
             return parentRepo.IsAuthenticated(userLabels, forScope, userAuthenticationType);
         }
