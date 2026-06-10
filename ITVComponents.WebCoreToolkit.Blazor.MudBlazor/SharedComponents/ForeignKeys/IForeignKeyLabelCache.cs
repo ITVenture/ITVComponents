@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.ForeignKeys;
 /// <summary>
 /// Scoped cache (per Blazor circuit / per request) for foreign-key labels resolved through
 /// the Toolkit FK infrastructure. Lookups are O(1) after the first request that loads the FK
-/// source; staleness is bounded by a TTL and short-circuited by <see cref="IForeignKeyWriteTracker"/>.
+/// source; staleness is bounded by a TTL and short-circuited by <see cref="ITVComponents.EFRepo.Helpers.IEntityWriteTracker"/>.
 /// </summary>
 public interface IForeignKeyLabelCache
 {

@@ -12,13 +12,11 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
 {
     private readonly ICoreSystemContext db;
     private readonly IServiceProvider services;
-    private readonly IForeignKeyWriteTracker fkWriteTracker;
 
-    public TenantTemplateAdminHandler(ICoreSystemContext db, IServiceProvider services, IForeignKeyWriteTracker fkWriteTracker)
+    public TenantTemplateAdminHandler(ICoreSystemContext db, IServiceProvider services)
     {
         this.db = db;
         this.services = services;
-        this.fkWriteTracker = fkWriteTracker;
         this.db.ShowAllTenants = true;
     }
 
@@ -60,7 +58,6 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
         };
         db.TenantTemplates.Add(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("TenantTemplates");
         input.TenantTemplateId = entity.TenantTemplateId;
         return input;
     }
@@ -74,7 +71,6 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
         entity.Description = input.Description ?? string.Empty;
         entity.Markup = input.Markup ?? string.Empty;
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("TenantTemplates");
         return input;
     }
 
@@ -85,7 +81,6 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
         if (entity == null) return false;
         db.TenantTemplates.Remove(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("TenantTemplates");
         return true;
     }
 }

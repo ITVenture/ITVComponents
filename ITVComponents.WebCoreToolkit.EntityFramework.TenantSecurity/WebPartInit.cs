@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using ITVComponents.EFRepo.Extensions;
+using ITVComponents.EFRepo.Helpers;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
 using ITVComponents.Scripting.CScript.Core;
@@ -9,6 +11,7 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Cookies;
+using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Health;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Localization;
@@ -178,6 +181,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
             {
                 init.UseApplicationTokenService(services);
             }
+
+            if (partActivation.UseEntityTracker)
+            {
+                services.AddSingleton(typeof(IEntityWriteTracker<>), typeof(EntityWriteTracker<>));
+            }
         }
 
         [HealthCheckRegistration]
@@ -220,6 +228,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
         public static void ConfigureDbInterceptors(DbContextOptionsBuilder optionsBuilder, IServiceProvider services,
             [WebPartConfig("ActivationSettings")] ActivationOptions partOptions)
         {
+            if (partOptions.UseEntityTracker)
+            {
+                optionsBuilder.AddEntityWriteTrackerInterceptor(services);
+            }
+
             if (!partOptions.UseDefaultInterceptors)
             {
                 return;

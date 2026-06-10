@@ -499,7 +499,45 @@ E-Mail-Confirm — Voraussetzung ist nur, dass eure `/Account/ConfirmEmail`-Page
 
 ---
 
-## 7. Verifikation auf eurer Seite
+## 7. EntityWriteTracker — FK-Label-Cache-Invalidierung (opt-in)
+
+Die Blazor-AdminViews cachen ForeignKey-**Labels** (die Klartext-Anzeige zu FK-IDs in Grids/Dropdowns)
+pro Circuit/Request. Bisher war die Invalidierung an einen einzelnen, global registrierten Tracker
+gebunden, der nie automatisch befüllt wurde — die Labels wurden faktisch nur über die TTL frisch.
+
+Neu ist eine generische, **pro-DbContext** arbeitende Infrastruktur in `ITVComponents.EFRepo`
+(`IEntityWriteTracker<TContext>`) plus ein EF-`SaveChanges`-Interceptor
+(`EntityWriteTrackerInterceptor`), der bei **jedem** `SaveChanges`/`SaveChangesAsync` die geschriebenen
+Tabellen markiert. Der FK-Label-Cache holt sich den Tracker jetzt **pro Connection**
+(`IServiceProvider.TrackerForContext(...)`) und invalidiert betroffene Tabellen sofort statt erst nach TTL.
+
+**Aktivierung — ein Schalter im TenantSecurity-WebPart** (`ActivationSettings`-Config):
+
+```json
+{ "ActivationSettings": { "UseEntityTracker": true } }
+```
+
+Das bewirkt zweierlei (beides nur, wenn `true`):
+- Registrierung des Singletons `IEntityWriteTracker<>` → `EntityWriteTracker<>` (pro konkretem Context-Typ),
+- Einhängen des `EntityWriteTrackerInterceptor` in den DbContext (`ConfigureDbInterceptors`).
+
+| Punkt | Verhalten |
+|---|---|
+| Default (`UseEntityTracker` weggelassen / `false`) | **kein** Verhaltenswechsel — FK-Labels bleiben TTL-basiert frisch |
+| `true` | sofortige Cache-Invalidierung der geschriebenen Tabellen, zusätzlich zur TTL-Obergrenze |
+
+**Blazor-seitig keine Aktion:** `AddToolkitForeignKeyCache()` (vom Blazor.MudBlazor-WebPart ohnehin
+aufgerufen) registriert den alten `IForeignKeyWriteTracker` **nicht mehr** — der Typ ist entfallen.
+Wer ihn direkt referenziert hat (unüblich, war `internal`), wechselt auf
+`ITVComponents.EFRepo.Helpers.IEntityWriteTracker`.
+
+> **Hinweis:** Die Invalidierung greift nur für Contexts, für die der Tracker registriert ist (also bei
+> `UseEntityTracker:true`). Für Contexts ohne Tracker fällt der FK-Cache stillschweigend auf reines
+> TTL-Verhalten zurück — kein Fehler, nur etwas „langsamere" Frische.
+
+---
+
+## 8. Verifikation auf eurer Seite
 
 - Build der gesamten Solution grün (alle eigenen FileHandler + Cookie-Scope-Config angepasst).
 - **Onboarding:** Migration angewendet (Tabellen `PendingOnboarding` + `TenantInvitation` existieren);
@@ -527,3 +565,4 @@ E-Mail-Confirm — Voraussetzung ist nur, dass eure `/Account/ConfirmEmail`-Page
 | 7 | **Onboarding EF** (2a/2b) | `dotnet ef migrations add` → neue Tabellen `PendingOnboarding` + `TenantInvitation` (unique `Token`); `InvitationStatus.Expired` = kein Schema-Change |
 | 8 | **Onboarding Config** (2c) | optional `TenantSetup`-GlobalSetting um `AllowRootTenantCreation` / `DefaultParentTenant` erweitern |
 | 9 | **Onboarding Mail/Nav** (2b) | `IAppMailSender` via `UseDefaultMailSender` (auto) oder eigene Impl; Nav-Link auf `/Account/Onboarding/Invitations` |
+| 10 | **EntityWriteTracker** (FK-Cache) | optional `ActivationSettings.UseEntityTracker = true` für sofortige FK-Label-Cache-Invalidierung; alter `IForeignKeyWriteTracker` entfallen → `IEntityWriteTracker` |

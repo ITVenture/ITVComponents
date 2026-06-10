@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -8,6 +9,7 @@ using ITVComponents.DataAccess.Extensions;
 using ITVComponents.Decisions.Entities;
 using ITVComponents.Decisions.Entities.Results;
 using ITVComponents.EFRepo.DynamicData;
+using ITVComponents.EFRepo.Helpers;
 using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
@@ -32,6 +34,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
 {
     public static class ServicesExtensions
     {
+        /// <summary>
+        /// Caches the concrete DbContext-Type for a given context-friendlyName, so that resolving the
+        /// EntityWriteTracker for a connection does not require instantiating a context on every call.
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, Type> contextTypeCache = new();
+
         /// <summary>
         /// Gets the EntityContext for a DiagnosticsQuery and the DiagnosticsQuery object that represents the requested query
         /// </summary>
@@ -83,6 +91,39 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         }
 
         /// <summary>
+        /// Resolves the <see cref="IEntityWriteTracker"/> that is registered for the DbContext behind the given connection.
+        /// The concrete context-type is determined once per connection and cached afterwards, so the underlying
+        /// context-factory is only invoked on the first lookup.
+        /// </summary>
+        /// <param name="services">the serviceProvider containing services for the current request</param>
+        /// <param name="contextName">the friendlyName of the required context</param>
+        /// <param name="area">the area for which to resolve the context</param>
+        /// <returns>the write-tracker for the context, or null when none is registered</returns>
+        public static IEntityWriteTracker TrackerForContext(this IServiceProvider services, string contextName, string area)
+        {
+            if (!contextTypeCache.TryGetValue(contextName, out var contextType))
+            {
+                var factory = GetFactoryForContext(services, contextName);
+                if (factory != null && factory(services, contextName, area) is DbContext dbc)
+                {
+                    contextType = dbc.GetType();
+                    contextTypeCache[contextName] = contextType;
+                }
+            }
+
+            if (contextType != null)
+            {
+                var svcType = typeof(IEntityWriteTracker<>).MakeGenericType(contextType);
+                if (services.GetService(svcType) is IEntityWriteTracker tracker)
+                {
+                    return tracker;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Gets the EntityContext for a ForeignKey-Query by the friendlyName of the DBContext
         /// </summary>
         /// <param name="services">the serviceProvider containing services for the current request</param>
@@ -91,17 +132,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
         public static IWrappedFkSource ContextForFkQuery(this IServiceProvider services, string contextName,
             string area)
         {
-            var options = services.GetService<IOptions<ForeignKeySourceOptions>>().Value;
-            Func<IServiceProvider, string, string, object> factory = null;
-            if (options.Factories.ContainsKey(contextName))
-            {
-                factory = options.Factories[contextName];
-            }
-            else if (options.Factories.ContainsKey("*"))
-            {
-                factory = options.Factories["*"];
-            }
-
+            var factory = GetFactoryForContext(services, contextName);
             if (factory != null)
             {
                 var retVal = factory(services, contextName, area);
@@ -255,6 +286,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             }*/
 
             return ret;
+        }
+
+        private static Func<IServiceProvider, string, string, object> GetFactoryForContext(IServiceProvider services, string contextName)
+        {
+            var options = services.GetService<IOptions<ForeignKeySourceOptions>>().Value;
+            Func<IServiceProvider, string, string, object> factory = null;
+            if (options.Factories.ContainsKey(contextName))
+            {
+                factory = options.Factories[contextName];
+            }
+            else if (options.Factories.ContainsKey("*"))
+            {
+                factory = options.Factories["*"];
+            }
+
+            return factory;
         }
     }
 }

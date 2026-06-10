@@ -76,13 +76,11 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 {
     private readonly TContext db;
     private readonly IServiceProvider services;
-    private readonly IForeignKeyWriteTracker fkWriteTracker;
 
-    public PermissionAdminHandler(TContext db, IServiceProvider services, IForeignKeyWriteTracker fkWriteTracker)
+    public PermissionAdminHandler(TContext db, IServiceProvider services)
     {
         this.db = db;
         this.services = services;
-        this.fkWriteTracker = fkWriteTracker;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -153,7 +151,6 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         };
         db.Permissions.Add(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Permissions");
         input.PermissionId = entity.PermissionId;
         input.TenantId = effectiveTenantId;
         input.IsGlobal = effectiveTenantId == null;
@@ -172,7 +169,6 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         entity.PermissionName = input.PermissionName;
         entity.Description = input.Description;
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Permissions");
         return input;
     }
 
@@ -187,7 +183,6 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
         db.Permissions.Remove(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Permissions");
         return true;
     }
 

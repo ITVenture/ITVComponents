@@ -12,7 +12,6 @@ public static class ForeignKeyCacheDependencyExtensions
     /// </summary>
     public static IServiceCollection AddToolkitForeignKeyCache(this IServiceCollection services)
     {
-        services.TryAddSingleton<IForeignKeyWriteTracker, ForeignKeyWriteTracker>();
         services.TryAddScoped<IForeignKeyLabelCache, ForeignKeyLabelCache>();
         return services;
     }

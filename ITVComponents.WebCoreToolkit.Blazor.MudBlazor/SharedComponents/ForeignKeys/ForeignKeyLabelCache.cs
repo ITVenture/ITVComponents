@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.ForeignKeys;
@@ -13,12 +14,10 @@ internal sealed class ForeignKeyLabelCache : IForeignKeyLabelCache
     private readonly Dictionary<(string Connection, string Table), Entry> entries = new();
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly IServiceProvider services;
-    private readonly IForeignKeyWriteTracker tracker;
 
-    public ForeignKeyLabelCache(IServiceProvider services, IForeignKeyWriteTracker tracker)
+    public ForeignKeyLabelCache(IServiceProvider services)
     {
         this.services = services;
-        this.tracker = tracker;
     }
 
     public async Task<string?> GetLabelAsync<T>(string connection, string table, T key)
@@ -36,10 +35,14 @@ internal sealed class ForeignKeyLabelCache : IForeignKeyLabelCache
             var cacheKey = (connection, table);
             if (entries.TryGetValue(cacheKey, out var existing))
             {
-                var lastWrite = tracker.GetLastWrite(table);
-                if (existing.LoadedAtUtc >= lastWrite && DateTime.UtcNow - existing.LoadedAtUtc <= Ttl)
+                var tracker = services.TrackerForContext(connection, null);
+                if (tracker != null)
                 {
-                    return existing;
+                    var lastWrite = tracker.GetLastWrite(table);
+                    if (existing.LoadedAtUtc >= lastWrite && DateTime.UtcNow - existing.LoadedAtUtc <= Ttl)
+                    {
+                        return existing;
+                    }
                 }
             }
 

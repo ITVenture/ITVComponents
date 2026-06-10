@@ -82,16 +82,14 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     private readonly IServiceProvider services;
     private readonly ISecurityRepository securityRepository;
     private readonly IOptions<TenantOptions<TTenant>> tenantOptions;
-    private readonly IForeignKeyWriteTracker fkWriteTracker;
     private readonly ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> templateHelper;
 
-    public TenantAdminHandler(TContext db, IServiceProvider services, ISecurityRepository securityRepository, IOptions<TenantOptions<TTenant>> tenantOptions, IForeignKeyWriteTracker fkWriteTracker, ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> templateHelper)
+    public TenantAdminHandler(TContext db, IServiceProvider services, ISecurityRepository securityRepository, IOptions<TenantOptions<TTenant>> tenantOptions, ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> templateHelper)
     {
         this.db = db;
         this.services = services;
         this.securityRepository = securityRepository;
         this.tenantOptions = tenantOptions;
-        this.fkWriteTracker = fkWriteTracker;
         this.templateHelper = templateHelper;
     }
     
@@ -165,7 +163,6 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
         db.Tenants.Add(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Tenants");
         input.TenantId = entity.TenantId;
         return input;
     }
@@ -191,7 +188,6 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         tenantAssign(entity, input);
 
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Tenants");
         return input;
     }
 
@@ -203,7 +199,6 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         if (entity == null) return false;
         db.Tenants.Remove(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Tenants");
         return true;
     }
 
@@ -504,7 +499,6 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         };
         db.TenantTemplates.Add(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("TenantTemplates");
         return new TenantTemplateViewModel
         {
             TenantTemplateId = entity.TenantTemplateId,

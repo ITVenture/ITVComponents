@@ -70,5 +70,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Opt
 
         public int CookieLengthThreshold { get; set; } = 2048;
         public bool UseDefaultSecurityAccessProvider { get; set; } = true;
+        public bool UseEntityTracker { get; set; }
     }
 }

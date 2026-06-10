@@ -12,13 +12,11 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 {
     private readonly ICoreSystemContext db;
     private readonly IServiceProvider services;
-    private readonly IForeignKeyWriteTracker fkWriteTracker;
 
-    public FeatureAdminHandler(ICoreSystemContext db, IServiceProvider services, IForeignKeyWriteTracker fkWriteTracker)
+    public FeatureAdminHandler(ICoreSystemContext db, IServiceProvider services)
     {
         this.db = db;
         this.services = services;
-        this.fkWriteTracker = fkWriteTracker;
         this.db.ShowAllTenants = true;
     }
 
@@ -60,7 +58,6 @@ public class FeatureAdminHandler : IFeatureAdminHandler
         };
         db.Features.Add(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Features");
         input.FeatureId = entity.FeatureId;
         return input;
     }
@@ -74,7 +71,6 @@ public class FeatureAdminHandler : IFeatureAdminHandler
         entity.FeatureDescription = input.FeatureDescription ?? string.Empty;
         entity.Enabled = input.Enabled;
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Features");
         return input;
     }
 
@@ -85,7 +81,6 @@ public class FeatureAdminHandler : IFeatureAdminHandler
         if (entity == null) return false;
         db.Features.Remove(entity);
         await db.SaveChangesAsync();
-        fkWriteTracker.MarkWritten("Features");
         return true;
     }
 

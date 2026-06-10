@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Interceptors;
 using ITVComponents.EFRepo.Options;
@@ -22,7 +23,7 @@ namespace ITVComponents.EFRepo.DIIntegration.Impl
         }
         protected override void ConfigureOptionsBuilder(DbContextOptionsBuilder<TContext> builder)
         {
-            builder.AddInterceptors(new ModCreateInterceptor(userProvider, useUtc));
+            builder.AddModCreateInterceptor(userProvider, useUtc);
         }
     }
 }
