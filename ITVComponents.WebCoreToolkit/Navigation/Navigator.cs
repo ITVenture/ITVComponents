@@ -55,7 +55,7 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         }
 
         private bool IsStale()
-            => changeSignal != null && changeSignal.GetLastChange(EntityChangeScope.Navigation) > builtAtUtc;
+            => changeSignal != null && changeSignal.GetLastChange(EntityChangeTopics.Navigation) > builtAtUtc;
 
         /// <summary>
         /// Creates an cleans the root object for the site-navigation

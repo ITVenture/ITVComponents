@@ -562,6 +562,20 @@ Das passiert über eine Core-Abstraktion `IEntityChangeSignal` (EF-Impl `EntityC
 Singleton, wird mit `UseEntityTracker:true` automatisch registriert). **Keine Konfiguration nötig** über den
 `UseEntityTracker`-Schalter hinaus; die Puffer-Konsumenten ziehen das Signal selbst (no-op ohne Tracker).
 
+**Topics sind frei konfigurierbar.** Welche Entity-Typen zu welchem *Topic* (String) gehören, steht in
+`EntitySignalOptions`. Das Toolkit seedet die Topics `Security`/`Navigation` selbst; **jeder Consumer — auch
+außerhalb des Toolkits — kann additiv eigene Topics/Entities registrieren** und darüber einen eigenen
+Aktualisierungs-Callback auslösen:
+
+```csharp
+services.Configure<EntitySignalOptions>(o => o.Add("MyTopic", typeof(MyEntity), typeof(OtherEntity)));
+// danach: IEntityChangeSignal.GetLastChange("MyTopic") bzw. .Changed-Event / <EntityChangeRefresher Watch="MyTopic">
+```
+
+Das Matching ist zuweisungsbasiert: ein registrierter Typ deckt eine Entity, wenn sie ihm gleicht, von ihm
+erbt/ihn implementiert oder — bei einer offenen Generic-Definition (`typeof(Role<>)`) — ihn in der
+Basis-/Interface-Kette trägt. Es lassen sich also Basistypen **und** konkrete Entity-Typen registrieren.
+
 **Re-Select beim nächsten Zugriff ist automatisch.** Damit ein *bereits gerendertes* Nav-Menü (oder eine
 Seite) sich **ohne** Nutzerinteraktion sofort aktualisiert, gibt es die opt-in-Komponente
 **`EntityChangeRefresher`** (in `ITVComponents.WebCoreToolkit.Blazor`, also Telerik- **und** MudBlazor-tauglich).
@@ -569,8 +583,9 @@ Im Host das Menü (bzw. den zu aktualisierenden Bereich) im **interaktiven** Ren
 
 ```razor
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using ITVComponents.WebCoreToolkit.Caching
 
-<EntityChangeRefresher Watch="EntityChangeScope.Navigation">
+<EntityChangeRefresher Watch="@EntityChangeTopics.Navigation">
     @* euer NavMenu / die berechtigungsabhängige UI *@
 </EntityChangeRefresher>
 ```

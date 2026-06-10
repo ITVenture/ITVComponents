@@ -299,7 +299,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         private void InvalidateAuthCacheIfStale()
         {
             if (changeSignal != null &&
-                changeSignal.GetLastChange(ITVComponents.WebCoreToolkit.Caching.EntityChangeScope.Security) > authCacheStampUtc)
+                changeSignal.GetLastChange(ITVComponents.WebCoreToolkit.Caching.EntityChangeTopics.Security) > authCacheStampUtc)
             {
                 isAuthenticatedCache.Clear();
                 authCacheStampUtc = DateTime.UtcNow;

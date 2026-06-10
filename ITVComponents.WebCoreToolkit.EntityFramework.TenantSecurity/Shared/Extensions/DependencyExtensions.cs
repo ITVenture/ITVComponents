@@ -64,15 +64,49 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
             return services.AddScoped(typeof(IScopedSettingsProvider), tff);
         }
 
+        // Built-in entity types behind the Security topic (open generic bases match all strategy derivations).
+        private static readonly Type[] DefaultSecurityEntities =
+        {
+            typeof(Shared.Models.Base.Role<,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.Permission<,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.UserRole<,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.RolePermission<,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.RoleRole<,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.GlobalRole<,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.GlobalRolePermission<,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.GRoleLRole<,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.TenantUser<,,,,,,,,,,,>),
+            typeof(Shared.Models.TenantFeatureActivation<>),
+            typeof(Shared.Models.Tenant),
+            typeof(ITVComponents.WebCoreToolkit.Models.Feature),
+        };
+
+        // Built-in entity types behind the Navigation topic (security entities are added on top, see below).
+        private static readonly Type[] DefaultNavigationEntities =
+        {
+            typeof(Shared.Models.Base.NavigationMenu<,,,,,,,,,,,,,>),
+            typeof(Shared.Models.Base.TenantNavigationMenu<,,,,,,,,,,,,,>),
+        };
+
         /// <summary>
-        /// Registers the EF-backed <see cref="IEntityChangeSignal"/> for the given context. The signal turns
-        /// the singleton entity-write-tracker into a host-neutral invalidation source for buffered permission-
-        /// and navigation-data. Requires the EntityWriteTracker to be active (ActivationSettings.UseEntityTracker).
+        /// Registers the EF-backed <see cref="IEntityChangeSignal"/> for the given context and seeds the
+        /// built-in Security/Navigation topics in <see cref="EntitySignalOptions"/>. The signal turns the
+        /// singleton entity-write-tracker into a host-neutral invalidation source for buffered permission-/
+        /// navigation-data; further topics/entities can be added additively via
+        /// <c>services.Configure&lt;EntitySignalOptions&gt;(...)</c>. Requires the EntityWriteTracker to be
+        /// active (ActivationSettings.UseEntityTracker).
         /// </summary>
         /// <param name="services">the services-collection in which to register the signal</param>
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseEntityChangeSignal<TContext>(this IServiceCollection services) where TContext : DbContext
         {
+            services.Configure<EntitySignalOptions>(o =>
+            {
+                o.Add(EntityChangeTopics.Security, DefaultSecurityEntities);
+                // Navigation reacts to its own entities AND to security changes (menu visibility depends on them).
+                o.Add(EntityChangeTopics.Navigation, DefaultNavigationEntities);
+                o.Add(EntityChangeTopics.Navigation, DefaultSecurityEntities);
+            });
             return services.AddSingleton<IEntityChangeSignal, EntityChangeSignal<TContext>>();
         }
 

@@ -25,10 +25,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
         [Inject] private IServiceProvider Services { get; set; } = default!;
 
         /// <summary>
-        /// The scope to watch. <see cref="EntityChangeScope.Navigation"/> also reacts to security changes,
-        /// because menu visibility derives from permissions/features.
+        /// The topic to watch (e.g. <see cref="EntityChangeTopics.Navigation"/> or a custom topic registered
+        /// via <see cref="EntitySignalOptions"/>). The toolkit maps security changes onto the Navigation topic,
+        /// so a Navigation watcher also reacts to them (menu visibility derives from permissions/features).
         /// </summary>
-        [Parameter] public EntityChangeScope Watch { get; set; } = EntityChangeScope.Navigation;
+        [Parameter] public string Watch { get; set; } = EntityChangeTopics.Navigation;
 
         /// <summary>
         /// When true (default), the permission-scope is re-resolved before re-rendering, so freshly granted or
@@ -54,10 +55,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
             }
         }
 
-        private void OnSignalChanged(EntityChangeScope scope)
+        private void OnSignalChanged(string topic)
         {
             // A security write raises both Security and Navigation, so a Navigation watcher reacts to it too.
-            if (scope != Watch)
+            if (!string.Equals(topic, Watch, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }

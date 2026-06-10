@@ -6,64 +6,54 @@ using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Caching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Caching
 {
     /// <summary>
-    /// EF-backed implementation of <see cref="IEntityChangeSignal"/>. It maps the security- and
-    /// navigation-relevant entity tables of <typeparamref name="TContext"/> to their
-    /// <see cref="EntityChangeScope"/> (once, from the EF model) and reports/raises changes based on the
-    /// singleton <see cref="IEntityWriteTracker{TContext}"/> that the EntityWriteTrackerInterceptor feeds.
-    /// Registered as a singleton, so a write in one circuit/request invalidates buffered data in all others.
+    /// EF-backed implementation of <see cref="IEntityChangeSignal"/>. It maps the entity tables of
+    /// <typeparamref name="TContext"/> to the topics configured via <see cref="EntitySignalOptions"/> (once,
+    /// from the EF model) and reports/raises changes based on the singleton
+    /// <see cref="IEntityWriteTracker{TContext}"/> that the EntityWriteTrackerInterceptor feeds. Registered as
+    /// a singleton, so a write in one circuit/request invalidates buffered data in all others.
     /// </summary>
     /// <typeparam name="TContext">the security DbContext whose writes are tracked</typeparam>
     public class EntityChangeSignal<TContext> : IEntityChangeSignal where TContext : DbContext
     {
-        private const string BaseNs = "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base";
-        private const string ModelsNs = "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models";
-
-        // Base types whose tables make a user's effective permissions/features stale. Matched by
-        // "namespace.name" (arity-stripped) anywhere in an entity's inheritance chain, so it works for
-        // both the open-generic bases and concrete derivations across the Flat/Tree/CoreIdentity strategies.
-        private static readonly HashSet<string> securityBases = new(StringComparer.Ordinal)
-        {
-            $"{BaseNs}.Role", $"{BaseNs}.Permission", $"{BaseNs}.UserRole", $"{BaseNs}.RolePermission",
-            $"{BaseNs}.RoleRole", $"{BaseNs}.GlobalRole", $"{BaseNs}.GlobalRolePermission", $"{BaseNs}.GRoleLRole",
-            $"{BaseNs}.TenantUser", $"{ModelsNs}.Tenant", $"{ModelsNs}.TenantFeatureActivation",
-            "ITVComponents.WebCoreToolkit.Models.Feature"
-        };
-
-        // Navigation-only base types. Security tables additionally count towards navigation (see Classify).
-        private static readonly HashSet<string> navigationBases = new(StringComparer.Ordinal)
-        {
-            $"{BaseNs}.NavigationMenu", $"{BaseNs}.TenantNavigationMenu"
-        };
-
         private readonly IEntityWriteTracker<TContext> tracker;
         private readonly IServiceScopeFactory scopeFactory;
+        private readonly EntitySignalOptions options;
         private readonly Lazy<TableTopicMap> map;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EntityChangeSignal{TContext}"/> class.
         /// </summary>
         /// <param name="tracker">the singleton write-tracker for the security context</param>
-        /// <param name="scopeFactory">used to obtain the EF model once for the table-to-scope mapping</param>
-        public EntityChangeSignal(IEntityWriteTracker<TContext> tracker, IServiceScopeFactory scopeFactory)
+        /// <param name="scopeFactory">used to obtain the EF model once for the table-to-topic mapping</param>
+        /// <param name="options">the configured topic-to-entity-type mapping</param>
+        public EntityChangeSignal(IEntityWriteTracker<TContext> tracker, IServiceScopeFactory scopeFactory,
+            IOptions<EntitySignalOptions> options)
         {
             this.tracker = tracker;
             this.scopeFactory = scopeFactory;
+            this.options = options.Value;
             map = new Lazy<TableTopicMap>(BuildMap, isThreadSafe: true);
             tracker.TableWritten += OnTableWritten;
         }
 
         /// <inheritdoc />
-        public event Action<EntityChangeScope> Changed;
+        public event Action<string> Changed;
 
         /// <inheritdoc />
-        public DateTime GetLastChange(EntityChangeScope scope)
+        public DateTime GetLastChange(string topic)
         {
+            if (string.IsNullOrEmpty(topic))
+            {
+                return DateTime.MinValue;
+            }
+
             var result = DateTime.MinValue;
-            foreach (var table in map.Value.TablesFor(scope))
+            foreach (var table in map.Value.TablesFor(topic))
             {
                 var lastWrite = tracker.GetLastWrite(table);
                 if (lastWrite > result)
@@ -79,11 +69,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
         {
             try
             {
-                if (map.Value.Scopes.TryGetValue(table, out var scopes))
+                if (map.Value.TopicsForTable.TryGetValue(table, out var topics))
                 {
-                    foreach (var scope in scopes)
+                    foreach (var topic in topics)
                     {
-                        Changed?.Invoke(scope);
+                        Changed?.Invoke(topic);
                     }
                 }
             }
@@ -96,9 +86,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
 
         private TableTopicMap BuildMap()
         {
-            var scopes = new Dictionary<string, HashSet<EntityChangeScope>>(StringComparer.OrdinalIgnoreCase);
+            var tableToTopics = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             try
             {
+                var configuredTopics = options.Topics;
                 using var scope = scopeFactory.CreateScope();
                 if (scope.ServiceProvider.GetService(typeof(TContext)) is DbContext ctx)
                 {
@@ -110,18 +101,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
                             continue;
                         }
 
-                        var classified = Classify(entityType.ClrType);
-                        if (classified == null)
+                        foreach (var topic in configuredTopics)
                         {
-                            continue;
-                        }
+                            if (topic.Value.Any(configured => Covers(configured, entityType.ClrType)))
+                            {
+                                if (!tableToTopics.TryGetValue(table, out var set))
+                                {
+                                    tableToTopics[table] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                }
 
-                        if (!scopes.TryGetValue(table, out var set))
-                        {
-                            scopes[table] = set = new HashSet<EntityChangeScope>();
+                                set.Add(topic.Key);
+                            }
                         }
-
-                        set.UnionWith(classified);
                     }
                 }
                 else
@@ -134,57 +125,56 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
                 LogEnvironment.LogEvent($"EntityChangeSignal failed to build its table-map: {ex}", LogSeverity.Error);
             }
 
-            return new TableTopicMap(scopes);
+            return new TableTopicMap(tableToTopics);
         }
 
-        private static HashSet<EntityChangeScope> Classify(Type clrType)
+        /// <summary>
+        /// Determines whether a configured type covers the given entity type: equal / assignable, or — for an
+        /// open generic type definition — present anywhere in the entity's base- or interface-chain.
+        /// </summary>
+        private static bool Covers(Type configured, Type entity)
         {
-            for (var t = clrType; t != null && t != typeof(object); t = t.BaseType)
+            if (configured.IsGenericTypeDefinition)
             {
-                var raw = RawName(t);
-                if (securityBases.Contains(raw))
+                for (var t = entity; t != null && t != typeof(object); t = t.BaseType)
                 {
-                    // A security change also invalidates navigation: menu visibility derives from permissions/features.
-                    return new HashSet<EntityChangeScope> { EntityChangeScope.Security, EntityChangeScope.Navigation };
+                    if (t.IsGenericType && t.GetGenericTypeDefinition() == configured)
+                    {
+                        return true;
+                    }
                 }
 
-                if (navigationBases.Contains(raw))
+                foreach (var iface in entity.GetInterfaces())
                 {
-                    return new HashSet<EntityChangeScope> { EntityChangeScope.Navigation };
+                    if (iface.IsGenericType && iface.GetGenericTypeDefinition() == configured)
+                    {
+                        return true;
+                    }
                 }
+
+                return false;
             }
 
-            return null;
-        }
-
-        private static string RawName(Type t)
-        {
-            var name = t.Name;
-            var tick = name.IndexOf('`');
-            if (tick >= 0)
-            {
-                name = name.Substring(0, tick);
-            }
-
-            return $"{t.Namespace}.{name}";
+            return configured.IsAssignableFrom(entity);
         }
 
         private sealed class TableTopicMap
         {
-            private readonly string[] securityTables;
-            private readonly string[] navigationTables;
+            private readonly Dictionary<string, string[]> topicToTables;
 
-            public TableTopicMap(Dictionary<string, HashSet<EntityChangeScope>> scopes)
+            public TableTopicMap(Dictionary<string, HashSet<string>> tableToTopics)
             {
-                Scopes = scopes;
-                securityTables = scopes.Where(kv => kv.Value.Contains(EntityChangeScope.Security)).Select(kv => kv.Key).ToArray();
-                navigationTables = scopes.Where(kv => kv.Value.Contains(EntityChangeScope.Navigation)).Select(kv => kv.Key).ToArray();
+                TopicsForTable = tableToTopics;
+                topicToTables = tableToTopics
+                    .SelectMany(kv => kv.Value.Select(topic => (topic, table: kv.Key)))
+                    .GroupBy(x => x.topic, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.Select(x => x.table).ToArray(), StringComparer.OrdinalIgnoreCase);
             }
 
-            public Dictionary<string, HashSet<EntityChangeScope>> Scopes { get; }
+            public Dictionary<string, HashSet<string>> TopicsForTable { get; }
 
-            public string[] TablesFor(EntityChangeScope scope)
-                => scope == EntityChangeScope.Security ? securityTables : navigationTables;
+            public string[] TablesFor(string topic)
+                => topicToTables.TryGetValue(topic, out var tables) ? tables : Array.Empty<string>();
         }
     }
 }

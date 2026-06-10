@@ -302,7 +302,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             var sc = scopeToken.EligibleScopes.FirstOrDefault(n =>
                 n.ScopeName.Equals(scope, StringComparison.OrdinalIgnoreCase));
             // sc.Created is local time (set via SetScopeRefreshed); the signal reports UTC.
-            return sc != null && signal.GetLastChange(EntityChangeScope.Security).ToLocalTime() > sc.Created;
+            return sc != null && signal.GetLastChange(EntityChangeTopics.Security).ToLocalTime() > sc.Created;
         }
 
         private AuthTypeUserLabels[] GetUserLabels()
