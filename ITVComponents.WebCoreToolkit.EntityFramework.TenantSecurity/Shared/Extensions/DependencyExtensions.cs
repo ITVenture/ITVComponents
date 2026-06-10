@@ -8,9 +8,11 @@ using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Helpers;
+using ITVComponents.WebCoreToolkit.Caching;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Caching;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.GlobalFiltering;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Logging;
@@ -60,6 +62,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
         {
             var tff = typeof(TContext).FinalizeType(typeof(TenantSettingsProvider<,,,,,,,,,,>));
             return services.AddScoped(typeof(IScopedSettingsProvider), tff);
+        }
+
+        /// <summary>
+        /// Registers the EF-backed <see cref="IEntityChangeSignal"/> for the given context. The signal turns
+        /// the singleton entity-write-tracker into a host-neutral invalidation source for buffered permission-
+        /// and navigation-data. Requires the EntityWriteTracker to be active (ActivationSettings.UseEntityTracker).
+        /// </summary>
+        /// <param name="services">the services-collection in which to register the signal</param>
+        /// <returns>the serviceCollection instance that was passed as argument</returns>
+        public static IServiceCollection UseEntityChangeSignal<TContext>(this IServiceCollection services) where TContext : DbContext
+        {
+            return services.AddSingleton<IEntityChangeSignal, EntityChangeSignal<TContext>>();
         }
 
         /// <summary>

@@ -32,6 +32,13 @@ namespace ITVComponents.WebCoreToolkit.Security
         void ChangeScope(string newScope, bool asTemporary);
 
         /// <summary>
+        /// Drops any memoized scope-resolution so the next access re-resolves the current scope (re-selecting
+        /// permissions/features and re-pushing the server-side permission snapshot). Used to make
+        /// permission/role changes take effect within a live circuit. No-op for strategies that do not memoize.
+        /// </summary>
+        void Refresh();
+
+        /// <summary>
         /// Explicitly turns off impersonation on this permission scope instance
         /// </summary>
         protected internal void SetImpersonationOff();

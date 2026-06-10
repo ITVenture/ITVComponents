@@ -185,6 +185,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
             if (partActivation.UseEntityTracker)
             {
                 services.AddSingleton(typeof(IEntityWriteTracker<>), typeof(EntityWriteTracker<>));
+                init?.UseEntityChangeSignal(services);
             }
         }
 

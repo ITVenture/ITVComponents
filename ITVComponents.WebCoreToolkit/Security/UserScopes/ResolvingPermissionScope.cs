@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using ITVComponents.WebCoreToolkit.Caching;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.Comparers;
 using ITVComponents.WebCoreToolkit.Security.UserScopes.CookieModels;
@@ -40,6 +41,15 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
 
         /// <summary>Gets the ambient context (user, services, route) the engine resolves against.</summary>
         protected IContextUserProvider ContextUser => contextUser;
+
+        /// <summary>
+        /// Drops the memoized scope so the next <see cref="GetPermissionScopePrefix"/> re-resolves the scope,
+        /// which re-selects permissions/features and re-pushes the server-side <see cref="CookiePermissionRepo"/>.
+        /// </summary>
+        public override void Refresh()
+        {
+            currentScope = null;
+        }
 
         /// <summary>
         /// Gets the route-value name that, when present, overrides the stored scope (subject to the eligibility
@@ -177,8 +187,11 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         private void UpdateToken(string scope, UserScope scopeToken, ISecurityRepository secc, bool forceRefresh, bool setAsDefault, bool pushRepo)
         {
             bool setRefreshed = false;
+            // A security-relevant write (permissions, role-permissions, global roles, tenant-users, …) since the
+            // scope was last refreshed invalidates the cached permissions/features, even within the TTL window.
+            bool securityChanged = SecurityChangedSince(scope, scopeToken);
             var perms = scopeToken.GetPermissionsOf(scope);
-            if (perms == null || forceRefresh)
+            if (perms == null || forceRefresh || securityChanged)
             {
                 perms = (from t in scopeToken.UserLabels
                         select secc.GetPermissions(t.UserLabels, scope, t.AuthenticationType))
@@ -188,7 +201,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             }
 
             var features = scopeToken.GetFeaturesOf(scope);
-            if (features == null || forceRefresh)
+            if (features == null || forceRefresh || securityChanged)
             {
                 var tmp = secc.GetFeatures(scope).ToArray();
                 features = scopeToken.UpdateScopeFeatures(scope, tmp);
@@ -266,6 +279,30 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         private ISecurityRepository GetSecurityRepo()
         {
             return contextUser.Services.GetService<ISecurityRepository>();
+        }
+
+        /// <summary>
+        /// Determines whether a security-relevant entity changed since the given scope was last refreshed.
+        /// Returns false when no change-signal is registered (EntityWriteTracker inactive) — preserving the
+        /// previous TTL-only behaviour.
+        /// </summary>
+        private bool SecurityChangedSince(string scope, UserScope scopeToken)
+        {
+            if (string.IsNullOrEmpty(scope) || scopeToken?.EligibleScopes == null)
+            {
+                return false;
+            }
+
+            var signal = contextUser.Services.GetService<IEntityChangeSignal>();
+            if (signal == null)
+            {
+                return false;
+            }
+
+            var sc = scopeToken.EligibleScopes.FirstOrDefault(n =>
+                n.ScopeName.Equals(scope, StringComparison.OrdinalIgnoreCase));
+            // sc.Created is local time (set via SetScopeRefreshed); the signal reports UTC.
+            return sc != null && signal.GetLastChange(EntityChangeScope.Security).ToLocalTime() > sc.Created;
         }
 
         private AuthTypeUserLabels[] GetUserLabels()

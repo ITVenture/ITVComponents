@@ -107,14 +107,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         // GetRawUserQuery EF query against the *same* scoped DbContext while another query is
         // still enumerating its DataReader → "A second operation was started on this context".
         private readonly ConcurrentDictionary<string, bool> isAuthenticatedCache = new();
+        private readonly ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal;
+        private DateTime authCacheStampUtc = DateTime.UtcNow;
 
         protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions,
-            ILogger logger)
+            ILogger logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null)
         {
             this.securityContext = securityContext;
             this.securityAccessProvider = securityAccessProvider;
             this.bufferOptions = bufferOptions;
             this.logger = logger;
+            this.changeSignal = changeSignal;
         }
 
         public string UniqueName { get; set; }
@@ -273,11 +276,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
+            InvalidateAuthCacheIfStale();
             var t = securityContext.CurrentTenantId;
             var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, t, scope: null);
             // ConcurrentDictionary.GetOrAdd serializes concurrent first-time lookups by key:
             // only one caller runs the EF query, others block on the same Lazy<>.Value.
             return isAuthenticatedCache.GetOrAdd(cacheKey, _ => IsAuthenticatedCore(userLabels, userAuthenticationType, t));
+        }
+
+        /// <summary>
+        /// Clears the per-instance IsAuthenticated memoization when a security-relevant entity changed since
+        /// the cache was last filled, so revoked/granted access takes effect within a live circuit. No-op when
+        /// no change-signal is registered (EntityWriteTracker inactive).
+        /// </summary>
+        private void InvalidateAuthCacheIfStale()
+        {
+            if (changeSignal != null &&
+                changeSignal.GetLastChange(ITVComponents.WebCoreToolkit.Caching.EntityChangeScope.Security) > authCacheStampUtc)
+            {
+                isAuthenticatedCache.Clear();
+                authCacheStampUtc = DateTime.UtcNow;
+            }
         }
 
         private bool IsAuthenticatedCore(string[] userLabels, string userAuthenticationType, int? t)
@@ -313,6 +332,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
         {
+            InvalidateAuthCacheIfStale();
             var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, tenantId: null, scope: forScope);
             return isAuthenticatedCache.GetOrAdd(cacheKey, _ => IsAuthenticatedScopedCore(userLabels, forScope, userAuthenticationType));
         }

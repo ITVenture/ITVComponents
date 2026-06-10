@@ -42,7 +42,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 .AddScoped<ISecurityRepository>(i =>
                 {
                     var retVal = new DbSecurityRepository<SecurityContext>(i.GetService<SecurityContext>(),
-                            i.GetService<ILogger<DbSecurityRepository<SecurityContext>>>());
+                            i.GetService<ILogger<DbSecurityRepository<SecurityContext>>>(),
+                            i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                     return i.GetAssetSecurityRepository(retVal);
                 })
                 //.AddScoped<ITenantTemplateHelper<SecurityContext>, TenantTemplateHelper<SecurityContext>>()
@@ -80,7 +81,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 .AddScoped<ISecurityRepository>(i =>
                 {
                     var retVal = new DbSecurityRepository<TImpl>(i.GetService<TImpl>(),
-                            i.GetService<ILogger<DbSecurityRepository<TImpl>>>());
+                            i.GetService<ILogger<DbSecurityRepository<TImpl>>>(),
+                            i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                     return i.GetAssetSecurityRepository(retVal);
                 })
                 //.AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()
@@ -104,7 +106,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 .AddScoped<ISecurityRepository>(i =>
                 {
                     var retVal = new DbSecurityRepository<TImpl>(i.GetService<TImpl>(),
-                            i.GetService<ILogger<DbSecurityRepository<TImpl>>>());
+                            i.GetService<ILogger<DbSecurityRepository<TImpl>>>(),
+                            i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                     return i.GetAssetSecurityRepository(retVal);
                 })
                 //.AddScoped<ITenantTemplateHelper<TImpl>, TTmpHelper>()

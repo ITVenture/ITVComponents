@@ -535,6 +535,45 @@ Wer ihn direkt referenziert hat (unüblich, war `internal`), wechselt auf
 > `UseEntityTracker:true`). Für Contexts ohne Tracker fällt der FK-Cache stillschweigend auf reines
 > TTL-Verhalten zurück — kein Fehler, nur etwas „langsamere" Frische.
 
+### 7a. Permissions & Navigation ziehen sofort (gleicher Schalter)
+
+Derselbe `UseEntityTracker`-Schalter speist jetzt zusätzlich eine **host-neutrale Invalidierung** für die
+beiden Puffer, die im Blazor-Betrieb dafür sorgten, dass **gewährte/entzogene Rechte und Menü-Änderungen
+nicht sofort zogen**:
+
+- **Cookie-Permission-Cache** (`UserScope`, 30-Min-TTL): wird zusätzlich invalidiert, sobald eine
+  security-relevante Tabelle geschrieben wurde (Permissions, RolePermissions, Roles, RoleRole-Vererbung,
+  UserRoles, GlobalRoles/-Permissions, GlobalToLocalRoles, TenantUsers, Tenants, FeatureActivations, Features).
+- **Navigations-Menü** (`Navigator`, pro Circuit gecacht): wird neu gebaut, sobald Navigations- **oder**
+  security-relevante Tabellen geschrieben wurden (Menü-Sichtbarkeit hängt an Permissions/Features).
+- **`isAuthenticatedCache`** im SecurityRepository: wird bei security-relevanten Writes geleert.
+
+Das passiert über eine Core-Abstraktion `IEntityChangeSignal` (EF-Impl `EntityChangeSignal<TContext>`,
+Singleton, wird mit `UseEntityTracker:true` automatisch registriert). **Keine Konfiguration nötig** über den
+`UseEntityTracker`-Schalter hinaus; die Puffer-Konsumenten ziehen das Signal selbst (no-op ohne Tracker).
+
+**Re-Select beim nächsten Zugriff ist automatisch.** Damit ein *bereits gerendertes* Nav-Menü (oder eine
+Seite) sich **ohne** Nutzerinteraktion sofort aktualisiert, gibt es die opt-in-Komponente
+**`EntityChangeRefresher`** (in `ITVComponents.WebCoreToolkit.Blazor`, also Telerik- **und** MudBlazor-tauglich).
+Im Host das Menü (bzw. den zu aktualisierenden Bereich) im **interaktiven** Render-Mode umschließen:
+
+```razor
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+<EntityChangeRefresher Watch="EntityChangeScope.Navigation">
+    @* euer NavMenu / die berechtigungsabhängige UI *@
+</EntityChangeRefresher>
+```
+
+`EntityChangeRefresher` abonniert das Singleton-Signal, re-rendert den Inhalt bei relevanter Änderung und
+ruft vorab `IPermissionScope.Refresh()` (re-resolved Scope → frische Permissions/Features), sodass das
+Re-Render bereits gegen die neuen Rechte prüft. Parameter: `Watch` (Default `Navigation`),
+`RefreshPermissionScope` (Default `true`), `OnChanged` (EventCallback). Ohne aktiven Tracker ist die
+Komponente ein transparenter Pass-Through.
+
+> **Granularität:** Das Signal ist tabellen-/global-granular (nicht pro Tenant/User) — jeder relevante Write
+> invalidiert die Puffer aller Circuits. Bewusst gewählt: lieber ein Re-Select zu viel als stale Rechte.
+
 ---
 
 ## 8. Verifikation auf eurer Seite
@@ -566,3 +605,4 @@ Wer ihn direkt referenziert hat (unüblich, war `internal`), wechselt auf
 | 8 | **Onboarding Config** (2c) | optional `TenantSetup`-GlobalSetting um `AllowRootTenantCreation` / `DefaultParentTenant` erweitern |
 | 9 | **Onboarding Mail/Nav** (2b) | `IAppMailSender` via `UseDefaultMailSender` (auto) oder eigene Impl; Nav-Link auf `/Account/Onboarding/Invitations` |
 | 10 | **EntityWriteTracker** (FK-Cache) | optional `ActivationSettings.UseEntityTracker = true` für sofortige FK-Label-Cache-Invalidierung; alter `IForeignKeyWriteTracker` entfallen → `IEntityWriteTracker` |
+| 10a | **Permissions/Navigation sofort** | gleicher Schalter invalidiert Cookie-Permission-Cache, Navigator & `isAuthenticatedCache` automatisch; für sofortiges UI-Re-Render optional `<EntityChangeRefresher>` (Blazor) um das Menü legen |

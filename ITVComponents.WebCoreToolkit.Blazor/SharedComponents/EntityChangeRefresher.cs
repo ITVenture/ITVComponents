@@ -1,0 +1,96 @@
+using System;
+using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Caching;
+using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+{
+    /// <summary>
+    /// Wrapper component that re-renders its <see cref="ChildContent"/> when a watched
+    /// <see cref="EntityChangeScope"/> changes (driven by the singleton <see cref="IEntityChangeSignal"/>), so
+    /// an already rendered navigation menu / page reflects permission-, role- or menu-changes without a fresh
+    /// circuit. Optionally re-resolves the <see cref="IPermissionScope"/> first, so the re-render evaluates
+    /// against freshly selected permissions. Becomes a transparent pass-through when no change-signal is
+    /// registered (i.e. ActivationSettings.UseEntityTracker is off) — preserving the previous behaviour.
+    /// Use inside an interactive render-mode; for the navigation menu wrap it with <c>Watch="Navigation"</c>.
+    /// </summary>
+    public class EntityChangeRefresher : ComponentBase, IDisposable
+    {
+        private IEntityChangeSignal? signal;
+        private IPermissionScope? permissionScope;
+
+        [Inject] private IServiceProvider Services { get; set; } = default!;
+
+        /// <summary>
+        /// The scope to watch. <see cref="EntityChangeScope.Navigation"/> also reacts to security changes,
+        /// because menu visibility derives from permissions/features.
+        /// </summary>
+        [Parameter] public EntityChangeScope Watch { get; set; } = EntityChangeScope.Navigation;
+
+        /// <summary>
+        /// When true (default), the permission-scope is re-resolved before re-rendering, so freshly granted or
+        /// revoked rights take effect in the re-rendered content.
+        /// </summary>
+        [Parameter] public bool RefreshPermissionScope { get; set; } = true;
+
+        /// <summary>Invoked on the renderer's sync-context after a relevant change, before the re-render.</summary>
+        [Parameter] public EventCallback OnChanged { get; set; }
+
+        /// <summary>The content that is re-rendered on a relevant change.</summary>
+        [Parameter] public RenderFragment? ChildContent { get; set; }
+
+        /// <inheritdoc />
+        protected override void OnInitialized()
+        {
+            // Both optional: signal only exists when the EntityWriteTracker is active.
+            signal = Services.GetService<IEntityChangeSignal>();
+            permissionScope = Services.GetService<IPermissionScope>();
+            if (signal != null)
+            {
+                signal.Changed += OnSignalChanged;
+            }
+        }
+
+        private void OnSignalChanged(EntityChangeScope scope)
+        {
+            // A security write raises both Security and Navigation, so a Navigation watcher reacts to it too.
+            if (scope != Watch)
+            {
+                return;
+            }
+
+            // The signal fires on the writer's thread (possibly a different circuit) → marshal to ours.
+            _ = InvokeAsync(async () =>
+            {
+                if (RefreshPermissionScope)
+                {
+                    permissionScope?.Refresh();
+                }
+
+                await OnChanged.InvokeAsync();
+                StateHasChanged();
+            });
+        }
+
+        /// <inheritdoc />
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            if (ChildContent != null)
+            {
+                builder.AddContent(0, ChildContent);
+            }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            if (signal != null)
+            {
+                signal.Changed -= OnSignalChanged;
+            }
+        }
+    }
+}

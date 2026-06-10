@@ -10,6 +10,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         public IServiceCollection UseDbNavigation(IServiceCollection services);
 
+        public IServiceCollection UseEntityChangeSignal(IServiceCollection services);
+
         public IServiceCollection UseDbSharedAssets(IServiceCollection services);
 
         public IServiceCollection UseApplicationTokenService(IServiceCollection services);

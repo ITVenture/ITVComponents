@@ -11,8 +11,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration
     {
         private readonly ConcurrentDictionary<string, DateTime> lastWrites = new(StringComparer.OrdinalIgnoreCase);
 
+        public event Action<string> TableWritten;
+
         public void MarkWritten(string table)
-            => lastWrites[table] = DateTime.UtcNow;
+        {
+            lastWrites[table] = DateTime.UtcNow;
+            TableWritten?.Invoke(table);
+        }
 
         public DateTime GetLastWrite(string table)
             => lastWrites.TryGetValue(table, out var ts) ? ts : DateTime.MinValue;

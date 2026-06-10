@@ -39,7 +39,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 {
                     var retVal = new AspNetDbSecurityRepository<AspNetSecurityContext>(
                         i.GetService<AspNetSecurityContext>(),
-                        i.GetService<ILogger<AspNetDbSecurityRepository<AspNetSecurityContext>>>());
+                        i.GetService<ILogger<AspNetDbSecurityRepository<AspNetSecurityContext>>>(),
+                        i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                     return i.GetAssetSecurityRepository(retVal);
 
                 })
@@ -62,7 +63,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     .AddScoped<ISecurityRepository>(i =>
                     {
                         var retVal = new AspNetDbSecurityRepository<TImpl>(i.GetService<TImpl>(),
-                                i.GetService<ILogger<AspNetDbSecurityRepository<TImpl>>>());
+                                i.GetService<ILogger<AspNetDbSecurityRepository<TImpl>>>(),
+                                i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                         return i.GetAssetSecurityRepository(retVal);
                     })
                     //.AddScoped<ITenantTemplateHelper<TImpl>, TenantTemplateHelper<TImpl>>()

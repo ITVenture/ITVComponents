@@ -72,6 +72,14 @@ namespace ITVComponents.WebCoreToolkit.Security
         }
 
         /// <summary>
+        /// Drops any memoized scope-resolution. The base implementation is a no-op; strategies that cache the
+        /// resolved scope (see ResolvingPermissionScope) override this to force a re-resolution.
+        /// </summary>
+        public virtual void Refresh()
+        {
+        }
+
+        /// <summary>
         /// sets the scope to a fixed value when it is used outside a http-context
         /// </summary>
         /// <param name="fixedScope"></param>

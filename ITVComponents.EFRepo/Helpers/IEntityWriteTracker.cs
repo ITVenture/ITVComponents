@@ -29,5 +29,11 @@ namespace ITVComponents.EFRepo.Helpers
         /// <param name="table">the name of the table to get the last write-time for</param>
         /// <returns>the last write-time for the given table</returns>
         public DateTime GetLastWrite(string table);
+
+        /// <summary>
+        /// Raised right after a table was marked as written. The argument is the name of the written table.
+        /// Enables consumers to actively invalidate buffered data and trigger a refresh instead of polling.
+        /// </summary>
+        public event Action<string> TableWritten;
     }
 }

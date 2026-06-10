@@ -24,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
     {
         private const string default1 = "Identity.Application";
 
-        public AspNetDbSecurityRepository(TImpl securityContext, ILogger<AspNetDbSecurityRepository<TImpl>> logger):base(securityContext, logger)
+        public AspNetDbSecurityRepository(TImpl securityContext, ILogger<AspNetDbSecurityRepository<TImpl>> logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null):base(securityContext, logger, changeSignal)
         {
         }
 
