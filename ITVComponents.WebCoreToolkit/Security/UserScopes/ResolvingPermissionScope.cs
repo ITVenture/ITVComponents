@@ -26,6 +26,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         private readonly IContextUserProvider contextUser;
         private readonly ILogger logger;
         private string currentScope;
+        private DateTime lastResolvedUtc;
         private bool preventEndlessLoop = false;
 
         /// <summary>
@@ -111,7 +112,42 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             {
                 return GetCurrentScope();
             }
-            return currentScope ??= GetCurrentScope();
+
+            // A security-relevant write since we last resolved must drop the memoized scope — otherwise a
+            // long-lived scope (the Blazor circuit keeps one IPermissionScope for its whole lifetime) keeps
+            // serving stale permissions/features until something external calls Refresh(). The check is a cheap
+            // tracker-timestamp lookup (no DB), and busting the memo here means the re-resolution runs INLINE on
+            // the caller's render/request thread — avoiding the off-thread re-query (via EntityChangeRefresher's
+            // InvokeAsync) that races the scoped DbContext and surfaces as "a second operation was started…".
+            if (currentScope != null && SecurityChangedSinceResolve())
+            {
+                currentScope = null;
+            }
+
+            if (currentScope == null)
+            {
+                var stampUtc = DateTime.UtcNow;
+                currentScope = GetCurrentScope();
+                lastResolvedUtc = stampUtc;
+            }
+
+            return currentScope;
+        }
+
+        /// <summary>
+        /// Cheap, DB-free check whether a security-relevant entity changed since the memoized scope was last
+        /// resolved. Returns false when no change-signal is registered (EntityWriteTracker inactive), preserving
+        /// the previous memoize-until-Refresh behaviour.
+        /// </summary>
+        private bool SecurityChangedSinceResolve()
+        {
+            var signal = contextUser.Services.GetService<IEntityChangeSignal>();
+            if (signal == null)
+            {
+                return false;
+            }
+
+            return signal.GetLastChange(EntityChangeTopics.Security) > lastResolvedUtc;
         }
 
         /// <summary>
@@ -190,6 +226,20 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             // A security-relevant write (permissions, role-permissions, global roles, tenant-users, …) since the
             // scope was last refreshed invalidates the cached permissions/features, even within the TTL window.
             bool securityChanged = SecurityChangedSince(scope, scopeToken);
+
+            // A security-relevant change invalidates the cached permission/feature snapshot. Drop a stale
+            // CookiePermissionRepo from the top of the repo-stack BEFORE re-reading: that way the rebuild below
+            // pulls fresh permissions, features AND known-permissions from the root (DB) repo — GetFeatures /
+            // GetKnownPermissions read through Current, which was still the stale snapshot — and the push below
+            // actually replaces the snapshot instead of being skipped (its guard requires Current to NOT be a
+            // CookiePermissionRepo, so without this pop a permission/feature change never reached the snapshot
+            // that the authorization checks read, while only the in-token copy was refreshed).
+            if (pushRepo && (securityChanged || forceRefresh) &&
+                secc is SecurityRepository { Current: CookiePermissionRepo } stale)
+            {
+                stale.PopRepo();
+            }
+
             var perms = scopeToken.GetPermissionsOf(scope);
             if (perms == null || forceRefresh || securityChanged)
             {
