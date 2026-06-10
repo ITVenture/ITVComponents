@@ -562,16 +562,23 @@ Das passiert über eine Core-Abstraktion `IEntityChangeSignal` (EF-Impl `EntityC
 Singleton, wird mit `UseEntityTracker:true` automatisch registriert). **Keine Konfiguration nötig** über den
 `UseEntityTracker`-Schalter hinaus; die Puffer-Konsumenten ziehen das Signal selbst (no-op ohne Tracker).
 
-**Topics sind frei konfigurierbar.** Welche Entity-Typen zu welchem *Topic* (String) gehören, steht in
-`EntitySignalOptions`. Das Toolkit seedet die Topics `Security`/`Navigation` selbst; **jeder Consumer — auch
-außerhalb des Toolkits — kann additiv eigene Topics/Entities registrieren** und darüber einen eigenen
-Aktualisierungs-Callback auslösen:
+**Topics sind frei konfigurierbar — pro DbContext.** Signal und Optionen sind **generisch über den Context**:
+`IEntityChangeSignal<TContext>` und `EntitySignalOptions<TContext>`. So kann eine App mit **mehreren
+DbContexten** je Context unabhängig Topics definieren. Das Toolkit seedet `Security`/`Navigation` für den
+Security-Context; **jeder Consumer — auch außerhalb des Toolkits — kann für einen beliebigen Context additiv
+eigene Topics/Entities registrieren**:
 
 ```csharp
-services.Configure<EntitySignalOptions>(o => o.Add("MyTopic", typeof(MyEntity), typeof(OtherEntity)));
-// danach: IEntityChangeSignal.GetLastChange("MyTopic") bzw. .Changed-Event / <EntityChangeRefresher Watch="MyTopic">
+// Voraussetzung für einen eigenen Context: dessen Writes müssen getrackt werden
+optionsBuilder.AddEntityWriteTrackerInterceptor(services);          // EFRepo-Extension, im OnConfiguring/DbContextOptions
+services.AddSingleton(typeof(IEntityWriteTracker<>), typeof(EntityWriteTracker<>));   // falls nicht schon offen registriert
+
+services.Configure<EntitySignalOptions<MyContext>>(o => o.Add("MyTopic", typeof(MyEntity), typeof(OtherEntity)));
+// danach: IEntityChangeSignal<MyContext>.GetLastChange("MyTopic") / .Changed-Event
 ```
 
+Die **nicht-generische** `IEntityChangeSignal` bleibt als Alias auf den **Security-Context** registriert — die
+context-agnostischen Verbraucher (Navigation, Permission-Scope, `EntityChangeRefresher`) nutzen sie unverändert.
 Das Matching ist zuweisungsbasiert: ein registrierter Typ deckt eine Entity, wenn sie ihm gleicht, von ihm
 erbt/ihn implementiert oder — bei einer offenen Generic-Definition (`typeof(Role<>)`) — ihn in der
 Basis-/Interface-Kette trägt. Es lassen sich also Basistypen **und** konkrete Entity-Typen registrieren.

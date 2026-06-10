@@ -59,4 +59,14 @@ namespace ITVComponents.WebCoreToolkit.Caching
                 kv => (IReadOnlyCollection<Type>)kv.Value.ToArray(),
                 StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Per-DbContext variant of <see cref="EntitySignalOptions"/>. Configure topics for a specific context via
+    /// <c>services.Configure&lt;EntitySignalOptions&lt;MyContext&gt;&gt;(o =&gt; o.Add("MyTopic", typeof(T1)))</c>,
+    /// so multiple DbContexts keep independent topic maps. The generic argument is only a DI key.
+    /// </summary>
+    /// <typeparam name="TContext">the DbContext these options apply to</typeparam>
+    public class EntitySignalOptions<TContext> : EntitySignalOptions
+    {
+    }
 }

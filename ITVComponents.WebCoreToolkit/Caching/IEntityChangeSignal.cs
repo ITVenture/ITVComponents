@@ -45,4 +45,15 @@ namespace ITVComponents.WebCoreToolkit.Caching
         /// </summary>
         event Action<string> Changed;
     }
+
+    /// <summary>
+    /// Per-DbContext change-signal. Resolve <c>IEntityChangeSignal&lt;MyContext&gt;</c> to react to writes in a
+    /// specific context; topics for that context are configured via <see cref="EntitySignalOptions{TContext}"/>.
+    /// The toolkit additionally registers the non-generic <see cref="IEntityChangeSignal"/> as an alias for the
+    /// security context, so context-agnostic consumers (navigation, permission scope, UI) keep working.
+    /// </summary>
+    /// <typeparam name="TContext">the DbContext whose writes this signal reports</typeparam>
+    public interface IEntityChangeSignal<TContext> : IEntityChangeSignal
+    {
+    }
 }

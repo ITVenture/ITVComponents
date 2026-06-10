@@ -26,6 +26,7 @@ using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions
 {
@@ -100,14 +101,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseEntityChangeSignal<TContext>(this IServiceCollection services) where TContext : DbContext
         {
-            services.Configure<EntitySignalOptions>(o =>
+            services.Configure<EntitySignalOptions<TContext>>(o =>
             {
                 o.Add(EntityChangeTopics.Security, DefaultSecurityEntities);
                 // Navigation reacts to its own entities AND to security changes (menu visibility depends on them).
                 o.Add(EntityChangeTopics.Navigation, DefaultNavigationEntities);
                 o.Add(EntityChangeTopics.Navigation, DefaultSecurityEntities);
             });
-            return services.AddSingleton<IEntityChangeSignal, EntityChangeSignal<TContext>>();
+
+            // Per-context signal (open generic, resolvable as IEntityChangeSignal<TAnyContext> once its tracker
+            // and EntitySignalOptions<TAnyContext> are set up).
+            services.TryAddSingleton(typeof(IEntityChangeSignal<>), typeof(EntityChangeSignal<>));
+
+            // Non-generic alias for the security context, used by the context-agnostic consumers
+            // (navigation, permission scope, EntityChangeRefresher) that cannot name TContext.
+            services.TryAddSingleton<IEntityChangeSignal>(sp => sp.GetRequiredService<IEntityChangeSignal<TContext>>());
+            return services;
         }
 
         /// <summary>

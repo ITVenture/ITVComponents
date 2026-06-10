@@ -17,8 +17,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
     /// <see cref="IEntityWriteTracker{TContext}"/> that the EntityWriteTrackerInterceptor feeds. Registered as
     /// a singleton, so a write in one circuit/request invalidates buffered data in all others.
     /// </summary>
-    /// <typeparam name="TContext">the security DbContext whose writes are tracked</typeparam>
-    public class EntityChangeSignal<TContext> : IEntityChangeSignal where TContext : DbContext
+    /// <typeparam name="TContext">the DbContext whose writes are tracked</typeparam>
+    public class EntityChangeSignal<TContext> : IEntityChangeSignal<TContext> where TContext : DbContext
     {
         private readonly IEntityWriteTracker<TContext> tracker;
         private readonly IServiceScopeFactory scopeFactory;
@@ -28,11 +28,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
         /// <summary>
         /// Initializes a new instance of the <see cref="EntityChangeSignal{TContext}"/> class.
         /// </summary>
-        /// <param name="tracker">the singleton write-tracker for the security context</param>
+        /// <param name="tracker">the singleton write-tracker for the context</param>
         /// <param name="scopeFactory">used to obtain the EF model once for the table-to-topic mapping</param>
-        /// <param name="options">the configured topic-to-entity-type mapping</param>
+        /// <param name="options">the topic-to-entity-type mapping configured for this context</param>
         public EntityChangeSignal(IEntityWriteTracker<TContext> tracker, IServiceScopeFactory scopeFactory,
-            IOptions<EntitySignalOptions> options)
+            IOptions<EntitySignalOptions<TContext>> options)
         {
             this.tracker = tracker;
             this.scopeFactory = scopeFactory;
