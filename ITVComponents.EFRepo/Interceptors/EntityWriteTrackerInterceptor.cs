@@ -15,7 +15,7 @@ namespace ITVComponents.EFRepo.Interceptors
     /// Records — per <see cref="IEntityWriteTracker"/> — which tables were written. The affected tables are
     /// collected while the entries still carry their pending states (SavingChanges) but the tracker is only
     /// marked AFTER the save actually completed (SavedChanges). Marking on save-completion is essential: the
-    /// <see cref="IEntityWriteTracker.TableWritten"/> event drives buffer invalidation, and a receiver that
+    /// <see cref="IEntityWriteTracker.TablesWritten"/> event drives buffer invalidation, and a receiver that
     /// re-selected during SavingChanges would read the still-unpersisted (old) data.
     /// </summary>
     public class EntityWriteTrackerInterceptor : ISaveChangesInterceptor
@@ -108,7 +108,7 @@ namespace ITVComponents.EFRepo.Interceptors
 
         /// <summary>
         /// Marks the collected tables as written — invoked after the save completed, so the persisted data is
-        /// already visible when receivers of <see cref="IEntityWriteTracker.TableWritten"/> re-select.
+        /// already visible when receivers of <see cref="IEntityWriteTracker.TablesWritten"/> re-select.
         /// </summary>
         private void FlushPending(DbContext context)
         {
@@ -122,7 +122,8 @@ namespace ITVComponents.EFRepo.Interceptors
             var tracker = localTracker ?? ResolveTracker(context);
             if (tracker == null)
             {
-                LogEnvironment.LogEvent($"No EntityWriteTracker service was found for {context.GetType()}.", LogSeverity.Error);
+                LogEnvironment.LogEvent($"No EntityWriteTracker service was found for {context.GetType()}.",
+                    LogSeverity.Error);
                 return;
             }
 
@@ -132,9 +133,9 @@ namespace ITVComponents.EFRepo.Interceptors
                 tables = set.ToArray();
             }
 
-            foreach (var table in tables)
+            if (tables.Length != 0)
             {
-                tracker.MarkWritten(table);
+                tracker.MarkWritten(tables);
             }
         }
 

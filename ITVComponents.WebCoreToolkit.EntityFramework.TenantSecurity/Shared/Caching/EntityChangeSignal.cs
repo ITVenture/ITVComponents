@@ -1,12 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Caching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Caching
 {
@@ -38,7 +38,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
             this.scopeFactory = scopeFactory;
             this.options = options.Value;
             map = new Lazy<TableTopicMap>(BuildMap, isThreadSafe: true);
-            tracker.TableWritten += OnTableWritten;
+            tracker.TablesWritten += OnTablesWritten;
         }
 
         /// <inheritdoc />
@@ -65,22 +65,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
             return result;
         }
 
-        private void OnTableWritten(string table)
+        private void OnTablesWritten(string[] tables)
         {
             try
             {
-                if (map.Value.TopicsForTable.TryGetValue(table, out var topics))
+                var affectedTopics = tables
+                    .SelectMany(t => map.Value.TopicsForTable.TryGetValue(t, out var topics)
+                        ? topics
+                        : Enumerable.Empty<string>())
+                    .Distinct();
+                foreach (var topic in affectedTopics)
                 {
-                    foreach (var topic in topics)
-                    {
-                        Changed?.Invoke(topic);
-                    }
+                    Changed?.Invoke(topic);
                 }
             }
             catch (Exception ex)
             {
                 // never break the originating SaveChanges because of a refresh-dispatch failure
-                LogEnvironment.LogEvent($"EntityChangeSignal failed to dispatch change for table '{table}': {ex}", LogSeverity.Report);
+                LogEnvironment.LogEvent(
+                    $"EntityChangeSignal failed to dispatch change for table '{string.Join(",", tables)}': {ex}",
+                    LogSeverity.Report);
             }
         }
 

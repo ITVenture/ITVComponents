@@ -51,7 +51,7 @@
         _tracker = Services.TrackerForContext(Connection, null);
         if (_tracker != null)
         {
-            _tracker.TableWritten += OnTableWritten;
+            _tracker.TablesWritten += OnTablesWritten;
         }
     }
 
@@ -79,9 +79,9 @@
         }
     }
 
-    private void OnTableWritten(string table)
+    private void OnTablesWritten(string[] tables)
     {
-        if (!string.Equals(table, Table, StringComparison.OrdinalIgnoreCase))
+        if (tables.All(table => !string.Equals(table, Table, StringComparison.OrdinalIgnoreCase)))
         {
             return;
         }
@@ -98,7 +98,7 @@
     {
         if (_tracker != null)
         {
-            _tracker.TableWritten -= OnTableWritten;
+            _tracker.TablesWritten -= OnTablesWritten;
         }
     }
 }

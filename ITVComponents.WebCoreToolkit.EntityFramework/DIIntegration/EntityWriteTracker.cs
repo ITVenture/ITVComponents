@@ -11,12 +11,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration
     {
         private readonly ConcurrentDictionary<string, DateTime> lastWrites = new(StringComparer.OrdinalIgnoreCase);
 
-        public event Action<string> TableWritten;
+        public event Action<string[]> TablesWritten;
 
-        public void MarkWritten(string table)
+        public void MarkWritten(params string[] tables)
         {
-            lastWrites[table] = DateTime.UtcNow;
-            TableWritten?.Invoke(table);
+            var nw = DateTime.UtcNow;
+            foreach (var table in tables)
+            {
+                lastWrites[table] = nw;
+            }
+
+            TablesWritten?.Invoke(tables);
         }
 
         public DateTime GetLastWrite(string table)

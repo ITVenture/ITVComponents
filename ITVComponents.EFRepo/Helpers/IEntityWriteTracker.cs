@@ -22,7 +22,7 @@ namespace ITVComponents.EFRepo.Helpers
         /// Marks the given table as written to
         /// </summary>
         /// <param name="table">the name of the table that was written to</param>
-        public void MarkWritten(string table);
+        public void MarkWritten(params string[] table);
         /// <summary>
         /// Gets the last write-time for the given table
         /// </summary>
@@ -34,6 +34,6 @@ namespace ITVComponents.EFRepo.Helpers
         /// Raised right after a table was marked as written. The argument is the name of the written table.
         /// Enables consumers to actively invalidate buffered data and trigger a refresh instead of polling.
         /// </summary>
-        public event Action<string> TableWritten;
+        public event Action<string[]> TablesWritten;
     }
 }
