@@ -1,6 +1,6 @@
 # Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
 
-> **Stand: `5.0.0-PRE066`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
+> **Stand: `5.0.0-PRE067`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
 > (Phasen 2–5), die danach gebauten Onboarding-Flows (2a/2b/2c, Abschnitt 6) **und** die
 > EntityWriteTracker-/EntityChangeSignal-Invalidierung (Abschnitt 7/7a) ab.
 
@@ -16,7 +16,7 @@ Reihenfolge der Abschnitte = empfohlene Reihenfolge der Migration. Pro Abschnitt
 > **Companion-Dokument:** Die **Paket-Konsolidierung** (NuGet-ID-Umbenennungen 103→71, `using`-Sweeps,
 > WebPart-Config-Key-Änderungen) ist separat in
 > [`Migration-Future_10-MLM-Packaging.md`](Migration-Future_10-MLM-Packaging.md) beschrieben. Für den
-> aktuellen Stand (`5.0.0-PRE066`) **beide** Dokumente durcharbeiten.
+> aktuellen Stand (`5.0.0-PRE067`) **beide** Dokumente durcharbeiten.
 
 ---
 
