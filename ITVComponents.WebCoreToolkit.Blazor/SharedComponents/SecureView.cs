@@ -8,14 +8,15 @@ using Microsoft.AspNetCore.Components.Rendering;
 namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
 {
     /// <summary>
-    /// Permission-gated content wrapper. Renders <see cref="Permitted"/> when the current user holds the
-    /// <see cref="RequiredPermissions"/> (OR-semantics by default, like the <c>HasPermission(a,b,c)</c> policy)
-    /// and <see cref="NotPermitted"/> otherwise. The gate is re-evaluated on every write to the watched
-    /// <see cref="Watch"/> topic (default <see cref="EntityChangeTopics.Security"/>) via the singleton
-    /// <see cref="IEntityChangeSignal"/>, so a permission revoked while the view is open takes effect without a
-    /// fresh circuit — the permission-scope is re-resolved first (see <see cref="EntityChangeRefresher"/>).
-    /// Wrap a whole view to gate access, or wrap individual edit/delete controls (leaving
-    /// <see cref="NotPermitted"/> empty) so they disappear the moment the right is withdrawn.
+    /// Permission- and feature-gated content wrapper. Renders <see cref="Permitted"/> when the current user
+    /// holds the <see cref="RequiredPermissions"/> AND the <see cref="RequiredFeatures"/> are active (each set
+    /// OR-semantics by default, like the <c>HasPermission(a,b,c),HasFeature(x)</c> policy on the MVC side), and
+    /// <see cref="NotPermitted"/> otherwise. The gate is re-evaluated on every write to the
+    /// <see cref="EntityChangeTopics.Security"/> topic via the singleton <see cref="IEntityChangeSignal"/> —
+    /// both permission and feature entities raise that topic — so a right revoked or a feature deactivated while
+    /// the view is open takes effect without a fresh circuit (the permission-scope is re-resolved first; see
+    /// <see cref="EntityChangeRefresher"/>). Wrap a whole view to gate access, or wrap individual edit/delete
+    /// controls (leaving <see cref="NotPermitted"/> empty) so they disappear the moment the right is withdrawn.
     /// </summary>
     public class SecureView : ComponentBase
     {
@@ -23,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
 
         /// <summary>
         /// The permissions to check, comma-separated (e.g. <c>"Roles.Write,Roles.Read,Sysadmin"</c>). By
-        /// default the user needs ANY of them; set <see cref="RequireAll"/> to demand all. Empty/null grants
+        /// default the user needs ANY of them; set <see cref="RequireAllPermissions"/> to demand all. Empty/null grants
         /// access (no restriction).
         /// </summary>
         [Parameter] public string? RequiredPermissions { get; set; }
@@ -31,13 +32,19 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
         /// <summary>
         /// When true, the user must hold ALL listed permissions; when false (default) ANY one suffices.
         /// </summary>
-        [Parameter] public bool RequireAll { get; set; }
+        [Parameter] public bool RequireAllPermissions { get; set; }
 
         /// <summary>
-        /// The change-topic that triggers a re-evaluation (default <see cref="EntityChangeTopics.Security"/>).
-        /// A security write raises this topic, so revoked/granted rights take effect immediately.
+        /// The features to check, comma-separated (e.g. <c>"FeatureA,FeatureB,FeatureC"</c>). By
+        /// default the user needs ANY of them; set <see cref="RequireAllFeatures"/> to demand all. Empty/null grants
+        /// access (no restriction).
         /// </summary>
-        [Parameter] public string Watch { get; set; } = EntityChangeTopics.Security;
+        [Parameter] public string? RequiredFeatures { get; set; }
+
+        /// <summary>
+        /// When true, the user must hold ALL listed features; when false (default) ANY one suffices.
+        /// </summary>
+        [Parameter] public bool RequireAllFeatures { get; set; }
 
         /// <summary>Content rendered when the user holds the required permissions.</summary>
         [Parameter] public RenderFragment? Permitted { get; set; }
@@ -58,11 +65,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
             // permission-scope (re-pushes the CookiePermissionRepo snapshot) and re-renders our child on a
             // relevant write — so the inline permission check below always sees fresh rights.
             builder.OpenComponent<EntityChangeRefresher>(0);
-            builder.AddComponentParameter(1, nameof(EntityChangeRefresher.Watch), Watch);
+            // SecureView only ever cares about security-relevant writes: both permission entities and feature
+            // entities (Feature / TenantFeatureActivation) raise the Security topic, so a fixed watch suffices.
+            builder.AddComponentParameter(1, nameof(EntityChangeRefresher.Watch), EntityChangeTopics.Security);
             builder.AddComponentParameter(2, nameof(EntityChangeRefresher.RefreshPermissionScope), true);
             builder.AddComponentParameter(3, nameof(EntityChangeRefresher.ChildContent), (RenderFragment)(b =>
             {
-                if (IsPermitted())
+                if (IsPermitted() && IsFeatureEnabled())
                 {
                     b.AddContent(4, Permitted ?? ChildContent);
                 }
@@ -83,9 +92,23 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
                 return true;
             }
 
-            return RequireAll
+            return RequireAllPermissions
                 ? perms.All(p => Services.VerifyUserPermissions(new[] { p }))
                 : Services.VerifyUserPermissions(perms);
+        }
+        
+        private bool IsFeatureEnabled()
+        {
+            var features = (RequiredFeatures ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (features.Length == 0)
+            {
+                return true;
+            }
+
+            return RequireAllFeatures
+                ? features.All(p => Services.VerifyActivatedFeatures(new[] { p }, out _))
+                : Services.VerifyActivatedFeatures(features, out _);
         }
     }
 }
