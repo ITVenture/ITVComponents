@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Health scripts</MudText>
 
+<SecureView RequiredPermissions="HealthChecks.View,HealthChecks.Write,Sysadmin">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view health scripts.</MudAlert>
 }
 else
 {
@@ -42,24 +40,26 @@ else
                           Class="mt-0"
                           DebounceInterval="300"
                           OnDebounceIntervalElapsed="ReloadGrid" />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="HealthChecks.Write,Sysadmin">
+                <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
                     Add script
                 </MudButton>
-            }
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.HealthScriptName" Title="Name" />
             <TemplateColumn T="HealthScriptViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="HealthChecks.Write,Sysadmin">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -68,6 +68,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view health scripts.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<HealthScriptViewModel>? grid;

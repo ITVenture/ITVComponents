@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Plug-ins</MudText>
 
+<SecureView RequiredPermissions="PlugIns.View,PlugIns.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view plug-ins.</MudAlert>
 }
 else
 {
@@ -41,12 +39,13 @@ else
                           Class="mt-0"
                           DebounceInterval="300"
                           OnDebounceIntervalElapsed="ReloadGrid" />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="PlugIns.Write">
+                <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
                     Add plug-in
                 </MudButton>
-            }
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="WebPluginViewModel" />
@@ -55,13 +54,14 @@ else
             <PropertyColumn Property="x => x.Transient" Title="Transient" />
             <TemplateColumn T="WebPluginViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="PlugIns.Write">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -75,6 +75,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view plug-ins.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<WebPluginViewModel>? grid;

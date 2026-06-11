@@ -12,13 +12,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">System log</MudText>
 
+<SecureView RequiredPermissions="SystemLog.View">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view system log.</MudAlert>
 }
 else
 {
@@ -106,6 +104,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view system log.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<SystemEventViewModel>? grid;

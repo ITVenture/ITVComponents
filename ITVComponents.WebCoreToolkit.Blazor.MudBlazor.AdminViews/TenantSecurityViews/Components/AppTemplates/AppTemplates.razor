@@ -14,13 +14,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Client app templates</MudText>
 
+<SecureView RequiredPermissions="Apps.Templates.View,Apps.Templates.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view templates.</MudAlert>
 }
 else
 {
@@ -43,25 +41,27 @@ else
                           Class="mt-0"
                           DebounceInterval="300"
                           OnDebounceIntervalElapsed="ReloadGrid" />
-            @if (hasWrite)
-            {
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                    Add template
-                </MudButton>
-            }
+            <SecureView RequiredPermissions="Apps.PermissionSets.Write">
+                <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                        Add template
+                    </MudButton>
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="ClientAppTemplateViewModel" />
             <PropertyColumn Property="x => x.Name" Title="Name" />
             <TemplateColumn T="ClientAppTemplateViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="Apps.PermissionSets.Write">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -79,6 +79,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view templates.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<ClientAppTemplateViewModel>? grid;

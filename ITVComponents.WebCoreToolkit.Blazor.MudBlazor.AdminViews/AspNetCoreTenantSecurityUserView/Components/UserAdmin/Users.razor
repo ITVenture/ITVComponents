@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Users</MudText>
 
+<SecureView RequiredPermissions="Users.View,Users.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasViewPermission)
-{
-    <MudAlert Severity="Severity.Warning">You do not have permission to view users.</MudAlert>
 }
 else
 {
@@ -44,12 +42,13 @@ else
                           Immediate="false"
                           DebounceInterval="300"
                           OnDebounceIntervalElapsed="ReloadGrid" />
-            @if (hasWritePermission)
-            {
+            <SecureView RequiredPermissions="Users.Write">
+                <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreateDialog">
                     Add user
                 </MudButton>
-            }
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.UserName" Title="User name" />
@@ -71,11 +70,12 @@ else
                 <CellTemplate>
                     <MudStack Row="true" Spacing="1">
                         <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details" OnClick="@(() => OpenDetailDialog(context.Item))" />
-                        @if (hasWritePermission)
-                        {
+                        <SecureView RequiredPermissions="Users.Write">
+                            <Permitted>
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteUser(context.Item))" />
-                        }
+                            </Permitted>
+                        </SecureView>
                     </MudStack>
                 </CellTemplate>
             </TemplateColumn>
@@ -85,6 +85,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">You do not have permission to view users.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<UserViewModel>? grid;

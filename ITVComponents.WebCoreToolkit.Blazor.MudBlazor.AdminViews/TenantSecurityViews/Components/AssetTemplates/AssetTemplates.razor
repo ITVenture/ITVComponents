@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Asset templates</MudText>
 
+<SecureView RequiredPermissions="Sysadmin">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!isSysAdmin)
-{
-    <MudAlert Severity="Severity.Warning">Sysadmin access required.</MudAlert>
 }
 else
 {
@@ -79,6 +77,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">Sysadmin access required.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<AssetTemplateViewModel>? grid;

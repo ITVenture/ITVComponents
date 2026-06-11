@@ -11,13 +11,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Navigation</MudText>
 
+<SecureView RequiredPermissions="Navigation.View,Navigation.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view navigation.</MudAlert>
 }
 else if (!choicesLoaded)
 {
@@ -35,6 +33,11 @@ else
                         AllTenants="@allTenants"
                         OnDataChanged="@ReloadChoices" />
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view navigation.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;

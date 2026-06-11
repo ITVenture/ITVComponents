@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Module videos</MudText>
 
+<SecureView RequiredPermissions="ModuleHelp.View,ModuleHelp.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view module videos.</MudAlert>
 }
 else
 {
@@ -33,10 +31,11 @@ else
             <MudText Typo="Typo.h6">Module videos</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="search" Placeholder="Search…" DebounceInterval="300" OnDebounceIntervalElapsed="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Class="mt-0" />
-            @if (hasWrite)
-            {
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">Add video</MudButton>
-            }
+            <SecureView RequiredPermissions="ModuleHelp.Write">
+                <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">Add video</MudButton>
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="VideoTutorialViewModel" />
@@ -45,13 +44,14 @@ else
             <PropertyColumn Property="x => x.ModuleUrl" Title="Module URL" />
             <TemplateColumn T="VideoTutorialViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="ModuleHelp.Write">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -63,6 +63,11 @@ else
         <PagerContent><MudDataGridPager T="VideoTutorialViewModel" /></PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view module videos.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<VideoTutorialViewModel>? grid;

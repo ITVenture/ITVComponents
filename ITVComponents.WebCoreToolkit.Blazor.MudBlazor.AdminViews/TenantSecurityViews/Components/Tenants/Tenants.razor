@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Tenants</MudText>
 
+<SecureView RequiredPermissions="Tenants.View,Tenants.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view tenants.</MudAlert>
 }
 else
 {
@@ -42,12 +40,13 @@ else
                           Class="mt-0"
                           DebounceInterval="300"
                           OnDebounceIntervalElapsed="ReloadGrid" />
-            @if (hasWrite)
-            {
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                    Add tenant
-                </MudButton>
-            }
+            <SecureView RequiredPermissions="Tenants.Write">
+                <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                        Add tenant
+                    </MudButton>
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.TenantName" Title="Name" />
@@ -65,11 +64,12 @@ else
                 <CellTemplate>
                     <MudStack Row="true" Spacing="1">
                         <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details" OnClick="@(() => OpenDetail(context.Item))" />
-                        @if (hasWrite)
-                        {
+                        <SecureView RequiredPermissions="Tenants.Write">
+                            <Permitted>
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
-                        }
+                            </Permitted>
+                        </SecureView>
                     </MudStack>
                 </CellTemplate>
             </TemplateColumn>
@@ -79,6 +79,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view tenants.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<TenantViewModel>? grid;

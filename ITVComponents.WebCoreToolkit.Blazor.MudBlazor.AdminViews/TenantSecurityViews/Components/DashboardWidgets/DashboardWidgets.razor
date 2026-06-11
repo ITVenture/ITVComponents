@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Dashboard widgets</MudText>
 
+<SecureView RequiredPermissions="DashboardWidgets.View,DashboardWidgets.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view dashboard widgets.</MudAlert>
 }
 else
 {
@@ -42,12 +40,13 @@ else
                           Class="mt-0"
                           DebounceInterval="300"
                           OnDebounceIntervalElapsed="ReloadGrid" />
-            @if (hasWrite)
-            {
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                    Add widget
-                </MudButton>
-            }
+            <SecureView RequiredPermissions="DashboardWidgets.Write">
+                <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                        Add widget
+                    </MudButton>
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="DashboardWidgetViewModel" />
@@ -56,13 +55,14 @@ else
             <PropertyColumn Property="x => x.Area" Title="Area" />
             <TemplateColumn T="DashboardWidgetViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="DashboardWidgets.Write">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -83,6 +83,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view dashboard widgets.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<DashboardWidgetViewModel>? grid;

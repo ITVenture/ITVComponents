@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Localizations</MudText>
 
+<SecureView RequiredPermissions="DbResources.View,DbResources.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view localizations.</MudAlert>
 }
 else
 {
@@ -33,23 +31,25 @@ else
             <MudText Typo="Typo.h6">Localizations</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="search" Placeholder="Search…" DebounceInterval="300" OnDebounceIntervalElapsed="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Class="mt-0" />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="DbResources.Write">
+                <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">Add localization</MudButton>
-            }
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="LocalizationViewModel" />
             <PropertyColumn Property="x => x.Identifier" Title="Identifier" />
             <TemplateColumn T="LocalizationViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="DbResources.Write">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -61,6 +61,11 @@ else
         <PagerContent><MudDataGridPager T="LocalizationViewModel" /></PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view localizations.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<LocalizationViewModel>? grid;

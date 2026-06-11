@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Cultures</MudText>
 
+<SecureView RequiredPermissions="DbCultures.View,DbCultures.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view cultures.</MudAlert>
 }
 else
 {
@@ -33,28 +31,35 @@ else
             <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
             <MudText Typo="Typo.h6">Cultures</MudText>
             <MudSpacer />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="DbCultures.Write">
+                <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">Add culture</MudButton>
-            }
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.Name" Title="Name" />
             <TemplateColumn T="CultureViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="DbCultures.Write">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
         <PagerContent><MudDataGridPager T="CultureViewModel" /></PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view cultures.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<CultureViewModel>? grid;

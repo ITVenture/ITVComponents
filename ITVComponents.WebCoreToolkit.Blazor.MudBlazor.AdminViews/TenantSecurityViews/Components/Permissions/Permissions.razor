@@ -13,13 +13,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Permissions</MudText>
 
+<SecureView RequiredPermissions="Permissions.View,Permissions.Write">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
-}
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Warning">No permission to view permissions.</MudAlert>
 }
 else
 {
@@ -42,12 +40,13 @@ else
                           Class="mt-0"
                           DebounceInterval="300"
                           OnDebounceIntervalElapsed="ReloadGrid" />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="Permissions.Write">
+                <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
                     Add permission
                 </MudButton>
-            }
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.PermissionName" Title="Name" />
@@ -55,13 +54,17 @@ else
             <PropertyColumn Property="x => x.IsGlobal" Title="Global" />
             <TemplateColumn T="PermissionViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite && context.Item.Editable)
-                    {
-                        <MudStack Row="true" Spacing="1">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
-                        </MudStack>
-                    }
+                    <SecureView RequiredPermissions="Permissions.Write">
+                        <Permitted>
+                        @if (context.Item.Editable)
+                        {
+                            <MudStack Row="true" Spacing="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                            </MudStack>
+                        }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -70,6 +73,11 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view permissions.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private MudDataGrid<PermissionViewModel>? grid;
