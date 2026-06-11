@@ -4,12 +4,8 @@
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view permission set assignments.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Apps.Templates.View,Apps.Templates.Write">
+    <Permitted>
     <MudDataGrid T="AppPermissionSetAssignmentViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -25,10 +21,18 @@ else
         <Columns>
             <TemplateColumn T="AppPermissionSetAssignmentViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    <MudCheckBox T="bool"
-                                 Value="context.Item.Assigned"
-                                 Disabled="!hasWrite"
-                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                    <SecureView RequiredPermissions="Apps.PermissionSets.Write">
+                        <Permitted>
+                            <MudCheckBox T="bool"
+                                         Value="context.Item.Assigned"
+                                         ValueChanged="@(v => Toggle(context.Item, v))" />
+                        </Permitted>
+                        <NotPermitted>
+                            <MudCheckBox T="bool"
+                                         Value="context.Item.Assigned"
+                                         Disabled="true" />
+                        </NotPermitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
             <PropertyColumn Property="x => x.PermissionSetName" Title="Permission set" />
@@ -37,7 +41,11 @@ else
             <MudDataGridPager T="AppPermissionSetAssignmentViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view permission set assignments.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     [Parameter, EditorRequired] public int ClientAppTemplateId { get; set; }

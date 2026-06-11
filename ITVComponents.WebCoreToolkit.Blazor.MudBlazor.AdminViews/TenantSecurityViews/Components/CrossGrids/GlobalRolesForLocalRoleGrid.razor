@@ -4,12 +4,8 @@
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view global-role assignments.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="GlobalRoles.View,GlobalRoles.AssignRole,Sysadmin">
+    <Permitted>
     <MudDataGrid T="GlobalRoleForLocalRoleAssignmentViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -25,10 +21,18 @@ else
         <Columns>
             <TemplateColumn T="GlobalRoleForLocalRoleAssignmentViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    <MudCheckBox T="bool"
-                                 Value="context.Item.Assigned"
-                                 Disabled="!hasWrite"
-                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                    <SecureView RequiredPermissions="GlobalRoles.AssignRole,Sysadmin">
+                        <Permitted>
+                            <MudCheckBox T="bool"
+                                         Value="context.Item.Assigned"
+                                         ValueChanged="@(v => Toggle(context.Item, v))" />
+                        </Permitted>
+                        <NotPermitted>
+                            <MudCheckBox T="bool"
+                                         Value="context.Item.Assigned"
+                                         Disabled="true" />
+                        </NotPermitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
             <PropertyColumn Property="x => x.RoleName" Title="Global role" />
@@ -37,7 +41,11 @@ else
             <MudDataGridPager T="GlobalRoleForLocalRoleAssignmentViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view global-role assignments.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     [Parameter, EditorRequired] public int LocalRoleId { get; set; }

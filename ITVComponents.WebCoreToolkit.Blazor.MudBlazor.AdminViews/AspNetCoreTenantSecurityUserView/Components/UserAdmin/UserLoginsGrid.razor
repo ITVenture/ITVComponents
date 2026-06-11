@@ -5,12 +5,8 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!CanView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view logins.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Users.Logins.View,Users.Logins.Write">
+    <Permitted>
     <MudDataGrid T="UserLoginViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -29,10 +25,11 @@ else
             <PropertyColumn Property="x => x.ProviderDisplayName" Title="Display name" />
             <TemplateColumn T="UserLoginViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (CanWrite)
-                    {
+                    <SecureView RequiredPermissions="Users.Logins.Write">
+                        <Permitted>
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -40,7 +37,11 @@ else
             <MudDataGridPager T="UserLoginViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view logins.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     [Parameter, EditorRequired] public string UserId { get; set; } = "";

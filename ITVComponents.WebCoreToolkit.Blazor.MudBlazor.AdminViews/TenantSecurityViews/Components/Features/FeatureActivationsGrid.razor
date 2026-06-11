@@ -5,12 +5,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">Sysadmin permission required.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Sysadmin"><Permitted>
     <MudDataGrid T="FeatureActivationViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -44,7 +39,9 @@ else
             <MudDataGridPager T="FeatureActivationViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+</Permitted><NotPermitted>
+    <MudAlert Severity="Severity.Info">Sysadmin permission required.</MudAlert>
+</NotPermitted></SecureView>
 
 @code {
     [Parameter, EditorRequired] public int FeatureId { get; set; }

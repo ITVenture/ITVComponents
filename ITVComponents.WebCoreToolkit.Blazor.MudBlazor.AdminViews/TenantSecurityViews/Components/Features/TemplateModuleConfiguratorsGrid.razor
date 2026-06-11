@@ -5,12 +5,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view configurators.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Features.View,Features.Write"><Permitted>
     <MudDataGrid T="TemplateModuleConfiguratorViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -22,12 +17,11 @@ else
             <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
             <MudText Typo="Typo.subtitle2">Configurators</MudText>
             <MudSpacer />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="Features.Write"><Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
                     Add configurator
                 </MudButton>
-            }
+            </Permitted></SecureView>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="TemplateModuleConfiguratorViewModel" />
@@ -36,13 +30,12 @@ else
             <PropertyColumn Property="x => x.ConfiguratorTypeBack" Title="Type" />
             <TemplateColumn T="TemplateModuleConfiguratorViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="Features.Write"><Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                    </Permitted></SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -55,7 +48,9 @@ else
             <MudDataGridPager T="TemplateModuleConfiguratorViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+</Permitted><NotPermitted>
+    <MudAlert Severity="Severity.Info">No permission to view configurators.</MudAlert>
+</NotPermitted></SecureView>
 
 @code {
     [Parameter, EditorRequired] public int TemplateModuleId { get; set; }

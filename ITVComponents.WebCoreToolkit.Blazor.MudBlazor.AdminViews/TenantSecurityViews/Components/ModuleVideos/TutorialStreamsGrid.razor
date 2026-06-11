@@ -5,12 +5,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view streams.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="ModuleHelp.View,ModuleHelp.Write"><Permitted>
     <MudDataGrid T="TutorialStreamViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -26,23 +21,23 @@ else
             <PropertyColumn Property="x => x.ContentType" Title="Content type" />
             <TemplateColumn T="TutorialStreamViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="ModuleHelp.Write"><Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                    </Permitted></SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
         <PagerContent><MudDataGridPager T="TutorialStreamViewModel" /></PagerContent>
     </MudDataGrid>
-    @if (hasWrite)
-    {
+    <SecureView RequiredPermissions="ModuleHelp.Write"><Permitted>
         <MudText Typo="Typo.caption" Class="mt-2"><em>Note: stream blob uploads are not part of this view; manage media via the platform's file-handler endpoint.</em></MudText>
-    }
-}
+    </Permitted></SecureView>
+</Permitted><NotPermitted>
+    <MudAlert Severity="Severity.Info">No permission to view streams.</MudAlert>
+</NotPermitted></SecureView>
 
 @code {
     [Parameter, EditorRequired] public int VideoTutorialId { get; set; }

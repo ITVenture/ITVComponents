@@ -5,12 +5,8 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!CanView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view claims.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Users.Claims.View,Users.Claims.Write">
+    <Permitted>
     <MudDataGrid T="UserClaimViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -22,25 +18,27 @@ else
             <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.subtitle2">Claims</MudText>
             <MudSpacer />
-            @if (CanWrite)
-            {
+            <SecureView RequiredPermissions="Users.Claims.Write">
+                <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
                     Add claim
                 </MudButton>
-            }
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.ClaimType" Title="Name" />
             <PropertyColumn Property="x => x.ClaimValue" Title="Value" />
             <TemplateColumn T="UserClaimViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (CanWrite)
-                    {
+                    <SecureView RequiredPermissions="Users.Claims.Write">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -48,7 +46,11 @@ else
             <MudDataGridPager T="UserClaimViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view claims.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     [Parameter, EditorRequired] public string UserId { get; set; } = "";

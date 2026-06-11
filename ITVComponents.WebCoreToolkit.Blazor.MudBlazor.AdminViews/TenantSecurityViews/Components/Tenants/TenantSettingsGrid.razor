@@ -5,12 +5,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view tenant settings.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Tenants.View,Tenants.WriteSettings"><Permitted>
     <MudDataGrid T="TenantSettingViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -23,10 +18,9 @@ else
             <MudText Typo="Typo.subtitle2">Settings</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="search" Placeholder="Search…" DebounceInterval="300" OnDebounceIntervalElapsed="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Class="mt-0" />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="Tenants.WriteSettings"><Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">Add setting</MudButton>
-            }
+            </Permitted></SecureView>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.SettingsKey" Title="Key" />
@@ -34,19 +28,20 @@ else
             <PropertyColumn Property="x => x.SettingsValue" Title="Value" />
             <TemplateColumn T="TenantSettingViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="Tenants.WriteSettings"><Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                    </Permitted></SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
         <PagerContent><MudDataGridPager T="TenantSettingViewModel" /></PagerContent>
     </MudDataGrid>
-}
+</Permitted><NotPermitted>
+    <MudAlert Severity="Severity.Info">No permission to view tenant settings.</MudAlert>
+</NotPermitted></SecureView>
 
 @code {
     [Parameter, EditorRequired] public int TenantId { get; set; }

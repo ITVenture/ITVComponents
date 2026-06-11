@@ -4,12 +4,8 @@
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view role inheritance.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Roles.AssignRole,Roles.View">
+    <Permitted>
     <MudDataGrid T="RoleRoleAssignmentViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -25,10 +21,18 @@ else
         <Columns>
             <TemplateColumn T="RoleRoleAssignmentViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    <MudCheckBox T="bool"
-                                 Value="context.Item.Assigned"
-                                 Disabled="!hasWrite"
-                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                    <SecureView RequiredPermissions="Roles.AssignRole">
+                        <Permitted>
+                            <MudCheckBox T="bool"
+                                         Value="context.Item.Assigned"
+                                         ValueChanged="@(v => Toggle(context.Item, v))" />
+                        </Permitted>
+                        <NotPermitted>
+                            <MudCheckBox T="bool"
+                                         Value="context.Item.Assigned"
+                                         Disabled="true" />
+                        </NotPermitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
             <PropertyColumn Property="x => x.RoleName" Title="Role" />
@@ -38,7 +42,11 @@ else
             <MudDataGridPager T="RoleRoleAssignmentViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view role inheritance.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     [Parameter, EditorRequired] public int PermissiveRoleId { get; set; }

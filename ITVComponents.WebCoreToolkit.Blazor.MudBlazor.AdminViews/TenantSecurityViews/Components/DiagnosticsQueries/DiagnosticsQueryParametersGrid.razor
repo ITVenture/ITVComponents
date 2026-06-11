@@ -16,12 +16,13 @@
         <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
         <MudText Typo="Typo.subtitle2">Parameters</MudText>
         <MudSpacer />
-        @if (CanWrite)
-        {
-            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
-                Add parameter
-            </MudButton>
-        }
+        <SecureView RequiredPermissions="DiagnosticsQueries.Write">
+            <Permitted>
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                    Add parameter
+                </MudButton>
+            </Permitted>
+        </SecureView>
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x.ParameterName" Title="Name" />
@@ -31,13 +32,14 @@
         <PropertyColumn Property="x => x.DefaultValue" Title="Default" />
         <TemplateColumn T="DiagnosticsQueryParameterViewModel" Title="" Sortable="false">
             <CellTemplate>
-                @if (CanWrite)
-                {
-                    <MudStack Row="true" Spacing="1">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
-                    </MudStack>
-                }
+                <SecureView RequiredPermissions="DiagnosticsQueries.Write">
+                    <Permitted>
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    </Permitted>
+                </SecureView>
             </CellTemplate>
         </TemplateColumn>
     </Columns>

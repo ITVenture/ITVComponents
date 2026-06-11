@@ -16,24 +16,26 @@
         <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
         <MudText Typo="Typo.subtitle2">Paths</MudText>
         <MudSpacer />
-        @if (CanWrite)
-        {
+        <SecureView RequiredPermissions="Sysadmin">
+            <Permitted>
             <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
                 Add path
             </MudButton>
-        }
+            </Permitted>
+        </SecureView>
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x.PathTemplate" Title="Path template" />
         <TemplateColumn T="AssetTemplatePathViewModel" Title="" Sortable="false">
             <CellTemplate>
-                @if (CanWrite)
-                {
+                <SecureView RequiredPermissions="Sysadmin">
+                    <Permitted>
                     <MudStack Row="true" Spacing="1">
                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                     </MudStack>
-                }
+                    </Permitted>
+                </SecureView>
             </CellTemplate>
         </TemplateColumn>
     </Columns>

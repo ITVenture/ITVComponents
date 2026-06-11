@@ -5,12 +5,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view cultures for this resource.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="DbResources.View,DbResources.Write"><Permitted>
     <MudDataGrid T="LocalizationCultureViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -20,21 +15,19 @@ else
             <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
             <MudText Typo="Typo.subtitle2">Cultures</MudText>
             <MudSpacer />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="DbResources.Write"><Permitted>
                 <MudNumericField @bind-Value="newCultureId" Label="Culture ID" Style="max-width: 140px;" />
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="AddCulture">Add culture</MudButton>
-            }
+            </Permitted></SecureView>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="LocalizationCultureViewModel" />
             <PropertyColumn Property="x => x.CultureName" Title="Culture" />
             <TemplateColumn T="LocalizationCultureViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="DbResources.Write"><Permitted>
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
-                    }
+                    </Permitted></SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -45,7 +38,9 @@ else
         </ChildRowContent>
         <PagerContent><MudDataGridPager T="LocalizationCultureViewModel" /></PagerContent>
     </MudDataGrid>
-}
+</Permitted><NotPermitted>
+    <MudAlert Severity="Severity.Info">No permission to view cultures for this resource.</MudAlert>
+</NotPermitted></SecureView>
 
 @code {
     [Parameter, EditorRequired] public int LocalizationId { get; set; }

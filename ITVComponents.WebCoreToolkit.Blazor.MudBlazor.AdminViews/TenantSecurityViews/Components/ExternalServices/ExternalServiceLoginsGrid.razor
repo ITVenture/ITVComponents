@@ -22,12 +22,16 @@
         <PropertyColumn Property="x => x.Revoked" Title="Revoked" />
         <TemplateColumn T="ExternalOAuthServiceTenantLoginViewModel" Title="" Sortable="false">
             <CellTemplate>
-                @if (CanWrite && !context.Item.Revoked)
-                {
-                    <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined" OnClick="@(() => Revoke(context.Item))">
-                        Revoke
-                    </MudButton>
-                }
+                <SecureView RequiredPermissions="Services.Connections.Write">
+                    <Permitted>
+                        @if (!context.Item.Revoked)
+                        {
+                            <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined" OnClick="@(() => Revoke(context.Item))">
+                                Revoke
+                            </MudButton>
+                        }
+                    </Permitted>
+                </SecureView>
             </CellTemplate>
         </TemplateColumn>
     </Columns>

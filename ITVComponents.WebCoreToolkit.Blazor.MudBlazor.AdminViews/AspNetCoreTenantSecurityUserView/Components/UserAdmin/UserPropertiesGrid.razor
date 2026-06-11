@@ -6,12 +6,8 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!CanView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view properties.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Users.Properties.View,Users.Properties.Write">
+    <Permitted>
     <MudDataGrid T="CustomUserPropertyViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -23,12 +19,13 @@ else
             <RefreshButton OnClick="ReloadGrid" />
             <MudText Typo="Typo.subtitle2">Properties</MudText>
             <MudSpacer />
-            @if (CanWrite)
-            {
+            <SecureView RequiredPermissions="Users.Properties.Write">
+                <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
                     Add property
                 </MudButton>
-            }
+                </Permitted>
+            </SecureView>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.PropertyName" Title="Name" />
@@ -36,13 +33,14 @@ else
             <PropertyColumn Property="x => x.PropertyType" Title="Type" />
             <TemplateColumn T="CustomUserPropertyViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (CanWrite)
-                    {
+                    <SecureView RequiredPermissions="Users.Properties.Write">
+                        <Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                        </Permitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -50,7 +48,11 @@ else
             <MudDataGridPager T="CustomUserPropertyViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view properties.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     [Parameter, EditorRequired] public string UserId { get; set; } = "";

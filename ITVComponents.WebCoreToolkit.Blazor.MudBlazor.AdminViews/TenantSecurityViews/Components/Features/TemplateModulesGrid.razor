@@ -5,12 +5,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view template modules.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Features.View,Features.Write"><Permitted>
     <MudDataGrid T="TemplateModuleViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -22,25 +17,23 @@ else
             <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
             <MudText Typo="Typo.subtitle2">Template modules</MudText>
             <MudSpacer />
-            @if (hasWrite)
-            {
+            <SecureView RequiredPermissions="Features.Write"><Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
                     Add module
                 </MudButton>
-            }
+            </Permitted></SecureView>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="TemplateModuleViewModel" />
             <PropertyColumn Property="x => x.TemplateModuleName" Title="Name" />
             <TemplateColumn T="TemplateModuleViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    @if (hasWrite)
-                    {
+                    <SecureView RequiredPermissions="Features.Write"><Permitted>
                         <MudStack Row="true" Spacing="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                         </MudStack>
-                    }
+                    </Permitted></SecureView>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -60,7 +53,9 @@ else
             <MudDataGridPager T="TemplateModuleViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+</Permitted><NotPermitted>
+    <MudAlert Severity="Severity.Info">No permission to view template modules.</MudAlert>
+</NotPermitted></SecureView>
 
 @code {
     [Parameter, EditorRequired] public int FeatureId { get; set; }

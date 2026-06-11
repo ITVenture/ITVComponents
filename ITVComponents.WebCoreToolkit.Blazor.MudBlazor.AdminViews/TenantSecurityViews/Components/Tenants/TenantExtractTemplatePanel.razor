@@ -4,12 +4,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 
-@if (!hasWrite)
-{
-    <MudAlert Severity="Severity.Info">No permission to extract templates.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="TenantTemplates.Write"><Permitted>
     <MudStack Spacing="3" Class="pa-2" Style="max-width: 640px;">
         <MudText Typo="Typo.subtitle2">Extract a tenant template from this tenant</MudText>
         <MudText Typo="Typo.body2">
@@ -34,7 +29,9 @@ else
             }
         </MudButton>
     </MudStack>
-}
+</Permitted><NotPermitted>
+    <MudAlert Severity="Severity.Info">No permission to extract templates.</MudAlert>
+</NotPermitted></SecureView>
 
 @code {
     [Parameter, EditorRequired] public int TenantId { get; set; }

@@ -16,12 +16,13 @@
         <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
         <MudText Typo="Typo.subtitle2">Parameters</MudText>
         <MudSpacer />
-        @if (CanWrite)
-        {
+        <SecureView RequiredPermissions="DashboardWidgets.Write">
+            <Permitted>
             <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
                 Add parameter
             </MudButton>
-        }
+            </Permitted>
+        </SecureView>
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x.ParameterName" Title="Name" />
@@ -29,13 +30,14 @@
         <PropertyColumn Property="x => x.InputConfig" Title="Config" />
         <TemplateColumn T="DashboardParamViewModel" Title="" Sortable="false">
             <CellTemplate>
-                @if (CanWrite)
-                {
+                <SecureView RequiredPermissions="DashboardWidgets.Write">
+                    <Permitted>
                     <MudStack Row="true" Spacing="1">
                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
                     </MudStack>
-                }
+                    </Permitted>
+                </SecureView>
             </CellTemplate>
         </TemplateColumn>
     </Columns>

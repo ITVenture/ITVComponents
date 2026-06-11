@@ -4,12 +4,8 @@
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 
-@if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view tenant assignments.</MudAlert>
-}
-else
-{
+<SecureView RequiredPermissions="Tenants.AssignUser,Tenants.View">
+    <Permitted>
     <MudDataGrid T="TenantAssignmentViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -25,10 +21,18 @@ else
         <Columns>
             <TemplateColumn T="TenantAssignmentViewModel" Title="" Sortable="false">
                 <CellTemplate>
-                    <MudCheckBox T="bool"
-                                 Value="context.Item.Assigned"
-                                 Disabled="!hasWrite"
-                                 ValueChanged="@(v => Toggle(context.Item, v))" />
+                    <SecureView RequiredPermissions="Tenants.AssignUser">
+                        <Permitted>
+                            <MudCheckBox T="bool"
+                                         Value="context.Item.Assigned"
+                                         ValueChanged="@(v => Toggle(context.Item, v))" />
+                        </Permitted>
+                        <NotPermitted>
+                            <MudCheckBox T="bool"
+                                         Value="context.Item.Assigned"
+                                         Disabled="true" />
+                        </NotPermitted>
+                    </SecureView>
                 </CellTemplate>
             </TemplateColumn>
             <PropertyColumn Property="x => x.TenantName" Title="Name" />
@@ -38,7 +42,11 @@ else
             <MudDataGridPager T="TenantAssignmentViewModel" />
         </PagerContent>
     </MudDataGrid>
-}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view tenant assignments.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     [Parameter, EditorRequired] public string UserId { get; set; } = "";

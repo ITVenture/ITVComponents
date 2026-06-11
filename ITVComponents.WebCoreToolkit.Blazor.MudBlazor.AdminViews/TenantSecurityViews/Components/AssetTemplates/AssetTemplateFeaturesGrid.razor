@@ -19,10 +19,18 @@
     <Columns>
         <TemplateColumn T="AssetTemplateFeatureAssignmentViewModel" Title="" Sortable="false">
             <CellTemplate>
+                <SecureView RequiredPermissions="Sysadmin">
+                    <Permitted>
                 <MudCheckBox T="bool"
                              Value="context.Item.Assigned"
-                             Disabled="!CanWrite"
                              ValueChanged="@(v => Toggle(context.Item, v))" />
+                    </Permitted>
+                    <NotPermitted>
+                <MudCheckBox T="bool"
+                             Value="context.Item.Assigned"
+                             Disabled="true" />
+                    </NotPermitted>
+                </SecureView>
             </CellTemplate>
         </TemplateColumn>
         <PropertyColumn Property="x => x.FeatureName" Title="Feature" />

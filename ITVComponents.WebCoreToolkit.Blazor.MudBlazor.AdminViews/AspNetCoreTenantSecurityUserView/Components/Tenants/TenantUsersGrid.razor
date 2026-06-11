@@ -8,12 +8,10 @@
 {
     <MudProgressCircular Indeterminate="true" />
 }
-else if (!hasView)
-{
-    <MudAlert Severity="Severity.Info">No permission to view users for this tenant.</MudAlert>
-}
 else
 {
+<SecureView RequiredPermissions="Users.View,Users.Write">
+    <Permitted>
     <MudDataGrid T="UserViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -69,6 +67,11 @@ else
             <MudDataGridPager T="UserViewModel" />
         </PagerContent>
     </MudDataGrid>
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view users for this tenant.</MudAlert>
+    </NotPermitted>
+</SecureView>
 }
 
 @code {
