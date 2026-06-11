@@ -80,6 +80,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
                     if (RefreshPermissionScope)
                     {
                         permissionScope?.Refresh();
+                        // Force the re-resolution NOW: Refresh() only marks the memoized scope dirty (the
+                        // CookiePermissionRepo snapshot is rebuilt lazily on the next prefix access). Without
+                        // this, a VerifyUserPermissions(...) inside OnChanged reads permissions through the
+                        // still-stale snapshot (its GetUserPermissions path never touches the prefix), so the
+                        // callback evaluates against last render's rights and lags one step behind. Touching
+                        // the prefix re-resolves and re-pushes the snapshot before OnChanged runs.
+                        _ = permissionScope?.PermissionPrefix;
                     }
 
                     await OnChanged.InvokeAsync();
