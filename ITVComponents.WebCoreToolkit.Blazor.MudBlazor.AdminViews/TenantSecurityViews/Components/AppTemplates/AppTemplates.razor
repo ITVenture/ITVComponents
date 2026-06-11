@@ -14,7 +14,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Client app templates</MudText>
 
-<SecureView RequiredPermissions="Apps.Templates.View,Apps.Templates.Write">
+<SecureView RequiredPermissions="Apps.Templates.View,Apps.Templates.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

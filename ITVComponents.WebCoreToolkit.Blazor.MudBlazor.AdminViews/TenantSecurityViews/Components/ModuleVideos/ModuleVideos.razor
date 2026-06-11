@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Module videos</MudText>
 
-<SecureView RequiredPermissions="ModuleHelp.View,ModuleHelp.Write">
+<SecureView RequiredPermissions="ModuleHelp.View,ModuleHelp.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

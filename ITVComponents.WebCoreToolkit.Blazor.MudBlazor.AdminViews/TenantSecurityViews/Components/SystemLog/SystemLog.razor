@@ -12,7 +12,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">System log</MudText>
 
-<SecureView RequiredPermissions="SystemLog.View">
+<SecureView RequiredPermissions="SystemLog.View" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

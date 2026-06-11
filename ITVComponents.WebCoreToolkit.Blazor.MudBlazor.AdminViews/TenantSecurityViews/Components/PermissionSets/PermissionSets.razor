@@ -14,7 +14,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">App permission sets</MudText>
 
-<SecureView RequiredPermissions="Apps.PermissionSets.View,Apps.PermissionSets.Write">
+<SecureView RequiredPermissions="Apps.PermissionSets.View,Apps.PermissionSets.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

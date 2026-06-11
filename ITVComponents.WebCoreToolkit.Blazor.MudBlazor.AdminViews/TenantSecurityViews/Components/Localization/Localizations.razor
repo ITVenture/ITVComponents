@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Localizations</MudText>
 
-<SecureView RequiredPermissions="DbResources.View,DbResources.Write">
+<SecureView RequiredPermissions="DbResources.View,DbResources.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

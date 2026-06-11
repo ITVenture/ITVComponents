@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Tenants</MudText>
 
-<SecureView RequiredPermissions="Tenants.View,Tenants.Write">
+<SecureView RequiredPermissions="Tenants.View,Tenants.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

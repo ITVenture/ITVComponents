@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Cultures</MudText>
 
-<SecureView RequiredPermissions="DbCultures.View,DbCultures.Write">
+<SecureView RequiredPermissions="DbCultures.View,DbCultures.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

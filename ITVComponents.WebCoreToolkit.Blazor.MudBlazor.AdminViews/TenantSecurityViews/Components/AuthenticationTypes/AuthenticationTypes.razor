@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Authentication types</MudText>
 
-<SecureView RequiredPermissions="AuthenticationTypes.View,AuthenticationTypes.Write">
+<SecureView RequiredPermissions="AuthenticationTypes.View,AuthenticationTypes.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

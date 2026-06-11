@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Dashboard widgets</MudText>
 
-<SecureView RequiredPermissions="DashboardWidgets.View,DashboardWidgets.Write">
+<SecureView RequiredPermissions="DashboardWidgets.View,DashboardWidgets.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

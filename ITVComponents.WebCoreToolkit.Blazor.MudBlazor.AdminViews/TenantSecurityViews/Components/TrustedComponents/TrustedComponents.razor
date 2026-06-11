@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Trusted components</MudText>
 
-<SecureView RequiredPermissions="TrustedComponents.View,TrustedComponents.Write">
+<SecureView RequiredPermissions="TrustedComponents.View,TrustedComponents.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

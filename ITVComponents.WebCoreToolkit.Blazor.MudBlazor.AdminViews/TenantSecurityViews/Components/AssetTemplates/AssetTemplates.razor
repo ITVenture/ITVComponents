@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Asset templates</MudText>
 
-<SecureView RequiredPermissions="Sysadmin">
+<SecureView RequiredPermissions="Sysadmin" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Plug-in constants</MudText>
 
-<SecureView RequiredPermissions="PlugInConstants.View,PlugInConstants.Write">
+<SecureView RequiredPermissions="PlugInConstants.View,PlugInConstants.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

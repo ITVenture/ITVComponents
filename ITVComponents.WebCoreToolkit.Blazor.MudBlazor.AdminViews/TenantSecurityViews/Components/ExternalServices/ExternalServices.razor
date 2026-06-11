@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">External services</MudText>
 
-<SecureView RequiredPermissions="Services.Connections.View,Services.Connections.Write">
+<SecureView RequiredPermissions="Services.Connections.View,Services.Connections.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

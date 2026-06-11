@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Health scripts</MudText>
 
-<SecureView RequiredPermissions="HealthChecks.View,HealthChecks.Write,Sysadmin">
+<SecureView RequiredPermissions="HealthChecks.View,HealthChecks.Write,Sysadmin" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

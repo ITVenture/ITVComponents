@@ -11,7 +11,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Navigation</MudText>
 
-<SecureView RequiredPermissions="Navigation.View,Navigation.Write">
+<SecureView RequiredPermissions="Navigation.View,Navigation.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {

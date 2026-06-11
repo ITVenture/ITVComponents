@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Global settings</MudText>
 
-<SecureView RequiredPermissions="GlobalSettings.View,GlobalSettings.Write">
+<SecureView RequiredPermissions="GlobalSettings.View,GlobalSettings.Write" RequiredFeatures="ITVAdminViews">
     <Permitted>
 @if (currentUser is null)
 {
