@@ -366,13 +366,14 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
             }
 
             var total = await q.CountAsync();
+            var defaultTn = effectiveTenantId[0];
             var items = await q.OrderBy(r => r.RoleName)
                 .Skip(query.Page * query.PageSize).Take(query.PageSize)
                 .Select(r => new RoleRoleAssignmentViewModel
                 {
                     PermissiveRoleId = permissiveRoleId,
                     PermittedRoleId = r.RoleId,
-                    RoleName = r.RoleName,
+                    RoleName = r.TenantId == defaultTn? r.RoleName: $"Parent_{r.RoleName}",
                     TenantId = r.TenantId,
                     IsSystemRole = r.IsSystemRole,
                     Assigned = false

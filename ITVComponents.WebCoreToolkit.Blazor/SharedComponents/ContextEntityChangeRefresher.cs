@@ -20,6 +20,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
     {
         private IEntityChangeSignal<TContext>? signal;
         private IPermissionScope? permissionScope;
+        private bool disposed;
 
         [Inject] private IServiceProvider Services { get; set; } = default!;
 
@@ -48,21 +49,39 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
 
         private void OnSignalChanged(string topic)
         {
-            if (!string.Equals(topic, Watch, StringComparison.OrdinalIgnoreCase))
+            if (disposed || !string.Equals(topic, Watch, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
-            // The signal fires on the writer's thread (possibly another circuit) → marshal to ours.
+            // The signal fires on a thread-pool thread (possibly for another circuit) → marshal to ours.
             _ = InvokeAsync(async () =>
             {
-                if (RefreshPermissionScope)
+                // The singleton signal can fire into a circuit that is being torn down between the raise and this
+                // callback running; resolving/using its (now disposed) scope would throw. Guard + swallow so a dead
+                // circuit can never break the dispatch for the live ones.
+                if (disposed)
                 {
-                    permissionScope?.Refresh();
+                    return;
                 }
 
-                await OnChanged.InvokeAsync();
-                StateHasChanged();
+                try
+                {
+                    if (RefreshPermissionScope)
+                    {
+                        permissionScope?.Refresh();
+                    }
+
+                    await OnChanged.InvokeAsync();
+                    if (!disposed)
+                    {
+                        StateHasChanged();
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // circuit/scope torn down underneath us — nothing left to refresh.
+                }
             });
         }
 
@@ -78,6 +97,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
         /// <inheritdoc />
         public void Dispose()
         {
+            disposed = true;
             if (signal != null)
             {
                 signal.Changed -= OnSignalChanged;

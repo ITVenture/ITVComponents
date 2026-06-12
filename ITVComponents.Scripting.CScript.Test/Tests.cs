@@ -20,6 +20,7 @@ namespace ITVComponents.Scripting.CScript.Test
             Assert.AreEqual(1d + 2D * 3 / 4, ExpressionParser.Parse("1+2D*3/4", new Dictionary<string, object>()));
             Assert.AreEqual(1 + 2M * 3 / 4, ExpressionParser.Parse("1+2M*3/4", new Dictionary<string, object>()));
             Assert.AreEqual(1 + 2F * 3 / 4, ExpressionParser.Parse("1+2F*3/4", new Dictionary<string, object>()));
+            Assert.AreEqual("Int32", ExpressionParser.Parse("value.GetType().Name", new Dictionary<string, object> { { "value", 1 } }));
         }
 
         [TestMethod]

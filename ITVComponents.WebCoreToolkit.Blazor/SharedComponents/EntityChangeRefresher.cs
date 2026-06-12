@@ -64,7 +64,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
                 return;
             }
 
-            // The signal fires on the writer's thread (possibly a different circuit) → marshal to ours.
+            // The signal fires on a thread-pool thread (possibly for a different circuit) → marshal to ours.
             _ = InvokeAsync(async () =>
             {
                 // The singleton signal can fire into a circuit that is being torn down between the raise and

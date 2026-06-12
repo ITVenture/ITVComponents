@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Caching
 {
@@ -67,25 +68,64 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
 
         private void OnTablesWritten(string[] tables)
         {
+            // Snapshot the subscriber list once; nothing to do when nobody is actively listening (the pull-based
+            // consumers read the already-updated last-write timestamp directly and don't depend on this event).
+            var handler = Changed;
+            if (handler == null)
+            {
+                return;
+            }
+
+            string[] affectedTopics;
             try
             {
-                var affectedTopics = tables
+                affectedTopics = tables
                     .SelectMany(t => map.Value.TopicsForTable.TryGetValue(t, out var topics)
                         ? topics
                         : Enumerable.Empty<string>())
-                    .Distinct();
-                foreach (var topic in affectedTopics)
-                {
-                    Changed?.Invoke(topic);
-                }
+                    .Distinct()
+                    .ToArray();
             }
             catch (Exception ex)
             {
                 // never break the originating SaveChanges because of a refresh-dispatch failure
                 LogEnvironment.LogEvent(
-                    $"EntityChangeSignal failed to dispatch change for table '{string.Join(",", tables)}': {ex}",
+                    $"EntityChangeSignal failed to map change for table '{string.Join(",", tables)}': {ex}",
                     LogSeverity.Report);
+                return;
             }
+
+            if (affectedTopics.Length == 0)
+            {
+                return;
+            }
+
+            // Fire-and-forget from the writer's perspective: the active-refresh dispatch is pushed off the thread
+            // that ran SaveChanges, so neither a slow nor a failing subscriber (e.g. a circuit being torn down)
+            // can add latency to — or abort — the originating write. The last-write timestamp was already set in
+            // MarkWritten before this event, so pull-based consumers see the change synchronously regardless.
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                foreach (var topic in affectedTopics)
+                {
+                    // Walk the invocation list explicitly and isolate each subscriber: a plain Changed.Invoke is a
+                    // multicast that aborts on the first throwing handler, which would silently drop the refresh
+                    // for every subscriber after it.
+                    foreach (var subscriber in handler.GetInvocationList())
+                    {
+                        try
+                        {
+                            ((Action<string>)subscriber)(topic);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogEnvironment.LogEvent(
+                                $"EntityChangeSignal subscriber failed for topic '{topic}': {ex}",
+                                LogSeverity.Report);
+                        }
+                    }
+                }
+            });
         }
 
         private TableTopicMap BuildMap()
