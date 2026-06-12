@@ -46,10 +46,22 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         /// <summary>
         /// Drops the memoized scope so the next <see cref="GetPermissionScopePrefix"/> re-resolves the scope,
         /// which re-selects permissions/features and re-pushes the server-side <see cref="CookiePermissionRepo"/>.
+        /// Idempotent against the change-stamp: with an active change-signal it only drops the scope when a
+        /// security-relevant entity actually changed since the last resolve. This deduplicates the common fan-out
+        /// where many EntityChangeRefresher/SecureView instances on the same circuit each call Refresh() for a
+        /// single write — the first re-resolves, the rest become no-ops instead of forcing N redundant
+        /// re-selections (and DB reads) on that circuit. Falls back to an unconditional drop when no change-signal
+        /// is registered, preserving the previous manual-refresh behaviour.
         /// </summary>
         public override void Refresh()
         {
-            currentScope = null;
+            // Mirrors the stamp-guard in GetPermissionScopePrefix: re-resolving once per write per circuit is
+            // enough, every additional refresher for the same write would read the same already-fresh data.
+            var signal = contextUser.Services.GetService<IEntityChangeSignal>();
+            if (signal == null || signal.GetLastChange(EntityChangeTopics.Security) > lastResolvedUtc)
+            {
+                currentScope = null;
+            }
         }
 
         /// <summary>
