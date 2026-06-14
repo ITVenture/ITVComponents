@@ -4,6 +4,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTr
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
+using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -23,14 +24,31 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
 
     private readonly TContext db;
     private readonly UserManager<User> userManager;
+    private readonly IServiceProvider services;
     private readonly ILogger<HierarchyTenantInvitationHandler<TContext>> logger;
 
     public HierarchyTenantInvitationHandler(TContext db, UserManager<User> userManager,
-        ILogger<HierarchyTenantInvitationHandler<TContext>> logger)
+        IServiceProvider services, ILogger<HierarchyTenantInvitationHandler<TContext>> logger)
     {
         this.db = db;
         this.userManager = userManager;
+        this.services = services;
         this.logger = logger;
+    }
+
+    public async Task<TenantPickerItem?> GetCurrentTenantAsync(ClaimsPrincipal admin, CancellationToken ct = default)
+    {
+        // The page invites from the ambient scope tenant; CurrentTenantId reflects exactly that selection.
+        var current = db.CurrentTenantId ?? 0;
+        if (current == 0 || await GetMembershipAsync(admin, current, ct) == null)
+        {
+            return null;
+        }
+
+        return await db.Tenants.AsNoTracking()
+            .Where(t => t.TenantId == current)
+            .Select(t => new TenantPickerItem(t.TenantId, t.DisplayName ?? t.TenantName))
+            .FirstOrDefaultAsync(ct);
     }
 
     public async Task<TenantPickerItem[]> ListAdministrableTenantsAsync(ClaimsPrincipal admin, CancellationToken ct = default)
@@ -57,6 +75,11 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             return new TenantInvitationResult(false, 0, null, default, "You are not a member of the inviting tenant.");
         }
 
+        if (!HasAny(InvitationPermissions.CreateSub))
+        {
+            return new TenantInvitationResult(false, 0, null, default, "You are not permitted to invite sub-tenants.");
+        }
+
         var token = GenerateToken();
         var expires = DateTime.UtcNow.AddDays(input.LifetimeDays is > 0 ? input.LifetimeDays.Value : DefaultLifetimeDays);
 
@@ -80,7 +103,8 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
 
     public async Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, int parentTenantId, CancellationToken ct = default)
     {
-        if (await GetMembershipAsync(admin, parentTenantId, ct) == null)
+        if (!HasAny(InvitationPermissions.ViewSub, InvitationPermissions.CreateSub)
+            || await GetMembershipAsync(admin, parentTenantId, ct) == null)
         {
             return Array.Empty<TenantInvitationItem>();
         }
@@ -101,7 +125,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             return false;
         }
 
-        if (await GetMembershipAsync(admin, invitation.ParentTenantId, ct) == null)
+        if (!HasAny(InvitationPermissions.CreateSub) || await GetMembershipAsync(admin, invitation.ParentTenantId, ct) == null)
         {
             return false;
         }
@@ -141,7 +165,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
 
     public async Task<bool> CreateEmployeeInvitationAsync(ClaimsPrincipal admin, EmployeeInvitationInput input, CancellationToken ct = default)
     {
-        if (await GetMembershipAsync(admin, input.TenantId, ct) == null)
+        if (!HasAny(InvitationPermissions.CreateEmp) || await GetMembershipAsync(admin, input.TenantId, ct) == null)
         {
             return false;
         }
@@ -180,7 +204,8 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
 
     public async Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, int tenantId, CancellationToken ct = default)
     {
-        if (await GetMembershipAsync(admin, tenantId, ct) == null)
+        if (!HasAny(InvitationPermissions.ViewEmp, InvitationPermissions.CreateEmp)
+            || await GetMembershipAsync(admin, tenantId, ct) == null)
         {
             return Array.Empty<EmployeeInvitationItem>();
         }
@@ -200,7 +225,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             return false;
         }
 
-        if (await GetMembershipAsync(admin, employee.TenantId, ct) == null)
+        if (!HasAny(InvitationPermissions.CreateEmp) || await GetMembershipAsync(admin, employee.TenantId, ct) == null)
         {
             return false;
         }
@@ -225,6 +250,12 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
         return await db.TenantUsers.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(tu => tu.UserId == owner.Id && tu.TenantId == tenantId && tu.Enabled == true, ct);
     }
+
+    /// <summary>
+    /// True when the ambient user holds ANY of <paramref name="permissions"/> in the current permission-scope
+    /// — the authoritative server-side gate mirroring the UI's SecureView/permission checks.
+    /// </summary>
+    private bool HasAny(params string[] permissions) => services.VerifyUserPermissions(permissions);
 
     private static string GenerateToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 }

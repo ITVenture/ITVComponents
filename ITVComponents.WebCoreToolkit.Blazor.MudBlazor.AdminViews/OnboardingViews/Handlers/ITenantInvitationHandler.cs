@@ -19,6 +19,14 @@ public interface ITenantInvitationHandler
     /// <summary>Tenants the calling admin may issue invitations for (their enabled memberships).</summary>
     Task<TenantPickerItem[]> ListAdministrableTenantsAsync(ClaimsPrincipal admin, CancellationToken ct = default);
 
+    /// <summary>
+    /// The tenant the invitation surface operates on: the caller's currently selected scope tenant. Returns
+    /// null when there is no current tenant scope or the caller is not an enabled member of it. The Invitations
+    /// page issues every invitation from this tenant (no tenant picker), so permission checks line up with the
+    /// ambient permission-scope.
+    /// </summary>
+    Task<TenantPickerItem?> GetCurrentTenantAsync(ClaimsPrincipal admin, CancellationToken ct = default);
+
     // -- Tenant invitations -------------------------------------------------------------------------
 
     /// <summary>
@@ -52,6 +60,21 @@ public interface ITenantInvitationHandler
 
     /// <summary>Revokes a still-pending employee invitation (membership in its tenant required). Idempotent.</summary>
     Task<bool> RevokeEmployeeInvitationAsync(ClaimsPrincipal admin, int employeeId, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Permission names that gate the invitation surface. <c>View*</c> grants read-only access (seeing the
+/// existing invitations of a kind), <c>Create*</c> grants read + write (issuing and revoking). The <c>*Sub</c>
+/// permissions concern sub-tenant invitations, the <c>*Emp</c> permissions employee invitations. Checked
+/// against the ambient permission-scope (the current tenant) both in the UI and, authoritatively, in the
+/// handler.
+/// </summary>
+public static class InvitationPermissions
+{
+    public const string ViewSub = "Invitations.ViewSub";
+    public const string CreateSub = "Invitations.CreateSub";
+    public const string ViewEmp = "Invitations.ViewEmp";
+    public const string CreateEmp = "Invitations.CreateEmp";
 }
 
 /// <summary>Request to create a tenant invitation. <paramref name="LifetimeDays"/> null = default (14 days).</summary>

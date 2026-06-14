@@ -58,6 +58,8 @@
   <data name="Onb_Inv_Accept" xml:space="preserve"><value>Einladung annehmen</value></data>
   <data name="Onb_Inv_ParentPinned" xml:space="preserve"><value>Der übergeordnete Mandant wird durch Ihre Einladung festgelegt.</value></data>
   <data name="Onb_Inv_AdminTitle" xml:space="preserve"><value>Einladungen</value></data>
+  <data name="Onb_Inv_FromTenant" xml:space="preserve"><value>Einladungen ausgehend von Mandant: {0}</value></data>
+  <data name="Onb_Inv_NoPermission" xml:space="preserve"><value>Sie sind nicht berechtigt, Einladungen zu verwalten.</value></data>
   <data name="Onb_Inv_Tab_Tenant" xml:space="preserve"><value>Sub-Mandanten-Einladungen</value></data>
   <data name="Onb_Inv_Tab_Employee" xml:space="preserve"><value>Mitarbeiter-Einladungen</value></data>
   <data name="Onb_Inv_Tenant" xml:space="preserve"><value>Mandant</value></data>

@@ -4,6 +4,9 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.Extensions.DependencyInjection
 @using ITVComponents.WebCoreToolkit.Security
+@using ITVComponents.WebCoreToolkit.Configuration
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Options
 @attribute [Authorize]
 
 @inject IServiceProvider Services
@@ -23,61 +26,55 @@
     {
         <MudAlert Severity="Severity.Error">@L["Onb_Inv_NotSupported"]</MudAlert>
     }
-    else if (tenants.Length == 0)
+    else if (!HasAnyAccess)
+    {
+        <MudAlert Severity="Severity.Warning">@L["Onb_Inv_NoPermission"]</MudAlert>
+    }
+    else if (currentTenant is null)
     {
         <MudAlert Severity="Severity.Info">@L["Onb_NoTenants"]</MudAlert>
     }
     else
     {
-        <MudPaper Class="pa-4 mb-4" Outlined="true">
-            <MudGrid Spacing="3" Class="align-end">
-                <MudItem xs="12" sm="5">
-                    <MudSelect T="int" Value="selectedTenantId" ValueChanged="OnTenantChanged" Label="@(L["Onb_Inv_Tenant"])" Dense="true">
-                        @foreach (var t in tenants)
-                        {
-                            <MudSelectItem T="int" Value="@t.TenantId">@t.DisplayName</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="7">
-                    <MudToggleGroup T="InviteKind" SelectionMode="SelectionMode.SingleSelection" Value="kind" ValueChanged="OnKindChanged" Color="Color.Primary">
-                        <MudToggleItem Value="@InviteKind.Tenant" Text="@(L["Onb_Inv_Tab_Tenant"])" />
-                        <MudToggleItem Value="@InviteKind.Employee" Text="@(L["Onb_Inv_Tab_Employee"])" />
-                    </MudToggleGroup>
-                </MudItem>
+        <MudText Typo="Typo.subtitle1" Class="mb-3">@L["Onb_Inv_FromTenant", currentTenant.DisplayName]</MudText>
 
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="email" Label="@(L["Onb_Inv_Email"])" InputType="InputType.Email" />
-                </MudItem>
-
-                @if (kind == InviteKind.Tenant)
-                {
-                    <MudItem xs="12" sm="3">
-                        <MudTextField @bind-Value="roleName" Label="@(L["Onb_Inv_Role"])" />
-                    </MudItem>
-                    <MudItem xs="12" sm="3">
-                        <MudTextField @bind-Value="templateName" Label="@(L["Onb_Inv_Template"])" />
-                    </MudItem>
-                }
-                else
-                {
-                    <MudItem xs="12" sm="3">
-                        <MudTextField @bind-Value="firstName" Label="@(L["Onb_Inv_FirstName"])" />
-                    </MudItem>
-                    <MudItem xs="12" sm="3">
-                        <MudTextField @bind-Value="lastName" Label="@(L["Onb_Inv_LastName"])" />
-                    </MudItem>
-                }
-
-                <MudItem xs="12" Class="d-flex justify-end">
-                    <MudButton OnClick="OnCreate" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy"
-                               StartIcon="@Icons.Material.Filled.Send">@L["Onb_Inv_Create"]</MudButton>
-                </MudItem>
-            </MudGrid>
-        </MudPaper>
+        @if (subAccessible && empAccessible)
+        {
+            <MudToggleGroup T="InviteKind" SelectionMode="SelectionMode.SingleSelection" Value="kind" ValueChanged="OnKindChanged" Color="Color.Primary" Class="mb-4">
+                <MudToggleItem Value="@InviteKind.Tenant" Text="@(L["Onb_Inv_Tab_Tenant"])" />
+                <MudToggleItem Value="@InviteKind.Employee" Text="@(L["Onb_Inv_Tab_Employee"])" />
+            </MudToggleGroup>
+        }
 
         @if (kind == InviteKind.Tenant)
         {
+            @if (canCreateSub)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined="true">
+                    <MudGrid Spacing="3" Class="align-end">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="email" Label="@(L["Onb_Inv_Email"])" InputType="InputType.Email" />
+                        </MudItem>
+                        @if (settings.AllowRoleOverride)
+                        {
+                            <MudItem xs="12" sm="3">
+                                <MudTextField @bind-Value="roleName" Label="@(L["Onb_Inv_Role"])" />
+                            </MudItem>
+                        }
+                        @if (settings.AllowTemplateOverride)
+                        {
+                            <MudItem xs="12" sm="3">
+                                <MudTextField @bind-Value="templateName" Label="@(L["Onb_Inv_Template"])" />
+                            </MudItem>
+                        }
+                        <MudItem xs="12" Class="d-flex justify-end">
+                            <MudButton OnClick="OnCreate" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy"
+                                       StartIcon="@Icons.Material.Filled.Send">@L["Onb_Inv_Create"]</MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+
             <MudDataGrid T="TenantInvitationItem" Items="tenantInvitations" Dense="true" Hover="true" Elevation="0">
                 <Columns>
                     <PropertyColumn Property="x => x.Email" Title="@(L["Onb_Col_Email"])" />
@@ -91,7 +88,7 @@
                                     <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
                                                    OnClick="@(() => CopyLink(context.Item.Token))" />
                                 </MudTooltip>
-                                @if (context.Item.Status == InvitationStatus.Pending)
+                                @if (canCreateSub && context.Item.Status == InvitationStatus.Pending)
                                 {
                                     <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text"
                                                OnClick="@(() => RevokeTenant(context.Item.TenantInvitationId))">@L["Onb_Inv_Revoke"]</MudButton>
@@ -105,6 +102,27 @@
         }
         else
         {
+            @if (canCreateEmp)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined="true">
+                    <MudGrid Spacing="3" Class="align-end">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="email" Label="@(L["Onb_Inv_Email"])" InputType="InputType.Email" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="firstName" Label="@(L["Onb_Inv_FirstName"])" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="lastName" Label="@(L["Onb_Inv_LastName"])" />
+                        </MudItem>
+                        <MudItem xs="12" Class="d-flex justify-end">
+                            <MudButton OnClick="OnCreate" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy"
+                                       StartIcon="@Icons.Material.Filled.Send">@L["Onb_Inv_Create"]</MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+
             <MudDataGrid T="EmployeeInvitationItem" Items="employeeInvitations" Dense="true" Hover="true" Elevation="0">
                 <Columns>
                     <PropertyColumn Property="x => x.Email" Title="@(L["Onb_Col_Email"])" />
@@ -112,7 +130,7 @@
                     <PropertyColumn Property="x => x.InvitationStatus" Title="@(L["Onb_Col_Status"])" />
                     <TemplateColumn Title="">
                         <CellTemplate>
-                            @if (context.Item.InvitationStatus == InvitationStatus.Pending)
+                            @if (canCreateEmp && context.Item.InvitationStatus == InvitationStatus.Pending)
                             {
                                 <MudStack Row="true" Justify="Justify.FlexEnd">
                                     <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text"
@@ -132,9 +150,19 @@
     private enum InviteKind { Tenant, Employee }
 
     private ITenantInvitationHandler? handler;
-    private TenantPickerItem[] tenants = Array.Empty<TenantPickerItem>();
-    private int selectedTenantId;
+    private TenantPickerItem? currentTenant;
     private InviteKind kind = InviteKind.Tenant;
+
+    // Permission snapshot for the current tenant scope: View* = read-only, Create* = read + write.
+    private bool canViewSub;
+    private bool canCreateSub;
+    private bool canViewEmp;
+    private bool canCreateEmp;
+    private bool subAccessible => canViewSub || canCreateSub;
+    private bool empAccessible => canViewEmp || canCreateEmp;
+    private bool HasAnyAccess => subAccessible || empAccessible;
+
+    private TenantInvitationSettings settings = new();
 
     private string email = "";
     private string? roleName;
@@ -154,19 +182,29 @@
             return;
         }
 
-        var state = await AuthState.GetAuthenticationStateAsync();
-        tenants = await handler.ListAdministrableTenantsAsync(state.User);
-        if (tenants.Length > 0)
+        canViewSub = Services.VerifyUserPermissions(new[] { InvitationPermissions.ViewSub });
+        canCreateSub = Services.VerifyUserPermissions(new[] { InvitationPermissions.CreateSub });
+        canViewEmp = Services.VerifyUserPermissions(new[] { InvitationPermissions.ViewEmp });
+        canCreateEmp = Services.VerifyUserPermissions(new[] { InvitationPermissions.CreateEmp });
+        if (!HasAnyAccess)
         {
-            selectedTenantId = tenants[0].TenantId;
+            return;
+        }
+
+        // Hierarchy-settings are optional on the host; fall back to defaults (no override, no recommendation).
+        settings = Services.GetService<IHierarchySettings<TenantInvitationSettings>>()?.Value ?? new TenantInvitationSettings();
+        roleName = settings.AdminRole;
+        templateName = settings.Template;
+
+        // Start on the first kind the user may actually access.
+        kind = subAccessible ? InviteKind.Tenant : InviteKind.Employee;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        currentTenant = await handler.GetCurrentTenantAsync(state.User);
+        if (currentTenant is not null)
+        {
             await ReloadAsync();
         }
-    }
-
-    private async Task OnTenantChanged(int tenantId)
-    {
-        selectedTenantId = tenantId;
-        await ReloadAsync();
     }
 
     private async Task OnKindChanged(InviteKind value)
@@ -177,7 +215,7 @@
 
     private async Task ReloadAsync()
     {
-        if (handler is null || selectedTenantId == 0)
+        if (handler is null || currentTenant is null)
         {
             return;
         }
@@ -185,17 +223,17 @@
         var state = await AuthState.GetAuthenticationStateAsync();
         if (kind == InviteKind.Tenant)
         {
-            tenantInvitations = await handler.ListTenantInvitationsAsync(state.User, selectedTenantId);
+            tenantInvitations = await handler.ListTenantInvitationsAsync(state.User, currentTenant.TenantId);
         }
         else
         {
-            employeeInvitations = await handler.ListEmployeeInvitationsAsync(state.User, selectedTenantId);
+            employeeInvitations = await handler.ListEmployeeInvitationsAsync(state.User, currentTenant.TenantId);
         }
     }
 
     private async Task OnCreate()
     {
-        if (handler is null || string.IsNullOrWhiteSpace(email))
+        if (handler is null || currentTenant is null || string.IsNullOrWhiteSpace(email))
         {
             return;
         }
@@ -206,8 +244,12 @@
             var state = await AuthState.GetAuthenticationStateAsync();
             if (kind == InviteKind.Tenant)
             {
+                // When override is disabled the configured recommendation is applied silently.
+                var role = settings.AllowRoleOverride ? roleName : settings.AdminRole;
+                var template = settings.AllowTemplateOverride ? templateName : settings.Template;
+
                 var result = await handler.CreateTenantInvitationAsync(state.User,
-                    new TenantInvitationInput(selectedTenantId, email.Trim(), RoleName: NullIfBlank(roleName), TemplateName: NullIfBlank(templateName)));
+                    new TenantInvitationInput(currentTenant.TenantId, email.Trim(), RoleName: NullIfBlank(role), TemplateName: NullIfBlank(template)));
                 if (!result.Succeeded)
                 {
                     Snackbar.Add(result.Error ?? L["Onb_Inv_Failed"].Value, Severity.Error);
@@ -221,7 +263,7 @@
             else
             {
                 var ok = await handler.CreateEmployeeInvitationAsync(state.User,
-                    new EmployeeInvitationInput(selectedTenantId, email.Trim(), NullIfBlank(firstName), NullIfBlank(lastName)));
+                    new EmployeeInvitationInput(currentTenant.TenantId, email.Trim(), NullIfBlank(firstName), NullIfBlank(lastName)));
                 if (!ok)
                 {
                     Snackbar.Add(L["Onb_Inv_Failed"], Severity.Error);
@@ -232,7 +274,10 @@
             }
 
             email = "";
-            roleName = templateName = firstName = lastName = null;
+            firstName = lastName = null;
+            // Reset the (possibly overridden) recommendation fields back to the configured defaults.
+            roleName = settings.AdminRole;
+            templateName = settings.Template;
             await ReloadAsync();
         }
         finally

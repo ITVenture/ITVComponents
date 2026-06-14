@@ -104,6 +104,8 @@
   <data name="Onb_Inv_Accept" xml:space="preserve"><value>Accept invitation</value></data>
   <data name="Onb_Inv_ParentPinned" xml:space="preserve"><value>The parent tenant is set by your invitation.</value></data>
   <data name="Onb_Inv_AdminTitle" xml:space="preserve"><value>Invitations</value></data>
+  <data name="Onb_Inv_FromTenant" xml:space="preserve"><value>Inviting from tenant: {0}</value></data>
+  <data name="Onb_Inv_NoPermission" xml:space="preserve"><value>You don't have permission to manage invitations.</value></data>
   <data name="Onb_Inv_Tab_Tenant" xml:space="preserve"><value>Sub-tenant invitations</value></data>
   <data name="Onb_Inv_Tab_Employee" xml:space="preserve"><value>Employee invitations</value></data>
   <data name="Onb_Inv_Tenant" xml:space="preserve"><value>Tenant</value></data>
