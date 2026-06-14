@@ -16,6 +16,7 @@ using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ValueGeneration.Internal;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Navigation
@@ -84,21 +85,43 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
 
         public NavigationMenu GetNavigationRoot()
         {
-            using var tmp = ConfigureNavigationAccess();
-            string explicitTenant = null;
-            if (permissionScope.IsScopeExplicit)
+            // Build the navigation on a dedicated, short-lived context instance instead of the shared
+            // circuit-scoped securityContext. The build is triggered fire-and-forget from the EntityChangeSignal
+            // refresh (EntityChangeRefresher) and can land in the await-gap of the very SaveChanges that raised
+            // the signal — reading the shared context there throws "a second operation was started on this
+            // context instance". A detached instance bound to the same circuit-scoped IPermissionScope /
+            // IContextUserProvider is correctly tenant-filtered yet can never share an operation with the shared
+            // context. As a bonus, the FullSecurityAccessHelper elevation below now stays off the shared context.
+            var navContext = CreateDetachedContext();
+            using (navContext as IDisposable)
             {
-                explicitTenant = permissionScope.PermissionPrefix;
+                using var tmp = ConfigureNavigationAccess(navContext);
+                string explicitTenant = null;
+                if (permissionScope.IsScopeExplicit)
+                {
+                    explicitTenant = permissionScope.PermissionPrefix;
+                }
+
+                NavigationMenu retVal = new NavigationMenu();
+                retVal.Children.AddRange(SelectNavigation(navContext, null, explicitTenant).ToArray());
+                return retVal;
             }
-            
-            NavigationMenu retVal = new NavigationMenu();
-            retVal.Children.AddRange(SelectNavigation(null, explicitTenant).ToArray());
-            return retVal;
         }
 
-        private IEnumerable<NavigationMenu> SelectNavigation(int? parent, string explicitTenant)
+        /// <summary>
+        /// Creates a fresh, detached instance of the concrete security-context type, resolved against the
+        /// current (circuit/request) scope so its tenant query-filters and SaveChanges-interceptors bind to the
+        /// same <see cref="IPermissionScope"/> / <see cref="IContextUserProvider"/> as the shared context — but
+        /// as an independent <see cref="DbContext"/> instance that never shares an operation with the shared one.
+        /// The caller owns and disposes it. <see cref="ActivatorUtilities"/> selects the richest resolvable
+        /// constructor, i.e. the dependency-injected one (not the bare options ctor).
+        /// </summary>
+        private ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> CreateDetachedContext()
+            => (ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>)ActivatorUtilities.CreateInstance(services, securityContext.GetType());
+
+        private IEnumerable<NavigationMenu> SelectNavigation(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, int? parent, string explicitTenant)
         {
-            var items = SelectNavigationLevelRaw(parent);
+            var items = SelectNavigationLevelRaw(context, parent);
             foreach (var item in items)
             {
                 NavigationMenu ret = new NavigationMenu
@@ -114,11 +137,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
                 if ((!options.Value.CheckPermissions || string.IsNullOrEmpty(ret.RequiredPermission) || services.VerifyUserPermissions(new[] {ret.RequiredPermission})) &&
                     (!options.Value.CheckFeatures || string.IsNullOrEmpty(ret.RequiredFeature) || services.VerifyActivatedFeatures(new[]{ret.RequiredFeature}, out _)))
                 {
-                    ret.Children.AddRange(SelectNavigation(item.NavigationMenuId,explicitTenant).ToArray());
+                    ret.Children.AddRange(SelectNavigation(context, item.NavigationMenuId,explicitTenant).ToArray());
                     if (!string.IsNullOrEmpty(item.Url))
                     {
                         var queryName = $"counter4{item.Url.Replace("/","_")}";
-                        var qry = securityContext.TenantDiagnosticsQueries
+                        var qry = context.TenantDiagnosticsQueries
                             .FirstOrDefault(n => n.DiagnosticsQuery.DiagnosticsQueryName == queryName)
                             ?.DiagnosticsQuery;
                         if (qry != null && services.VerifyUserPermissions(new []{qry.Permission.PermissionName}))
@@ -137,15 +160,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
             }
         }
 
-        protected virtual IEnumerable<TNavigationMenu> SelectNavigationLevelRaw(int? parent)
+        protected virtual IEnumerable<TNavigationMenu> SelectNavigationLevelRaw(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, int? parent)
         {
-            return (from n in securityContext.Navigation where n.ParentId == parent orderby n.SortOrder ?? 0 select n)
+            return (from n in context.Navigation where n.ParentId == parent orderby n.SortOrder ?? 0 select n)
                 .ToArray();
         }
 
-        protected virtual IFullSecurityAccessHelper<TTrustConfig> ConfigureNavigationAccess()
+        protected virtual IFullSecurityAccessHelper<TTrustConfig> ConfigureNavigationAccess(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context)
         {
-            return new FullSecurityAccessHelper<TTrustConfig>(securityContext, new() { ShowAllTenants = false, HideGlobals = false });
+            return new FullSecurityAccessHelper<TTrustConfig>(context, new() { ShowAllTenants = false, HideGlobals = false });
         }
     }
 }
