@@ -1,0 +1,61 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IOnboardingAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="EmployeeRoleAssignmentViewModel" Items="roles" SortMode="SortMode.None" Dense="true" Hover="true">
+    <ToolBarContent>
+        <RefreshButton OnClick="Reload" />
+        <MudText Typo="Typo.subtitle2">Roles</MudText>
+        <MudSpacer />
+    </ToolBarContent>
+    <Columns>
+        <TemplateColumn T="EmployeeRoleAssignmentViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                <MudCheckBox T="bool" Value="context.Item.Assigned" ValueChanged="@(v => Toggle(context.Item, v))" />
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="x => x.RoleName" Title="Role" />
+    </Columns>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int EmployeeId { get; set; }
+
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private EmployeeRoleAssignmentViewModel[] roles = Array.Empty<EmployeeRoleAssignmentViewModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        roles = await Handler.ListEmployeeRolesAsync(currentUser, EmployeeId);
+    }
+
+    private async Task Toggle(EmployeeRoleAssignmentViewModel item, bool newValue)
+    {
+        if (currentUser is null) return;
+        var ok = await Handler.SetEmployeeRoleAsync(currentUser, EmployeeId, item.RoleId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Role assigned" : "Role unassigned", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update assignment", Severity.Error);
+            await Reload();
+        }
+    }
+}

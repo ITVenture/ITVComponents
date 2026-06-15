@@ -5,8 +5,10 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Mod
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.TemplateHandling;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.ConfigMarkupModels;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Helpers
@@ -15,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         where TContext : AspNetTreeSecurityContext<TContext>
     {
         private const string ParentTag = "PARENT##";
-        public TenantTreeTemplateHelper(TContext db, ILogger<TenantTreeTemplateHelper<TContext>> logger) : base(db, logger)
+        public TenantTreeTemplateHelper(TContext db, ILogger<TenantTreeTemplateHelper<TContext>> logger, IEnumerable<ITenantTemplatePartHandler> partHandlers = null) : base(db, logger, partHandlers)
         {
         }
 

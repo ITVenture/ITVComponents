@@ -63,4 +63,23 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels
         public bool CancelAtPeriodEnd { get; set; }
         public List<SubscriptionItemViewModel> Items { get; set; } = new();
     }
+
+    /// <summary>
+    /// One tenant subscription as shown on the read-only admin overview. The billing tables carry the tenant
+    /// only as a plain id (no FK to the security model), so the overview lists <see cref="TenantId"/> plus
+    /// the resolved plan/add-on item names and the billing state.
+    /// </summary>
+    public class SubscriptionAdminViewModel
+    {
+        public int TenantId { get; set; }
+        public SubscriptionStatus Status { get; set; }
+        public string? Currency { get; set; }
+        public System.DateTime? CurrentPeriodStart { get; set; }
+        public System.DateTime? CurrentPeriodEnd { get; set; }
+        public bool CancelAtPeriodEnd { get; set; }
+        public List<SubscriptionItemViewModel> Items { get; set; } = new();
+
+        /// <summary>Comma-joined item names (plans then add-ons) for compact display.</summary>
+        public string ItemsSummary => string.Join(", ", Items.Select(i => i.Name));
+    }
 }

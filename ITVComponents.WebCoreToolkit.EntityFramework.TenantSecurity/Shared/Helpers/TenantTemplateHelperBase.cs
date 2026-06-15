@@ -7,6 +7,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensi
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.TemplateHandling;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -73,10 +74,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         private readonly TContext db;
         private readonly ILogger<TenantTemplateHelperBase<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig, TContext>> logger;
 
-        public TenantTemplateHelperBase(TContext db, ILogger<TenantTemplateHelperBase<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig, TContext>> logger)
+        private readonly IEnumerable<ITenantTemplatePartHandler> partHandlers;
+
+        public TenantTemplateHelperBase(TContext db, ILogger<TenantTemplateHelperBase<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig, TContext>> logger, IEnumerable<ITenantTemplatePartHandler> partHandlers = null)
         {
             this.db = db;
             this.logger = logger;
+            this.partHandlers = partHandlers ?? Enumerable.Empty<ITenantTemplatePartHandler>();
         }
 
         protected TContext Db => db;
@@ -120,7 +124,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 var externalServices = (from t in db.ExternalOAuthServices
                     where t.TenantId == tenant.TenantId
                     select t).AsEnumerable().Select(SelectExternalOAuthServiceTemplateMarkup).ToArray();
-                return new TenantTemplateMarkup
+                var markup = new TenantTemplateMarkup
                 {
                     Features = features,
                     Settings = settings,
@@ -132,6 +136,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     ExplicitPermissions = permissions,
                     ExternalOAuthServices = externalServices
                 };
+
+                if (db is DbContext dbc)
+                {
+                    foreach (var handler in partHandlers)
+                    {
+                        var payload = handler.Extract(dbc, tenant.TenantId);
+                        if (!string.IsNullOrEmpty(payload))
+                        {
+                            markup.Extensions ??= new Dictionary<string, string>();
+                            markup.Extensions[handler.PartKey] = payload;
+                        }
+                    }
+                }
+
+                return markup;
             }
         }
 
@@ -527,6 +546,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             if (autoSave)
             {
                 db.SaveChanges();
+                ApplyParts(tenant.TenantId, template);
+            }
+        }
+
+        /// <summary>
+        /// Runs the registered template part-handlers for the template's <c>Extensions</c> payloads. Invoked
+        /// after the built-in sections are persisted (so by-name lookups resolve). Each handler manages its own
+        /// persistence. Only runs on the auto-saving (single-tenant) apply path.
+        /// </summary>
+        private void ApplyParts(int tenantId, TenantTemplateMarkup template)
+        {
+            if (template.Extensions == null || db is not DbContext dbc)
+            {
+                return;
+            }
+
+            foreach (var handler in partHandlers)
+            {
+                if (template.Extensions.TryGetValue(handler.PartKey, out var payload) && !string.IsNullOrEmpty(payload))
+                {
+                    handler.Apply(dbc, tenantId, payload);
+                }
             }
         }
 

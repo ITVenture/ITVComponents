@@ -90,10 +90,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.P
                     User = usr
                 };
                 dbContext.TenantUsers.Add(tn);
-                foreach (var i in from r in dbContext.SecurityRoles
-                         join t in dbContext.Tenants on r.TenantId equals t.TenantId
-                         join er in dbContext.EmployeeRoles on r.RoleId equals er.RoleId
-                         where t.TenantId == tenant.TenantId && er.EmployeeId == tmp.EmployeeId
+                foreach (var i in from er in dbContext.EmployeeRoles
+                         join m in dbContext.EmployeeRoleMappings on er.EmployeeRoleMappingId equals m.EmployeeRoleMappingId
+                         join r in dbContext.SecurityRoles on m.RoleId equals r.RoleId
+                         where r.TenantId == tenant.TenantId && er.EmployeeId == tmp.EmployeeId
                          select r)
                 {
                     dbContext.TenantUserRoles.Add(new UserRole

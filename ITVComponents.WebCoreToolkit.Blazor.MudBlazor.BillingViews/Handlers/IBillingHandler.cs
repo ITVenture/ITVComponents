@@ -40,5 +40,18 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
 
         /// <summary>Pushes a plan to the payment provider (creates/updates Product+Price, stores ids).</summary>
         Task PushPlanAsync(int planId, CancellationToken cancellationToken = default);
+
+        // -- admin (add-on authoring) --
+        Task<IReadOnlyList<AddOnViewModel>> GetAllAddOnsAsync(CancellationToken cancellationToken = default);
+
+        Task<int> SaveAddOnAsync(AddOnViewModel model, CancellationToken cancellationToken = default);
+
+        /// <summary>Pushes an add-on to the payment provider (creates/updates Product+Price, stores ids).</summary>
+        Task PushAddOnAsync(int addOnId, CancellationToken cancellationToken = default);
+
+        // -- admin (subscription overview) --
+
+        /// <summary>Read-only list of all tenant subscriptions (admin overview across tenants).</summary>
+        Task<IReadOnlyList<SubscriptionAdminViewModel>> GetAllSubscriptionsAsync(CancellationToken cancellationToken = default);
     }
 }

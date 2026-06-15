@@ -261,9 +261,10 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             };
             db.TenantUsers.Add(tu);
 
-            var rolesForEmployee = await (from r in db.SecurityRoles
-                join er in db.EmployeeRoles on r.RoleId equals er.RoleId
-                where r.TenantId == tenant.TenantId && er.EmployeeId == employee.EmployeeId
+            var rolesForEmployee = await (from er in db.EmployeeRoles
+                join m in db.EmployeeRoleMappings on er.EmployeeRoleMappingId equals m.EmployeeRoleMappingId
+                join r in db.SecurityRoles on m.RoleId equals r.RoleId
+                where er.EmployeeId == employee.EmployeeId && r.TenantId == tenant.TenantId
                 select r).ToListAsync(ct);
             foreach (var role in rolesForEmployee)
             {

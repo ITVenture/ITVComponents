@@ -34,6 +34,17 @@ public static class DependencyInjectionExtensions
             services.AddScoped<IOnboardingHandler, OnboardingHandler<TContext>>();
         }
 
+        if (partTypeLoadBehavior.ShouldLoadType(typeof(FlatTenantInvitationHandler<>)))
+        {
+            // Flat variant: employee invitations only (SupportsTenantInvitations == false).
+            services.AddScoped<ITenantInvitationHandler, FlatTenantInvitationHandler<TContext>>();
+        }
+
+        if (partTypeLoadBehavior.ShouldLoadType(typeof(FlatOnboardingAdminHandler<>)))
+        {
+            services.AddScoped<IOnboardingAdminHandler, FlatOnboardingAdminHandler<TContext>>();
+        }
+
         return services;
     }
 
@@ -55,6 +66,11 @@ public static class DependencyInjectionExtensions
         if (partTypeLoadBehavior.ShouldLoadType(typeof(HierarchyTenantInvitationHandler<>)))
         {
             services.AddScoped<ITenantInvitationHandler, HierarchyTenantInvitationHandler<TContext>>();
+        }
+
+        if (partTypeLoadBehavior.ShouldLoadType(typeof(HierarchyOnboardingAdminHandler<>)))
+        {
+            services.AddScoped<IOnboardingAdminHandler, HierarchyOnboardingAdminHandler<TContext>>();
         }
 
         return services;

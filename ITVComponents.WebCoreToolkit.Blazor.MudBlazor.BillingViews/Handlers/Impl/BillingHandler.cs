@@ -199,5 +199,128 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         }
 
         public Task PushPlanAsync(int planId, CancellationToken cancellationToken = default) => planSynchronizer.SyncPlanAsync(planId, cancellationToken);
+
+        public async Task<IReadOnlyList<AddOnViewModel>> GetAllAddOnsAsync(CancellationToken cancellationToken = default)
+        {
+            var addOns = await db.AddOns.AsNoTracking().Include(a => a.Features).Include(a => a.Prices).OrderBy(a => a.Name).ToListAsync(cancellationToken);
+            return addOns.Select(a => new AddOnViewModel
+            {
+                AddOnId = a.AddOnId,
+                Name = a.Name,
+                Description = a.Description,
+                BillingInterval = a.BillingInterval,
+                IsActive = a.IsActive,
+                Prices = a.Prices.Select(pr => new PriceViewModel { Currency = pr.Currency, Amount = pr.Amount, ProviderPriceId = pr.ProviderPriceId }).ToList(),
+                FeatureKeys = a.Features.Select(f => f.FeatureKey).ToList()
+            }).ToList();
+        }
+
+        public async Task<int> SaveAddOnAsync(AddOnViewModel model, CancellationToken cancellationToken = default)
+        {
+            AddOn addOn;
+            if (model.AddOnId != 0)
+            {
+                addOn = await db.AddOns.Include(a => a.Features).Include(a => a.Prices).FirstOrDefaultAsync(a => a.AddOnId == model.AddOnId, cancellationToken)
+                        ?? throw new InvalidOperationException($"Add-on {model.AddOnId} not found.");
+            }
+            else
+            {
+                addOn = new AddOn();
+                db.AddOns.Add(addOn);
+            }
+
+            addOn.Name = model.Name;
+            addOn.Description = model.Description;
+            addOn.BillingInterval = model.BillingInterval;
+            addOn.IsActive = model.IsActive;
+
+            // Reconcile feature keys.
+            var desired = new HashSet<string>(model.FeatureKeys.Where(k => !string.IsNullOrWhiteSpace(k)), StringComparer.OrdinalIgnoreCase);
+            foreach (var stale in addOn.Features.Where(f => !desired.Contains(f.FeatureKey)).ToList())
+            {
+                addOn.Features.Remove(stale);
+            }
+
+            var existing = new HashSet<string>(addOn.Features.Select(f => f.FeatureKey), StringComparer.OrdinalIgnoreCase);
+            foreach (var key in desired.Where(k => !existing.Contains(k)))
+            {
+                addOn.Features.Add(new AddOnFeature { FeatureKey = key });
+            }
+
+            // Reconcile per-currency prices (keyed by currency). Editing an amount keeps the row so the pushed
+            // ProviderPriceId is preserved; the synchronizer re-points it only if the amount actually changed.
+            var desiredPrices = model.Prices
+                .Where(p => !string.IsNullOrWhiteSpace(p.Currency))
+                .GroupBy(p => p.Currency.Trim().ToUpperInvariant())
+                .ToDictionary(g => g.Key, g => g.Last().Amount);
+
+            foreach (var stalePrice in addOn.Prices.Where(p => !desiredPrices.ContainsKey(p.Currency.ToUpperInvariant())).ToList())
+            {
+                addOn.Prices.Remove(stalePrice);
+            }
+
+            foreach (var (cur, amount) in desiredPrices)
+            {
+                var row = addOn.Prices.FirstOrDefault(p => string.Equals(p.Currency, cur, StringComparison.OrdinalIgnoreCase));
+                if (row == null)
+                {
+                    addOn.Prices.Add(new AddOnPrice { Currency = cur, Amount = amount });
+                }
+                else
+                {
+                    row.Amount = amount;
+                }
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            return addOn.AddOnId;
+        }
+
+        public Task PushAddOnAsync(int addOnId, CancellationToken cancellationToken = default) => planSynchronizer.SyncAddOnAsync(addOnId, cancellationToken);
+
+        public async Task<IReadOnlyList<SubscriptionAdminViewModel>> GetAllSubscriptionsAsync(CancellationToken cancellationToken = default)
+        {
+            var subs = await db.TenantSubscriptions.AsNoTracking().Include(s => s.Items)
+                .OrderBy(s => s.TenantId).ToListAsync(cancellationToken);
+            if (subs.Count == 0)
+            {
+                return Array.Empty<SubscriptionAdminViewModel>();
+            }
+
+            var planIds = subs.SelectMany(s => s.Items).Where(i => i.PlanId != null).Select(i => i.PlanId!.Value).Distinct().ToList();
+            var addOnIds = subs.SelectMany(s => s.Items).Where(i => i.AddOnId != null).Select(i => i.AddOnId!.Value).Distinct().ToList();
+            var planNames = await db.Plans.Where(p => planIds.Contains(p.PlanId)).ToDictionaryAsync(p => p.PlanId, p => p.Name, cancellationToken);
+            var addOnNames = await db.AddOns.Where(a => addOnIds.Contains(a.AddOnId)).ToDictionaryAsync(a => a.AddOnId, a => a.Name, cancellationToken);
+
+            var result = new List<SubscriptionAdminViewModel>(subs.Count);
+            foreach (var sub in subs)
+            {
+                var vm = new SubscriptionAdminViewModel
+                {
+                    TenantId = sub.TenantId,
+                    Status = sub.Status,
+                    Currency = sub.Currency,
+                    CurrentPeriodStart = sub.CurrentPeriodStart,
+                    CurrentPeriodEnd = sub.CurrentPeriodEnd,
+                    CancelAtPeriodEnd = sub.CancelAtPeriodEnd
+                };
+
+                foreach (var item in sub.Items)
+                {
+                    if (item.PlanId != null && planNames.TryGetValue(item.PlanId.Value, out var planName))
+                    {
+                        vm.Items.Add(new SubscriptionItemViewModel { Name = planName, IsAddOn = false });
+                    }
+                    else if (item.AddOnId != null && addOnNames.TryGetValue(item.AddOnId.Value, out var addOnName))
+                    {
+                        vm.Items.Add(new SubscriptionItemViewModel { Name = addOnName, IsAddOn = true });
+                    }
+                }
+
+                result.Add(vm);
+            }
+
+            return result;
+        }
     }
 }

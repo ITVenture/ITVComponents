@@ -5,6 +5,7 @@ using ITVComponents.EFRepo.DbContextConfig.Expressions;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Extensions
 {
@@ -45,9 +46,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Extension
                 || er.Employee.UserId == UserId && er.Employee.InvitationStatus == InvitationStatus.Committed
                 || er.Employee.EMail == UserMail && er.Employee.InvitationStatus == InvitationStatus.Pending;
 
+            Expression<Func<HierarchyEmployeeRoleMapping, bool>> employeeRoleMappingExpression = m => !FilterAvailable
+                || ShowAllTenants
+                || CurrentTenantId != null && m.TenantId == CurrentTenantId;
+
             target.ConfigureGlobalFilter(billingProfileExpression);
             target.ConfigureGlobalFilter(employeeExpression);
-            target.ConfigureGlobalFilter(employeeRoleExpression);
+            // EmployeeRole points at an EmployeeRoleMapping; keep that FK non-cascading so the tenant->employee
+            // cascade path is the only one reaching EmployeeRole (avoids SQL Server multiple-cascade-path errors).
+            target.ConfigureGlobalFilter(employeeRoleExpression,
+                b => b.HasOne(er => er.RoleMapping).WithMany(m => m.EmployeeRoles)
+                    .HasForeignKey(er => er.EmployeeRoleMappingId).OnDelete(DeleteBehavior.Restrict));
+            target.ConfigureGlobalFilter(employeeRoleMappingExpression, b =>
+            {
+                b.HasOne(m => m.Tenant).WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Restrict);
+                b.HasOne(m => m.Role).WithMany().HasForeignKey(m => m.RoleId).OnDelete(DeleteBehavior.Restrict);
+            });
         }
     }
 }

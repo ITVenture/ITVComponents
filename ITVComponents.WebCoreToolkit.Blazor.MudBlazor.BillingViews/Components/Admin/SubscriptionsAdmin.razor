@@ -1,0 +1,79 @@
+@page "/Billing/Subscriptions"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@inject IBillingHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Subscriptions</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Subscriptions</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!canAdmin)
+{
+    <MudAlert Severity="Severity.Warning">You don't have permission to view subscriptions.</MudAlert>
+}
+else
+{
+    <MudTable Items="subscriptions" Dense="true" Hover="true" Loading="@loading">
+        <ToolBarContent>
+            <MudText Typo="Typo.subtitle1">Tenant subscriptions</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="Reload" />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Tenant id</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Currency</MudTh>
+            <MudTh>Items</MudTh>
+            <MudTh>Period end</MudTh>
+            <MudTh>Cancels at period end</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Tenant id">@context.TenantId</MudTd>
+            <MudTd DataLabel="Status">@context.Status</MudTd>
+            <MudTd DataLabel="Currency">@(string.IsNullOrEmpty(context.Currency) ? "—" : context.Currency!.ToUpperInvariant())</MudTd>
+            <MudTd DataLabel="Items">@(string.IsNullOrEmpty(context.ItemsSummary) ? "—" : context.ItemsSummary)</MudTd>
+            <MudTd DataLabel="Period end">@(context.CurrentPeriodEnd?.ToString("yyyy-MM-dd") ?? "—")</MudTd>
+            <MudTd DataLabel="Cancels at period end">@(context.CancelAtPeriodEnd ? "yes" : "no")</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No subscriptions.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@code {
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool canAdmin;
+    private bool loading;
+    private IReadOnlyList<SubscriptionAdminViewModel> subscriptions = System.Array.Empty<SubscriptionAdminViewModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        canAdmin = Handler.CanAdminister(currentUser);
+        if (canAdmin)
+        {
+            await Reload();
+        }
+    }
+
+    private async Task Reload()
+    {
+        loading = true;
+        try
+        {
+            subscriptions = await Handler.GetAllSubscriptionsAsync();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

@@ -25,5 +25,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         public QueryTemplateMarkup[] Queries { get; set; }
 
         public ExternalOAuthServiceTemplateMarkup[] ExternalOAuthServices { get; set; }
+
+        /// <summary>
+        /// Open extension bag for decoupled template parts contributed by feature libraries via
+        /// <c>ITenantTemplatePartHandler</c> (key = part key, value = the handler's serialized payload). Kept as
+        /// plain string→string so the engine never needs to know the concrete part types.
+        /// </summary>
+        public Dictionary<string, string> Extensions { get; set; }
     }
 }

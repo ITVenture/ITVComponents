@@ -4,10 +4,12 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models
 {
     /// <summary>
-    /// Generic join entity between an Employee and a Role within an onboarded tenant.
+    /// Generic join entity between an Employee and an <c>EmployeeRoleMapping</c> (of kind DirectRole) within an
+    /// onboarded tenant. Assigning one grants the mapping's underlying role to the employee's user (materialized
+    /// by the onboarding save-changes interceptor / at invitation acceptance).
     /// </summary>
-    public abstract class EmployeeRoleBase<TRole, TEmployee, TEmployeeRole>
-        where TRole : class
+    public abstract class EmployeeRoleBase<TEmployeeRoleMapping, TEmployee, TEmployeeRole>
+        where TEmployeeRoleMapping : class
         where TEmployee : class
         where TEmployeeRole : class
     {
@@ -16,12 +18,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models
 
         public int EmployeeId { get; set; }
 
-        public int RoleId { get; set; }
+        public int EmployeeRoleMappingId { get; set; }
 
         [ForeignKey(nameof(EmployeeId))]
         public virtual TEmployee Employee { get; set; }
 
-        [ForeignKey(nameof(RoleId))]
-        public virtual TRole Role { get; set; }
+        [ForeignKey(nameof(EmployeeRoleMappingId))]
+        public virtual TEmployeeRoleMapping RoleMapping { get; set; }
     }
 }

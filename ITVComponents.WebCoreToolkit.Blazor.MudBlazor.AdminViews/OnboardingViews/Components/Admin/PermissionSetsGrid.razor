@@ -1,0 +1,61 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IOnboardingAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="PermissionSetActivationViewModel" Items="sets" SortMode="SortMode.None" Dense="true" Hover="true">
+    <ToolBarContent>
+        <RefreshButton OnClick="Reload" />
+        <MudText Typo="Typo.subtitle2">Permission sets</MudText>
+        <MudSpacer />
+    </ToolBarContent>
+    <Columns>
+        <TemplateColumn T="PermissionSetActivationViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                <MudCheckBox T="bool" Value="context.Item.Active" ValueChanged="@(v => Toggle(context.Item, v))" />
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="x => x.Label" Title="Permission set" />
+    </Columns>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int DirectMappingId { get; set; }
+
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private PermissionSetActivationViewModel[] sets = Array.Empty<PermissionSetActivationViewModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        sets = await Handler.ListActivatablePermissionSetsAsync(currentUser, DirectMappingId);
+    }
+
+    private async Task Toggle(PermissionSetActivationViewModel item, bool newValue)
+    {
+        if (currentUser is null) return;
+        var ok = await Handler.SetPermissionSetActivationAsync(currentUser, DirectMappingId, item.PermissionSetMappingId, newValue);
+        if (ok)
+        {
+            item.Active = newValue;
+            Snackbar.Add(newValue ? "Permission set activated" : "Permission set deactivated", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update activation", Severity.Error);
+            await Reload();
+        }
+    }
+}

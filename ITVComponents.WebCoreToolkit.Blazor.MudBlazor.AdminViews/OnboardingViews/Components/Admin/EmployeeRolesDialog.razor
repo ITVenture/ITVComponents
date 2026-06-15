@@ -1,0 +1,20 @@
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(EmployeeLabel))
+        {
+            <MudText Typo="Typo.body2" Class="mb-2">@EmployeeLabel</MudText>
+        }
+        <EmployeeRolesGrid EmployeeId="EmployeeId" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public int EmployeeId { get; set; }
+    [Parameter] public string? EmployeeLabel { get; set; }
+
+    private void Close() => MudDialog.Close();
+}
