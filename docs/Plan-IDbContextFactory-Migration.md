@@ -30,18 +30,24 @@ Der Security-Context trägt scoped State (IPermissionScope = aktueller Mandant, 
 aktueller User); die globalen Query-Filter hängen daran. Die Factory muss daher **scoped** sein, damit
 erzeugte Contexts den Scope-State bekommen.
 
-**Wichtige Korrektur (Phase-0-Durchdenken):** Der **Standard-`AddDbContextFactory<T>` funktioniert hier
-nicht** — er erwartet einen Konstruktor mit *nur* `DbContextOptions<T>`. Unser Context hat aber den
-mehrarg. Runtime-Ctor (IPermissionScope, IContextUserProvider, …). → Wir verwenden eine **eigene
-`IDbContextFactory<T>`-Implementierung auf Basis von `ActivatorUtilities.CreateInstance`** (genau der
-Mechanismus, der via CreateDetachedContext schon läuft — wählt den reichsten Ctor inkl. Scope-Deps),
-**scoped** registriert. `CreateDbContext()` liefert eine frische, per-Operation Instanz mit korrektem
-Mandant/User-State.
+**Warum eine eigene Factory (empirisch geprüft, EF Core 10.0.8):** Naheliegend wäre das Standard-
+`AddDbContextFactory<T>(Scoped)`. EF's `DbContextFactorySource` fällt für nicht-triviale Ctors zwar auf
+`ActivatorUtilities.CreateFactory(type, Type.EmptyTypes)` zurück (handhabt also *einen* Mehr-Arg-Ctor) —
+**aber `CreateFactory` wirft bei MEHREREN Ctors „Multiple constructors accepting all given argument types"**,
+unabhängig von der Auflösbarkeit. Unser Security-Context hat **zwei** öffentliche Ctors (6-Arg-Runtime +
+2-Arg-Design-Time, letzterer für Migrations zwingend) → Standard-Factory **scheidet aus**. (Auch Pooling
+scheidet aus: `DbContextPool` baut den Aktivator einmal mit fixem Provider + recycelt Instanzen → stale
+IPermissionScope/User über Mandanten hinweg.)
+
+→ Eigene **`ToolkitDbContextFactory<T>`** auf Basis von **`ActivatorUtilities.CreateInstance`** (wählt den
+auflösbaren reichsten Ctor — empirisch verifiziert: funktioniert mit dem Zwei-Ctor-Context; identisch zum
+schon laufenden `CreateDetachedContext`), **scoped** registriert → `CreateDbContext()` = frische
+per-Operation-Instanz mit korrektem Mandant/User-State.
 
 Verdrahtung (additiv, risikoarm): **`AddDbContext<T>` bleibt** (= scoped `TContext` für MVC/Transition →
-Regel B ist damit automatisch erfüllt, kein extra Shim nötig); die eigene `IDbContextFactory<T>` kommt
-**daneben** (nutzt dieselben `DbContextOptions<T>`, kein Doppel-Register). Phase 4 entfernt später für
-Blazor-Hosts den scoped `TContext` (nicht die Options/Factory).
+Regel B automatisch erfüllt, kein extra Shim nötig); die eigene `IDbContextFactory<T>` kommt **daneben**
+(nutzt dieselben `DbContextOptions<T>`, kein Doppel-Register, kein `AddDbContextFactory`-Konflikt). Phase 4
+entfernt später für Blazor-Hosts den scoped `TContext` (nicht die Options/Factory).
 
 ## 2. Der harte Teil: Edit-Flows der Blazor-Admin-Handler
 
