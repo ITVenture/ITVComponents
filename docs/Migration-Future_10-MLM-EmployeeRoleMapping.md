@@ -93,6 +93,17 @@ späten Konvention weggekippt). Fix toolkit-seitig per `[InverseProperty]` am Ba
 ohne den Fehler; eine konsumenten-seitige `Role`/`RoleRole`-Workaround-Konfiguration ist **nicht**
 nötig (und half ohnehin nicht).
 
+### `Invalid object name 'Tenant'` beim Login — GELÖST in PRE079 (2026-06-17)
+
+Folgefund nach dem PRE078-Start-Fix: die erste tenant-berührende Query nach dem Login schlug mit
+`Invalid object name 'Tenant'` fehl, weil zur Laufzeit der Basistyp `Tenant` als TPH-Wurzel ins Modell
+gezogen wurde (Tabelle nach Root = `Tenant` statt `Tenants`). Auslöser = Anwenden der Onboarding-Global-
+Filter vor `ConfigureOnboardingModel`. Fix toolkit-seitig: der Tree-Context nimmt den Basistyp via
+`modelBuilder.Ignore<Tenant>()` aus dem Modell → `HierarchyTenant` bleibt alleiniger Root (Tabelle
+`Tenants`). **Schema unverändert → keine neue Migration.** Details: `docs/BUG-PRE078-Tenant-table-name.md`.
+
+→ **Auf PRE079 aktualisieren.** Kein MLM-Code-/Migrations-Change nötig.
+
 ---
 
 ## 1. Was sich im Toolkit geändert hat

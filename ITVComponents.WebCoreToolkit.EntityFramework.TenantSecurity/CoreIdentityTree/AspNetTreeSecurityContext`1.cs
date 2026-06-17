@@ -31,6 +31,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Security.Principal;
 using Dynamitey;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
@@ -104,6 +105,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => HideGlobals);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => HideDisabledUsers);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentUserName);
+                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentUserId);
+                this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentUserMail);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantIdForFiltering);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantTree);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => IncludeParentTree);
@@ -1071,6 +1074,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         [ExpressionPropertyRedirect("CurrentUserName")]
         public string CurrentUserName => userProvider.User?.Identity?.Name;
 
+        /// <summary>
+        ///     Gets the claim-type used to read the current user's unique id. Override to use a custom claim.
+        /// </summary>
+        protected virtual string UserIdClaimType => System.Security.Claims.ClaimTypes.NameIdentifier;
+
+        /// <summary>
+        ///     Gets the claim-type used to read the current user's e-mail. Override to use a custom claim.
+        /// </summary>
+        protected virtual string UserMailClaimType => System.Security.Claims.ClaimTypes.Email;
+
+        /// <summary>
+        ///     Gets the unique id of the current user. Consumed by the Onboarding global filters (replacer "UserId").
+        /// </summary>
+        [ExpressionPropertyRedirect("UserId")]
+        protected virtual string CurrentUserId => (Me?.Identity as ClaimsIdentity)?.FindFirst(UserIdClaimType)?.Value;
+
+        /// <summary>
+        ///     Gets the e-mail of the current user. Consumed by the Onboarding global filters (replacer "UserMail").
+        /// </summary>
+        [ExpressionPropertyRedirect("UserMail")]
+        protected virtual string CurrentUserMail => (Me?.Identity as ClaimsIdentity)?.FindFirst(UserMailClaimType)?.Value;
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             base.OnConfiguring(optionsBuilder);
@@ -1081,6 +1106,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         {
             base.OnModelCreating(modelBuilder);
             modelBuilder.TableNamesFromProperties(this);
+
+            // Tree-Strategie: NUR HierarchyTenant ist die gemappte Tenant-Entity (Tabelle "Tenants").
+            // Der konkrete Basistyp Tenant darf NICHT als eigene Entity ins Modell, sonst entsteht eine
+            // TPH-Hierarchie Tenant<-HierarchyTenant, deren Tabelle nach dem Root ("Tenant") benannt wird
+            // -> "Invalid object name 'Tenant'" zur Laufzeit + Snapshot-Drift. Zur Designtime wird Tenant
+            // ohnehin nicht eingezogen; zur Laufzeit kann jedoch die frühe (filtergetriebene) Konvention-
+            // Auflösung von *.Tenant-Navigationen den schlüsseldefinierenden Basistyp einziehen. Ignore
+            // fixiert HierarchyTenant als alleinigen Root in beiden Welten.
+            modelBuilder.Ignore<Shared.Models.Tenant>();
 
             /*modelBuilder.Entity<Role>().HasMany(n => n.RolePermissions).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
             modelBuilder.Entity<Role>().HasMany(n => n.UserRoles).WithOne(p => p.Role).OnDelete(DeleteBehavior.ClientCascade);
