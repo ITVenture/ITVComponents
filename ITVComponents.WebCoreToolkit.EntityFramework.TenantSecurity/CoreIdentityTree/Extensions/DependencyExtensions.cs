@@ -68,6 +68,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
                     // Per-Operation ICoreSystemContext-Factory für Blazor-Admin-Handler (Phase 2+).
                     .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
+                    // Generische per-Operation-Factory: liefert den frischen Context als JEDES implementierte
+                    // DbSet-Abstraktions-Interface (ICoreSystemContext/ISecurityContext/IBaseTenantContext/…).
+                    .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
                     {
