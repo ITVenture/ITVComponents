@@ -74,12 +74,12 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public PermissionAdminHandler(TContext db, IServiceProvider services)
+    public PermissionAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
     }
 
@@ -88,8 +88,9 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public AdminContext GetContext(ClaimsPrincipal user)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         return new AdminContext
         {
             IsSysAdmin = sysAdmin,
@@ -99,8 +100,9 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public async Task<PagedResult<PermissionViewModel>> ListPermissionsAsync(ClaimsPrincipal user, int? tenantId, ListQuery query)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
 
         IQueryable<TPermission> q;
         if (sysAdmin)
@@ -138,8 +140,9 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<PermissionViewModel?> CreatePermissionAsync(ClaimsPrincipal user, int? tenantId, PermissionViewModel input)
     {
         if (!services.VerifyUserPermissions(new[] { "Permissions.Write" })) return null;
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var effectiveTenantId = sysAdmin ? tenantId : db.CurrentTenantId;
         if (!sysAdmin && effectiveTenantId == null) return null;
 
@@ -160,8 +163,9 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<PermissionViewModel?> UpdatePermissionAsync(ClaimsPrincipal user, PermissionViewModel input)
     {
         if (!services.VerifyUserPermissions(new[] { "Permissions.Write" })) return null;
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var entity = await db.Permissions.FirstOrDefaultAsync(p => p.PermissionId == input.PermissionId);
         if (entity == null) return null;
         if (entity.TenantId == null && !sysAdmin) return null;
@@ -175,8 +179,9 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<bool> DeletePermissionAsync(ClaimsPrincipal user, int permissionId)
     {
         if (!services.VerifyUserPermissions(new[] { "Permissions.Write" })) return false;
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var entity = await db.Permissions.FirstOrDefaultAsync(p => p.PermissionId == permissionId);
         if (entity == null) return false;
         if (entity.TenantId == null && !sysAdmin) return false;
@@ -188,7 +193,7 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
 
-    private void ApplyContextScope(bool sysAdmin)
+    private void ApplyContextScope(TContext db, bool sysAdmin)
     {
         if (sysAdmin)
         {
