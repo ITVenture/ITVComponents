@@ -66,6 +66,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     // bedienen kann. Scoped -> erzeugte Contexts bekommen Mandant/User-State. Additiv: bestehende
                     // (MVC + Blazor) Konsumenten laufen unverändert weiter.
                     .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
+                    // Per-Operation ICoreSystemContext-Factory für Blazor-Admin-Handler (Phase 2+).
+                    .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
                     {
@@ -111,6 +113,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
                 .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
+                .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
