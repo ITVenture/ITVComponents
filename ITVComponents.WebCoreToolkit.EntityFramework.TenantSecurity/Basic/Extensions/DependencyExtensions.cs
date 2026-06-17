@@ -22,6 +22,7 @@ using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Extensions
@@ -38,6 +39,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         {
             var finaltth = typeof(SecurityContext).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext", typeof(SecurityContext)));
             return services.AddDbContext<SecurityContext>(options)
+                .AddScoped<IDbContextFactory<SecurityContext>, ToolkitDbContextFactory<SecurityContext>>()
+                .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<SecurityContext>>()
+                .AddScoped<IToolkitContextFactory, ToolkitContextFactory<SecurityContext>>()
                 .RegisterExplicityInterfacesScoped<SecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
@@ -77,6 +81,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         {
             var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
+                .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
+                .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
+                .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
@@ -102,6 +109,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         {
             var finaltth = typeof(TImpl).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext", typeof(TImpl)));
             return services.AddDbContext<TImpl>(options)
+                .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
+                .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
+                .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
