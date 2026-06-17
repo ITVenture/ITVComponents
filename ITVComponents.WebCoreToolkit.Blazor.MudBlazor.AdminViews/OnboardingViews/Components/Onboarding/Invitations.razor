@@ -153,12 +153,16 @@
     private TenantPickerItem? currentTenant;
     private InviteKind kind = InviteKind.Tenant;
 
+    // Whether the active handler can issue sub-tenant invitations at all (flat strategy: false). Even with
+    // the *Sub permissions, the tenant surface stays hidden unless the handler supports it.
+    private bool tenantInvitesSupported;
+
     // Permission snapshot for the current tenant scope: View* = read-only, Create* = read + write.
     private bool canViewSub;
     private bool canCreateSub;
     private bool canViewEmp;
     private bool canCreateEmp;
-    private bool subAccessible => canViewSub || canCreateSub;
+    private bool subAccessible => tenantInvitesSupported && (canViewSub || canCreateSub);
     private bool empAccessible => canViewEmp || canCreateEmp;
     private bool HasAnyAccess => subAccessible || empAccessible;
 
@@ -181,6 +185,8 @@
         {
             return;
         }
+
+        tenantInvitesSupported = handler.SupportsTenantInvitations;
 
         canViewSub = Services.VerifyUserPermissions(new[] { InvitationPermissions.ViewSub });
         canCreateSub = Services.VerifyUserPermissions(new[] { InvitationPermissions.CreateSub });

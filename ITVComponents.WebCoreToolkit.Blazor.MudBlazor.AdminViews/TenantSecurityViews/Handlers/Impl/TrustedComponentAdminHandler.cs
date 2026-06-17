@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
@@ -9,14 +10,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public class TrustedComponentAdminHandler : ITrustedComponentAdminHandler
 {
-    private readonly ICoreSystemContext db;
+    private readonly ICoreSystemContextFactory factory;
     private readonly IServiceProvider services;
 
-    public TrustedComponentAdminHandler(ICoreSystemContext db, IServiceProvider services)
+    public TrustedComponentAdminHandler(ICoreSystemContextFactory factory, IServiceProvider services)
     {
-        this.db = db;
+        this.factory = factory;
         this.services = services;
-        this.db.ShowAllTenants = true;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -27,62 +27,77 @@ public class TrustedComponentAdminHandler : ITrustedComponentAdminHandler
         if (!HasPermission(user, "TrustedComponents.View", "TrustedComponents.Write"))
             return new PagedResult<TrustedComponentViewModel>();
 
-        var q = db.TrustedFullAccessComponents.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(query.Search))
+        return await factory.UseAsync(async db =>
         {
-            var s = query.Search.Trim();
-            q = q.Where(t => t.FullQualifiedTypeName.Contains(s));
-        }
-        var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(t => t.FullQualifiedTypeName) : q.OrderBy(t => t.FullQualifiedTypeName);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
-            .Select(t => new TrustedComponentViewModel
+            var q = db.TrustedFullAccessComponents.AsNoTracking().AsQueryable();
+            if (!string.IsNullOrWhiteSpace(query.Search))
             {
-                TrustedFullAccessComponentId = t.TrustedFullAccessComponentId,
-                FullQualifiedTypeName = t.FullQualifiedTypeName,
-                TargetQualifiedTypeName = t.TargetQualifiedTypeName,
-                Description = t.Description,
-                TrustLevelConfig = t.TrustLevelConfig
-            }).ToListAsync();
-        return new PagedResult<TrustedComponentViewModel> { Items = items, TotalCount = total };
+                var s = query.Search.Trim();
+                q = q.Where(t => t.FullQualifiedTypeName.Contains(s));
+            }
+            var total = await q.CountAsync();
+            q = query.SortDescending ? q.OrderByDescending(t => t.FullQualifiedTypeName) : q.OrderBy(t => t.FullQualifiedTypeName);
+            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+                .Select(t => new TrustedComponentViewModel
+                {
+                    TrustedFullAccessComponentId = t.TrustedFullAccessComponentId,
+                    FullQualifiedTypeName = t.FullQualifiedTypeName,
+                    TargetQualifiedTypeName = t.TargetQualifiedTypeName,
+                    Description = t.Description,
+                    TrustLevelConfig = t.TrustLevelConfig
+                }).ToListAsync();
+            return new PagedResult<TrustedComponentViewModel> { Items = items, TotalCount = total };
+        });
     }
 
     public async Task<TrustedComponentViewModel?> CreateAsync(ClaimsPrincipal user, TrustedComponentViewModel input)
     {
         if (!HasPermission(user, "TrustedComponents.Write")) return null;
-        var entity = new TrustedFullAccessComponent
+
+        return await factory.UseAsync<TrustedComponentViewModel?>(async db =>
         {
-            FullQualifiedTypeName = input.FullQualifiedTypeName,
-            TargetQualifiedTypeName = input.TargetQualifiedTypeName ?? string.Empty,
-            Description = input.Description ?? string.Empty,
-            TrustLevelConfig = input.TrustLevelConfig ?? string.Empty
-        };
-        db.TrustedFullAccessComponents.Add(entity);
-        await db.SaveChangesAsync();
-        input.TrustedFullAccessComponentId = entity.TrustedFullAccessComponentId;
-        return input;
+            var entity = new TrustedFullAccessComponent
+            {
+                FullQualifiedTypeName = input.FullQualifiedTypeName,
+                TargetQualifiedTypeName = input.TargetQualifiedTypeName ?? string.Empty,
+                Description = input.Description ?? string.Empty,
+                TrustLevelConfig = input.TrustLevelConfig ?? string.Empty
+            };
+            db.TrustedFullAccessComponents.Add(entity);
+            await db.SaveChangesAsync();
+            input.TrustedFullAccessComponentId = entity.TrustedFullAccessComponentId;
+            return input;
+        });
     }
 
     public async Task<TrustedComponentViewModel?> UpdateAsync(ClaimsPrincipal user, TrustedComponentViewModel input)
     {
         if (!HasPermission(user, "TrustedComponents.Write")) return null;
-        var entity = await db.TrustedFullAccessComponents.FirstOrDefaultAsync(t => t.TrustedFullAccessComponentId == input.TrustedFullAccessComponentId);
-        if (entity == null) return null;
-        entity.FullQualifiedTypeName = input.FullQualifiedTypeName;
-        entity.TargetQualifiedTypeName = input.TargetQualifiedTypeName ?? string.Empty;
-        entity.Description = input.Description ?? string.Empty;
-        entity.TrustLevelConfig = input.TrustLevelConfig ?? string.Empty;
-        await db.SaveChangesAsync();
-        return input;
+
+        return await factory.UseAsync<TrustedComponentViewModel?>(async db =>
+        {
+            var entity = await db.TrustedFullAccessComponents.FirstOrDefaultAsync(t => t.TrustedFullAccessComponentId == input.TrustedFullAccessComponentId);
+            if (entity == null) return null;
+            entity.FullQualifiedTypeName = input.FullQualifiedTypeName;
+            entity.TargetQualifiedTypeName = input.TargetQualifiedTypeName ?? string.Empty;
+            entity.Description = input.Description ?? string.Empty;
+            entity.TrustLevelConfig = input.TrustLevelConfig ?? string.Empty;
+            await db.SaveChangesAsync();
+            return input;
+        });
     }
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int trustedFullAccessComponentId)
     {
         if (!HasPermission(user, "TrustedComponents.Write")) return false;
-        var entity = await db.TrustedFullAccessComponents.FirstOrDefaultAsync(t => t.TrustedFullAccessComponentId == trustedFullAccessComponentId);
-        if (entity == null) return false;
-        db.TrustedFullAccessComponents.Remove(entity);
-        await db.SaveChangesAsync();
-        return true;
+
+        return await factory.UseAsync(async db =>
+        {
+            var entity = await db.TrustedFullAccessComponents.FirstOrDefaultAsync(t => t.TrustedFullAccessComponentId == trustedFullAccessComponentId);
+            if (entity == null) return false;
+            db.TrustedFullAccessComponents.Remove(entity);
+            await db.SaveChangesAsync();
+            return true;
+        });
     }
 }

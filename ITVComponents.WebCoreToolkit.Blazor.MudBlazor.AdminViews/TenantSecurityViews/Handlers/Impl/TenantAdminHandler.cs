@@ -78,15 +78,15 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
     private readonly ISecurityRepository securityRepository;
     private readonly IOptions<TenantOptions<TTenant>> tenantOptions;
     private readonly ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> templateHelper;
 
-    public TenantAdminHandler(TContext db, IServiceProvider services, ISecurityRepository securityRepository, IOptions<TenantOptions<TTenant>> tenantOptions, ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> templateHelper)
+    public TenantAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, ISecurityRepository securityRepository, IOptions<TenantOptions<TTenant>> tenantOptions, ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> templateHelper)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
         this.securityRepository = securityRepository;
         this.tenantOptions = tenantOptions;
@@ -100,8 +100,9 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public AdminContext GetContext(ClaimsPrincipal user)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         return new AdminContext
         {
             IsSysAdmin = sysAdmin,
@@ -111,7 +112,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<PagedResult<TenantViewModel>> ListTenantsAsync(ClaimsPrincipal user, ListQuery query)
     {
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
         var q = db.Tenants.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -146,7 +148,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<TenantViewModel?> CreateTenantAsync(ClaimsPrincipal user, TenantViewModel input)
     {
         if (!services.VerifyUserPermissions(new[] { "Tenants.Write" })) return null;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
         var entity = new TTenant();
         var tenantAssign = tenantOptions.Value.UpdateTenant;
         if (tenantAssign == null)
@@ -170,7 +173,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<TenantViewModel?> UpdateTenantAsync(ClaimsPrincipal user, TenantViewModel input)
     {
         if (!services.VerifyUserPermissions(new[] { "Tenants.Write" })) return null;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
         var entity = await db.Tenants.FirstOrDefaultAsync(n => n.TenantId == input.TenantId);
         if (entity == null) return null;
         var tenantAssign = tenantOptions.Value.UpdateTenant;
@@ -194,7 +198,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<bool> DeleteTenantAsync(ClaimsPrincipal user, int tenantId)
     {
         if (!services.VerifyUserPermissions(new[] { "Tenants.Write" })) return false;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
         var entity = await db.Tenants.FirstOrDefaultAsync(n => n.TenantId == tenantId);
         if (entity == null) return false;
         db.Tenants.Remove(entity);
@@ -208,7 +213,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         if (!services.VerifyUserPermissions(new[] { "Tenants.AssignUser", "Tenants.View" }))
             return new PagedResult<TenantAssignmentViewModel>();
 
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var assigned = await db.TenantUsers
             .Where(r => r.UserId.ToString() == userId)
@@ -238,7 +244,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         ClaimsPrincipal user, string userId, int tenantId, bool assigned)
     {
         if (!services.VerifyUserPermissions(new[] { "Tenants.AssignUser" })) return false;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var existing = await db.TenantUsers
             .FirstOrDefaultAsync(n => n.UserId.ToString() == userId && n.TenantId == tenantId);
@@ -265,7 +272,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     {
         if (!HasPermission(user, "Tenants.View", "Tenants.WriteSettings"))
             return new PagedResult<TenantSettingViewModel>();
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var q = db.TenantSettings.AsNoTracking().Where(s => s.TenantId == tenantId);
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -291,9 +299,10 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<TenantSettingViewModel?> CreateSettingAsync(ClaimsPrincipal user, int tenantId, TenantSettingViewModel input)
     {
         if (!HasPermission(user, "Tenants.WriteSettings")) return null;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
-        var value = await MaybeEncryptJsonAsync(tenantId, input.JsonSetting, input.SettingsValue);
+        var value = await MaybeEncryptJsonAsync(db, tenantId, input.JsonSetting, input.SettingsValue);
 
         var entity = new TTenantSetting
         {
@@ -313,19 +322,20 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<TenantSettingViewModel?> UpdateSettingAsync(ClaimsPrincipal user, TenantSettingViewModel input)
     {
         if (!HasPermission(user, "Tenants.WriteSettings")) return null;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var entity = await db.TenantSettings.FirstOrDefaultAsync(s => s.TenantSettingId == input.TenantSettingId);
         if (entity == null) return null;
         entity.SettingsKey = input.SettingsKey;
-        entity.SettingsValue = await MaybeEncryptJsonAsync(entity.TenantId, input.JsonSetting, input.SettingsValue);
+        entity.SettingsValue = await MaybeEncryptJsonAsync(db, entity.TenantId, input.JsonSetting, input.SettingsValue);
         entity.JsonSetting = input.JsonSetting;
         await db.SaveChangesAsync();
         input.SettingsValue = entity.SettingsValue;
         return input;
     }
 
-    private async Task<string> MaybeEncryptJsonAsync(int tenantId, bool isJsonSetting, string raw)
+    private async Task<string> MaybeEncryptJsonAsync(TContext db, int tenantId, bool isJsonSetting, string raw)
     {
         if (!isJsonSetting || string.IsNullOrEmpty(raw)) return raw;
         var tenantPassword = await db.Tenants.AsNoTracking()
@@ -340,7 +350,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<bool> DeleteSettingAsync(ClaimsPrincipal user, int tenantSettingId)
     {
         if (!HasPermission(user, "Tenants.WriteSettings")) return false;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var entity = await db.TenantSettings.FirstOrDefaultAsync(s => s.TenantSettingId == tenantSettingId);
         if (entity == null) return false;
@@ -354,7 +365,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     {
         if (!HasPermission(user, "Sysadmin"))
             return new PagedResult<TenantFeatureActivationAssignmentViewModel>();
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var q = from f in db.Features.AsNoTracking()
                 join a in db.TenantFeatureActivations.Where(x => x.TenantId == tenantId)
@@ -386,7 +398,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         ClaimsPrincipal user, int tenantId, int featureId, bool assigned, DateTime? activationStart, DateTime? activationEnd)
     {
         if (!HasPermission(user, "Sysadmin")) return false;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var existing = await db.TenantFeatureActivations
             .FirstOrDefaultAsync(a => a.TenantId == tenantId && a.FeatureId == featureId);
@@ -425,7 +438,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     {
         if (!HasPermission(user, "Tenants.AssignNav", "Sysadmin"))
             return new PagedResult<TenantNavigationAssignmentViewModel>();
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var q = from n in db.Navigation.AsNoTracking()
                 join tn in db.TenantNavigation.Where(x => x.TenantId == tenantId)
@@ -455,7 +469,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         ClaimsPrincipal user, int tenantId, int navigationMenuId, bool assigned)
     {
         if (!HasPermission(user, "Tenants.AssignNav", "Sysadmin")) return false;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var existing = await db.TenantNavigation
             .FirstOrDefaultAsync(n => n.TenantId == tenantId && n.NavigationMenuId == navigationMenuId);
@@ -484,7 +499,8 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<TenantTemplateViewModel?> ExtractTemplateAsync(ClaimsPrincipal user, int tenantId, string name, string? description)
     {
         if (!HasPermission(user, "TenantTemplates.Write")) return null;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.TenantId == tenantId);
         if (tenant == null) return null;
@@ -521,7 +537,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
 
-    private void ApplyContextScope(bool sysAdmin)
+    private void ApplyContextScope(TContext db, bool sysAdmin)
     {
         if (sysAdmin)
         {

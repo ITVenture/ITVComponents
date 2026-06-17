@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
@@ -9,14 +10,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public class HealthScriptAdminHandler : IHealthScriptAdminHandler
 {
-    private readonly ICoreSystemContext db;
+    private readonly ICoreSystemContextFactory factory;
     private readonly IServiceProvider services;
 
-    public HealthScriptAdminHandler(ICoreSystemContext db, IServiceProvider services)
+    public HealthScriptAdminHandler(ICoreSystemContextFactory factory, IServiceProvider services)
     {
-        this.db = db;
+        this.factory = factory;
         this.services = services;
-        this.db.ShowAllTenants = true;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -27,56 +27,71 @@ public class HealthScriptAdminHandler : IHealthScriptAdminHandler
         if (!HasPermission(user, "HealthChecks.View", "HealthChecks.Write", "Sysadmin"))
             return new PagedResult<HealthScriptViewModel>();
 
-        var q = db.HealthScripts.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(query.Search))
+        return await factory.UseAsync(async db =>
         {
-            var s = query.Search.Trim();
-            q = q.Where(h => h.HealthScriptName.Contains(s));
-        }
-        var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(h => h.HealthScriptName) : q.OrderBy(h => h.HealthScriptName);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
-            .Select(h => new HealthScriptViewModel
+            var q = db.HealthScripts.AsNoTracking().AsQueryable();
+            if (!string.IsNullOrWhiteSpace(query.Search))
             {
-                HealthScriptId = h.HealthScriptId,
-                HealthScriptName = h.HealthScriptName,
-                Script = h.Script
-            }).ToListAsync();
-        return new PagedResult<HealthScriptViewModel> { Items = items, TotalCount = total };
+                var s = query.Search.Trim();
+                q = q.Where(h => h.HealthScriptName.Contains(s));
+            }
+            var total = await q.CountAsync();
+            q = query.SortDescending ? q.OrderByDescending(h => h.HealthScriptName) : q.OrderBy(h => h.HealthScriptName);
+            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+                .Select(h => new HealthScriptViewModel
+                {
+                    HealthScriptId = h.HealthScriptId,
+                    HealthScriptName = h.HealthScriptName,
+                    Script = h.Script
+                }).ToListAsync();
+            return new PagedResult<HealthScriptViewModel> { Items = items, TotalCount = total };
+        });
     }
 
     public async Task<HealthScriptViewModel?> CreateAsync(ClaimsPrincipal user, HealthScriptViewModel input)
     {
         if (!HasPermission(user, "HealthChecks.Write", "Sysadmin")) return null;
-        var entity = new HealthScript
+
+        return await factory.UseAsync<HealthScriptViewModel?>(async db =>
         {
-            HealthScriptName = input.HealthScriptName,
-            Script = input.Script ?? string.Empty
-        };
-        db.HealthScripts.Add(entity);
-        await db.SaveChangesAsync();
-        input.HealthScriptId = entity.HealthScriptId;
-        return input;
+            var entity = new HealthScript
+            {
+                HealthScriptName = input.HealthScriptName,
+                Script = input.Script ?? string.Empty
+            };
+            db.HealthScripts.Add(entity);
+            await db.SaveChangesAsync();
+            input.HealthScriptId = entity.HealthScriptId;
+            return input;
+        });
     }
 
     public async Task<HealthScriptViewModel?> UpdateAsync(ClaimsPrincipal user, HealthScriptViewModel input)
     {
         if (!HasPermission(user, "HealthChecks.Write", "Sysadmin")) return null;
-        var entity = await db.HealthScripts.FirstOrDefaultAsync(h => h.HealthScriptId == input.HealthScriptId);
-        if (entity == null) return null;
-        entity.HealthScriptName = input.HealthScriptName;
-        entity.Script = input.Script ?? string.Empty;
-        await db.SaveChangesAsync();
-        return input;
+
+        return await factory.UseAsync<HealthScriptViewModel?>(async db =>
+        {
+            var entity = await db.HealthScripts.FirstOrDefaultAsync(h => h.HealthScriptId == input.HealthScriptId);
+            if (entity == null) return null;
+            entity.HealthScriptName = input.HealthScriptName;
+            entity.Script = input.Script ?? string.Empty;
+            await db.SaveChangesAsync();
+            return input;
+        });
     }
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int healthScriptId)
     {
         if (!HasPermission(user, "HealthChecks.Write", "Sysadmin")) return false;
-        var entity = await db.HealthScripts.FirstOrDefaultAsync(h => h.HealthScriptId == healthScriptId);
-        if (entity == null) return false;
-        db.HealthScripts.Remove(entity);
-        await db.SaveChangesAsync();
-        return true;
+
+        return await factory.UseAsync(async db =>
+        {
+            var entity = await db.HealthScripts.FirstOrDefaultAsync(h => h.HealthScriptId == healthScriptId);
+            if (entity == null) return false;
+            db.HealthScripts.Remove(entity);
+            await db.SaveChangesAsync();
+            return true;
+        });
     }
 }

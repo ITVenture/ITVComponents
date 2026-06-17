@@ -72,15 +72,21 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public PermissionSetAdminHandler(TContext db, IServiceProvider services)
+    public PermissionSetAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
-        this.db.HideGlobals = false;
-        this.db.ShowAllTenants = true;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.HideGlobals = false;
+        db.ShowAllTenants = true;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -91,6 +97,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         if (!HasPermission(user, "Apps.PermissionSets.View", "Apps.PermissionSets.Write"))
             return new PagedResult<PermissionSetViewModel>();
 
+        using var db = CreateDb();
         var q = db.AppPermissionSets.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -111,6 +118,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<PermissionSetViewModel?> CreateAsync(ClaimsPrincipal user, PermissionSetViewModel input)
     {
         if (!HasPermission(user, "Apps.PermissionSets.Write")) return null;
+        using var db = CreateDb();
         var entity = new TAppPermissionSet { Name = input.Name };
         db.AppPermissionSets.Add(entity);
         await db.SaveChangesAsync();
@@ -121,6 +129,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<PermissionSetViewModel?> UpdateAsync(ClaimsPrincipal user, PermissionSetViewModel input)
     {
         if (!HasPermission(user, "Apps.PermissionSets.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.AppPermissionSets.FirstOrDefaultAsync(p => p.AppPermissionSetId == input.AppPermissionSetId);
         if (entity == null) return null;
         entity.Name = input.Name;
@@ -131,6 +140,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int appPermissionSetId)
     {
         if (!HasPermission(user, "Apps.PermissionSets.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.AppPermissionSets.FirstOrDefaultAsync(p => p.AppPermissionSetId == appPermissionSetId);
         if (entity == null) return false;
         db.AppPermissionSets.Remove(entity);
@@ -144,6 +154,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         if (!HasPermission(user, "Apps.PermissionSets.View", "Apps.PermissionSets.Write"))
             return new PagedResult<AppPermissionAssignmentViewModel>();
 
+        using var db = CreateDb();
         var assignedPermissionIds = await db.AppPermissions
             .Where(ap => ap.AppPermissionSetId == appPermissionSetId)
             .Select(ap => ap.PermissionId)
@@ -180,6 +191,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     {
         if (!HasPermission(user, "Apps.PermissionSets.Write")) return false;
 
+        using var db = CreateDb();
         var existing = await db.AppPermissions.FirstOrDefaultAsync(ap =>
             ap.AppPermissionSetId == appPermissionSetId && ap.PermissionId == permissionId);
 

@@ -72,15 +72,21 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public NavigationAdminHandler(TContext db, IServiceProvider services)
+    public NavigationAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
-        this.db.ShowAllTenants = true;
-        this.db.HideGlobals = false;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.ShowAllTenants = true;
+        db.HideGlobals = false;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -91,6 +97,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         if (!HasPermission(user, "Navigation.View", "Navigation.Write"))
             return new PagedResult<NavigationMenuViewModel>();
 
+        using var db = CreateDb();
         var q = db.Navigation.AsNoTracking().Where(n => n.ParentId == parentId);
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -137,6 +144,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<NavigationMenuViewModel?> CreateAsync(ClaimsPrincipal user, NavigationMenuViewModel input)
     {
         if (!HasPermission(user, "Navigation.Write")) return null;
+        using var db = CreateDb();
         var maxOrder = await db.Navigation.Where(n => n.ParentId == input.ParentId)
             .MaxAsync(n => (int?)n.SortOrder) ?? 0;
 
@@ -155,7 +163,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         db.Navigation.Add(entity);
         await db.SaveChangesAsync();
 
-        ApplyTenants(entity, input.Tenants);
+        ApplyTenants(db, entity, input.Tenants);
         await db.SaveChangesAsync();
 
         input.NavigationMenuId = entity.NavigationMenuId;
@@ -166,6 +174,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<NavigationMenuViewModel?> UpdateAsync(ClaimsPrincipal user, NavigationMenuViewModel input)
     {
         if (!HasPermission(user, "Navigation.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.Navigation
             .Include(n => n.Tenants)
             .FirstOrDefaultAsync(n => n.NavigationMenuId == input.NavigationMenuId);
@@ -180,7 +189,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         entity.SpanClass = input.SpanClass ?? string.Empty;
         entity.IsPublic = input.IsPublic;
 
-        ApplyTenants(entity, input.Tenants);
+        ApplyTenants(db, entity, input.Tenants);
         await db.SaveChangesAsync();
         return input;
     }
@@ -188,6 +197,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int navigationMenuId)
     {
         if (!HasPermission(user, "Navigation.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.Navigation
             .Include(n => n.Tenants)
             .FirstOrDefaultAsync(n => n.NavigationMenuId == navigationMenuId);
@@ -204,6 +214,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         if (!HasPermission(user, "Navigation.Write")) return false;
         if (draggedItemId == anchorItemId) return false;
 
+        using var db = CreateDb();
         var dragged = await db.Navigation.FirstOrDefaultAsync(n => n.NavigationMenuId == draggedItemId);
         if (dragged == null) return false;
 
@@ -220,7 +231,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
             newParentId = anchor == NavigationMoveAnchor.Into ? anchorItem.NavigationMenuId : anchorItem.ParentId;
         }
 
-        if (newParentId.HasValue && await IsDescendantOrSelfAsync(newParentId.Value, draggedItemId)) return false;
+        if (newParentId.HasValue && await IsDescendantOrSelfAsync(db, newParentId.Value, draggedItemId)) return false;
 
         var siblings = await db.Navigation
             .Where(n => n.ParentId == newParentId && n.NavigationMenuId != draggedItemId)
@@ -251,7 +262,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         return true;
     }
 
-    private async Task<bool> IsDescendantOrSelfAsync(int candidateId, int draggedId)
+    private async Task<bool> IsDescendantOrSelfAsync(TContext db, int candidateId, int draggedId)
     {
         if (candidateId == draggedId) return true;
         var current = candidateId;
@@ -274,6 +285,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         if (!HasPermission(user, "Navigation.View", "Navigation.Write"))
             return Array.Empty<NavigationParentChoice>();
 
+        using var db = CreateDb();
         return await db.Navigation.AsNoTracking()
             .OrderBy(n => n.DisplayName)
             .Select(n => new NavigationParentChoice
@@ -288,6 +300,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         if (!HasPermission(user, "Navigation.View", "Navigation.Write"))
             return Array.Empty<TenantChoice>();
 
+        using var db = CreateDb();
         return await db.Tenants.AsNoTracking()
             .OrderBy(t => t.DisplayName)
             .Select(t => new TenantChoice
@@ -297,7 +310,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
             }).ToListAsync();
     }
 
-    private void ApplyTenants(TNavigationMenu entity, int[] tenantIds)
+    private void ApplyTenants(TContext db, TNavigationMenu entity, int[] tenantIds)
     {
         var current = entity.Tenants.ToList();
         var toRemove = current.Where(t => !tenantIds.Contains(t.TenantId)).ToList();

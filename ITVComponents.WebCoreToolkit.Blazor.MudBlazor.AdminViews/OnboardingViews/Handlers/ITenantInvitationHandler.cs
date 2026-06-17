@@ -4,18 +4,27 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers;
 
 /// <summary>
-/// Tree-only admin surface for the two invitation kinds the unified invite dialog produces:
+/// Admin surface for the two invitation kinds the unified invite dialog produces:
 /// <list type="bullet">
 /// <item><description><b>Tenant invitation</b> — invite someone to onboard a brand-new sub-tenant under a
 /// parent (tokenized link, drives tenant creation with a pinned parent).</description></item>
 /// <item><description><b>Employee invitation</b> — invite a user to join an <i>existing</i> tenant as an
 /// employee (e-mail match, accepted via <c>IOnboardingHandler.AcceptInvitationAsync</c>).</description></item>
 /// </list>
-/// The flat strategy has no equivalent (invitations pin a parent), so this handler is registered only for
-/// the hierarchy variant.
+/// Both strategies implement this interface. The hierarchy variant supports both kinds; the flat variant
+/// supports employee invitations only (there is no parent to pin a sub-tenant invitation under). Callers
+/// must consult <see cref="SupportsTenantInvitations"/> before exposing the tenant-invitation surface — on
+/// a handler that returns <c>false</c> the tenant-invitation methods are inert (empty/failed/no-op).
 /// </summary>
 public interface ITenantInvitationHandler
 {
+    /// <summary>
+    /// True when this handler can issue sub-tenant invitations (hierarchy strategy). When false, only the
+    /// employee-invitation surface is meaningful and the tenant-invitation methods return empty/failed/no-op
+    /// results. Employee invitations are always supported, so there is no matching flag for them.
+    /// </summary>
+    bool SupportsTenantInvitations { get; }
+
     /// <summary>Tenants the calling admin may issue invitations for (their enabled memberships).</summary>
     Task<TenantPickerItem[]> ListAdministrableTenantsAsync(ClaimsPrincipal admin, CancellationToken ct = default);
 

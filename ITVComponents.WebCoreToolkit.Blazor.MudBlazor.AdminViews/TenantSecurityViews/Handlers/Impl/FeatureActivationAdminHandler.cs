@@ -72,14 +72,20 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public FeatureActivationAdminHandler(TContext db, IServiceProvider services)
+    public FeatureActivationAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
-        this.db.ShowAllTenants = true;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.ShowAllTenants = true;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -90,6 +96,7 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
         if (!HasPermission(user, "Sysadmin"))
             return new PagedResult<FeatureActivationViewModel>();
 
+        using var db = CreateDb();
         var q = from a in db.TenantFeatureActivations.AsNoTracking()
                 where a.FeatureId == featureId
                 join t in db.Tenants.AsNoTracking() on a.TenantId equals t.TenantId into tj
@@ -114,6 +121,7 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
     public async Task<FeatureActivationViewModel?> CreateActivationAsync(ClaimsPrincipal user, FeatureActivationViewModel input)
     {
         if (!HasPermission(user, "Sysadmin")) return null;
+        using var db = CreateDb();
         var entity = new TTenantFeatureActivation
         {
             TenantId = input.TenantId,
@@ -130,6 +138,7 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
     public async Task<FeatureActivationViewModel?> UpdateActivationAsync(ClaimsPrincipal user, FeatureActivationViewModel input)
     {
         if (!HasPermission(user, "Sysadmin")) return null;
+        using var db = CreateDb();
         var entity = await db.TenantFeatureActivations.FirstOrDefaultAsync(a => a.TenantFeatureActivationId == input.TenantFeatureActivationId);
         if (entity == null) return null;
         entity.ActivationStart = input.ActivationStart;
@@ -141,6 +150,7 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
     public async Task<bool> DeleteActivationAsync(ClaimsPrincipal user, int tenantFeatureActivationId)
     {
         if (!HasPermission(user, "Sysadmin")) return false;
+        using var db = CreateDb();
         var entity = await db.TenantFeatureActivations.FirstOrDefaultAsync(a => a.TenantFeatureActivationId == tenantFeatureActivationId);
         if (entity == null) return false;
         db.TenantFeatureActivations.Remove(entity);

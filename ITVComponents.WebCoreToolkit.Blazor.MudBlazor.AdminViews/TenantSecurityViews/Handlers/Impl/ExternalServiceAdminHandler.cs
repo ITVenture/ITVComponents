@@ -79,19 +79,25 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
     private readonly ISecurityRepository secRepo;
     private readonly IOAuthHttpClientFactory? oauthClientFactory;
 
-    public ExternalServiceAdminHandler(TContext db, IServiceProvider services, ISecurityRepository secRepo, IOAuthHttpClientFactory? oauthClientFactory = null)
+    public ExternalServiceAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, ISecurityRepository secRepo, IOAuthHttpClientFactory? oauthClientFactory = null)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
         this.secRepo = secRepo;
         this.oauthClientFactory = oauthClientFactory;
-        this.db.ShowAllTenants = true;
-        this.db.HideGlobals = false;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.ShowAllTenants = true;
+        db.HideGlobals = false;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -104,6 +110,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write"))
             return new PagedResult<ExternalOAuthServiceViewModel>();
 
+        using var db = CreateDb();
         var sysAdmin = IsSysAdmin();
         var currentTenantId = db.CurrentTenantId;
         IQueryable<TExternalOAuthService> q;
@@ -145,6 +152,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<ExternalOAuthServiceViewModel?> CreateAsync(ClaimsPrincipal user, ExternalOAuthServiceViewModel input)
     {
         if (!HasPermission(user, "Services.Connections.Write")) return null;
+        using var db = CreateDb();
         var sysAdmin = IsSysAdmin();
         if (!sysAdmin) input.Global = false;
         if (!input.Global && input.TenantId == null) input.TenantId = db.CurrentTenantId;
@@ -161,7 +169,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             AuthenticationType = input.AuthenticationType,
             TenantId = input.Global ? null : input.TenantId
         };
-        EncryptSecret(entity, input.ClientSecret);
+        EncryptSecret(db, entity, input.ClientSecret);
         db.ExternalOAuthServices.Add(entity);
         await db.SaveChangesAsync();
         input.OAuthServiceId = entity.OAuthServiceId;
@@ -172,6 +180,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<ExternalOAuthServiceViewModel?> UpdateAsync(ClaimsPrincipal user, ExternalOAuthServiceViewModel input)
     {
         if (!HasPermission(user, "Services.Connections.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.ExternalOAuthServices.FirstOrDefaultAsync(n => n.OAuthServiceId == input.OAuthServiceId);
         if (entity == null) return null;
 
@@ -183,7 +192,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         entity.Scope = input.Scope ?? string.Empty;
         entity.AuthenticationType = input.AuthenticationType;
 
-        EncryptSecret(entity, input.ClientSecret);
+        EncryptSecret(db, entity, input.ClientSecret);
         await db.SaveChangesAsync();
         input.ClientSecret = null;
         return input;
@@ -192,6 +201,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int oauthServiceId)
     {
         if (!HasPermission(user, "Services.Connections.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.ExternalOAuthServices.FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
         if (entity == null) return false;
         db.ExternalOAuthServices.Remove(entity);
@@ -204,6 +214,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write"))
             return new PagedResult<ExternalOAuthServiceTenantLoginViewModel>();
 
+        using var db = CreateDb();
         var q = from l in db.ExternalOAuthServiceTenantLogins.AsNoTracking()
                 where l.OAuthServiceId == oauthServiceId
                 join t in db.Tenants.AsNoTracking() on l.TenantId equals t.TenantId into tj
@@ -226,6 +237,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<bool> RevokeLoginAsync(ClaimsPrincipal user, int externalOAuthServiceTenantLoginId)
     {
         if (!HasPermission(user, "Services.Connections.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.ExternalOAuthServiceTenantLogins.FirstOrDefaultAsync(n => n.ExternalOAuthServiceTenantLoginId == externalOAuthServiceTenantLoginId);
         if (entity == null) return false;
         entity.Revoked = true;
@@ -236,6 +248,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<ExternalServiceDetailsViewModel?> GetDetailsAsync(ClaimsPrincipal user, int oauthServiceId)
     {
         if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.ExternalOAuthServices.AsNoTracking().FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
         if (entity == null) return null;
 
@@ -267,6 +280,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         if (oauthClientFactory == null)
             return new ExternalServiceTestResultViewModel { ErrorMessage = "OAuth client factory is not registered", IsSuccess = false };
 
+        using var db = CreateDb();
         var entity = await db.ExternalOAuthServices.AsNoTracking().FirstOrDefaultAsync(n => n.OAuthServiceId == request.OAuthServiceId);
         if (entity == null)
             return new ExternalServiceTestResultViewModel { ErrorMessage = "Service not found", IsSuccess = false };
@@ -307,7 +321,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         }
     }
 
-    private void EncryptSecret(TExternalOAuthService entity, string? secret)
+    private void EncryptSecret(TContext db, TExternalOAuthService entity, string? secret)
     {
         if (string.IsNullOrEmpty(secret) || !secret.StartsWith("encrypt:")) return;
         var plain = secret.Substring(8);

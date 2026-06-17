@@ -72,15 +72,21 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public AssetTemplateAdminHandler(TContext db, IServiceProvider services)
+    public AssetTemplateAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
-        this.db.ShowAllTenants = true;
-        this.db.HideGlobals = false;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.ShowAllTenants = true;
+        db.HideGlobals = false;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -92,6 +98,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     {
         if (!IsSysAdmin()) return new PagedResult<AssetTemplateViewModel>();
 
+        using var db = CreateDb();
         var q = db.AssetTemplates.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -115,6 +122,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<AssetTemplateViewModel?> CreateAsync(ClaimsPrincipal user, AssetTemplateViewModel input)
     {
         if (!IsSysAdmin()) return null;
+        using var db = CreateDb();
         var entity = new TAssetTemplate
         {
             Name = input.Name,
@@ -131,6 +139,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<AssetTemplateViewModel?> UpdateAsync(ClaimsPrincipal user, AssetTemplateViewModel input)
     {
         if (!IsSysAdmin()) return null;
+        using var db = CreateDb();
         var entity = await db.AssetTemplates.FirstOrDefaultAsync(t => t.AssetTemplateId == input.AssetTemplateId);
         if (entity == null) return null;
         entity.Name = input.Name;
@@ -144,6 +153,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int assetTemplateId)
     {
         if (!IsSysAdmin()) return false;
+        using var db = CreateDb();
         var entity = await db.AssetTemplates.FirstOrDefaultAsync(t => t.AssetTemplateId == assetTemplateId);
         if (entity == null) return false;
         db.AssetTemplates.Remove(entity);
@@ -154,6 +164,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<PagedResult<AssetTemplatePathViewModel>> ListPathsAsync(ClaimsPrincipal user, int assetTemplateId, ListQuery query)
     {
         if (!IsSysAdmin()) return new PagedResult<AssetTemplatePathViewModel>();
+        using var db = CreateDb();
         var q = db.AssetTemplatePathFilters.AsNoTracking().Where(p => p.AssetTemplateId == assetTemplateId);
         var total = await q.CountAsync();
         var items = await q.OrderBy(p => p.PathTemplate)
@@ -170,6 +181,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<AssetTemplatePathViewModel?> CreatePathAsync(ClaimsPrincipal user, int assetTemplateId, AssetTemplatePathViewModel input)
     {
         if (!IsSysAdmin()) return null;
+        using var db = CreateDb();
         var entity = new TAssetTemplatePath { AssetTemplateId = assetTemplateId, PathTemplate = input.PathTemplate };
         db.AssetTemplatePathFilters.Add(entity);
         await db.SaveChangesAsync();
@@ -181,6 +193,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<AssetTemplatePathViewModel?> UpdatePathAsync(ClaimsPrincipal user, AssetTemplatePathViewModel input)
     {
         if (!IsSysAdmin()) return null;
+        using var db = CreateDb();
         var entity = await db.AssetTemplatePathFilters.FirstOrDefaultAsync(p => p.AssetTemplatePathId == input.AssetTemplatePathId);
         if (entity == null) return null;
         entity.PathTemplate = input.PathTemplate;
@@ -191,6 +204,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<bool> DeletePathAsync(ClaimsPrincipal user, int assetTemplatePathId)
     {
         if (!IsSysAdmin()) return false;
+        using var db = CreateDb();
         var entity = await db.AssetTemplatePathFilters.FirstOrDefaultAsync(p => p.AssetTemplatePathId == assetTemplatePathId);
         if (entity == null) return false;
         db.AssetTemplatePathFilters.Remove(entity);
@@ -203,6 +217,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     {
         if (!IsSysAdmin()) return new PagedResult<AssetTemplatePermissionAssignmentViewModel>();
 
+        using var db = CreateDb();
         var assignedIds = await db.AssetTemplateGrants
             .Where(g => g.AssetTemplateId == assetTemplateId)
             .Select(g => g.PermissionId)
@@ -233,6 +248,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<bool> SetPermissionForTemplateAsync(ClaimsPrincipal user, int assetTemplateId, int permissionId, bool assigned)
     {
         if (!IsSysAdmin()) return false;
+        using var db = CreateDb();
         var existing = await db.AssetTemplateGrants.FirstOrDefaultAsync(g =>
             g.AssetTemplateId == assetTemplateId && g.PermissionId == permissionId);
 
@@ -256,6 +272,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     {
         if (!IsSysAdmin()) return new PagedResult<AssetTemplateFeatureAssignmentViewModel>();
 
+        using var db = CreateDb();
         var assignedIds = await db.AssetTemplateFeatures
             .Where(f => f.AssetTemplateId == assetTemplateId)
             .Select(f => f.FeatureId)
@@ -286,6 +303,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<bool> SetFeatureForTemplateAsync(ClaimsPrincipal user, int assetTemplateId, int featureId, bool assigned)
     {
         if (!IsSysAdmin()) return false;
+        using var db = CreateDb();
         var existing = await db.AssetTemplateFeatures.FirstOrDefaultAsync(f =>
             f.AssetTemplateId == assetTemplateId && f.FeatureId == featureId);
 

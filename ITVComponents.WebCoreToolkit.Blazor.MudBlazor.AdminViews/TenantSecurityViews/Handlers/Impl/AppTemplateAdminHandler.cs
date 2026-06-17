@@ -72,15 +72,21 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public AppTemplateAdminHandler(TContext db, IServiceProvider services)
+    public AppTemplateAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
-        this.db.HideGlobals = false;
-        this.db.ShowAllTenants = true;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.HideGlobals = false;
+        db.ShowAllTenants = true;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -91,6 +97,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
         if (!HasPermission(user, "Apps.Templates.View", "Apps.Templates.Write"))
             return new PagedResult<ClientAppTemplateViewModel>();
 
+        using var db = CreateDb();
         var q = db.ClientAppTemplates.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -111,6 +118,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     public async Task<ClientAppTemplateViewModel?> CreateAsync(ClaimsPrincipal user, ClientAppTemplateViewModel input)
     {
         if (!HasPermission(user, "Apps.PermissionSets.Write")) return null;
+        using var db = CreateDb();
         var entity = new TClientAppTemplate { Name = input.Name };
         db.ClientAppTemplates.Add(entity);
         await db.SaveChangesAsync();
@@ -121,6 +129,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     public async Task<ClientAppTemplateViewModel?> UpdateAsync(ClaimsPrincipal user, ClientAppTemplateViewModel input)
     {
         if (!HasPermission(user, "Apps.PermissionSets.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.ClientAppTemplates.FirstOrDefaultAsync(t => t.ClientAppTemplateId == input.ClientAppTemplateId);
         if (entity == null) return null;
         entity.Name = input.Name;
@@ -131,6 +140,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int clientAppTemplateId)
     {
         if (!HasPermission(user, "Apps.PermissionSets.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.ClientAppTemplates.FirstOrDefaultAsync(t => t.ClientAppTemplateId == clientAppTemplateId);
         if (entity == null) return false;
         db.ClientAppTemplates.Remove(entity);
@@ -144,6 +154,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
         if (!HasPermission(user, "Apps.Templates.View", "Apps.Templates.Write"))
             return new PagedResult<AppPermissionSetAssignmentViewModel>();
 
+        using var db = CreateDb();
         var assignedSetIds = await db.ClientAppTemplatePermissions
             .Where(ap => ap.ClientAppTemplateId == clientAppTemplateId)
             .Select(ap => ap.AppPermissionSetId)
@@ -179,6 +190,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     {
         if (!HasPermission(user, "Apps.PermissionSets.Write")) return false;
 
+        using var db = CreateDb();
         var existing = await db.ClientAppTemplatePermissions.FirstOrDefaultAsync(ap =>
             ap.ClientAppTemplateId == clientAppTemplateId && ap.AppPermissionSetId == appPermissionSetId);
 

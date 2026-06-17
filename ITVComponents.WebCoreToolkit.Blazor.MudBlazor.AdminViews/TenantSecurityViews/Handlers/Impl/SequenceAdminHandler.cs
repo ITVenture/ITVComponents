@@ -72,14 +72,20 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public SequenceAdminHandler(TContext db, IServiceProvider services)
+    public SequenceAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
-        this.db.ShowAllTenants = true;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.ShowAllTenants = true;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -90,6 +96,7 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
         if (!HasPermission(user, "Sequences.View", "Sequences.Write"))
             return new PagedResult<SequenceViewModel>();
 
+        using var db = CreateDb();
         var effectiveTenantId = tenantId ?? db.CurrentTenantId;
         var q = db.Sequences.AsNoTracking().Where(s => s.TenantId == effectiveTenantId);
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -118,6 +125,7 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
     public async Task<SequenceViewModel?> CreateAsync(ClaimsPrincipal user, int? tenantId, SequenceViewModel input)
     {
         if (!HasPermission(user, "Sequences.Write")) return null;
+        using var db = CreateDb();
         var effectiveTenantId = tenantId ?? db.CurrentTenantId ?? -1;
         var entity = new TSequence
         {
@@ -140,6 +148,7 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
     public async Task<SequenceViewModel?> UpdateAsync(ClaimsPrincipal user, SequenceViewModel input)
     {
         if (!HasPermission(user, "Sequences.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.Sequences.FirstOrDefaultAsync(s => s.SequenceId == input.SequenceId);
         if (entity == null) return null;
         entity.SequenceName = input.SequenceName;
@@ -154,6 +163,7 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int sequenceId)
     {
         if (!HasPermission(user, "Sequences.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.Sequences.FirstOrDefaultAsync(s => s.SequenceId == sequenceId);
         if (entity == null) return false;
         db.Sequences.Remove(entity);

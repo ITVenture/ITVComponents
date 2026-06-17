@@ -74,12 +74,12 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public PlugInAdminHandler(TContext db, IServiceProvider services)
+    public PlugInAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
     }
 
@@ -88,21 +88,22 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
 
-    private void ApplyScope()
+    private void ApplyScope(TContext db)
     {
         if (IsSysAdmin()) { db.ShowAllTenants = true; db.HideGlobals = false; }
         else { db.HideGlobals = true; }
     }
 
-    private int? ResolveTenant(int? requested) => IsSysAdmin() ? requested : db.CurrentTenantId;
+    private int? ResolveTenant(TContext db, int? requested) => IsSysAdmin() ? requested : db.CurrentTenantId;
 
     // ---- Plugins ----
 
     public async Task<PagedResult<WebPluginViewModel>> ListPluginsAsync(ClaimsPrincipal user, int? tenantId, ListQuery query)
     {
         if (!HasPermission(user, "PlugIns.View", "PlugIns.Write")) return new PagedResult<WebPluginViewModel>();
-        ApplyScope();
-        var effective = ResolveTenant(tenantId);
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
+        var effective = ResolveTenant(db, tenantId);
 
         var q = db.WebPlugins.AsNoTracking().Where(n => n.TenantId == effective);
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -130,8 +131,9 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<WebPluginViewModel?> CreatePluginAsync(ClaimsPrincipal user, int? tenantId, WebPluginViewModel input)
     {
         if (!HasPermission(user, "PlugIns.Write")) return null;
-        ApplyScope();
-        var effective = ResolveTenant(tenantId);
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
+        var effective = ResolveTenant(db, tenantId);
 
         var entity = new TWebPlugin
         {
@@ -152,7 +154,8 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<WebPluginViewModel?> UpdatePluginAsync(ClaimsPrincipal user, WebPluginViewModel input)
     {
         if (!HasPermission(user, "PlugIns.Write")) return null;
-        ApplyScope();
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
         var entity = await db.WebPlugins.FirstOrDefaultAsync(n => n.WebPluginId == input.WebPluginId);
         if (entity == null) return null;
         entity.UniqueName = input.UniqueName;
@@ -167,7 +170,8 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<bool> DeletePluginAsync(ClaimsPrincipal user, int webPluginId)
     {
         if (!HasPermission(user, "PlugIns.Write")) return false;
-        ApplyScope();
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
         var entity = await db.WebPlugins.FirstOrDefaultAsync(n => n.WebPluginId == webPluginId);
         if (entity == null) return false;
         db.WebPlugins.Remove(entity);
@@ -180,7 +184,8 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<PagedResult<WebPluginGenericParameterViewModel>> ListPluginParametersAsync(ClaimsPrincipal user, int webPluginId, ListQuery query)
     {
         if (!HasPermission(user, "PlugIns.View", "PlugIns.Write")) return new PagedResult<WebPluginGenericParameterViewModel>();
-        ApplyScope();
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
 
         var q = db.GenericPluginParams.AsNoTracking().Where(n => n.WebPluginId == webPluginId);
         var total = await q.CountAsync();
@@ -200,7 +205,8 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<WebPluginGenericParameterViewModel?> CreatePluginParameterAsync(ClaimsPrincipal user, int webPluginId, WebPluginGenericParameterViewModel input)
     {
         if (!HasPermission(user, "PlugIns.Write")) return null;
-        ApplyScope();
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
         var entity = new TWebPluginGenericParameter
         {
             WebPluginId = webPluginId,
@@ -217,7 +223,8 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<WebPluginGenericParameterViewModel?> UpdatePluginParameterAsync(ClaimsPrincipal user, WebPluginGenericParameterViewModel input)
     {
         if (!HasPermission(user, "PlugIns.Write")) return null;
-        ApplyScope();
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
         var entity = await db.GenericPluginParams.FirstOrDefaultAsync(n => n.WebPluginGenericParameterId == input.WebPluginGenericParameterId);
         if (entity == null) return null;
         entity.GenericTypeName = input.GenericTypeName ?? string.Empty;
@@ -229,7 +236,8 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<bool> DeletePluginParameterAsync(ClaimsPrincipal user, int webPluginGenericParameterId)
     {
         if (!HasPermission(user, "PlugIns.Write")) return false;
-        ApplyScope();
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
         var entity = await db.GenericPluginParams.FirstOrDefaultAsync(n => n.WebPluginGenericParameterId == webPluginGenericParameterId);
         if (entity == null) return false;
         db.GenericPluginParams.Remove(entity);
@@ -242,8 +250,9 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<PagedResult<WebPluginConstantViewModel>> ListConstantsAsync(ClaimsPrincipal user, int? tenantId, ListQuery query)
     {
         if (!HasPermission(user, "PlugInConstants.View", "PlugInConstants.Write")) return new PagedResult<WebPluginConstantViewModel>();
-        ApplyScope();
-        var effective = ResolveTenant(tenantId);
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
+        var effective = ResolveTenant(db, tenantId);
 
         var q = db.WebPluginConstants.AsNoTracking().Where(n => n.TenantId == effective);
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -268,8 +277,9 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<WebPluginConstantViewModel?> CreateConstantAsync(ClaimsPrincipal user, int? tenantId, WebPluginConstantViewModel input)
     {
         if (!HasPermission(user, "PlugInConstants.Write")) return null;
-        ApplyScope();
-        var effective = ResolveTenant(tenantId);
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
+        var effective = ResolveTenant(db, tenantId);
 
         var value = MaybeEncrypt(input.Value);
         var entity = new TWebPluginConstant
@@ -289,7 +299,8 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<WebPluginConstantViewModel?> UpdateConstantAsync(ClaimsPrincipal user, WebPluginConstantViewModel input)
     {
         if (!HasPermission(user, "PlugInConstants.Write")) return null;
-        ApplyScope();
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
         var entity = await db.WebPluginConstants.FirstOrDefaultAsync(n => n.WebPluginConstantId == input.WebPluginConstantId);
         if (entity == null) return null;
         entity.Name = input.Name;
@@ -302,7 +313,8 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<bool> DeleteConstantAsync(ClaimsPrincipal user, int webPluginConstantId)
     {
         if (!HasPermission(user, "PlugInConstants.Write")) return false;
-        ApplyScope();
+        using var db = dbFactory.CreateDbContext();
+        ApplyScope(db);
         var entity = await db.WebPluginConstants.FirstOrDefaultAsync(n => n.WebPluginConstantId == webPluginConstantId);
         if (entity == null) return false;
         db.WebPluginConstants.Remove(entity);

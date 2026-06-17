@@ -72,15 +72,21 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public DashboardWidgetAdminHandler(TContext db, IServiceProvider services)
+    public DashboardWidgetAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
-        this.db.ShowAllTenants = true;
-        this.db.HideGlobals = false;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.ShowAllTenants = true;
+        db.HideGlobals = false;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -91,6 +97,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         if (!HasPermission(user, "DashboardWidgets.View", "DashboardWidgets.Write"))
             return new PagedResult<DashboardWidgetViewModel>();
 
+        using var db = CreateDb();
         var q = db.Widgets.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -117,6 +124,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<DashboardWidgetViewModel?> CreateAsync(ClaimsPrincipal user, DashboardWidgetViewModel input)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        using var db = CreateDb();
         var entity = new TWidget
         {
             DisplayName = input.DisplayName ?? string.Empty,
@@ -136,6 +144,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<DashboardWidgetViewModel?> UpdateAsync(ClaimsPrincipal user, DashboardWidgetViewModel input)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.Widgets.FirstOrDefaultAsync(w => w.DashboardWidgetId == input.DashboardWidgetId);
         if (entity == null) return null;
         entity.DisplayName = input.DisplayName ?? string.Empty;
@@ -152,6 +161,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int dashboardWidgetId)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.Widgets.FirstOrDefaultAsync(w => w.DashboardWidgetId == dashboardWidgetId);
         if (entity == null) return false;
         db.Widgets.Remove(entity);
@@ -164,6 +174,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         if (!HasPermission(user, "DashboardWidgets.View", "DashboardWidgets.Write"))
             return new PagedResult<DashboardParamViewModel>();
 
+        using var db = CreateDb();
         var q = db.WidgetParams.AsNoTracking().Where(p => p.DashboardWidgetId == dashboardWidgetId);
         var total = await q.CountAsync();
         var items = await q.OrderBy(p => p.ParameterName)
@@ -182,6 +193,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<DashboardParamViewModel?> CreateParamAsync(ClaimsPrincipal user, int dashboardWidgetId, DashboardParamViewModel input)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        using var db = CreateDb();
         var entity = new TWidgetParam
         {
             DashboardWidgetId = dashboardWidgetId,
@@ -199,6 +211,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<DashboardParamViewModel?> UpdateParamAsync(ClaimsPrincipal user, DashboardParamViewModel input)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.WidgetParams.FirstOrDefaultAsync(p => p.DashboardParamId == input.DashboardParamId);
         if (entity == null) return null;
         entity.ParameterName = input.ParameterName;
@@ -211,6 +224,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<bool> DeleteParamAsync(ClaimsPrincipal user, int dashboardParamId)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.WidgetParams.FirstOrDefaultAsync(p => p.DashboardParamId == dashboardParamId);
         if (entity == null) return false;
         db.WidgetParams.Remove(entity);
@@ -223,6 +237,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         if (!HasPermission(user, "DashboardWidgets.View", "DashboardWidgets.Write"))
             return new PagedResult<DashboardWidgetLocalizationViewModel>();
 
+        using var db = CreateDb();
         var q = db.WidgetLocales.AsNoTracking().Where(l => l.DashboardWidgetId == dashboardWidgetId);
         var total = await q.CountAsync();
         var items = await q.OrderBy(l => l.LocaleName)
@@ -242,6 +257,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<DashboardWidgetLocalizationViewModel?> CreateLocaleAsync(ClaimsPrincipal user, int dashboardWidgetId, DashboardWidgetLocalizationViewModel input)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        using var db = CreateDb();
         var entity = new TWidgetLocalization
         {
             DashboardWidgetId = dashboardWidgetId,
@@ -260,6 +276,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<DashboardWidgetLocalizationViewModel?> UpdateLocaleAsync(ClaimsPrincipal user, DashboardWidgetLocalizationViewModel input)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        using var db = CreateDb();
         var entity = await db.WidgetLocales.FirstOrDefaultAsync(l => l.DashboardWidgetLocalizationId == input.DashboardWidgetLocalizationId);
         if (entity == null) return null;
         entity.LocaleName = input.LocaleName;
@@ -273,6 +290,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     public async Task<bool> DeleteLocaleAsync(ClaimsPrincipal user, int dashboardWidgetLocalizationId)
     {
         if (!HasPermission(user, "DashboardWidgets.Write")) return false;
+        using var db = CreateDb();
         var entity = await db.WidgetLocales.FirstOrDefaultAsync(l => l.DashboardWidgetLocalizationId == dashboardWidgetLocalizationId);
         if (entity == null) return false;
         db.WidgetLocales.Remove(entity);

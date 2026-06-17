@@ -28,7 +28,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingVie
 public class OnboardingHandler<TContext> : IOnboardingHandler
     where TContext : DbContext, ISecurityContextWithOnboarding
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly UserManager<User> userManager;
     private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
     private readonly ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant,
@@ -38,7 +38,7 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
     private readonly ILogger<OnboardingHandler<TContext>> logger;
 
     public OnboardingHandler(
-        TContext db,
+        IDbContextFactory<TContext> dbFactory,
         UserManager<User> userManager,
         IGlobalSettings<TenantSetupOptions> setupOptions,
         ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant,
@@ -47,7 +47,7 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
             FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer,
         ILogger<OnboardingHandler<TContext>> logger)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.userManager = userManager;
         this.setupOptions = setupOptions;
         this.tenantInitializer = tenantInitializer;
@@ -65,6 +65,8 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         {
             return null;
         }
+
+        using var db = dbFactory.CreateDbContext();
 
         var displayName = input.ProfileType == ProfileType.Company
             ? input.CompanyName ?? owner.Email ?? owner.UserName ?? ""
@@ -116,16 +118,25 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
         await db.SaveChangesAsync(ct);
 
-        await ApplyTenantTemplateAsync(tenant, admin, ct);
+        await ApplyTenantTemplateAsync(db, tenant, admin, ct);
 
         return profile.BillingProfileId;
     }
 
-    public Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default)
-        => OnboardingPendingHelper.StartAsync(db, userManager, input, ct);
+    public async Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return await OnboardingPendingHelper.StartAsync(db, userManager, input, ct);
+    }
 
-    public Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default)
-        => OnboardingPendingHelper.CompleteAsync(db, userManager, user, CreateTenantAsync, ct);
+    public async Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default)
+    {
+        // CreateTenantAsync opens its OWN per-operation context (it is also a public entry point); the pending
+        // record and the tenant creation were already two separate SaveChanges on the shared context, so running
+        // them on two per-operation contexts preserves behavior.
+        using var db = dbFactory.CreateDbContext();
+        return await OnboardingPendingHelper.CompleteAsync(db, userManager, user, CreateTenantAsync, ct);
+    }
 
     public async Task<ParticipatingTenantViewModel[]> ListMyTenantsAsync(ClaimsPrincipal user, CancellationToken ct = default)
     {
@@ -134,6 +145,8 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         {
             return Array.Empty<ParticipatingTenantViewModel>();
         }
+
+        using var db = dbFactory.CreateDbContext();
 
         var ownedPersonal = await db.BillingProfiles.AsNoTracking()
             .Where(p => p.OwnerUserId == owner.Id && p.ProfileType == ProfileType.Personal)
@@ -176,6 +189,8 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         {
             return false;
         }
+
+        using var db = dbFactory.CreateDbContext();
 
         var employee = await (from e in db.Employees
             where e.BillingProfileId == billingProfileId
@@ -220,7 +235,7 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
     public Task<TenantPickerItem[]> ListEligibleParentsAsync(ClaimsPrincipal user, CancellationToken ct = default)
         => Task.FromResult(Array.Empty<TenantPickerItem>());
 
-    private async Task ApplyTenantTemplateAsync(Tenant tenant, TenantUser admin, CancellationToken ct)
+    private async Task ApplyTenantTemplateAsync(TContext db, Tenant tenant, TenantUser admin, CancellationToken ct)
     {
         var cfg = setupOptions.ValueOrDefault;
         if (cfg == null || string.IsNullOrEmpty(cfg.BasicTenantTemplate))

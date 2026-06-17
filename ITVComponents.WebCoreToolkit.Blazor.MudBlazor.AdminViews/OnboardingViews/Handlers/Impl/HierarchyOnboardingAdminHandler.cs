@@ -19,13 +19,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingVie
 public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     where TContext : DbContext, IHierarchySecurityContextWithOnboarding
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly UserManager<User> userManager;
     private readonly IServiceProvider services;
 
-    public HierarchyOnboardingAdminHandler(TContext db, UserManager<User> userManager, IServiceProvider services)
+    public HierarchyOnboardingAdminHandler(IDbContextFactory<TContext> dbFactory, UserManager<User> userManager, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.userManager = userManager;
         this.services = services;
     }
@@ -36,7 +36,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<TenantPickerItem?> GetCurrentTenantAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return null;
@@ -50,7 +51,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<BillingProfileAdminViewModel[]> ListBillingProfilesAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return Array.Empty<BillingProfileAdminViewModel>();
@@ -79,7 +81,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<BillingProfileAdminViewModel?> GetBillingProfileAsync(ClaimsPrincipal admin, int billingProfileId, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return null;
@@ -113,7 +116,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<int?> SaveBillingProfileAsync(ClaimsPrincipal admin, BillingProfileAdminViewModel model, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return null;
@@ -157,8 +161,9 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<EmployeeViewModel[]> ListEmployeesAsync(ClaimsPrincipal admin, int billingProfileId, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
-        if (!ok || !await ProfileInScopeAsync(billingProfileId, current, ct))
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
+        if (!ok || !await ProfileInScopeAsync(db, billingProfileId, current, ct))
         {
             return Array.Empty<EmployeeViewModel>();
         }
@@ -181,8 +186,9 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<int?> SaveEmployeeAsync(ClaimsPrincipal admin, EmployeeViewModel model, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
-        if (!ok || !await ProfileInScopeAsync(model.BillingProfileId, current, ct))
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
+        if (!ok || !await ProfileInScopeAsync(db, model.BillingProfileId, current, ct))
         {
             return null;
         }
@@ -214,7 +220,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<bool> DeleteEmployeeAsync(ClaimsPrincipal admin, int employeeId, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return false;
@@ -237,8 +244,9 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<EmployeeRoleAssignmentViewModel[]> ListEmployeeRolesAsync(ClaimsPrincipal admin, int employeeId, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
-        if (!ok || !await EmployeeInScopeAsync(employeeId, current, ct))
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
+        if (!ok || !await EmployeeInScopeAsync(db, employeeId, current, ct))
         {
             return Array.Empty<EmployeeRoleAssignmentViewModel>();
         }
@@ -263,8 +271,9 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<bool> SetEmployeeRoleAsync(ClaimsPrincipal admin, int employeeId, int employeeRoleMappingId, bool assigned, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
-        if (!ok || !await EmployeeInScopeAsync(employeeId, current, ct))
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
+        if (!ok || !await EmployeeInScopeAsync(db, employeeId, current, ct))
         {
             return false;
         }
@@ -296,7 +305,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<EmployeeRoleMappingViewModel[]> ListRoleMappingsAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return Array.Empty<EmployeeRoleMappingViewModel>();
@@ -318,7 +328,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<TenantRoleOption[]> ListTenantRolesAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return Array.Empty<TenantRoleOption>();
@@ -333,7 +344,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<int?> SaveRoleMappingAsync(ClaimsPrincipal admin, EmployeeRoleMappingViewModel model, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return null;
@@ -390,7 +402,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<bool> DeleteRoleMappingAsync(ClaimsPrincipal admin, int employeeRoleMappingId, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return false;
@@ -415,7 +428,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<PermissionSetActivationViewModel[]> ListActivatablePermissionSetsAsync(ClaimsPrincipal admin, int directMappingId, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return Array.Empty<PermissionSetActivationViewModel>();
@@ -447,7 +461,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public async Task<bool> SetPermissionSetActivationAsync(ClaimsPrincipal admin, int directMappingId, int permissionSetMappingId, bool active, CancellationToken ct = default)
     {
-        var (ok, current) = await AuthorizeAsync(admin, ct);
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = await AuthorizeAsync(db, admin, ct);
         if (!ok)
         {
             return false;
@@ -481,7 +496,7 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         return true;
     }
 
-    private async Task<(bool ok, int tenantId)> AuthorizeAsync(ClaimsPrincipal admin, CancellationToken ct)
+    private async Task<(bool ok, int tenantId)> AuthorizeAsync(TContext db, ClaimsPrincipal admin, CancellationToken ct)
     {
         var current = db.CurrentTenantId ?? 0;
         if (current == 0 || !services.VerifyUserPermissions(new[] { OnboardingAdminPermissions.ManageEmployees }))
@@ -500,10 +515,10 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         return (member, current);
     }
 
-    private Task<bool> ProfileInScopeAsync(int billingProfileId, int current, CancellationToken ct)
+    private Task<bool> ProfileInScopeAsync(TContext db, int billingProfileId, int current, CancellationToken ct)
         => db.BillingProfiles.IgnoreQueryFilters().AnyAsync(p => p.BillingProfileId == billingProfileId && p.TenantId == current, ct);
 
-    private Task<bool> EmployeeInScopeAsync(int employeeId, int current, CancellationToken ct)
+    private Task<bool> EmployeeInScopeAsync(TContext db, int employeeId, int current, CancellationToken ct)
         => db.Employees.IgnoreQueryFilters().AnyAsync(e => e.EmployeeId == employeeId && e.TenantId == current, ct);
 
     private static AddressInput ToInput(HierarchyAddress? address) => address == null

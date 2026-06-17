@@ -73,15 +73,21 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
-    public GlobalRoleAdminHandler(TContext db, IServiceProvider services)
+    public GlobalRoleAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
-        this.db.HideGlobals = false;
-        this.db.ShowAllTenants = true;
+    }
+
+    private TContext CreateDb()
+    {
+        var db = dbFactory.CreateDbContext();
+        db.HideGlobals = false;
+        db.ShowAllTenants = true;
+        return db;
     }
 
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -97,6 +103,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         if (!HasPermission(user, "GlobalRoles.View", "GlobalRoles.Write", ToolkitPermission.Sysadmin))
             return new PagedResult<GlobalRoleViewModel>();
 
+        using var db = CreateDb();
         var q = db.GlobalRoles.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -118,6 +125,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<GlobalRoleViewModel?> CreateAsync(ClaimsPrincipal user, GlobalRoleViewModel input)
     {
         if (!CanWrite()) return null;
+        using var db = CreateDb();
         var entity = new TGlobalRole
         {
             RoleName = input.RoleName,
@@ -132,6 +140,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<GlobalRoleViewModel?> UpdateAsync(ClaimsPrincipal user, GlobalRoleViewModel input)
     {
         if (!CanWrite()) return null;
+        using var db = CreateDb();
         var entity = await db.GlobalRoles.FirstOrDefaultAsync(r => r.GlobalRoleId == input.GlobalRoleId);
         if (entity == null) return null;
         entity.RoleName = input.RoleName;
@@ -143,6 +152,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int globalRoleId)
     {
         if (!CanWrite()) return false;
+        using var db = CreateDb();
         var entity = await db.GlobalRoles.FirstOrDefaultAsync(r => r.GlobalRoleId == globalRoleId);
         if (entity == null) return false;
         db.GlobalRoles.Remove(entity);
@@ -156,6 +166,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         if (!HasPermission(user, "GlobalRoles.View", "GlobalRoles.AssignPermission", ToolkitPermission.Sysadmin))
             return new PagedResult<GlobalPermissionAssignmentViewModel>();
 
+        using var db = CreateDb();
         var assignedIds = await db.GlobalRolePermissions
             .Where(p => p.GlobalRoleId == globalRoleId)
             .Select(p => p.PermissionId)
@@ -188,6 +199,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         ClaimsPrincipal user, int globalRoleId, int permissionId, bool assigned)
     {
         if (!CanAssignPermission()) return false;
+        using var db = CreateDb();
         var existing = await db.GlobalRolePermissions.FirstOrDefaultAsync(p =>
             p.GlobalRoleId == globalRoleId && p.PermissionId == permissionId);
 
@@ -218,6 +230,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         if (!HasPermission(user, "GlobalRoles.View", "GlobalRoles.AssignRole", ToolkitPermission.Sysadmin))
             return new PagedResult<GlobalRoleForLocalRoleAssignmentViewModel>();
 
+        using var db = CreateDb();
         var assignedIds = await db.GlobalToLocalRoles
             .Where(rr => rr.LocalRoleId == localRoleId && rr.OriginId == null && rr.RoleRoleId == null)
             .Select(rr => rr.GlobalRoleId)
@@ -249,6 +262,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         ClaimsPrincipal user, int globalRoleId, int localRoleId, bool assigned)
     {
         if (!CanAssignRole()) return false;
+        using var db = CreateDb();
         var existing = await db.GlobalToLocalRoles.FirstOrDefaultAsync(rr =>
             rr.GlobalRoleId == globalRoleId && rr.LocalRoleId == localRoleId
             && rr.OriginId == null && rr.RoleRoleId == null);

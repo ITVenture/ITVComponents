@@ -30,7 +30,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingVie
 public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
     where TContext : DbContext, IHierarchySecurityContextWithOnboarding
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly UserManager<User> userManager;
     private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
     private readonly ITenantTemplateHelper<HierarchyTenant, HierarchyWebPlugin, HierarchyWebPluginConstant,
@@ -40,7 +40,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
     private readonly ILogger<HierarchyOnboardingHandler<TContext>> logger;
 
     public HierarchyOnboardingHandler(
-        TContext db,
+        IDbContextFactory<TContext> dbFactory,
         UserManager<User> userManager,
         IGlobalSettings<TenantSetupOptions> setupOptions,
         ITenantTemplateHelper<HierarchyTenant, HierarchyWebPlugin, HierarchyWebPluginConstant,
@@ -49,7 +49,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig> tenantInitializer,
         ILogger<HierarchyOnboardingHandler<TContext>> logger)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.userManager = userManager;
         this.setupOptions = setupOptions;
         this.tenantInitializer = tenantInitializer;
@@ -79,12 +79,14 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             return null;
         }
 
+        using var db = dbFactory.CreateDbContext();
+
         // A valid invitation token pins the parent and, optionally, the template/role to apply.
-        var invitation = await ResolveInvitationAsync(input.InvitationToken, ct);
+        var invitation = await ResolveInvitationAsync(db, input.InvitationToken, ct);
 
         // Parent precedence: invitation wins; then explicit pick; then the configured DefaultParentTenant.
         // If still none and roots are disabled, reject onboarding so no further root tenants can be created.
-        var parentId = invitation?.ParentTenantId ?? await ResolveParentTenantIdAsync(input.ParentTenantId, ct);
+        var parentId = invitation?.ParentTenantId ?? await ResolveParentTenantIdAsync(db, input.ParentTenantId, ct);
         if (parentId == null && !(setupOptions.ValueOrDefault?.AllowRootTenantCreation ?? true))
         {
             logger.LogWarning("Onboarding rejected: root-tenant creation is disabled but no parent could be resolved.");
@@ -142,7 +144,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
 
         await db.SaveChangesAsync(ct);
 
-        await ApplyTenantTemplateAsync(tenant, admin, invitation?.TemplateName, invitation?.RoleName, ct);
+        await ApplyTenantTemplateAsync(db, tenant, admin, invitation?.TemplateName, invitation?.RoleName, ct);
 
         if (invitation != null)
         {
@@ -160,7 +162,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
     /// or already consumed/revoked. A past-due invitation is flipped to <see cref="InvitationStatus.Expired"/>
     /// (persisted) and treated as null.
     /// </summary>
-    private async Task<TenantInvitation> ResolveInvitationAsync(string token, CancellationToken ct)
+    private async Task<TenantInvitation> ResolveInvitationAsync(TContext db, string token, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(token))
         {
@@ -184,11 +186,20 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         return invitation;
     }
 
-    public Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default)
-        => OnboardingPendingHelper.StartAsync(db, userManager, input, ct);
+    public async Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return await OnboardingPendingHelper.StartAsync(db, userManager, input, ct);
+    }
 
-    public Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default)
-        => OnboardingPendingHelper.CompleteAsync(db, userManager, user, CreateTenantAsync, ct);
+    public async Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default)
+    {
+        // CreateTenantAsync opens its OWN per-operation context (it is also a public entry point); the pending
+        // record and the tenant creation were already two separate SaveChanges on the shared context, so running
+        // them on two per-operation contexts preserves behavior.
+        using var db = dbFactory.CreateDbContext();
+        return await OnboardingPendingHelper.CompleteAsync(db, userManager, user, CreateTenantAsync, ct);
+    }
 
     public async Task<ParticipatingTenantViewModel[]> ListMyTenantsAsync(ClaimsPrincipal user, CancellationToken ct = default)
     {
@@ -197,6 +208,8 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         {
             return Array.Empty<ParticipatingTenantViewModel>();
         }
+
+        using var db = dbFactory.CreateDbContext();
 
         var ownedPersonal = await db.BillingProfiles.AsNoTracking()
             .Where(p => p.OwnerUserId == owner.Id && p.ProfileType == ProfileType.Personal)
@@ -239,6 +252,8 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         {
             return false;
         }
+
+        using var db = dbFactory.CreateDbContext();
 
         var employee = await (from e in db.Employees
             where e.BillingProfileId == billingProfileId
@@ -288,6 +303,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             return Array.Empty<TenantPickerItem>();
         }
 
+        using var db = dbFactory.CreateDbContext();
         return await (from tu in db.TenantUsers.AsNoTracking()
             join t in db.Tenants.AsNoTracking() on tu.TenantId equals t.TenantId
             where tu.UserId == owner.Id && tu.Enabled == true
@@ -301,7 +317,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
     /// defaults: <paramref name="templateNameOverride"/> / <paramref name="adminRoleOverride"/> take
     /// precedence over <c>TenantSetupOptions.BasicTenantTemplate</c> / <c>AdminUserRole</c> when set.
     /// </summary>
-    private async Task ApplyTenantTemplateAsync(HierarchyTenant tenant, HierarchyTenantUser admin,
+    private async Task ApplyTenantTemplateAsync(TContext db, HierarchyTenant tenant, HierarchyTenantUser admin,
         string templateNameOverride, string adminRoleOverride, CancellationToken ct)
     {
         var cfg = setupOptions.ValueOrDefault;
@@ -336,7 +352,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
     /// DB-configured <c>DefaultParentTenant</c> (matched by TenantName, fallback DisplayName) is used.
     /// Returns null when neither applies (root tenant — caller decides whether that is permitted).
     /// </summary>
-    private async Task<int?> ResolveParentTenantIdAsync(int? requested, CancellationToken ct)
+    private async Task<int?> ResolveParentTenantIdAsync(TContext db, int? requested, CancellationToken ct)
     {
         if (requested != null)
         {

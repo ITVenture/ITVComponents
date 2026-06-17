@@ -78,13 +78,13 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
     where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
     private readonly IOptions<TenantOptions<TTenant>> tenantOptions;
 
-    public RoleAdminHandler(TContext db, IServiceProvider services, IOptions<TenantOptions<TTenant>> tenantOptions)
+    public RoleAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, IOptions<TenantOptions<TTenant>> tenantOptions)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
         this.tenantOptions = tenantOptions;
     }
@@ -94,8 +94,9 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
 
     public AdminContext GetContext(ClaimsPrincipal user)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         return new AdminContext
         {
             IsSysAdmin = sysAdmin,
@@ -105,8 +106,9 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
 
     public async Task<PagedResult<RoleViewModel>> ListRolesAsync(ClaimsPrincipal user, int tenantId, ListQuery query)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var effectiveTenantId = sysAdmin ? tenantId : db.CurrentTenantId ?? tenantId;
 
         var q = db.SecurityRoles.AsNoTracking().Where(r => r.TenantId == effectiveTenantId);
@@ -133,8 +135,9 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
     public async Task<RoleViewModel?> CreateRoleAsync(ClaimsPrincipal user, int tenantId, RoleViewModel input)
     {
         if (!services.VerifyUserPermissions(new[] { "Roles.Write" })) return null;
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var effectiveTenantId = sysAdmin ? tenantId : db.CurrentTenantId ?? tenantId;
         if (input.IsSystemRole && !sysAdmin) return null;
 
@@ -154,8 +157,9 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
     public async Task<RoleViewModel?> UpdateRoleAsync(ClaimsPrincipal user, RoleViewModel input)
     {
         if (!services.VerifyUserPermissions(new[] { "Roles.Write" })) return null;
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var entity = await db.SecurityRoles.FirstOrDefaultAsync(r =>
             r.RoleId == input.RoleId && r.TenantId == input.TenantId);
         if (entity == null) return null;
@@ -170,8 +174,9 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
     public async Task<bool> DeleteRoleAsync(ClaimsPrincipal user, int roleId)
     {
         if (!services.VerifyUserPermissions(new[] { "Roles.Write" })) return false;
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var entity = await db.SecurityRoles.FirstOrDefaultAsync(r => r.RoleId == roleId);
         if (entity == null) return false;
         if (entity.IsSystemRole && !sysAdmin) return false;
@@ -187,8 +192,9 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         if (!services.VerifyUserPermissions(new[] { "Roles.AssignUser", "Roles.View" }))
             return new PagedResult<RoleAssignmentViewModel>();
 
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var effectiveTenantId = sysAdmin ? tenantId : db.CurrentTenantId ?? tenantId;
 
         var assignedRoleIds = await db.TenantUserRoles
@@ -224,7 +230,8 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         ClaimsPrincipal user, int tenantUserId, int roleId, int tenantId, bool assigned)
     {
         if (!services.VerifyUserPermissions(new[] { "Roles.AssignUser" })) return false;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         var existing = await db.TenantUserRoles
             .FirstOrDefaultAsync(n => n.TenantUserId == tenantUserId && n.RoleId == roleId);
@@ -252,8 +259,9 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         if (!services.VerifyUserPermissions(new[] { "Roles.AssignPermission", "Permissions.View" }))
             return new PagedResult<PermissionAssignmentViewModel>();
 
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var effectiveTenantId = sysAdmin ? tenantId : db.CurrentTenantId ?? tenantId;
 
         var role = await db.SecurityRoles.AsNoTracking().FirstOrDefaultAsync(r => r.RoleId == roleId);
@@ -299,8 +307,9 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         ClaimsPrincipal user, int roleId, int permissionId, int tenantId, bool assigned)
     {
         if (!services.VerifyUserPermissions(new[] { "Roles.AssignPermission" })) return false;
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
 
         var role = await db.SecurityRoles.FirstOrDefaultAsync(r => r.RoleId == roleId && r.TenantId == tenantId);
         if (role == null) return false;
@@ -337,16 +346,21 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         if (!services.VerifyUserPermissions(new[] { "Roles.AssignRole", "Roles.View" }))
             return new PagedResult<RoleRoleAssignmentViewModel>();
 
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var effectiveTenantId = new[] { sysAdmin ? tenantId : db.CurrentTenantId ?? tenantId };
         IDisposable treeAccessCfg = null;
         var ov = tenantOptions.Value;
-        if (ov.UseHierarchy && ov.ConfigureTree != null && ov.AddDirectParent != null)
+
+        if (ov.UseHierarchy && ov.AddDirectParent != null)
         {
-            var acs = services.GetService<ISecurityAccessProvider>();
-            treeAccessCfg = ov.ConfigureTree(db, acs);
-            effectiveTenantId = ov.AddDirectParent(db, effectiveTenantId);
+            if (!sysAdmin && ov.ConfigureTree != null)
+            {
+                var acs = services.GetService<ISecurityAccessProvider>();
+                treeAccessCfg = ov.ConfigureTree(db, acs);
+            }
+            effectiveTenantId = ov.AddDirectParent(db, effectiveTenantId);   // läuft auch für Sysadmin
         }
 
         try
@@ -400,7 +414,8 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         ClaimsPrincipal user, int permissiveRoleId, int permittedRoleId, int tenantId, bool assigned)
     {
         if (!services.VerifyUserPermissions(new[] { "Roles.AssignRole" })) return false;
-        ApplyContextScope(IsSysAdmin());
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
 
         if (assigned && db.IsCyclicRoleInheritance(permissiveRoleId, permittedRoleId)) return false;
 
@@ -430,7 +445,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
 
-    private void ApplyContextScope(bool sysAdmin)
+    private void ApplyContextScope(TContext db, bool sysAdmin)
     {
         if (sysAdmin)
         {

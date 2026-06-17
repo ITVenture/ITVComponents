@@ -75,7 +75,7 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     //where TUser: class
 {
-    private readonly TContext db;
+    private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
 
     // Basic (TenantSecurityContext) users are not ASP.NET-Core-Identity users: no email/logins/tokens/claims,
@@ -86,9 +86,9 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
     public bool SupportsClaims => false;
     public bool ShowAuthenticationType => true;
 
-    public TscUserAdminHandler(TContext db, IServiceProvider services)
+    public TscUserAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
-        this.db = db;
+        this.dbFactory = dbFactory;
         this.services = services;
     }
 
@@ -97,8 +97,9 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
 
     public UserListContext GetContext(ClaimsPrincipal user)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         return new UserListContext
         {
             IsSysAdmin = sysAdmin,
@@ -108,8 +109,9 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
 
     public async Task<PagedResult<UserViewModel>> ListUsersAsync(ClaimsPrincipal user, UserListQuery query)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var tenantId = sysAdmin ? query.TenantId : db.CurrentTenantId;
 
         if (tenantId == null && sysAdmin)
@@ -160,7 +162,8 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
     public async Task<UserViewModel?> CreateUserAsync(ClaimsPrincipal user, UserViewModel input)
     {
         if (!IsSysAdmin()) return null;
-        ApplyContextScope(true);
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, true);
         var entity = new TscModels.User
         {
             UserName = input.UserName
@@ -172,8 +175,9 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
 
     public async Task<UserViewModel?> UpdateUserAsync(ClaimsPrincipal user, UserViewModel input)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
 
         var isTenantUser = int.TryParse(input.Id, out var tuid);
 
@@ -202,8 +206,9 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
 
     public async Task<bool> DeleteUserAsync(ClaimsPrincipal user, string userOrTenantUserId, int? tenantId)
     {
+        using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
-        ApplyContextScope(sysAdmin);
+        ApplyContextScope(db, sysAdmin);
         var effectiveTenantId = sysAdmin ? tenantId : db.CurrentTenantId;
 
         if (effectiveTenantId == null && sysAdmin)
@@ -232,7 +237,8 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
     public async Task<PagedResult<CustomUserPropertyViewModel>> ListPropertiesAsync(ClaimsPrincipal user, string userId, UserListQuery query)
     {
         if (!IsSysAdmin() || !int.TryParse(userId, out var uid)) return Empty<CustomUserPropertyViewModel>();
-        ApplyContextScope(true);
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, true);
 
         var q = db.UserProperties.AsNoTracking().Where(p => p.UserId == uid);
         var total = await q.CountAsync();
@@ -254,7 +260,8 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
     public async Task<CustomUserPropertyViewModel?> CreatePropertyAsync(ClaimsPrincipal user, string userId, CustomUserPropertyViewModel input)
     {
         if (!IsSysAdmin() || !int.TryParse(userId, out var uid)) return null;
-        ApplyContextScope(true);
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, true);
         var entity = new TUserProperty
         {
             UserId = uid,
@@ -271,7 +278,8 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
     public async Task<CustomUserPropertyViewModel?> UpdatePropertyAsync(ClaimsPrincipal user, CustomUserPropertyViewModel input)
     {
         if (!IsSysAdmin()) return null;
-        ApplyContextScope(true);
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, true);
         var entity = await db.UserProperties.FirstOrDefaultAsync(p => p.CustomUserPropertyId == input.CustomUserPropertyId);
         if (entity == null) return null;
         entity.PropertyName = input.PropertyName;
@@ -284,7 +292,8 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
     public async Task<bool> DeletePropertyAsync(ClaimsPrincipal user, int customUserPropertyId)
     {
         if (!IsSysAdmin()) return false;
-        ApplyContextScope(true);
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, true);
         var entity = await db.UserProperties.FirstOrDefaultAsync(p => p.CustomUserPropertyId == customUserPropertyId);
         if (entity == null) return false;
         db.UserProperties.Remove(entity);
@@ -315,7 +324,7 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
 
-    private void ApplyContextScope(bool sysAdmin)
+    private void ApplyContextScope(TContext db, bool sysAdmin)
     {
         if (sysAdmin)
         {

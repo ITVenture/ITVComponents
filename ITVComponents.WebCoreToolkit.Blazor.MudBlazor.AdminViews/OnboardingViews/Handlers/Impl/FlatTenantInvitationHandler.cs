@@ -1,9 +1,8 @@
 using System.Security.Claims;
-using System.Security.Cryptography;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
-using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
-using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -12,23 +11,24 @@ using Microsoft.Extensions.Logging;
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 
 /// <summary>
-/// Hierarchy-strategy implementation of <see cref="ITenantInvitationHandler"/>. Operates against
-/// <c>IHierarchySecurityContextWithOnboarding</c>. All admin operations require the caller to be an
-/// enabled member of the affected tenant; employee queries bypass the onboarding global filters and scope
-/// explicitly by tenant instead, so an admin reliably sees every row of the tenant they manage.
+/// Flat-strategy implementation of <see cref="ITenantInvitationHandler"/>. Operates against
+/// <c>ISecurityContextWithOnboarding</c>, which has no parent relationship and therefore no
+/// <c>TenantInvitations</c> set: sub-tenant invitations are <b>not supported</b>
+/// (<see cref="SupportsTenantInvitations"/> is <c>false</c> and the tenant-invitation members are inert).
+/// Employee invitations work exactly as in the hierarchy variant — the caller must be an enabled member of
+/// the affected tenant, and employee queries bypass the onboarding global filters and scope explicitly by
+/// tenant instead, so an admin reliably sees every row of the tenant they manage.
 /// </summary>
-public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandler
-    where TContext : DbContext, IHierarchySecurityContextWithOnboarding
+public class FlatTenantInvitationHandler<TContext> : ITenantInvitationHandler
+    where TContext : DbContext, ISecurityContextWithOnboarding
 {
-    private const int DefaultLifetimeDays = 14;
-
     private readonly IDbContextFactory<TContext> dbFactory;
     private readonly UserManager<User> userManager;
     private readonly IServiceProvider services;
-    private readonly ILogger<HierarchyTenantInvitationHandler<TContext>> logger;
+    private readonly ILogger<FlatTenantInvitationHandler<TContext>> logger;
 
-    public HierarchyTenantInvitationHandler(IDbContextFactory<TContext> dbFactory, UserManager<User> userManager,
-        IServiceProvider services, ILogger<HierarchyTenantInvitationHandler<TContext>> logger)
+    public FlatTenantInvitationHandler(IDbContextFactory<TContext> dbFactory, UserManager<User> userManager,
+        IServiceProvider services, ILogger<FlatTenantInvitationHandler<TContext>> logger)
     {
         this.dbFactory = dbFactory;
         this.userManager = userManager;
@@ -36,8 +36,8 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
         this.logger = logger;
     }
 
-    /// <summary>The hierarchy strategy pins a parent tenant, so sub-tenant invitations are supported.</summary>
-    public bool SupportsTenantInvitations => true;
+    /// <summary>The flat strategy has no parent to pin a sub-tenant invitation under, so it is unsupported.</summary>
+    public bool SupportsTenantInvitations => false;
 
     public async Task<TenantPickerItem?> GetCurrentTenantAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
@@ -72,105 +72,21 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             .ToArrayAsync(ct);
     }
 
-    public async Task<TenantInvitationResult> CreateTenantInvitationAsync(ClaimsPrincipal admin, TenantInvitationInput input, CancellationToken ct = default)
-    {
-        using var db = dbFactory.CreateDbContext();
-        var membership = await GetMembershipAsync(db, admin, input.ParentTenantId, ct);
-        if (membership == null)
-        {
-            return new TenantInvitationResult(false, 0, null, default, "You are not a member of the inviting tenant.");
-        }
+    // -- Tenant invitations: unsupported in the flat strategy (no parent to pin an invitation under) -------
 
-        if (!HasAny(InvitationPermissions.CreateSub))
-        {
-            return new TenantInvitationResult(false, 0, null, default, "You are not permitted to invite sub-tenants.");
-        }
+    public Task<TenantInvitationResult> CreateTenantInvitationAsync(ClaimsPrincipal admin, TenantInvitationInput input, CancellationToken ct = default)
+        => Task.FromResult(new TenantInvitationResult(false, 0, null, default, "Sub-tenant invitations are not supported in the flat tenant strategy."));
 
-        var token = GenerateToken();
-        var expires = DateTime.UtcNow.AddDays(input.LifetimeDays is > 0 ? input.LifetimeDays.Value : DefaultLifetimeDays);
+    public Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, int parentTenantId, CancellationToken ct = default)
+        => Task.FromResult(Array.Empty<TenantInvitationItem>());
 
-        var invitation = new TenantInvitation
-        {
-            ParentTenantId = input.ParentTenantId,
-            Email = input.Email,
-            Token = token,
-            ExpiresUtc = expires,
-            Status = InvitationStatus.Pending,
-            RoleName = input.RoleName,
-            TemplateName = input.TemplateName,
-            CreatedByTenantUserId = membership.TenantUserId,
-            CreatedUtc = DateTime.UtcNow
-        };
-        db.TenantInvitations.Add(invitation);
-        await db.SaveChangesAsync(ct);
+    public Task<bool> RevokeTenantInvitationAsync(ClaimsPrincipal admin, int tenantInvitationId, CancellationToken ct = default)
+        => Task.FromResult(false);
 
-        return new TenantInvitationResult(true, invitation.TenantInvitationId, token, expires, null);
-    }
+    public Task<TenantInvitationInfo?> ResolveTenantInvitationAsync(string token, CancellationToken ct = default)
+        => Task.FromResult<TenantInvitationInfo?>(null);
 
-    public async Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, int parentTenantId, CancellationToken ct = default)
-    {
-        using var db = dbFactory.CreateDbContext();
-        if (!HasAny(InvitationPermissions.ViewSub, InvitationPermissions.CreateSub)
-            || await GetMembershipAsync(db, admin, parentTenantId, ct) == null)
-        {
-            return Array.Empty<TenantInvitationItem>();
-        }
-
-        return await db.TenantInvitations.AsNoTracking()
-            .Where(i => i.ParentTenantId == parentTenantId)
-            .OrderByDescending(i => i.CreatedUtc)
-            .Select(i => new TenantInvitationItem(i.TenantInvitationId, i.ParentTenantId, i.Email, i.Token,
-                i.ExpiresUtc, i.CreatedUtc, i.Status, i.ChildTenantId))
-            .ToArrayAsync(ct);
-    }
-
-    public async Task<bool> RevokeTenantInvitationAsync(ClaimsPrincipal admin, int tenantInvitationId, CancellationToken ct = default)
-    {
-        using var db = dbFactory.CreateDbContext();
-        var invitation = await db.TenantInvitations.FirstOrDefaultAsync(i => i.TenantInvitationId == tenantInvitationId, ct);
-        if (invitation == null || invitation.Status != InvitationStatus.Pending)
-        {
-            return false;
-        }
-
-        if (!HasAny(InvitationPermissions.CreateSub) || await GetMembershipAsync(db, admin, invitation.ParentTenantId, ct) == null)
-        {
-            return false;
-        }
-
-        invitation.Status = InvitationStatus.Revoked;
-        await db.SaveChangesAsync(ct);
-        return true;
-    }
-
-    public async Task<TenantInvitationInfo?> ResolveTenantInvitationAsync(string token, CancellationToken ct = default)
-    {
-        if (string.IsNullOrEmpty(token))
-        {
-            return null;
-        }
-
-        using var db = dbFactory.CreateDbContext();
-        var invitation = await db.TenantInvitations.FirstOrDefaultAsync(i => i.Token == token, ct);
-        if (invitation == null)
-        {
-            return null;
-        }
-
-        if (invitation.Status == InvitationStatus.Pending && invitation.ExpiresUtc < DateTime.UtcNow)
-        {
-            invitation.Status = InvitationStatus.Expired;
-            await db.SaveChangesAsync(ct);
-        }
-
-        var parentName = await db.Tenants.AsNoTracking()
-            .Where(t => t.TenantId == invitation.ParentTenantId)
-            .Select(t => t.DisplayName ?? t.TenantName)
-            .FirstOrDefaultAsync(ct) ?? "";
-
-        var acceptable = invitation.Status == InvitationStatus.Pending;
-        return new TenantInvitationInfo(invitation.ParentTenantId, parentName, invitation.Email, invitation.Status, acceptable);
-    }
+    // -- Employee invitations -----------------------------------------------------------------------
 
     public async Task<bool> CreateEmployeeInvitationAsync(ClaimsPrincipal admin, EmployeeInvitationInput input, CancellationToken ct = default)
     {
@@ -199,7 +115,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             return false;
         }
 
-        db.Employees.Add(new HierarchyEmployee
+        db.Employees.Add(new Employee
         {
             InvitationStatus = InvitationStatus.Pending,
             EMail = input.Email,
@@ -251,7 +167,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     /// Returns the caller's enabled membership row for <paramref name="tenantId"/>, or null when the caller
     /// is unknown or not an enabled member — the authorization gate for every admin operation here.
     /// </summary>
-    private async Task<HierarchyTenantUser> GetMembershipAsync(TContext db, ClaimsPrincipal admin, int tenantId, CancellationToken ct)
+    private async Task<TenantUser> GetMembershipAsync(TContext db, ClaimsPrincipal admin, int tenantId, CancellationToken ct)
     {
         var owner = await userManager.GetUserAsync(admin);
         if (owner == null)
@@ -268,6 +184,4 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     /// — the authoritative server-side gate mirroring the UI's SecureView/permission checks.
     /// </summary>
     private bool HasAny(params string[] permissions) => services.VerifyUserPermissions(permissions);
-
-    private static string GenerateToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 }
