@@ -24,6 +24,7 @@ using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
@@ -110,14 +111,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         private readonly ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal;
         private DateTime authCacheStampUtc = DateTime.UtcNow;
 
+        // Used to spin up a dedicated, short-lived context instance for scope resolution (see GetEligibleScopes)
+        // so it can never collide with the shared circuit-scoped securityContext. May be null for the legacy
+        // (factory-without-services) path, in which case scope resolution falls back to the shared instance.
+        private readonly IServiceProvider services;
+
         protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions,
-            ILogger logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null)
+            ILogger logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null, IServiceProvider services = null)
         {
             this.securityContext = securityContext;
             this.securityAccessProvider = securityAccessProvider;
             this.bufferOptions = bufferOptions;
             this.logger = logger;
             this.changeSignal = changeSignal;
+            this.services = services;
         }
 
         public string UniqueName { get; set; }
@@ -677,30 +684,54 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType)
         {
-            var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
-            using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false}));
-            if (!isUser)
+            // Resolve eligible scopes on a dedicated, short-lived context instance instead of the shared
+            // circuit-scoped securityContext. This runs synchronously from CurrentTenantId/PermissionPrefix while
+            // parallel Blazor lifecycle callbacks may have an operation open on the same shared instance ->
+            // "a second operation was started on this context instance". A detached instance bound to the same
+            // IPermissionScope/IContextUserProvider is correctly scoped yet collision-free (mirrors the navigation
+            // builder, f53cae61). The trust elevation below targets the detached instance; the trust lookup itself
+            // is served from the access-provider cache, so no query hits the shared context. Falls back to the
+            // shared instance only on the legacy path where no IServiceProvider was injected.
+            var ownsCtx = services != null;
+            var ctx = ownsCtx ? CreateDetachedContext() : securityContext;
+            try
             {
-                IQueryable<TUser> tenantUsers;
-                var filteredLabels = (from ul in userLabels
-                    where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
-                var appUsers = (from u in securityContext.ClientAppUsers join tu in securityContext.TenantUsers on u.TenantUserId equals tu.TenantUserId
-                                select new {AppUser=u, UserId = tu.UserId}).Join(securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)),m => m.UserId, UserId,(l,r) => l.AppUser);
-                return (from d in appUsers
-                        orderby d.TenantUser.Tenant.DisplayName
-                        select new ScopeInfo { ScopeDisplayName = d.TenantUser.Tenant.DisplayName, ScopeName = d.TenantUser.Tenant.TenantName })
-                    .ToArray();
-            }
+                var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
+                using var tmp = securityAccessProvider.CreateForCaller(ctx, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false}));
+                if (!isUser)
+                {
+                    var appUsers = (from u in ctx.ClientAppUsers join tu in ctx.TenantUsers on u.TenantUserId equals tu.TenantUserId
+                                    select new {AppUser=u, UserId = tu.UserId}).Join(ctx.Users.Where(UserFilter(userLabels, userAuthenticationType)),m => m.UserId, UserId,(l,r) => l.AppUser);
+                    return (from d in appUsers
+                            orderby d.TenantUser.Tenant.DisplayName
+                            select new ScopeInfo { ScopeDisplayName = d.TenantUser.Tenant.DisplayName, ScopeName = d.TenantUser.Tenant.TenantName })
+                        .ToArray();
+                }
 
-            return (from d in (from t in securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
-                        .Join(securityContext.TenantUsers, UserId, u => u.UserId, (tu, tt) => new{tt.TenantUserId, tt.TenantId})
-                        .Join(securityContext.GetUpwardsTenantUserRoles(userLabels,(string)null), l => l.TenantUserId, r => r.TenantUserId, (l,r)=>new{l.TenantUserId, l.TenantId, r.OutermostLeafTenantId})
-                        .Join(securityContext.Tenants, l => l.OutermostLeafTenantId, r => r.TenantId, (l,r)=> new {l,r})
-                    select new {t.r.TenantId, t.r.TenantName, t.r.DisplayName, DirectlyAssigned=t.l.TenantId==t.r.TenantId}).Distinct()
-                orderby d.DisplayName
-                select new ScopeInfo { ScopeDisplayName = d.DisplayName, ScopeName = d.TenantName, AccessMode = d.DirectlyAssigned?ScopeAccessMode.Direct:ScopeAccessMode.Inherited}).ToArray();
+                return (from d in (from t in ctx.Users.Where(UserFilter(userLabels, userAuthenticationType))
+                            .Join(ctx.TenantUsers, UserId, u => u.UserId, (tu, tt) => new{tt.TenantUserId, tt.TenantId})
+                            .Join(ctx.GetUpwardsTenantUserRoles(userLabels,(string)null), l => l.TenantUserId, r => r.TenantUserId, (l,r)=>new{l.TenantUserId, l.TenantId, r.OutermostLeafTenantId})
+                            .Join(ctx.Tenants, l => l.OutermostLeafTenantId, r => r.TenantId, (l,r)=> new {l,r})
+                        select new {t.r.TenantId, t.r.TenantName, t.r.DisplayName, DirectlyAssigned=t.l.TenantId==t.r.TenantId}).Distinct()
+                    orderby d.DisplayName
+                    select new ScopeInfo { ScopeDisplayName = d.DisplayName, ScopeName = d.TenantName, AccessMode = d.DirectlyAssigned?ScopeAccessMode.Direct:ScopeAccessMode.Inherited}).ToArray();
+            }
+            finally
+            {
+                if (ownsCtx)
+                {
+                    (ctx as IDisposable)?.Dispose();
+                }
+            }
         }
+
+        /// <summary>
+        /// Creates a fresh, DI-bound context instance (same IPermissionScope/IContextUserProvider as the shared
+        /// one, but a separate DbContext) for collision-free scope resolution. The caller owns and disposes it.
+        /// <see cref="ActivatorUtilities"/> selects the richest resolvable (dependency-injected) constructor.
+        /// </summary>
+        private IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> CreateDetachedContext()
+            => (IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>)ActivatorUtilities.CreateInstance(services, securityContext.GetType());
 
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {

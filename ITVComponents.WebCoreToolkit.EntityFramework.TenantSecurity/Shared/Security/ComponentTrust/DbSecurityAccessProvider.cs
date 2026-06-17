@@ -2,8 +2,10 @@
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -17,12 +19,51 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         private readonly IServiceProvider services;
         private ICoreSystemContext securityDb;
 
+        // Scoped (per circuit/request) cache of the trust-component table, keyed by (trustedTypeAQN, targetTypeAQN)
+        // -> TrustLevelConfig JSON. The component set is global config that rarely changes; CreateForCaller is hit
+        // dozens of times per render, and each previously ran a FirstOrDefault DB query against the *shared* scoped
+        // DbContext. Serving from this cache removes those queries from the security hot path (and with them the
+        // "a second operation was started on this context instance" crash when parallel Blazor lifecycle callbacks
+        // hit the shared context concurrently). The one-time load runs on a dedicated, short-lived context instance
+        // (never the shared one) so the load itself can't collide either.
+        private ConcurrentDictionary<(string trusted, string target), string> trustConfigCache;
+        private readonly object trustCacheLock = new();
+
         public DbSecurityAccessProvider(IServiceProvider services)
         {
             this.services = services;
         }
 
         private ICoreSystemContext SecurityDb => (securityDb ??= services.GetService<ICoreSystemContext>());
+
+        private string ResolveTrustLevelConfig(string trustedTypeName, string trustingTypeName)
+        {
+            if (trustConfigCache == null)
+            {
+                lock (trustCacheLock)
+                {
+                    if (trustConfigCache == null)
+                    {
+                        var dict = new ConcurrentDictionary<(string, string), string>();
+                        // Load on a fresh instance, never the shared scoped context. IgnoreQueryFilters keeps it
+                        // tenant-agnostic (the trust table is global) and guarantees the load can't re-enter
+                        // CurrentTenantId/scope resolution.
+                        var loadCtx = (ICoreSystemContext)ActivatorUtilities.CreateInstance(services, SecurityDb.GetType());
+                        using (loadCtx as IDisposable)
+                        {
+                            foreach (var c in loadCtx.TrustedFullAccessComponents.IgnoreQueryFilters().ToList())
+                            {
+                                dict[(c.FullQualifiedTypeName, c.TargetQualifiedTypeName)] = c.TrustLevelConfig;
+                            }
+                        }
+
+                        trustConfigCache = dict;
+                    }
+                }
+            }
+
+            return trustConfigCache.TryGetValue((trustedTypeName, trustingTypeName), out var cfg) ? cfg : null;
+        }
 
         public IFullSecurityAccessHelper<TTrustConfig> CreateForCaller<TTrustConfig, T>(T trustingObject, TTrustConfig desiredTrust = null) where T : ITrustfulComponent<TTrustConfig> where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
         {
@@ -48,19 +89,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         private FullSecurityAccessHelper<TTrustConfig> CreateForCallerInternal<TTrustConfig,T>(ICoreSystemContext securityDb, T trustingObject, Type trustingType, Type trustedType, TTrustConfig desiredTrust)
             where T : ITrustfulComponent<TTrustConfig> where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
         {
-            var cmp = securityDb.TrustedFullAccessComponents.Local.FirstOrDefault(n =>
-                n.FullQualifiedTypeName == trustedType.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
-            if (cmp == null)
-            {
-                cmp = securityDb.TrustedFullAccessComponents.FirstOrDefault(n =>
-                    n.FullQualifiedTypeName == trustedType.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
-            }
+            // Trust lookup served from the scoped cache (loaded once on a dedicated context) instead of querying
+            // the shared scoped DbContext on every call — see trustConfigCache.
+            var trustLevelConfig = ResolveTrustLevelConfig(trustedType.AssemblyQualifiedName, trustingType.AssemblyQualifiedName);
 
             var configuredTrust = new TTrustConfig();
-            if (cmp != null)
+            if (trustLevelConfig != null)
             {
                 configuredTrust =
-                    JsonHelper.FromJsonString<TTrustConfig>(cmp.TrustLevelConfig, SerializationTypingMode.StaticTyping);
+                    JsonHelper.FromJsonString<TTrustConfig>(trustLevelConfig, SerializationTypingMode.StaticTyping);
 
             }
             else
