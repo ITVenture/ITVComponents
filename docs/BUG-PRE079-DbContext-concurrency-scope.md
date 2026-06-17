@@ -74,3 +74,29 @@ Config sind (Cross-Assembly-Trust), die zur Laufzeit praktisch nie geändert wir
   Beweis = Host-Test beim Konsumenten.
 
 → Konsument: auf **PRE080** aktualisieren; kein MLM-Code-/Migrations-Change nötig.
+
+## Nachtrag: gesamte nebenläufige Read-Oberfläche gehärtet (Option 1)
+
+Über den gemeldeten Scope-Pfad hinaus wurde der **komplette nebenläufige Render-/Auth-Read-Pfad** des
+Tree-Security-Repos auf dedizierte Context-Instanzen umgestellt — damit die Crash-Klasse für den
+Toolkit-Render-Pfad **by-construction** verschwindet (nicht nur punktuell):
+
+- `GetEligibleScopes`, `GetKnownPermissions`, `GetFeatures` → dedizierter Context (`ReadDetached`/inline).
+- `GetPermissions(userLabels[,forScope],authType)`, `IsAuthenticatedCore`, `IsAuthenticatedScopedCore` →
+  dedizierter Context per **Field-Shadowing** (`var securityContext = __det ?? this.securityContext;` —
+  der Methodenrumpf nutzt damit transparent die isolierte Instanz; `GetRawUserQuery` bekommt sie via
+  neuem optionalen `readCtx`-Parameter).
+- `AspNetTreeSecurityContext.CurrentTenantId` → der Tenant-Id-Lookup läuft jetzt auf einer dedizierten
+  Instanz (`ResolveTenantIdDetached`, via `IContextUserProvider.Services` + `IgnoreQueryFilters`), da
+  CurrentTenantId aus *jeder* gefilterten Query + parallelen Callbacks gelesen wird.
+- Trust-Lookups: aus dem Cache (C). → Der Scope-/Permission-/Feature-/Auth-Build berührt den geteilten
+  Circuit-Context für DB-Reads **nicht** mehr.
+
+**Wichtig — Korrektheit:** Diese Methoden berechnen Permissions/Features/Scopes. Die Umstellung ist
+**verhaltenserhaltend** (identische Trust-Elevation/Filter/`IPermissionScope`, nur isolierte Instanz);
+ein mechanischer Fehler (Instanz-Mix / lazy-Query nach Dispose) würde zur Laufzeit **laut** crashen
+(EF verbietet Cross-Context-Joins / Zugriff auf disposed Context), nicht still falsch rechnen. Trotzdem
+**Host-Test auf Korrektheit** nötig: normaler User + Multi-Tenant-User sehen korrekte
+Permissions/Features/Scopes (nicht nur „kein Crash"). Sequenzielle Admin-CRUD-Methoden bleiben bewusst
+auf dem geteilten Context (laufen nicht nebenläufig). Konsumenten-Komponenten, die den Context direkt
+im Render queryen, bleiben konsumenten-seitig (außerhalb Toolkit).

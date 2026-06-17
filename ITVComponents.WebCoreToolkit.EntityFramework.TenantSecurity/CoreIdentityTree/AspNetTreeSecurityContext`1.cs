@@ -25,6 +25,7 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
@@ -214,8 +215,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 try
                 {
                     bufferedTenantName = current;
-                    currentTenantId = Tenants
-                        .FirstOrDefault(n => n.TenantName.ToLower() == current)?.TenantId;
+                    currentTenantId = ResolveTenantIdDetached(current);
                     currentTenantIdResolved = true;
                     return currentTenantId;
                 }
@@ -223,6 +223,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 {
                     resolvingCurrentTenantId = false;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Resolves the current tenant's id by name on a dedicated, short-lived context instance instead of this
+        /// shared circuit-scoped one. CurrentTenantId is read very frequently (every filtered query) and from
+        /// parallel Blazor lifecycle callbacks; running the lookup on the shared instance can throw "a second
+        /// operation was started on this context instance". The lookup is global (IgnoreQueryFilters) so it cannot
+        /// re-enter CurrentTenantId on the fresh instance. Falls back to the shared instance when no IServiceProvider
+        /// is available (e.g. the design-time factory / no user provider).
+        /// </summary>
+        private int? ResolveTenantIdDetached(string tenantNameLower)
+        {
+            var sp = userProvider?.Services;
+            if (sp == null)
+            {
+                return Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantNameLower)?.TenantId;
+            }
+
+            var ctx = (AspNetTreeSecurityContext<TImpl>)ActivatorUtilities.CreateInstance(sp, GetType());
+            using (ctx)
+            {
+                return ctx.Tenants.IgnoreQueryFilters()
+                    .FirstOrDefault(n => n.TenantName.ToLower() == tenantNameLower)?.TenantId;
             }
         }
 

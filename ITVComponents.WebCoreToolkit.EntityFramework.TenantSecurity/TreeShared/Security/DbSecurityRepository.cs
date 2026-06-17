@@ -308,33 +308,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         private bool IsAuthenticatedCore(string[] userLabels, string userAuthenticationType, int? t)
         {
-            if (t != null)
+            // Shadow the shared field with a dedicated, short-lived instance so this render-path read can't collide
+            // with parallel Blazor lifecycle callbacks on the circuit-scoped context. The whole body then transparently
+            // uses the detached instance; GetRawUserQuery gets it explicitly via readCtx.
+            var __det = services != null ? CreateDetachedContext() : null;
+            var securityContext = __det ?? this.securityContext;
+            try
             {
-                var ti = t.Value;
-                IQueryable<UserTenantLevel<TUser>> tenantUsers;
-                var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
-                using var tmp = securityAccessProvider.CreateForCaller(securityContext,
-                    new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = false });
-                if (isUser)
+                if (t != null)
                 {
-                    //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
-                    tenantUsers = GetRawUserQuery(out _, userLabels, securityContext.CurrentTenantName);
-                }
-                else
-                {
-                    var filteredLabels = (from ul in userLabels
-                        where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
-                    var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
-                    tenantUsers = appUsers
-                        .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
-                        .Select(n => new UserTenantLevel<TUser>{User=n.TenantUser.User,TenantId = ti, Level=1});
+                    var ti = t.Value;
+                    IQueryable<UserTenantLevel<TUser>> tenantUsers;
+                    var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
+                    using var tmp = securityAccessProvider.CreateForCaller(securityContext,
+                        new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = false });
+                    if (isUser)
+                    {
+                        tenantUsers = GetRawUserQuery(out _, userLabels, securityContext.CurrentTenantName, securityContext);
+                    }
+                    else
+                    {
+                        var filteredLabels = (from ul in userLabels
+                            where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                            select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                        var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
+                        tenantUsers = appUsers
+                            .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                            .Select(n => new UserTenantLevel<TUser>{User=n.TenantUser.User,TenantId = ti, Level=1});
+                    }
+
+                    return tenantUsers.Select(n => n.User).Any(UserFilter(userLabels, userAuthenticationType));
                 }
 
-                return tenantUsers.Select(n => n.User).Any(UserFilter(userLabels, userAuthenticationType));
+                return false;
             }
-
-            return false;
+            finally
+            {
+                (__det as IDisposable)?.Dispose();
+            }
         }
 
         public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
@@ -346,35 +357,43 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         private bool IsAuthenticatedScopedCore(string[] userLabels, string forScope, string userAuthenticationType)
         {
-            var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
-            using var tmp = securityAccessProvider.CreateForCaller(securityContext,
-                new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = true });
-            var t = securityContext.Tenants.FirstOrDefault(n => n.TenantName == forScope)?.TenantId;
-            if (t != null)
+            var __det = services != null ? CreateDetachedContext() : null;
+            var securityContext = __det ?? this.securityContext;
+            try
             {
-                var ti = t.Value;
-                IQueryable<UserTenantLevel<TUser>> tenantUsers;
-
-                if (isUser)
+                var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
+                using var tmp = securityAccessProvider.CreateForCaller(securityContext,
+                    new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = true });
+                var t = securityContext.Tenants.FirstOrDefault(n => n.TenantName == forScope)?.TenantId;
+                if (t != null)
                 {
-                    //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
-                    tenantUsers = GetRawUserQuery(out _,userLabels, forScope);
-                }
-                else
-                {
-                    var filteredLabels = (from ul in userLabels
-                        where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
-                    var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
-                    tenantUsers = appUsers
-                        .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
-                        .Select(n => new UserTenantLevel<TUser> { User = n.TenantUser.User, TenantId = ti, Level = 1 });
+                    var ti = t.Value;
+                    IQueryable<UserTenantLevel<TUser>> tenantUsers;
+
+                    if (isUser)
+                    {
+                        tenantUsers = GetRawUserQuery(out _, userLabels, forScope, securityContext);
+                    }
+                    else
+                    {
+                        var filteredLabels = (from ul in userLabels
+                            where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                            select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                        var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
+                        tenantUsers = appUsers
+                            .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                            .Select(n => new UserTenantLevel<TUser> { User = n.TenantUser.User, TenantId = ti, Level = 1 });
+                    }
+
+                    return tenantUsers.Select(n => n.User).Any(UserFilter(userLabels, userAuthenticationType));
                 }
 
-                return tenantUsers.Select(n => n.User).Any(UserFilter(userLabels, userAuthenticationType));
+                return false;
             }
-
-            return false;
+            finally
+            {
+                (__det as IDisposable)?.Dispose();
+            }
         }
 
         private static string BuildAuthCacheKey(string[] userLabels, string userAuthenticationType, int? tenantId, string scope)
@@ -505,6 +524,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
+            // Render-path read on a dedicated context (shadow of the shared field) -> collision-free.
+            var __det = services != null ? CreateDetachedContext() : null;
+            var securityContext = __det ?? this.securityContext;
+            try
+            {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
             using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                 ConfigureTrustConfig(new()
@@ -512,7 +536,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
             if (isUser)
             {
-                var preFiltered = GetRawUserQuery(out var currentTenant, userLabels);
+                var preFiltered = GetRawUserQuery(out var currentTenant, userLabels, readCtx: securityContext);
                 var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
                     preFiltered,
                     UserId, IdOfUserLevelRecord, (l, r) => new { r.Level, r.TenantId, r.RoleId, User=l });
@@ -579,10 +603,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             }
 
             return permRawArr;
+            }
+            finally
+            {
+                (__det as IDisposable)?.Dispose();
+            }
         }
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
         {
+            var __det = services != null ? CreateDetachedContext() : null;
+            var securityContext = __det ?? this.securityContext;
+            try
+            {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
             using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                 ConfigureTrustConfig(new()
@@ -590,7 +623,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
             if (isUser)
             {
-                var preFiltered = GetRawUserQuery(out var currentTenantId,userLabels, forScope);
+                var preFiltered = GetRawUserQuery(out var currentTenantId,userLabels, forScope, securityContext);
                 var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
                     preFiltered,
                     UserId, IdOfUserLevelRecord, (l, r) => new { r.Level, r.TenantId, r.RoleId, User = l });
@@ -658,6 +691,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             }
 
             return permRawArr;
+            }
+            finally
+            {
+                (__det as IDisposable)?.Dispose();
+            }
         }
 
         public IEnumerable<Permission> GetPermissions(Role role)
@@ -733,48 +771,70 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         private IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> CreateDetachedContext()
             => (IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>)ActivatorUtilities.CreateInstance(services, securityContext.GetType());
 
-        public IEnumerable<Feature> GetFeatures(string permissionScopeName)
+        /// <summary>
+        /// Runs a read on a dedicated, short-lived context instance (collision-free w.r.t. the shared circuit
+        /// context) and disposes it afterwards. The result MUST be fully materialized inside <paramref name="read"/>
+        /// (do not return a lazy IQueryable). Falls back to the shared context on the legacy no-IServiceProvider path.
+        /// </summary>
+        private TResult ReadDetached<TResult>(Func<IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>, TResult> read)
         {
-            IDisposable tmp = null;
+            if (services == null)
+            {
+                return read(securityContext);
+            }
+
+            var ctx = CreateDetachedContext();
             try
             {
-                bool useCurrentTenant = string.IsNullOrEmpty(permissionScopeName) && securityContext.CurrentTenantId != null;
-                int? tenantToUse = null;
-                if (!useCurrentTenant)
-                {
-                    tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
-                }
-                else
-                {
-                    tenantToUse = securityContext.CurrentTenantId;
-                }
-
-                var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
-                var raw = (from t in securityContext.Features
-                    join a in securityContext.TenantFeatureActivations.Where(ta =>
-                                ((!useCurrentTenant && ta.Tenant.TenantName == permissionScopeName) || (useCurrentTenant && ta.TenantId == tenantToUse))
-                                && (ta.ActivationStart == null || ta.ActivationStart <= dt)
-                                && (ta.ActivationEnd == null || ta.ActivationEnd >= dt))
-                            .GroupBy(g => new { g.FeatureId, g.Tenant.TenantName })
-                            .Select(n => new { n.Key.FeatureId, n.Key.TenantName })
-                        on t.FeatureId equals a.FeatureId into lfaj
-                    from hoj in lfaj.DefaultIfEmpty()
-                    select new { T = t, A = hoj.TenantName }).ToArray();
-
-                /*EntityQueryable<Feature> mmp = (EntityQueryable<Feature>)raw;
-                logger.LogDebug(mmp.DebugView.Query);*/
-                return raw.Select(n => new Feature
-                {
-                    FeatureName = n.T.FeatureName,
-                    FeatureDescription = n.T.FeatureDescription,
-                    Enabled = n.T.Enabled || !string.IsNullOrEmpty(n.A)
-                }).ToArray();
+                return read(ctx);
             }
             finally
             {
-                tmp?.Dispose();
+                (ctx as IDisposable)?.Dispose();
             }
         }
+
+        public IEnumerable<Feature> GetFeatures(string permissionScopeName)
+            => ReadDetached(ctx =>
+            {
+                IDisposable tmp = null;
+                try
+                {
+                    bool useCurrentTenant = string.IsNullOrEmpty(permissionScopeName) && ctx.CurrentTenantId != null;
+                    int? tenantToUse = null;
+                    if (!useCurrentTenant)
+                    {
+                        tmp = securityAccessProvider.CreateForCaller(ctx, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
+                    }
+                    else
+                    {
+                        tenantToUse = ctx.CurrentTenantId;
+                    }
+
+                    var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
+                    var raw = (from t in ctx.Features
+                        join a in ctx.TenantFeatureActivations.Where(ta =>
+                                    ((!useCurrentTenant && ta.Tenant.TenantName == permissionScopeName) || (useCurrentTenant && ta.TenantId == tenantToUse))
+                                    && (ta.ActivationStart == null || ta.ActivationStart <= dt)
+                                    && (ta.ActivationEnd == null || ta.ActivationEnd >= dt))
+                                .GroupBy(g => new { g.FeatureId, g.Tenant.TenantName })
+                                .Select(n => new { n.Key.FeatureId, n.Key.TenantName })
+                            on t.FeatureId equals a.FeatureId into lfaj
+                        from hoj in lfaj.DefaultIfEmpty()
+                        select new { T = t, A = hoj.TenantName }).ToArray();
+
+                    return raw.Select(n => new Feature
+                    {
+                        FeatureName = n.T.FeatureName,
+                        FeatureDescription = n.T.FeatureDescription,
+                        Enabled = n.T.Enabled || !string.IsNullOrEmpty(n.A)
+                    }).ToArray();
+                }
+                finally
+                {
+                    tmp?.Dispose();
+                }
+            });
 
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName)
         {
@@ -839,14 +899,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         }
 
         public Permission[] GetKnownPermissions(string permissionScope)
-        {
-            using var tmp = securityAccessProvider.CreateForCaller(
-                securityContext,
-                new TTrustConfig { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false });
-            return (from p in securityContext.Permissions
-                where p.TenantId == null || p.Tenant.TenantName == permissionScope
-                select new Permission { PermissionName = p.PermissionName }).ToArray();
-        }
+            => ReadDetached(ctx =>
+            {
+                using var tmp = securityAccessProvider.CreateForCaller(
+                    ctx,
+                    new TTrustConfig { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false });
+                return (from p in ctx.Permissions
+                    where p.TenantId == null || p.Tenant.TenantName == permissionScope
+                    select new Permission { PermissionName = p.PermissionName }).ToArray();
+            });
 
         public ExternalServiceConnection GetExternalService(string name, bool decryptSecret = false)
         {
@@ -1254,21 +1315,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             return TimeZoneInfo.Local;
         }
 
-        private IQueryable<UserTenantLevel<TUser>> GetRawUserQuery(out int currentTenantId, string[] userLabels, string forTenant = null)
+        private IQueryable<UserTenantLevel<TUser>> GetRawUserQuery(out int currentTenantId, string[] userLabels, string forTenant = null,
+            IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> readCtx = null)
         {
+            // readCtx lets render-path callers run this on a dedicated context (collision-free). Defaults to the
+            // shared context for all other (sequential) callers.
+            var sc = readCtx ?? securityContext;
             int currentTenant = 0;
             if (string.IsNullOrEmpty(forTenant))
             {
-                currentTenant = securityContext.CurrentTenantId ?? 0;
+                currentTenant = sc.CurrentTenantId ?? 0;
             }
             else
             {
-                currentTenant = securityContext.Tenants.FirstOrDefault(n => n.TenantName == forTenant)?.TenantId ?? 0;
+                currentTenant = sc.Tenants.FirstOrDefault(n => n.TenantName == forTenant)?.TenantId ?? 0;
             }
 
             currentTenantId = currentTenant;
-            var phase1 = (from t in securityContext.TenantUsers
-                join j in securityContext.GetUpwardsTenantUserRoles(userLabels,forTenant) on t.TenantUserId equals j.TenantUserId
+            var phase1 = (from t in sc.TenantUsers
+                join j in sc.GetUpwardsTenantUserRoles(userLabels,forTenant) on t.TenantUserId equals j.TenantUserId
                 where j.OutermostLeafTenantId == currentTenant
                 select new { t.UserId, t.User, j.ParentLevel });
             var phase2 = (from gj in phase1
@@ -1281,9 +1346,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     Level = g.Min(us => us.ParentLevel)
                 });
             return (from p in phase2
-                join t in securityContext.GetUpwardsTenantUserRoles(userLabels, forTenant) on new { p.Level, p.UserId, p.TenantId } equals new
+                join t in sc.GetUpwardsTenantUserRoles(userLabels, forTenant) on new { p.Level, p.UserId, p.TenantId } equals new
                     { Level = t.ParentLevel, t.UserId, TenantId = t.OutermostLeafTenantId }
-                join tn in securityContext.TenantUsers on t.TenantUserId equals tn.TenantUserId
+                join tn in sc.TenantUsers on t.TenantUserId equals tn.TenantUserId
                 select new UserTenantLevel<TUser>
                 {
                     User = tn.User, Level = t.ParentLevel, TenantId = t.OutermostLeafTenantId,
