@@ -64,10 +64,12 @@ Regel B unangetastet.)
   Risiko: minimal (additiv). **Verifikation:** App startet; `IDbContextFactory<TImpl>` resolved; `CreateDbContext()`
   liefert eine vom scoped Context **verschiedene** Instanz mit korrektem Mandant/User-State.
 
-- **Phase 1 — Security-Read-Pfad auf Factory.**
+- **Phase 1 — Security-Read-Pfad auf Factory. (ÜBERSPRUNGEN — kosmetisch.)**
   Die `ActivatorUtilities`-Detached-Helfer (`CreateDetachedContext`, `ReadDetached`, `ResolveTenantIdDetached`,
-  Trust-Cache-Load) durch `IDbContextFactory<TContext>` ersetzen. Verhaltensgleich, sauberer, entfernt die
-  Ad-hoc-Mechanik. Risiko: niedrig.
+  Trust-Cache-Load) **sind bereits** exakt der Factory-Mechanismus. Eine Umstellung auf `IDbContextFactory`
+  hat generische-Typparameter-Reibung (das generische Repo kennt `TImpl` nicht, nur den 46er-Interface-Typ;
+  die Factory ist `IDbContextFactory<TImpl>`) bei **null** funktionalem Gewinn → bewusst übersprungen. Die
+  Helfer bleiben; optional später vereinheitlichen.
 
 - **Phase 2 — Pilot: ein Blazor-Admin-Handler (Liste + Edit).**
   Einen repräsentativen Handler auf Factory-per-Operation + **zentralen Detached-Edit-Helper** umstellen.
@@ -101,4 +103,5 @@ Regel B unangetastet.)
   Pilot-Host-Test sind die Gates.
 
 ## 6. Reihenfolge des Loslegens
-Phase 0 → 1 → 2 (Pilot). Dann Review-Punkt: Aufwand Phase 3/4 final bewerten und einplanen.
+Phase 0 ✅ (Commit 848f9492) → Phase 1 übersprungen (kosmetisch) → **Phase 2 (Pilot) = nächster Schritt**.
+Dann Review-Punkt: Aufwand Phase 3/4 final bewerten und einplanen.
