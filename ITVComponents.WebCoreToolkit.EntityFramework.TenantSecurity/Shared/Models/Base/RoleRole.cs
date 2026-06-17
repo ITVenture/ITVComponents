@@ -26,9 +26,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         public int? PermittedRoleId { get; set; }
 
         [ForeignKey(nameof(PermittedRoleId))]
+        [InverseProperty("PermissiveRoles")]
         public virtual TRole PermittedRole { get; set; }
 
         [ForeignKey(nameof(PermissiveRoleId))]
+        [InverseProperty("PermittedRoles")]
         public virtual TRole PermissiveRole { get; set; }
 
         public virtual ICollection<TRolePermission> ResultingLinks { get; set; } = new List<TRolePermission>();
