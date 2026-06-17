@@ -22,15 +22,15 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// <summary>Permission that grants access to the self-service subscription page.</summary>
         public const string ManageSubscriptionPermission = "ManageSubscription";
 
-        private readonly TContext db;
+        private readonly IDbContextFactory<TContext> dbFactory;
         private readonly IServiceProvider services;
         private readonly IStripeCheckoutSessionFactory checkout;
         private readonly IStripeBillingPortalFactory portal;
         private readonly IPlanSynchronizer planSynchronizer;
 
-        public BillingHandler(TContext db, IServiceProvider services, IStripeCheckoutSessionFactory checkout, IStripeBillingPortalFactory portal, IPlanSynchronizer planSynchronizer)
+        public BillingHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, IStripeCheckoutSessionFactory checkout, IStripeBillingPortalFactory portal, IPlanSynchronizer planSynchronizer)
         {
-            this.db = db;
+            this.dbFactory = dbFactory;
             this.services = services;
             this.checkout = checkout;
             this.portal = portal;
@@ -47,6 +47,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<SubscriptionOverviewViewModel> GetOverviewAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default)
         {
+            using var db = dbFactory.CreateDbContext();
             var vm = new SubscriptionOverviewViewModel();
             var tenantId = db.CurrentTenantId;
             if (tenantId == null)
@@ -88,10 +89,16 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         }
 
         public async Task<IReadOnlyList<PlanViewModel>> GetActivePlansAsync(CancellationToken cancellationToken = default)
-            => await QueryPlans(db.Plans.Where(p => p.IsActive), cancellationToken);
+        {
+            using var db = dbFactory.CreateDbContext();
+            return await QueryPlans(db.Plans.Where(p => p.IsActive), cancellationToken);
+        }
 
         public async Task<IReadOnlyList<PlanViewModel>> GetAllPlansAsync(CancellationToken cancellationToken = default)
-            => await QueryPlans(db.Plans, cancellationToken);
+        {
+            using var db = dbFactory.CreateDbContext();
+            return await QueryPlans(db.Plans, cancellationToken);
+        }
 
         private static async Task<IReadOnlyList<PlanViewModel>> QueryPlans(IQueryable<Plan> source, CancellationToken cancellationToken)
         {
@@ -111,6 +118,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<IReadOnlyList<AddOnViewModel>> GetActiveAddOnsAsync(CancellationToken cancellationToken = default)
         {
+            using var db = dbFactory.CreateDbContext();
             var addOns = await db.AddOns.AsNoTracking().Where(a => a.IsActive).Include(a => a.Features).Include(a => a.Prices).OrderBy(a => a.Name).ToListAsync(cancellationToken);
             return addOns.Select(a => new AddOnViewModel
             {
@@ -126,18 +134,21 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public Task<string> StartCheckoutAsync(ClaimsPrincipal user, int planId, IReadOnlyCollection<int> addOnIds, string successUrl, string cancelUrl, string? currency = null, CancellationToken cancellationToken = default)
         {
+            using var db = dbFactory.CreateDbContext();
             var tenantId = db.CurrentTenantId ?? throw new InvalidOperationException("No active tenant scope for checkout.");
             return checkout.CreateCheckoutSessionAsync(tenantId, planId, addOnIds, successUrl, cancelUrl, currency, cancellationToken);
         }
 
         public Task<string?> OpenPortalAsync(ClaimsPrincipal user, string returnUrl, CancellationToken cancellationToken = default)
         {
+            using var db = dbFactory.CreateDbContext();
             var tenantId = db.CurrentTenantId;
             return tenantId == null ? Task.FromResult<string?>(null) : portal.CreatePortalSessionAsync(tenantId.Value, returnUrl, cancellationToken);
         }
 
         public async Task<int> SavePlanAsync(PlanViewModel model, CancellationToken cancellationToken = default)
         {
+            using var db = dbFactory.CreateDbContext();
             Plan plan;
             if (model.PlanId != 0)
             {
@@ -202,6 +213,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<IReadOnlyList<AddOnViewModel>> GetAllAddOnsAsync(CancellationToken cancellationToken = default)
         {
+            using var db = dbFactory.CreateDbContext();
             var addOns = await db.AddOns.AsNoTracking().Include(a => a.Features).Include(a => a.Prices).OrderBy(a => a.Name).ToListAsync(cancellationToken);
             return addOns.Select(a => new AddOnViewModel
             {
@@ -217,6 +229,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<int> SaveAddOnAsync(AddOnViewModel model, CancellationToken cancellationToken = default)
         {
+            using var db = dbFactory.CreateDbContext();
             AddOn addOn;
             if (model.AddOnId != 0)
             {
@@ -280,6 +293,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<IReadOnlyList<SubscriptionAdminViewModel>> GetAllSubscriptionsAsync(CancellationToken cancellationToken = default)
         {
+            using var db = dbFactory.CreateDbContext();
             var subs = await db.TenantSubscriptions.AsNoTracking().Include(s => s.Items)
                 .OrderBy(s => s.TenantId).ToListAsync(cancellationToken);
             if (subs.Count == 0)
