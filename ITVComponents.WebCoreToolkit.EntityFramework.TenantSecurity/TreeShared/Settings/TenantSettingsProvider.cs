@@ -2,6 +2,7 @@
 using System.Linq;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.Models;
@@ -27,18 +28,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
     where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
         /// <summary>
-        /// Holds the db-context with the tenant-settings
+        /// Per-operation factory for the tenant-settings context (Blazor-safe: a fresh, short-lived context per call
+        /// instead of a shared circuit-scoped one).
         /// </summary>
-        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext;
+        private readonly IToolkitContextFactory contextFactory;
 
         /// <summary>
         /// Initializes a new instance of the TenantSettinsgProvider class
         /// </summary>
-        /// <param name="dbContext"></param>
-        public TenantSettingsProvider(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext)
+        /// <param name="contextFactory">factory yielding a fresh per-operation tenant-settings context</param>
+        public TenantSettingsProvider(IToolkitContextFactory contextFactory)
         {
-            this.dbContext = dbContext;
+            this.contextFactory = contextFactory;
         }
+
+        /// <summary>
+        /// Leases a fresh per-operation tenant-settings context for the duration of a single operation.
+        /// </summary>
+        private IContextLease<IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> LeaseDb()
+            => contextFactory.Lease<IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
 
         /// <summary>
         /// Gets a Json-formatted setting with the given key
@@ -47,6 +55,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <returns>the string-representation of the requested setting</returns>
         public string GetJsonSetting(string key)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
             return (from t in dbContext.UpwardsTenantTreeView
                 join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
                 where s.SettingsKey == key && s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
@@ -61,6 +71,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <returns>the string representation of the requested setting</returns>
         public string GetLiteralSetting(string key)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
             return (from t in dbContext.UpwardsTenantTreeView
                 join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
                 where s.SettingsKey == key && !s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
@@ -78,6 +90,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
+                using var lease = LeaseDb();
+                var dbContext = lease.Context;
                 return (from t in dbContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == explicitUserScope)
                     join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
                     where s.SettingsKey == key && s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
@@ -98,6 +112,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
+                using var lease = LeaseDb();
+                var dbContext = lease.Context;
                 return (from t in dbContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == explicitUserScope)
                     join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
                     where s.SettingsKey == key && !s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
@@ -110,6 +126,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public void UpdateJsonSetting(string key, string explicitUserScope, string value)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
             var tenantId = dbContext.CurrentTenantId ?? 0;
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
@@ -140,6 +158,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public void UpdateLiteralSetting(string key, string explicitUserScope, string value)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
             var tenantId = dbContext.CurrentTenantId ?? 0;
             if (!string.IsNullOrEmpty(explicitUserScope))
             {

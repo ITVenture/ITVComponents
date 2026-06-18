@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 
@@ -23,18 +24,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
     where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
         /// <summary>
-        /// Holds the db-context with the tenant-settings
+        /// Per-operation factory for the tenant-settings context (Blazor-safe: a fresh, short-lived context per call
+        /// instead of a shared circuit-scoped one).
         /// </summary>
-        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext;
+        private readonly IToolkitContextFactory contextFactory;
 
         /// <summary>
         /// Initializes a new instance of the TenantSettinsgProvider class
         /// </summary>
-        /// <param name="dbContext"></param>
-        public TenantSettingsProvider(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext)
+        /// <param name="contextFactory">factory yielding a fresh per-operation tenant-settings context</param>
+        public TenantSettingsProvider(IToolkitContextFactory contextFactory)
         {
-            this.dbContext = dbContext;
+            this.contextFactory = contextFactory;
         }
+
+        /// <summary>
+        /// Leases a fresh per-operation tenant-settings context for the duration of a single operation.
+        /// </summary>
+        private IContextLease<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> LeaseDb()
+            => contextFactory.Lease<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
 
         /// <summary>
         /// Gets a Json-formatted setting with the given key
@@ -43,6 +51,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
         /// <returns>the string-representation of the requested setting</returns>
         public string GetJsonSetting(string key)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
             return dbContext.TenantSettings.FirstOrDefault(n => n.SettingsKey == key && n.JsonSetting)?.SettingsValue;
         }
 
@@ -53,6 +63,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
         /// <returns>the string representation of the requested setting</returns>
         public string GetLiteralSetting(string key)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
             return dbContext.TenantSettings.FirstOrDefault(n => n.SettingsKey == key && !n.JsonSetting)?.SettingsValue;
         }
 
@@ -66,6 +78,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
         {
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
+                using var lease = LeaseDb();
+                var dbContext = lease.Context;
                 return dbContext.TenantSettings.FirstOrDefault(n =>
                     n.SettingsKey == key && n.JsonSetting && n.Tenant.TenantName == explicitUserScope)?.SettingsValue;
             }
@@ -83,6 +97,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
         {
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
+                using var lease = LeaseDb();
+                var dbContext = lease.Context;
                 return dbContext.TenantSettings.FirstOrDefault(n =>
                     n.SettingsKey == key && !n.JsonSetting && n.Tenant.TenantName == explicitUserScope)?.SettingsValue;
             }
@@ -92,6 +108,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
 
         public void UpdateJsonSetting(string key, string explicitUserScope, string value)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
             var tenantId = dbContext.CurrentTenantId ?? 0;
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
@@ -122,6 +140,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
 
         public void UpdateLiteralSetting(string key, string explicitUserScope, string value)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
             var tenantId = dbContext.CurrentTenantId ?? 0;
             if (!string.IsNullOrEmpty(explicitUserScope))
             {

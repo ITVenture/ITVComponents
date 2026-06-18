@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,16 +25,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
         where TTenant : Tenant
         where TActivation : TenantFeatureActivation<TTenant>, new()
     {
-        private readonly TContext db;
+        /// <summary>
+        /// Per-operation factory for the host context (Blazor-safe: a fresh, short-lived context per call instead of a
+        /// shared circuit-scoped one).
+        /// </summary>
+        private readonly IToolkitContextFactory contextFactory;
 
-        public BillingFeatureProvisioner(TContext db)
+        public BillingFeatureProvisioner(IToolkitContextFactory contextFactory)
         {
-            this.db = db;
+            this.contextFactory = contextFactory;
         }
 
         /// <inheritdoc />
         public async Task SyncAsync(int tenantId, IReadOnlyCollection<string> featureKeys, DateTime? periodStart, DateTime? periodEnd, CancellationToken cancellationToken = default)
         {
+            using var lease = contextFactory.Lease<TContext>();
+            var db = lease.Context;
             var keySet = new HashSet<string>(featureKeys ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
 
             // Billing-owned grants for this tenant (ignore the tenant global filter: we run outside an ambient

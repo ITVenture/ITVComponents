@@ -1,4 +1,5 @@
 ﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
@@ -17,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         where TContext : AspNetTreeSecurityContext<TContext>
     {
         private const string ParentTag = "PARENT##";
-        public TenantTreeTemplateHelper(TContext db, ILogger<TenantTreeTemplateHelper<TContext>> logger, IEnumerable<ITenantTemplatePartHandler> partHandlers = null) : base(db, logger, partHandlers)
+        public TenantTreeTemplateHelper(IToolkitContextFactory contextFactory, ILogger<TenantTreeTemplateHelper<TContext>> logger, IEnumerable<ITenantTemplatePartHandler> partHandlers = null) : base(contextFactory, logger, partHandlers)
         {
         }
 

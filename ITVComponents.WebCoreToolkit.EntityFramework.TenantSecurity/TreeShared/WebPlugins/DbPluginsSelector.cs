@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.WebPlugins.Model;
@@ -31,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
     where TExternalOAuthServiceState : HierarchyExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
-        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
+        private readonly IToolkitContextFactory contextFactory;
         private readonly IPermissionScope scopeProvider;
         private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly WebPluginBufferingOptions bufferConfig;
@@ -42,14 +43,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <summary>
         /// Initializes a new instance of hte DbPluginsSelector class
         /// </summary>
-        /// <param name="securityContext">the injected security-db-context</param>
-        public DbPluginsSelector(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IPermissionScope scopeProvider, ISecurityAccessProvider securityAccessProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
+        /// <param name="contextFactory">factory yielding a fresh per-operation security-db-context</param>
+        public DbPluginsSelector(IToolkitContextFactory contextFactory, IPermissionScope scopeProvider, ISecurityAccessProvider securityAccessProvider, IOptions<WebPluginBufferingOptions> bufferConfig)
         {
-            this.securityContext = securityContext;
+            this.contextFactory = contextFactory;
             this.scopeProvider = scopeProvider;
             this.securityAccessProvider = securityAccessProvider;
             this.bufferConfig = bufferConfig.Value;
         }
+
+        /// <summary>
+        /// Leases a fresh per-operation security-db-context for the duration of a single operation.
+        /// </summary>
+        private IContextLease<IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> LeaseDb()
+            => contextFactory.Lease<IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
 
         /// <summary>
         /// Gets or sets the explicit scope in which the plugins must be loaded. When this value is not set, the default is used.
@@ -68,7 +75,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <summary>
         /// Indicates whether this PluginSelector is currently able to differ plugins between permission-scopes
         /// </summary>
-        public bool ExplicitScopeSupported => !securityContext.FilterAvailable || securityContext.ShowAllTenants;
+        public bool ExplicitScopeSupported
+        {
+            get
+            {
+                using var lease = LeaseDb();
+                var securityContext = lease.Context;
+                return !securityContext.FilterAvailable || securityContext.ShowAllTenants;
+            }
+        }
 
         /// <summary>
         /// Get all Plugins that have a Startup-constructor
@@ -76,10 +91,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <returns></returns>
         public IEnumerable<WebPlugin> GetStartupPlugins()
         {
-            return from p in securityContext.WebPlugins
+            using var lease = LeaseDb();
+            var securityContext = lease.Context;
+            return (from p in securityContext.WebPlugins
                 where p.TenantId == null && !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
                 orderby p.UniqueName
-                select p;
+                select p).ToList();
 
 
             /*if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
@@ -127,10 +144,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <returns>a WebPlugin definition that can be processed by the underlying factory</returns>
         public WebPlugin GetPlugin(string uniqueName)
         {
-            return GetPlugin(uniqueName, out _);
+            using var lease = LeaseDb();
+            var securityContext = lease.Context;
+            return GetPlugin(securityContext, uniqueName, out _);
         }
 
-        private WebPlugin GetPlugin(string uniqueName, out int? webPluginId)
+        private WebPlugin GetPlugin(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, string uniqueName, out int? webPluginId)
         {
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && PluginBuffered(uniqueName, out var bufferInfo))
             {
@@ -245,6 +264,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <returns>returns a list with auto-load Plugins</returns>
         public IEnumerable<WebPlugin> GetAutoLoadPlugins()
         {
+            using var lease = LeaseDb();
+            var securityContext = lease.Context;
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
@@ -362,6 +383,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <param name="pi">the plugin-member to modify</param>
         public void ConfigurePlugin(WebPlugin pi)
         {
+            using var lease = LeaseDb();
+            var securityContext = lease.Context;
             securityContext.SaveChanges();
         }
 
@@ -372,7 +395,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <returns>a list of parametetrs for this plugin</returns>
         public IEnumerable<WebPluginGenericParam> GetGenericParameters(string uniqueName)
         {
-            var plug = GetPlugin(uniqueName, out var webPluginId);
+            using var lease = LeaseDb();
+            var securityContext = lease.Context;
+            var plug = GetPlugin(securityContext, uniqueName, out var webPluginId);
             if (plug != null)
             {
                 if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)

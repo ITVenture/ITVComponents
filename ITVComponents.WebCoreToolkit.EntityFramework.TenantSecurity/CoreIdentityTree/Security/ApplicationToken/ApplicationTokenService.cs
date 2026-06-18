@@ -1,8 +1,10 @@
-﻿namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Security.ApplicationToken
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
+
+namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Security.ApplicationToken
 {
     internal class ApplicationTokenService:ApplicationTokenService<AspNetTreeSecurityContext>
     {
-        public ApplicationTokenService(AspNetTreeSecurityContext context) : base(context)
+        public ApplicationTokenService(IToolkitContextFactory contextFactory) : base(contextFactory)
         {
         }
     }

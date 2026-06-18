@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Security;
 
@@ -11,12 +12,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hea
 {
     public class HealthPlugins
     {
-        private readonly ICoreSystemContext context;
+        private readonly IToolkitContextFactory contextFactory;
         private PluginFactory factory = new() { AllowFactoryParameter = true };
 
-        public HealthPlugins(ICoreSystemContext context, IContextUserProvider up)
+        public HealthPlugins(IToolkitContextFactory contextFactory, IContextUserProvider up)
         {
-            this.context = context;
+            this.contextFactory = contextFactory;
             factory.UnknownConstructorParameter += ResolveReference;
         }
 

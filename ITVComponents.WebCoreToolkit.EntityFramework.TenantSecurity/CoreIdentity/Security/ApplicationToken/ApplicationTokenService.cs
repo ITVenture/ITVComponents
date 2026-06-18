@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Security.ApplicationToken
 {
     internal class ApplicationTokenService:ApplicationTokenService<AspNetSecurityContext>
     {
-        public ApplicationTokenService(AspNetSecurityContext context) : base(context)
+        public ApplicationTokenService(IToolkitContextFactory contextFactory) : base(contextFactory)
         {
         }
     }

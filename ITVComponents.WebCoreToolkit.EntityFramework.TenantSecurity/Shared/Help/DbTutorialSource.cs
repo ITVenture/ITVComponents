@@ -4,6 +4,7 @@ using System.Linq;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Help;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using Microsoft.AspNetCore.Http;
@@ -12,11 +13,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 {
     public class DbTutorialSource:ITutorialSource
     {
-        private readonly ICoreSystemContext dbContext;
+        private readonly IToolkitContextFactory contextFactory;
 
-        public DbTutorialSource(ICoreSystemContext dbContext)
+        public DbTutorialSource(IToolkitContextFactory contextFactory)
         {
-            this.dbContext = dbContext;
+            this.contextFactory = contextFactory;
         }
 
 
@@ -40,6 +41,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 baseLang = currentCulture.Substring(0, currentCulture.IndexOf("-"));
             }
 
+            using var lease = contextFactory.Lease<ICoreSystemContext>();
+            var dbContext = lease.Context;
             return dbContext.Tutorials.Where(n => n.ModuleUrl.ToLower() == pathValue.ToLower() && n.Streams.Any(n => n.LanguageTag == currentCulture || n.LanguageTag == baseLang || n.LanguageTag == "Default")).OrderBy(n => n.SortableName)
                 .ToArray()
                 .Select(n => new TutorialDefinition

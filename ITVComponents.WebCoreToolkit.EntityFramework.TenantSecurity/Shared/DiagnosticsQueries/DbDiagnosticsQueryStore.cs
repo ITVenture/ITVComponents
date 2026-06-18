@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Interfaces;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
@@ -63,12 +64,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
         where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
         where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
-        private readonly ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext;
+        /// <summary>
+        /// Per-operation factory for the security context (Blazor-safe: a fresh, short-lived context per call instead
+        /// of a shared circuit-scoped one).
+        /// </summary>
+        private readonly IToolkitContextFactory contextFactory;
 
-        public DbDiagnosticsQueryStore(ISecurityContext<TTenant,TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext)
+        public DbDiagnosticsQueryStore(IToolkitContextFactory contextFactory)
         {
-            this.dbContext = dbContext;
+            this.contextFactory = contextFactory;
         }
+
+        /// <summary>
+        /// Leases a fresh per-operation security context for the duration of a single operation.
+        /// </summary>
+        private IContextLease<ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> LeaseDb()
+            => contextFactory.Lease<ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
+
+        /// <summary>
+        /// Hook invoked on each freshly-leased per-operation context before it is used. The default implementation does
+        /// nothing; derived strategies (e.g. the hierarchy/tree store) override this to apply their trust-configuration
+        /// (via <c>ISecurityAccessProvider.CreateForCaller</c>) to the very context instance the base will read from,
+        /// returning the resulting helper so its scope is disposed when the operation ends.
+        /// </summary>
+        /// <param name="dbContext">the freshly-leased per-operation context that the operation will use</param>
+        /// <returns>a disposable representing the applied scope, or null when no scope is applied</returns>
+        protected virtual IDisposable AcquireScope(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext)
+            => null;
 
         /// <summary>
         /// Finds the demanded DiagnosticsQuery and returns it including Query-Arguments
@@ -76,6 +98,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
         /// <param name="queryName">the name of the requested DiagnosticsQuery</param>
         /// <returns>a DiagnosticsQueryDefinition-Object containing all parameters and permissions required to execute it</returns>
         public virtual DiagnosticsQueryDefinition GetQuery(string queryName)
+        {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
+            using var scope = AcquireScope(dbContext);
+            return GetQuery(queryName, dbContext);
+        }
+
+        /// <summary>
+        /// Finds the demanded DiagnosticsQuery on the given (already-leased) context. Used both by the public entry-point
+        /// and by internal callers that already hold a leased context, so they do not lease a second one.
+        /// </summary>
+        private DiagnosticsQueryDefinition GetQuery(string queryName, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext)
         {
             var dbQuery = dbContext.DiagnosticsQueries.FirstOrDefault(n => n.DiagnosticsQueryName.ToLower() == queryName.ToLower());
             if (dbQuery != null)
@@ -115,13 +149,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
         /// <returns>the definition of the requested dashboard-item including the permissions required to use it</returns>
         public virtual DashboardWidgetDefinition GetDashboard(string dashboardName, string targetCulture, int? userDashboardId = null)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
+            using var scope = AcquireScope(dbContext);
             var tmp = dbContext.Widgets.FirstOrDefault(n => n.SystemName == dashboardName);
             var userDash = (userDashboardId != null)
                 ? dbContext.UserWidgets.FirstOrDefault(n => n.UserWidgetId == userDashboardId)
                 : null;
             if (tmp != null && (userDashboardId == null || userDash != null))
             {
-                var retVal = GetDashboardItem(tmp, userDash, targetCulture);
+                var retVal = GetDashboardItem(tmp, userDash, targetCulture, dbContext);
                 if (userDashboardId == null)
                 {
                     retVal.SortOrder = dbContext.UserWidgets.Count();
@@ -145,6 +182,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
         /// <returns>an empty task</returns>
         public virtual async Task<DashboardWidgetDefinition[]> SetUserWidgets(DashboardWidgetDefinition[] widgets, string userName)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
+            using var scope = AcquireScope(dbContext);
             var tmp = dbContext.ShowAllTenants;
             try
             {
@@ -203,7 +243,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
                             DashboardWidgetId = n.DashboardWidgetId,
                             DisplayName = n.DisplayName ?? n.Widget.DisplayName,
                             TitleTemplate = n.Widget.TitleTemplate,
-                            DiagnosticsQuery = GetQuery(n.Widget.DiagnosticsQuery.DiagnosticsQueryName),
+                            DiagnosticsQuery = GetQuery(n.Widget.DiagnosticsQuery.DiagnosticsQueryName, dbContext),
                             SystemName = n.Widget.SystemName,
                             Template = n.Widget.Template,
                             Area = n.Widget.Area
@@ -226,9 +266,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
         /// <returns>an array that contains all known dashboard-templates</returns>
         public virtual DashboardWidgetDefinition[] GetWidgetTemplates(string targetCulture)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
+            using var scope = AcquireScope(dbContext);
             return (from t in dbContext.Widgets.ToArray()
                 orderby t.DisplayName
-                select GetDashboardItem(t,null, targetCulture)).ToArray();
+                select GetDashboardItem(t,null, targetCulture, dbContext)).ToArray();
         }
 
         /// <summary>
@@ -237,12 +280,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
         /// <returns>an array that contains all assigned user-widgets.</returns>
         public virtual DashboardWidgetDefinition[] GetUserWidgets(string userName, string targetCulture)
         {
+            using var lease = LeaseDb();
+            var dbContext = lease.Context;
+            using var scope = AcquireScope(dbContext);
             var tmp = dbContext.ShowAllTenants;
             try
             {
                 var tmpUw = dbContext.UserWidgets.OrderBy(n => n.SortOrder).ToArray();
                 return (from t in tmpUw
-                    select GetDashboardItem(t.Widget,t, targetCulture)).ToArray();
+                    select GetDashboardItem(t.Widget,t, targetCulture, dbContext)).ToArray();
             }
             finally
             {
@@ -255,7 +301,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
         /// </summary>
         /// <param name="tmp">the entity from which to create the definition</param>
         /// <returns>a complete widget-definition</returns>
-        private  DashboardWidgetDefinition GetDashboardItem(TWidget tmp, TUserWidget userWidget, string targetCulture)
+        private  DashboardWidgetDefinition GetDashboardItem(TWidget tmp, TUserWidget userWidget, string targetCulture, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext)
         {
             IDashboardRawDefinition lng = !string.IsNullOrEmpty(targetCulture)
                 ? tmp.Localizations.FirstOrDefault(n => n.LocaleName == targetCulture)
@@ -271,7 +317,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
             {
                 Area = tmp.Area,
                 CustomQueryString = userWidget?.CustomQueryString??tmp.CustomQueryString,
-                DiagnosticsQuery = GetQuery(tmp.DiagnosticsQuery.DiagnosticsQueryName),
+                DiagnosticsQuery = GetQuery(tmp.DiagnosticsQuery.DiagnosticsQueryName, dbContext),
                 DisplayName = (userWidget?.DisplayName??lng.DisplayName).Translate(targetCulture),
                 SystemName = tmp.SystemName,
                 Template = lng.Template,

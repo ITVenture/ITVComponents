@@ -7,6 +7,7 @@ using System.Linq;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Security.ApplicationToken;
@@ -61,11 +62,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
         where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
-        private readonly TContext dbContext;
+        private readonly IToolkitContextFactory contextFactory;
 
-        protected ApplicationTokenService(TContext dbContext)
+        protected ApplicationTokenService(IToolkitContextFactory contextFactory)
         {
-            this.dbContext = dbContext;
+            this.contextFactory = contextFactory;
         }
 
         /// <summary>
@@ -89,6 +90,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// <returns>a value indicating whether the given access-token is valid</returns>
         public virtual bool VerifyRefreshToken(IPrincipal principal, string applicationKey, string refreshToken)
         {
+            using var lease = contextFactory.Lease<TContext>();
+            var dbContext = lease.Context;
             var tmp = dbContext.ClientAppUsers.First(n => n.Label == applicationKey);
             return false;
         }

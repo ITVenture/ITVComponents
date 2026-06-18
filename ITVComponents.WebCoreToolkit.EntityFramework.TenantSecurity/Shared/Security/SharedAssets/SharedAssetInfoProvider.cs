@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
@@ -74,17 +75,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         public const string AnonymousTag = "##ANONYMOUS";
         private readonly IUserNameMapper userNameMapper;
         private readonly ISecurityRepository securityRepo;
-        private readonly TContext database;
+        private readonly IToolkitContextFactory contextFactory;
         private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly IServiceProvider services;
         private object sync = new();
         private int impersonationDeactivated = 0;
 
-        public SharedAssetInfoProvider(IUserNameMapper userNameMapper, ISecurityRepository securityRepo, TContext database, ISecurityAccessProvider securityAccessProvider, IServiceProvider services)
+        public SharedAssetInfoProvider(IUserNameMapper userNameMapper, ISecurityRepository securityRepo, IToolkitContextFactory contextFactory, ISecurityAccessProvider securityAccessProvider, IServiceProvider services)
         {
             this.userNameMapper = userNameMapper;
             this.securityRepo = securityRepo;
-            this.database = database;
+            this.contextFactory = contextFactory;
             this.securityAccessProvider = securityAccessProvider;
             this.services = services;
         }
@@ -95,13 +96,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         {
             if (!ImpersonationDeactivated)
             {
+                using var lease = contextFactory.Lease<TContext>();
+                var database = lease.Context;
                 var labels = requestor.Identities.Where(n => n.IsAuthenticated).Select(t => new IdentityInfo
                     { Labels = userNameMapper.GetUserLabels(t), AuthenticationType = t.AuthenticationType }).ToArray();
                 var tenants = labels.SelectMany(i =>
                         securityRepo.GetEligibleScopes(i.Labels, i.AuthenticationType).Select(n => n.ScopeName))
                     .Distinct()
                     .ToArray();
-                bool accessible = AssetIsAccessible(assetKey, labels, tenants, out var asset);
+                bool accessible = AssetIsAccessible(database, assetKey, labels, tenants, out var asset);
                 AssetInfo retVal;
                 bool hasOwnerPrivileges = false;
                 if (asOwner)
@@ -150,13 +153,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         {
             if (!ImpersonationDeactivated)
             {
+                using var lease = contextFactory.Lease<TContext>();
+                var database = lease.Context;
                 var labels = requestor.Identities.Where(n => n.IsAuthenticated).Select(t => new IdentityInfo
                     { Labels = userNameMapper.GetUserLabels(t), AuthenticationType = t.AuthenticationType }).ToArray();
                 var tenants = labels.SelectMany(i =>
                         securityRepo.GetEligibleScopes(i.Labels, i.AuthenticationType).Select(n => n.ScopeName))
                     .Distinct()
                     .ToArray();
-                bool retVal = AssetIsAccessible(assetKey, labels, tenants, out var asset);
+                bool retVal = AssetIsAccessible(database, assetKey, labels, tenants, out var asset);
                 if (retVal)
                 {
                     retVal &= IsTemplateValidForPath(asset.Template, requestPath);
@@ -172,6 +177,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         {
             if (!ImpersonationDeactivated)
             {
+                using var lease = contextFactory.Lease<TContext>();
+                var database = lease.Context;
                 var tmp = database.AssetTemplates.ToArray().Where(n =>
                     (n.RequiredFeature == null ||
                      services.VerifyActivatedFeatures(new[] { n.RequiredFeature.FeatureName }, out _)) &&
@@ -198,6 +205,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title)
         {
+            using var lease = contextFactory.Lease<TContext>();
+            var database = lease.Context;
             var assetTmp = database.AssetTemplates.First(n => n.SystemKey == template.TemplateKey);
             var ok = (assetTmp.RequiredFeature == null ||
                       services.VerifyActivatedFeatures(new[] { assetTmp.RequiredFeature.FeatureName }, out _)) &&
@@ -236,6 +245,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         public bool UpdateSharedAsset(FullAssetInfo updatedInfo)
         {
+            using var lease = contextFactory.Lease<TContext>();
+            var database = lease.Context;
             var asset = database.SharedAssets.First(n => n.AssetKey == updatedInfo.AssetKey);
             var ok = (asset.Template.RequiredFeature == null ||
                       services.VerifyActivatedFeatures(new[] { asset.Template.RequiredFeature.FeatureName }, out _)) &&
@@ -303,6 +314,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         public bool DeleteSharedAsset(FullAssetInfo assetInfo)
         {
+            using var lease = contextFactory.Lease<TContext>();
+            var database = lease.Context;
             var asset = database.SharedAssets.First(n => n.AssetKey == assetInfo.AssetKey);
             var ok = (asset.Template.RequiredFeature == null ||
                       services.VerifyActivatedFeatures(new[] { asset.Template.RequiredFeature.FeatureName }, out _)) &&
@@ -342,6 +355,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         {
             if (!ImpersonationDeactivated)
             {
+                using var lease = contextFactory.Lease<TContext>();
+                var database = lease.Context;
                 using var h = securityAccessProvider.CreateForCaller(database, ConfigureTrustConfig(new() {ShowAllTenants = true, HideGlobals = false}));
                 var rawAsset = (from t in database.SharedAssets
                     join a in database.SharedAssetUserFilters on t.SharedAssetId equals a.SharedAssetId
@@ -388,7 +403,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         protected abstract TTrustConfig ConfigureTrustConfig(TTrustConfig trustConfig);
 
-        private bool AssetIsAccessible(string assetKey, IdentityInfo[] userLabels, string[] tenants, out TSharedAsset asset)
+        private bool AssetIsAccessible(TContext database, string assetKey, IdentityInfo[] userLabels, string[] tenants, out TSharedAsset asset)
         {
             asset = database.SharedAssets.First(n => n.AssetKey == assetKey);
             var uf = asset.UserFilters.Select(n => n.LabelFilter).ToArray();

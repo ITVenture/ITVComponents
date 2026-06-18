@@ -10,6 +10,7 @@ using ITVComponents.Plugins;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.HelperModels;
@@ -37,7 +38,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 
     {
-        private readonly IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context;
+        private readonly IToolkitContextFactory contextFactory;
         private readonly IWebPluginsSelector plugInSelector;
         private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly IObjectProvider objectCache;
@@ -51,21 +52,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// </summary>
         /// <param name="context">the database containing formatting-hints</param>
         public DbPluginFormatter(
-            IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, IWebPluginsSelector plugInSelector, ISecurityAccessProvider securityAccessProvider) : this(context, plugInSelector, securityAccessProvider, null)
+            IToolkitContextFactory contextFactory, IWebPluginsSelector plugInSelector, ISecurityAccessProvider securityAccessProvider) : this(contextFactory, plugInSelector, securityAccessProvider, null)
         {
         }
 
         /// <summary>
         /// Initializes a new instance of the DbPluginFormatter class
         /// </summary>
-        /// <param name="context">the database containing formatting-hints</param>
-        public DbPluginFormatter(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, IWebPluginsSelector plugInSelector, ISecurityAccessProvider securityAccessProvider, IObjectProvider objectCache)
+        /// <param name="contextFactory">factory yielding a fresh per-operation context containing formatting-hints</param>
+        public DbPluginFormatter(IToolkitContextFactory contextFactory, IWebPluginsSelector plugInSelector, ISecurityAccessProvider securityAccessProvider, IObjectProvider objectCache)
         {
-            this.context = context;
+            this.contextFactory = contextFactory;
             this.plugInSelector = plugInSelector;
             this.securityAccessProvider = securityAccessProvider;
             this.objectCache = objectCache;
         }
+
+        /// <summary>
+        /// Leases a fresh per-operation context for the duration of a single operation.
+        /// </summary>
+        private IContextLease<IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> LeaseDb()
+            => contextFactory.Lease<IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
 
         protected override string FormatStringInternal(string rawString, Dictionary<string, object> customStringFormatArguments)
         {
@@ -107,6 +114,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         public bool ForceImmediateInitialization => true;
         public void Initialize()
         {
+            using var lease = LeaseDb();
+            var context = lease.Context;
             var fx = (string k) =>
             {
                 var dic = new Dictionary<string, WebPluginConstant>();

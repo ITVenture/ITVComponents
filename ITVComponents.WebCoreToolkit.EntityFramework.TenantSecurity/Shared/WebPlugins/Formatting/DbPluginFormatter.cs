@@ -9,6 +9,7 @@ using ITVComponents.Formatting.Extensions;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Security;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.HelperModels;
@@ -32,7 +33,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
         where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
 
     {
-        private readonly IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context;
+        private readonly IToolkitContextFactory contextFactory;
         private readonly IWebPluginsSelector plugInSelector;
         private readonly IObjectProvider objectProvider;
         private Dictionary<string, object> formatPrototype = new Dictionary<string, object>();
@@ -46,22 +47,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
         /// </summary>
         /// <param name="context">the database containing formatting-hints</param>
         public DbPluginFormatter(
-            IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence,
-                TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context,
-            IWebPluginsSelector plugInSelector) : this(context, plugInSelector, null)
+            IToolkitContextFactory contextFactory,
+            IWebPluginsSelector plugInSelector) : this(contextFactory, plugInSelector, null)
         {
         }
 
         /// <summary>
         /// Initializes a new instance of the DbPluginFormatter class
         /// </summary>
-        /// <param name="context">the database containing formatting-hints</param>
-        public DbPluginFormatter(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, IWebPluginsSelector plugInSelector, IObjectProvider objectProvider)
+        /// <param name="contextFactory">factory yielding a fresh per-operation context containing formatting-hints</param>
+        public DbPluginFormatter(IToolkitContextFactory contextFactory, IWebPluginsSelector plugInSelector, IObjectProvider objectProvider)
         {
-            this.context = context;
+            this.contextFactory = contextFactory;
             this.plugInSelector = plugInSelector;
             this.objectProvider = objectProvider;
         }
+
+        /// <summary>
+        /// Leases a fresh per-operation context for the duration of a single operation.
+        /// </summary>
+        private IContextLease<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> LeaseDb()
+            => contextFactory.Lease<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
 
         protected override string FormatStringInternal(string rawString, Dictionary<string, object> customStringFormatArguments)
         {
@@ -103,6 +109,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
         public bool ForceImmediateInitialization => true;
         public void Initialize()
         {
+            using var lease = LeaseDb();
+            var context = lease.Context;
             var fx = (string k) =>
             {
                 var dic = new Dictionary<string, WebPluginConstant>();

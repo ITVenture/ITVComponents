@@ -1,4 +1,5 @@
-﻿using ITVComponents.DataAccess.Extensions;
+using ITVComponents.DataAccess.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.Models;
 
@@ -6,11 +7,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Log
 {
     internal class DbLogOutputAdapter:ILogOutputAdapter
     {
-        private readonly ICoreSystemContext db;
+        private readonly IToolkitContextFactory contextFactory;
 
-        public DbLogOutputAdapter(ICoreSystemContext db)
+        /// <summary>
+        /// Lease held for the duration of one populate*→flush cycle. The added events and the subsequent SaveChanges
+        /// MUST run on the same context instance, so a single fresh per-operation context is leased lazily on the first
+        /// <see cref="PopulateEvent"/> and disposed in <see cref="Flush"/>.
+        /// </summary>
+        private IContextLease<ICoreSystemContext> lease;
+
+        public DbLogOutputAdapter(IToolkitContextFactory contextFactory)
         {
-            this.db = db;
+            this.contextFactory = contextFactory;
         }
 
         /// <summary>
@@ -19,6 +27,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Log
         /// <param name="eventData">the collected event-data record</param>
         public void PopulateEvent(SystemEvent eventData)
         {
+            lease ??= contextFactory.Lease<ICoreSystemContext>();
+            var db = lease.Context;
             db.SystemLog.Add(eventData.ToViewModel<SystemEvent, Shared.Models.SystemEvent>());
         }
 
@@ -27,7 +37,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Log
         /// </summary>
         public void Flush()
         {
-            db.SaveChanges();
+            if (lease == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var db = lease.Context;
+                db.SaveChanges();
+            }
+            finally
+            {
+                lease.Dispose();
+                lease = null;
+            }
         }
     }
 }
