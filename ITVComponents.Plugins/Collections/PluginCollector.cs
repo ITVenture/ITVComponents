@@ -24,6 +24,13 @@ namespace ITVComponents.Plugins.Collections
         /// </summary>
         private ConcurrentDictionary<string, object> registeredObjects;
 
+        /// <summary>
+        /// Names of <see cref="registeredObjects"/> whose lifecycle is owned by THIS scope: they are disposed
+        /// (if <see cref="IDisposable"/>) when the scope is closed. By default registered objects out-live the
+        /// scope (they are not disposed here) — opt in per object via <see cref="TryAddRegisteredObject(string,object,bool)"/>.
+        /// </summary>
+        private readonly HashSet<string> scopeOwnedObjects = new HashSet<string>();
+
         private AsyncLocal<Dictionary<string, object>> localRegistrations;
 
         public PluginCollector(bool isTransientLoadingScope)
@@ -197,6 +204,25 @@ namespace ITVComponents.Plugins.Collections
                         LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error, "PluginSystem");
                     }
                 }
+
+                // Dispose scope-owned registered objects (e.g. per-operation DbContexts). Objects NOT marked
+                // owned out-live the scope (default) and are left untouched.
+                foreach (var ownedKey in scopeOwnedObjects)
+                {
+                    if (registeredObjects.TryGetValue(ownedKey, out var owned) && owned is IDisposable disposable)
+                    {
+                        try
+                        {
+                            disposable.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error, "PluginSystem");
+                        }
+                    }
+                }
+
+                scopeOwnedObjects.Clear();
             }
 
             plugins.Clear();
@@ -207,6 +233,19 @@ namespace ITVComponents.Plugins.Collections
         public void TryAddRegisteredObject(string parameterName, object instance)
         {
             registeredObjects.TryAdd(parameterName, instance);
+        }
+
+        /// <summary>
+        /// Registers an object as a constructor parameter and, when <paramref name="disposeWithScope"/> is true,
+        /// marks it to be disposed (if <see cref="IDisposable"/>) when this scope is closed. Use this for
+        /// per-operation dependencies (e.g. a fresh DbContext) that must NOT out-live the scope.
+        /// </summary>
+        public void TryAddRegisteredObject(string parameterName, object instance, bool disposeWithScope)
+        {
+            if (registeredObjects.TryAdd(parameterName, instance) && disposeWithScope)
+            {
+                scopeOwnedObjects.Add(parameterName);
+            }
         }
 
         public void TryAddRegisteredObjectLocal(string parameterName, object instance)

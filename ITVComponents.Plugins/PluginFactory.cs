@@ -54,9 +54,18 @@ namespace ITVComponents.Plugins
         private ConcurrentDictionary<PluginScope, PluginCollector> scopedPlugins;
 
         /// <summary>
-        /// holds the current scope when a plugin-chain is initialized using a scope
+        /// holds the current scope when a plugin-chain is initialized using a scope. Backed by either a
+        /// <see cref="ThreadLocal{T}"/> or an <see cref="AsyncLocal{T}"/> depending on <see cref="scopeMode"/>;
+        /// always access it through the <see cref="CurrentScope"/> property (never these fields directly).
         /// </summary>
-        private ThreadLocal<PluginScope> currentScope = new ThreadLocal<PluginScope>();
+        private readonly ThreadLocal<PluginScope> threadScope = new ThreadLocal<PluginScope>();
+
+        private readonly AsyncLocal<PluginScope> asyncScope = new AsyncLocal<PluginScope>();
+
+        /// <summary>
+        /// Determines whether <see cref="CurrentScope"/> is thread- or async-context-bound.
+        /// </summary>
+        private ScopeMode scopeMode = ScopeMode.PerThread;
 
         private bool useCurrentScope = true;
 
@@ -176,6 +185,14 @@ namespace ITVComponents.Plugins
         }
 
         /// <summary>
+        /// Initializes a new instance of the PluginFactory class with an explicit <see cref="ScopeMode"/>.
+        /// </summary>
+        /// <param name="scopeMode">controls whether the active scope is thread- or async-context-bound</param>
+        public PluginFactory(ScopeMode scopeMode) : this(true, false, false, false, false, scopeMode)
+        {
+        }
+
+        /// <summary>
         /// Initializes a new instance of the PluginFactory class
         /// </summary>
         /// <param name="buffer">indicates whether to buffer generated objects for later use</param>
@@ -223,8 +240,9 @@ namespace ITVComponents.Plugins
         /// <param name="reflectionFactory">indicates whether to use this factory as test-only factory</param>
         /// <param name="deferredInitialization">indicates whether to use deferred initialization for the loaded plugins</param>
         /// <param name="configurationOnly">indicates whether the configurable plugins should not be initialized in order to perform configuration tasks on these components</param>
-        internal PluginFactory(bool buffer, bool singletonFactory, bool reflectionFactory, bool deferredInitialization, bool configurationOnly)
+        internal PluginFactory(bool buffer, bool singletonFactory, bool reflectionFactory, bool deferredInitialization, bool configurationOnly, ScopeMode scopeMode = ScopeMode.PerThread)
         {
+            this.scopeMode = scopeMode;
             this.singletonFactory = singletonFactory;
             this.configurationOnly = configurationOnly;
             this.buffer = buffer;
@@ -257,6 +275,27 @@ namespace ITVComponents.Plugins
         }
 
         /// <summary>
+        /// The single access-point for the currently-active scope. Routes to the thread- or async-local storage
+        /// depending on <see cref="scopeMode"/> — this is the one place where the PerThread/PerAsyncContext switch
+        /// happens; never touch <see cref="threadScope"/>/<see cref="asyncScope"/> directly.
+        /// </summary>
+        private PluginScope CurrentScope
+        {
+            get => scopeMode == ScopeMode.PerAsyncContext ? asyncScope.Value : threadScope.Value;
+            set
+            {
+                if (scopeMode == ScopeMode.PerAsyncContext)
+                {
+                    asyncScope.Value = value;
+                }
+                else
+                {
+                    threadScope.Value = value;
+                }
+            }
+        }
+
+        /// <summary>
         /// Gets a PluginInstance with the given name
         /// </summary>
         /// <param name="pluginName">the name of the desired plugin</param>
@@ -275,9 +314,9 @@ namespace ITVComponents.Plugins
             get
             {
                 var retVal = stringLiteralFormatter;
-                if (HasActiveScope && currentScope.Value is { Formatter: not null })
+                if (HasActiveScope && CurrentScope is { Formatter: not null })
                 {
-                    retVal = currentScope.Value.Formatter;
+                    retVal = CurrentScope.Formatter;
                 }
 
                 return retVal;
@@ -288,7 +327,7 @@ namespace ITVComponents.Plugins
         {
             get
             {
-                return useCurrentScope && currentScope.IsValueCreated && currentScope.Value != null;
+                return useCurrentScope && CurrentScope != null;
             }
         }
 
@@ -317,7 +356,7 @@ namespace ITVComponents.Plugins
                     {
                         if (HasActiveScope)
                         {
-                            retVal = RequestScopePlugin(currentScope.Value, uq, callingPluginRef);
+                            retVal = RequestScopePlugin(CurrentScope, uq, callingPluginRef);
                         }
 
                         if (retVal == null)
@@ -442,7 +481,7 @@ namespace ITVComponents.Plugins
                         }
                         else
                         {
-                            currentScope.Value.SetFormatter(prov);
+                            CurrentScope.SetFormatter(prov);
                         }
                     }
 
@@ -1340,7 +1379,7 @@ namespace ITVComponents.Plugins
             }
             else if (name.UniqueName == "ifactory" && allowFactoryParameter && HasActiveScope)
             {
-                retVal = currentScope.Value;
+                retVal = CurrentScope;
                 if (reflectOnly)
                 {
                     retVal = AssemblyResolver.FindReflectionOnlyTypeFor(typeof(IPluginFactory));
@@ -1354,7 +1393,7 @@ namespace ITVComponents.Plugins
             {
                 if (HasActiveScope)
                 {
-                    retVal = RequestScopePlugin(currentScope.Value, name, callingType);
+                    retVal = RequestScopePlugin(CurrentScope, name, callingType);
                 }
 
                 if (retVal == null)
@@ -1418,7 +1457,7 @@ namespace ITVComponents.Plugins
         {
             if (HasActiveScope)
             {
-                return currentScope.Value.ScopeClose();
+                return CurrentScope.ScopeClose();
             }
 
             return Array.Empty<IPlugin>();
@@ -1437,7 +1476,7 @@ namespace ITVComponents.Plugins
 
         internal T WithScope<T>(PluginScope scope, Func<PluginScope, T> action)
         {
-            if (HasActiveScope && currentScope.Value != scope)
+            if (HasActiveScope && CurrentScope != scope)
             {
                 throw new InvalidOperationException("There already is a plugin-load in progress in this thread!");
             }
@@ -1445,7 +1484,7 @@ namespace ITVComponents.Plugins
             bool currentScopeSet = false;
             if (!HasActiveScope)
             {
-                currentScope.Value = scope;
+                CurrentScope = scope;
                 currentScopeSet = true;
             }
 
@@ -1457,7 +1496,7 @@ namespace ITVComponents.Plugins
             {
                 if (currentScopeSet)
                 {
-                    currentScope.Value = null;
+                    CurrentScope = null;
                 }
             }
         }
@@ -1510,7 +1549,7 @@ namespace ITVComponents.Plugins
         {
             if (HasActiveScope)
             {
-                scope ??= currentScope.Value;
+                scope ??= CurrentScope;
             }
 
             if (scope != null)
@@ -1521,7 +1560,7 @@ namespace ITVComponents.Plugins
             return pluginInstances;
         }
 
-        public IPluginFactory NewScope(Dictionary<string, object> knownScopeObjects, IServiceProvider services, bool transientLoadingScope)
+        public IPluginFactory NewScope(Dictionary<string, object> knownScopeObjects, IServiceProvider services, bool transientLoadingScope, ISet<string> disposeWithScope = null)
         {
             var scopePlugins = new PluginCollector(pluginInstances, transientLoadingScope);
             var retVal = new PluginScope(this, scopePlugins);
@@ -1532,7 +1571,7 @@ namespace ITVComponents.Plugins
                 {
                     foreach (var kso in knownScopeObjects)
                     {
-                        scopePlugins.TryAddRegisteredObject(kso.Key, kso.Value);
+                        scopePlugins.TryAddRegisteredObject(kso.Key, kso.Value, disposeWithScope?.Contains(kso.Key) ?? false);
                     }
                 }
 
