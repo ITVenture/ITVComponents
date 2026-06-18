@@ -22,6 +22,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dep
         /// so tenant-scoped consumers are not silently elevated.
         /// </summary>
         T Create<T>() where T : class;
+
+        /// <summary>
+        /// Like <see cref="Create{T}"/> but returns a disposable lease — handy for field-holding services that use the
+        /// context across several methods/helpers within one operation: <c>using var lease = factory.Lease&lt;T&gt;();
+        /// var db = lease.Context;</c>. Disposing the lease disposes the underlying context (works even though the
+        /// abstraction interfaces are not themselves <see cref="IDisposable"/>).
+        /// </summary>
+        IContextLease<T> Lease<T>() where T : class;
+    }
+
+    /// <summary>A disposable handle owning a per-operation context exposed as <typeparamref name="T"/>.</summary>
+    public interface IContextLease<out T> : IDisposable where T : class
+    {
+        /// <summary>The leased context. Valid until this lease is disposed.</summary>
+        T Context { get; }
     }
 
     internal sealed class ToolkitContextFactory<TContext> : IToolkitContextFactory
@@ -45,6 +60,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dep
             }
 
             return typed;
+        }
+
+        public IContextLease<T> Lease<T>() where T : class
+        {
+            var ctx = inner.CreateDbContext();
+            if (ctx is not T typed)
+            {
+                (ctx as IDisposable)?.Dispose();
+                throw new InvalidOperationException(
+                    $"The security context '{typeof(TContext).Name}' does not implement the requested abstraction '{typeof(T).Name}'.");
+            }
+
+            return new ContextLease<T>(typed, ctx);
+        }
+
+        private sealed class ContextLease<T> : IContextLease<T> where T : class
+        {
+            private readonly IDisposable owner;
+
+            public ContextLease(T context, IDisposable owner)
+            {
+                Context = context;
+                this.owner = owner;
+            }
+
+            public T Context { get; }
+
+            public void Dispose() => owner.Dispose();
         }
     }
 
