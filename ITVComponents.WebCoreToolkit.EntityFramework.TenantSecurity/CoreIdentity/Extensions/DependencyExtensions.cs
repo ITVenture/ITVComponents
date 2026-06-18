@@ -42,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 .AddScoped<ISecurityRepository>(i =>
                 {
                     var retVal = new AspNetDbSecurityRepository<AspNetSecurityContext>(
-                        i.GetService<AspNetSecurityContext>(),
+                        i.GetService<IToolkitContextFactory>(),
                         i.GetService<ILogger<AspNetDbSecurityRepository<AspNetSecurityContext>>>(),
                         i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                     return i.GetAssetSecurityRepository(retVal);
@@ -69,7 +69,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
                     {
-                        var retVal = new AspNetDbSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                        var retVal = new AspNetDbSecurityRepository<TImpl>(i.GetService<IToolkitContextFactory>(),
                                 i.GetService<ILogger<AspNetDbSecurityRepository<TImpl>>>(),
                                 i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                         return i.GetAssetSecurityRepository(retVal);
@@ -113,7 +113,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
-                    var retVal = new AspNetDbSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                    var retVal = new AspNetDbSecurityRepository<TImpl>(i.GetService<IToolkitContextFactory>(),
                             i.GetService<ILogger<AspNetDbSecurityRepository<TImpl>>>());
                     return i.GetAssetSecurityRepository(retVal);
                 })

@@ -6,6 +6,7 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices.Options;
@@ -94,7 +95,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         where TExternalOAuthServiceState : HierarchyExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
         where TExternalOAuthServiceTenantLogin : HierarchyExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
     {
-        private readonly IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext;
+        // Per-operation factory for the security context (Blazor-safe: a fresh, short-lived context per call instead
+        // of a shared circuit-scoped one). Each public operation leases one context and threads it through its
+        // private helpers, so the whole operation runs on a single, collision-free context instance.
+        private readonly IToolkitContextFactory contextFactory;
         private readonly ISecurityAccessProvider securityAccessProvider;
         private readonly IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions;
         private readonly ILogger logger;
@@ -111,15 +115,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         private readonly ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal;
         private DateTime authCacheStampUtc = DateTime.UtcNow;
 
-        // Used to spin up a dedicated, short-lived context instance for scope resolution (see GetEligibleScopes)
-        // so it can never collide with the shared circuit-scoped securityContext. May be null for the legacy
-        // (factory-without-services) path, in which case scope resolution falls back to the shared instance.
+        // Preserved for compatibility with existing registrations (was previously used to spin up a dedicated context
+        // for scope resolution; that role is now served by the per-operation IToolkitContextFactory). May be null.
         private readonly IServiceProvider services;
 
-        protected DbSecurityRepository(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions,
+        protected DbSecurityRepository(IToolkitContextFactory contextFactory, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> bufferOptions,
             ILogger logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null, IServiceProvider services = null)
         {
-            this.securityContext = securityContext;
+            this.contextFactory = contextFactory;
             this.securityAccessProvider = securityAccessProvider;
             this.bufferOptions = bufferOptions;
             this.logger = logger;
@@ -127,12 +130,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             this.services = services;
         }
 
+        /// <summary>
+        /// Leases a fresh per-operation security context for the duration of a single operation. The same context is
+        /// threaded through any private helpers so a whole public operation runs on ONE leased context.
+        /// </summary>
+        private IContextLease<IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> LeaseContext()
+            => contextFactory.Lease<IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
+
         public string UniqueName { get; set; }
 
         public ICollection<User> Users
         {
             get
             {
+                using var lease = LeaseContext();
+                var securityContext = lease.Context;
                 return (from u in securityContext.Users.ToList()
                     select SelectUser(u)).ToList();
             }
@@ -142,6 +154,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             get
             {
+                using var lease = LeaseContext();
+                var securityContext = lease.Context;
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
                 return (from r in securityContext.SecurityRoles where r.TenantId == securityContext.CurrentTenantId select r).ToList<Role>();
@@ -152,6 +166,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             get
             {
+                using var lease = LeaseContext();
+                var securityContext = lease.Context;
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
                 return (from p in securityContext.Permissions where p.TenantId == null || p.TenantId == securityContext.CurrentTenantId select p).ToList<Permission>();
@@ -160,6 +176,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public IEnumerable<Role> GetRoles(User user)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
                 new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = true});
@@ -168,6 +186,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions, string permissionScope)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
                 new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
@@ -185,6 +205,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public IEnumerable<CustomUserProperty> GetCustomProperties(User user, CustomUserPropertyType propertyType)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
                 new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
@@ -234,6 +256,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
                 new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
@@ -284,7 +308,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
             InvalidateAuthCacheIfStale();
-            var t = securityContext.CurrentTenantId;
+            int? t;
+            using (var lease = LeaseContext())
+            {
+                t = lease.Context.CurrentTenantId;
+            }
             var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, t, scope: null);
             // ConcurrentDictionary.GetOrAdd serializes concurrent first-time lookups by key:
             // only one caller runs the EF query, others block on the same Lazy<>.Value.
@@ -308,12 +336,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         private bool IsAuthenticatedCore(string[] userLabels, string userAuthenticationType, int? t)
         {
-            // Shadow the shared field with a dedicated, short-lived instance so this render-path read can't collide
-            // with parallel Blazor lifecycle callbacks on the circuit-scoped context. The whole body then transparently
-            // uses the detached instance; GetRawUserQuery gets it explicitly via readCtx.
-            var __det = services != null ? CreateDetachedContext() : null;
-            var securityContext = __det ?? this.securityContext;
-            try
+            // Render-path read on a fresh per-operation context (collision-free w.r.t. the shared circuit context).
+            // The whole body runs on this single leased instance; GetRawUserQuery gets it explicitly via readCtx.
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             {
                 if (t != null)
                 {
@@ -342,10 +368,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
                 return false;
             }
-            finally
-            {
-                (__det as IDisposable)?.Dispose();
-            }
         }
 
         public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
@@ -357,9 +379,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         private bool IsAuthenticatedScopedCore(string[] userLabels, string forScope, string userAuthenticationType)
         {
-            var __det = services != null ? CreateDetachedContext() : null;
-            var securityContext = __det ?? this.securityContext;
-            try
+            // Render-path read on a fresh per-operation context (collision-free w.r.t. the shared circuit context).
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             {
                 var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
@@ -390,10 +412,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
                 return false;
             }
-            finally
-            {
-                (__det as IDisposable)?.Dispose();
-            }
         }
 
         private static string BuildAuthCacheKey(string[] userLabels, string userAuthenticationType, int? tenantId, string scope)
@@ -406,6 +424,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType,
             CustomUserPropertyType propertyType)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             var isUser = userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern));
             using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
@@ -440,12 +460,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 throw new InvalidOperationException($"Expected Type was: {typeof(T)}");
             }
 
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             var isUser = userLabels.All(n => string.IsNullOrEmpty(n) || !Regex.IsMatch(n, Global.AppUserKeyPattern));
             using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser}));
             IQueryable<UserTenantLevel<TUser>> tenantUsers;
             if (isUser)
             {
-                tenantUsers = GetRawUserQuery(out _, userLabels);
+                tenantUsers = GetRawUserQuery(out _, userLabels, readCtx: securityContext);
             }
             else
             {
@@ -474,6 +496,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims, string userAuthenticationType)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false }));
             var typeClaims = securityContext.AuthenticationClaimMappings.Where(n =>
                 n.AuthenticationType.AuthenticationTypeName == userAuthenticationType).ToArray();
@@ -501,6 +525,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public IEnumerable<Permission> GetPermissions(User user)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             var tmpRr = (from r in AllRoles(securityContext.Users.First(UserFilter(user)))
                 select new
                 {
@@ -524,10 +550,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
-            // Render-path read on a dedicated context (shadow of the shared field) -> collision-free.
-            var __det = services != null ? CreateDetachedContext() : null;
-            var securityContext = __det ?? this.securityContext;
-            try
+            // Render-path read on a fresh per-operation context -> collision-free w.r.t. the shared circuit context.
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
             using var tmp = securityAccessProvider.CreateForCaller(securityContext,
@@ -604,17 +629,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
             return permRawArr;
             }
-            finally
-            {
-                (__det as IDisposable)?.Dispose();
-            }
         }
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
         {
-            var __det = services != null ? CreateDetachedContext() : null;
-            var securityContext = __det ?? this.securityContext;
-            try
+            // Render-path read on a fresh per-operation context -> collision-free w.r.t. the shared circuit context.
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             {
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
             using var tmp = securityAccessProvider.CreateForCaller(securityContext,
@@ -692,14 +713,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
             return permRawArr;
             }
-            finally
-            {
-                (__det as IDisposable)?.Dispose();
-            }
         }
 
         public IEnumerable<Permission> GetPermissions(Role role)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
             if (role is TRole dbRole)
             {
@@ -716,23 +735,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public bool PermissionScopeExists(string permissionScopeName)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
             return securityContext.Tenants.Any(n => n.TenantName == permissionScopeName);
         }
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType)
         {
-            // Resolve eligible scopes on a dedicated, short-lived context instance instead of the shared
-            // circuit-scoped securityContext. This runs synchronously from CurrentTenantId/PermissionPrefix while
-            // parallel Blazor lifecycle callbacks may have an operation open on the same shared instance ->
-            // "a second operation was started on this context instance". A detached instance bound to the same
-            // IPermissionScope/IContextUserProvider is correctly scoped yet collision-free (mirrors the navigation
-            // builder, f53cae61). The trust elevation below targets the detached instance; the trust lookup itself
-            // is served from the access-provider cache, so no query hits the shared context. Falls back to the
-            // shared instance only on the legacy path where no IServiceProvider was injected.
-            var ownsCtx = services != null;
-            var ctx = ownsCtx ? CreateDetachedContext() : securityContext;
-            try
+            // Resolve eligible scopes on a fresh per-operation context instance instead of a shared circuit-scoped
+            // one. This runs synchronously from CurrentTenantId/PermissionPrefix while parallel Blazor lifecycle
+            // callbacks may have an operation open on the shared instance -> "a second operation was started on this
+            // context instance". A fresh leased instance is correctly scoped yet collision-free (mirrors the
+            // navigation builder, f53cae61). The trust elevation below targets the leased instance; the trust lookup
+            // itself is served from the access-provider cache, so no query hits the shared context.
+            using var lease = LeaseContext();
+            var ctx = lease.Context;
             {
                 var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
                 using var tmp = securityAccessProvider.CreateForCaller(ctx, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false}));
@@ -754,44 +772,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     orderby d.DisplayName
                     select new ScopeInfo { ScopeDisplayName = d.DisplayName, ScopeName = d.TenantName, AccessMode = d.DirectlyAssigned?ScopeAccessMode.Direct:ScopeAccessMode.Inherited}).ToArray();
             }
-            finally
-            {
-                if (ownsCtx)
-                {
-                    (ctx as IDisposable)?.Dispose();
-                }
-            }
         }
 
         /// <summary>
-        /// Creates a fresh, DI-bound context instance (same IPermissionScope/IContextUserProvider as the shared
-        /// one, but a separate DbContext) for collision-free scope resolution. The caller owns and disposes it.
-        /// <see cref="ActivatorUtilities"/> selects the richest resolvable (dependency-injected) constructor.
-        /// </summary>
-        private IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> CreateDetachedContext()
-            => (IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>)ActivatorUtilities.CreateInstance(services, securityContext.GetType());
-
-        /// <summary>
-        /// Runs a read on a dedicated, short-lived context instance (collision-free w.r.t. the shared circuit
+        /// Runs a read on a dedicated, fresh per-operation context instance (collision-free w.r.t. the shared circuit
         /// context) and disposes it afterwards. The result MUST be fully materialized inside <paramref name="read"/>
-        /// (do not return a lazy IQueryable). Falls back to the shared context on the legacy no-IServiceProvider path.
+        /// (do not return a lazy IQueryable).
         /// </summary>
         private TResult ReadDetached<TResult>(Func<IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>, TResult> read)
         {
-            if (services == null)
-            {
-                return read(securityContext);
-            }
-
-            var ctx = CreateDetachedContext();
-            try
-            {
-                return read(ctx);
-            }
-            finally
-            {
-                (ctx as IDisposable)?.Dispose();
-            }
+            using var lease = LeaseContext();
+            return read(lease.Context);
         }
 
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
@@ -838,63 +829,87 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName)
         {
-            var timezone = GetTimeZone(permissionScopeName);
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
+            var timezone = GetTimeZone(permissionScopeName, securityContext);
             return new TimeZoneHelper(timezone);
         }
 
         public string Decrypt(string encryptedValue, string permissionScopeName)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.DecryptForScope(encryptedValue, permissionScopeName, n => ConfigureTrustConfig(n));
         }
 
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.DecryptForScope(encryptedValue, permissionScopeName, n => ConfigureTrustConfig(n));
         }
 
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.DecryptForScope(encryptedValue, permissionScopeName, initializationVector, salt, n => ConfigureTrustConfig(n));
         }
 
         public Stream GetDecryptStream(Stream baseStream, string permissionScopeName, byte[] initializationVector, byte[] salt)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.GetDecryptStreamForScope(baseStream, permissionScopeName, initializationVector, salt, n => ConfigureTrustConfig(n));
         }
 
         public Stream GetDecryptStream(Stream baseStream, string permissionScopeName)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.GetDecryptStreamForScope(baseStream, permissionScopeName, n => ConfigureTrustConfig(n));
         }
 
         public string Encrypt(string value, string permissionScopeName)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.EncryptForScope(value, permissionScopeName, n => ConfigureTrustConfig(n));
         }
 
         public byte[] Encrypt(byte[] value, string permissionScopeName)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.EncryptForScope(value, permissionScopeName, n => ConfigureTrustConfig(n));
         }
 
         public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.EncryptForScope(value, permissionScopeName, out initializationVector, out salt, n => ConfigureTrustConfig(n));
         }
 
         public Stream GetEncryptStream(Stream baseStream, string permissionScopeName, out byte[] initializationVector,
             out byte[] salt)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.GetEncryptStreamForScope(baseStream, permissionScopeName, out initializationVector, out salt, n => ConfigureTrustConfig(n));
         }
 
         public Stream GetEncryptStream(Stream baseStream, string permissionScopeName)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.GetEncryptStreamForScope(baseStream, permissionScopeName, n => ConfigureTrustConfig(n));
         }
 
         public string EncryptJsonObject(object value, string permissionScopeName)
         {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             return securityContext.EncryptJsonObjectForScope(value, permissionScopeName, n => ConfigureTrustConfig(n));
         }
 
@@ -911,7 +926,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public ExternalServiceConnection GetExternalService(string name, bool decryptSecret = false)
         {
-            var tmp = GetExternalOAuthService(name, out _, out _, out var tenantName, true).Copy();
+            ExternalServiceConnection tmp;
+            string tenantName;
+            using (var lease = LeaseContext())
+            {
+                tmp = GetExternalOAuthService(name, out _, out _, out tenantName, true, lease.Context).Copy();
+            }
             if (decryptSecret && !string.IsNullOrEmpty(tmp.ClientSecret))
             {
                 if (tmp.Global)
@@ -929,7 +949,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public void PrepareExternalServiceConnect(OAuthState oAuthState)
         {
-            var tmp = GetExternalOAuthService(oAuthState.ConnectionName, out var serviceId, out var tenantId, out _, true);
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
+            var tmp = GetExternalOAuthService(oAuthState.ConnectionName, out var serviceId, out var tenantId, out _, true, securityContext);
             if (tenantId != securityContext.CurrentTenantId && tenantId != null)
             {
                 throw new InvalidOperationException("Can only configure a connection for the active tenant");
@@ -956,6 +978,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             var now = DateTime.UtcNow;
             bool switchRequired = false;
 
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             LogEnvironment.LogDebugEvent("Looking up all services", LogSeverity.Warning);
             using var tmp = securityAccessProvider.CreateForCaller(
                 securityContext,
@@ -994,7 +1018,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public void StoreExternalServiceToken(string connectionName, TranslatedTokenResponse token)
         {
-            var tmp = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out var tenantName, true);
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
+            var tmp = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out var tenantName, true, securityContext);
             if (tenantId != securityContext.CurrentTenantId && tenantId != null)
             {
                 throw new InvalidOperationException("Can only configure a connection for the active tenant");
@@ -1032,9 +1058,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public TranslatedTokenResponse GetBufferedToken(string connectionName, bool forRevoke, bool throwIfNull, out ExternalServiceConnection connectionInfo, out Action<TranslatedTokenResponse> updateToken)
         {
+            // Per-operation: this read runs on one leased context (disposed via 'using'). The returned
+            // 'updateToken' delegate is invoked by the caller later and persists on its OWN fresh lease
+            // (see PersistToken) — it captures only ids/values, never this context or a tracked entity.
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
             using var tmpSecurity = securityAccessProvider.CreateForCaller(securityContext,
                 new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
-            var svc = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out var tenantName, false).Copy();
+            var svc = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out var tenantName, false, securityContext).Copy();
             if (!string.IsNullOrEmpty(svc.ClientSecret))
             {
                 if (svc.Global)
@@ -1050,7 +1081,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             connectionInfo = svc;
             if (serviceId != null)
             {
-                var login = GetExternalOAuthServiceLogin(serviceId.Value,false);
+                var login = GetExternalOAuthServiceLogin(serviceId.Value,false, securityContext);
                 var targetTenant = login?.Tenant.TenantName ?? tenantName;
                 if (login is { Revoked: false } && (!forRevoke || login.TenantId == securityContext.CurrentTenantId))
                 {
@@ -1067,20 +1098,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
                     if (!forRevoke)
                     {
-                        updateToken = newToken =>
-                        {
-                            var encToken = new TranslatedTokenResponse
-                            {
-                                Scope = newToken.Scope,
-                                AccessToken = Encrypt(newToken.AccessToken, targetTenant),
-                                ExpiresAt = newToken.ExpiresAt,
-                                RefreshToken = Encrypt(newToken.RefreshToken, targetTenant),
-                                TokenType = newToken.TokenType
-                            };
-
-                            login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
-                            securityContext.SaveChanges();
-                        };
+                        updateToken = newToken => PersistToken(serviceId.Value, tenantId, targetTenant, newToken);
                     }
                     else
                     {
@@ -1095,44 +1113,56 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
                 if (!throwIfNull)
                 {
-                    updateToken = newToken =>
-                    {
-                        var encToken = new TranslatedTokenResponse
-                        {
-                            Scope = newToken.Scope,
-                            AccessToken = Encrypt(newToken.AccessToken, targetTenant),
-                            ExpiresAt = newToken.ExpiresAt,
-                            RefreshToken = Encrypt(newToken.RefreshToken, targetTenant),
-                            TokenType = newToken.TokenType
-                        };
-
-                        if (login != null)
-                        {
-                            login.Revoked = false;
-                            login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
-                        }
-                        else
-                        {
-                            login = new TExternalOAuthServiceTenantLogin
-                            {
-                                TenantId = tenantId ?? securityContext.CurrentTenantId.Value,
-                                Revoked = false,
-                                OAuthServiceId = serviceId.Value,
-                                Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping)
-                            };
-
-                            securityContext.ExternalOAuthServiceTenantLogins.Add(login);
-
-                        }
-
-                        securityContext.SaveChanges();
-                    };
+                    updateToken = newToken => PersistToken(serviceId.Value, tenantId, targetTenant, newToken);
 
                     return null;
                 }
             }
 
             throw new InvalidOperationException($"No appropriate Token found for {connectionName}");
+        }
+
+        /// <summary>
+        /// Persists (creates or updates) the OAuth tenant-login token on its OWN fresh per-operation context.
+        /// Called by the deferred <c>updateToken</c> delegate returned from <see cref="GetBufferedToken"/>; it
+        /// captures only ids/values (no tracked entity or shared context), re-resolves the login by service
+        /// (across the tenant tree, same trust as the read) and saves atomically.
+        /// </summary>
+        private void PersistToken(int serviceId, int? tenantId, string targetTenant, TranslatedTokenResponse newToken)
+        {
+            var encToken = new TranslatedTokenResponse
+            {
+                Scope = newToken.Scope,
+                AccessToken = Encrypt(newToken.AccessToken, targetTenant),
+                ExpiresAt = newToken.ExpiresAt,
+                RefreshToken = Encrypt(newToken.RefreshToken, targetTenant),
+                TokenType = newToken.TokenType
+            };
+
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
+            using var tmpSecurity = securityAccessProvider.CreateForCaller(securityContext,
+                new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
+            var login = GetExternalOAuthServiceLogin(serviceId, false, securityContext);
+            if (login != null)
+            {
+                login.Revoked = false;
+                login.Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping);
+            }
+            else
+            {
+                login = new TExternalOAuthServiceTenantLogin
+                {
+                    TenantId = tenantId ?? securityContext.CurrentTenantId.Value,
+                    Revoked = false,
+                    OAuthServiceId = serviceId,
+                    Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping)
+                };
+
+                securityContext.ExternalOAuthServiceTenantLogins.Add(login);
+            }
+
+            securityContext.SaveChanges();
         }
 
         public void Dispose()
@@ -1167,9 +1197,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         protected abstract TTrustConfig ConfigureTrustConfigImpl(TTrustConfig trustConfig, string callingMethod);
 
-        protected virtual ExternalServiceConnection GetExternalOAuthService(string name, out int? externalOAuthServiceId, out int? tenantId, out string? tenantName, bool useFullAccess)
+        protected virtual ExternalServiceConnection GetExternalOAuthService(string name, out int? externalOAuthServiceId, out int? tenantId, out string? tenantName, bool useFullAccess, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && ServiceBuffered(name, out var bufferInfo))
+            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && ServiceBuffered(name, out var bufferInfo, securityContext))
             {
                 externalOAuthServiceId = bufferInfo.ExternalOAuthServiceId;
                 tenantId = bufferInfo.TenantId;
@@ -1216,7 +1246,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     externalOAuthServiceId = pi?.OAuthServiceId;
                     tenantId = pi?.TenantId;
                     tenantName = pi?.Tenant?.TenantName;
-                    return TryRegisterService(name, pi);
+                    return TryRegisterService(name, pi, securityContext);
                 }
                 finally
                 {
@@ -1227,7 +1257,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             throw new InvalidOperationException("Invalid DB-Access mode");
         }
 
-        protected virtual TExternalOAuthServiceTenantLogin GetExternalOAuthServiceLogin(int oauthServiceId, bool useFullAccess)
+        protected virtual TExternalOAuthServiceTenantLogin GetExternalOAuthServiceLogin(int oauthServiceId, bool useFullAccess, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
@@ -1301,7 +1331,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             return null;
         }
 
-        private TimeZoneInfo GetTimeZone(string permissionScopeName)
+        private TimeZoneInfo GetTimeZone(string permissionScopeName, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
             using (securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = true })))
             {
@@ -1318,9 +1348,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         private IQueryable<UserTenantLevel<TUser>> GetRawUserQuery(out int currentTenantId, string[] userLabels, string forTenant = null,
             IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> readCtx = null)
         {
-            // readCtx lets render-path callers run this on a dedicated context (collision-free). Defaults to the
-            // shared context for all other (sequential) callers.
-            var sc = readCtx ?? securityContext;
+            // Always runs on the caller's leased per-operation context (collision-free); callers pass it via readCtx.
+            var sc = readCtx;
             int currentTenant = 0;
             if (string.IsNullOrEmpty(forTenant))
             {
@@ -1356,7 +1385,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 });
         }
 
-        private ExternalServiceConnection TryRegisterService(string uniqueName, TExternalOAuthService serviceData)
+        private ExternalServiceConnection TryRegisterService(string uniqueName, TExternalOAuthService serviceData, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
             var dc = bufferedServices.GetOrAdd(securityContext.CurrentTenantName,
                 n => new ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());
@@ -1391,7 +1420,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             return serviceData.ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>();
         }
 
-        private bool ServiceBuffered(string name, out ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/ bufferInfo)
+        private bool ServiceBuffered(string name, out ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/ bufferInfo, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
             var dc = bufferedServices.GetOrAdd(securityContext.CurrentTenantName,
                 n => new ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());

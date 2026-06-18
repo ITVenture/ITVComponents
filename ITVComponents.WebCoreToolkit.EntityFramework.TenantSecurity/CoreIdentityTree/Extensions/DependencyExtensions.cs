@@ -34,11 +34,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         {
             var finaltth = typeof(AspNetTreeSecurityContext).FinalizeType(typeof(ITenantTemplateHelper<,,,,,,,,,,>), fixTypeEntries: ("TContext",typeof(AspNetTreeSecurityContext)));
             return services.AddDbContext<AspNetTreeSecurityContext>(options)
+                // Per-operation factory backing the (now factory-based) security repository.
+                .AddScoped<IDbContextFactory<AspNetTreeSecurityContext>, ToolkitDbContextFactory<AspNetTreeSecurityContext>>()
+                .AddScoped<IToolkitContextFactory, ToolkitContextFactory<AspNetTreeSecurityContext>>()
                 .RegisterExplicityInterfacesScoped<AspNetTreeSecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
                     var retVal = new AspNetDbTreeSecurityRepository<AspNetTreeSecurityContext>(
-                        i.GetService<AspNetTreeSecurityContext>(),
+                        i.GetService<IToolkitContextFactory>(),
                         i.GetService<ISecurityAccessProvider>(),
                         i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                         i.GetService<ILogger<AspNetDbTreeSecurityRepository<AspNetTreeSecurityContext>>>(),
@@ -74,7 +77,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
                     {
-                        var retVal = new AspNetDbTreeSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                        var retVal = new AspNetDbTreeSecurityRepository<TImpl>(i.GetService<IToolkitContextFactory>(),
                                 i.GetService<ISecurityAccessProvider>(),
                             i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                                 i.GetService<ILogger<AspNetDbTreeSecurityRepository<TImpl>>>(),
@@ -117,10 +120,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             return services.AddDbContext<TImpl>(options)
                 .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
                 .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
+                .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
-                    var retVal = new AspNetDbTreeSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                    var retVal = new AspNetDbTreeSecurityRepository<TImpl>(i.GetService<IToolkitContextFactory>(),
                                 i.GetService<ISecurityAccessProvider>(),
                         i.GetService<IOptions<ExternalOAuthServiceBufferingOptions>>(),
                             i.GetService<ILogger<AspNetDbTreeSecurityRepository<TImpl>>>(),

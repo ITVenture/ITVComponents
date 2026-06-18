@@ -45,7 +45,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 .RegisterExplicityInterfacesScoped<SecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
-                    var retVal = new DbSecurityRepository<SecurityContext>(i.GetService<SecurityContext>(),
+                    var retVal = new DbSecurityRepository<SecurityContext>(i.GetService<IToolkitContextFactory>(),
                             i.GetService<ILogger<DbSecurityRepository<SecurityContext>>>(),
                             i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                     return i.GetAssetSecurityRepository(retVal);
@@ -87,7 +87,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
-                    var retVal = new DbSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                    var retVal = new DbSecurityRepository<TImpl>(i.GetService<IToolkitContextFactory>(),
                             i.GetService<ILogger<DbSecurityRepository<TImpl>>>(),
                             i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                     return i.GetAssetSecurityRepository(retVal);
@@ -115,7 +115,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
-                    var retVal = new DbSecurityRepository<TImpl>(i.GetService<TImpl>(),
+                    var retVal = new DbSecurityRepository<TImpl>(i.GetService<IToolkitContextFactory>(),
                             i.GetService<ILogger<DbSecurityRepository<TImpl>>>(),
                             i.GetService<ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal>());
                     return i.GetAssetSecurityRepository(retVal);

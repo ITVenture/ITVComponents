@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
@@ -22,8 +23,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Navi
     internal class DbNavigationBuilder<TImpl>: Shared.Navigation.DbNavigationBuilder<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser,RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant,AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>
     where TImpl:SecurityContext<TImpl>
     {
-        public DbNavigationBuilder(TImpl securityContext, IServiceProvider services, IPermissionScope permissionScope, IContextUserProvider contextUser, IOptions<ToolkitPolicyOptions> options):
-            base(securityContext,services, permissionScope, contextUser, options)
+        public DbNavigationBuilder(IToolkitContextFactory contextFactory, IServiceProvider services, IPermissionScope permissionScope, IContextUserProvider contextUser, IOptions<ToolkitPolicyOptions> options):
+            base(contextFactory,services, permissionScope, contextUser, options)
         {
         }
     }

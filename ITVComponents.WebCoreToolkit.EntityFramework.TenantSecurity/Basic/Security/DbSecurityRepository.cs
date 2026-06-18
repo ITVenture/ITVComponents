@@ -18,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Secu
 {
     internal class DbSecurityRepository<TImpl>:Shared.Security.DbSecurityRepository<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser,RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,AssetTemplatePath,AssetTemplateGrant, AssetTemplateFeature,SharedAsset,SharedAssetUserFilter,SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> where TImpl:SecurityContext<TImpl>
     {
-        public DbSecurityRepository(TImpl securityContext, ILogger<DbSecurityRepository<TImpl>> logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null):base(securityContext, logger, changeSignal)
+        public DbSecurityRepository(ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection.IToolkitContextFactory contextFactory, ILogger<DbSecurityRepository<TImpl>> logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null):base(contextFactory, logger, changeSignal)
         {
         }
 

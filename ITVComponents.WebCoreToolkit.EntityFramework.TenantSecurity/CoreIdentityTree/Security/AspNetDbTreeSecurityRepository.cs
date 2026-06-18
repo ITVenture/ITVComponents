@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
@@ -26,7 +27,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
     {
         private const string default1 = "Identity.Application";
 
-        public AspNetDbTreeSecurityRepository(TImpl securityContext, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> serviceBufferOptions, ILogger<AspNetDbTreeSecurityRepository<TImpl>> logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null, IServiceProvider services = null):base(securityContext, securityAccessProvider, serviceBufferOptions, logger, changeSignal, services)
+        public AspNetDbTreeSecurityRepository(IToolkitContextFactory contextFactory, ISecurityAccessProvider securityAccessProvider, IOptions<ExternalOAuthServiceBufferingOptions> serviceBufferOptions, ILogger<AspNetDbTreeSecurityRepository<TImpl>> logger, ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal = null, IServiceProvider services = null):base(contextFactory, securityAccessProvider, serviceBufferOptions, logger, changeSignal, services)
         {
         }
 

@@ -1,4 +1,5 @@
 ﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
@@ -72,7 +73,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         // passed into the overrides below, so a signal-driven rebuild never collides with the shared context.
         private readonly ISecurityAccessProvider securityAccessProvider;
 
-        public DbNavigationBuilder(IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, IServiceProvider services, IPermissionScope permissionScope, IContextUserProvider contextUser, ISecurityAccessProvider securityAccessProvider, IOptions<ToolkitPolicyOptions> options) : base(securityContext, services, permissionScope, contextUser, options)
+        public DbNavigationBuilder(IToolkitContextFactory contextFactory, IServiceProvider services, IPermissionScope permissionScope, IContextUserProvider contextUser, ISecurityAccessProvider securityAccessProvider, IOptions<ToolkitPolicyOptions> options) : base(contextFactory, services, permissionScope, contextUser, options)
         {
             this.securityAccessProvider = securityAccessProvider;
         }
