@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers
@@ -79,12 +80,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         private readonly IToolkitContextFactory contextFactory;
 
         /// <summary>
-        /// The context leased for the currently running public operation. Set at the top of each public method
-        /// (from a single <see cref="IToolkitContextFactory.Lease{T}"/> lease) and threaded — via this field — through
-        /// every private/protected helper and the part-handlers, so the whole unit of work runs on ONE context
-        /// instance (exactly as the formerly shared field did). Restored to its previous value when the operation ends.
+        /// Backing store for the per-operation context. <see cref="AsyncLocal{T}"/> (not a plain field) so that
+        /// concurrent operations on a shared, scoped/circuit-lived helper instance each see their OWN leased context
+        /// along their own logical call-flow, instead of racing on one mutable field (Blazor-safe — avoids the
+        /// "second operation on this context" cross-talk a shared field would cause under parallel callbacks).
         /// </summary>
-        private TContext db;
+        private readonly AsyncLocal<TContext> dbContext = new AsyncLocal<TContext>();
+
+        /// <summary>
+        /// The context leased for the currently running public operation. Set at the top of each public method
+        /// (from a single <see cref="IToolkitContextFactory.Lease{T}"/> lease) and threaded — via this property —
+        /// through every private/protected helper and the part-handlers, so the whole unit of work runs on ONE
+        /// context instance. Restored to its previous value when the operation ends.
+        /// </summary>
+        private TContext db
+        {
+            get => dbContext.Value;
+            set => dbContext.Value = value;
+        }
         private readonly ILogger<TenantTemplateHelperBase<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig, TContext>> logger;
 
         private readonly IEnumerable<ITenantTemplatePartHandler> partHandlers;
