@@ -91,16 +91,23 @@ namespace ITVComponents.WebCoreToolkit.Tests
         }
 
         [TestMethod]
-        public async Task User_Without_Eligible_Scopes_Returns_403()
+        public async Task User_Without_Eligible_Scopes_Passes_Through_Untouched()
         {
+            // A tenant-less authenticated user must still reach tenant-neutral pages that only require a
+            // signed-in user (Home, account, …). The middleware stays transparent: no 403, no segment strip,
+            // no stashed tenant. Any page that genuinely needs an active tenant enforces that itself against
+            // the null scope the engine resolves for this user.
             var (mw, ran) = NewMiddleware();
             var ctx = NewContext("/anything/here", AuthenticatedUser());
             ctx.RequestServices = new ServiceProvider(/* no eligible scopes */);
 
             await mw.InvokeAsync(ctx);
 
-            Assert.IsFalse(ran.Value);
-            Assert.AreEqual(StatusCodes.Status403Forbidden, ctx.Response.StatusCode);
+            Assert.IsTrue(ran.Value);
+            Assert.AreEqual(StatusCodes.Status200OK, ctx.Response.StatusCode);
+            Assert.AreEqual("/anything/here", ctx.Request.Path.Value, "path must be left untouched for a tenant-less user");
+            Assert.AreEqual("", ctx.Request.PathBase.Value, "no tenant segment may be stripped to PathBase");
+            Assert.IsFalse(ctx.Items.ContainsKey(TenantPathPrefixMiddleware.TenantSegmentItemKey));
         }
 
         [TestMethod]

@@ -223,6 +223,17 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                     logger.LogDebug($"Default-Value of current scope: {retVal}");
                 }
 
+                // A user who is a member of no tenant has no eligible scope to resolve to (the default
+                // expression yields null/empty over an empty EligibleScopes set). There is nothing to push to
+                // the permission repo, and UpdateScopePermissions/-Features assume the scope is one of the
+                // eligible scopes (EligibleScopes.First) — so calling UpdateToken here would throw. Returning
+                // null leaves the user with an empty permission set, locked out of everything except the
+                // tenant-neutral identity pages, which is the intended behaviour for a tenant-less account.
+                if (string.IsNullOrEmpty(retVal))
+                {
+                    return null;
+                }
+
                 UpdateToken(retVal, scopeToken, secc, isNew, true, true);
                 return retVal;
             }

@@ -86,8 +86,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             var eligible = ResolveEligibleScopes(user, mapper, repo);
             if (eligible.Length == 0)
             {
-                logger.LogInformation("TenantPathPrefix: authenticated user has no eligible scopes; responding 403 for {Path}", path);
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                // An authenticated user who is a member of no tenant has no tenant segment to validate or strip.
+                // Don't lock them out here: let the request flow through to the tenant-neutral pages that only
+                // require a signed-in user (Home, account management, …). The scope engine resolves them to a
+                // null scope, so any page that genuinely needs an active tenant enforces that itself — its
+                // permission/feature checks (SecureView, [Authorize] policies, …) fail against the null scope
+                // and that module responds 403/redirect. Keeping the middleware transparent here makes
+                // tenant-gating a per-module concern instead of an all-or-nothing gate at the front door.
+                logger.LogDebug("TenantPathPrefix: authenticated user has no eligible scopes; passing {Path} through untouched", path);
+                await next(context);
                 return;
             }
 

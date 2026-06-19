@@ -85,6 +85,21 @@ namespace ITVComponents.WebCoreToolkit.Tests
         }
 
         [TestMethod]
+        public void TenantLess_User_Resolves_To_No_Scope_Without_Throwing()
+        {
+            // A signed-in user who is a member of no tenant has zero eligible scopes. Resolution must NOT throw
+            // (it used to crash in UpdateScopePermissions' EligibleScopes.First on a null/absent scope); instead
+            // the user resolves to no scope and an empty permission set, leaving only the tenant-neutral identity
+            // pages reachable.
+            var repo = new FakeSecurityRepository(); // no eligible scopes
+            var ctx = TestSecurity.AuthenticatedContext(repo);
+            var scope = NewScope(ctx, defaultScope: "TenantA");
+
+            Assert.IsNull(scope.PermissionPrefix);
+            Assert.AreEqual(0, repo.PermissionScopesQueried.Count, "no scope must ever be resolved for a tenant-less user");
+        }
+
+        [TestMethod]
         public void Anonymous_User_Resolves_To_No_Scope()
         {
             var repo = new FakeSecurityRepository("TenantA", "TenantB");
