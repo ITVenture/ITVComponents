@@ -677,6 +677,17 @@ Gebt ihr (wie bisher) eine **schlichte, scoped** Quelle zurück (kein `ScopedDat
 (host-/DI-owned, nichts wird vom Toolkit disposed). Die toolkit-internen Diag/FK-Konsumenten disposen die Quelle
 nach Gebrauch korrekt (auch bei lazy gestreamten Ergebnissen) — ihr müsst dafür nichts tun.
 
+### 8.4 FileHandler — automatisch per-Operation, **keine zusätzliche Verdrahtung**
+Der zentrale FileHandler-Dispatch (`IFileServiceHandler.ProcessFileUpload`/`ProcessFileDownload`, von MVC- **und**
+Blazor-Edge genutzt) lädt den FileHandler-Plugin jetzt aus einer `CreateOperationScope()` statt aus der
+ambient-Factory. Folge: Ein FileHandler, der den System-Context als **scope-owned** Dependency bezieht (also „sys"
+mit `disposeWithScope:true` gemäß §8.1), bekommt **pro Up-/Download einen frischen, tenant-korrekten per-Op-Context**,
+der am Operationsende disposed wird — **ohne dass ihr im FileHandler oder am Dispatch etwas ändern müsst**. Beim
+Download wird die Scope-Disposal an `FileReadResult.DeferredDisposals` gehängt, damit ein lazy gestreamter Inhalt
+(z.B. `VideoTutorialFileHandler` über `db.Database.UseConnection`) erst **nach** dem Servieren des Streams disposed
+wird. Habt ihr „sys" **nicht** als scope-owned konfiguriert (§8.1 nicht aktiviert), ändert sich nichts: die
+Operation-Scope ist leer, der Context bleibt geteilt wie bisher.
+
 ---
 
 ## 9. Verifikation auf eurer Seite
@@ -709,4 +720,4 @@ nach Gebrauch korrekt (auch bei lazy gestreamten Ergebnissen) — ihr müsst daf
 | 9 | **Onboarding Mail/Nav** (2b) | `IAppMailSender` via `UseDefaultMailSender` (auto) oder eigene Impl; Nav-Link auf `/Account/Onboarding/Invitations` |
 | 10 | **EntityWriteTracker** (FK-Cache) | optional `ActivationSettings.UseEntityTracker = true` für sofortige FK-Label-Cache-Invalidierung; alter `IForeignKeyWriteTracker` entfallen → `IEntityWriteTracker` |
 | 10a | **Permissions/Navigation sofort** | gleicher Schalter invalidiert Cookie-Permission-Cache, Navigator & `isAuthenticatedCache` automatisch; für sofortiges UI-Re-Render optional `<EntityChangeRefresher>` (Blazor) um das Menü legen |
-| 11 | **Per-Op-Context** (opt-in, §8) | falls ihr den System-Context als `"sys"`-Dependency konfiguriert: `AddDependency(…, p=>p.GetService<IDbContextFactory<AppCtx>>().CreateDbContext(), disposeWithScope:true)`; Plugin-Konsumenten `using var s = pluginHelper.CreateOperationScope()`; Diag/FK-`RegisterService` ggf. `ScopedDataSource` zurückgeben. Ohne Änderung = bisheriges (geteiltes) Verhalten |
+| 11 | **Per-Op-Context** (opt-in, §8) | falls ihr den System-Context als `"sys"`-Dependency konfiguriert: `AddDependency(…, p=>p.GetService<IDbContextFactory<AppCtx>>().CreateDbContext(), disposeWithScope:true)`; Plugin-Konsumenten `using var s = pluginHelper.CreateOperationScope()`; Diag/FK-`RegisterService` ggf. `ScopedDataSource` zurückgeben. **FileHandler** sind automatisch abgedeckt (§8.4) — sobald „sys" scope-owned ist, greift der per-Op-Context im Up-/Download ohne weitere Verdrahtung. Ohne Änderung = bisheriges (geteiltes) Verhalten |

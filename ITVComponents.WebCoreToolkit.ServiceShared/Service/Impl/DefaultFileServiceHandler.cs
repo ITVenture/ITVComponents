@@ -7,6 +7,7 @@ using ITVComponents.WebCoreToolkit.ServiceShared.Extensions;
 using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using ITVComponents.WebCoreToolkit.ServiceShared.Model;
 using ITVComponents.WebCoreToolkit.ServiceShared.Options;
+using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,7 +69,11 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Service.Impl
 
             try
             {
-                var fileHandler = services.GetFileHandler(uploadModule);
+                // Load the handler from a per-operation plugin-scope: a handler that takes the system-context as a
+                // scope-owned dependency (MLM §8) then receives a fresh, per-operation context that is disposed when
+                // this upload completes. Without §8 opt-in the scope is empty → behavior unchanged.
+                using var opScope = services.GetService<IWebPluginHelper>().CreateOperationScope();
+                var fileHandler = services.GetFileHandler(opScope, uploadModule);
                 var syncHandler = fileHandler as IFileHandler;
                 var asyncHandler = fileHandler as IAsyncFileHandler;
                 var requiredPermissions = fileHandler.PermissionsForReason(reason);
@@ -204,50 +209,68 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Service.Impl
 
             try
             {
-                var fileHandler = services.GetFileHandler(downloadModule);
-                var syncHandler = fileHandler as IFileHandler;
-                var asyncHandler = fileHandler as IAsyncFileHandler;
-                if (syncHandler == null && asyncHandler == null)
+                // Load the handler from a per-operation plugin-scope (see ProcessFileUpload). For a successful,
+                // content-bearing download the scope-owned context may still back a lazily-read stream, so the
+                // scope's disposal is handed to FileReadResult.DeferredDisposals (both edges dispose those only
+                // after the stream has been served) instead of being released synchronously here.
+                var opScope = services.GetService<IWebPluginHelper>().CreateOperationScope();
+                var disposeScope = true;
+                try
                 {
-                    return FileOperationResult.NotFound(new FileError("Handler", $"No file-handler '{downloadModule}' found."));
-                }
-
-                var requiredPermissions = fileHandler.PermissionsForReason(reason);
-                if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 &&
-                                           services.VerifyUserPermissions(requiredPermissions)))
-                {
-                    FileReadResult readResult;
-                    if (asyncHandler != null)
+                    var fileHandler = services.GetFileHandler(opScope, downloadModule);
+                    var syncHandler = fileHandler as IFileHandler;
+                    var asyncHandler = fileHandler as IAsyncFileHandler;
+                    if (syncHandler == null && asyncHandler == null)
                     {
-                        readResult = !hasAsset
-                            ? await asyncHandler.ReadFile(fileIdentifier, principal?.Identity)
-                            : await asyncHandler.ReadFile(fileIdentifier, principal, assetKey);
-                    }
-                    else
-                    {
-                        readResult = !hasAsset
-                            ? syncHandler.ReadFile(fileIdentifier, principal?.Identity)
-                            : syncHandler.ReadFile(fileIdentifier, principal, assetKey);
+                        return FileOperationResult.NotFound(new FileError("Handler", $"No file-handler '{downloadModule}' found."));
                     }
 
-                    if (readResult is { Success: true, FileContent: not null })
+                    var requiredPermissions = fileHandler.PermissionsForReason(reason);
+                    if (!withAuthorization || (requiredPermissions != null && requiredPermissions.Length != 0 &&
+                                               services.VerifyUserPermissions(requiredPermissions)))
                     {
-                        // Apply the host-supplied defaults for anything the handler left open.
-                        readResult.DownloadName ??= defaultDownloadName;
-                        readResult.ContentType ??= defaultContentType;
-                        readResult.FileDownload ??= defaultFileDownload;
-                        return FileOperationResult.OkWithContent(readResult);
+                        FileReadResult readResult;
+                        if (asyncHandler != null)
+                        {
+                            readResult = !hasAsset
+                                ? await asyncHandler.ReadFile(fileIdentifier, principal?.Identity)
+                                : await asyncHandler.ReadFile(fileIdentifier, principal, assetKey);
+                        }
+                        else
+                        {
+                            readResult = !hasAsset
+                                ? syncHandler.ReadFile(fileIdentifier, principal?.Identity)
+                                : syncHandler.ReadFile(fileIdentifier, principal, assetKey);
+                        }
+
+                        if (readResult is { Success: true, FileContent: not null })
+                        {
+                            // Apply the host-supplied defaults for anything the handler left open.
+                            readResult.DownloadName ??= defaultDownloadName;
+                            readResult.ContentType ??= defaultContentType;
+                            readResult.FileDownload ??= defaultFileDownload;
+                            readResult.DeferredDisposals.Add(opScope);
+                            disposeScope = false;
+                            return FileOperationResult.OkWithContent(readResult);
+                        }
+
+                        return FileOperationResult.NotFound();
                     }
 
-                    return FileOperationResult.NotFound();
-                }
+                    if (services.VerifyCurrentUser())
+                    {
+                        return FileOperationResult.Forbid();
+                    }
 
-                if (services.VerifyCurrentUser())
+                    return FileOperationResult.UnAuthorized();
+                }
+                finally
                 {
-                    return FileOperationResult.Forbid();
+                    if (disposeScope)
+                    {
+                        opScope.Dispose();
+                    }
                 }
-
-                return FileOperationResult.UnAuthorized();
             }
             catch (Exception ex)
             {
