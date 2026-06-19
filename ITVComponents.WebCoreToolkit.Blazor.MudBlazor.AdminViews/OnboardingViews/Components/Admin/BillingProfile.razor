@@ -6,6 +6,7 @@
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
 
 @inject IOnboardingAdminHandler Handler
+@inject ITenantInvitationHandler InvitationHandler
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 @inject IStringLocalizer<OnboardingMessages> L
@@ -129,6 +130,21 @@ else
             </SecureView>
         </MudTabPanel>
 
+        @* ---- Tab 4: sub-tenant invitations (hierarchy only) ------------------------------------ *@
+        @if (subTenantSupported)
+        {
+            <MudTabPanel Text="@L["OnbAdm_Tab_SubTenants"]">
+                <SecureView RequiredPermissions="Onboarding.Admin.SubTenants.View,Onboarding.Admin.SubTenants.Write" RequiredFeatures="ITVAdminViews">
+                    <Permitted>
+                        <SubTenantInvitationsTab TenantId="@currentTenant.TenantId" />
+                    </Permitted>
+                    <NotPermitted>
+                        <MudAlert Severity="Severity.Warning">@L["OnbAdm_NoPermission"]</MudAlert>
+                    </NotPermitted>
+                </SecureView>
+            </MudTabPanel>
+        }
+
     </MudTabs>
 }
 
@@ -139,11 +155,13 @@ else
     private MudForm? form;
     private bool loading = true;
     private bool busy;
+    private bool subTenantSupported;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
+        subTenantSupported = InvitationHandler.SupportsTenantInvitations;
         currentTenant = await Handler.GetCurrentTenantAsync(currentUser);
         if (currentTenant is not null && currentUser is not null)
         {

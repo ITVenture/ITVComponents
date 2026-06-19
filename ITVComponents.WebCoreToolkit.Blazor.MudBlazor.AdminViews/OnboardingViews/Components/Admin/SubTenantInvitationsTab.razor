@@ -1,0 +1,191 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.DependencyInjection
+@using ITVComponents.WebCoreToolkit.Security
+@using ITVComponents.WebCoreToolkit.Configuration
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Options
+
+@inject ITenantInvitationHandler Handler
+@inject IServiceProvider Services
+@inject IAppMailSender Mailer
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthState
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Tab 4 (hierarchy only): invite someone to create a CHILD tenant under this tenant. Token-link based; the
+   accept page (anonymous) resolves the token and routes into the tenant-creation flow. Gated by
+   Onboarding.Admin.SubTenants.Write for creating/revoking; the tab itself is shown under
+   Onboarding.Admin.SubTenants.View/.Write by the host page. *@
+
+<SecureView RequiredPermissions="Onboarding.Admin.SubTenants.Write">
+    <Permitted>
+        <MudPaper Class="pa-4 mb-4" Outlined="true">
+            <MudGrid Spacing="3" Class="align-end">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="email" Label="@(L["Onb_Inv_Email"])" InputType="InputType.Email" />
+                </MudItem>
+                @if (settings.AllowRoleOverride)
+                {
+                    <MudItem xs="12" sm="3">
+                        <MudTextField @bind-Value="roleName" Label="@(L["Onb_Inv_Role"])" />
+                    </MudItem>
+                }
+                @if (settings.AllowTemplateOverride)
+                {
+                    <MudItem xs="12" sm="3">
+                        <MudTextField @bind-Value="templateName" Label="@(L["Onb_Inv_Template"])" />
+                    </MudItem>
+                }
+                <MudItem xs="12" Class="d-flex justify-end">
+                    <MudButton OnClick="OnCreate" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy"
+                               StartIcon="@Icons.Material.Filled.Send">@L["Onb_Inv_Create"]</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </Permitted>
+</SecureView>
+
+<MudDataGrid T="TenantInvitationItem" Items="invitations" Dense="true" Hover="true" Elevation="0">
+    <Columns>
+        <PropertyColumn Property="x => x.Email" Title="@(L["Onb_Col_Email"])" />
+        <PropertyColumn Property="x => x.Status" Title="@(L["Onb_Col_Status"])" />
+        <PropertyColumn Property="x => x.ExpiresUtc" Title="@(L["Onb_Inv_Col_Expires"])" Format="g" />
+        <PropertyColumn Property="x => x.CreatedUtc" Title="@(L["Onb_Inv_Col_Created"])" Format="g" />
+        <TemplateColumn Title="">
+            <CellTemplate>
+                <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd">
+                    <MudTooltip Text="@(L["Onb_Inv_Link"])">
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" OnClick="@(() => CopyLink(context.Item.Token))" />
+                    </MudTooltip>
+                    @if (context.Item.Status == InvitationStatus.Pending)
+                    {
+                        <SecureView RequiredPermissions="Onboarding.Admin.SubTenants.Write">
+                            <Permitted>
+                                <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text" OnClick="@(() => Revoke(context.Item.TenantInvitationId))">@L["Onb_Inv_Revoke"]</MudButton>
+                            </Permitted>
+                        </SecureView>
+                    }
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent>@L["Onb_Inv_NoneTenant"]</NoRecordsContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int TenantId { get; set; }
+
+    private TenantInvitationSettings settings = new();
+    private string email = "";
+    private string? roleName;
+    private string? templateName;
+    private bool busy;
+    private int loadedTenantId = -1;
+    private TenantInvitationItem[] invitations = Array.Empty<TenantInvitationItem>();
+
+    protected override void OnInitialized()
+    {
+        // Hierarchy invitation settings are optional on the host; fall back to defaults.
+        settings = Services.GetService<IHierarchySettings<TenantInvitationSettings>>()?.Value ?? new TenantInvitationSettings();
+        roleName = settings.AdminRole;
+        templateName = settings.Template;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (TenantId != loadedTenantId)
+        {
+            loadedTenantId = TenantId;
+            await Reload();
+        }
+    }
+
+    private async Task Reload()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        invitations = await Handler.ListTenantInvitationsAsync(state.User, TenantId);
+    }
+
+    private async Task OnCreate()
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var role = settings.AllowRoleOverride ? roleName : settings.AdminRole;
+            var template = settings.AllowTemplateOverride ? templateName : settings.Template;
+
+            var result = await Handler.CreateTenantInvitationAsync(state.User,
+                new TenantInvitationInput(TenantId, email.Trim(), RoleName: NullIfBlank(role), TemplateName: NullIfBlank(template)));
+            if (!result.Succeeded)
+            {
+                Snackbar.Add(result.Error ?? L["Onb_Inv_Failed"].Value, Severity.Error);
+                return;
+            }
+
+            Snackbar.Add(L["Onb_Inv_Created"], Severity.Success);
+            var link = Nav.ToAbsoluteUri($"/Account/Onboarding/Invitation/{result.Token}").AbsoluteUri;
+            await SendInvitationMailAsync(email.Trim(), link);
+
+            email = "";
+            roleName = settings.AdminRole;
+            templateName = settings.Template;
+            await Reload();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SendInvitationMailAsync(string recipient, string link)
+    {
+        try
+        {
+            await Mailer.SendMailAsync(recipient, L["Onb_Inv_MailSubject"], L["Onb_Inv_MailBody", link]);
+            Snackbar.Add(L["Onb_Inv_MailSent"], Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add(L["Onb_Inv_MailFailed"], Severity.Warning);
+            await CopyLinkRaw(link);
+        }
+    }
+
+    private async Task Revoke(int id)
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (await Handler.RevokeTenantInvitationAsync(state.User, id))
+        {
+            Snackbar.Add(L["Onb_Inv_Revoked"], Severity.Success);
+            await Reload();
+        }
+        else
+        {
+            Snackbar.Add(L["Onb_Inv_Failed"], Severity.Error);
+        }
+    }
+
+    private Task CopyLink(string token) => CopyLinkRaw(Nav.ToAbsoluteUri($"/Account/Onboarding/Invitation/{token}").AbsoluteUri);
+
+    private async Task CopyLinkRaw(string link)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", link);
+            Snackbar.Add(link, Severity.Info);
+        }
+        catch
+        {
+            Snackbar.Add(link, Severity.Info);
+        }
+    }
+
+    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
