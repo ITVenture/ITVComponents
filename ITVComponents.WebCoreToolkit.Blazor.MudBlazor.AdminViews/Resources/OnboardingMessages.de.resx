@@ -96,4 +96,15 @@
   <data name="OnbAdm_SaveFailed" xml:space="preserve"><value>Speichern fehlgeschlagen.</value></data>
   <data name="OnbAdm_FixInvalid" xml:space="preserve"><value>Bitte korrigieren Sie die ungültigen Felder.</value></data>
   <data name="OnbAdm_SectionPending" xml:space="preserve"><value>Dieser Bereich steht in Kürze zur Verfügung.</value></data>
+  <data name="OnbAdm_Emp_Title" xml:space="preserve"><value>Mitarbeiter</value></data>
+  <data name="OnbAdm_Emp_Invite" xml:space="preserve"><value>Mitarbeiter einladen</value></data>
+  <data name="OnbAdm_Emp_NoProfile" xml:space="preserve"><value>Speichern Sie zuerst das Rechnungsprofil, um Mitarbeiter zu verwalten.</value></data>
+  <data name="OnbAdm_Delete" xml:space="preserve"><value>Löschen</value></data>
+  <data name="OnbAdm_Emp_DeleteConfirm" xml:space="preserve"><value>'{0}' wirklich entfernen?</value></data>
+  <data name="OnbAdm_Emp_Removed" xml:space="preserve"><value>Mitarbeiter entfernt.</value></data>
+  <data name="OnbAdm_Roles_Title" xml:space="preserve"><value>Rollen</value></data>
+  <data name="OnbAdm_Roles_Col" xml:space="preserve"><value>Rolle</value></data>
+  <data name="OnbAdm_Role_Updated" xml:space="preserve"><value>Zuweisung aktualisiert.</value></data>
+  <data name="OnbAdm_Role_Failed" xml:space="preserve"><value>Die Zuweisung konnte nicht aktualisiert werden.</value></data>
+  <data name="OnbAdm_Send" xml:space="preserve"><value>Einladung senden</value></data>
 </root>

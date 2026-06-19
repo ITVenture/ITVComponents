@@ -109,7 +109,7 @@ else
         <MudTabPanel Text="@L["OnbAdm_Tab_Users"]">
             <SecureView RequiredPermissions="Onboarding.Admin.Employees.View,Onboarding.Admin.Employees.Write" RequiredFeatures="ITVAdminViews">
                 <Permitted>
-                    <MudText Typo="Typo.body2">@L["OnbAdm_SectionPending"]</MudText>
+                    <EmployeesTab BillingProfileId="@(model?.BillingProfileId ?? 0)" TenantId="@currentTenant.TenantId" />
                 </Permitted>
                 <NotPermitted>
                     <MudAlert Severity="Severity.Warning">@L["OnbAdm_NoPermission"]</MudAlert>

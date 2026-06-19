@@ -1,0 +1,164 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IOnboardingAdminHandler Handler
+@inject ITenantInvitationHandler InvitationHandler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Tab 2: the tenant's users and (pending) employee invitations as ONE list with their join status.
+   Each row expands to its DirectRole assignment subgrid; assignments work for pending invitations too
+   (the onboarding interceptor materializes them onto the user's roles when the invitation is accepted).
+   Inviting/revoking goes through ITenantInvitationHandler. All write actions are gated by
+   Onboarding.Admin.Employees.Write. *@
+
+@if (BillingProfileId == 0)
+{
+    <MudAlert Severity="Severity.Info">@L["OnbAdm_Emp_NoProfile"]</MudAlert>
+}
+else
+{
+    <MudDataGrid T="EmployeeViewModel" Items="employees" Dense="true" Hover="true">
+        <ToolBarContent>
+            <RefreshButton OnClick="Reload" />
+            <MudText Typo="Typo.subtitle2">@L["OnbAdm_Emp_Title"]</MudText>
+            <MudSpacer />
+            <SecureView RequiredPermissions="Onboarding.Admin.Employees.Write">
+                <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.PersonAdd" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="Invite">
+                        @L["OnbAdm_Emp_Invite"]
+                    </MudButton>
+                </Permitted>
+            </SecureView>
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="EmployeeViewModel" />
+            <PropertyColumn Property="x => x.EMail" Title="@L["Onb_Col_Email"]" />
+            <PropertyColumn Property="x => x.FirstName" Title="@L["Onb_Inv_FirstName"]" />
+            <PropertyColumn Property="x => x.LastName" Title="@L["Onb_Inv_LastName"]" />
+            <PropertyColumn Property="x => x.InvitationStatus" Title="@L["Onb_Col_Status"]" />
+            <TemplateColumn T="EmployeeViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <SecureView RequiredPermissions="Onboarding.Admin.Employees.Write">
+                        <Permitted>
+                            <MudStack Row="true" Spacing="1">
+                                @if (context.Item.InvitationStatus == InvitationStatus.Pending)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Warning" Size="Size.Small" Title="@L["Onb_Inv_Revoke"]" OnClick="@(() => Revoke(context.Item))" />
+                                }
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Title="@L["OnbAdm_Delete"]" OnClick="@(() => Delete(context.Item))" />
+                            </MudStack>
+                        </Permitted>
+                    </SecureView>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <EmployeeRolesGrid EmployeeId="context.Item.EmployeeId" />
+            </MudPaper>
+        </ChildRowContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public int BillingProfileId { get; set; }
+    [Parameter, EditorRequired] public int TenantId { get; set; }
+
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private EmployeeViewModel[] employees = Array.Empty<EmployeeViewModel>();
+    private int loadedProfileId = -1;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        currentUser ??= (await AuthState.GetAuthenticationStateAsync()).User;
+        if (BillingProfileId != loadedProfileId)
+        {
+            loadedProfileId = BillingProfileId;
+            await Reload();
+        }
+    }
+
+    private async Task Reload()
+    {
+        if (currentUser is null || BillingProfileId == 0)
+        {
+            employees = Array.Empty<EmployeeViewModel>();
+            return;
+        }
+
+        employees = await Handler.ListEmployeesAsync(currentUser, BillingProfileId);
+    }
+
+    private async Task Invite()
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        var model = new EmployeeViewModel { BillingProfileId = BillingProfileId, TenantId = TenantId, InvitationStatus = InvitationStatus.Pending };
+        var parameters = new DialogParameters<EmployeeInviteDialog> { { d => d.Model, model } };
+        var dlg = await DialogService.ShowAsync<EmployeeInviteDialog>(L["OnbAdm_Emp_Invite"], parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: EmployeeViewModel input })
+        {
+            var ok = await InvitationHandler.CreateEmployeeInvitationAsync(currentUser, new EmployeeInvitationInput(TenantId, input.EMail, input.FirstName, input.LastName));
+            if (ok)
+            {
+                Snackbar.Add(L["Onb_Inv_MailSent"], Severity.Success);
+                await Reload();
+            }
+            else
+            {
+                Snackbar.Add(L["Onb_Inv_Failed"], Severity.Error);
+            }
+        }
+    }
+
+    private async Task Revoke(EmployeeViewModel employee)
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        var ok = await InvitationHandler.RevokeEmployeeInvitationAsync(currentUser, employee.EmployeeId);
+        if (ok)
+        {
+            Snackbar.Add(L["Onb_Inv_Revoked"], Severity.Success);
+            await Reload();
+        }
+        else
+        {
+            Snackbar.Add(L["Onb_Inv_Failed"], Severity.Error);
+        }
+    }
+
+    private async Task Delete(EmployeeViewModel employee)
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        var label = string.IsNullOrWhiteSpace(employee.EMail) ? $"{employee.FirstName} {employee.LastName}".Trim() : employee.EMail;
+        var confirmed = await DialogService.ShowMessageBoxAsync(L["OnbAdm_Delete"], L["OnbAdm_Emp_DeleteConfirm", label], yesText: L["OnbAdm_Delete"], cancelText: L["Onb_Cancel"]);
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var success = await Handler.DeleteEmployeeAsync(currentUser, employee.EmployeeId);
+        if (success)
+        {
+            Snackbar.Add(L["OnbAdm_Emp_Removed"], Severity.Success);
+            await Reload();
+        }
+        else
+        {
+            Snackbar.Add(L["Onb_Inv_Failed"], Severity.Error);
+        }
+    }
+}

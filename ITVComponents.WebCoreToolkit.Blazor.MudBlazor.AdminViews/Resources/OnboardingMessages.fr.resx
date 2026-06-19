@@ -55,4 +55,15 @@
   <data name="OnbAdm_SaveFailed" xml:space="preserve"><value>Échec de l'enregistrement.</value></data>
   <data name="OnbAdm_FixInvalid" xml:space="preserve"><value>Veuillez corriger les champs invalides.</value></data>
   <data name="OnbAdm_SectionPending" xml:space="preserve"><value>Cette section sera bientôt disponible.</value></data>
+  <data name="OnbAdm_Emp_Title" xml:space="preserve"><value>Employés</value></data>
+  <data name="OnbAdm_Emp_Invite" xml:space="preserve"><value>Inviter un employé</value></data>
+  <data name="OnbAdm_Emp_NoProfile" xml:space="preserve"><value>Enregistrez d'abord le profil de facturation pour gérer les employés.</value></data>
+  <data name="OnbAdm_Delete" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="OnbAdm_Emp_DeleteConfirm" xml:space="preserve"><value>Vraiment supprimer « {0} » ?</value></data>
+  <data name="OnbAdm_Emp_Removed" xml:space="preserve"><value>Employé supprimé.</value></data>
+  <data name="OnbAdm_Roles_Title" xml:space="preserve"><value>Rôles</value></data>
+  <data name="OnbAdm_Roles_Col" xml:space="preserve"><value>Rôle</value></data>
+  <data name="OnbAdm_Role_Updated" xml:space="preserve"><value>Attribution mise à jour.</value></data>
+  <data name="OnbAdm_Role_Failed" xml:space="preserve"><value>Impossible de mettre à jour l'attribution.</value></data>
+  <data name="OnbAdm_Send" xml:space="preserve"><value>Envoyer l'invitation</value></data>
 </root>

@@ -3,20 +3,28 @@
 @inject IOnboardingAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
 
 <MudDataGrid T="EmployeeRoleAssignmentViewModel" Items="roles" SortMode="SortMode.None" Dense="true" Hover="true">
     <ToolBarContent>
         <RefreshButton OnClick="Reload" />
-        <MudText Typo="Typo.subtitle2">Roles</MudText>
+        <MudText Typo="Typo.subtitle2">@L["OnbAdm_Roles_Title"]</MudText>
         <MudSpacer />
     </ToolBarContent>
     <Columns>
         <TemplateColumn T="EmployeeRoleAssignmentViewModel" Title="" Sortable="false">
             <CellTemplate>
-                <MudCheckBox T="bool" Value="context.Item.Assigned" ValueChanged="@(v => Toggle(context.Item, v))" />
+                <SecureView RequiredPermissions="Onboarding.Admin.Employees.Write">
+                    <Permitted>
+                        <MudCheckBox T="bool" Value="context.Item.Assigned" ValueChanged="@(v => Toggle(context.Item, v))" />
+                    </Permitted>
+                    <NotPermitted>
+                        <MudCheckBox T="bool" Value="context.Item.Assigned" Disabled="true" />
+                    </NotPermitted>
+                </SecureView>
             </CellTemplate>
         </TemplateColumn>
-        <PropertyColumn Property="x => x.RoleName" Title="Role" />
+        <PropertyColumn Property="x => x.RoleName" Title="@L["OnbAdm_Roles_Col"]" />
     </Columns>
 </MudDataGrid>
 
@@ -50,11 +58,11 @@
         if (ok)
         {
             item.Assigned = newValue;
-            Snackbar.Add(newValue ? "Role assigned" : "Role unassigned", Severity.Success);
+            Snackbar.Add(L["OnbAdm_Role_Updated"], Severity.Success);
         }
         else
         {
-            Snackbar.Add("Failed to update assignment", Severity.Error);
+            Snackbar.Add(L["OnbAdm_Role_Failed"], Severity.Error);
             await Reload();
         }
     }

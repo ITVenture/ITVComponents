@@ -142,4 +142,15 @@
   <data name="OnbAdm_SaveFailed" xml:space="preserve"><value>Could not save.</value></data>
   <data name="OnbAdm_FixInvalid" xml:space="preserve"><value>Please correct the invalid fields.</value></data>
   <data name="OnbAdm_SectionPending" xml:space="preserve"><value>This section will be available shortly.</value></data>
+  <data name="OnbAdm_Emp_Title" xml:space="preserve"><value>Employees</value></data>
+  <data name="OnbAdm_Emp_Invite" xml:space="preserve"><value>Invite employee</value></data>
+  <data name="OnbAdm_Emp_NoProfile" xml:space="preserve"><value>Save the billing profile first to manage employees.</value></data>
+  <data name="OnbAdm_Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="OnbAdm_Emp_DeleteConfirm" xml:space="preserve"><value>Really remove '{0}'?</value></data>
+  <data name="OnbAdm_Emp_Removed" xml:space="preserve"><value>Employee removed.</value></data>
+  <data name="OnbAdm_Roles_Title" xml:space="preserve"><value>Roles</value></data>
+  <data name="OnbAdm_Roles_Col" xml:space="preserve"><value>Role</value></data>
+  <data name="OnbAdm_Role_Updated" xml:space="preserve"><value>Assignment updated.</value></data>
+  <data name="OnbAdm_Role_Failed" xml:space="preserve"><value>Could not update the assignment.</value></data>
+  <data name="OnbAdm_Send" xml:space="preserve"><value>Send invitation</value></data>
 </root>

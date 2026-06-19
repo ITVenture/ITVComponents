@@ -1,0 +1,43 @@
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Invite a new employee to the current tenant by e-mail. Returns the edited EmployeeViewModel; the caller
+   turns it into an EmployeeInvitationInput and sends the invitation. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudTextField @bind-Value="Model.EMail" Label="@L["Onb_Inv_Email"]" Required="true" For="@(() => Model.EMail)" />
+            <MudTextField @bind-Value="Model.FirstName" Label="@L["Onb_Inv_FirstName"]" For="@(() => Model.FirstName)" />
+            <MudTextField @bind-Value="Model.LastName" Label="@L["Onb_Inv_LastName"]" For="@(() => Model.LastName)" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["Onb_Cancel"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">@L["OnbAdm_Send"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public EmployeeViewModel Model { get; set; } = default!;
+
+    private MudForm? form;
+
+    private async Task Submit()
+    {
+        if (form is null)
+        {
+            return;
+        }
+
+        await form.Validate();
+        if (!form.IsValid)
+        {
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+}
