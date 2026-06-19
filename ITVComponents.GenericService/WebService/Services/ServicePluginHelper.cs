@@ -29,6 +29,12 @@ namespace ITVComponents.GenericService.WebService.Services
             return factory;
         }
 
+        public IPluginFactory CreateOperationScope()
+            => factory.NewScope(new Dictionary<string, object>(), null, transientLoadingScope: false);
+
+        public IPluginFactory CreateOperationScope(string explicitPluginScope)
+            => CreateOperationScope();
+
         public void ResetFactory()
         {
         }

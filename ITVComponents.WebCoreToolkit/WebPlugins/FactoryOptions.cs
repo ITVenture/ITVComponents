@@ -14,15 +14,36 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
     {
         private Dictionary<string, Func<IServiceProvider,object>> dependencies = new Dictionary<string, Func<IServiceProvider, object>>();
 
+        private readonly HashSet<string> scopeOwnedDependencies = new HashSet<string>();
+
         /// <summary>
         /// Adds a dependency that must be accessible from the pluginfactory as a parameter
         /// </summary>
         /// <param name="name">the name of the dependency</param>
         /// <param name="dependency">the injected value of the dependency</param>
-        public void AddDependency(string name, Func<IServiceProvider, object> dependency)
+        /// <param name="disposeWithScope">
+        /// when true, the resolved value is treated as a per-operation resource: it is created freshly for a
+        /// plugin operation-scope and disposed (if <see cref="IDisposable"/>) when that scope closes. Use this for
+        /// e.g. a per-operation DbContext (delegate returns <c>factory.CreateDbContext()</c>). Default (false) =
+        /// the value is resolved as-is and out-lives the scope (DI-/host-owned), preserving the historic behaviour.
+        /// </param>
+        public void AddDependency(string name, Func<IServiceProvider, object> dependency, bool disposeWithScope = false)
         {
             dependencies.Add(name, dependency);
+            if (disposeWithScope)
+            {
+                scopeOwnedDependencies.Add(name);
+            }
         }
+
+        /// <summary>
+        /// Names of dependencies that are per-operation resources (created fresh + disposed with a plugin
+        /// operation-scope). See <see cref="AddDependency(string, Func{IServiceProvider, object}, bool)"/>.
+        /// </summary>
+        public IReadOnlyCollection<string> ScopeOwnedDependencies => scopeOwnedDependencies;
+
+        /// <summary>True when <paramref name="name"/> is a per-operation, scope-owned dependency.</summary>
+        public bool IsScopeOwned(string name) => scopeOwnedDependencies.Contains(name);
 
         /// <summary>
         /// Configures the target factory with the provided parameters

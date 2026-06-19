@@ -25,6 +25,20 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         PluginFactory GetFactory(string explicitPluginScope);
 
         /// <summary>
+        /// Opens a fresh per-operation plugin scope (see <see cref="PluginFactory.NewScope"/>). Plugins loaded
+        /// through the returned factory — and any scope-owned dependencies (e.g. a per-operation DbContext,
+        /// configured via <c>FactoryOptions.AddDependency(..., disposeWithScope: true)</c>) — are constructed for
+        /// this scope and disposed when the returned <see cref="IPluginFactory"/> is disposed. Use within a
+        /// <c>using</c> for a unit of work; nothing leaks past the scope.
+        /// </summary>
+        IPluginFactory CreateOperationScope();
+
+        /// <summary>
+        /// Like <see cref="CreateOperationScope()"/> but pins the given explicit plugin permission-scope.
+        /// </summary>
+        IPluginFactory CreateOperationScope(string explicitPluginScope);
+
+        /// <summary>
         /// Resets the factory
         /// </summary>
         void ResetFactory();

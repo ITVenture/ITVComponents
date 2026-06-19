@@ -112,6 +112,36 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             return factory;
         }
 
+        public IPluginFactory CreateOperationScope() => BuildOperationScope(GetFactory());
+
+        public IPluginFactory CreateOperationScope(string explicitPluginScope) => BuildOperationScope(GetFactory(explicitPluginScope));
+
+        /// <summary>
+        /// Resolves the configured scope-owned dependencies FRESH (e.g. a per-operation DbContext via the
+        /// IDbContextFactory the delegate uses), registers them in a new <see cref="PluginFactory.NewScope"/> as
+        /// dispose-with-scope, and returns the scope. Non-owned dependencies keep their lazy resolution (resolved
+        /// on demand, host-owned) via the UnknownConstructorParameter path.
+        /// </summary>
+        private IPluginFactory BuildOperationScope(PluginFactory fac)
+        {
+            var known = new Dictionary<string, object>();
+            var ownedKeys = new HashSet<string>();
+            if (factoryOptions != null)
+            {
+                foreach (var name in factoryOptions.ScopeOwnedDependencies)
+                {
+                    var instance = factoryOptions.GetDependency(name, serviceProvider);
+                    if (instance != null)
+                    {
+                        known[name] = instance;
+                        ownedKeys.Add(name);
+                    }
+                }
+            }
+
+            return fac.NewScope(known, serviceProvider, transientLoadingScope: false, disposeWithScope: ownedKeys);
+        }
+
         public void ResetFactory()
         {
             factory?.Dispose();
@@ -133,7 +163,9 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
         private PluginFactory CreateFactory(bool checkSecurity, bool useExplicitTenants,
             out IObjectProvider objectProvider)
         {
-            var retVal = new PluginFactory();
+            // PerAsyncContext so per-operation plugin scopes (CreateOperationScope) survive await-boundaries
+            // (Blazor). Safe superset of PerThread for the normal (no-active-scope) plugin loads.
+            var retVal = new PluginFactory(ScopeMode.PerAsyncContext);
             LogEnvironment.OpenRegistrationTicket(retVal);
             retVal.AllowFactoryParameter = true;
             retVal.RegisterObject(Global.ServiceProviderName, serviceProvider);
