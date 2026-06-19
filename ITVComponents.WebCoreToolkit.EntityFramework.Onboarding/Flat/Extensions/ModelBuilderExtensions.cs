@@ -61,18 +61,39 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Extension
             Expression<Func<EmployeeRoleMapping, bool>> employeeRoleMappingExpression = m => !FilterAvailable
                 || ShowAllTenants
                 || CurrentTenantId != null && m.TenantId == CurrentTenantId;
+            // Query filters ONLY. The structural model (keys/FKs) lives in ConfigureOnboardingModel so it can be
+            // applied unconditionally (runtime + design-time) without being coupled to filter activation.
             target.ConfigureGlobalFilter(billingProfileExpression);
             target.ConfigureGlobalFilter(employeeExpression);
-            // EmployeeRole points at an EmployeeRoleMapping; keep that FK non-cascading so the tenant->employee
-            // cascade path is the only one reaching EmployeeRole (avoids SQL Server multiple-cascade-path errors).
-            target.ConfigureGlobalFilter(employeeRoleExpression,
-                b => b.HasOne(er => er.RoleMapping).WithMany(m => m.EmployeeRoles)
-                    .HasForeignKey(er => er.EmployeeRoleMappingId).OnDelete(DeleteBehavior.Restrict));
-            target.ConfigureGlobalFilter(employeeRoleMappingExpression, b =>
+            target.ConfigureGlobalFilter(employeeRoleExpression);
+            target.ConfigureGlobalFilter(employeeRoleMappingExpression);
+        }
+
+        /// <summary>
+        /// Configures the structural model for the flat onboarding entities (keys come from data annotations; this
+        /// wires the foreign keys with their delete behaviour). Call this from the consuming context's
+        /// <c>OnModelCreating</c> <b>unconditionally</b> — independently of whether the global COB query filters are
+        /// active (those are registered separately via <see cref="ConfigureDefaultFilters{TContext}"/> /
+        /// <c>ActivateGlobalCobFilters</c>). Mirrors the <c>ConfigureBilling()</c> pattern: a single source for the
+        /// onboarding relationships so runtime and design-time (migrations) stay consistent and there is no
+        /// duplicated relationship configuration.
+        /// </summary>
+        public static ModelBuilder ConfigureOnboardingModel(this ModelBuilder modelBuilder)
+        {
+            // EmployeeRole -> EmployeeRoleMapping: keep this FK non-cascading so the tenant->employee path stays
+            // the only cascade path reaching EmployeeRole (avoids SQL Server multiple-cascade-path errors / 1785).
+            modelBuilder.Entity<EmployeeRole>()
+                .HasOne(er => er.RoleMapping).WithMany(m => m.EmployeeRoles)
+                .HasForeignKey(er => er.EmployeeRoleMappingId).OnDelete(DeleteBehavior.Restrict);
+
+            // EmployeeRoleMapping -> Tenant / Role: real FKs, non-cascading for the same reason.
+            modelBuilder.Entity<EmployeeRoleMapping>(b =>
             {
                 b.HasOne(m => m.Tenant).WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Restrict);
                 b.HasOne(m => m.Role).WithMany().HasForeignKey(m => m.RoleId).OnDelete(DeleteBehavior.Restrict);
             });
+
+            return modelBuilder;
         }
     }
 }

@@ -5,6 +5,7 @@ using ITVComponents.EFRepo.DbContextConfig.Expressions;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Extensions
@@ -50,18 +51,47 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Extension
                 || ShowAllTenants
                 || CurrentTenantId != null && m.TenantId == CurrentTenantId;
 
+            // Query filters ONLY. The structural model (keys/FKs) lives in ConfigureOnboardingModel so it can be
+            // applied unconditionally (runtime + design-time) without being coupled to filter activation.
             target.ConfigureGlobalFilter(billingProfileExpression);
             target.ConfigureGlobalFilter(employeeExpression);
-            // EmployeeRole points at an EmployeeRoleMapping; keep that FK non-cascading so the tenant->employee
-            // cascade path is the only one reaching EmployeeRole (avoids SQL Server multiple-cascade-path errors).
-            target.ConfigureGlobalFilter(employeeRoleExpression,
-                b => b.HasOne(er => er.RoleMapping).WithMany(m => m.EmployeeRoles)
-                    .HasForeignKey(er => er.EmployeeRoleMappingId).OnDelete(DeleteBehavior.Restrict));
-            target.ConfigureGlobalFilter(employeeRoleMappingExpression, b =>
+            target.ConfigureGlobalFilter(employeeRoleExpression);
+            target.ConfigureGlobalFilter(employeeRoleMappingExpression);
+        }
+
+        /// <summary>
+        /// Configures the structural model for the hierarchy onboarding entities (keys come from data annotations;
+        /// this wires the foreign keys with their delete behaviour). Call this from the consuming context's
+        /// <c>OnModelCreating</c> <b>unconditionally</b> — independently of whether the global COB query filters are
+        /// active (those are registered separately via <see cref="ConfigureDefaultFilters{TContext}"/> /
+        /// <c>ActivateGlobalCobFilters</c>). Mirrors the <c>ConfigureBilling()</c> pattern: a single source for the
+        /// onboarding relationships so runtime and design-time (migrations) stay consistent and there is no
+        /// duplicated relationship configuration.
+        /// </summary>
+        public static ModelBuilder ConfigureOnboardingModel(this ModelBuilder modelBuilder)
+        {
+            // EmployeeRole -> EmployeeRoleMapping: keep this FK non-cascading so the tenant->employee path stays
+            // the only cascade path reaching EmployeeRole (avoids SQL Server multiple-cascade-path errors / 1785).
+            modelBuilder.Entity<HierarchyEmployeeRole>()
+                .HasOne(er => er.RoleMapping).WithMany(m => m.EmployeeRoles)
+                .HasForeignKey(er => er.EmployeeRoleMappingId).OnDelete(DeleteBehavior.Restrict);
+
+            // EmployeeRoleMapping -> Tenant / Role: real FKs, non-cascading for the same reason.
+            modelBuilder.Entity<HierarchyEmployeeRoleMapping>(b =>
             {
                 b.HasOne(m => m.Tenant).WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Restrict);
                 b.HasOne(m => m.Role).WithMany().HasForeignKey(m => m.RoleId).OnDelete(DeleteBehavior.Restrict);
             });
+
+            // TenantInvitation: ParentTenantId is the owning/structural reference -> manifest a real DB FK
+            // (Restrict; navigation-less so the shared entity stays strategy-agnostic). ChildTenantId,
+            // AcceptedByUserId and CreatedByTenantUserId remain soft audit references BY DESIGN: they must survive
+            // principal deletion and must not impose delete-ordering constraints.
+            modelBuilder.Entity<TenantInvitation>()
+                .HasOne<HierarchyTenant>().WithMany().HasForeignKey(i => i.ParentTenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            return modelBuilder;
         }
     }
 }

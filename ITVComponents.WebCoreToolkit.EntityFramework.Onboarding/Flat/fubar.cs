@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Text;
-using System.Threading.Tasks;
-using ITVComponents.EFRepo.Options;
+﻿using ITVComponents.EFRepo.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
@@ -17,35 +11,35 @@ using Microsoft.Extensions.Options;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat
 {
     /// <summary>
-    /// Reference implementation showing how a consumer should derive its own DbContext
-    /// from <see cref="AspNetSecurityContext{TContext}"/> and implement
-    /// <see cref="ISecurityContextWithOnboarding"/>. Note the <c>ConfigureExpressionProperty</c>
-    /// calls in the runtime constructor — those are required so the global filters in
-    /// <see cref="ModelBuilderExtensions.ConfigureDefaultFilters{TContext}"/> can resolve
-    /// <c>UserId</c> and <c>UserMail</c> at query time.
+    /// Reference implementation showing how a consumer should derive its own DbContext from
+    /// <see cref="AspNetSecurityContext{TContext}"/> and implement <see cref="ISecurityContextWithOnboarding"/>.
+    /// A third-party context only needs to:
+    /// <list type="number">
+    /// <item>provide the two constructors (design-time + runtime) that forward to the base,</item>
+    /// <item>expose the onboarding <c>DbSet</c>s required by the interface, and</item>
+    /// <item>call <see cref="ModelBuilderExtensions.ConfigureOnboardingModel"/> from <c>OnModelCreating</c>
+    /// (unconditionally — it wires keys/FKs and is independent of whether the global COB query filters are active).</item>
+    /// </list>
+    /// The <c>UserId</c>/<c>UserMail</c> filter replacers that the onboarding global filters resolve at query time
+    /// are provided by the base context (its <c>CurrentUserId</c>/<c>CurrentUserMail</c>, both registered via
+    /// <c>ConfigureExpressionProperty</c> in the base runtime constructor) — a consumer does NOT need to declare them.
     /// </summary>
     internal class fubar:AspNetSecurityContext<fubar>, ISecurityContextWithOnboarding
     {
-        private string currentUserId;
-        private string currentUserEmail;
-
         public fubar(DbContextModelBuilderOptions<fubar> builderOptions,DbContextOptions<fubar> options) : base(builderOptions, options)
         {
         }
 
         public fubar(IPermissionScope tenantProvider, IContextUserProvider userProvider, ILogger<fubar> logger, IOptions<DbContextModelBuilderOptions<fubar>> builderOptions, DbContextOptions<fubar> options) : base(tenantProvider, userProvider, logger, builderOptions, options)
         {
-            modelBuilderOptions.ConfigureExpressionProperty(()=>UserId);
-            modelBuilderOptions.ConfigureExpressionProperty(() => UserMail);
         }
-
-        public string UserId => currentUserId ??= GetUserId();
-
-        private string UserMail => currentUserEmail ??= GetUserMail();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            // Structural onboarding model (keys/FKs). Call this UNCONDITIONALLY — it is independent of whether the
+            // global COB query filters are active, and it is what makes runtime and design-time (migrations) agree.
+            modelBuilder.ConfigureOnboardingModel();
         }
 
         public DbSet<BillingProfile> BillingProfiles { get; set; }
@@ -53,35 +47,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat
         public DbSet<EmployeeRole> EmployeeRoles { get; set; }
         public DbSet<EmployeeRoleMapping> EmployeeRoleMappings { get; set; }
         public DbSet<PendingOnboarding> PendingOnboardings { get; set; }
-
-        private string GetUserId()
-        {
-            string retVal = null;
-            if (Me?.Identity is ClaimsIdentity ci)
-            {
-                var idClaim = ci.Claims.FirstOrDefault(n => n.Type == System.Security.Claims.ClaimTypes.NameIdentifier);
-                if (idClaim != null)
-                {
-                    retVal = idClaim.Value;
-                }
-            }
-
-            return retVal;
-        }
-
-        private string GetUserMail()
-        {
-            string retVal = null;
-            if (Me?.Identity is ClaimsIdentity ci)
-            {
-                var idClaim = ci.Claims.FirstOrDefault(n => n.Type == System.Security.Claims.ClaimTypes.Email);
-                if (idClaim != null)
-                {
-                    retVal = idClaim.Value;
-                }
-            }
-
-            return retVal;
-        }
     }
 }

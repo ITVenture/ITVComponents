@@ -434,6 +434,34 @@ implementiert — EF nimmt sie automatisch ins Modell auf:
 Zusätzlich hat das Enum `InvitationStatus` einen neuen Wert `Expired` bekommen — **als int gespeichert,
 ans Enum-Ende angehängt → kein Schema-Change**, bestehende Werte bleiben stabil.
 
+#### `ConfigureOnboardingModel()` im `OnModelCreating` aufrufen — **Pflicht, sonst fehlen Keys/FKs**
+
+Euer Onboarding-Context muss das **strukturelle** Onboarding-Modell (Keys + Foreign-Keys) **unbedingt**
+selbst verdrahten — und zwar **bedingungslos** in `OnModelCreating`, unabhängig davon, ob die globalen
+COB-Query-Filter aktiv sind:
+
+```csharp
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    base.OnModelCreating(modelBuilder);
+    modelBuilder.ConfigureOnboardingModel();   // Flat:  …EntityFramework.Onboarding.Flat.Extensions
+                                                // Tree:  …EntityFramework.Onboarding.Tree.Extensions
+}
+```
+
+**Warum getrennt:** Die schema-formende Konfiguration (FK `EmployeeRole→EmployeeRoleMapping` non-cascading,
+`EmployeeRoleMapping→Tenant/Role`, im Tree zusätzlich `TenantInvitation.ParentTenantId`) ist bewusst aus der
+Filter-Aktivierung herausgelöst, damit sie **auch zur Design-Time läuft** (`dotnet ef migrations`) — sonst
+erzeugt EF eine Migration ohne diese FKs (bzw. mit falschem Cascade-Verhalten → SQL-Server-1785). Die globalen
+COB-Query-Filter werden **separat** (WebPart-/Runtime-seitig) aktiviert; nur der strukturelle Teil gehört
+zwingend, bedingungslos, ins `OnModelCreating`. (Spiegelt das `ConfigureBilling()`-Muster.)
+
+> **Filter-Replacer `UserId`/`UserMail`:** Die COB-Filter lösen zur Query-Zeit `UserId`/`UserMail` auf. Diese
+> liefert die Basis (`AspNetSecurityContext<T>.CurrentUserId`/`CurrentUserMail`, in deren Runtime-Ctor via
+> `ConfigureExpressionProperty` registriert) — wenn euer Context von ihr ableitet, ist **keine eigene
+> Deklaration nötig**. Eine vollständige, minimale Vorlage ist die interne Referenz-Klasse `fubar`
+> (`…Onboarding.Flat`).
+
 **Migration erzeugen + anwenden** (gegen euren konkreten Security-/Onboarding-Context):
 
 ```bash
@@ -715,7 +743,7 @@ Operation-Scope ist leer, der Context bleibt geteilt wie bisher.
 | 4 | `IContextUserProvider` | `HttpContext`-Member → `IHttpContextUserProvider` |
 | 5 | `CookieScopeOptions.DefaultScopeExpression` | `Func<HttpContext,…>` → `Func<IContextUserProvider,…>` |
 | 6 | Blazor-Host | `AddBlazorContextUser()` + `<ContextUserInitializer/>` + `<TenantUrlGuard/>` + `AddBlazorPermissionScope(…)` + `AddWebCoreToolkitServiceShared()` |
-| 7 | **Onboarding EF** (2a/2b) | `dotnet ef migrations add` → neue Tabellen `PendingOnboarding` + `TenantInvitation` (unique `Token`); `InvitationStatus.Expired` = kein Schema-Change |
+| 7 | **Onboarding EF** (2a/2b) | **`modelBuilder.ConfigureOnboardingModel()` bedingungslos im `OnModelCreating`** (Keys/FKs, design-time-relevant) + `dotnet ef migrations add` → neue Tabellen `PendingOnboarding` + `TenantInvitation` (unique `Token`); `InvitationStatus.Expired` = kein Schema-Change |
 | 8 | **Onboarding Config** (2c) | optional `TenantSetup`-GlobalSetting um `AllowRootTenantCreation` / `DefaultParentTenant` erweitern |
 | 9 | **Onboarding Mail/Nav** (2b) | `IAppMailSender` via `UseDefaultMailSender` (auto) oder eigene Impl; Nav-Link auf `/Account/Onboarding/Invitations` |
 | 10 | **EntityWriteTracker** (FK-Cache) | optional `ActivationSettings.UseEntityTracker = true` für sofortige FK-Label-Cache-Invalidierung; alter `IForeignKeyWriteTracker` entfallen → `IEntityWriteTracker` |

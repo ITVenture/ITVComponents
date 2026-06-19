@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 
@@ -19,6 +20,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models
         where TEmployee : class
         where TEmployeeRole : class
     {
+        [Key]
         public int EmployeeId { get; set; }
 
         public int BillingProfileId { get; set; }
