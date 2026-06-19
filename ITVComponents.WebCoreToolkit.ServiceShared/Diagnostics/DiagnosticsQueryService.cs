@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using ITVComponents.WebCoreToolkit.EntityFramework.Extensions;
@@ -19,7 +20,25 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Diagnostics
                 return null;
             }
 
-            return dataSource.RunDiagnosticsQuery(query, context.User, context.Services, arguments);
+            // The data-source may own a per-operation scope (scoped plugin + its context). Defer its disposal to
+            // the end of enumeration so the lazily-streamed result stays valid; for a non-scoped (host-owned)
+            // source Dispose is a no-op.
+            return EnumerateAndDispose(dataSource, dataSource.RunDiagnosticsQuery(query, context.User, context.Services, arguments));
+        }
+
+        private static IEnumerable EnumerateAndDispose(IDisposable owner, IEnumerable source)
+        {
+            try
+            {
+                foreach (var item in source)
+                {
+                    yield return item;
+                }
+            }
+            finally
+            {
+                owner.Dispose();
+            }
         }
     }
 }

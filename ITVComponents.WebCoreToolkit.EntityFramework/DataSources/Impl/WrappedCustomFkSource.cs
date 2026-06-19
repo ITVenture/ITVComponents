@@ -15,11 +15,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
         private readonly IForeignKeyProvider foreignKeyProvider;
 
         private readonly IForeignKeyProviderWithOptions cfg;
+        private readonly IDisposable owner;
 
-        public WrappedCustomFkSource(IForeignKeyProvider foreignKeyProvider)
+        public WrappedCustomFkSource(IForeignKeyProvider foreignKeyProvider, IDisposable owner = null)
         {
             this.foreignKeyProvider = foreignKeyProvider;
             this.cfg = foreignKeyProvider as IForeignKeyProviderWithOptions;
+            this.owner = owner;
+        }
+
+        /// <summary>
+        /// Disposes the per-operation owner (e.g. the plugin operation-scope) that produced the source, when one
+        /// was supplied. A null owner (the default) is a no-op, preserving the historic behaviour.
+        /// </summary>
+        public void Dispose()
+        {
+            owner?.Dispose();
         }
 
         public ForeignKeyOptions CustomFkSettings => cfg?.DefaultFkOptions;

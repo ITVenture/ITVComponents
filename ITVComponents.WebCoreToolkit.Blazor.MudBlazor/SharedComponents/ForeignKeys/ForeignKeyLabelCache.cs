@@ -46,7 +46,7 @@ internal sealed class ForeignKeyLabelCache : IForeignKeyLabelCache
                 }
             }
 
-            var src = services.ContextForFkQuery(connection, null);
+            using var src = services.ContextForFkQuery(connection, null);
             if (src is null) return null;
 
             var raw = src.ReadForeignKey<T>(table);

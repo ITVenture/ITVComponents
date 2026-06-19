@@ -81,7 +81,7 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.FileHandling.Special
             var data = fileIdentifier.DecompressToken<Dictionary<string, string>>();
             var queryName = data["$$QUERYNAME"];
             var area = data["$$QUERYAREA"];
-            var ctx = services.ContextForDiagnosticsQuery(queryName, area, out var query);
+            using var ctx = services.ContextForDiagnosticsQuery(queryName, area, out var query);
             var principal = downloadingIdentity as ClaimsPrincipal
                 ?? new ClaimsPrincipal(downloadingIdentity as ClaimsIdentity ?? new ClaimsIdentity(downloadingIdentity));
             var result = ctx.RunDiagnosticsQuery(query, principal, services, data).Cast<object>().ToArray();

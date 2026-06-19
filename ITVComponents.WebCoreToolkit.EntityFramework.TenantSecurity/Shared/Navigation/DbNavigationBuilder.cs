@@ -147,7 +147,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
                             ?.DiagnosticsQuery;
                         if (qry != null && services.VerifyUserPermissions(new []{qry.Permission.PermissionName}))
                         {
-                            var ctx = services.ContextForDiagnosticsQuery(queryName, null, out var def);
+                            using var ctx = services.ContextForDiagnosticsQuery(queryName, null, out var def);
                             var l = ctx.RunDiagnosticsQuery(def, contextUser.User, services, new Dictionary<string, object>()).Cast<object>().FirstOrDefault();
                             if (l != null)
                             {

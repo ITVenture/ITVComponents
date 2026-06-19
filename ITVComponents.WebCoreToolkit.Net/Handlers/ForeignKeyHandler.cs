@@ -63,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                 {
                     /*var baseHint = ((string)context.Request.RouteValues["dataResolveHint"])?.Split("/")
                         .Select(n => HttpUtility.UrlDecode(n)).ToArray();*/
-                    var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
+                    using var dbContext = context.RequestServices.ContextForFkQuery(connection, area);
                     if (dbContext != null && Tools.RegexValidate(table,
                             dbContext.CustomFkSettings?.CustomTableValidation ?? "^[\\w_]+$"))
                     {

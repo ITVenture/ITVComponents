@@ -20,10 +20,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
     internal class WrappedDynamicDataAdapter:IWrappedDataSource
     {
         private readonly DynamicDataAdapter src;
+        private readonly IDisposable owner;
 
-        public WrappedDynamicDataAdapter(DynamicDataAdapter src)
+        public WrappedDynamicDataAdapter(DynamicDataAdapter src, IDisposable owner = null)
         {
             this.src = src;
+            this.owner = owner;
+        }
+
+        /// <summary>
+        /// Disposes the per-operation owner (e.g. the plugin operation-scope) that produced the adapter, when one
+        /// was supplied. A null owner (the default) is a no-op, preserving the historic behaviour.
+        /// </summary>
+        public void Dispose()
+        {
+            owner?.Dispose();
         }
         
         public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition query, ClaimsPrincipal user, IServiceProvider services, IDictionary<string, string> queryArguments)

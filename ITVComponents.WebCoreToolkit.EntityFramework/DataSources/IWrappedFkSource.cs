@@ -9,7 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Options.ForeignKeys;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources
 {
-    public interface IWrappedFkSource
+    public interface IWrappedFkSource : IDisposable
     {
         ForeignKeyOptions CustomFkSettings { get; }
         IEnumerable ReadForeignKey(string tableName, string id = null, Dictionary<string, object> postedFilter = null);

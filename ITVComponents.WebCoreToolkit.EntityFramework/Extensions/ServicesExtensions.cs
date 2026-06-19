@@ -71,16 +71,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                     if (factory != null)
                     {
                         var retVal = factory(services, connection, area);
+                        IDisposable owner = null;
+                        if (retVal is IScopedDataSource scoped)
+                        {
+                            owner = scoped.Scope;
+                            retVal = scoped.Source;
+                        }
+
                         if (retVal is DbContext dbc)
                         {
-                            return new WrappedDbContext(dbc, services);
+                            return new WrappedDbContext(dbc, services, owner);
                         }
                         else if (retVal is DynamicDataAdapter dynda)
                         {
-                            return new WrappedDynamicDataAdapter(dynda);
+                            return new WrappedDynamicDataAdapter(dynda, owner);
                         }
                         else
                         {
+                            owner?.Dispose();
                             throw new InvalidOperationException("Unexpected returned value");
                         }
                     }
@@ -136,21 +144,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             if (factory != null)
             {
                 var retVal = factory(services, contextName, area);
+                IDisposable owner = null;
+                if (retVal is IScopedDataSource scoped)
+                {
+                    owner = scoped.Scope;
+                    retVal = scoped.Source;
+                }
+
                 IWrappedFkSource ret;
                 if (retVal is DbContext dbc)
                 {
-                    ret = new WrappedDbContext(dbc, services);
+                    ret = new WrappedDbContext(dbc, services, owner);
                 }
                 else if (retVal is DynamicDataAdapter dynda)
                 {
-                    ret = new WrappedDynamicDataAdapter(dynda);
+                    ret = new WrappedDynamicDataAdapter(dynda, owner);
                 }
                 else if (retVal is IForeignKeyProvider fkp)
                 {
-                    ret = new WrappedCustomFkSource(fkp);
+                    ret = new WrappedCustomFkSource(fkp, owner);
                 }
                 else
                 {
+                    owner?.Dispose();
                     throw new InvalidOperationException("Unexpected returned value");
                 }
 
@@ -192,9 +208,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
                 new Dictionary<string, DiagnoseQueryHelper.DiagQueryItem>();
             DiagnoseQueryHelper.DiagEntityAnlyseItem[] typeAnalysis = null;
             var first = true;
-            foreach (var t in data)
+            try
             {
-                yield return DiagnoseResult(services, t, argumentsFor(t), knownQueries, ref typeAnalysis, postProcess);
+                foreach (var t in data)
+                {
+                    yield return DiagnoseResult(services, t, argumentsFor(t), knownQueries, ref typeAnalysis, postProcess);
+                }
+            }
+            finally
+            {
+                // The per-record DiagnoseResult caches its diagnostics-data-source in knownQueries and re-uses it
+                // across the whole loop (also shared with DiagnosticResultAttribute via DiagnoseQueryOptions).
+                // Dispose them once the loop is done — releases any per-operation scope (scoped plugin + context).
+                foreach (var item in knownQueries.Values)
+                {
+                    item.Context?.Dispose();
+                }
             }
         }
 

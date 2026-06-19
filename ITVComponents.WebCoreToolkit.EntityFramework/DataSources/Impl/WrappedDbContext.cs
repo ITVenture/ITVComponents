@@ -17,12 +17,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DataSources.Impl
         private readonly DbContext decoratedContext;
         private readonly IServiceProvider services;
         private readonly IForeignKeyProviderWithOptions cfg;
+        private readonly IDisposable owner;
 
-        public WrappedDbContext(DbContext decoratedContext, IServiceProvider services)
+        public WrappedDbContext(DbContext decoratedContext, IServiceProvider services, IDisposable owner = null)
         {
             this.decoratedContext = decoratedContext;
             this.cfg = decoratedContext as IForeignKeyProviderWithOptions;
             this.services = services;
+            this.owner = owner;
+        }
+
+        /// <summary>
+        /// Disposes the per-operation owner (e.g. the plugin operation-scope / per-operation context) that produced
+        /// the decorated context, when one was supplied. A null owner (the default — a host-/DI-owned scoped
+        /// context) is a no-op, preserving the historic behaviour.
+        /// </summary>
+        public void Dispose()
+        {
+            owner?.Dispose();
         }
         public IEnumerable RunDiagnosticsQuery(DiagnosticsQueryDefinition qr, ClaimsPrincipal user, IServiceProvider services, IDictionary<string, string> queryArguments)
         {
