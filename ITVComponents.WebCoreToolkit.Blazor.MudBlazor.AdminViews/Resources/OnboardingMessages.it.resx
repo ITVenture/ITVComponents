@@ -66,4 +66,22 @@
   <data name="OnbAdm_Role_Updated" xml:space="preserve"><value>Assegnazione aggiornata.</value></data>
   <data name="OnbAdm_Role_Failed" xml:space="preserve"><value>Impossibile aggiornare l'assegnazione.</value></data>
   <data name="OnbAdm_Send" xml:space="preserve"><value>Invia invito</value></data>
+  <data name="OnbAdm_Edit" xml:space="preserve"><value>Modifica</value></data>
+  <data name="OnbAdm_Rm_AddDirect" xml:space="preserve"><value>Aggiungi ruolo diretto</value></data>
+  <data name="OnbAdm_Rm_AddPermSet" xml:space="preserve"><value>Aggiungi set di autorizzazioni</value></data>
+  <data name="OnbAdm_Rm_AddTitle" xml:space="preserve"><value>Nuova definizione di ruolo</value></data>
+  <data name="OnbAdm_Rm_EditTitle" xml:space="preserve"><value>Definizione di ruolo</value></data>
+  <data name="OnbAdm_Rm_Kind" xml:space="preserve"><value>Tipo</value></data>
+  <data name="OnbAdm_Rm_KindDirect" xml:space="preserve"><value>Ruolo diretto</value></data>
+  <data name="OnbAdm_Rm_KindPermSet" xml:space="preserve"><value>Set di autorizzazioni</value></data>
+  <data name="OnbAdm_Rm_NewRole" xml:space="preserve"><value>(crea nuovo ruolo)</value></data>
+  <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>Nome del nuovo ruolo</value></data>
+  <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Etichetta visualizzata (JSON facoltativo)</value></data>
+  <data name="OnbAdm_Rm_LabelHint" xml:space="preserve"><value>Etichetta multilingue in formato JSON, ad es. {&quot;en&quot;:&quot;Master data&quot;,&quot;de&quot;:&quot;Stammdaten&quot;}. Lascia vuoto per usare il nome del ruolo.</value></data>
+  <data name="OnbAdm_Rm_DeleteConfirm" xml:space="preserve"><value>Eliminare davvero la definizione per '{0}'? Le assegnazioni dei dipendenti vengono rimosse; il ruolo sottostante viene mantenuto.</value></data>
+  <data name="OnbAdm_Rm_Deleted" xml:space="preserve"><value>Definizione eliminata.</value></data>
+  <data name="OnbAdm_Ps_Title" xml:space="preserve"><value>Set di autorizzazioni</value></data>
+  <data name="OnbAdm_Ps_Col" xml:space="preserve"><value>Set di autorizzazioni</value></data>
+  <data name="OnbAdm_Ps_Updated" xml:space="preserve"><value>Attivazione aggiornata.</value></data>
+  <data name="OnbAdm_Ps_Failed" xml:space="preserve"><value>Impossibile aggiornare l'attivazione.</value></data>
 </root>

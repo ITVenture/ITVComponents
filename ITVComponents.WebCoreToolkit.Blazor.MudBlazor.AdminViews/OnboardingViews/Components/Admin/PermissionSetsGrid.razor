@@ -3,20 +3,28 @@
 @inject IOnboardingAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
 
 <MudDataGrid T="PermissionSetActivationViewModel" Items="sets" SortMode="SortMode.None" Dense="true" Hover="true">
     <ToolBarContent>
         <RefreshButton OnClick="Reload" />
-        <MudText Typo="Typo.subtitle2">Permission sets</MudText>
+        <MudText Typo="Typo.subtitle2">@L["OnbAdm_Ps_Title"]</MudText>
         <MudSpacer />
     </ToolBarContent>
     <Columns>
         <TemplateColumn T="PermissionSetActivationViewModel" Title="" Sortable="false">
             <CellTemplate>
-                <MudCheckBox T="bool" Value="context.Item.Active" ValueChanged="@(v => Toggle(context.Item, v))" />
+                <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.DirectRole">
+                    <Permitted>
+                        <MudCheckBox T="bool" Value="context.Item.Active" ValueChanged="@(v => Toggle(context.Item, v))" />
+                    </Permitted>
+                    <NotPermitted>
+                        <MudCheckBox T="bool" Value="context.Item.Active" Disabled="true" />
+                    </NotPermitted>
+                </SecureView>
             </CellTemplate>
         </TemplateColumn>
-        <PropertyColumn Property="x => x.Label" Title="Permission set" />
+        <PropertyColumn Property="x => x.Label" Title="@L["OnbAdm_Ps_Col"]" />
     </Columns>
 </MudDataGrid>
 
@@ -50,11 +58,11 @@
         if (ok)
         {
             item.Active = newValue;
-            Snackbar.Add(newValue ? "Permission set activated" : "Permission set deactivated", Severity.Success);
+            Snackbar.Add(L["OnbAdm_Ps_Updated"], Severity.Success);
         }
         else
         {
-            Snackbar.Add("Failed to update activation", Severity.Error);
+            Snackbar.Add(L["OnbAdm_Ps_Failed"], Severity.Error);
             await Reload();
         }
     }

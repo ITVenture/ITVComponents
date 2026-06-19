@@ -1,0 +1,109 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IOnboardingAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Create/edit a single EmployeeRoleMapping. The Kind is fixed by the caller (the create button is gated per
+   kind), so it is shown read-only here rather than as an editable select. PermissionSet activation on a
+   DirectRole is done by expanding the row in the list, not in this dialog. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudField Label="@L["OnbAdm_Rm_Kind"]" Variant="Variant.Text">
+                        @(Model.Kind == EmployeeRoleMappingKind.DirectRole ? L["OnbAdm_Rm_KindDirect"] : L["OnbAdm_Rm_KindPermSet"])
+                    </MudField>
+                </MudItem>
+
+                @if (Model.EmployeeRoleMappingId == 0)
+                {
+                    <MudItem xs="12">
+                        <MudSelect T="int" @bind-Value="Model.RoleId" Label="@L["OnbAdm_Roles_Col"]">
+                            <MudSelectItem T="int" Value="0">@L["OnbAdm_Rm_NewRole"]</MudSelectItem>
+                            @foreach (var r in roles)
+                            {
+                                <MudSelectItem T="int" Value="@r.RoleId">@r.RoleName</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    @if (Model.RoleId == 0)
+                    {
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="Model.NewRoleName" Label="@L["OnbAdm_Rm_NewRoleName"]" Required="true" For="@(() => Model.NewRoleName)" />
+                        </MudItem>
+                    }
+                }
+                else
+                {
+                    <MudItem xs="12">
+                        <MudTextField Value="@Model.RoleName" Label="@L["OnbAdm_Roles_Col"]" ReadOnly="true" />
+                    </MudItem>
+                }
+
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="Model.DisplayNameJson" Label="@L["OnbAdm_Rm_Label"]" Lines="2" HelperText="@L["OnbAdm_Rm_LabelHint"]" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["Onb_Cancel"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy" OnClick="Save">@L["OnbAdm_Save"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public EmployeeRoleMappingViewModel Model { get; set; } = default!;
+
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private TenantRoleOption[] roles = Array.Empty<TenantRoleOption>();
+    private MudForm? form;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        roles = await Handler.ListTenantRolesAsync(currentUser);
+    }
+
+    private async Task Save()
+    {
+        if (form is null || currentUser is null)
+        {
+            return;
+        }
+
+        await form.Validate();
+        if (!form.IsValid)
+        {
+            Snackbar.Add(L["OnbAdm_FixInvalid"], Severity.Warning);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var id = await Handler.SaveRoleMappingAsync(currentUser, Model);
+            if (id is null)
+            {
+                Snackbar.Add(L["OnbAdm_SaveFailed"], Severity.Error);
+                return;
+            }
+
+            Snackbar.Add(L["OnbAdm_Saved"], Severity.Success);
+            MudDialog.Close(DialogResult.Ok(id.Value));
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+}

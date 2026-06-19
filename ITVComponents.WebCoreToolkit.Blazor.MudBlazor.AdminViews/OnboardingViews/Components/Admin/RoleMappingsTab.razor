@@ -1,0 +1,135 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IOnboardingAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Tab 3: the tenant's EmployeeRoleMapping catalog. A mapping is a friendly wrapper around a security role,
+   either a DirectRole (assignable to employees) or a PermissionSet (a permission bundle activated on a
+   DirectRole). Creating each kind is gated separately (Onboarding.Admin.RoleMappings.DirectRole /
+   .PermissionSet) so a tenant can be limited to one kind. DirectRole rows expand to assign PermissionSets;
+   the onboarding interceptor / role inheritance applies everything onto the underlying tenant roles. *@
+
+<MudDataGrid T="EmployeeRoleMappingViewModel" Items="mappings" Dense="true" Hover="true" Groupable="false">
+    <ToolBarContent>
+        <RefreshButton OnClick="Reload" />
+        <MudText Typo="Typo.subtitle2">@L["OnbAdm_Tab_RoleMappings"]</MudText>
+        <MudSpacer />
+        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.DirectRole">
+            <Permitted>
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="mr-2"
+                           OnClick="@(() => Create(EmployeeRoleMappingKind.DirectRole))">@L["OnbAdm_Rm_AddDirect"]</MudButton>
+            </Permitted>
+        </SecureView>
+        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.PermissionSet">
+            <Permitted>
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                           OnClick="@(() => Create(EmployeeRoleMappingKind.PermissionSet))">@L["OnbAdm_Rm_AddPermSet"]</MudButton>
+            </Permitted>
+        </SecureView>
+    </ToolBarContent>
+    <Columns>
+        <HierarchyColumn T="EmployeeRoleMappingViewModel" ButtonDisabledFunc="@(x => x.Kind != EmployeeRoleMappingKind.DirectRole)" />
+        <TemplateColumn T="EmployeeRoleMappingViewModel" Title="@L["OnbAdm_Rm_Kind"]" Sortable="false">
+            <CellTemplate>
+                @(context.Item.Kind == EmployeeRoleMappingKind.DirectRole ? L["OnbAdm_Rm_KindDirect"] : L["OnbAdm_Rm_KindPermSet"])
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="x => x.Label" Title="@L["OnbAdm_Roles_Col"]" />
+        <TemplateColumn T="EmployeeRoleMappingViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                <SecureView RequiredPermissions="@WritePermFor(context.Item.Kind)">
+                    <Permitted>
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Title="@L["OnbAdm_Edit"]" OnClick="@(() => Edit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Title="@L["OnbAdm_Delete"]" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    </Permitted>
+                </SecureView>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <ChildRowContent>
+        @if (context.Item.Kind == EmployeeRoleMappingKind.DirectRole)
+        {
+            <MudPaper Elevation="0" Class="pa-2">
+                <PermissionSetsGrid DirectMappingId="context.Item.EmployeeRoleMappingId" />
+            </MudPaper>
+        }
+    </ChildRowContent>
+</MudDataGrid>
+
+@code {
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private EmployeeRoleMappingViewModel[] mappings = Array.Empty<EmployeeRoleMappingViewModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        if (currentUser is null)
+        {
+            mappings = Array.Empty<EmployeeRoleMappingViewModel>();
+            return;
+        }
+
+        mappings = await Handler.ListRoleMappingsAsync(currentUser);
+    }
+
+    private static string WritePermFor(EmployeeRoleMappingKind kind) =>
+        kind == EmployeeRoleMappingKind.DirectRole
+            ? "Onboarding.Admin.RoleMappings.DirectRole"
+            : "Onboarding.Admin.RoleMappings.PermissionSet";
+
+    private Task Create(EmployeeRoleMappingKind kind) => OpenDialog(new EmployeeRoleMappingViewModel { Kind = kind });
+
+    private Task Edit(EmployeeRoleMappingViewModel mapping) => OpenDialog(new EmployeeRoleMappingViewModel
+    {
+        EmployeeRoleMappingId = mapping.EmployeeRoleMappingId,
+        Kind = mapping.Kind,
+        RoleId = mapping.RoleId,
+        RoleName = mapping.RoleName,
+        DisplayNameJson = mapping.DisplayNameJson
+    });
+
+    private async Task OpenDialog(EmployeeRoleMappingViewModel model)
+    {
+        var parameters = new DialogParameters<RoleMappingDialog> { { d => d.Model, model } };
+        var title = model.EmployeeRoleMappingId == 0 ? L["OnbAdm_Rm_AddTitle"] : L["OnbAdm_Rm_EditTitle"];
+        var dlg = await DialogService.ShowAsync<RoleMappingDialog>(title, parameters, EditDialogDefaults.Detail);
+        await dlg.Result;
+        await Reload();
+    }
+
+    private async Task Delete(EmployeeRoleMappingViewModel mapping)
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(L["OnbAdm_Delete"], L["OnbAdm_Rm_DeleteConfirm", mapping.Label], yesText: L["OnbAdm_Delete"], cancelText: L["Onb_Cancel"]);
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var success = await Handler.DeleteRoleMappingAsync(currentUser, mapping.EmployeeRoleMappingId);
+        if (success)
+        {
+            Snackbar.Add(L["OnbAdm_Rm_Deleted"], Severity.Success);
+            await Reload();
+        }
+        else
+        {
+            Snackbar.Add(L["OnbAdm_SaveFailed"], Severity.Error);
+        }
+    }
+}

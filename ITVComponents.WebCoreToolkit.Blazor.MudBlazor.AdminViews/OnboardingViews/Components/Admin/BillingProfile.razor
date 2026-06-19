@@ -119,9 +119,9 @@ else
 
         @* ---- Tab 3: role-mapping definitions (filled in commit 3) ------------------------------ *@
         <MudTabPanel Text="@L["OnbAdm_Tab_RoleMappings"]">
-            <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.View,Onboarding.Admin.RoleMappings.Write" RequiredFeatures="ITVAdminViews">
+            <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.View,Onboarding.Admin.RoleMappings.Write,Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.PermissionSet" RequiredFeatures="ITVAdminViews">
                 <Permitted>
-                    <MudText Typo="Typo.body2">@L["OnbAdm_SectionPending"]</MudText>
+                    <RoleMappingsTab />
                 </Permitted>
                 <NotPermitted>
                     <MudAlert Severity="Severity.Warning">@L["OnbAdm_NoPermission"]</MudAlert>

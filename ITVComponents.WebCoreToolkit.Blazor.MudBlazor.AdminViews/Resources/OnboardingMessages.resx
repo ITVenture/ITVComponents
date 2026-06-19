@@ -153,4 +153,22 @@
   <data name="OnbAdm_Role_Updated" xml:space="preserve"><value>Assignment updated.</value></data>
   <data name="OnbAdm_Role_Failed" xml:space="preserve"><value>Could not update the assignment.</value></data>
   <data name="OnbAdm_Send" xml:space="preserve"><value>Send invitation</value></data>
+  <data name="OnbAdm_Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="OnbAdm_Rm_AddDirect" xml:space="preserve"><value>Add direct role</value></data>
+  <data name="OnbAdm_Rm_AddPermSet" xml:space="preserve"><value>Add permission set</value></data>
+  <data name="OnbAdm_Rm_AddTitle" xml:space="preserve"><value>New role mapping</value></data>
+  <data name="OnbAdm_Rm_EditTitle" xml:space="preserve"><value>Role mapping</value></data>
+  <data name="OnbAdm_Rm_Kind" xml:space="preserve"><value>Kind</value></data>
+  <data name="OnbAdm_Rm_KindDirect" xml:space="preserve"><value>Direct role</value></data>
+  <data name="OnbAdm_Rm_KindPermSet" xml:space="preserve"><value>Permission set</value></data>
+  <data name="OnbAdm_Rm_NewRole" xml:space="preserve"><value>(create new role)</value></data>
+  <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>New role name</value></data>
+  <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Display label (optional JSON)</value></data>
+  <data name="OnbAdm_Rm_LabelHint" xml:space="preserve"><value>Multilingual label as JSON, e.g. {&quot;en&quot;:&quot;Master data&quot;,&quot;de&quot;:&quot;Stammdaten&quot;}. Leave empty to use the role name.</value></data>
+  <data name="OnbAdm_Rm_DeleteConfirm" xml:space="preserve"><value>Really delete the mapping for '{0}'? Employee assignments to it are removed; the underlying role is kept.</value></data>
+  <data name="OnbAdm_Rm_Deleted" xml:space="preserve"><value>Mapping deleted.</value></data>
+  <data name="OnbAdm_Ps_Title" xml:space="preserve"><value>Permission sets</value></data>
+  <data name="OnbAdm_Ps_Col" xml:space="preserve"><value>Permission set</value></data>
+  <data name="OnbAdm_Ps_Updated" xml:space="preserve"><value>Activation updated.</value></data>
+  <data name="OnbAdm_Ps_Failed" xml:space="preserve"><value>Could not update the activation.</value></data>
 </root>
