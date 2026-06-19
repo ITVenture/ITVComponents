@@ -620,7 +620,66 @@ gleichnamige generische Variante mit der nicht-generischen verschmelzen würde �
 
 ---
 
-## 8. Verifikation auf eurer Seite
+## 8. Per-Operation-Contexts für Plugins & Diagnostics/ForeignKeys (IDbContextFactory) — opt-in
+
+**Hintergrund.** Toolkit-seitig laufen alle Security-Services jetzt pro Operation über eine frische, kurzlebige
+Context-Instanz aus einer `IDbContextFactory` (statt eines geteilten, circuit-langlebigen `DbContext`). Das ist
+Blazor-sicher (kein „second operation on this context", keine stale data). Drei **konsumentenseitige** Stellen
+müssen nachgezogen werden, **falls** ihr dort den System-Context als Dependency konfiguriert habt — typischerweise
+unter dem Namen `"sys"`.
+
+> **Wichtig:** Methode ist `IDbContextFactory<T>.CreateDbContext()` (nicht `GetInstance()`). Der so erzeugte
+> Context ist **tenant-korrekt**, weil ihn das Toolkit an den aktuellen `IPermissionScope`/`IContextUserProvider`
+> bindet — **kein** roher DI-`CreateScope()` (das würde Mandant/User verlieren).
+
+### 8.1 Plugin-Dependencies (`FactoryOptions.AddDependency`)
+Bisher (geteilter Context):
+```csharp
+options.AddDependency("sys", p => p.GetService<ApplicationDbContext>());
+```
+Neu (frischer per-Operation-Context, am Plugin-Scope-Ende disposed):
+```csharp
+options.AddDependency("sys",
+    p => p.GetService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext(),
+    disposeWithScope: true);
+```
+Konsumenten, die Plugins laden, öffnen dafür eine **Operation-Scope** und laden die Plugins daraus:
+```csharp
+using var scope = pluginHelper.CreateOperationScope();   // IWebPluginHelper
+var plugin = scope.LoadPlugin<IMyPlugin>(uniqueName, ctor);
+// ... plugin nutzen (bekommt "sys" = per-Op-Context) ...
+// Dispose der Scope → Scope-Plugins UND der per-Op-Context werden disposed
+```
+Default (`disposeWithScope: false`) = bisheriges Verhalten: der Wert überlebt den Scope (host-/DI-owned).
+
+### 8.2 Diagnostics-/ForeignKey-Quelle, die ein **Plugin** ist
+Gibt euer `RegisterService`-Delegate eine über ein Plugin erzeugte Quelle zurück, paart sie mit ihrer Scope via
+`ScopedDataSource` — das Toolkit disposed die Scope nach der Query:
+```csharp
+diagOptions.RegisterService("sys", (sp, name, area) =>
+{
+    var scope = sp.GetService<IWebPluginHelper>().CreateOperationScope();
+    var src   = scope.GetPlugin<MyContextPlugin>();   // Plugin liefert DbContext/Adapter/FK-Source
+    return new ScopedDataSource(src, scope);          // owner = scope
+});
+```
+
+### 8.3 Diagnostics-/ForeignKey-Quelle als schlichter per-Op-Context (ohne Plugin)
+Owner ist dann der Context selbst (er ist `IDisposable`):
+```csharp
+diagOptions.RegisterService("sys", (sp, name, area) =>
+{
+    var ctx = sp.GetService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext();
+    return new ScopedDataSource(ctx, ctx);
+});
+```
+Gebt ihr (wie bisher) eine **schlichte, scoped** Quelle zurück (kein `ScopedDataSource`), bleibt alles beim Alten
+(host-/DI-owned, nichts wird vom Toolkit disposed). Die toolkit-internen Diag/FK-Konsumenten disposen die Quelle
+nach Gebrauch korrekt (auch bei lazy gestreamten Ergebnissen) — ihr müsst dafür nichts tun.
+
+---
+
+## 9. Verifikation auf eurer Seite
 
 - Build der gesamten Solution grün (alle eigenen FileHandler + Cookie-Scope-Config angepasst).
 - **Onboarding:** Migration angewendet (Tabellen `PendingOnboarding` + `TenantInvitation` existieren);
@@ -650,3 +709,4 @@ gleichnamige generische Variante mit der nicht-generischen verschmelzen würde �
 | 9 | **Onboarding Mail/Nav** (2b) | `IAppMailSender` via `UseDefaultMailSender` (auto) oder eigene Impl; Nav-Link auf `/Account/Onboarding/Invitations` |
 | 10 | **EntityWriteTracker** (FK-Cache) | optional `ActivationSettings.UseEntityTracker = true` für sofortige FK-Label-Cache-Invalidierung; alter `IForeignKeyWriteTracker` entfallen → `IEntityWriteTracker` |
 | 10a | **Permissions/Navigation sofort** | gleicher Schalter invalidiert Cookie-Permission-Cache, Navigator & `isAuthenticatedCache` automatisch; für sofortiges UI-Re-Render optional `<EntityChangeRefresher>` (Blazor) um das Menü legen |
+| 11 | **Per-Op-Context** (opt-in, §8) | falls ihr den System-Context als `"sys"`-Dependency konfiguriert: `AddDependency(…, p=>p.GetService<IDbContextFactory<AppCtx>>().CreateDbContext(), disposeWithScope:true)`; Plugin-Konsumenten `using var s = pluginHelper.CreateOperationScope()`; Diag/FK-`RegisterService` ggf. `ScopedDataSource` zurückgeben. Ohne Änderung = bisheriges (geteiltes) Verhalten |
