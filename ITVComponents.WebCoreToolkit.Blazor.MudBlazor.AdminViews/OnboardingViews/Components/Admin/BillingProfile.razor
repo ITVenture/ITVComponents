@@ -1,0 +1,199 @@
+@page "/Onboarding/BillingProfile"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+
+@inject IOnboardingAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Single tenant-administration surface for the tenant the signed-in user administers (their own tenant).
+   Replaces the former BillingProfiles list, EmployeeRoleMappings and Invitations pages with one tabbed
+   detail view. Each tab is permission-gated (View/Write) under the Onboarding.Admin.* prefix; Write implies
+   View. A tenant has at most one billing profile, so tab 1 IS the profile (no listing) — an empty form
+   implicitly creates it. (Tabs 2-4 are filled in the following commits.) *@
+
+<PageTitle>@L["OnbAdm_PageTitle"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["OnbAdm_PageTitle"]</MudText>
+
+@if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (currentTenant is null)
+{
+    <MudAlert Severity="Severity.Warning">@L["OnbAdm_NoTenant"]</MudAlert>
+}
+else
+{
+    <MudText Typo="Typo.body2" Class="mb-2">@L["OnbAdm_TenantLabel"]: <b>@currentTenant.DisplayName</b></MudText>
+
+    <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+
+        @* ---- Tab 1: billing profile / address -------------------------------------------------- *@
+        <MudTabPanel Text="@L["OnbAdm_Tab_Address"]">
+            <SecureView RequiredPermissions="Onboarding.Admin.BillingProfile.View,Onboarding.Admin.BillingProfile.Write" RequiredFeatures="ITVAdminViews">
+                <Permitted>
+                    @if (model is null)
+                    {
+                        <MudProgressCircular Indeterminate="true" />
+                    }
+                    else
+                    {
+                        <MudForm @ref="form" Model="model">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect T="ProfileType" @bind-Value="model.ProfileType" Label="@L["OnbAdm_ProfileType"]">
+                                        @foreach (var pt in System.Enum.GetValues<ProfileType>())
+                                        {
+                                            <MudSelectItem T="ProfileType" Value="@pt">@(pt == ProfileType.Company ? L["Onb_Company"] : L["Onb_Personal"])</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="model.Email" Label="@L["Onb_ContactEmail"]" Required="true" For="@(() => model.Email)" />
+                                </MudItem>
+
+                                @if (model.ProfileType == ProfileType.Company)
+                                {
+                                    <MudItem xs="12" sm="8">
+                                        <MudTextField @bind-Value="model.CompanyName" Label="@L["Onb_CompanyName"]" For="@(() => model.CompanyName)" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="4">
+                                        <MudTextField @bind-Value="model.VatNumber" Label="@L["Onb_VatNumber"]" For="@(() => model.VatNumber)" />
+                                    </MudItem>
+                                }
+                                else
+                                {
+                                    <MudItem xs="12" sm="6">
+                                        <MudTextField @bind-Value="model.FirstName" Label="@L["Onb_FirstName"]" For="@(() => model.FirstName)" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudTextField @bind-Value="model.LastName" Label="@L["Onb_LastName"]" For="@(() => model.LastName)" />
+                                    </MudItem>
+                                }
+
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="model.PhoneNumber" Label="@L["Onb_Phone"]" For="@(() => model.PhoneNumber)" />
+                                </MudItem>
+                            </MudGrid>
+
+                            <MudText Typo="Typo.subtitle1" Class="mt-3 mb-1">@L["Onb_DefaultAddress"]</MudText>
+                            <AddressEditor Title="@L["Onb_DefaultAddress"]" Address="model.DefaultAddress" />
+
+                            <MudCheckBox T="bool" @bind-Value="model.UseInvoiceAddr" Label="@L["Onb_UseInvoiceAddr"]" />
+                            @if (model.UseInvoiceAddr)
+                            {
+                                <AddressEditor Title="@L["Onb_InvoiceAddress"]" Address="model.InvoiceAddress" />
+                            }
+
+                            <SecureView RequiredPermissions="Onboarding.Admin.BillingProfile.Write">
+                                <Permitted>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" Disabled="@busy" OnClick="Save">@L["OnbAdm_Save"]</MudButton>
+                                </Permitted>
+                            </SecureView>
+                        </MudForm>
+                    }
+                </Permitted>
+                <NotPermitted>
+                    <MudAlert Severity="Severity.Warning">@L["OnbAdm_NoPermission"]</MudAlert>
+                </NotPermitted>
+            </SecureView>
+        </MudTabPanel>
+
+        @* ---- Tab 2: users & invitations (filled in commit 2) ----------------------------------- *@
+        <MudTabPanel Text="@L["OnbAdm_Tab_Users"]">
+            <SecureView RequiredPermissions="Onboarding.Admin.Employees.View,Onboarding.Admin.Employees.Write" RequiredFeatures="ITVAdminViews">
+                <Permitted>
+                    <MudText Typo="Typo.body2">@L["OnbAdm_SectionPending"]</MudText>
+                </Permitted>
+                <NotPermitted>
+                    <MudAlert Severity="Severity.Warning">@L["OnbAdm_NoPermission"]</MudAlert>
+                </NotPermitted>
+            </SecureView>
+        </MudTabPanel>
+
+        @* ---- Tab 3: role-mapping definitions (filled in commit 3) ------------------------------ *@
+        <MudTabPanel Text="@L["OnbAdm_Tab_RoleMappings"]">
+            <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.View,Onboarding.Admin.RoleMappings.Write" RequiredFeatures="ITVAdminViews">
+                <Permitted>
+                    <MudText Typo="Typo.body2">@L["OnbAdm_SectionPending"]</MudText>
+                </Permitted>
+                <NotPermitted>
+                    <MudAlert Severity="Severity.Warning">@L["OnbAdm_NoPermission"]</MudAlert>
+                </NotPermitted>
+            </SecureView>
+        </MudTabPanel>
+
+    </MudTabs>
+}
+
+@code {
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private TenantPickerItem? currentTenant;
+    private BillingProfileAdminViewModel? model;
+    private MudForm? form;
+    private bool loading = true;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        currentTenant = await Handler.GetCurrentTenantAsync(currentUser);
+        if (currentTenant is not null && currentUser is not null)
+        {
+            await LoadProfile();
+        }
+
+        loading = false;
+    }
+
+    // A tenant has at most one billing profile: take the first if present, otherwise start an empty model
+    // (an implicit create on first save). The list projection has no addresses, so re-load the full profile.
+    private async Task LoadProfile()
+    {
+        var profiles = await Handler.ListBillingProfilesAsync(currentUser!);
+        var first = profiles.FirstOrDefault();
+        model = first is not null
+            ? await Handler.GetBillingProfileAsync(currentUser!, first.BillingProfileId) ?? new BillingProfileAdminViewModel()
+            : new BillingProfileAdminViewModel();
+    }
+
+    private async Task Save()
+    {
+        if (form is null || model is null || currentUser is null)
+        {
+            return;
+        }
+
+        await form.Validate();
+        if (!form.IsValid)
+        {
+            Snackbar.Add(L["OnbAdm_FixInvalid"], Severity.Warning);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var id = await Handler.SaveBillingProfileAsync(currentUser, model);
+            if (id is null)
+            {
+                Snackbar.Add(L["OnbAdm_SaveFailed"], Severity.Error);
+                return;
+            }
+
+            model.BillingProfileId = id.Value;
+            Snackbar.Add(L["OnbAdm_Saved"], Severity.Success);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

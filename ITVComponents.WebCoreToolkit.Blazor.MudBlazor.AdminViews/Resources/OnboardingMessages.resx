@@ -128,4 +128,18 @@
   <data name="Onb_Inv_NoneEmployee" xml:space="preserve"><value>No employee invitations yet.</value></data>
   <data name="Onb_Inv_MailSubject" xml:space="preserve"><value>You have been invited to create a tenant</value></data>
   <data name="Onb_Inv_MailBody" xml:space="preserve"><value>Hello,&lt;br/&gt;you have been invited to create a tenant. Please &lt;a href='{0}'&gt;click here&lt;/a&gt; to accept the invitation.</value></data>
+  <data name="OnbAdm_PageTitle" xml:space="preserve"><value>Tenant administration</value></data>
+  <data name="OnbAdm_Tab_Address" xml:space="preserve"><value>Billing profile</value></data>
+  <data name="OnbAdm_Tab_Users" xml:space="preserve"><value>Users &amp; invitations</value></data>
+  <data name="OnbAdm_Tab_RoleMappings" xml:space="preserve"><value>Role definitions</value></data>
+  <data name="OnbAdm_Tab_SubTenants" xml:space="preserve"><value>Sub-tenant invitations</value></data>
+  <data name="OnbAdm_NoTenant" xml:space="preserve"><value>No tenant is currently selected, or you are not a member of it.</value></data>
+  <data name="OnbAdm_NoPermission" xml:space="preserve"><value>You do not have permission to view this section.</value></data>
+  <data name="OnbAdm_TenantLabel" xml:space="preserve"><value>Tenant</value></data>
+  <data name="OnbAdm_ProfileType" xml:space="preserve"><value>Profile type</value></data>
+  <data name="OnbAdm_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="OnbAdm_Saved" xml:space="preserve"><value>Saved.</value></data>
+  <data name="OnbAdm_SaveFailed" xml:space="preserve"><value>Could not save.</value></data>
+  <data name="OnbAdm_FixInvalid" xml:space="preserve"><value>Please correct the invalid fields.</value></data>
+  <data name="OnbAdm_SectionPending" xml:space="preserve"><value>This section will be available shortly.</value></data>
 </root>

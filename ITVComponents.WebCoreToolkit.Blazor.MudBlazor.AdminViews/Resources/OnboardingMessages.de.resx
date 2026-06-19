@@ -82,4 +82,18 @@
   <data name="Onb_Inv_NoneEmployee" xml:space="preserve"><value>Noch keine Mitarbeiter-Einladungen.</value></data>
   <data name="Onb_Inv_MailSubject" xml:space="preserve"><value>Sie wurden eingeladen, einen Mandanten zu erstellen</value></data>
   <data name="Onb_Inv_MailBody" xml:space="preserve"><value>Hallo,&lt;br/&gt;Sie wurden eingeladen, einen Mandanten zu erstellen. Bitte &lt;a href='{0}'&gt;klicken Sie hier&lt;/a&gt;, um die Einladung anzunehmen.</value></data>
+  <data name="OnbAdm_PageTitle" xml:space="preserve"><value>Mandantenverwaltung</value></data>
+  <data name="OnbAdm_Tab_Address" xml:space="preserve"><value>Rechnungsprofil</value></data>
+  <data name="OnbAdm_Tab_Users" xml:space="preserve"><value>Benutzer &amp; Einladungen</value></data>
+  <data name="OnbAdm_Tab_RoleMappings" xml:space="preserve"><value>Rollendefinitionen</value></data>
+  <data name="OnbAdm_Tab_SubTenants" xml:space="preserve"><value>Sub-Mandanten-Einladungen</value></data>
+  <data name="OnbAdm_NoTenant" xml:space="preserve"><value>Es ist aktuell kein Mandant ausgewählt, oder Sie sind kein Mitglied davon.</value></data>
+  <data name="OnbAdm_NoPermission" xml:space="preserve"><value>Sie haben keine Berechtigung, diesen Bereich anzuzeigen.</value></data>
+  <data name="OnbAdm_TenantLabel" xml:space="preserve"><value>Mandant</value></data>
+  <data name="OnbAdm_ProfileType" xml:space="preserve"><value>Profiltyp</value></data>
+  <data name="OnbAdm_Save" xml:space="preserve"><value>Speichern</value></data>
+  <data name="OnbAdm_Saved" xml:space="preserve"><value>Gespeichert.</value></data>
+  <data name="OnbAdm_SaveFailed" xml:space="preserve"><value>Speichern fehlgeschlagen.</value></data>
+  <data name="OnbAdm_FixInvalid" xml:space="preserve"><value>Bitte korrigieren Sie die ungültigen Felder.</value></data>
+  <data name="OnbAdm_SectionPending" xml:space="preserve"><value>Dieser Bereich steht in Kürze zur Verfügung.</value></data>
 </root>

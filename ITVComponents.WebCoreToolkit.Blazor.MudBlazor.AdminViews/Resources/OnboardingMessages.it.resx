@@ -41,4 +41,18 @@
   <data name="Onb_Number" xml:space="preserve"><value>Numero</value></data>
   <data name="Onb_Zip" xml:space="preserve"><value>CAP</value></data>
   <data name="Onb_City" xml:space="preserve"><value>Città</value></data>
+  <data name="OnbAdm_PageTitle" xml:space="preserve"><value>Amministrazione tenant</value></data>
+  <data name="OnbAdm_Tab_Address" xml:space="preserve"><value>Profilo di fatturazione</value></data>
+  <data name="OnbAdm_Tab_Users" xml:space="preserve"><value>Utenti e inviti</value></data>
+  <data name="OnbAdm_Tab_RoleMappings" xml:space="preserve"><value>Definizioni dei ruoli</value></data>
+  <data name="OnbAdm_Tab_SubTenants" xml:space="preserve"><value>Inviti per sub-tenant</value></data>
+  <data name="OnbAdm_NoTenant" xml:space="preserve"><value>Nessun tenant attualmente selezionato, oppure non ne sei membro.</value></data>
+  <data name="OnbAdm_NoPermission" xml:space="preserve"><value>Non disponi dell'autorizzazione per visualizzare questa sezione.</value></data>
+  <data name="OnbAdm_TenantLabel" xml:space="preserve"><value>Tenant</value></data>
+  <data name="OnbAdm_ProfileType" xml:space="preserve"><value>Tipo di profilo</value></data>
+  <data name="OnbAdm_Save" xml:space="preserve"><value>Salva</value></data>
+  <data name="OnbAdm_Saved" xml:space="preserve"><value>Salvato.</value></data>
+  <data name="OnbAdm_SaveFailed" xml:space="preserve"><value>Salvataggio non riuscito.</value></data>
+  <data name="OnbAdm_FixInvalid" xml:space="preserve"><value>Correggi i campi non validi.</value></data>
+  <data name="OnbAdm_SectionPending" xml:space="preserve"><value>Questa sezione sarà presto disponibile.</value></data>
 </root>

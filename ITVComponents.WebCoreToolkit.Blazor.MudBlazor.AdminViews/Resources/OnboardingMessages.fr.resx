@@ -41,4 +41,18 @@
   <data name="Onb_Number" xml:space="preserve"><value>Numéro</value></data>
   <data name="Onb_Zip" xml:space="preserve"><value>Code postal</value></data>
   <data name="Onb_City" xml:space="preserve"><value>Ville</value></data>
+  <data name="OnbAdm_PageTitle" xml:space="preserve"><value>Administration du locataire</value></data>
+  <data name="OnbAdm_Tab_Address" xml:space="preserve"><value>Profil de facturation</value></data>
+  <data name="OnbAdm_Tab_Users" xml:space="preserve"><value>Utilisateurs et invitations</value></data>
+  <data name="OnbAdm_Tab_RoleMappings" xml:space="preserve"><value>Définitions de rôles</value></data>
+  <data name="OnbAdm_Tab_SubTenants" xml:space="preserve"><value>Invitations de sous-locataires</value></data>
+  <data name="OnbAdm_NoTenant" xml:space="preserve"><value>Aucun locataire n'est actuellement sélectionné, ou vous n'en êtes pas membre.</value></data>
+  <data name="OnbAdm_NoPermission" xml:space="preserve"><value>Vous n'avez pas la permission d'afficher cette section.</value></data>
+  <data name="OnbAdm_TenantLabel" xml:space="preserve"><value>Locataire</value></data>
+  <data name="OnbAdm_ProfileType" xml:space="preserve"><value>Type de profil</value></data>
+  <data name="OnbAdm_Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="OnbAdm_Saved" xml:space="preserve"><value>Enregistré.</value></data>
+  <data name="OnbAdm_SaveFailed" xml:space="preserve"><value>Échec de l'enregistrement.</value></data>
+  <data name="OnbAdm_FixInvalid" xml:space="preserve"><value>Veuillez corriger les champs invalides.</value></data>
+  <data name="OnbAdm_SectionPending" xml:space="preserve"><value>Cette section sera bientôt disponible.</value></data>
 </root>
