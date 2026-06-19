@@ -105,12 +105,52 @@ public interface IOnboardingAdminHandler
 }
 
 /// <summary>
-/// Permission names that gate the onboarding admin editors. A single <see cref="ManageEmployees"/>
-/// permission grants read + write over billing profiles, employees and their role assignments, checked
-/// against the ambient permission-scope (the current tenant) both in the UI and, authoritatively, in the
-/// handler.
+/// Permission names that gate the onboarding admin surface (the tabbed BillingProfile view). Per area a
+/// <c>.View</c> (read) and <c>.Write</c> (read + write) permission under the <c>Onboarding.Admin.*</c>
+/// prefix; <c>.Write</c> implies <c>.View</c> (read access = holding either). For role mappings the kind is
+/// gated additionally by <c>.DirectRole</c> / <c>.PermissionSet</c> so a tenant can be limited to one kind.
+/// All checks run against the ambient permission-scope (the current tenant), both in the UI (SecureView) and,
+/// authoritatively, in the handler.
 /// </summary>
 public static class OnboardingAdminPermissions
 {
-    public const string ManageEmployees = "ManageEmployees";
+    public const string BillingProfileView = "Onboarding.Admin.BillingProfile.View";
+    public const string BillingProfileWrite = "Onboarding.Admin.BillingProfile.Write";
+    public const string EmployeesView = "Onboarding.Admin.Employees.View";
+    public const string EmployeesWrite = "Onboarding.Admin.Employees.Write";
+    public const string RoleMappingsView = "Onboarding.Admin.RoleMappings.View";
+    public const string RoleMappingsWrite = "Onboarding.Admin.RoleMappings.Write";
+    public const string RoleMappingsDirectRole = "Onboarding.Admin.RoleMappings.DirectRole";
+    public const string RoleMappingsPermissionSet = "Onboarding.Admin.RoleMappings.PermissionSet";
+    public const string SubTenantsView = "Onboarding.Admin.SubTenants.View";
+    public const string SubTenantsWrite = "Onboarding.Admin.SubTenants.Write";
+
+    /// <summary>Read access to the billing-profile tab (View or Write).</summary>
+    public static readonly string[] BillingProfileRead = { BillingProfileView, BillingProfileWrite };
+
+    /// <summary>Read access to the employees tab (View or Write).</summary>
+    public static readonly string[] EmployeesRead = { EmployeesView, EmployeesWrite };
+
+    /// <summary>Read access to the role-mappings tab (any of its permissions).</summary>
+    public static readonly string[] RoleMappingsRead = { RoleMappingsView, RoleMappingsWrite, RoleMappingsDirectRole, RoleMappingsPermissionSet };
+
+    /// <summary>Write a DirectRole mapping: the DirectRole kind-permission or the generic role-mappings write.</summary>
+    public static readonly string[] DirectRoleWrite = { RoleMappingsDirectRole, RoleMappingsWrite };
+
+    /// <summary>Write a PermissionSet mapping: the PermissionSet kind-permission or the generic role-mappings write.</summary>
+    public static readonly string[] PermissionSetWrite = { RoleMappingsPermissionSet, RoleMappingsWrite };
+
+    /// <summary>Any write within role mappings (used to gate delete before the row's kind is known).</summary>
+    public static readonly string[] RoleMappingsAnyWrite = { RoleMappingsDirectRole, RoleMappingsPermissionSet, RoleMappingsWrite };
+
+    /// <summary>Read access to the sub-tenant invitations tab (View or Write).</summary>
+    public static readonly string[] SubTenantsRead = { SubTenantsView, SubTenantsWrite };
+
+    /// <summary>Any onboarding-admin permission — grants access to the surface (e.g. GetCurrentTenant).</summary>
+    public static readonly string[] AnyAccess =
+    {
+        BillingProfileView, BillingProfileWrite, EmployeesView, EmployeesWrite,
+        RoleMappingsView, RoleMappingsWrite, RoleMappingsDirectRole, RoleMappingsPermissionSet,
+        SubTenantsView, SubTenantsWrite
+    };
 }

@@ -519,12 +519,47 @@ Die Pages leuchten über das Routing-Assembly automatisch auf — der Host muss 
 |---|---|---|---|
 | `/Account/Onboarding/Start` | anonym | Direkt-Onboarding (Account+Tenant), deferred (2a) | optional (z.B. von Login) |
 | `/Account/Onboarding/Invitation/{token}` | anonym | Einladungs-Annahme (2b) | nein (kommt per Mail-Link) |
-| `/Account/Onboarding/Invitations` | `[Authorize]` | Admin: Einladungen erstellen/verwalten (2b) | **ja** (Admin-Menü) |
 | `/Account/Onboarding/CreateTenant` | `[Authorize]` | Tenant anlegen (bestehend; akzeptiert jetzt `?invitation=`) | bestehend |
 | `/Account/Onboarding/MyTenants` | `[Authorize]` | eigene Tenants + Einladungen annehmen (bestehend) | bestehend |
 
 Der deferred 2a-Abschluss passiert idempotent beim ersten Login-Landing (`MyTenants`) bzw.
 E-Mail-Confirm — Voraussetzung ist nur, dass eure `/Account/ConfirmEmail`-Page erreichbar ist (Standard).
+
+### 6.5 Tenant-Admin-View konsolidiert (`/Onboarding/BillingProfile`) — **Routen + Permissions geändert**
+
+Die drei getrennten Admin-Seiten **`/Onboarding/BillingProfiles`** (Liste), **`/Onboarding/EmployeeRoleMappings`**
+und **`/Account/Onboarding/Invitations`** wurden zu **einer** tab-basierten Detail-View
+**`/Onboarding/BillingProfile`** (Singular) zusammengeführt — für den Tenant-Admin seinen *eigenen* Tenant.
+Ein Tenant hat max. 1 Rechnungsprofil, daher kein Listing mehr. Vier Tabs:
+
+| Tab | Inhalt | Gate (View/Write, Write ⊇ View) |
+|---|---|---|
+| Rechnungsprofil | Profil/Adresse (leer = impliziter Create) | `Onboarding.Admin.BillingProfile.View` / `.Write` |
+| Benutzer & Einladungen | Mitarbeiter + Employee-Einladungen, aufklappbar → Rollen-Zuweisung | `Onboarding.Admin.Employees.View` / `.Write` |
+| Rollendefinitionen | EmployeeRoleMappings, DirectRole aufklappbar → PermissionSets | `Onboarding.Admin.RoleMappings.View` / `.Write` + Kind-Gate `.DirectRole` / `.PermissionSet` |
+| Sub-Tenant-Einladungen (nur Tree) | Kind-Tenant-Einladungen | `Onboarding.Admin.SubTenants.View` / `.Write` |
+
+**Nav umbiegen (Pflicht):** Ersetzt eure Menü-/Nav-Links auf die drei alten Routen durch **`/Onboarding/BillingProfile`**.
+Die alten Routen existieren nicht mehr (404).
+
+**Neue Permissions seeden (Pflicht), alte entfernen:** In einer Migration (`migrationBuilder.InsertData("Permissions", …)`):
+
+```
+Onboarding.Admin.BillingProfile.View      Onboarding.Admin.BillingProfile.Write
+Onboarding.Admin.Employees.View           Onboarding.Admin.Employees.Write
+Onboarding.Admin.RoleMappings.View        Onboarding.Admin.RoleMappings.Write
+Onboarding.Admin.RoleMappings.DirectRole  Onboarding.Admin.RoleMappings.PermissionSet
+Onboarding.Admin.SubTenants.View          Onboarding.Admin.SubTenants.Write
+```
+
+> `.Write` impliziert Lese-Zugriff (Tab sichtbar bei View **oder** Write). Bei Rollendefinitionen heißt **anlegen/
+> bearbeiten je Kind**: man braucht `.Write` *oder* das passende Kind-Recht (`.DirectRole` / `.PermissionSet`) —
+> so lässt sich ein Tenant-Admin auf nur eine Art beschränken. Das Gate wird serverseitig im Handler **und** im
+> UI (SecureView) erzwungen.
+
+**Entfallen:** die alten Permissions **`ManageEmployees`** und **`Invitations.ViewSub` / `.CreateSub` / `.ViewEmp` /
+`.CreateEmp`** werden nicht mehr ausgewertet — sie können aus euren Rollen/Seeds entfernt werden (Aufräumen optional,
+schaden tun sie nicht). Feature-Gate bleibt `ITVAdminViews`.
 
 ---
 

@@ -81,7 +81,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             return new TenantInvitationResult(false, 0, null, default, "You are not a member of the inviting tenant.");
         }
 
-        if (!HasAny(InvitationPermissions.CreateSub))
+        if (!HasAny(OnboardingAdminPermissions.SubTenantsWrite))
         {
             return new TenantInvitationResult(false, 0, null, default, "You are not permitted to invite sub-tenants.");
         }
@@ -110,7 +110,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     public async Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, int parentTenantId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        if (!HasAny(InvitationPermissions.ViewSub, InvitationPermissions.CreateSub)
+        if (!HasAny(OnboardingAdminPermissions.SubTenantsRead)
             || await GetMembershipAsync(db, admin, parentTenantId, ct) == null)
         {
             return Array.Empty<TenantInvitationItem>();
@@ -133,7 +133,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             return false;
         }
 
-        if (!HasAny(InvitationPermissions.CreateSub) || await GetMembershipAsync(db, admin, invitation.ParentTenantId, ct) == null)
+        if (!HasAny(OnboardingAdminPermissions.SubTenantsWrite) || await GetMembershipAsync(db, admin, invitation.ParentTenantId, ct) == null)
         {
             return false;
         }
@@ -175,7 +175,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     public async Task<bool> CreateEmployeeInvitationAsync(ClaimsPrincipal admin, EmployeeInvitationInput input, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        if (!HasAny(InvitationPermissions.CreateEmp) || await GetMembershipAsync(db, admin, input.TenantId, ct) == null)
+        if (!HasAny(OnboardingAdminPermissions.EmployeesWrite) || await GetMembershipAsync(db, admin, input.TenantId, ct) == null)
         {
             return false;
         }
@@ -215,7 +215,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     public async Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, int tenantId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        if (!HasAny(InvitationPermissions.ViewEmp, InvitationPermissions.CreateEmp)
+        if (!HasAny(OnboardingAdminPermissions.EmployeesRead)
             || await GetMembershipAsync(db, admin, tenantId, ct) == null)
         {
             return Array.Empty<EmployeeInvitationItem>();
@@ -237,7 +237,7 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             return false;
         }
 
-        if (!HasAny(InvitationPermissions.CreateEmp) || await GetMembershipAsync(db, admin, employee.TenantId, ct) == null)
+        if (!HasAny(OnboardingAdminPermissions.EmployeesWrite) || await GetMembershipAsync(db, admin, employee.TenantId, ct) == null)
         {
             return false;
         }

@@ -71,20 +71,8 @@ public interface ITenantInvitationHandler
     Task<bool> RevokeEmployeeInvitationAsync(ClaimsPrincipal admin, int employeeId, CancellationToken ct = default);
 }
 
-/// <summary>
-/// Permission names that gate the invitation surface. <c>View*</c> grants read-only access (seeing the
-/// existing invitations of a kind), <c>Create*</c> grants read + write (issuing and revoking). The <c>*Sub</c>
-/// permissions concern sub-tenant invitations, the <c>*Emp</c> permissions employee invitations. Checked
-/// against the ambient permission-scope (the current tenant) both in the UI and, authoritatively, in the
-/// handler.
-/// </summary>
-public static class InvitationPermissions
-{
-    public const string ViewSub = "Invitations.ViewSub";
-    public const string CreateSub = "Invitations.CreateSub";
-    public const string ViewEmp = "Invitations.ViewEmp";
-    public const string CreateEmp = "Invitations.CreateEmp";
-}
+// Invitation permissions were unified into OnboardingAdminPermissions (Onboarding.Admin.Employees.* for
+// employee invitations, Onboarding.Admin.SubTenants.* for sub-tenant invitations) — see IOnboardingAdminHandler.
 
 /// <summary>Request to create a tenant invitation. <paramref name="LifetimeDays"/> null = default (14 days).</summary>
 public record TenantInvitationInput(int ParentTenantId, string Email, int? LifetimeDays = null, string? RoleName = null, string? TemplateName = null);

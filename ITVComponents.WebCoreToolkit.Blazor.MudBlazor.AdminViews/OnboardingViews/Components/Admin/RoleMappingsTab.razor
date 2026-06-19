@@ -17,13 +17,13 @@
         <RefreshButton OnClick="Reload" />
         <MudText Typo="Typo.subtitle2">@L["OnbAdm_Tab_RoleMappings"]</MudText>
         <MudSpacer />
-        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.DirectRole">
+        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.Write">
             <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="mr-2"
                            OnClick="@(() => Create(EmployeeRoleMappingKind.DirectRole))">@L["OnbAdm_Rm_AddDirect"]</MudButton>
             </Permitted>
         </SecureView>
-        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.PermissionSet">
+        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.PermissionSet,Onboarding.Admin.RoleMappings.Write">
             <Permitted>
                 <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
                            OnClick="@(() => Create(EmployeeRoleMappingKind.PermissionSet))">@L["OnbAdm_Rm_AddPermSet"]</MudButton>
@@ -85,8 +85,8 @@
 
     private static string WritePermFor(EmployeeRoleMappingKind kind) =>
         kind == EmployeeRoleMappingKind.DirectRole
-            ? "Onboarding.Admin.RoleMappings.DirectRole"
-            : "Onboarding.Admin.RoleMappings.PermissionSet";
+            ? "Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.Write"
+            : "Onboarding.Admin.RoleMappings.PermissionSet,Onboarding.Admin.RoleMappings.Write";
 
     private Task Create(EmployeeRoleMappingKind kind) => OpenDialog(new EmployeeRoleMappingViewModel { Kind = kind });
 

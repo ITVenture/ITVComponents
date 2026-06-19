@@ -91,7 +91,7 @@ public class FlatTenantInvitationHandler<TContext> : ITenantInvitationHandler
     public async Task<bool> CreateEmployeeInvitationAsync(ClaimsPrincipal admin, EmployeeInvitationInput input, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        if (!HasAny(InvitationPermissions.CreateEmp) || await GetMembershipAsync(db, admin, input.TenantId, ct) == null)
+        if (!HasAny(OnboardingAdminPermissions.EmployeesWrite) || await GetMembershipAsync(db, admin, input.TenantId, ct) == null)
         {
             return false;
         }
@@ -131,7 +131,7 @@ public class FlatTenantInvitationHandler<TContext> : ITenantInvitationHandler
     public async Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, int tenantId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        if (!HasAny(InvitationPermissions.ViewEmp, InvitationPermissions.CreateEmp)
+        if (!HasAny(OnboardingAdminPermissions.EmployeesRead)
             || await GetMembershipAsync(db, admin, tenantId, ct) == null)
         {
             return Array.Empty<EmployeeInvitationItem>();
@@ -153,7 +153,7 @@ public class FlatTenantInvitationHandler<TContext> : ITenantInvitationHandler
             return false;
         }
 
-        if (!HasAny(InvitationPermissions.CreateEmp) || await GetMembershipAsync(db, admin, employee.TenantId, ct) == null)
+        if (!HasAny(OnboardingAdminPermissions.EmployeesWrite) || await GetMembershipAsync(db, admin, employee.TenantId, ct) == null)
         {
             return false;
         }

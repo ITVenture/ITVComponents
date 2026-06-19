@@ -14,7 +14,7 @@
     <Columns>
         <TemplateColumn T="PermissionSetActivationViewModel" Title="" Sortable="false">
             <CellTemplate>
-                <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.DirectRole">
+                <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.Write">
                     <Permitted>
                         <MudCheckBox T="bool" Value="context.Item.Active" ValueChanged="@(v => Toggle(context.Item, v))" />
                     </Permitted>
