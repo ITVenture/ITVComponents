@@ -187,11 +187,16 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             {
                 PluginFactory pi = (PluginFactory)sender;
                 bool cleanup = false;
+                // The transient loading-scope this handler opens for the current resolution chain. Kept so we can
+                // close exactly THIS scope at the end — NOT pi.ScopeClose(), which closes the factory's CurrentScope
+                // and would tear down an OUTER operation-scope (CreateOperationScope) that happens to be active while
+                // a constructor parameter is being resolved (→ KeyNotFoundException on scopedPlugins[outerScope]).
+                IPluginFactory loadingScope = null;
                 if (!pluginIsLoading.Value)
                 {
                     pluginIsLoading.Value = true;
                     cleanup = true;
-                    pi.NewScope(null, null, true);
+                    loadingScope = pi.NewScope(null, null, true);
                 }
 
                 try
@@ -265,7 +270,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                         pluginIsLoading.Value = false;
                         lock (transientPlugins)
                         {
-                            transientPlugins.AddRange(pi.ScopeClose());
+                            transientPlugins.AddRange(loadingScope.ScopeClose());
                         }
 
                     }
