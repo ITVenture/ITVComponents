@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE092</Version>
+    <Version>4.0.0-PRE299</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Copyright>2020 by IT-Venture GmbH</Copyright>
@@ -12,9 +12,6 @@
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-  <ItemGroup>
     <Compile Remove="Properties\**" />
     <EmbeddedResource Remove="Properties\**" />
     <None Remove="Properties\**" />
@@ -22,9 +19,8 @@
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.CommandLineParser\ITVComponents.CommandLineParser.csproj" />
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.Shared\ITVComponents.InterProcessCommunication.Shared.csproj" />
+    <ProjectReference Include="..\ITVComponents.Logging.DefaultLoggers\ITVComponents.Logging.DefaultLoggers.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
-    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Authentication\ITVComponents.WebCoreToolkit.Authentication.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -42,12 +38,12 @@
     <Compile Update="ServiceStartup.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.8" />
-    <PackageReference Include="Microsoft.extensions.configuration" Version="10.0.8" />
-    <PackageReference Include="Microsoft.extensions.configuration.binder" Version="10.0.8" />
-    <PackageReference Include="Microsoft.extensions.configuration.json" Version="10.0.8" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
-    <PackageReference Include="microsoft.extensions.primitives" Version="10.0.8" />
+    <PackageReference Include="Microsoft.extensions.configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.extensions.configuration.binder" Version="8.0.2" />
+    <PackageReference Include="Microsoft.extensions.configuration.json" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="microsoft.extensions.primitives" Version="8.0.0" />
+    <PackageReference Include="PrettyPrompt" Version="4.1.1" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <!--Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" /-->

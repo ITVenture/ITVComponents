@@ -378,8 +378,11 @@ namespace ITVComponents.ParallelProcessing
                 processor.Join();
             }
 
-            stoppedEvent.WaitOne();
-            moderatorTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            if (Initialized)
+            {
+                stoppedEvent.WaitOne();
+                moderatorTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            }
         }
 
         /// <summary>

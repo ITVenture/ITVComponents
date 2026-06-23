@@ -94,17 +94,17 @@ namespace ITVComponents.Plugins.DatabaseDrivenConfiguration
         /// <summary>
         /// Loads dynamic assemblies that are required for a specific application
         /// </summary>
-        public IEnumerable<string> LoadDynamicAssemblies(PluginLoadType currentLoadType)
+        public IEnumerable<string> LoadDynamicAssemblies(PluginLoadType currentLoadType, bool writeAccess = true)
         {
             try
             {
-                return LoadPlugins(currentLoadType);
+                return LoadPlugins(currentLoadType, writeAccess);
             }
             finally
             {
                 if (currentLoadType == PluginLoadType.Singleton)
                 {
-                    if (refreshCycle != 0)
+                    if (refreshCycle != 0 && writeAccess)
                     {
                         refresher.Change(refreshCycle, refreshCycle);
                     }
@@ -274,7 +274,7 @@ order by UniqueName",
             refresher.Change(Timeout.Infinite, Timeout.Infinite);
             try
             {
-                var tmp = LoadPlugins(PluginLoadType.Singleton).ToArray();
+                var tmp = LoadPlugins(PluginLoadType.Singleton, true).ToArray();
                 LogEnvironment.LogDebugEvent($"{tmp.Length} new PlugIns loaded..", LogSeverity.Report);
             }
             catch (Exception ex)
@@ -290,7 +290,7 @@ order by UniqueName",
             }
         }
 
-        private IEnumerable<string> LoadPlugins(PluginLoadType loadType)
+        private IEnumerable<string> LoadPlugins(PluginLoadType loadType, bool writeAccess)
         {
             using (database.AcquireConnection(false, out var db))
             {
@@ -313,12 +313,15 @@ order by LoadOrder",
                         catch (Exception ex)
                         {
                             LogEnvironment.LogDebugEvent(ex.OutlineException(), LogSeverity.Error);
-                            db.ExecuteCommand(
-                                $@"Update {tableName} set disabled = 1, disabledreason = @reason where pluginid = @pluginId and
+                            if (writeAccess)
+                            {
+                                db.ExecuteCommand(
+                                    $@"Update {tableName} set disabled = 1, disabledreason = @reason where pluginid = @pluginId and
 (tenantId=@tenantId or (tenantId is null and @tenantId is null))",
-                                db.GetParameter("pluginid", plugin["pluginId"]),
-                                db.GetParameter("reason", ex.Message),
-                                db.GetParameter("tenantId", tenantName));
+                                    db.GetParameter("pluginid", plugin["pluginId"]),
+                                    db.GetParameter("reason", ex.Message),
+                                    db.GetParameter("tenantId", tenantName));
+                            }
                         }
 
                         if (ok)
@@ -328,6 +331,18 @@ order by LoadOrder",
                     }
                 }
             }
+        }
+
+        protected override void OnDisposed()
+        {
+            refreshCycle = 0;
+            try
+            {
+                refresher?.Dispose();
+            }
+            catch{}
+
+            base.OnDisposed();
         }
     }
 }
