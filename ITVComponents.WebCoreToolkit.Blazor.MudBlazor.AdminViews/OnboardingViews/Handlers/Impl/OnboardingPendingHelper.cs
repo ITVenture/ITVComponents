@@ -20,6 +20,22 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingVie
 /// </summary>
 internal static class OnboardingPendingHelper
 {
+    /// <summary>
+    /// Creates an Identity user (unconfirmed) WITHOUT parking any pending tenant payload. Used by the
+    /// employee-invitation join flow, where the invitee only needs an account to accept an invitation to an
+    /// existing tenant (matched by e-mail on the My-Tenants page) — no tenant is ever created for them here.
+    /// </summary>
+    public static async Task<OnboardingStartResult> RegisterAccountAsync<TUser>(UserManager<TUser> userManager,
+        string email, string password)
+        where TUser : IdentityUser, new()
+    {
+        var user = new TUser { UserName = email, Email = email };
+        var result = await userManager.CreateAsync(user, password);
+        return result.Succeeded
+            ? new OnboardingStartResult(true, user.Id, Array.Empty<string>())
+            : new OnboardingStartResult(false, null, result.Errors.Select(e => e.Description).ToArray());
+    }
+
     public static async Task<OnboardingStartResult> StartAsync<TCtx, TUser>(TCtx db, UserManager<TUser> userManager,
         OnboardingStartInput input, CancellationToken ct)
         where TCtx : DbContext, IOnboardingPendingContext

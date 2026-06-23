@@ -7,6 +7,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.H
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Extensions;
 
@@ -28,6 +29,8 @@ public static class DependencyInjectionExtensions
         };
 
         services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
+        // Client helper for the register-and-wait join flow (writes the same-browser join nonce cookie).
+        services.AddToolkitClientScript("_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/onboarding.js", true);
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(OnboardingHandler<>)))
         {
@@ -38,6 +41,7 @@ public static class DependencyInjectionExtensions
         {
             // Flat variant: employee invitations only (SupportsTenantInvitations == false).
             services.AddScoped<ITenantInvitationHandler, FlatTenantInvitationHandler<TContext>>();
+            services.TryAddScoped<IInvitationMailComposer, InvitationMailComposer>();
         }
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(FlatOnboardingAdminHandler<>)))
@@ -57,6 +61,8 @@ public static class DependencyInjectionExtensions
         };
 
         services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
+        // Client helper for the register-and-wait join flow (writes the same-browser join nonce cookie).
+        services.AddToolkitClientScript("_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/onboarding.js", true);
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(HierarchyOnboardingHandler<>)))
         {
@@ -66,6 +72,7 @@ public static class DependencyInjectionExtensions
         if (partTypeLoadBehavior.ShouldLoadType(typeof(HierarchyTenantInvitationHandler<>)))
         {
             services.AddScoped<ITenantInvitationHandler, HierarchyTenantInvitationHandler<TContext>>();
+            services.TryAddScoped<IInvitationMailComposer, InvitationMailComposer>();
         }
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(HierarchyOnboardingAdminHandler<>)))

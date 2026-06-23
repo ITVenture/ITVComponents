@@ -4,8 +4,10 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
@@ -25,14 +27,16 @@ public class FlatTenantInvitationHandler<TContext> : ITenantInvitationHandler
     private readonly IDbContextFactory<TContext> dbFactory;
     private readonly UserManager<User> userManager;
     private readonly IServiceProvider services;
+    private readonly IInvitationMailComposer mailComposer;
     private readonly ILogger<FlatTenantInvitationHandler<TContext>> logger;
 
     public FlatTenantInvitationHandler(IDbContextFactory<TContext> dbFactory, UserManager<User> userManager,
-        IServiceProvider services, ILogger<FlatTenantInvitationHandler<TContext>> logger)
+        IServiceProvider services, IInvitationMailComposer mailComposer, ILogger<FlatTenantInvitationHandler<TContext>> logger)
     {
         this.dbFactory = dbFactory;
         this.userManager = userManager;
         this.services = services;
+        this.mailComposer = mailComposer;
         this.logger = logger;
     }
 
@@ -125,7 +129,43 @@ public class FlatTenantInvitationHandler<TContext> : ITenantInvitationHandler
             LastName = input.LastName ?? ""
         });
         await db.SaveChangesAsync(ct);
+
+        await SendEmployeeInvitationMailAsync(db, input, ct);
         return true;
+    }
+
+    /// <summary>
+    /// Sends the employee invitation mail (employee invites carry no token — the invitee accepts by e-mail
+    /// match on the My-Tenants page). A missing transport or a malformed template never fails the invitation.
+    /// </summary>
+    private async Task SendEmployeeInvitationMailAsync(TContext db, EmployeeInvitationInput input, CancellationToken ct)
+    {
+        var tenantName = await db.Tenants.AsNoTracking()
+            .Where(t => t.TenantId == input.TenantId)
+            .Select(t => t.DisplayName ?? t.TenantName)
+            .FirstOrDefaultAsync(ct) ?? "";
+        // Land the invitee on the Join page (anonymous): it guides a brand-new user through register-then-accept
+        // and sends an existing user straight on to accept. The e-mail is informational (display/prefill) — the
+        // actual match still runs by account e-mail on My-Tenants.
+        var link = BuildAbsoluteLink($"/Account/Onboarding/Join?email={Uri.EscapeDataString(input.Email)}");
+        if (link == null)
+        {
+            return;
+        }
+
+        var name = $"{input.FirstName} {input.LastName}".Trim();
+        await mailComposer.SendEmployeeInvitationAsync(input.Email, name, tenantName, link, ct);
+    }
+
+    /// <summary>
+    /// Turns a relative app path into an absolute URL using the circuit's <see cref="NavigationManager"/>.
+    /// Returns null when none is available (outside a Blazor circuit); the caller then skips sending and the
+    /// link can be shared manually — the invitation row is already persisted.
+    /// </summary>
+    private string BuildAbsoluteLink(string relativePath)
+    {
+        var nav = services.GetService<NavigationManager>();
+        return nav?.ToAbsoluteUri(relativePath).AbsoluteUri;
     }
 
     public async Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, int tenantId, CancellationToken ct = default)

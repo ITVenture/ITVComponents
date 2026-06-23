@@ -84,4 +84,19 @@
   <data name="OnbAdm_Ps_Col" xml:space="preserve"><value>Set di autorizzazioni</value></data>
   <data name="OnbAdm_Ps_Updated" xml:space="preserve"><value>Attivazione aggiornata.</value></data>
   <data name="OnbAdm_Ps_Failed" xml:space="preserve"><value>Impossibile aggiornare l'attivazione.</value></data>
+  <data name="Onb_Inv_MailSubject" xml:space="preserve"><value>Sei stato invitato a creare un'organizzazione</value></data>
+  <data name="Onb_Inv_TenantMailTemplate" xml:space="preserve"><value>Ciao,&lt;br/&gt;&lt;br/&gt;sei stato invitato a creare una nuova organizzazione sotto &lt;strong&gt;[TenantName]&lt;/strong&gt;. Per accettare l'invito &lt;a href='[Link]'&gt;clicca qui&lt;/a&gt;.</value></data>
+  <data name="Onb_Inv_EmployeeMailSubject" xml:space="preserve"><value>Sei stato invitato a unirti a un'organizzazione</value></data>
+  <data name="Onb_Inv_EmployeeMailTemplate" xml:space="preserve"><value>Ciao [RecipientName],&lt;br/&gt;&lt;br/&gt;sei stato invitato a unirti a &lt;strong&gt;[TenantName]&lt;/strong&gt; come collaboratore. Per accettare l'invito &lt;a href='[Link]'&gt;clicca qui&lt;/a&gt;. Se non hai ancora un account, registrati con questo indirizzo e-mail.</value></data>
+  <data name="Onb_Join_Title" xml:space="preserve"><value>Unisciti a un'organizzazione</value></data>
+  <data name="Onb_Join_Intro" xml:space="preserve"><value>Sei stato invitato a unirti a un'organizzazione esistente. Crea un account o accedi per accettare l'invito.</value></data>
+  <data name="Onb_Join_ForEmail" xml:space="preserve"><value>Usa questo indirizzo e-mail: {0}</value></data>
+  <data name="Onb_Join_CreateAccount" xml:space="preserve"><value>Crea un account</value></data>
+  <data name="Onb_Join_HaveAccount" xml:space="preserve"><value>Ho già un account</value></data>
+  <data name="Onb_JoinReg_Title" xml:space="preserve"><value>Crea il tuo account</value></data>
+  <data name="Onb_JoinReg_Intro" xml:space="preserve"><value>Crea un account per accettare il tuo invito. Usa l'indirizzo e-mail a cui è stato inviato l'invito.</value></data>
+  <data name="Onb_JoinReg_Submit" xml:space="preserve"><value>Crea un account</value></data>
+  <data name="Onb_JoinReg_CheckMail" xml:space="preserve"><value>Quasi fatto — ti abbiamo inviato un'e-mail di conferma. Aprila e conferma il tuo indirizzo per continuare. Puoi lasciare questa scheda aperta.</value></data>
+  <data name="Onb_JoinReg_Waiting" xml:space="preserve"><value>In attesa di conferma…</value></data>
+  <data name="Onb_JoinReg_PwMismatch" xml:space="preserve"><value>Le password non corrispondono.</value></data>
 </root>

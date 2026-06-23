@@ -1,0 +1,65 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Onboarding
+@page "/Account/Onboarding/Join"
+@rendermode @(RenderMode.InteractiveServer)
+@using Microsoft.AspNetCore.Authorization
+@attribute [AllowAnonymous]
+
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Entry page for an employee invitation (link target of the invitation mail). It routes a brand-new invitee
+   through register-then-accept and sends an already-registered one straight to the accept surface. There is
+   no token: the actual invitation match runs by account e-mail on My-Tenants; the e-mail here only prefills
+   the registration and is shown so the invitee registers with the right address. *@
+
+<PageTitle>@L["Onb_Join_Title"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="my-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">@L["Onb_Join_Title"]</MudText>
+
+    @if (checking)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">@L["Onb_Join_Intro"]</MudAlert>
+        @if (!string.IsNullOrWhiteSpace(Email))
+        {
+            <MudText Typo="Typo.body2" Class="mb-4">@L["Onb_Join_ForEmail", Email!]</MudText>
+        }
+        <MudStack Spacing="2">
+            <MudButton OnClick="CreateAccount" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.PersonAdd">@L["Onb_Join_CreateAccount"]</MudButton>
+            <MudButton OnClick="GoLogin" Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Login">@L["Onb_Join_HaveAccount"]</MudButton>
+        </MudStack>
+    }
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery(Name = "email")]
+    private string? Email { get; set; }
+
+    private bool checking = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Already signed in → skip straight to the accept surface (My-Tenants matches the invite by e-mail).
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            Nav.NavigateTo("/Account/Onboarding/MyTenants");
+            return;
+        }
+
+        checking = false;
+    }
+
+    private void CreateAccount()
+        => Nav.NavigateTo($"/Account/Onboarding/JoinRegister?email={Uri.EscapeDataString(Email ?? "")}");
+
+    private void GoLogin()
+        => Nav.NavigateTo($"/Account/Login?returnUrl={Uri.EscapeDataString("/Account/Onboarding/MyTenants")}");
+}

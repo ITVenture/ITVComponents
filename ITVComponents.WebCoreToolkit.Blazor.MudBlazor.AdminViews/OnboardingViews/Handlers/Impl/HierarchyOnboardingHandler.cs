@@ -192,6 +192,24 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         return await OnboardingPendingHelper.StartAsync(db, userManager, input, ct);
     }
 
+    public Task<OnboardingStartResult> RegisterAccountAsync(string email, string password, CancellationToken ct = default)
+        => OnboardingPendingHelper.RegisterAccountAsync(userManager, email, password);
+
+    public async Task<bool> IsEmailConfirmedAsync(string email, CancellationToken ct = default)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        return user != null && await userManager.IsEmailConfirmedAsync(user);
+    }
+
+    public async Task StoreJoinNonceAsync(string email, string nonce, CancellationToken ct = default)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        if (user != null)
+        {
+            await userManager.SetAuthenticationTokenAsync(user, "Onboarding", "JoinNonce", nonce);
+        }
+    }
+
     public async Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default)
     {
         // CreateTenantAsync opens its OWN per-operation context (it is also a public entry point); the pending

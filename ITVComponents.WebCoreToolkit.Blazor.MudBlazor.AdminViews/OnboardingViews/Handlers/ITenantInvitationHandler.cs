@@ -78,10 +78,12 @@ public interface ITenantInvitationHandler
 public record TenantInvitationInput(int ParentTenantId, string Email, int? LifetimeDays = null, string? RoleName = null, string? TemplateName = null);
 
 /// <summary>
-/// Outcome of creating a tenant invitation. On success carries the token + expiry so the caller can build
-/// the accept link (<c>/Account/Onboarding/Invitation/{Token}</c>) and send the mail.
+/// Outcome of creating a tenant invitation. On success carries the token + expiry (so the caller can still
+/// build/copy the accept link <c>/Account/Onboarding/Invitation/{Token}</c>). The handler sends the invitation
+/// mail itself; <paramref name="MailSent"/> reports whether that succeeded, so the UI can fall back to sharing
+/// the link manually when no mail went out.
 /// </summary>
-public record TenantInvitationResult(bool Succeeded, int TenantInvitationId, string Token, DateTime ExpiresUtc, string? Error);
+public record TenantInvitationResult(bool Succeeded, int TenantInvitationId, string Token, DateTime ExpiresUtc, string? Error, bool MailSent = false);
 
 /// <summary>List projection of a tenant invitation for the admin grid.</summary>
 public record TenantInvitationItem(int TenantInvitationId, int ParentTenantId, string Email, string Token,

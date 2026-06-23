@@ -81,7 +81,21 @@
   <data name="Onb_Inv_NoneTenant" xml:space="preserve"><value>Noch keine Sub-Mandanten-Einladungen.</value></data>
   <data name="Onb_Inv_NoneEmployee" xml:space="preserve"><value>Noch keine Mitarbeiter-Einladungen.</value></data>
   <data name="Onb_Inv_MailSubject" xml:space="preserve"><value>Sie wurden eingeladen, einen Mandanten zu erstellen</value></data>
-  <data name="Onb_Inv_MailBody" xml:space="preserve"><value>Hallo,&lt;br/&gt;Sie wurden eingeladen, einen Mandanten zu erstellen. Bitte &lt;a href='{0}'&gt;klicken Sie hier&lt;/a&gt;, um die Einladung anzunehmen.</value></data>
+  <data name="Onb_Inv_TenantMailTemplate" xml:space="preserve"><value>Hallo,&lt;br/&gt;&lt;br/&gt;Sie wurden eingeladen, einen neuen Mandanten unter &lt;strong&gt;[TenantName]&lt;/strong&gt; zu erstellen. Bitte &lt;a href='[Link]'&gt;klicken Sie hier&lt;/a&gt;, um die Einladung anzunehmen.</value></data>
+  <data name="Onb_Inv_EmployeeMailSubject" xml:space="preserve"><value>Sie wurden eingeladen, einem Mandanten beizutreten</value></data>
+  <data name="Onb_Inv_EmployeeMailTemplate" xml:space="preserve"><value>Hallo [RecipientName],&lt;br/&gt;&lt;br/&gt;Sie wurden eingeladen, &lt;strong&gt;[TenantName]&lt;/strong&gt; als Mitarbeiter beizutreten. Bitte &lt;a href='[Link]'&gt;hier klicken&lt;/a&gt;, um die Einladung anzunehmen. Falls Sie noch kein Konto haben, registrieren Sie sich mit dieser E-Mail-Adresse.</value></data>
+  <data name="Onb_Join_Title" xml:space="preserve"><value>Einer Organisation beitreten</value></data>
+  <data name="Onb_Join_Intro" xml:space="preserve"><value>Sie wurden eingeladen, einer bestehenden Organisation beizutreten. Erstellen Sie ein Konto oder melden Sie sich an, um die Einladung anzunehmen.</value></data>
+  <data name="Onb_Join_ForEmail" xml:space="preserve"><value>Bitte verwenden Sie diese E-Mail-Adresse: {0}</value></data>
+  <data name="Onb_Join_CreateAccount" xml:space="preserve"><value>Konto erstellen</value></data>
+  <data name="Onb_Join_HaveAccount" xml:space="preserve"><value>Ich habe bereits ein Konto</value></data>
+  <data name="Onb_JoinReg_Title" xml:space="preserve"><value>Konto erstellen</value></data>
+  <data name="Onb_JoinReg_Intro" xml:space="preserve"><value>Erstellen Sie ein Konto, um Ihre Einladung anzunehmen. Bitte verwenden Sie die E-Mail-Adresse, an die die Einladung gesendet wurde.</value></data>
+  <data name="Onb_JoinReg_Submit" xml:space="preserve"><value>Konto erstellen</value></data>
+  <data name="Onb_JoinReg_CheckMail" xml:space="preserve"><value>Fast geschafft — wir haben Ihnen eine Bestätigungs-E-Mail geschickt. Öffnen Sie sie und bestätigen Sie Ihre Adresse, um fortzufahren. Diesen Tab können Sie geöffnet lassen.</value></data>
+  <data name="Onb_JoinReg_Waiting" xml:space="preserve"><value>Warte auf Bestätigung…</value></data>
+  <data name="Onb_JoinReg_PwMismatch" xml:space="preserve"><value>Die Passwörter stimmen nicht überein.</value></data>
+
   <data name="OnbAdm_PageTitle" xml:space="preserve"><value>Mandantenverwaltung</value></data>
   <data name="OnbAdm_Tab_Address" xml:space="preserve"><value>Rechnungsprofil</value></data>
   <data name="OnbAdm_Tab_Users" xml:space="preserve"><value>Benutzer &amp; Einladungen</value></data>

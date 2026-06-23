@@ -46,6 +46,13 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity.Pages.Accou
                 {
                     code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
                     var result = await handlerImpl.Handler.ConfirmEmailCode(user, code);
+                    if (result.Succeeded)
+                    {
+                        // Opt-in: seamless sign-in for the onboarding join flow (no-op unless a matching
+                        // join-nonce cookie from the same browser is present).
+                        await handlerImpl.Handler.TryJoinAutoLoginAsync(user, HttpContext);
+                    }
+
                     StatusMessage = result.Succeeded
                         ? localizer["Thank you for confirming your email."]
                         : localizer["Error confirming your email."];

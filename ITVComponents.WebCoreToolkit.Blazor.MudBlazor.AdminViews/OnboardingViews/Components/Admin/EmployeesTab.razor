@@ -107,7 +107,8 @@ else
             var ok = await InvitationHandler.CreateEmployeeInvitationAsync(currentUser, new EmployeeInvitationInput(TenantId, input.EMail, input.FirstName, input.LastName));
             if (ok)
             {
-                Snackbar.Add(L["Onb_Inv_MailSent"], Severity.Success);
+                // The invitation handler creates the row and sends the invite mail (best-effort, logged on failure).
+                Snackbar.Add(L["Onb_Inv_Created"], Severity.Success);
                 await Reload();
             }
             else

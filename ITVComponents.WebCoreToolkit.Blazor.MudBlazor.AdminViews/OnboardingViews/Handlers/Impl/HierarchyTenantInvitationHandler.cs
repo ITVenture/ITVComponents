@@ -5,8 +5,10 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
@@ -25,14 +27,16 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     private readonly IDbContextFactory<TContext> dbFactory;
     private readonly UserManager<User> userManager;
     private readonly IServiceProvider services;
+    private readonly IInvitationMailComposer mailComposer;
     private readonly ILogger<HierarchyTenantInvitationHandler<TContext>> logger;
 
     public HierarchyTenantInvitationHandler(IDbContextFactory<TContext> dbFactory, UserManager<User> userManager,
-        IServiceProvider services, ILogger<HierarchyTenantInvitationHandler<TContext>> logger)
+        IServiceProvider services, IInvitationMailComposer mailComposer, ILogger<HierarchyTenantInvitationHandler<TContext>> logger)
     {
         this.dbFactory = dbFactory;
         this.userManager = userManager;
         this.services = services;
+        this.mailComposer = mailComposer;
         this.logger = logger;
     }
 
@@ -104,7 +108,14 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
         db.TenantInvitations.Add(invitation);
         await db.SaveChangesAsync(ct);
 
-        return new TenantInvitationResult(true, invitation.TenantInvitationId, token, expires, null);
+        var parentName = await db.Tenants.AsNoTracking()
+            .Where(t => t.TenantId == input.ParentTenantId)
+            .Select(t => t.DisplayName ?? t.TenantName)
+            .FirstOrDefaultAsync(ct) ?? "";
+        var link = BuildAbsoluteLink($"/Account/Onboarding/Invitation/{token}");
+        var mailSent = link != null && await mailComposer.SendTenantInvitationAsync(input.Email, null, parentName, link, ct);
+
+        return new TenantInvitationResult(true, invitation.TenantInvitationId, token, expires, null, mailSent);
     }
 
     public async Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, int parentTenantId, CancellationToken ct = default)
@@ -209,7 +220,48 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             LastName = input.LastName ?? ""
         });
         await db.SaveChangesAsync(ct);
+
+        await SendEmployeeInvitationMailAsync(db, input, ct);
         return true;
+    }
+
+    /// <summary>
+    /// Sends the employee invitation mail (employee invites carry no token — the invitee accepts by e-mail
+    /// match on the My-Tenants page). A missing transport or a malformed template never fails the invitation.
+    /// </summary>
+    private async Task SendEmployeeInvitationMailAsync(TContext db, EmployeeInvitationInput input, CancellationToken ct)
+    {
+        var tenantName = await db.Tenants.AsNoTracking()
+            .Where(t => t.TenantId == input.TenantId)
+            .Select(t => t.DisplayName ?? t.TenantName)
+            .FirstOrDefaultAsync(ct) ?? "";
+        // Land the invitee on the Join page (anonymous): it guides a brand-new user through register-then-accept
+        // and sends an existing user straight on to accept. The e-mail is informational (display/prefill) — the
+        // actual match still runs by account e-mail on My-Tenants.
+        var link = BuildAbsoluteLink($"/Account/Onboarding/Join?email={Uri.EscapeDataString(input.Email)}");
+        if (link == null)
+        {
+            logger.LogError("Failed to build absolute link for employee invitation.");
+            return;
+        }
+
+        var name = $"{input.FirstName} {input.LastName}".Trim();
+        var sentOk = await mailComposer.SendEmployeeInvitationAsync(input.Email, name, tenantName, link, ct);
+        if (!sentOk)
+        {
+            logger.LogError("Failed to send employee invitation.");
+        }
+    }
+
+    /// <summary>
+    /// Turns a relative app path into an absolute URL using the circuit's <see cref="NavigationManager"/>.
+    /// Returns null when no NavigationManager is available (i.e. outside a Blazor circuit), in which case the
+    /// caller skips sending — the invitation row is already persisted and the link can be shared manually.
+    /// </summary>
+    private string BuildAbsoluteLink(string relativePath)
+    {
+        var nav = services.GetService<NavigationManager>();
+        return nav?.ToAbsoluteUri(relativePath).AbsoluteUri;
     }
 
     public async Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, int tenantId, CancellationToken ct = default)

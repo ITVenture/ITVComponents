@@ -81,10 +81,9 @@ public static class WebPartInit
             });
         }
 
-        if (options.UseDefaultMailSender)
-        {
-            services.AddSingleton<IEmailSender, DefaultMailSender>();
-        }
+        // Mail-sender registration (IEmailSender -> DefaultMailSender, plus IAppMailSender) lives solely in
+        // IdentityShared's WebPart, which owns the Identity-UI mail dependency. Doing it here too was redundant
+        // (same singleton class) and is removed to keep a single source of truth.
     }
 
     [EndpointRegistrationMethod]

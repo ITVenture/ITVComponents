@@ -41,6 +41,27 @@ public interface IOnboardingHandler
     Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default);
 
     /// <summary>
+    /// Creates a bare Identity user (unconfirmed) for the employee-invitation join flow — no tenant and no
+    /// pending-onboarding payload. The invitee only needs an account to accept an existing tenant's invitation
+    /// (matched by e-mail on My-Tenants). The caller sends the confirmation mail separately and may auto-sign-in
+    /// on confirmation. Returns the new user id, or the Identity errors on failure.
+    /// </summary>
+    Task<OnboardingStartResult> RegisterAccountAsync(string email, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// True when an account with the given e-mail exists and has a confirmed e-mail address. Used by the
+    /// register-and-wait join page to poll for completion of the e-mail confirmation step.
+    /// </summary>
+    Task<bool> IsEmailConfirmedAsync(string email, CancellationToken ct = default);
+
+    /// <summary>
+    /// Parks a join-auto-login nonce on the user (Identity auth-token, provider "Onboarding", name "JoinNonce").
+    /// The register-and-wait page also drops the same value as a browser cookie; <c>ConfirmEmail</c> signs the
+    /// user in only when both match (same-browser binding). No-op when the e-mail has no account.
+    /// </summary>
+    Task StoreJoinNonceAsync(string email, string nonce, CancellationToken ct = default);
+
+    /// <summary>
     /// Completes any pending direct-onboarding for the now-authenticated user (matched by e-mail):
     /// creates the tenant from the parked payload and marks the record committed. Idempotent — returns
     /// <c>false</c> when there is nothing pending.

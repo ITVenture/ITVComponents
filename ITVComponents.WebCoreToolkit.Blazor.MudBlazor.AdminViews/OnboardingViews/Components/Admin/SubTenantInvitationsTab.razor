@@ -6,7 +6,6 @@
 
 @inject ITenantInvitationHandler Handler
 @inject IServiceProvider Services
-@inject IAppMailSender Mailer
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthState
 @inject IJSRuntime JS
@@ -130,8 +129,16 @@
             }
 
             Snackbar.Add(L["Onb_Inv_Created"], Severity.Success);
-            var link = Nav.ToAbsoluteUri($"/Account/Onboarding/Invitation/{result.Token}").AbsoluteUri;
-            await SendInvitationMailAsync(email.Trim(), link);
+            // The handler sends the invitation mail itself; fall back to sharing the link if it could not.
+            if (result.MailSent)
+            {
+                Snackbar.Add(L["Onb_Inv_MailSent"], Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add(L["Onb_Inv_MailFailed"], Severity.Warning);
+                await CopyLinkRaw(Nav.ToAbsoluteUri($"/Account/Onboarding/Invitation/{result.Token}").AbsoluteUri);
+            }
 
             email = "";
             roleName = settings.AdminRole;
@@ -141,20 +148,6 @@
         finally
         {
             busy = false;
-        }
-    }
-
-    private async Task SendInvitationMailAsync(string recipient, string link)
-    {
-        try
-        {
-            await Mailer.SendMailAsync(recipient, L["Onb_Inv_MailSubject"], L["Onb_Inv_MailBody", link]);
-            Snackbar.Add(L["Onb_Inv_MailSent"], Severity.Success);
-        }
-        catch
-        {
-            Snackbar.Add(L["Onb_Inv_MailFailed"], Severity.Warning);
-            await CopyLinkRaw(link);
         }
     }
 

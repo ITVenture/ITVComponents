@@ -127,7 +127,20 @@
   <data name="Onb_Inv_NoneTenant" xml:space="preserve"><value>No sub-tenant invitations yet.</value></data>
   <data name="Onb_Inv_NoneEmployee" xml:space="preserve"><value>No employee invitations yet.</value></data>
   <data name="Onb_Inv_MailSubject" xml:space="preserve"><value>You have been invited to create a tenant</value></data>
-  <data name="Onb_Inv_MailBody" xml:space="preserve"><value>Hello,&lt;br/&gt;you have been invited to create a tenant. Please &lt;a href='{0}'&gt;click here&lt;/a&gt; to accept the invitation.</value></data>
+  <data name="Onb_Inv_TenantMailTemplate" xml:space="preserve"><value>Hello,&lt;br/&gt;&lt;br/&gt;you have been invited to create a new tenant under &lt;strong&gt;[TenantName]&lt;/strong&gt;. Please &lt;a href='[Link]'&gt;click here&lt;/a&gt; to accept the invitation.</value></data>
+  <data name="Onb_Inv_EmployeeMailSubject" xml:space="preserve"><value>You have been invited to join a tenant</value></data>
+  <data name="Onb_Inv_EmployeeMailTemplate" xml:space="preserve"><value>Hello [RecipientName],&lt;br/&gt;&lt;br/&gt;you have been invited to join &lt;strong&gt;[TenantName]&lt;/strong&gt; as an employee. Please &lt;a href='[Link]'&gt;click here&lt;/a&gt; to accept the invitation. If you don't have an account yet, register with this e-mail address.</value></data>
+  <data name="Onb_Join_Title" xml:space="preserve"><value>Join an organization</value></data>
+  <data name="Onb_Join_Intro" xml:space="preserve"><value>You have been invited to join an existing organization. Create an account or sign in to accept the invitation.</value></data>
+  <data name="Onb_Join_ForEmail" xml:space="preserve"><value>Please use this e-mail address: {0}</value></data>
+  <data name="Onb_Join_CreateAccount" xml:space="preserve"><value>Create an account</value></data>
+  <data name="Onb_Join_HaveAccount" xml:space="preserve"><value>I already have an account</value></data>
+  <data name="Onb_JoinReg_Title" xml:space="preserve"><value>Create your account</value></data>
+  <data name="Onb_JoinReg_Intro" xml:space="preserve"><value>Create an account to accept your invitation. Please use the e-mail address the invitation was sent to.</value></data>
+  <data name="Onb_JoinReg_Submit" xml:space="preserve"><value>Create account</value></data>
+  <data name="Onb_JoinReg_CheckMail" xml:space="preserve"><value>Almost done — we have sent you a confirmation e-mail. Open it and confirm your address to continue. You can keep this tab open.</value></data>
+  <data name="Onb_JoinReg_Waiting" xml:space="preserve"><value>Waiting for confirmation…</value></data>
+  <data name="Onb_JoinReg_PwMismatch" xml:space="preserve"><value>The passwords do not match.</value></data>
   <data name="OnbAdm_PageTitle" xml:space="preserve"><value>Tenant administration</value></data>
   <data name="OnbAdm_Tab_Address" xml:space="preserve"><value>Billing profile</value></data>
   <data name="OnbAdm_Tab_Users" xml:space="preserve"><value>Users &amp; invitations</value></data>
