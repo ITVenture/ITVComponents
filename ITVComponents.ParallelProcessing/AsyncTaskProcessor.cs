@@ -172,6 +172,7 @@ namespace ITVComponents.ParallelProcessing
             currentState = TaskProcessorState.Stopping;
             workerTask.GetAwaiter().GetResult();
             currentState = TaskProcessorState.Stopped;
+            LogEnvironment.LogDebugEvent("Stopped", LogSeverity.Report);
         }
 
         /// <summary>

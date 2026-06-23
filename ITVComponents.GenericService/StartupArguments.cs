@@ -21,6 +21,12 @@ namespace ITVComponents.GenericService
         Install,
         UnInstall,
         Configure,
-        Debug
+        Debug,
+
+        /// <summary>
+        /// Loads the configured plugins into the PluginFactory (without initializing the deferrables, i.e. without
+        /// actually starting the service-workers) and drops into an interactive CScript-REPL against the loaded factory.
+        /// </summary>
+        Interactive
     }
 }

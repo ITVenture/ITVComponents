@@ -60,17 +60,17 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             this.useGenericParams = useGenericParams;
         }
 
-        public IEnumerable<string> LoadDynamicAssemblies(PluginLoadType loadType)
+        public IEnumerable<string> LoadDynamicAssemblies(PluginLoadType loadType, bool writeAccess = true)
         {
             try
             {
-                return LoadPlugins(loadType);
+                return LoadPlugins(loadType, writeAccess);
             }
             finally
             {
                 if (loadType == PluginLoadType.Singleton)
                 {
-                    if (refreshCycle != 0)
+                    if (refreshCycle != 0 && writeAccess)
                     {
                         refresher.Change(refreshCycle, refreshCycle);
                     }
@@ -218,7 +218,7 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             refresher.Change(Timeout.Infinite, Timeout.Infinite);
             try
             {
-                var tmp = LoadPlugins(PluginLoadType.Singleton).ToArray();
+                var tmp = LoadPlugins(PluginLoadType.Singleton, true).ToArray();
                 LogEnvironment.LogDebugEvent($"{tmp.Length} new PlugIns loaded..", LogSeverity.Report);
             }
             catch (Exception ex)
@@ -234,7 +234,7 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             }
         }
 
-        private IEnumerable<string> LoadPlugins(PluginLoadType loadType)
+        private IEnumerable<string> LoadPlugins(PluginLoadType loadType, bool writeAccess)
         {
             using (database.AcquireContext<TContext>(out var db))
             {
@@ -252,9 +252,12 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
                         catch (Exception ex)
                         {
                             LogEnvironment.LogDebugEvent(ex.OutlineException(), LogSeverity.Error);
-                            plugin.Disabled = true;
-                            plugin.DisabledReason = ex.Message;
-                            db.SaveChanges();
+                            if (writeAccess)
+                            {
+                                plugin.Disabled = true;
+                                plugin.DisabledReason = ex.Message;
+                                db.SaveChanges();
+                            }
                         }
 
                         if (ok)

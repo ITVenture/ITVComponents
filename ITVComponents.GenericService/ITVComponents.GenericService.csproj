@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.CommandLineParser\ITVComponents.CommandLineParser.csproj" />
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.Shared\ITVComponents.InterProcessCommunication.Shared.csproj" />
+    <ProjectReference Include="..\ITVComponents.Logging.DefaultLoggers\ITVComponents.Logging.DefaultLoggers.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
@@ -42,6 +43,7 @@
     <PackageReference Include="Microsoft.extensions.configuration.json" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="microsoft.extensions.primitives" Version="8.0.0" />
+    <PackageReference Include="PrettyPrompt" Version="4.1.1" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <!--Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" /-->

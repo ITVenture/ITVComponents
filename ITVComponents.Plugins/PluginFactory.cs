@@ -826,12 +826,13 @@ namespace ITVComponents.Plugins
         /// <summary>
         /// Loads dynamic assemblies that are required by a dynamicloader for running
         /// </summary>
-        private string[] LoadDynamicPlugins(PluginLoadType loadType)
+
+        private string[] LoadDynamicPlugins(PluginLoadType loadType, bool writeAccess)
         {
             List<string> orderedNames = new List<string>();
             foreach (var tmp in plugins(null).DynamicLoaders)
             {
-                orderedNames.AddRange(tmp.LoadDynamicAssemblies(loadType));
+                orderedNames.AddRange(tmp.LoadDynamicAssemblies(loadType, writeAccess));
             }
 
             return orderedNames.ToArray();
@@ -1409,9 +1410,9 @@ namespace ITVComponents.Plugins
         /// </summary>
         public event ImplementGenericTypeEventHandler ImplementGenericType;
 
-        public void LoadDynamics()
+        public void LoadDynamics(bool writeAccess = true)
         {
-            dynamicPlugIns = LoadDynamicPlugins(PluginLoadType.Singleton);
+            dynamicPlugIns = LoadDynamicPlugins(PluginLoadType.Singleton, writeAccess);
         }
 
         public IPlugin[] ScopeClose()
@@ -1503,6 +1504,33 @@ namespace ITVComponents.Plugins
 
         private IPlugin[] ClearPlugins(PluginCollector pluginDic)
         {
+			/*IPlugin[] pluginArray = plugins.Values.ToArray();
+                    for (int i = 0; i < pluginArray.Length; i++)
+                    {
+                        IStoppable plugin = pluginArray[i] as IStoppable;
+                        if (plugin != null)
+                        {
+                            LogEnvironment.LogDebugEvent($"Stopping {pluginArray[i].UniqueName}", LogSeverity.Report);
+                            plugin.Stop();
+                        }
+                    }
+
+                    for (int i = pluginArray.Length - 1; i >= 0; i--)
+                    {
+                        IPlugin pi = pluginArray[i];
+                        try
+                        {
+                            LogEnvironment.LogDebugEvent($"Calling Dispose on {pi.UniqueName}", LogSeverity.Report);
+                            pi.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            LogEnvironment.LogEvent($"An Error occurred when disposing the Plugin {pi.UniqueName}: {ex.OutlineException()}.", LogSeverity.Error, "PluginSystem");
+                            
+                        }
+                    }
+
+                    this.plugins.Clear();*/
             return pluginDic.Clear();
         }
 
