@@ -108,7 +108,10 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
                 InvitationStatus = InvitationStatus.Committed,
                 EMail = input.Email,
                 BillingProfile = profile,
-                User = owner,
+                // FK scalar, not the navigation: 'owner' is tracked by the userManager's context, not by this
+                // per-operation 'db'. Assigning it as a navigation makes EF treat it as a new principal and emit
+                // INSERT INTO Users → PK violation. The user already exists, so only the FK is needed.
+                UserId = owner.Id,
                 TenantUser = admin,
                 FirstName = "Admin",
                 LastName = "Admin",
@@ -134,8 +137,14 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
     public async Task<bool> IsEmailConfirmedAsync(string email, CancellationToken ct = default)
     {
-        var user = await userManager.FindByEmailAsync(email);
-        return user != null && await userManager.IsEmailConfirmedAsync(user);
+        // Read on a FRESH, no-tracking per-operation context. The confirmation is committed in a different scope
+        // (the ConfirmEmail tab); the injected circuit-scoped userManager caches the user it loaded on the first
+        // poll, and EF never refreshes a tracked entity's scalars on re-query, so FindByEmailAsync would report
+        // EmailConfirmed=false forever and the waiting page would poll endlessly without ever advancing.
+        var normalized = userManager.NormalizeEmail(email);
+        using var db = dbFactory.CreateDbContext();
+        return await db.Set<User>().AsNoTracking()
+            .AnyAsync(u => u.NormalizedEmail == normalized && u.EmailConfirmed, ct);
     }
 
     public async Task StoreJoinNonceAsync(string email, string nonce, CancellationToken ct = default)
@@ -227,7 +236,9 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
             {
                 Enabled = true,
                 Tenant = tenant,
-                User = owner
+                // FK scalar, not the navigation: 'owner' belongs to the userManager's context. Attaching it to
+                // this per-operation 'db' as a navigation would make EF re-INSERT the existing user (PK violation).
+                UserId = owner.Id
             };
             db.TenantUsers.Add(tu);
 
@@ -241,7 +252,7 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
                 db.TenantUserRoles.Add(new UserRole { Role = role, User = tu });
             }
 
-            employee.User = owner;
+            employee.UserId = owner.Id;
             employee.TenantUser = tu;
         }
 
