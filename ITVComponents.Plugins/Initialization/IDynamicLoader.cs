@@ -10,7 +10,7 @@ namespace ITVComponents.Plugins.Initialization
         /// <summary>
         /// Loads dynamic assemblies that are required for a specific application
         /// </summary>
-        IEnumerable<string> LoadDynamicAssemblies();
+        IEnumerable<string> LoadDynamicAssemblies(bool writeAccess = true);
 
         /// <summary>
         /// Gets a value indicating whether this loader is able to provide further generic information for a specific plugin

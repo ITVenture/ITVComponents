@@ -58,15 +58,15 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             this.useGenericParams = useGenericParams;
         }
 
-        public IEnumerable<string> LoadDynamicAssemblies()
+        public IEnumerable<string> LoadDynamicAssemblies(bool writeAccess = true)
         {
             try
             {
-                return LoadPlugins();
+                return LoadPlugins(writeAccess);
             }
             finally
             {
-                if (refreshCycle != 0)
+                if (refreshCycle != 0 && writeAccess)
                 {
                     refresher.Change(refreshCycle, refreshCycle);
                 }
@@ -133,7 +133,7 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             refresher.Change(Timeout.Infinite, Timeout.Infinite);
             try
             {
-                var tmp = LoadPlugins().ToArray();
+                var tmp = LoadPlugins(true).ToArray();
                 LogEnvironment.LogDebugEvent($"{tmp.Length} new PlugIns loaded..", LogSeverity.Report);
             }
             catch (Exception ex)
@@ -149,7 +149,7 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
             }
         }
 
-        private IEnumerable<string> LoadPlugins()
+        private IEnumerable<string> LoadPlugins(bool writeAccess)
         {
             using (database.AcquireContext<TContext>(out var db))
             {
@@ -167,9 +167,12 @@ namespace ITVComponents.Plugins.EntityFrameworkDrivenConfiguration
                         catch (Exception ex)
                         {
                             LogEnvironment.LogDebugEvent(ex.OutlineException(), LogSeverity.Error);
-                            plugin.Disabled = true;
-                            plugin.DisabledReason = ex.Message;
-                            db.SaveChanges();
+                            if (writeAccess)
+                            {
+                                plugin.Disabled = true;
+                                plugin.DisabledReason = ex.Message;
+                                db.SaveChanges();
+                            }
                         }
 
                         if (ok)

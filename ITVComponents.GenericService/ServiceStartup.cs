@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.ExtendedFormatting;
+using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Config;
 using ITVComponents.Plugins.Helpers;
@@ -52,6 +53,12 @@ namespace ITVComponents.GenericService
 
         internal static void RunService(StartupArguments param, Action<IHostBuilder> configureBuilder)
         {
+            if (param.Action == RunAction.Interactive && param.Run)
+            {
+                RunInteractive();
+                return;
+            }
+
             ServiceStartup srv = new ServiceStartup();
             srv.Configure = param.Action == RunAction.Configure;
             srv.Init();
@@ -73,6 +80,38 @@ namespace ITVComponents.GenericService
             else
             {
                 host.Run();
+            }
+        }
+
+        /// <summary>
+        /// Loads the configured plugins into a fresh PluginFactory <b>without</b> initializing the deferrables (i.e.
+        /// without actually starting the service-workers) and runs an interactive CScript-REPL against that factory.
+        /// </summary>
+        internal static void RunInteractive()
+        {
+            ServiceStartup srv = new ServiceStartup();
+            srv.Init();
+            srv.SetPath(ServiceConfigHelper.Path);
+            try
+            {
+                // Initialize the factory (load plugins + dynamics) but skip InitializeDeferrables so that the
+                // service-workers do not actually start. The fully populated factory is handed to the REPL.
+                srv.SetupWorkers(false, true);
+                InteractiveConsole.Run(srv.pluginLoader);
+            }
+            catch (Exception ex)
+            {
+                Exception e = ex;
+                while (e != null)
+                {
+                    Console.WriteLine(e.Message);
+                    Console.WriteLine(e.StackTrace);
+                    e = e.InnerException;
+                }
+            }
+            finally
+            {
+                srv.pluginLoader.Dispose();
             }
         }
 
@@ -131,16 +170,44 @@ namespace ITVComponents.GenericService
         /// </summary>
         private void SetupWorkers()
         {
+            SetupWorkers(true, false);
+        }
+
+        /// <summary>
+        /// Initializes the workers driven by this service
+        /// </summary>
+        /// <param name="initializeDeferrables">indicates whether to initialize the deferrables. Pass <c>false</c> to
+        /// load the plugins into the factory without actually starting the service-workers (e.g. for interactive mode)</param>
+        private void SetupWorkers(bool initializeDeferrables, bool continueOnFailure)
+        {
             foreach (PluginConfigurationItem pi in ServiceConfigHelper.PlugIns)
             {
                 if (!pi.Disabled)
                 {
-                    pluginLoader.LoadPlugin<IPlugin>(pi.Name, pi.ConstructionString);
+                    try
+                    {
+                        pluginLoader.LoadPlugin<IPlugin>(pi.Name, pi.ConstructionString);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (!continueOnFailure)
+                        {
+                            throw;
+                        }
+                        else
+                        {
+                            LogEnvironment.LogEvent($"Failed to load Plugin {pi.Name}, {ex.Message}",
+                                LogSeverity.Warning);
+                        }
+                    }
                 }
             }
 
-            pluginLoader.LoadDynamics();
-            pluginLoader.InitializeDeferrables(ServiceConfigHelper.PlugIns.Where(n => !n.Disabled).Select(n => n.Name).ToArray());
+            pluginLoader.LoadDynamics(!continueOnFailure);
+            if (initializeDeferrables)
+            {
+                pluginLoader.InitializeDeferrables(ServiceConfigHelper.PlugIns.Where(n => !n.Disabled).Select(n => n.Name).ToArray());
+            }
         }
 
         private void ImplementGenericPlugIn(object sender, ImplementGenericTypeEventArgs e)

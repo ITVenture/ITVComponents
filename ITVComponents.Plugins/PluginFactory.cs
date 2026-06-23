@@ -722,6 +722,7 @@ namespace ITVComponents.Plugins
                         IStoppable plugin = pluginArray[i] as IStoppable;
                         if (plugin != null)
                         {
+                            LogEnvironment.LogDebugEvent($"Stopping {pluginArray[i].UniqueName}", LogSeverity.Report);
                             plugin.Stop();
                         }
                     }
@@ -731,11 +732,13 @@ namespace ITVComponents.Plugins
                         IPlugin pi = pluginArray[i];
                         try
                         {
+                            LogEnvironment.LogDebugEvent($"Calling Dispose on {pi.UniqueName}", LogSeverity.Report);
                             pi.Dispose();
                         }
                         catch (Exception ex)
                         {
-                            LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error, "PluginSystem");
+                            LogEnvironment.LogEvent($"An Error occurred when disposing the Plugin {pi.UniqueName}: {ex.OutlineException()}.", LogSeverity.Error, "PluginSystem");
+                            
                         }
                     }
 
@@ -825,12 +828,12 @@ namespace ITVComponents.Plugins
         /// <summary>
         /// Loads dynamic assemblies that are required by a dynamicloader for running
         /// </summary>
-        private string[] LoadDynamicPlugins()
+        private string[] LoadDynamicPlugins(bool writeAccess)
         {
             List<string> orderedNames = new List<string>();
             foreach (var tmp in DynamicLoaders)
             {
-                orderedNames.AddRange(tmp.LoadDynamicAssemblies());
+                orderedNames.AddRange(tmp.LoadDynamicAssemblies(writeAccess));
             }
 
             return orderedNames.ToArray();
@@ -1388,9 +1391,9 @@ namespace ITVComponents.Plugins
         /// </summary>
         public event ImplementGenericTypeEventHandler ImplementGenericType;
 
-        public void LoadDynamics()
+        public void LoadDynamics(bool writeAccess = true)
         {
-            dynamicPlugIns = LoadDynamicPlugins();
+            dynamicPlugIns = LoadDynamicPlugins(writeAccess);
         }
     }
 
