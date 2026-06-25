@@ -715,6 +715,99 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             }
         }
 
+        /// <summary>
+        /// Bootstrap helper: ensures the requested permissions exist (created as global permissions when missing)
+        /// and — when a target global role is configured — grants them to that role. Each distinct name is handled
+        /// at most once per process (claim-based dedup), so this stays cheap on the authorization hot-path. The
+        /// write goes through a freshly leased per-operation context, so it never collides with concurrent reads on
+        /// the circuit/request-scoped context; the entity-write-tracker raises the security change-signal, so the
+        /// new grants take effect within the live session.
+        /// </summary>
+        public void EnsureRequestedPermissions(string[] permissionNames)
+        {
+            if (!AutoPermissionRegistration.Enabled || permissionNames == null || permissionNames.Length == 0)
+            {
+                return;
+            }
+
+            var pending = permissionNames
+                .Where(n => !string.IsNullOrWhiteSpace(n) && AutoPermissionRegistration.TryClaim(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (pending.Length == 0)
+            {
+                return;
+            }
+
+            var grantRoleName = AutoPermissionRegistration.GrantToGlobalRole;
+            try
+            {
+                using var lease = LeaseContext();
+                var securityContext = lease.Context;
+                using var tmp = securityAccessProvider.CreateForCaller(securityContext,
+                    ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
+
+                TGlobalRole grantRole = null;
+                if (!string.IsNullOrEmpty(grantRoleName))
+                {
+                    grantRole = securityContext.GlobalRoles.FirstOrDefault(r => r.RoleName == grantRoleName);
+                    if (grantRole == null)
+                    {
+                        logger.LogWarning(
+                            "Auto-permission-registration: configured global role '{role}' was not found; requested permissions are created without a grant.",
+                            grantRoleName);
+                    }
+                }
+
+                bool dirty = false;
+                foreach (var name in pending)
+                {
+                    var permission = securityContext.Permissions.FirstOrDefault(p => p.TenantId == null && p.PermissionName == name);
+                    if (permission == null)
+                    {
+                        permission = Activator.CreateInstance<TPermission>();
+                        permission.PermissionName = name;
+                        permission.Description = "Auto-registered on first request";
+                        permission.TenantId = null;
+                        securityContext.Permissions.Add(permission);
+                        dirty = true;
+                        logger.LogInformation("Auto-registered permission '{permission}'.", name);
+                    }
+
+                    if (grantRole != null)
+                    {
+                        // For an existing permission, skip if the grant is already present. A freshly added permission
+                        // has no id yet, so it cannot have a grant; let EF resolve both FKs through the navigations.
+                        bool alreadyGranted = permission.PermissionId != 0 &&
+                            securityContext.GlobalRolePermissions.Any(g => g.GlobalRoleId == grantRole.GlobalRoleId && g.PermissionId == permission.PermissionId);
+                        if (!alreadyGranted)
+                        {
+                            var grant = Activator.CreateInstance<TGlobalRolePermission>();
+                            grant.GlobalRole = grantRole;
+                            grant.Permission = permission;
+                            securityContext.GlobalRolePermissions.Add(grant);
+                            dirty = true;
+                        }
+                    }
+                }
+
+                if (dirty)
+                {
+                    securityContext.SaveChanges();
+                }
+            }
+            catch (Exception e)
+            {
+                // Release the claims so a transient failure does not permanently suppress registration.
+                foreach (var name in pending)
+                {
+                    AutoPermissionRegistration.ReleaseClaim(name);
+                }
+
+                logger.LogError(e, "Auto-permission-registration failed; the affected permissions will be retried on a later request.");
+            }
+        }
+
         public IEnumerable<Permission> GetPermissions(Role role)
         {
             using var lease = LeaseContext();

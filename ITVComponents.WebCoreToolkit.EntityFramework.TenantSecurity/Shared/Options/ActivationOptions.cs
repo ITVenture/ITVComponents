@@ -71,5 +71,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Opt
         public int CookieLengthThreshold { get; set; } = 2048;
         public bool UseDefaultSecurityAccessProvider { get; set; } = true;
         public bool UseEntityTracker { get; set; }
+
+        /// <summary>
+        /// When set, an authorization check for a permission that does not yet exist materializes that permission
+        /// (global, <c>TenantId == null</c>) on the fly instead of failing silently. This lets a fresh database
+        /// self-populate its permission catalogue simply by an administrator navigating the application, removing
+        /// the need to keep a static permission seed in sync between the toolkit and its consumers. Off by default.
+        /// </summary>
+        public bool AutoRegisterRequestedPermissions { get; set; }
+
+        /// <summary>
+        /// Name of the global role that auto-registered (and already-existing requested) permissions are granted to.
+        /// When null/empty, permissions are created without a grant. Only relevant when
+        /// <see cref="AutoRegisterRequestedPermissions"/> is enabled.
+        /// </summary>
+        public string AutoRegisterPermissionsGrantRole { get; set; }
     }
 }

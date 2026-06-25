@@ -96,6 +96,7 @@ namespace ITVComponents.WebCoreToolkit.Security
         public ICollection<User> Users => Current.Users;
         public ICollection<Role> Roles => Current.Roles;
         public ICollection<Permission> Permissions => Current.Permissions;
+        public void EnsureRequestedPermissions(string[] permissionNames) => Current.EnsureRequestedPermissions(permissionNames);
         public IEnumerable<Role> GetRoles(User user) => Current.GetRoles(user);
         public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions, string permissionScope)
         {

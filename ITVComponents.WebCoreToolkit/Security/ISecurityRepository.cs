@@ -30,6 +30,18 @@ namespace ITVComponents.WebCoreToolkit.Security
         ICollection<Permission> Permissions { get; }
 
         /// <summary>
+        /// When the auto-permission-registration bootstrap feature is enabled, ensures that each of the given
+        /// permission names exists (creating it as a global permission when missing) and, if a target global role
+        /// is configured, grants it to that role. Intended to be called from the authorization hot-path; it
+        /// short-circuits cheaply for names that were already handled in this process. The default implementation
+        /// is a no-op, so repositories that do not back a writable store are unaffected.
+        /// </summary>
+        /// <param name="permissionNames">the permission names requested by the current authorization check</param>
+        void EnsureRequestedPermissions(string[] permissionNames)
+        {
+        }
+
+        /// <summary>
         /// Gets an enumeration of Roles that are assigned to the given user
         /// </summary>
         /// <param name="user">the user for which to get the roles</param>

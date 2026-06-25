@@ -98,6 +98,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
             }
 
             // --- Strategy-independent shared services ---
+            // Bootstrap toggle: let the authorization hot-path materialize requested-but-missing permissions on a
+            // fresh database (and optionally grant them to an admin global role), so the permission catalogue is
+            // not kept in a static seed that must stay in sync between the toolkit and its consumers.
+            ITVComponents.WebCoreToolkit.Security.AutoPermissionRegistration.Enabled = partActivation.AutoRegisterRequestedPermissions;
+            ITVComponents.WebCoreToolkit.Security.AutoPermissionRegistration.GrantToGlobalRole = partActivation.AutoRegisterPermissionsGrantRole;
+
             if (partActivation.ActivateTemplateFactory)
             {
                 services.AddScoped<ITemplateHandlerFactory, TemplateHandlerFactory>();

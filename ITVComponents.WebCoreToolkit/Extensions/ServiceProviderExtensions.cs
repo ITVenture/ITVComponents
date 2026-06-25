@@ -37,6 +37,14 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var userPerms = provider.GetUserPermissions(out securityRepository, out var isAuthenticated);
             if (isAuthenticated)
             {
+                // Bootstrap: when enabled, materialize permissions that are genuinely requested by a real
+                // authorization gate but do not exist yet (and grant them to the configured admin role). Skipped
+                // for known-only probes (e.g. plugin-name checks), which must not create arbitrary permissions.
+                if (!checkOnlyForKnownPermissions && Security.AutoPermissionRegistration.Enabled)
+                {
+                    securityRepository.EnsureRequestedPermissions(requiredPermissions);
+                }
+
                 var permitter = securityRepository;
                 var extendedPerms =
                     (from t in requiredPermissions
