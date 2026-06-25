@@ -1,8 +1,9 @@
 # Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
 
-> **Stand: `5.0.0-PRE068`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
-> (Phasen 2–5), die danach gebauten Onboarding-Flows (2a/2b/2c, Abschnitt 6) **und** die
-> EntityWriteTracker-/EntityChangeSignal-Invalidierung (Abschnitt 7/7a) ab.
+> **Stand: `5.0.0-PRE098`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
+> (Phasen 2–5), die danach gebauten Onboarding-Flows (2a/2b/2c, Abschnitt 6), die
+> EntityWriteTracker-/EntityChangeSignal-Invalidierung (Abschnitt 7/7a) **und** die optionale
+> Auto-Permission-Registration (Abschnitt 9) ab.
 
 Dieser Leitfaden beschreibt, was im MLM-Projekt anzupassen ist, um auf den `Future_10`-Stand der
 ITVComponents-Toolkit zu wechseln. Es ist ein **Major-Release (5.0-PRExx)** mit bewussten Breaking
@@ -753,7 +754,59 @@ Operation-Scope ist leer, der Context bleibt geteilt wie bisher.
 
 ---
 
-## 9. Verifikation auf eurer Seite
+## 9. Auto-Permission-Registration — Admin-Rolle sammelt Modul-Rechte automatisch (opt-in, neu in `5.0.0-PRE098`)
+
+**Problem (Anstoß aus MLM):** Auf einer **frischen** DB registriert das Toolkit nur einen Teil der globalen
+Permissions (z.B. 47 statt 64 in der gewachsenen DB) — `Navigate`, `SwitchTenant`, `Onboarding.Admin.*` u.a.
+fehlen, weil sie nicht statisch geseedet werden. Folge: Navigation-Einträge ohne Permission, leere Grants für
+die nicht-Admin-GlobalRoles.
+
+**Lösung:** Statt eine statische Permission-Seed-Liste zwischen Toolkit und MLM synchron zu halten,
+materialisiert das Toolkit jetzt jede **genuin von einem Authorization-Gate angeforderte** Permission selbst
+(global, `TenantId == null`) und grantet sie an eine konfigurierte GlobalRole. Eine frische DB füllt ihren
+Permission-Katalog damit von selbst, sobald ein Admin durch die App navigiert.
+
+**Aktivierung — zwei Schalter im TenantSecurity-WebPart** (`ActivationSettings`-Config):
+
+```json
+{ "ActivationSettings": {
+    "AutoRegisterRequestedPermissions": true,
+    "AutoRegisterPermissionsGrantRole": "<Name eurer globalen Admin-Rolle>"
+} }
+```
+
+- `AutoRegisterRequestedPermissions` (bool, default `false`): schaltet das Feature ein.
+- `AutoRegisterPermissionsGrantRole` (string): **Name der globalen Admin-Rolle**. Jede neu angelegte — und
+  jede bereits existierende, aber neu angeforderte — Permission wird dieser GlobalRole gegrantet. Leer/`null`
+  = Permissions werden nur angelegt, ohne Grant.
+
+**Warum die Admin-Rolle das richtige Ziel ist:** Die Admin-GlobalRole ist **kein Bypass** — sie ist
+permission-getrieben und hat nur die geseedeten Rechte. Der Auto-Grant an sie ist genau der Sinn: sie sammelt
+jede modul-angeforderte Permission automatisch ein. Wer die globale Admin-Rolle erhält (z.B. der TenantOwner
+des Admin-Tenants), erbt damit lückenlos **alle** Rechte, die irgendein Modul anfordert. Ein zusätzlicher Grant
+an `TenantOwner`/`DefaultUser` ist dafür **nicht** nötig.
+
+**Verhalten / Eigenschaften:**
+- Eine Permission entsteht erst, wenn **irgendein authentifizierter User** das zugehörige Gate erstmals trifft
+  → der Katalog füllt sich „lazy" beim Admin-Rundgang, nicht schon beim Start. Für Vollständigkeit muss ein
+  Admin einmal die jeweiligen Bereiche besuchen.
+- Je Permission-Name max. **ein** DB-Versuch pro Prozess (Claim-Dedup) → Authorization-Hot-Path bleibt billig.
+- Nur **echte** Gates lösen aus; reine „known-only"-Proben (z.B. Plugin-Namen-Checks) legen **keine** Permissions an.
+- Greift in **Flat- und Tree/Hierarchy-Context** gleichermaßen (MLM fährt Tree).
+- Der Write läuft über einen frisch geleasten per-Operation-Context (kollisionsfrei zum circuit-scoped Context)
+  und hebt das EntityChangeSignal → neue Grants wirken **in der laufenden Session**.
+
+**Sync-Pflicht (wichtig):** Sobald aktiviert, den idempotenten Startup-Block in `MLMManager.Web/Program.cs`
+(„Ensure permissions … NOT auto-registered on a fresh database", `INSERT … WHERE NOT EXISTS`) **entfernen**,
+sonst Doppelpflege/Divergenz. Kurzfristig kollidiert nichts (beide idempotent, computed
+`PermissionNameUniqueness` verhindert Duplikate ohnehin), aber die Permission-Verantwortung soll eindeutig auf
+einer Seite liegen. Die übrigen ADM-Referenzdaten (GlobalRolePermission-**Grants** für `TenantOwner`/`DefaultUser`,
+Navigation etc.) bleiben im MLM-Seed — das Feature legt nur die **Permissions selbst** (+ Admin-Grant) an, nicht
+die fachlichen Grants der nicht-Admin-Rollen.
+
+---
+
+## 10. Verifikation auf eurer Seite
 
 - Build der gesamten Solution grün (alle eigenen FileHandler + Cookie-Scope-Config angepasst).
 - **Onboarding:** Migration angewendet (Tabellen `PendingOnboarding` + `TenantInvitation` existieren);
@@ -784,3 +837,4 @@ Operation-Scope ist leer, der Context bleibt geteilt wie bisher.
 | 10 | **EntityWriteTracker** (FK-Cache) | optional `ActivationSettings.UseEntityTracker = true` für sofortige FK-Label-Cache-Invalidierung; alter `IForeignKeyWriteTracker` entfallen → `IEntityWriteTracker` |
 | 10a | **Permissions/Navigation sofort** | gleicher Schalter invalidiert Cookie-Permission-Cache, Navigator & `isAuthenticatedCache` automatisch; für sofortiges UI-Re-Render optional `<EntityChangeRefresher>` (Blazor) um das Menü legen |
 | 11 | **Per-Op-Context** (opt-in, §8) | falls ihr den System-Context als `"sys"`-Dependency konfiguriert: `AddDependency(…, p=>p.GetService<IDbContextFactory<AppCtx>>().CreateDbContext(), disposeWithScope:true)`; Plugin-Konsumenten `using var s = pluginHelper.CreateOperationScope()`; Diag/FK-`RegisterService` ggf. `ScopedDataSource` zurückgeben. **FileHandler** sind automatisch abgedeckt (§8.4) — sobald „sys" scope-owned ist, greift der per-Op-Context im Up-/Download ohne weitere Verdrahtung. Ohne Änderung = bisheriges (geteiltes) Verhalten |
+| 12 | **Auto-Permission-Registration** (opt-in, §9, neu `PRE098`) | `ActivationSettings.AutoRegisterRequestedPermissions = true` + `AutoRegisterPermissionsGrantRole = "<globale Admin-Rolle>"` → angeforderte Permissions werden on-the-fly angelegt und der Admin-Rolle gegrantet; danach `Program.cs`-„ensure permissions"-Block entfernen (Sync-Pflicht). Ohne Änderung = bisheriges Verhalten (statischer Seed nötig) |
