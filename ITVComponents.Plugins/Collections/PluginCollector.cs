@@ -1,4 +1,7 @@
-﻿using System;
+﻿using ITVComponents.Helpers;
+using ITVComponents.Logging;
+using ITVComponents.Plugins.Initialization;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,8 +10,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using ITVComponents.Logging;
-using ITVComponents.Plugins.Initialization;
 
 namespace ITVComponents.Plugins.Collections
 {
@@ -185,10 +186,10 @@ namespace ITVComponents.Plugins.Collections
             {
                 for (int i = 0; i < pluginArray.Length; i++)
                 {
-                    IStoppable plugin = pluginArray[i] as IStoppable;
-                    if (plugin != null)
+                    if (pluginArray[i] is IStoppable stop)
                     {
-                        plugin.Stop();
+                        LogEnvironment.LogDebugEvent($"Stopping {pluginArray[i].UniqueName}", LogSeverity.Report);
+                        stop.Stop();
                     }
                 }
 
@@ -197,11 +198,12 @@ namespace ITVComponents.Plugins.Collections
                     IPlugin pi = pluginArray[i];
                     try
                     {
+                        LogEnvironment.LogDebugEvent($"Calling Dispose on {pi.UniqueName}", LogSeverity.Report);
                         pi.Dispose();
                     }
                     catch (Exception ex)
                     {
-                        LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error, "PluginSystem");
+                        LogEnvironment.LogEvent($"An Error occurred when disposing the Plugin {pi.UniqueName}: {ex.OutlineException()}.", LogSeverity.Error, "PluginSystem");
                     }
                 }
 
