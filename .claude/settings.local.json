@@ -121,7 +121,10 @@
       "Bash(xargs grep -l \"interface.*IEmailSender\")",
       "Bash(xargs -0 grep -l \"interface.*IEmailSender\")",
       "Bash(xargs grep -i \"markdown\\\\|markdig\\\\|commonmark\")",
-      "PowerShell($d = \"C:\\\\temp\\\\mlmMailDump\"; if \\(Test-Path $d\\) { Write-Output \"EXISTS: $d\"; Get-ChildItem -Path $d -File | Sort-Object LastWriteTime -Descending | Select-Object Name, Length, LastWriteTime | Format-Table -AutoSize } else { Write-Output \"MISSING: $d \\(Verzeichnis existiert nicht\\)\" })"
+      "PowerShell($d = \"C:\\\\temp\\\\mlmMailDump\"; if \\(Test-Path $d\\) { Write-Output \"EXISTS: $d\"; Get-ChildItem -Path $d -File | Sort-Object LastWriteTime -Descending | Select-Object Name, Length, LastWriteTime | Format-Table -AutoSize } else { Write-Output \"MISSING: $d \\(Verzeichnis existiert nicht\\)\" })",
+      "PowerShell($g = \\(Get-Command gh -ErrorAction SilentlyContinue\\); if \\($g\\) { $g.Source } else { \"gh not found\" })",
+      "Read(//c/Users/mw/.claude/**)",
+      "Bash(grep -nE \"^#{1,4} |PRE09|^## |WebPart|ActivationSettings|Version\" docs/Migration-Future_10-MLM.md)"
     ]
   }
 }
