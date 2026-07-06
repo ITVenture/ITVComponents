@@ -83,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Sql
             builderOptions.ConfigureDbFunction("GetUpwardsRoleTreeForLabelsByLeafId",
                 m => m.HasName("GetUpwardsRoleTreeForLabelsByLeafId"));
 
-            builderOptions.ConfigureEntity<UpwardsRoleUserView<string>>(b => b.HasNoKey());
+            builderOptions.ConfigureEntity<UpwardsRoleUserView<string>>(b => b.HasNoKey().ToView(null));
             /*builderOptions.ConfigureEntity<UpwardsRoleUserView<string>>(pp =>
                 pp.ToTable(GlobalDbObjectNaming.UpwardsRoleTreeView, b => b.ExcludeFromMigrations()).HasNoKey());*/
         }
@@ -189,6 +189,10 @@ select * from @vld", new SqlParameter("@name", name),
 
         public static void ConfigureViews(MigrationBuilder migrationBuilder, string schema = "dbo")
         {
+            // TenantAccessTree depends on …Up/…Down/UpwardsTenantTree, so drop it first. It is (re)created further
+            // below but was previously never dropped -> re-running ConfigureViews on an existing DB failed with
+            // SQL 2714 (object already exists). Drop-if-exists makes the redeploy idempotent.
+            migrationBuilder.Sql($"Drop View if exists [{schema}].[TenantAccessTree]");
             migrationBuilder.Sql($"Drop View if exists [{schema}].[TenantAccessTreeUp]");
             migrationBuilder.Sql($"Drop View if exists [{schema}].[TenantAccessTreeDown]");
             migrationBuilder.Sql($@"DROP VIEW if exists [{schema}].[UpwardsTenantTree]");
@@ -370,7 +374,7 @@ inner join users u on u.id = tu.UserId");
                              	inner join downwardstenanttree d on d.TopmostTenantId = OutermostLeafTenantId
                              	;
                              
-                             	with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                             	with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId where s.TenantId in (select ChildTenantId from @rawtree)
                              union all
                              select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
                              inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
@@ -435,7 +439,7 @@ inner join users u on u.id = tu.UserId");
                                   RETURNS TABLE --(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(150), ParentTenantId int, ParentTenantName nvarchar(150), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(400), OutermostRoleId int)
                                   AS 
                                   return (
-                                         with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                                         with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId where (@FromLeaf is null or st.TenantName = @FromLeaf)
                                   union all
                                   select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
                                   inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
@@ -463,7 +467,7 @@ inner join users u on u.id = tu.UserId");
                                    RETURNS TABLE --(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(150), ParentTenantId int, ParentTenantName nvarchar(150), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(400), OutermostRoleId int)
                                    AS 
                                    return (
-                                          with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                                          with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId where (@FromLeaf is null or st.TenantName = @FromLeaf)
                                    union all
                                    select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
                                    inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
@@ -524,7 +528,7 @@ inner join users u on u.id = tu.UserId");
                 	inner join downwardstenanttree d on d.TopmostTenantId = OutermostLeafTenantId
                 	;
              
-                	with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                	with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId where s.TenantId in (select ChildTenantId from @rawtree)
              union all
              select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
              inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
@@ -590,7 +594,7 @@ inner join users u on u.id = tu.UserId");
                   RETURNS TABLE --(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(150), ParentTenantId int, ParentTenantName nvarchar(150), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(400), OutermostRoleId int)
                   AS 
                   return (
-                         with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                         with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId where (@FromLeafTenantId is null or s.TenantId = @FromLeafTenantId)
                   union all
                   select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
                   inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
@@ -619,7 +623,7 @@ inner join users u on u.id = tu.UserId");
                    RETURNS TABLE --(OutermostLeafTenantId int, OutermostLeafTenantName nvarchar(150), ParentTenantId int, ParentTenantName nvarchar(150), ParentRoleId int, ParentLevel int , TenantUserId int, UserId nvarchar(400), OutermostRoleId int)
                    AS 
                    return (
-                          with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId
+                          with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId where (@FromLeafTenantId is null or s.TenantId = @FromLeafTenantId)
                    union all
                    select r_2.RoleId, pr.RoleId ParentRoleId, r_2.TenantId, pr.TenantId ParentTenantId, pt.ParentTenantId as nextparent, pr.RoleId as nextChildRole, r_2.level+1 level from r as r_2
                    inner join RoleRoles roro on r_2.nextChildRole = roro.PermissiveRoleId
