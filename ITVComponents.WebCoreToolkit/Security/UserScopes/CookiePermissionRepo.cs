@@ -43,6 +43,18 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         public ICollection<User> Users => parentRepo.Users;
         public ICollection<Role> Roles => parentRepo.Roles;
         public ICollection<Permission> Permissions => knownPermissions;
+
+        // The auto-permission-registration bootstrap must reach the writable backing store. This snapshot sits on
+        // top of the repo stack once a scope is resolved, so without this passthrough the call would dead-end at
+        // the ISecurityRepository default no-op and no permission would ever be created/granted.
+        public void EnsureRequestedPermissions(string[] permissionNames, AutoPermissionsOptions options) =>
+            parentRepo.EnsureRequestedPermissions(permissionNames, options);
+
+        // Only consulted on an authorization miss (auto-reg fast-path), i.e. rarely — forward to the backing store
+        // rather than snapshotting the roles into the cookie.
+        public string[] GetGlobalRoles(string[] userLabels, string userAuthenticationType) =>
+            parentRepo.GetGlobalRoles(userLabels, userAuthenticationType);
+
         public IEnumerable<Role> GetRoles(User user) => parentRepo.GetRoles(user);
 
         public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions,
@@ -142,6 +154,15 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
 
             return parentRepo.GetEligibleScopes(userLabels, userAuthenticationType);
         }
+
+        // Lazy tenant-tree primitives are not snapshot-cached (they resolve per expand); forward to the parent
+        // repository. Without this explicit passthrough the interface default (empty list) would swallow the call
+        // once this decorator sits on top of the repo stack.
+        public IReadOnlyList<TenantTreeNode> GetRootTenants(string[] userLabels, string userAuthenticationType)
+            => parentRepo.GetRootTenants(userLabels, userAuthenticationType);
+
+        public IReadOnlyList<TenantTreeNode> GetChildTenants(string[] userLabels, string userAuthenticationType, int parentTenantId, int[] carriedRoleIds)
+            => parentRepo.GetChildTenants(userLabels, userAuthenticationType, parentTenantId, carriedRoleIds);
 
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {

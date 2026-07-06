@@ -86,5 +86,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Opt
         /// <see cref="AutoRegisterRequestedPermissions"/> is enabled.
         /// </summary>
         public string AutoRegisterPermissionsGrantRole { get; set; }
+
+        /// <summary>
+        /// Debounce window (milliseconds) the background auto-permission registrar waits after the first requested
+        /// name before writing the batch. Coalesces one page's permission requests into a single write/notification;
+        /// lower = snappier first visit. Default 100. Only relevant when <see cref="AutoRegisterRequestedPermissions"/>
+        /// is enabled.
+        /// </summary>
+        public int AutoRegisterDebounceMilliseconds { get; set; } = 100;
     }
 }

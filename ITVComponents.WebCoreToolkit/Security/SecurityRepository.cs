@@ -96,7 +96,8 @@ namespace ITVComponents.WebCoreToolkit.Security
         public ICollection<User> Users => Current.Users;
         public ICollection<Role> Roles => Current.Roles;
         public ICollection<Permission> Permissions => Current.Permissions;
-        public void EnsureRequestedPermissions(string[] permissionNames) => Current.EnsureRequestedPermissions(permissionNames);
+        public void EnsureRequestedPermissions(string[] permissionNames, AutoPermissionsOptions options) => Current.EnsureRequestedPermissions(permissionNames, options);
+        public string[] GetGlobalRoles(string[] userLabels, string userAuthenticationType) => Current.GetGlobalRoles(userLabels, userAuthenticationType);
         public IEnumerable<Role> GetRoles(User user) => Current.GetRoles(user);
         public IEnumerable<Role> GetRolesWithPermissions(IEnumerable<string> requiredPermissions, string permissionScope)
         {
@@ -144,6 +145,10 @@ namespace ITVComponents.WebCoreToolkit.Security
             Current.GetTimeZoneHelper(permissionScopeName);
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType) => Current.GetEligibleScopes(userLabels,userAuthenticationType);
+
+        public IReadOnlyList<TenantTreeNode> GetRootTenants(string[] userLabels, string userAuthenticationType) => Current.GetRootTenants(userLabels, userAuthenticationType);
+
+        public IReadOnlyList<TenantTreeNode> GetChildTenants(string[] userLabels, string userAuthenticationType, int parentTenantId, int[] carriedRoleIds) => Current.GetChildTenants(userLabels, userAuthenticationType, parentTenantId, carriedRoleIds);
 
         public IEnumerable<Feature> GetFeatures(string permissionScopeName) => Current.GetFeatures(permissionScopeName);
 

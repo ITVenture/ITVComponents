@@ -723,15 +723,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// the circuit/request-scoped context; the entity-write-tracker raises the security change-signal, so the
         /// new grants take effect within the live session.
         /// </summary>
-        public void EnsureRequestedPermissions(string[] permissionNames)
+        public void EnsureRequestedPermissions(string[] permissionNames, AutoPermissionsOptions options)
         {
-            if (!AutoPermissionRegistration.Enabled || permissionNames == null || permissionNames.Length == 0)
+            if (options is not { Enabled: true } || permissionNames == null || permissionNames.Length == 0)
             {
                 return;
             }
 
+            // Called off the hot-path by the batching registrar with an already-deduped set; the create/grant is
+            // additionally idempotent against the database (existence + already-granted checks below).
             var pending = permissionNames
-                .Where(n => !string.IsNullOrWhiteSpace(n) && AutoPermissionRegistration.TryClaim(n))
+                .Where(n => !string.IsNullOrWhiteSpace(n))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (pending.Length == 0)
@@ -739,7 +741,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 return;
             }
 
-            var grantRoleName = AutoPermissionRegistration.GrantToGlobalRole;
+            var grantRoleName = options.GrantToGlobalRole;
             try
             {
                 using var lease = LeaseContext();
@@ -798,14 +800,56 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             }
             catch (Exception e)
             {
-                // Release the claims so a transient failure does not permanently suppress registration.
-                foreach (var name in pending)
-                {
-                    AutoPermissionRegistration.ReleaseClaim(name);
-                }
-
+                // The registrar releases the batch on failure, so a later request re-enqueues and retries.
                 logger.LogError(e, "Auto-permission-registration failed; the affected permissions will be retried on a later request.");
             }
+        }
+
+        /// <summary>
+        /// Gets the names of the global roles the given user effectively holds in the current tenant scope. For a
+        /// normal user this is resolved through the tree (<c>GetRawUserQuery</c>) joined to the global-to-local-role
+        /// mapping; for a client-app user via the roles' <c>PermittedGlobalRoles</c>. Mirrors the global-role branch
+        /// of <see cref="GetPermissions(string[],string)"/>; see <see cref="ISecurityRepository.GetGlobalRoles"/>.
+        /// </summary>
+        public virtual string[] GetGlobalRoles(string[] userLabels, string userAuthenticationType)
+        {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
+            var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
+            using var tmp = securityAccessProvider.CreateForCaller(securityContext,
+                ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = isUser }));
+            if (securityContext.CurrentTenantId == null)
+            {
+                // No current tenant scope -> no tenant-role-derived global roles to resolve. Degrade gracefully
+                // (the optimistic fast-path simply does not apply) rather than dereferencing a null tenant id.
+                return Array.Empty<string>();
+            }
+
+            if (isUser)
+            {
+                var preFiltered = GetRawUserQuery(out var currentTenant, userLabels, readCtx: securityContext);
+                var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
+                    preFiltered, UserId, IdOfUserLevelRecord, (l, r) => new { r.TenantId, r.RoleId });
+                return (from t in tmptu
+                    join rj in securityContext.GlobalToLocalRoles on t.RoleId equals rj.LocalRoleId
+                    join gr in securityContext.GlobalRoles on rj.GlobalRoleId equals gr.GlobalRoleId
+                    where t.TenantId == currentTenant
+                    select gr.RoleName).Distinct().ToArray();
+            }
+
+            var filteredLabels = (from ul in userLabels
+                where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+            var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == securityContext.CurrentTenantId.Value);
+            var tenantUsers = appUsers
+                .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                .Select(n => n.TenantUser.User);
+            var roles = from tr in tenantUsers.Where(UserFilter(userLabels, userAuthenticationType))
+                    .Join(securityContext.TenantUsers, UserId, tr => tr.UserId, (tu, tt) => tt)
+                join ur in securityContext.TenantUserRoles on tr.TenantUserId equals ur.TenantUserId.Value
+                join r in securityContext.SecurityRoles on new { RoleId = ur.RoleId.Value, tr.TenantId } equals new { r.RoleId, r.TenantId }
+                select r;
+            return roles.SelectMany(n => n.PermittedGlobalRoles.Select(pgr => pgr.GlobalRole.RoleName)).Distinct().ToArray();
         }
 
         public IEnumerable<Permission> GetPermissions(Role role)
@@ -865,6 +909,281 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     orderby d.DisplayName
                     select new ScopeInfo { ScopeDisplayName = d.DisplayName, ScopeName = d.TenantName, AccessMode = d.DirectlyAssigned?ScopeAccessMode.Direct:ScopeAccessMode.Inherited}).ToArray();
             }
+        }
+
+        /// <summary>
+        /// Roots of the lazily-expandable tenant tree (Option B): the topmost tenants the user can access — i.e.
+        /// holds at least one permission there (directly or via a role inherited down the hierarchy, incl. a global
+        /// role a local role draws permissions from). Pass-through tenants (a role but no permission) are collapsed.
+        /// Runs on a fresh per-operation context instance (collision-free w.r.t. the shared circuit context) with the
+        /// tenant filter opened, exactly like <see cref="GetEligibleScopes"/>.
+        /// </summary>
+        public IReadOnlyList<TenantTreeNode> GetRootTenants(string[] userLabels, string userAuthenticationType)
+            => ReadDetached(ctx =>
+            {
+                using var tmp = securityAccessProvider.CreateForCaller(ctx,
+                    ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false }));
+
+                var userTuIds = ctx.Users.Where(UserFilter(userLabels, userAuthenticationType))
+                    .Join(ctx.TenantUsers, UserId, tu => tu.UserId, (u, tu) => tu.TenantUserId).ToArray();
+
+                var walker = new TenantTreeWalker(ChildLevel(ctx, userTuIds), ParentOf(ctx));
+
+                // Seeds = the user's direct memberships with their directly-assigned roles (+ whether that role
+                // yields any permission at that tenant). The walker turns these into the tree roots.
+                var seedRows = (
+                    from tu in ctx.TenantUsers
+                    where userTuIds.Contains(tu.TenantUserId)
+                    from tur in ctx.TenantUserRoles.Where(x => x.TenantUserId == tu.TenantUserId)
+                    from r in ctx.SecurityRoles.Where(x => x.RoleId == tur.RoleId)
+                    from t in ctx.Tenants.Where(x => x.TenantId == tu.TenantId)
+                    select new TenantTreeLevelRow
+                    {
+                        TenantId = t.TenantId,
+                        ParentTenantId = t.ParentTenantId,
+                        TenantName = t.TenantName,
+                        DisplayName = t.DisplayName,
+                        RoleId = r.RoleId,
+                        HasPermission = ctx.RolePermissions.Any(rp => rp.RoleId == r.RoleId)
+                            || ctx.GlobalToLocalRoles.Any(gl => gl.LocalRoleId == r.RoleId
+                                    && ctx.GlobalRolePermissions.Any(grp => grp.GlobalRoleId == gl.GlobalRoleId)),
+                        Direct = true
+                    }).ToList();
+
+                return walker.BuildRoots(seedRows);
+            });
+
+        /// <summary>
+        /// The accessible child tenants of <paramref name="parentTenantId"/> (nearest accessible descendants,
+        /// pass-throughs collapsed), resolved from the roles the user holds at the parent
+        /// (<paramref name="carriedRoleIds"/>, carried forward from that node). One lazy level per expand.
+        /// </summary>
+        public IReadOnlyList<TenantTreeNode> GetChildTenants(string[] userLabels, string userAuthenticationType, int parentTenantId, int[] carriedRoleIds)
+            => ReadDetached(ctx =>
+            {
+                using var tmp = securityAccessProvider.CreateForCaller(ctx,
+                    ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false }));
+
+                var userTuIds = ctx.Users.Where(UserFilter(userLabels, userAuthenticationType))
+                    .Join(ctx.TenantUsers, UserId, tu => tu.UserId, (u, tu) => tu.TenantUserId).ToArray();
+
+                var walker = new TenantTreeWalker(ChildLevel(ctx, userTuIds), ParentOf(ctx));
+                return walker.BuildChildren(parentTenantId, carriedRoleIds ?? Array.Empty<int>());
+            });
+
+        /// <summary>
+        /// Builds the one-structural-level lookup used by <see cref="TenantTreeWalker"/>: given a parent tenant and
+        /// the roles the user holds there, returns each direct structural child paired with each role the user
+        /// resolves at it — inherited (a <c>RoleRoles</c> edge from a carried role) or by direct membership — plus a
+        /// per-role flag for whether that role yields any permission (local <c>RolePermissions</c>, or a global role
+        /// the local role draws from). Non-recursive: anchored on the parent, scaling with the child count.
+        /// </summary>
+        private Func<int, int[], List<TenantTreeLevelRow>> ChildLevel(
+            IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> ctx,
+            int[] userTuIds)
+            => (parentTenantId, carried) => (
+                from c in ctx.Tenants
+                where c.ParentTenantId == parentTenantId
+                from sc in ctx.SecurityRoles.Where(x => x.TenantId == c.TenantId)
+                where ctx.RoleRoles.Any(rr => rr.PermissiveRoleId == sc.RoleId && rr.PermittedRoleId != null && carried.Contains(rr.PermittedRoleId.Value))
+                   || ctx.TenantUserRoles.Any(tur => tur.RoleId == sc.RoleId && tur.TenantUserId != null && userTuIds.Contains(tur.TenantUserId.Value))
+                select new TenantTreeLevelRow
+                {
+                    TenantId = c.TenantId,
+                    ParentTenantId = c.ParentTenantId,
+                    TenantName = c.TenantName,
+                    DisplayName = c.DisplayName,
+                    RoleId = sc.RoleId,
+                    HasPermission = ctx.RolePermissions.Any(rp => rp.RoleId == sc.RoleId)
+                        || ctx.GlobalToLocalRoles.Any(gl => gl.LocalRoleId == sc.RoleId
+                                && ctx.GlobalRolePermissions.Any(grp => grp.GlobalRoleId == gl.GlobalRoleId)),
+                    Direct = ctx.TenantUserRoles.Any(tur => tur.RoleId == sc.RoleId && tur.TenantUserId != null && userTuIds.Contains(tur.TenantUserId.Value))
+                }).ToList();
+
+        private Func<int, int?> ParentOf(
+            IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> ctx)
+            => tenantId => ctx.Tenants.Where(t => t.TenantId == tenantId).Select(t => t.ParentTenantId).FirstOrDefault();
+
+        private sealed class TenantTreeLevelRow
+        {
+            public int TenantId { get; set; }
+            public int? ParentTenantId { get; set; }
+            public string TenantName { get; set; }
+            public string DisplayName { get; set; }
+            public int RoleId { get; set; }
+            public bool HasPermission { get; set; }
+            public bool Direct { get; set; }
+        }
+
+        private sealed class TenantTreeNodeAgg
+        {
+            public int TenantId { get; set; }
+            public int? ParentTenantId { get; set; }
+            public string TenantName { get; set; }
+            public string DisplayName { get; set; }
+            public int[] RoleIds { get; set; }
+            public bool Accessible { get; set; }
+            public bool Direct { get; set; }
+        }
+
+        /// <summary>
+        /// DB-agnostic Option-B tree assembly over two lookups: <c>childLevel(parentId, carriedRoleIds)</c> yields
+        /// the direct structural children (one (child, role) row each, with a per-role has-permission flag), and
+        /// <c>parentOf(tenantId)</c> yields a tenant's structural parent. All hierarchy / pass-through-collapse logic
+        /// lives here; the caller supplies only the two DB lookups. Cost scales with the visited span (children +
+        /// pass-through depth), never with the whole tree.
+        /// </summary>
+        private sealed class TenantTreeWalker
+        {
+            private readonly Func<int, int[], List<TenantTreeLevelRow>> childLevel;
+            private readonly Func<int, int?> parentOf;
+            private readonly Dictionary<int, int?> parentCache = new();
+
+            public TenantTreeWalker(Func<int, int[], List<TenantTreeLevelRow>> childLevel, Func<int, int?> parentOf)
+            {
+                this.childLevel = childLevel;
+                this.parentOf = parentOf;
+            }
+
+            public IReadOnlyList<TenantTreeNode> BuildRoots(List<TenantTreeLevelRow> seedRows)
+            {
+                var seeds = Aggregate(seedRows);
+                var seedIds = seeds.Select(s => s.TenantId).ToHashSet();
+                foreach (var s in seeds)
+                {
+                    parentCache[s.TenantId] = s.ParentTenantId;
+                }
+
+                // Structural roots = seed tenants with no seed among their structural ancestors. Roles only inherit
+                // downward, so the topmost accessible node of any chain sits at or below such a seed; walking down
+                // from these (collapsing pass-throughs) yields the display roots without cross-nesting.
+                var candidates = new List<TenantTreeNodeAgg>();
+                var visited = new HashSet<int>();
+                foreach (var s in seeds.Where(s => !HasSeedAncestor(s, seedIds)))
+                {
+                    if (!visited.Add(s.TenantId))
+                    {
+                        continue;
+                    }
+
+                    if (s.Accessible)
+                    {
+                        candidates.Add(s);
+                    }
+                    else
+                    {
+                        CollectFrontier(s.TenantId, s.RoleIds, candidates, visited);
+                    }
+                }
+
+                return candidates.Select(ToNode).ToList();
+            }
+
+            public IReadOnlyList<TenantTreeNode> BuildChildren(int parentTenantId, int[] carriedRoleIds)
+            {
+                var frontier = new List<TenantTreeNodeAgg>();
+                var visited = new HashSet<int> { parentTenantId };
+                CollectFrontier(parentTenantId, carriedRoleIds, frontier, visited);
+                return frontier.Select(ToNode).ToList();
+            }
+
+            // Descend from a node, emitting the first accessible tenant on each downward path and skipping
+            // pass-through tenants (a role but no permission).
+            private void CollectFrontier(int parentTenantId, int[] carried, List<TenantTreeNodeAgg> result, HashSet<int> visited)
+            {
+                foreach (var child in Aggregate(childLevel(parentTenantId, carried)))
+                {
+                    if (!visited.Add(child.TenantId))
+                    {
+                        continue;
+                    }
+
+                    if (child.Accessible)
+                    {
+                        result.Add(child);
+                    }
+                    else
+                    {
+                        CollectFrontier(child.TenantId, child.RoleIds, result, visited);
+                    }
+                }
+            }
+
+            // Whether any accessible tenant exists strictly below the node (short-circuits at the first hit).
+            private bool HasAccessibleDescendant(int tenantId, int[] carried)
+            {
+                var visited = new HashSet<int> { tenantId };
+                return Descend(tenantId, carried);
+
+                bool Descend(int t, int[] c)
+                {
+                    foreach (var child in Aggregate(childLevel(t, c)))
+                    {
+                        if (!visited.Add(child.TenantId))
+                        {
+                            continue;
+                        }
+
+                        if (child.Accessible || Descend(child.TenantId, child.RoleIds))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+            }
+
+            private bool HasSeedAncestor(TenantTreeNodeAgg node, HashSet<int> seedIds)
+            {
+                var p = node.ParentTenantId;
+                var guard = 0;
+                while (p != null && guard++ < 4096)
+                {
+                    if (seedIds.Contains(p.Value))
+                    {
+                        return true;
+                    }
+
+                    p = ParentOfCached(p.Value);
+                }
+
+                return false;
+            }
+
+            private int? ParentOfCached(int tenantId)
+            {
+                if (!parentCache.TryGetValue(tenantId, out var p))
+                {
+                    p = parentOf(tenantId);
+                    parentCache[tenantId] = p;
+                }
+
+                return p;
+            }
+
+            private static List<TenantTreeNodeAgg> Aggregate(List<TenantTreeLevelRow> rows)
+                => rows.GroupBy(r => r.TenantId).Select(g => new TenantTreeNodeAgg
+                {
+                    TenantId = g.Key,
+                    ParentTenantId = g.First().ParentTenantId,
+                    TenantName = g.First().TenantName,
+                    DisplayName = g.First().DisplayName,
+                    RoleIds = g.Select(x => x.RoleId).Distinct().ToArray(),
+                    Accessible = g.Any(x => x.HasPermission),
+                    Direct = g.Any(x => x.Direct)
+                }).ToList();
+
+            private TenantTreeNode ToNode(TenantTreeNodeAgg n) => new TenantTreeNode
+            {
+                TenantId = n.TenantId,
+                ParentTenantId = n.ParentTenantId,
+                TenantName = n.TenantName,
+                DisplayName = n.DisplayName,
+                AccessMode = n.Direct ? ScopeAccessMode.Direct : ScopeAccessMode.Inherited,
+                CarriedRoleIds = n.RoleIds,
+                HasAccessibleChildren = HasAccessibleDescendant(n.TenantId, n.RoleIds)
+            };
         }
 
         /// <summary>

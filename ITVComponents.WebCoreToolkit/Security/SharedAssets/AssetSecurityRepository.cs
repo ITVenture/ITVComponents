@@ -52,6 +52,15 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public ICollection<Role> Roles => new[] { new Role { RoleName = "Me" } };
         public ICollection<Permission> Permissions => decoratedRepo.Permissions;
+
+        // Forward the auto-permission-registration bootstrap to the decorated repo; this decorator can sit on top
+        // of the stack, so the ISecurityRepository default no-op would otherwise swallow the call.
+        public void EnsureRequestedPermissions(string[] permissionNames, AutoPermissionsOptions options) =>
+            decoratedRepo.EnsureRequestedPermissions(permissionNames, options);
+
+        public string[] GetGlobalRoles(string[] userLabels, string userAuthenticationType) =>
+            decoratedRepo.GetGlobalRoles(userLabels, userAuthenticationType);
+
         public IEnumerable<Role> GetRoles(User user)
         {
             if (user.UserName.Equals(decoratedUser.Identity.Name, StringComparison.OrdinalIgnoreCase))
@@ -193,6 +202,14 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                     { ScopeDisplayName = assignedUserScope, ScopeName = "Limited Asset Scope" };
             }
         }
+
+        // The asset-scoped decorator has no tenant tree of its own; forward the lazy tenant-tree primitives to the
+        // decorated repository (explicit passthrough so the interface default no-op does not swallow the call).
+        public IReadOnlyList<TenantTreeNode> GetRootTenants(string[] userLabels, string userAuthenticationType)
+            => decoratedRepo.GetRootTenants(userLabels, userAuthenticationType);
+
+        public IReadOnlyList<TenantTreeNode> GetChildTenants(string[] userLabels, string userAuthenticationType, int parentTenantId, int[] carriedRoleIds)
+            => decoratedRepo.GetChildTenants(userLabels, userAuthenticationType, parentTenantId, carriedRoleIds);
 
         /// <summary>
         /// Gets a TimeZone helper objec that is initialized with the given tenants timezone info

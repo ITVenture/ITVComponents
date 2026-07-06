@@ -37,12 +37,15 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var userPerms = provider.GetUserPermissions(out securityRepository, out var isAuthenticated);
             if (isAuthenticated)
             {
-                // Bootstrap: when enabled, materialize permissions that are genuinely requested by a real
-                // authorization gate but do not exist yet (and grant them to the configured admin role). Skipped
-                // for known-only probes (e.g. plugin-name checks), which must not create arbitrary permissions.
-                if (!checkOnlyForKnownPermissions && Security.AutoPermissionRegistration.Enabled)
+                // Bootstrap: when enabled, hand the requested names OFF the hot-path to the background registrar
+                // (no inline DB write). It coalesces them across requests and writes one batch, avoiding the
+                // per-permission write-and-invalidate storm. Skipped for known-only probes (e.g. plugin-name
+                // checks), which must not create arbitrary permissions. The toggle is read live from options.
+                var autoOptions = provider.GetService<IOptions<Security.AutoPermissionsOptions>>()?.Value;
+                var autoRegisterActive = !checkOnlyForKnownPermissions && autoOptions is { Enabled: true };
+                if (autoRegisterActive)
                 {
-                    securityRepository.EnsureRequestedPermissions(requiredPermissions);
+                    provider.GetService<Security.IAutoPermissionRegistrar>()?.Enqueue(requiredPermissions);
                 }
 
                 var permitter = securityRepository;
@@ -58,8 +61,24 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                                 StringComparison.OrdinalIgnoreCase))).ToArray();
                 logger.LogDebug($"Found {extendedPerms.Length} permissions to check.");
                 Array.ForEach(extendedPerms, s => logger.LogDebug(s));
-                return extendedPerms.Length == 0 ||
-                       extendedPerms.Any(t => userPerms.Contains(t, StringComparer.OrdinalIgnoreCase));
+                if (extendedPerms.Length == 0 ||
+                    extendedPerms.Any(t => userPerms.Contains(t, StringComparer.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+
+                // Auto-registration fast-path: a member of the configured receiver global role is granted every
+                // requested permission once the background batch lands, so authorize optimistically instead of
+                // making the admin wait for the write -> change-signal -> re-resolve round-trip on a first visit.
+                // Only consulted here, on a miss — so it adds no cost once the catalogue is populated.
+                if (autoRegisterActive && !string.IsNullOrEmpty(autoOptions.GrantToGlobalRole) &&
+                    provider.CurrentUserInGlobalRole(securityRepository, autoOptions.GrantToGlobalRole))
+                {
+                    logger.LogDebug($"Optimistically granting via auto-register receiver role '{autoOptions.GrantToGlobalRole}'.");
+                    return true;
+                }
+
+                return false;
             }
 
             return false;
@@ -88,7 +107,29 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         }
 
         /// <summary>
-        /// Verifies whether the current user is in a legal context 
+        /// Indicates whether the current user holds the given global role. Used by the auto-registration fast-path;
+        /// resolved through the security repository, which surfaces the global roles reached via the user's
+        /// (tenant-)roles' global-to-local-role mapping.
+        /// </summary>
+        /// <param name="provider">the service-provider for the current scope</param>
+        /// <param name="repository">the security repository resolved for the current request</param>
+        /// <param name="globalRoleName">the global role to check membership for</param>
+        /// <returns>a value indicating whether the current user effectively holds the global role</returns>
+        private static bool CurrentUserInGlobalRole(this IServiceProvider provider, ISecurityRepository repository, string globalRoleName)
+        {
+            if (repository == null || string.IsNullOrEmpty(globalRoleName) ||
+                !provider.IsUserAuthenticated(out _, out var identities))
+            {
+                return false;
+            }
+
+            return identities.Any(i =>
+                repository.GetGlobalRoles(i.Labels, i.AuthenticationType)
+                    .Contains(globalRoleName, StringComparer.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Verifies whether the current user is in a legal context
         /// </summary>
         /// <param name="services">the service-provider that holds all services for the current request</param>
         /// <returns>a value indicating whether the user is valid in the current context</returns>

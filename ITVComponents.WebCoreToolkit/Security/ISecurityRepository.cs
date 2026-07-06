@@ -37,7 +37,8 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// is a no-op, so repositories that do not back a writable store are unaffected.
         /// </summary>
         /// <param name="permissionNames">the permission names requested by the current authorization check</param>
-        void EnsureRequestedPermissions(string[] permissionNames)
+        /// <param name="options">the resolved auto-permission-registration configuration</param>
+        void EnsureRequestedPermissions(string[] permissionNames, AutoPermissionsOptions options)
         {
         }
 
@@ -170,6 +171,46 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
         /// <returns>an enumerable of permissions for the given user-labels</returns>
         IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType);
+
+        /// <summary>
+        /// Gets the names of the global roles the given user effectively holds in the current scope — i.e. the
+        /// global roles reached through the user's (tenant-)roles via the global-to-local-role mapping. Used by the
+        /// auto-permission-registration fast-path: a member of the configured receiver global role will be granted
+        /// every requested permission, so the authorization gate can grant access optimistically without waiting
+        /// for the background write. The default implementation returns an empty set (repositories without a global
+        /// role concept are unaffected).
+        /// </summary>
+        /// <param name="userLabels">the labels that describe the current user</param>
+        /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
+        /// <returns>the names of the global roles held by the user</returns>
+        string[] GetGlobalRoles(string[] userLabels, string userAuthenticationType) => Array.Empty<string>();
+
+        /// <summary>
+        /// Returns the topmost tenants the given user may switch into — the roots of a lazily-expandable tenant
+        /// tree. A tenant is included when the user holds at least one <b>permission</b> there (directly, or via a
+        /// role inherited down the tenant hierarchy, incl. permissions a local role draws from a global role).
+        /// Pass-through tenants (a role but no permission) are collapsed, so every returned node is genuinely
+        /// accessible and each carries the role-ids needed to expand it (<see cref="TenantTreeNode.CarriedRoleIds"/>).
+        /// The default implementation returns an empty list (only the hierarchy repository builds a tenant tree).
+        /// </summary>
+        /// <param name="userLabels">the labels that describe the current user</param>
+        /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
+        /// <returns>the accessible root tenants</returns>
+        IReadOnlyList<TenantTreeNode> GetRootTenants(string[] userLabels, string userAuthenticationType) => Array.Empty<TenantTreeNode>();
+
+        /// <summary>
+        /// Returns the accessible child tenants of <paramref name="parentTenantId"/> — the nearest accessible
+        /// descendants, with any pass-through tenants collapsed (Option B). <paramref name="carriedRoleIds"/> are
+        /// the role-ids the user holds at the parent node (from that node's <see cref="TenantTreeNode.CarriedRoleIds"/>),
+        /// used to resolve one level down without re-walking from the top. The default implementation returns an
+        /// empty list.
+        /// </summary>
+        /// <param name="userLabels">the labels that describe the current user</param>
+        /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
+        /// <param name="parentTenantId">the tenant whose accessible children are requested</param>
+        /// <param name="carriedRoleIds">the role-ids the user holds at <paramref name="parentTenantId"/></param>
+        /// <returns>the accessible child tenants</returns>
+        IReadOnlyList<TenantTreeNode> GetChildTenants(string[] userLabels, string userAuthenticationType, int parentTenantId, int[] carriedRoleIds) => Array.Empty<TenantTreeNode>();
 
         /// <summary>
         /// Gets an enumeration of Permissions for a set of user-labels that is appropriate for the given user

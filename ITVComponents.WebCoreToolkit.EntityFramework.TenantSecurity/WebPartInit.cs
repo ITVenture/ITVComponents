@@ -100,9 +100,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
             // --- Strategy-independent shared services ---
             // Bootstrap toggle: let the authorization hot-path materialize requested-but-missing permissions on a
             // fresh database (and optionally grant them to an admin global role), so the permission catalogue is
-            // not kept in a static seed that must stay in sync between the toolkit and its consumers.
-            ITVComponents.WebCoreToolkit.Security.AutoPermissionRegistration.Enabled = partActivation.AutoRegisterRequestedPermissions;
-            ITVComponents.WebCoreToolkit.Security.AutoPermissionRegistration.GrantToGlobalRole = partActivation.AutoRegisterPermissionsGrantRole;
+            // not kept in a static seed that must stay in sync between the toolkit and its consumers. Wired through
+            // the options pipeline so it is resolved live from DI at the point of use.
+            services.Configure<ITVComponents.WebCoreToolkit.Security.AutoPermissionsOptions>(o =>
+            {
+                o.Enabled = partActivation.AutoRegisterRequestedPermissions;
+                o.GrantToGlobalRole = partActivation.AutoRegisterPermissionsGrantRole;
+                o.DebounceMilliseconds = partActivation.AutoRegisterDebounceMilliseconds;
+            });
+
+            if (partActivation.AutoRegisterRequestedPermissions)
+            {
+                // Background sink: the authorization hot-path only enqueues requested-but-missing permission names;
+                // this singleton coalesces them across requests and writes one batch (one SaveChanges / one
+                // security change-signal), instead of an inline write-and-invalidate per permission.
+                services.AddSingleton<ITVComponents.WebCoreToolkit.Security.AutoPermissionRegistrar>();
+                services.AddSingleton<ITVComponents.WebCoreToolkit.Security.IAutoPermissionRegistrar>(sp =>
+                    sp.GetRequiredService<ITVComponents.WebCoreToolkit.Security.AutoPermissionRegistrar>());
+            }
 
             if (partActivation.ActivateTemplateFactory)
             {

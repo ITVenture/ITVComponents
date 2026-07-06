@@ -174,15 +174,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// the circuit/request-scoped context; the entity-write-tracker raises the security change-signal, so the
         /// new grants take effect within the live session.
         /// </summary>
-        public void EnsureRequestedPermissions(string[] permissionNames)
+        public void EnsureRequestedPermissions(string[] permissionNames, AutoPermissionsOptions options)
         {
-            if (!AutoPermissionRegistration.Enabled || permissionNames == null || permissionNames.Length == 0)
+            if (options is not { Enabled: true } || permissionNames == null || permissionNames.Length == 0)
             {
                 return;
             }
 
+            // Called off the hot-path by the batching registrar with an already-deduped set; the create/grant is
+            // additionally idempotent against the database (existence + already-granted checks below).
             var pending = permissionNames
-                .Where(n => !string.IsNullOrWhiteSpace(n) && AutoPermissionRegistration.TryClaim(n))
+                .Where(n => !string.IsNullOrWhiteSpace(n))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (pending.Length == 0)
@@ -190,7 +192,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 return;
             }
 
-            var grantRoleName = AutoPermissionRegistration.GrantToGlobalRole;
+            var grantRoleName = options.GrantToGlobalRole;
             try
             {
                 using var lease = LeaseContext();
@@ -249,14 +251,50 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             }
             catch (Exception e)
             {
-                // Release the claims so a transient failure does not permanently suppress registration.
-                foreach (var name in pending)
-                {
-                    AutoPermissionRegistration.ReleaseClaim(name);
-                }
-
+                // The registrar releases the batch on failure, so a later request re-enqueues and retries.
                 logger.LogError(e, "Auto-permission-registration failed; the affected permissions will be retried on a later request.");
             }
+        }
+
+        /// <summary>
+        /// Gets the names of the global roles the given user effectively holds in the current tenant scope,
+        /// reached via the user's tenant-roles' <c>PermittedGlobalRoles</c> mapping. Mirrors the global-role branch
+        /// of <see cref="GetPermissions(string[],string)"/>; see <see cref="ISecurityRepository.GetGlobalRoles"/>.
+        /// </summary>
+        public virtual string[] GetGlobalRoles(string[] userLabels, string userAuthenticationType)
+        {
+            using var lease = LeaseContext();
+            var securityContext = lease.Context;
+            using var tmp = new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
+            if (securityContext.CurrentTenantId == null)
+            {
+                // No current tenant scope -> no tenant-role-derived global roles to resolve. Degrade gracefully
+                // (the optimistic fast-path simply does not apply) rather than dereferencing a null tenant id.
+                return Array.Empty<string>();
+            }
+
+            IQueryable<TUser> tenantUsers;
+            if (userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern)))
+            {
+                tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
+            }
+            else
+            {
+                var filteredLabels = (from ul in userLabels
+                    where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == securityContext.CurrentTenantId.Value);
+                tenantUsers = appUsers
+                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Select(n => n.TenantUser.User);
+            }
+
+            var roles = from tr in tenantUsers.Where(UserFilter(userLabels, userAuthenticationType))
+                    .Join(securityContext.TenantUsers, UserId, tr => tr.UserId, (tu, tt) => tt)
+                join ur in securityContext.TenantUserRoles on tr.TenantUserId equals ur.TenantUserId.Value
+                join r in securityContext.SecurityRoles on new { RoleId = ur.RoleId.Value, tr.TenantId } equals new { r.RoleId, r.TenantId }
+                select r;
+            return roles.SelectMany(n => n.PermittedGlobalRoles.Select(pgr => pgr.GlobalRole.RoleName)).Distinct().ToArray();
         }
 
         /// <summary>
