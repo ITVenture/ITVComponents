@@ -147,7 +147,8 @@ else
             TenantName = tenant.TenantName,
             DisplayName = tenant.DisplayName,
             TimeZone = tenant.TimeZone,
-            TenantTypeId = tenant.TenantTypeId
+            TenantTypeId = tenant.TenantTypeId,
+            ParentTenantId = tenant.ParentTenantId
         };
         var parameters = new DialogParameters<TenantDialog>
         {
