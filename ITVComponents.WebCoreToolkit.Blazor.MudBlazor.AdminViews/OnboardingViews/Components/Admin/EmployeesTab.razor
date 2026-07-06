@@ -104,7 +104,7 @@ else
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: EmployeeViewModel input })
         {
-            var ok = await InvitationHandler.CreateEmployeeInvitationAsync(currentUser, new EmployeeInvitationInput(TenantId, input.EMail, input.FirstName, input.LastName));
+            var ok = await InvitationHandler.CreateEmployeeInvitationAsync(currentUser, new EmployeeInvitationInput(input.EMail, input.FirstName, input.LastName));
             if (ok)
             {
                 // The invitation handler creates the row and sends the invite mail (best-effort, logged on failure).

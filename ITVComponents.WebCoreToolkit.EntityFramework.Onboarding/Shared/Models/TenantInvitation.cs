@@ -45,8 +45,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models
         [MaxLength(256)]
         public string TemplateName { get; set; }
 
-        /// <summary>TenantUserId of the admin who issued the invitation (no FK; bookkeeping).</summary>
-        public int? CreatedByTenantUserId { get; set; }
+        /// <summary>
+        /// Id of the user that issued the invitation (no FK; bookkeeping). Deliberately the user id, not a
+        /// TenantUser id: under the hierarchy strategy the issuing admin may hold the inviting tenant purely
+        /// through an inherited parent membership and have no TenantUser row on it.
+        /// </summary>
+        [MaxLength(450)]
+        public string CreatedByUserId { get; set; }
 
         public DateTime CreatedUtc { get; set; }
 

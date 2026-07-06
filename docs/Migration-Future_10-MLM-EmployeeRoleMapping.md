@@ -39,7 +39,7 @@ die Blazor-Admin-Views. Toolkit-Commit `41c61b4d`.
    konsumenten-seitigen Extension **`modelBuilder.ConfigureOnboardingModel()`**.
 3. **`TenantInvitation.ParentTenantId`** ist jetzt ein **echter** navigationsloser Restrict-FK (kommt
    ebenfalls aus `ConfigureOnboardingModel()`). `ChildTenantId` / `AcceptedByUserId` /
-   `CreatedByTenantUserId` bleiben **bewusst** FK-los (Audit-/Snapshot-Spalten).
+   `CreatedByUserId` bleiben **bewusst** FK-los (Audit-/Snapshot-Spalten).
 
 **Warum:** Der WebPart läuft nicht zur Design-Time → schema-formende Config (FKs), die nur dort sass,
 fehlte den Migrations (Drift; außerdem Doppel-Konfiguration zur Laufzeit, mutmaßlicher Auslöser des

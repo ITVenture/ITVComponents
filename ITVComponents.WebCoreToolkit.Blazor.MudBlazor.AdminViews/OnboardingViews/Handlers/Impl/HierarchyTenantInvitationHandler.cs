@@ -15,9 +15,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingVie
 
 /// <summary>
 /// Hierarchy-strategy implementation of <see cref="ITenantInvitationHandler"/>. Operates against
-/// <c>IHierarchySecurityContextWithOnboarding</c>. All admin operations require the caller to be an
-/// enabled member of the affected tenant; employee queries bypass the onboarding global filters and scope
-/// explicitly by tenant instead, so an admin reliably sees every row of the tenant they manage.
+/// <c>IHierarchySecurityContextWithOnboarding</c>. Every operation is gated by the caller's permissions in the
+/// current permission-scope (which the centralized auth already restricts to their enabled, possibly inherited,
+/// access on the ambient tenant) and scopes strictly to <c>CurrentTenantId</c>. Employee queries bypass the
+/// onboarding global filters and scope explicitly by tenant instead, so an admin reliably sees every row of the
+/// tenant they manage.
 /// </summary>
 public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandler
     where TContext : DbContext, IHierarchySecurityContextWithOnboarding
@@ -46,9 +48,10 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     public async Task<TenantPickerItem?> GetCurrentTenantAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        // The page invites from the ambient scope tenant; CurrentTenantId reflects exactly that selection.
+        // The page invites from the ambient scope tenant; CurrentTenantId reflects exactly that selection. The
+        // permission-scope check already restricts the caller to their enabled (possibly inherited) access on it.
         var current = db.CurrentTenantId ?? 0;
-        if (current == 0 || await GetMembershipAsync(db, admin, current, ct) == null)
+        if (current == 0 || !HasAny(OnboardingAdminPermissions.AnyAccess))
         {
             return null;
         }
@@ -79,37 +82,37 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     public async Task<TenantInvitationResult> CreateTenantInvitationAsync(ClaimsPrincipal admin, TenantInvitationInput input, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var membership = await GetMembershipAsync(db, admin, input.ParentTenantId, ct);
-        if (membership == null)
-        {
-            return new TenantInvitationResult(false, 0, null, default, "You are not a member of the inviting tenant.");
-        }
-
-        if (!HasAny(OnboardingAdminPermissions.SubTenantsWrite))
+        var current = db.CurrentTenantId ?? 0;
+        if (current == 0 || !HasAny(OnboardingAdminPermissions.SubTenantsWrite))
         {
             return new TenantInvitationResult(false, 0, null, default, "You are not permitted to invite sub-tenants.");
         }
+
+        // Audit-only reference to the issuing user (no FK). We record the user id, not a TenantUser id: the
+        // caller may hold the current tenant purely through an inherited parent membership and have no TenantUser
+        // row on it, and we must never pin a foreign tenant's TenantUser here.
+        var owner = await userManager.GetUserAsync(admin);
 
         var token = GenerateToken();
         var expires = DateTime.UtcNow.AddDays(input.LifetimeDays is > 0 ? input.LifetimeDays.Value : DefaultLifetimeDays);
 
         var invitation = new TenantInvitation
         {
-            ParentTenantId = input.ParentTenantId,
+            ParentTenantId = current,
             Email = input.Email,
             Token = token,
             ExpiresUtc = expires,
             Status = InvitationStatus.Pending,
             RoleName = input.RoleName,
             TemplateName = input.TemplateName,
-            CreatedByTenantUserId = membership.TenantUserId,
+            CreatedByUserId = owner?.Id,
             CreatedUtc = DateTime.UtcNow
         };
         db.TenantInvitations.Add(invitation);
         await db.SaveChangesAsync(ct);
 
         var parentName = await db.Tenants.AsNoTracking()
-            .Where(t => t.TenantId == input.ParentTenantId)
+            .Where(t => t.TenantId == current)
             .Select(t => t.DisplayName ?? t.TenantName)
             .FirstOrDefaultAsync(ct) ?? "";
         var link = BuildAbsoluteLink($"/Account/Onboarding/Invitation/{token}");
@@ -118,17 +121,17 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
         return new TenantInvitationResult(true, invitation.TenantInvitationId, token, expires, null, mailSent);
     }
 
-    public async Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, int parentTenantId, CancellationToken ct = default)
+    public async Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        if (!HasAny(OnboardingAdminPermissions.SubTenantsRead)
-            || await GetMembershipAsync(db, admin, parentTenantId, ct) == null)
+        var current = db.CurrentTenantId ?? 0;
+        if (current == 0 || !HasAny(OnboardingAdminPermissions.SubTenantsRead))
         {
             return Array.Empty<TenantInvitationItem>();
         }
 
         return await db.TenantInvitations.AsNoTracking()
-            .Where(i => i.ParentTenantId == parentTenantId)
+            .Where(i => i.ParentTenantId == current)
             .OrderByDescending(i => i.CreatedUtc)
             .Select(i => new TenantInvitationItem(i.TenantInvitationId, i.ParentTenantId, i.Email, i.Token,
                 i.ExpiresUtc, i.CreatedUtc, i.Status, i.ChildTenantId))
@@ -138,13 +141,17 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     public async Task<bool> RevokeTenantInvitationAsync(ClaimsPrincipal admin, int tenantInvitationId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var invitation = await db.TenantInvitations.FirstOrDefaultAsync(i => i.TenantInvitationId == tenantInvitationId, ct);
-        if (invitation == null || invitation.Status != InvitationStatus.Pending)
+        var current = db.CurrentTenantId ?? 0;
+        if (current == 0 || !HasAny(OnboardingAdminPermissions.SubTenantsWrite))
         {
             return false;
         }
 
-        if (!HasAny(OnboardingAdminPermissions.SubTenantsWrite) || await GetMembershipAsync(db, admin, invitation.ParentTenantId, ct) == null)
+        // Scope the row to the current tenant: an unscoped id would otherwise let an admin of tenant A revoke a
+        // sub-tenant invitation issued under tenant B. Requiring ParentTenantId == current closes that.
+        var invitation = await db.TenantInvitations
+            .FirstOrDefaultAsync(i => i.TenantInvitationId == tenantInvitationId && i.ParentTenantId == current, ct);
+        if (invitation == null || invitation.Status != InvitationStatus.Pending)
         {
             return false;
         }
@@ -186,24 +193,25 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     public async Task<bool> CreateEmployeeInvitationAsync(ClaimsPrincipal admin, EmployeeInvitationInput input, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        if (!HasAny(OnboardingAdminPermissions.EmployeesWrite) || await GetMembershipAsync(db, admin, input.TenantId, ct) == null)
+        var current = db.CurrentTenantId ?? 0;
+        if (current == 0 || !HasAny(OnboardingAdminPermissions.EmployeesWrite))
         {
             return false;
         }
 
         // The tenant's billing profile anchors employees; an employee invite needs an existing profile.
         var profileId = await db.BillingProfiles.IgnoreQueryFilters().AsNoTracking()
-            .Where(p => p.TenantId == input.TenantId)
+            .Where(p => p.TenantId == current)
             .Select(p => (int?)p.BillingProfileId)
             .FirstOrDefaultAsync(ct);
         if (profileId == null)
         {
-            logger.LogWarning("Employee invitation rejected: tenant {TenantId} has no billing profile.", input.TenantId);
+            logger.LogWarning("Employee invitation rejected: tenant {TenantId} has no billing profile.", current);
             return false;
         }
 
         var alreadyInvited = await db.Employees.IgnoreQueryFilters()
-            .AnyAsync(e => e.TenantId == input.TenantId && e.EMail == input.Email
+            .AnyAsync(e => e.TenantId == current && e.EMail == input.Email
                            && (e.InvitationStatus == InvitationStatus.Pending || e.InvitationStatus == InvitationStatus.Committed), ct);
         if (alreadyInvited)
         {
@@ -215,13 +223,13 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
             InvitationStatus = InvitationStatus.Pending,
             EMail = input.Email,
             BillingProfileId = profileId.Value,
-            TenantId = input.TenantId,
+            TenantId = current,
             FirstName = input.FirstName ?? "",
             LastName = input.LastName ?? ""
         });
         await db.SaveChangesAsync(ct);
 
-        await SendEmployeeInvitationMailAsync(db, input, ct);
+        await SendEmployeeInvitationMailAsync(db, current, input, ct);
         return true;
     }
 
@@ -229,10 +237,10 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     /// Sends the employee invitation mail (employee invites carry no token — the invitee accepts by e-mail
     /// match on the My-Tenants page). A missing transport or a malformed template never fails the invitation.
     /// </summary>
-    private async Task SendEmployeeInvitationMailAsync(TContext db, EmployeeInvitationInput input, CancellationToken ct)
+    private async Task SendEmployeeInvitationMailAsync(TContext db, int tenantId, EmployeeInvitationInput input, CancellationToken ct)
     {
         var tenantName = await db.Tenants.AsNoTracking()
-            .Where(t => t.TenantId == input.TenantId)
+            .Where(t => t.TenantId == tenantId)
             .Select(t => t.DisplayName ?? t.TenantName)
             .FirstOrDefaultAsync(ct) ?? "";
         // Land the invitee on the Join page (anonymous): it guides a brand-new user through register-then-accept
@@ -264,17 +272,17 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
         return nav?.ToAbsoluteUri(relativePath).AbsoluteUri;
     }
 
-    public async Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, int tenantId, CancellationToken ct = default)
+    public async Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        if (!HasAny(OnboardingAdminPermissions.EmployeesRead)
-            || await GetMembershipAsync(db, admin, tenantId, ct) == null)
+        var current = db.CurrentTenantId ?? 0;
+        if (current == 0 || !HasAny(OnboardingAdminPermissions.EmployeesRead))
         {
             return Array.Empty<EmployeeInvitationItem>();
         }
 
         return await db.Employees.IgnoreQueryFilters().AsNoTracking()
-            .Where(e => e.TenantId == tenantId)
+            .Where(e => e.TenantId == current)
             .OrderBy(e => e.EMail)
             .Select(e => new EmployeeInvitationItem(e.EmployeeId, e.TenantId, e.EMail, e.FirstName, e.LastName, e.InvitationStatus))
             .ToArrayAsync(ct);
@@ -283,13 +291,17 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
     public async Task<bool> RevokeEmployeeInvitationAsync(ClaimsPrincipal admin, int employeeId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var employee = await db.Employees.IgnoreQueryFilters().FirstOrDefaultAsync(e => e.EmployeeId == employeeId, ct);
-        if (employee == null || employee.InvitationStatus != InvitationStatus.Pending)
+        var current = db.CurrentTenantId ?? 0;
+        if (current == 0 || !HasAny(OnboardingAdminPermissions.EmployeesWrite))
         {
             return false;
         }
 
-        if (!HasAny(OnboardingAdminPermissions.EmployeesWrite) || await GetMembershipAsync(db, admin, employee.TenantId, ct) == null)
+        // Scope the row to the current tenant: the lookup bypasses the tenant filter, so an unscoped id would
+        // otherwise let a member of tenant A revoke tenant B's invitation. Requiring TenantId == current closes it.
+        var employee = await db.Employees.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(e => e.EmployeeId == employeeId && e.TenantId == current, ct);
+        if (employee == null || employee.InvitationStatus != InvitationStatus.Pending)
         {
             return false;
         }
@@ -297,22 +309,6 @@ public class HierarchyTenantInvitationHandler<TContext> : ITenantInvitationHandl
         employee.InvitationStatus = InvitationStatus.Revoked;
         await db.SaveChangesAsync(ct);
         return true;
-    }
-
-    /// <summary>
-    /// Returns the caller's enabled membership row for <paramref name="tenantId"/>, or null when the caller
-    /// is unknown or not an enabled member — the authorization gate for every admin operation here.
-    /// </summary>
-    private async Task<HierarchyTenantUser> GetMembershipAsync(TContext db, ClaimsPrincipal admin, int tenantId, CancellationToken ct)
-    {
-        var owner = await userManager.GetUserAsync(admin);
-        if (owner == null)
-        {
-            return null;
-        }
-
-        return await db.TenantUsers.IgnoreQueryFilters().AsNoTracking()
-            .FirstOrDefaultAsync(tu => tu.UserId == owner.Id && tu.TenantId == tenantId && tu.Enabled == true, ct);
     }
 
     /// <summary>

@@ -103,7 +103,7 @@
     private async Task Reload()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
-        invitations = await Handler.ListTenantInvitationsAsync(state.User, TenantId);
+        invitations = await Handler.ListTenantInvitationsAsync(state.User);
     }
 
     private async Task OnCreate()
@@ -121,7 +121,7 @@
             var template = settings.AllowTemplateOverride ? templateName : settings.Template;
 
             var result = await Handler.CreateTenantInvitationAsync(state.User,
-                new TenantInvitationInput(TenantId, email.Trim(), RoleName: NullIfBlank(role), TemplateName: NullIfBlank(template)));
+                new TenantInvitationInput(email.Trim(), RoleName: NullIfBlank(role), TemplateName: NullIfBlank(template)));
             if (!result.Succeeded)
             {
                 Snackbar.Add(result.Error ?? L["Onb_Inv_Failed"].Value, Severity.Error);

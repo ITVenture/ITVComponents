@@ -39,15 +39,16 @@ public interface ITenantInvitationHandler
     // -- Tenant invitations -------------------------------------------------------------------------
 
     /// <summary>
-    /// Creates a tenant invitation under <see cref="TenantInvitationInput.ParentTenantId"/> (the caller must
-    /// be an enabled member). Generates a secure token and returns it so the UI can build/send the link.
+    /// Creates a tenant invitation under the caller's current scope tenant (the parent). Gated by
+    /// <c>Onboarding.Admin.SubTenants.Write</c> in the current permission-scope. Generates a secure token and
+    /// returns it so the UI can build/send the link.
     /// </summary>
     Task<TenantInvitationResult> CreateTenantInvitationAsync(ClaimsPrincipal admin, TenantInvitationInput input, CancellationToken ct = default);
 
-    /// <summary>Lists tenant invitations issued under the given parent tenant (membership required).</summary>
-    Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, int parentTenantId, CancellationToken ct = default);
+    /// <summary>Lists tenant invitations issued under the caller's current scope tenant (parent).</summary>
+    Task<TenantInvitationItem[]> ListTenantInvitationsAsync(ClaimsPrincipal admin, CancellationToken ct = default);
 
-    /// <summary>Revokes a still-pending tenant invitation (membership in its parent required). Idempotent.</summary>
+    /// <summary>Revokes a still-pending tenant invitation belonging to the current scope tenant. Idempotent.</summary>
     Task<bool> RevokeTenantInvitationAsync(ClaimsPrincipal admin, int tenantInvitationId, CancellationToken ct = default);
 
     /// <summary>
@@ -59,23 +60,27 @@ public interface ITenantInvitationHandler
     // -- Employee invitations -----------------------------------------------------------------------
 
     /// <summary>
-    /// Invites a user (by e-mail) to join an existing tenant as employee: creates a pending employee row on
-    /// the tenant's billing profile. The invitee accepts via the My-Tenants page. Caller must be a member.
+    /// Invites a user (by e-mail) to join the caller's current scope tenant as employee: creates a pending
+    /// employee row on the tenant's billing profile. The invitee accepts via the My-Tenants page. Gated by
+    /// <c>Onboarding.Admin.Employees.Write</c> in the current permission-scope.
     /// </summary>
     Task<bool> CreateEmployeeInvitationAsync(ClaimsPrincipal admin, EmployeeInvitationInput input, CancellationToken ct = default);
 
-    /// <summary>Lists the employee rows of a tenant (membership required).</summary>
-    Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, int tenantId, CancellationToken ct = default);
+    /// <summary>Lists the employee rows of the caller's current scope tenant.</summary>
+    Task<EmployeeInvitationItem[]> ListEmployeeInvitationsAsync(ClaimsPrincipal admin, CancellationToken ct = default);
 
-    /// <summary>Revokes a still-pending employee invitation (membership in its tenant required). Idempotent.</summary>
+    /// <summary>Revokes a still-pending employee invitation belonging to the current scope tenant. Idempotent.</summary>
     Task<bool> RevokeEmployeeInvitationAsync(ClaimsPrincipal admin, int employeeId, CancellationToken ct = default);
 }
 
 // Invitation permissions were unified into OnboardingAdminPermissions (Onboarding.Admin.Employees.* for
 // employee invitations, Onboarding.Admin.SubTenants.* for sub-tenant invitations) — see IOnboardingAdminHandler.
 
-/// <summary>Request to create a tenant invitation. <paramref name="LifetimeDays"/> null = default (14 days).</summary>
-public record TenantInvitationInput(int ParentTenantId, string Email, int? LifetimeDays = null, string? RoleName = null, string? TemplateName = null);
+/// <summary>
+/// Request to create a tenant invitation under the caller's current scope tenant (the parent is the ambient
+/// tenant, not a caller-supplied id). <paramref name="LifetimeDays"/> null = default (14 days).
+/// </summary>
+public record TenantInvitationInput(string Email, int? LifetimeDays = null, string? RoleName = null, string? TemplateName = null);
 
 /// <summary>
 /// Outcome of creating a tenant invitation. On success carries the token + expiry (so the caller can still
@@ -95,8 +100,8 @@ public record TenantInvitationItem(int TenantInvitationId, int ParentTenantId, s
 /// </summary>
 public record TenantInvitationInfo(int ParentTenantId, string ParentTenantName, string Email, InvitationStatus Status, bool IsAcceptable);
 
-/// <summary>Request to create an employee invitation on an existing tenant.</summary>
-public record EmployeeInvitationInput(int TenantId, string Email, string? FirstName, string? LastName);
+/// <summary>Request to create an employee invitation on the caller's current scope tenant.</summary>
+public record EmployeeInvitationInput(string Email, string? FirstName, string? LastName);
 
 /// <summary>List projection of an employee row for the admin grid.</summary>
 public record EmployeeInvitationItem(int EmployeeId, int TenantId, string Email, string FirstName, string LastName, InvitationStatus InvitationStatus);

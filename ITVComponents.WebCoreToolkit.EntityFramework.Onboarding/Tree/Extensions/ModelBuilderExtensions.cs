@@ -85,7 +85,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Extension
 
             // TenantInvitation: ParentTenantId is the owning/structural reference -> manifest a real DB FK
             // (Restrict; navigation-less so the shared entity stays strategy-agnostic). ChildTenantId,
-            // AcceptedByUserId and CreatedByTenantUserId remain soft audit references BY DESIGN: they must survive
+            // AcceptedByUserId and CreatedByUserId remain soft audit references BY DESIGN: they must survive
             // principal deletion and must not impose delete-ordering constraints.
             modelBuilder.Entity<TenantInvitation>()
                 .HasOne<HierarchyTenant>().WithMany().HasForeignKey(i => i.ParentTenantId)
