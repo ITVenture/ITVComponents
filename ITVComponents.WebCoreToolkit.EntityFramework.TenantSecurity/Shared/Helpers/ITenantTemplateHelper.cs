@@ -33,6 +33,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply);
 
+        /// <summary>
+        /// Applies a template on an EXTERNALLY supplied, caller-owned context instead of leasing a fresh one. Use this
+        /// when the template application must participate in a transaction the caller already opened (e.g. atomic
+        /// tenant onboarding): all writes go through <paramref name="externalContext"/>, so they enlist in the caller's
+        /// ambient transaction and commit/roll back together. The caller owns the context and the transaction — this
+        /// method neither disposes the context nor commits. <paramref name="externalContext"/> must be the concrete
+        /// security-context type the lease would otherwise have produced.
+        /// </summary>
+        void ApplyTemplate(DbContext externalContext, TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply);
+
         void RevokeTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterRevoke);
 
     }

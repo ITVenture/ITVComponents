@@ -14,7 +14,7 @@
     <Columns>
         <TemplateColumn T="PermissionSetActivationViewModel" Title="" Sortable="false">
             <CellTemplate>
-                <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.Write">
+                <SecureView RequiredPermissions="@AssignPermissions">
                     <Permitted>
                         <MudCheckBox T="bool" Value="context.Item.Active" ValueChanged="@(v => Toggle(context.Item, v))" />
                     </Permitted>
@@ -30,6 +30,13 @@
 
 @code {
     [Parameter, EditorRequired] public int DirectMappingId { get; set; }
+
+    /// <summary>
+    /// Comma-separated permissions required to toggle a set's activation (checkbox). Set by the parent per the
+    /// expandable row's kind: DirectRole needs DirectRole|Write; a Delegation parent also accepts the weaker
+    /// delegate-assign tier. Defaults to the DirectRole permissions.
+    /// </summary>
+    [Parameter] public string AssignPermissions { get; set; } = "Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.Write";
 
     private System.Security.Claims.ClaimsPrincipal? currentUser;
     private PermissionSetActivationViewModel[] sets = Array.Empty<PermissionSetActivationViewModel>();

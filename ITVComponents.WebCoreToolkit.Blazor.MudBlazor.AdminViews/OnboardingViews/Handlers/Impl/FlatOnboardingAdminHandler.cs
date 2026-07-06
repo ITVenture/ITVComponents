@@ -4,9 +4,12 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
+using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 
@@ -35,10 +38,13 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public bool CanManage(ClaimsPrincipal user) => services.VerifyUserPermissions(OnboardingAdminPermissions.AnyAccess);
 
+    public bool ForceDedicatedRoleForMappings =>
+        services.GetService<IGlobalSettings<TenantSetupOptions>>()?.ValueOrDefault?.ForceDedicatedRoleForMappings ?? false;
+
     public async Task<TenantPickerItem?> GetCurrentTenantAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.AnyAccess);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.AnyAccess);
         if (!ok)
         {
             return null;
@@ -53,7 +59,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<BillingProfileAdminViewModel[]> ListBillingProfilesAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.BillingProfileRead);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.BillingProfileRead);
         if (!ok)
         {
             return Array.Empty<BillingProfileAdminViewModel>();
@@ -83,7 +89,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<BillingProfileAdminViewModel?> GetBillingProfileAsync(ClaimsPrincipal admin, int billingProfileId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.BillingProfileRead);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.BillingProfileRead);
         if (!ok)
         {
             return null;
@@ -118,7 +124,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<int?> SaveBillingProfileAsync(ClaimsPrincipal admin, BillingProfileAdminViewModel model, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.BillingProfileWrite);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.BillingProfileWrite);
         if (!ok)
         {
             return null;
@@ -163,7 +169,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<EmployeeViewModel[]> ListEmployeesAsync(ClaimsPrincipal admin, int billingProfileId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.EmployeesRead);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.EmployeesRead);
         if (!ok || !await ProfileInScopeAsync(db, billingProfileId, current, ct))
         {
             return Array.Empty<EmployeeViewModel>();
@@ -188,7 +194,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<int?> SaveEmployeeAsync(ClaimsPrincipal admin, EmployeeViewModel model, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.EmployeesWrite);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.EmployeesWrite);
         if (!ok || !await ProfileInScopeAsync(db, model.BillingProfileId, current, ct))
         {
             return null;
@@ -222,7 +228,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<bool> DeleteEmployeeAsync(ClaimsPrincipal admin, int employeeId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.EmployeesWrite);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.EmployeesWrite);
         if (!ok)
         {
             return false;
@@ -246,7 +252,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<EmployeeRoleAssignmentViewModel[]> ListEmployeeRolesAsync(ClaimsPrincipal admin, int employeeId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.EmployeesRead);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.EmployeesRead);
         if (!ok || !await EmployeeInScopeAsync(db, employeeId, current, ct))
         {
             return Array.Empty<EmployeeRoleAssignmentViewModel>();
@@ -265,6 +271,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             {
                 RoleId = m.EmployeeRoleMappingId,
                 RoleName = m.Role.RoleName,
+                DisplayNameJson = m.DisplayNameJson,
                 Assigned = assigned.Contains(m.EmployeeRoleMappingId)
             })
             .ToArrayAsync(ct);
@@ -273,7 +280,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<bool> SetEmployeeRoleAsync(ClaimsPrincipal admin, int employeeId, int employeeRoleMappingId, bool assigned, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.EmployeesWrite);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.EmployeesWrite);
         if (!ok || !await EmployeeInScopeAsync(db, employeeId, current, ct))
         {
             return false;
@@ -307,14 +314,25 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<EmployeeRoleMappingViewModel[]> ListRoleMappingsAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.RoleMappingsRead);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.RoleMappingsRead);
         if (!ok)
         {
             return Array.Empty<EmployeeRoleMappingViewModel>();
         }
 
+        // Only surface rows the caller may act on: DirectRole rows need DirectRole|Write, PermissionSet rows need
+        // PermissionSet|Write, Delegation rows need either the Delegation full-edit or the weaker delegate-assign
+        // tier. A user holding none of a kind's permissions sees that kind filtered out. The kind-specific write
+        // buttons in the UI are gated the same way.
+        var canDirect = services.VerifyUserPermissions(OnboardingAdminPermissions.DirectRoleWrite);
+        var canPermSet = services.VerifyUserPermissions(OnboardingAdminPermissions.PermissionSetWrite);
+        var canDelegation = services.VerifyUserPermissions(OnboardingAdminPermissions.DelegationAssign);
+
         return await db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
             .Where(m => m.TenantId == current)
+            .Where(m => (m.Kind == EmployeeRoleMappingKind.DirectRole && canDirect)
+                     || (m.Kind == EmployeeRoleMappingKind.PermissionSet && canPermSet)
+                     || (m.Kind == EmployeeRoleMappingKind.Delegation && canDelegation))
             .OrderBy(m => m.Kind).ThenBy(m => m.Role.RoleName)
             .Select(m => new EmployeeRoleMappingViewModel
             {
@@ -330,7 +348,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<TenantRoleOption[]> ListTenantRolesAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.RoleMappingsRead);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.RoleMappingsRead);
         if (!ok)
         {
             return Array.Empty<TenantRoleOption>();
@@ -346,11 +364,16 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<int?> SaveRoleMappingAsync(ClaimsPrincipal admin, EmployeeRoleMappingViewModel model, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        // Creating/editing a mapping requires write authority for its kind (or the generic role-mappings write).
-        var required = model.Kind == EmployeeRoleMappingKind.DirectRole
-            ? OnboardingAdminPermissions.DirectRoleWrite
-            : OnboardingAdminPermissions.PermissionSetWrite;
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, required);
+        // Creating/editing a mapping requires FULL write authority for its kind (or the generic role-mappings
+        // write). For Delegation this is the full-edit tier — the weaker delegate-assign tier may not create/rename.
+        var required = model.Kind switch
+        {
+            EmployeeRoleMappingKind.DirectRole => OnboardingAdminPermissions.DirectRoleWrite,
+            EmployeeRoleMappingKind.PermissionSet => OnboardingAdminPermissions.PermissionSetWrite,
+            EmployeeRoleMappingKind.Delegation => OnboardingAdminPermissions.DelegationWrite,
+            _ => OnboardingAdminPermissions.RoleMappingsAnyWrite
+        };
+        var (ok, current) = Authorize(db,required);
         if (!ok)
         {
             return null;
@@ -369,6 +392,14 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         else
         {
             var roleId = model.RoleId;
+            var forceNew = ForceDedicatedRoleForMappings;
+            // Production guard: when dedicated roles are forced, linking a pre-existing role is rejected — a mapping
+            // must always own a freshly created role (the UI hides the picker; this enforces it authoritatively).
+            if (roleId != 0 && forceNew)
+            {
+                return null;
+            }
+
             if (roleId == 0)
             {
                 if (string.IsNullOrWhiteSpace(model.NewRoleName))
@@ -376,18 +407,38 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
                     return null;
                 }
 
-                var existingRole = await db.SecurityRoles.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(r => r.TenantId == current && r.RoleName == model.NewRoleName, ct);
-                if (existingRole != null)
+                var baseName = model.NewRoleName.Trim();
+                if (forceNew)
                 {
-                    roleId = existingRole.RoleId;
-                }
-                else
-                {
-                    var role = new Role { TenantId = current, RoleName = model.NewRoleName, IsSystemRole = false };
+                    // Always a fresh dedicated role: never reuse an existing one. On a name collision, auto-suffix
+                    // (Name_1, Name_2, …); give up (fail the save) once the base and five suffixes are all taken.
+                    var freeName = await FindFreeRoleNameAsync(db, current, baseName, ct);
+                    if (freeName == null)
+                    {
+                        return null;
+                    }
+
+                    var role = new Role { TenantId = current, RoleName = freeName, IsSystemRole = false };
                     db.SecurityRoles.Add(role);
                     await db.SaveChangesAsync(ct);
                     roleId = role.RoleId;
+                }
+                else
+                {
+                    // Convenience path: reuse an existing same-named role, otherwise create it.
+                    var existingRole = await db.SecurityRoles.IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(r => r.TenantId == current && r.RoleName == baseName, ct);
+                    if (existingRole != null)
+                    {
+                        roleId = existingRole.RoleId;
+                    }
+                    else
+                    {
+                        var role = new Role { TenantId = current, RoleName = baseName, IsSystemRole = false };
+                        db.SecurityRoles.Add(role);
+                        await db.SaveChangesAsync(ct);
+                        roleId = role.RoleId;
+                    }
                 }
             }
             else if (!await db.SecurityRoles.AsNoTracking().AnyAsync(r => r.RoleId == roleId && r.TenantId == current, ct))
@@ -399,16 +450,38 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             db.EmployeeRoleMappings.Add(mapping);
         }
 
+        // Note: on edit only Kind + DisplayNameJson change. The underlying SecurityRole keeps the name it was
+        // created with (stable template key), so renaming the mapping never renames its role.
         mapping.Kind = model.Kind;
         mapping.DisplayNameJson = model.DisplayNameJson;
         await db.SaveChangesAsync(ct);
         return mapping.EmployeeRoleMappingId;
     }
 
+    /// <summary>
+    /// Finds a free role name in the tenant: the base name if available, otherwise <c>base_1</c>, <c>base_2</c>,
+    /// … <c>base_5</c>. Returns null when the base and all five numbered variants are taken (caller fails the save).
+    /// </summary>
+    private static async Task<string?> FindFreeRoleNameAsync(TContext db, int tenantId, string baseName, CancellationToken ct)
+    {
+        for (var i = 0; i <= 5; i++)
+        {
+            var candidate = i == 0 ? baseName : $"{baseName}_{i}";
+            var taken = await db.SecurityRoles.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(r => r.TenantId == tenantId && r.RoleName == candidate, ct);
+            if (!taken)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     public async Task<bool> DeleteRoleMappingAsync(ClaimsPrincipal admin, int employeeRoleMappingId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.RoleMappingsAnyWrite);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.RoleMappingsAnyWrite);
         if (!ok)
         {
             return false;
@@ -421,10 +494,14 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             return false;
         }
 
-        // Enforce the kind-specific write authority for the row being deleted.
-        var requiredForKind = mapping.Kind == EmployeeRoleMappingKind.DirectRole
-            ? OnboardingAdminPermissions.DirectRoleWrite
-            : OnboardingAdminPermissions.PermissionSetWrite;
+        // Enforce the kind-specific write authority for the row being deleted (Delegation delete needs full edit).
+        var requiredForKind = mapping.Kind switch
+        {
+            EmployeeRoleMappingKind.DirectRole => OnboardingAdminPermissions.DirectRoleWrite,
+            EmployeeRoleMappingKind.PermissionSet => OnboardingAdminPermissions.PermissionSetWrite,
+            EmployeeRoleMappingKind.Delegation => OnboardingAdminPermissions.DelegationWrite,
+            _ => OnboardingAdminPermissions.RoleMappingsAnyWrite
+        };
         if (!services.VerifyUserPermissions(requiredForKind))
         {
             return false;
@@ -443,7 +520,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<PermissionSetActivationViewModel[]> ListActivatablePermissionSetsAsync(ClaimsPrincipal admin, int directMappingId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.RoleMappingsRead);
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.RoleMappingsRead);
         if (!ok)
         {
             return Array.Empty<PermissionSetActivationViewModel>();
@@ -456,9 +533,13 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             return Array.Empty<PermissionSetActivationViewModel>();
         }
 
+        // Inheritance direction: the PermissionSet's role is the PermissiveRole (it GRANTS its permissions), the
+        // DirectRole/Delegation role is the PermittedRole (it RECEIVES them) — that is how the modification
+        // interceptor materializes RolePermissions onto the permitted role. So a set is active on this parent when
+        // a RoleRole exists with PermittedRoleId == parent role and PermissiveRoleId == the set's role.
         var activeRoleIds = await db.RoleRoles.AsNoTracking()
-            .Where(rr => rr.PermissiveRoleId == direct.RoleId)
-            .Select(rr => rr.PermittedRoleId)
+            .Where(rr => rr.PermittedRoleId == direct.RoleId)
+            .Select(rr => rr.PermissiveRoleId)
             .ToListAsync(ct);
 
         return await db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
@@ -467,7 +548,8 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             .Select(m => new PermissionSetActivationViewModel
             {
                 PermissionSetMappingId = m.EmployeeRoleMappingId,
-                Label = m.Role.RoleName,
+                RoleName = m.Role.RoleName,
+                DisplayNameJson = m.DisplayNameJson,
                 Active = activeRoleIds.Contains(m.RoleId)
             })
             .ToArrayAsync(ct);
@@ -476,16 +558,17 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public async Task<bool> SetPermissionSetActivationAsync(ClaimsPrincipal admin, int directMappingId, int permissionSetMappingId, bool active, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        // Activating a set on a DirectRole is a DirectRole write operation.
-        var (ok, current) = await AuthorizeAsync(db, admin, ct, OnboardingAdminPermissions.DirectRoleWrite);
+        // Read-authorize first (we need the parent's kind to pick the right assign authority), then enforce it.
+        var (ok, current) = Authorize(db,OnboardingAdminPermissions.RoleMappingsRead);
         if (!ok)
         {
             return false;
         }
 
+        // The parent may be a DirectRole or a Delegation role; both compose PermissionSets via role inheritance.
         var direct = await db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(m => m.EmployeeRoleMappingId == directMappingId && m.TenantId == current
-                                      && m.Kind == EmployeeRoleMappingKind.DirectRole, ct);
+                                      && (m.Kind == EmployeeRoleMappingKind.DirectRole || m.Kind == EmployeeRoleMappingKind.Delegation), ct);
         var set = await db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(m => m.EmployeeRoleMappingId == permissionSetMappingId && m.TenantId == current
                                       && m.Kind == EmployeeRoleMappingKind.PermissionSet, ct);
@@ -494,12 +577,24 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             return false;
         }
 
+        // Assigning sets to a DirectRole is a DirectRole write; on a Delegation role the weaker delegate-assign tier
+        // is enough (that is the whole point of the Delegation kind).
+        var requiredAssign = direct.Kind == EmployeeRoleMappingKind.Delegation
+            ? OnboardingAdminPermissions.DelegationAssign
+            : OnboardingAdminPermissions.DirectRoleWrite;
+        if (!services.VerifyUserPermissions(requiredAssign))
+        {
+            return false;
+        }
+
+        // The PermissionSet's role is the PermissiveRole (grants permissions), the DirectRole/Delegation role is the
+        // PermittedRole (receives them) — so the interceptor copies the set's permissions onto the parent role.
         var existing = await db.RoleRoles
-            .FirstOrDefaultAsync(rr => rr.PermissiveRoleId == direct.RoleId && rr.PermittedRoleId == set.RoleId, ct);
+            .FirstOrDefaultAsync(rr => rr.PermissiveRoleId == set.RoleId && rr.PermittedRoleId == direct.RoleId, ct);
 
         if (active && existing == null)
         {
-            db.RoleRoles.Add(new RoleRole { PermissiveRoleId = direct.RoleId, PermittedRoleId = set.RoleId });
+            db.RoleRoles.Add(new RoleRole { PermissiveRoleId = set.RoleId, PermittedRoleId = direct.RoleId });
             await db.SaveChangesAsync(ct);
         }
         else if (!active && existing != null)
@@ -512,28 +607,17 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     }
 
     /// <summary>
-    /// Resolves the current scope tenant and enforces the admin gate: a non-zero <c>CurrentTenantId</c>, ANY
-    /// of the <paramref name="requiredAnyOf"/> permissions, and an enabled membership of the caller in that
-    /// tenant. When no permissions are supplied, falls back to "any onboarding-admin permission".
+    /// Resolves the current scope tenant and enforces the admin gate: a non-zero <c>CurrentTenantId</c> plus
+    /// ANY of the <paramref name="requiredAnyOf"/> permissions. The permission check runs against the current
+    /// permission-scope, and the centralized authorization already restricts that to the caller's enabled
+    /// access on the tenant, so no separate membership probe is needed. When no permissions are supplied,
+    /// falls back to "any onboarding-admin permission".
     /// </summary>
-    private async Task<(bool ok, int tenantId)> AuthorizeAsync(TContext db, ClaimsPrincipal admin, CancellationToken ct, params string[] requiredAnyOf)
+    private (bool ok, int tenantId) Authorize(TContext db, params string[] requiredAnyOf)
     {
         var current = db.CurrentTenantId ?? 0;
         var required = requiredAnyOf is { Length: > 0 } ? requiredAnyOf : OnboardingAdminPermissions.AnyAccess;
-        if (current == 0 || !services.VerifyUserPermissions(required))
-        {
-            return (false, 0);
-        }
-
-        var owner = await userManager.GetUserAsync(admin);
-        if (owner == null)
-        {
-            return (false, 0);
-        }
-
-        var member = await db.TenantUsers.IgnoreQueryFilters().AsNoTracking()
-            .AnyAsync(tu => tu.UserId == owner.Id && tu.TenantId == current && tu.Enabled == true, ct);
-        return (member, current);
+        return current == 0 || !services.VerifyUserPermissions(required) ? (false, 0) : (true, current);
     }
 
     private Task<bool> ProfileInScopeAsync(TContext db, int billingProfileId, int current, CancellationToken ct)

@@ -62,8 +62,20 @@ internal static class OnboardingPendingHelper
         return new OnboardingStartResult(true, user.Id, Array.Empty<string>());
     }
 
-    public static async Task<bool> CompleteAsync<TCtx, TUser>(TCtx db, UserManager<TUser> userManager, ClaimsPrincipal principal,
-        Func<ClaimsPrincipal, BillingProfileViewModel, CancellationToken, Task<int?>> createTenant, CancellationToken ct)
+    /// <summary>
+    /// Consumes the pending record and creates the tenant ATOMICALLY: the tenant/profile creation, the template
+    /// application (which <paramref name="createTenant"/> performs on the SAME context it is handed) and flipping the
+    /// pending record to <see cref="InvitationStatus.Committed"/> all run inside one transaction on one connection, so
+    /// a failure anywhere rolls the whole thing back — no half-created tenants, no duplicate tenants on retry. The
+    /// unit of work is wrapped in the context's execution strategy, so it is compatible with a host-configured
+    /// <c>EnableRetryOnFailure</c>; the change tracker is reset per attempt so a retried attempt does not replay
+    /// entities a rolled-back one left tracked. <paramref name="createTenant"/> receives the shared context and, when
+    /// a previous attempt already recorded a tenant (<see cref="PendingOnboarding.CreatedTenantId"/>), that tenant's
+    /// id so it can resume on the existing tenant instead of creating a new one; it returns the created/resumed
+    /// tenant id plus the billing-profile id, or null to signal failure (rolls back).
+    /// </summary>
+    public static async Task<bool> CompleteAsync<TCtx, TUser>(IDbContextFactory<TCtx> dbFactory, UserManager<TUser> userManager, ClaimsPrincipal principal,
+        Func<ClaimsPrincipal, BillingProfileViewModel, TCtx, int?, CancellationToken, Task<(int tenantId, int billingProfileId)?>> createTenant, CancellationToken ct)
         where TCtx : DbContext, IOnboardingPendingContext
         where TUser : IdentityUser
     {
@@ -73,25 +85,38 @@ internal static class OnboardingPendingHelper
             return false;
         }
 
-        var pending = await db.PendingOnboardings
-            .FirstOrDefaultAsync(p => p.Email == owner.Email && p.Status == InvitationStatus.Pending, ct);
-        if (pending == null)
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var strategy = db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            return false;
-        }
+            // An execution-strategy retry re-runs this whole body; drop anything a rolled-back prior attempt left
+            // tracked as Added so it is not re-INSERTed here.
+            db.ChangeTracker.Clear();
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        var profile = string.IsNullOrEmpty(pending.PayloadJson)
-            ? new BillingProfileViewModel()
-            : JsonSerializer.Deserialize<BillingProfileViewModel>(pending.PayloadJson) ?? new BillingProfileViewModel();
+            var pending = await db.PendingOnboardings
+                .FirstOrDefaultAsync(p => p.Email == owner.Email && p.Status == InvitationStatus.Pending, ct);
+            if (pending == null)
+            {
+                return false;
+            }
 
-        var billingProfileId = await createTenant(principal, profile, ct);
-        if (billingProfileId == null)
-        {
-            return false;
-        }
+            var profile = string.IsNullOrEmpty(pending.PayloadJson)
+                ? new BillingProfileViewModel()
+                : JsonSerializer.Deserialize<BillingProfileViewModel>(pending.PayloadJson) ?? new BillingProfileViewModel();
 
-        pending.Status = InvitationStatus.Committed;
-        await db.SaveChangesAsync(ct);
-        return true;
+            var created = await createTenant(principal, profile, db, pending.CreatedTenantId, ct);
+            if (created == null)
+            {
+                return false;
+            }
+
+            // Record the tenant BEFORE committing (resume marker) and flip the pending in the same transaction.
+            pending.CreatedTenantId = created.Value.tenantId;
+            pending.Status = InvitationStatus.Committed;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return true;
+        });
     }
 }

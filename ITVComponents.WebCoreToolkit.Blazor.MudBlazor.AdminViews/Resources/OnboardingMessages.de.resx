@@ -124,11 +124,13 @@
   <data name="OnbAdm_Edit" xml:space="preserve"><value>Bearbeiten</value></data>
   <data name="OnbAdm_Rm_AddDirect" xml:space="preserve"><value>Direkte Rolle hinzufügen</value></data>
   <data name="OnbAdm_Rm_AddPermSet" xml:space="preserve"><value>Berechtigungs-Set hinzufügen</value></data>
+  <data name="OnbAdm_Rm_AddDelegation" xml:space="preserve"><value>Delegationsrolle hinzufügen</value></data>
   <data name="OnbAdm_Rm_AddTitle" xml:space="preserve"><value>Neue Rollendefinition</value></data>
   <data name="OnbAdm_Rm_EditTitle" xml:space="preserve"><value>Rollendefinition</value></data>
   <data name="OnbAdm_Rm_Kind" xml:space="preserve"><value>Art</value></data>
   <data name="OnbAdm_Rm_KindDirect" xml:space="preserve"><value>Direkte Rolle</value></data>
   <data name="OnbAdm_Rm_KindPermSet" xml:space="preserve"><value>Berechtigungs-Set</value></data>
+  <data name="OnbAdm_Rm_KindDelegation" xml:space="preserve"><value>Delegationsrolle</value></data>
   <data name="OnbAdm_Rm_NewRole" xml:space="preserve"><value>(neue Rolle erstellen)</value></data>
   <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>Name der neuen Rolle</value></data>
   <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Anzeigename (optionales JSON)</value></data>

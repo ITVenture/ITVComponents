@@ -28,5 +28,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options
         /// When set, the create-tenant page hides the free parent picker and auto-assigns this parent.
         /// </summary>
         public string DefaultParentTenant { get; set; }
+
+        /// <summary>
+        /// When <c>true</c> (recommended for a productive web), creating an <c>EmployeeRoleMapping</c> always
+        /// creates a NEW, dedicated tenant role: the role-mappings admin UI hides the "wrap an existing role"
+        /// picker and the handler rejects any attempt to link a pre-existing role. This prevents an admin from
+        /// accidentally repurposing an existing (permission-bearing) role as a DirectRole. Defaults to
+        /// <c>false</c> (existing roles may be wrapped into a mapping).
+        /// </summary>
+        public bool ForceDedicatedRoleForMappings { get; set; }
     }
 }

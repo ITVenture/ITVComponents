@@ -24,6 +24,13 @@ public interface IOnboardingAdminHandler
     bool CanManage(ClaimsPrincipal user);
 
     /// <summary>
+    /// True when new role-mappings must always create a dedicated new role (the "wrap an existing role" option is
+    /// disabled), per <c>TenantSetupOptions.ForceDedicatedRoleForMappings</c>. The dialog hides the role picker
+    /// accordingly; the handler enforces it on save regardless of the UI.
+    /// </summary>
+    bool ForceDedicatedRoleForMappings { get; }
+
+    /// <summary>
     /// The tenant the editor operates on: the caller's currently selected scope tenant. Returns null when
     /// there is no current tenant scope or the caller is not an enabled member of it.
     /// </summary>
@@ -122,6 +129,12 @@ public static class OnboardingAdminPermissions
     public const string RoleMappingsWrite = "Onboarding.Admin.RoleMappings.Write";
     public const string RoleMappingsDirectRole = "Onboarding.Admin.RoleMappings.DirectRole";
     public const string RoleMappingsPermissionSet = "Onboarding.Admin.RoleMappings.PermissionSet";
+
+    /// <summary>Full edit of a Delegation mapping (create/edit/delete/rename), analogous to the other kind-permissions.</summary>
+    public const string RoleMappingsDelegation = "Onboarding.Admin.RoleMappings.Delegation";
+
+    /// <summary>Weaker "delegate" tier: see a Delegation role and activate/deactivate its PermissionSets only — no create/edit/delete/rename.</summary>
+    public const string RoleMappingsDelegationAssign = "Onboarding.Admin.RoleMappings.DelegationAssign";
     public const string SubTenantsView = "Onboarding.Admin.SubTenants.View";
     public const string SubTenantsWrite = "Onboarding.Admin.SubTenants.Write";
 
@@ -132,7 +145,7 @@ public static class OnboardingAdminPermissions
     public static readonly string[] EmployeesRead = { EmployeesView, EmployeesWrite };
 
     /// <summary>Read access to the role-mappings tab (any of its permissions).</summary>
-    public static readonly string[] RoleMappingsRead = { RoleMappingsView, RoleMappingsWrite, RoleMappingsDirectRole, RoleMappingsPermissionSet };
+    public static readonly string[] RoleMappingsRead = { RoleMappingsView, RoleMappingsWrite, RoleMappingsDirectRole, RoleMappingsPermissionSet, RoleMappingsDelegation, RoleMappingsDelegationAssign };
 
     /// <summary>Write a DirectRole mapping: the DirectRole kind-permission or the generic role-mappings write.</summary>
     public static readonly string[] DirectRoleWrite = { RoleMappingsDirectRole, RoleMappingsWrite };
@@ -140,8 +153,17 @@ public static class OnboardingAdminPermissions
     /// <summary>Write a PermissionSet mapping: the PermissionSet kind-permission or the generic role-mappings write.</summary>
     public static readonly string[] PermissionSetWrite = { RoleMappingsPermissionSet, RoleMappingsWrite };
 
+    /// <summary>Full edit of a Delegation mapping (create/edit/delete/rename): the Delegation kind-permission or the generic write.</summary>
+    public static readonly string[] DelegationWrite = { RoleMappingsDelegation, RoleMappingsWrite };
+
+    /// <summary>
+    /// May see a Delegation role and assign PermissionSets to it: either the full-edit tier (Delegation kind /
+    /// generic write) or the weaker delegate tier (<see cref="RoleMappingsDelegationAssign"/>).
+    /// </summary>
+    public static readonly string[] DelegationAssign = { RoleMappingsDelegation, RoleMappingsWrite, RoleMappingsDelegationAssign };
+
     /// <summary>Any write within role mappings (used to gate delete before the row's kind is known).</summary>
-    public static readonly string[] RoleMappingsAnyWrite = { RoleMappingsDirectRole, RoleMappingsPermissionSet, RoleMappingsWrite };
+    public static readonly string[] RoleMappingsAnyWrite = { RoleMappingsDirectRole, RoleMappingsPermissionSet, RoleMappingsDelegation, RoleMappingsWrite };
 
     /// <summary>Read access to the sub-tenant invitations tab (View or Write).</summary>
     public static readonly string[] SubTenantsRead = { SubTenantsView, SubTenantsWrite };
@@ -151,6 +173,7 @@ public static class OnboardingAdminPermissions
     {
         BillingProfileView, BillingProfileWrite, EmployeesView, EmployeesWrite,
         RoleMappingsView, RoleMappingsWrite, RoleMappingsDirectRole, RoleMappingsPermissionSet,
+        RoleMappingsDelegation, RoleMappingsDelegationAssign,
         SubTenantsView, SubTenantsWrite
     };
 }

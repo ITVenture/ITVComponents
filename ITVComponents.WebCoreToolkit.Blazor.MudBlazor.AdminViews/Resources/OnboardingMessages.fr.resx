@@ -69,11 +69,13 @@
   <data name="OnbAdm_Edit" xml:space="preserve"><value>Modifier</value></data>
   <data name="OnbAdm_Rm_AddDirect" xml:space="preserve"><value>Ajouter un rôle direct</value></data>
   <data name="OnbAdm_Rm_AddPermSet" xml:space="preserve"><value>Ajouter un ensemble d'autorisations</value></data>
+  <data name="OnbAdm_Rm_AddDelegation" xml:space="preserve"><value>Ajouter un rôle de délégation</value></data>
   <data name="OnbAdm_Rm_AddTitle" xml:space="preserve"><value>Nouvelle définition de rôle</value></data>
   <data name="OnbAdm_Rm_EditTitle" xml:space="preserve"><value>Définition de rôle</value></data>
   <data name="OnbAdm_Rm_Kind" xml:space="preserve"><value>Type</value></data>
   <data name="OnbAdm_Rm_KindDirect" xml:space="preserve"><value>Rôle direct</value></data>
   <data name="OnbAdm_Rm_KindPermSet" xml:space="preserve"><value>Ensemble d'autorisations</value></data>
+  <data name="OnbAdm_Rm_KindDelegation" xml:space="preserve"><value>Rôle de délégation</value></data>
   <data name="OnbAdm_Rm_NewRole" xml:space="preserve"><value>(créer un nouveau rôle)</value></data>
   <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>Nom du nouveau rôle</value></data>
   <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Libellé d'affichage (JSON facultatif)</value></data>

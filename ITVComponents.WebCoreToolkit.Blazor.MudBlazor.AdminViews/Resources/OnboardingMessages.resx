@@ -169,11 +169,13 @@
   <data name="OnbAdm_Edit" xml:space="preserve"><value>Edit</value></data>
   <data name="OnbAdm_Rm_AddDirect" xml:space="preserve"><value>Add direct role</value></data>
   <data name="OnbAdm_Rm_AddPermSet" xml:space="preserve"><value>Add permission set</value></data>
+  <data name="OnbAdm_Rm_AddDelegation" xml:space="preserve"><value>Add delegation role</value></data>
   <data name="OnbAdm_Rm_AddTitle" xml:space="preserve"><value>New role mapping</value></data>
   <data name="OnbAdm_Rm_EditTitle" xml:space="preserve"><value>Role mapping</value></data>
   <data name="OnbAdm_Rm_Kind" xml:space="preserve"><value>Kind</value></data>
   <data name="OnbAdm_Rm_KindDirect" xml:space="preserve"><value>Direct role</value></data>
   <data name="OnbAdm_Rm_KindPermSet" xml:space="preserve"><value>Permission set</value></data>
+  <data name="OnbAdm_Rm_KindDelegation" xml:space="preserve"><value>Delegation role</value></data>
   <data name="OnbAdm_Rm_NewRole" xml:space="preserve"><value>(create new role)</value></data>
   <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>New role name</value></data>
   <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Display label (optional JSON)</value></data>

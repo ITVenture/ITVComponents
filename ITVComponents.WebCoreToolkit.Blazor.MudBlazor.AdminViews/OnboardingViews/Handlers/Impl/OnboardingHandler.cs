@@ -60,13 +60,49 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
     public async Task<int?> CreateTenantAsync(ClaimsPrincipal user, BillingProfileViewModel input, CancellationToken ct = default)
     {
+        // Standalone entry point (no pending record): create the tenant atomically on its own context + transaction,
+        // so tenant/admin/profile creation and the template application commit or roll back together.
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var strategy = db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var created = await CreateOrResumeTenantAsync(user, input, db, null, ct);
+            if (created == null)
+            {
+                return (int?)null;
+            }
+
+            await tx.CommitAsync(ct);
+            return created.Value.billingProfileId;
+        });
+    }
+
+    /// <summary>
+    /// Core tenant-creation logic that runs on the SUPPLIED, caller-owned context (so it participates in the caller's
+    /// transaction) and does NOT commit. When <paramref name="resumeTenantId"/> is set, a tenant was already created
+    /// for this onboarding by a previous attempt — reuse it (idempotent template re-apply) instead of creating a
+    /// duplicate; a stale marker falls through to fresh creation. Returns the tenant id + billing-profile id, or null
+    /// on failure (the caller rolls back).
+    /// </summary>
+    private async Task<(int tenantId, int billingProfileId)?> CreateOrResumeTenantAsync(ClaimsPrincipal user,
+        BillingProfileViewModel input, TContext db, int? resumeTenantId, CancellationToken ct)
+    {
         var owner = await userManager.GetUserAsync(user);
         if (owner == null)
         {
             return null;
         }
 
-        using var db = dbFactory.CreateDbContext();
+        if (resumeTenantId is int rid)
+        {
+            var resumed = await TryResumeTenantAsync(db, owner, rid, ct);
+            if (resumed != null)
+            {
+                return resumed;
+            }
+        }
 
         var displayName = input.ProfileType == ProfileType.Company
             ? input.CompanyName ?? owner.Email ?? owner.UserName ?? ""
@@ -123,7 +159,26 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
         await ApplyTenantTemplateAsync(db, tenant, admin, ct);
 
-        return profile.BillingProfileId;
+        return (tenant.TenantId, profile.BillingProfileId);
+    }
+
+    /// <summary>
+    /// Resumes onboarding on an already-created tenant: re-applies the (idempotent) template. Returns null when the
+    /// marker is stale (tenant/admin/profile no longer present), so the caller falls back to a fresh creation.
+    /// </summary>
+    private async Task<(int tenantId, int billingProfileId)?> TryResumeTenantAsync(TContext db, User owner, int tenantId, CancellationToken ct)
+    {
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
+        var admin = await db.TenantUsers.FirstOrDefaultAsync(tu => tu.TenantId == tenantId && tu.UserId == owner.Id, ct);
+        var profile = await db.BillingProfiles.FirstOrDefaultAsync(p => p.TenantId == tenantId && p.OwnerUserId == owner.Id, ct);
+        if (tenant == null || admin == null || profile == null)
+        {
+            logger.LogWarning("Onboarding resume marker points at tenant {TenantId} but its tenant/admin/profile is incomplete; creating fresh.", tenantId);
+            return null;
+        }
+
+        await ApplyTenantTemplateAsync(db, tenant, admin, ct);
+        return (tenant.TenantId, profile.BillingProfileId);
     }
 
     public async Task<OnboardingStartResult> StartOnboardingAsync(OnboardingStartInput input, CancellationToken ct = default)
@@ -158,11 +213,10 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
     public async Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default)
     {
-        // CreateTenantAsync opens its OWN per-operation context (it is also a public entry point); the pending
-        // record and the tenant creation were already two separate SaveChanges on the shared context, so running
-        // them on two per-operation contexts preserves behavior.
-        using var db = dbFactory.CreateDbContext();
-        return await OnboardingPendingHelper.CompleteAsync(db, userManager, user, CreateTenantAsync, ct);
+        // One context + one transaction for the whole flow: consuming the pending record, creating the tenant and
+        // applying the template all commit or roll back together (see OnboardingPendingHelper.CompleteAsync). The
+        // core runs on the shared context and does not commit; CompleteAsync owns the transaction.
+        return await OnboardingPendingHelper.CompleteAsync(dbFactory, userManager, user, CreateOrResumeTenantAsync, ct);
     }
 
     public async Task<ParticipatingTenantViewModel[]> ListMyTenantsAsync(ClaimsPrincipal user, CancellationToken ct = default)
@@ -280,13 +334,20 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         }
 
         var markup = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup, SerializationTypingMode.NativePolymorphism);
-        tenantInitializer.ApplyTemplate(tenant, markup, baseCtx =>
+        // Apply on the SAME context 'db' (external-context overload) so the template writes enlist in the caller's
+        // transaction instead of a separately-leased context that would commit independently.
+        tenantInitializer.ApplyTemplate(db, tenant, markup, baseCtx =>
         {
             if (baseCtx is not ISecurityContextWithOnboarding ctx) return;
             if (string.IsNullOrEmpty(cfg.AdminUserRole)) return;
             var role = ctx.SecurityRoles.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.RoleName == cfg.AdminUserRole);
             if (role == null) return;
-            ctx.TenantUserRoles.Add(new UserRole { Role = role, User = admin });
+            // FK scalar, not the navigation: 'admin' (and its Tenant nav) is tracked by the handler's per-operation
+            // 'db', NOT by this template helper's separately-leased 'ctx'. Assigning it as a navigation makes EF treat
+            // both admin (TenantUsers) and its tenant (Tenants) as new principals and emit INSERTs with explicit
+            // identity values → "Cannot insert explicit value for identity column". 'admin' was already saved, so its
+            // PK is populated; only the FK scalar is needed. 'role' is fetched from 'ctx', so its navigation is safe.
+            ctx.TenantUserRoles.Add(new UserRole { Role = role, TenantUserId = admin.TenantUserId });
             ctx.SaveChanges();
         });
     }

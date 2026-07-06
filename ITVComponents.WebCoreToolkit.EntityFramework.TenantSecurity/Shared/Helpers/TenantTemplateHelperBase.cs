@@ -377,6 +377,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             }
         }
 
+        public void ApplyTemplate(DbContext externalContext, TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply)
+        {
+            // Run on the caller's context (NOT a fresh lease) so every write enlists in the caller's ambient
+            // transaction. Deliberately does not dispose the context or commit — the caller owns both. Scope flags
+            // are set/restored via the using-block just like the leasing overload; because the supplied context is a
+            // short-lived per-operation one, this elevation does not bleed anywhere.
+            if (externalContext is not TContext ctx)
+            {
+                throw new ArgumentException($"The supplied context must be a {typeof(TContext).Name}.", nameof(externalContext));
+            }
+
+            var previousDb = db;
+            db = ctx;
+            try
+            {
+                db.EnsureNavUniqueness();
+                using (new FullSecurityAccessHelper<TTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false }))
+                {
+                    ApplyTemplatePrivate(tenant, template, true);
+                    afterApply?.Invoke(db);
+                }
+            }
+            finally
+            {
+                db = previousDb;
+            }
+        }
+
         private void ApplyTemplatePrivate(TTenant tenant, TenantTemplateMarkup template, bool autoSave)
         {
             var fmtRoot = new

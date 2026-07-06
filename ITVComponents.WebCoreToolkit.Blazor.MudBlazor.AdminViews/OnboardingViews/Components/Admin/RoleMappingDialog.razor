@@ -15,22 +15,32 @@
             <MudGrid Spacing="2">
                 <MudItem xs="12">
                     <MudField Label="@L["OnbAdm_Rm_Kind"]" Variant="Variant.Text">
-                        @(Model.Kind == EmployeeRoleMappingKind.DirectRole ? L["OnbAdm_Rm_KindDirect"] : L["OnbAdm_Rm_KindPermSet"])
+                        @(Model.Kind switch
+                        {
+                            EmployeeRoleMappingKind.DirectRole => L["OnbAdm_Rm_KindDirect"],
+                            EmployeeRoleMappingKind.PermissionSet => L["OnbAdm_Rm_KindPermSet"],
+                            _ => L["OnbAdm_Rm_KindDelegation"]
+                        })
                     </MudField>
                 </MudItem>
 
                 @if (Model.EmployeeRoleMappingId == 0)
                 {
-                    <MudItem xs="12">
-                        <MudSelect T="int" @bind-Value="Model.RoleId" Label="@L["OnbAdm_Roles_Col"]">
-                            <MudSelectItem T="int" Value="0">@L["OnbAdm_Rm_NewRole"]</MudSelectItem>
-                            @foreach (var r in roles)
-                            {
-                                <MudSelectItem T="int" Value="@r.RoleId">@r.RoleName</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-                    @if (Model.RoleId == 0)
+                    @* When dedicated roles are forced (production guard), the existing-role picker is hidden and the
+                       mapping always creates a fresh role — so an existing permission-bearing role cannot be picked. *@
+                    @if (!forceNewRole)
+                    {
+                        <MudItem xs="12">
+                            <MudSelect T="int" @bind-Value="Model.RoleId" Label="@L["OnbAdm_Roles_Col"]">
+                                <MudSelectItem T="int" Value="0">@L["OnbAdm_Rm_NewRole"]</MudSelectItem>
+                                @foreach (var r in roles)
+                                {
+                                    <MudSelectItem T="int" Value="@r.RoleId">@r.RoleName</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                    }
+                    @if (forceNewRole || Model.RoleId == 0)
                     {
                         <MudItem xs="12">
                             <MudTextField @bind-Value="Model.NewRoleName" Label="@L["OnbAdm_Rm_NewRoleName"]" Required="true" For="@(() => Model.NewRoleName)" />
@@ -64,12 +74,22 @@
     private TenantRoleOption[] roles = Array.Empty<TenantRoleOption>();
     private MudForm? form;
     private bool busy;
+    private bool forceNewRole;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        roles = await Handler.ListTenantRolesAsync(currentUser);
+        forceNewRole = Handler.ForceDedicatedRoleForMappings;
+        if (forceNewRole)
+        {
+            // No existing-role picker: always create a fresh role. Skip loading the (unused) role list.
+            Model.RoleId = 0;
+        }
+        else
+        {
+            roles = await Handler.ListTenantRolesAsync(currentUser);
+        }
     }
 
     private async Task Save()

@@ -172,7 +172,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
         {
             ProcessRoleInheritanceChanges(modifyActions);
             ProcessPermissionInheritanceChanges(modifyActions);
-
+            ProcessGlobalRoleInheritanceChanges(modifyActions);
         }
 
         protected virtual void HandleCrossTenantReference(DbContextEventData eventData, EntityEntry entry, List<Action<DbContext>> modifyActions)
@@ -184,14 +184,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
         protected virtual void LoadCascadeProxies(DbContext context, TRoleRole roro,
             List<Action<DbContext>> modifyActions, bool addToEntity)
         {
-            var tmp = context.Set<TRolePermission>().Where(n => n.RoleRoleId == roro.RoleRoleId).ToList();
+            var tmp = context.Set<TRolePermission>().IgnoreQueryFilters().Where(n => n.RoleRoleId == roro.RoleRoleId).ToList();
             if (addToEntity && roro.ResultingLinks is not List<TRolePermission>)
             {
                 roro.ResultingLinks = tmp;
             }
 
             tmp.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
-            var tmpGlo = context.Set<TGRoleLRole>().Where(n => n.RoleRoleId == roro.RoleRoleId).ToList();
+            var tmpGlo = context.Set<TGRoleLRole>().IgnoreQueryFilters().Where(n => n.RoleRoleId == roro.RoleRoleId).ToList();
             if (addToEntity && roro.ResultingGlobalLinks is not List<TGRoleLRole>)
             {
                 roro.ResultingGlobalLinks = tmpGlo;
@@ -203,7 +203,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
         protected virtual void LoadCascadeProxies(DbContext context, TRolePermission rope,
             List<Action<DbContext>> modifyActions, bool addToEntity)
         {
-            var tmp = context.Set<TRolePermission>().Where(n => n.OriginId == rope.RolePermissionId).ToList();
+            var tmp = context.Set<TRolePermission>().IgnoreQueryFilters().Where(n => n.OriginId == rope.RolePermissionId).ToList();
             if (addToEntity && rope.RoleInheritanceChildren is not List<TRolePermission>)
             {
                 rope.RoleInheritanceChildren = tmp;
@@ -216,7 +216,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
         protected virtual void LoadCascadeProxies(DbContext context, TGRoleLRole gloro,
             List<Action<DbContext>> modifyActions, bool addToEntity)
         {
-            var tmp = context.Set<TGRoleLRole>().Where(n => n.OriginId == gloro.GRoleLRoleId).ToList();
+            var tmp = context.Set<TGRoleLRole>().IgnoreQueryFilters().Where(n => n.OriginId == gloro.GRoleLRoleId).ToList();
             if (addToEntity && gloro.RoleInheritanceChildren is not List<TRolePermission>)
             {
                 gloro.RoleInheritanceChildren = tmp;
@@ -229,7 +229,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
         protected virtual void LoadCascadeProxies(DbContext context, TRole ro, List<Action<DbContext>> modifyActions,
             bool addToEntity)
         {
-            var tmprr1 = context.Set<TRoleRole>().Where(n => n.PermissiveRoleId == ro.RoleId).ToList();
+            var tmprr1 = context.Set<TRoleRole>().IgnoreQueryFilters().Where(n => n.PermissiveRoleId == ro.RoleId).ToList();
             if (addToEntity && ro.PermittedRoles is not List<TRolePermission>)
             {
                 ro.PermittedRoles = tmprr1;
@@ -238,7 +238,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
             tmprr1.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
             modifyActions.Add(db => db.Set<TRoleRole>().RemoveRange(tmprr1));
 
-            var tmprp1 = context.Set<TRolePermission>().Where(n => n.RoleId == ro.RoleId).ToList();
+            var tmprp1 = context.Set<TRolePermission>().IgnoreQueryFilters().Where(n => n.RoleId == ro.RoleId).ToList();
             if (addToEntity && ro.RolePermissions is not List<TRolePermission>)
             {
                 ro.RolePermissions = tmprp1;
@@ -247,7 +247,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
             tmprp1.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
             modifyActions.Add(db => db.Set<TRolePermission>().RemoveRange(tmprp1));
 
-            var tmprr2 = context.Set<TRoleRole>().Where(n => n.PermittedRoleId == ro.RoleId).ToList();
+            var tmprr2 = context.Set<TRoleRole>().IgnoreQueryFilters().Where(n => n.PermittedRoleId == ro.RoleId).ToList();
             if (addToEntity && ro.PermissiveRoles is not List<TRolePermission>)
             {
                 ro.PermissiveRoles = tmprr2;
@@ -256,7 +256,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
             tmprr2.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
             modifyActions.Add(db => db.Set<TRoleRole>().RemoveRange(tmprr2));
 
-            var tmpur = context.Set<TUserRole>().Where(n => n.RoleId == ro.RoleId).ToList();
+            var tmpur = context.Set<TUserRole>().IgnoreQueryFilters().Where(n => n.RoleId == ro.RoleId).ToList();
             if (addToEntity && ro.UserRoles is not List<TUserRole>)
             {
                 ro.UserRoles = tmpur;
@@ -268,13 +268,56 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
         protected virtual void LoadCascadeProxies(DbContext context, TTenantUser tu,
             List<Action<DbContext>> modifyActions, bool addToEntity)
         {
-            var tmp = context.Set<TUserRole>().Where(n => n.TenantUserId == tu.TenantUserId).ToList();
+            var tmp = context.Set<TUserRole>().IgnoreQueryFilters().Where(n => n.TenantUserId == tu.TenantUserId).ToList();
             if (addToEntity && tu.Roles is not List<TUserRole>)
             {
                 tu.Roles = tmp;
             }
 
             modifyActions.Add(db => db.Set<TUserRole>().RemoveRange(tmp));
+        }
+
+        /// <summary>
+        /// Mirror of <see cref="ProcessPermissionInheritanceChanges"/> for GLOBAL-role links: when a
+        /// <c>GRoleLRole</c> is added (a global role is assigned to a local role), propagate that global role onto
+        /// every role that inherits from the local role via a within-tenant RoleRole composition (PermittedRole of a
+        /// RoleRole whose PermissiveRole is the just-linked local role). Without this, assigning/adding a global role
+        /// to a role AFTER a composition already exists would never reach the inheriting roles — the composition only
+        /// snapshots the global links that exist at RoleRole-creation time. The materialized links carry OriginId /
+        /// RoleRoleId so the existing cascade cleans them up when the source link or RoleRole is removed.
+        /// </summary>
+        private void ProcessGlobalRoleInheritanceChanges(List<Action<DbContext>> modifyActions)
+        {
+            if (gloros.Any())
+            {
+                modifyActions.Add(ctx =>
+                {
+                    try
+                    {
+                        var ids = gloros.Select(n => n.GRoleLRoleId).ToArray();
+                        var tmpGlo = ctx.Set<TGRoleLRole>().IgnoreQueryFilters().Include(n => n.LocalRole)
+                            .ThenInclude(r => r.PermittedRoles)
+                            .ThenInclude(rr => rr.PermittedRole)
+                            .Where(n => ids.Contains(n.GRoleLRoleId) && n.LocalRole.PermittedRoles.Any())
+                            .Select(n => new
+                            {
+                                Items = n.LocalRole.PermittedRoles.Where(pr => pr.PermittedRole.TenantId == n.LocalRole.TenantId)
+                                    .Select(pr => new TGRoleLRole
+                                    {
+                                        OriginId = n.GRoleLRoleId,
+                                        GlobalRoleId = n.GlobalRoleId,
+                                        LocalRoleId = pr.PermittedRole.RoleId,
+                                        RoleRoleId = pr.RoleRoleId
+                                    })
+                            }).SelectMany(itm => itm.Items);
+                        ctx.Set<TGRoleLRole>().AddRange(tmpGlo);
+                    }
+                    finally
+                    {
+                        gloros.Clear();
+                    }
+                });
+            }
         }
 
         private void ProcessPermissionInheritanceChanges(List<Action<DbContext>> modifyActions)
@@ -286,7 +329,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
                     try
                     {
                         var ids = ropes.Select(n => n.RolePermissionId).ToArray();
-                        var tmpRope = ctx.Set<TRolePermission>().Include(n => n.Role)
+                        var tmpRope = ctx.Set<TRolePermission>().IgnoreQueryFilters().Include(n => n.Role)
                             .ThenInclude(r => r.PermittedRoles)
                             .ThenInclude(rp => rp.PermittedRole)
                             .Where(n => ids.Contains(n.RolePermissionId) && n.Role.PermittedRoles.Any())
@@ -321,10 +364,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
                     try
                     {
                         var ids = roros.Select(n => n.RoleRoleId).ToArray();
-                        var tmpRoro = ctx.Set<TRoleRole>().Include(n => n.PermissiveRole)
+                        var tmpRoro = ctx.Set<TRoleRole>().IgnoreQueryFilters().Include(n => n.PermissiveRole)
                             .ThenInclude(r => r.RolePermissions)
                             .Include(n => n.PermittedRole)
-                            .Where(n => ids.Contains(n.RoleRoleId))
+                            // Same-tenant guard: permission inheritance is only materialized WITHIN a tenant; cross-tenant
+                            // RoleRoles are pure tree pass-through (resolved by the TVFs, never flattened). This is also
+                            // enforced by the ableToProcess gate, but kept explicit here so it does not rely on the query
+                            // filter that IgnoreQueryFilters removes.
+                            .Where(n => ids.Contains(n.RoleRoleId) && n.PermissiveRole.TenantId == n.PermittedRole.TenantId)
                             .Select(n => new
                             {
                                 Items = n.PermissiveRole.RolePermissions.Select(np => new TRolePermission
@@ -336,10 +383,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
                                     RoleRoleId = n.RoleRoleId
                                 })
                             }).SelectMany(itm => itm.Items);
-                        var tmpGloro = ctx.Set<TRoleRole>().Include(n => n.PermissiveRole)
+                        var tmpGloro = ctx.Set<TRoleRole>().IgnoreQueryFilters().Include(n => n.PermissiveRole)
                             .ThenInclude(r => r.PermittedGlobalRoles)
                             .Include(n => n.PermittedRole)
-                            .Where(n => ids.Contains(n.RoleRoleId))
+                            // Same-tenant guard: global-role inheritance is only materialized WITHIN a tenant (see the
+                            // note on tmpRoro above); cross-tenant RoleRoles are pure tree pass-through.
+                            .Where(n => ids.Contains(n.RoleRoleId) && n.PermissiveRole.TenantId == n.PermittedRole.TenantId)
                             .Select(n => new
                             {
                                 Items = n.PermissiveRole.PermittedGlobalRoles.Select(np => new TGRoleLRole()

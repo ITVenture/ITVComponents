@@ -33,5 +33,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models
         /// <summary>Optional tenant-invitation token this onboarding was started from (used by the tree flow).</summary>
         [MaxLength(256)]
         public string InvitationToken { get; set; }
+
+        /// <summary>
+        /// Tenant created for this onboarding, once created. Written inside the same transaction that creates the
+        /// tenant, so a retry after a (hypothetical) partial commit resumes on the existing tenant instead of
+        /// creating a duplicate. No FK (the tenant lives in the security slice of the context); plain bookkeeping.
+        /// Null until a tenant has been created.
+        /// </summary>
+        public int? CreatedTenantId { get; set; }
     }
 }

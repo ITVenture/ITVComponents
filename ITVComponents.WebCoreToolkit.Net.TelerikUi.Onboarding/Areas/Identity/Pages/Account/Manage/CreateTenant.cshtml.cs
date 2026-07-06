@@ -191,10 +191,15 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.P
                     {
                         var rl = ctx.SecurityRoles.First(n =>
                             n.TenantId == tenant.TenantId && n.RoleName == cfg.AdminUserRole);
+                        // FK scalar, not the navigation: 'admin' (and its Tenant nav) is tracked by 'dbContext', NOT by
+                        // this template helper's separately-leased 'ctx'. Assigning it as a navigation makes EF treat both
+                        // admin (TenantUsers) and its tenant (Tenants) as new principals and emit INSERTs with explicit
+                        // identity values → "Cannot insert explicit value for identity column". 'admin' was already saved,
+                        // so its PK is populated; only the FK scalar is needed.
                         ctx.TenantUserRoles.Add(new UserRole
                         {
                             Role = rl,
-                            User = admin
+                            TenantUserId = admin.TenantUserId
                         });
 
                         ctx.SaveChanges();

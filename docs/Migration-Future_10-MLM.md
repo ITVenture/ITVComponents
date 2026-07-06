@@ -806,7 +806,89 @@ die fachlichen Grants der nicht-Admin-Rollen.
 
 ---
 
-## 10. Verifikation auf eurer Seite
+## 10. Onboarding Tenant-Anlage — IDENTITY_INSERT-Fix + Transaktions-Härtung (`5.0.0-PRE108`)
+
+**Symptom (Anstoß aus MLM):** Der Abschluss des Tenant-Onboardings (nach Mail-Bestätigung → Login →
+`MyTenants` → Registrierung abschließen) crashte beim Anwenden des TenantTemplates mit:
+
+```
+Cannot insert explicit value for identity column in table 'Tenants' when IDENTITY_INSERT is set to OFF.
+Cannot insert explicit value for identity column in table 'TenantUsers' when IDENTITY_INSERT is set to OFF.
+```
+
+Folge: der Tenant wurde halb angelegt, das `PendingOnboarding` **nicht** auf `Committed` gesetzt, und jeder
+Neuversuch legte einen **weiteren** (nicht wirklich berechtigten) Tenant für dasselbe Pending an.
+
+**Ursache (toolkit-seitig behoben, kein MLM-Code nötig):** Der `afterApply`-Callback der Template-Anwendung lief
+auf einem separat geleasten Context, bekam aber die Admin-`TenantUser`- (+ deren `Tenant`-) Navigation aus dem
+Handler-Context — EF wollte beide mit **expliziter PK** neu INSERTen. Fix = Skalar-FK statt Navigation.
+
+**Zusätzlich (Transaktions-Härtung):** Der Blazor-Onboarding-Abschluss läuft jetzt **atomar** — Pending-Konsum,
+Tenant/Admin/Profil-Anlage, Template-Anwendung und `pending.Committed` committen in **einer** Transaktion auf
+**einer** Connection (via `IExecutionStrategy` → kompatibel mit `EnableRetryOnFailure`). Ein Fehler rollt alles
+zurück: keine halben Tenants, keine Duplikate. Ergänzend gibt es eine fortsetzbare Resume-Logik über die neue
+Spalte `PendingOnboarding.CreatedTenantId`.
+
+### 10.1 EF-Migration — **Pflicht ab `5.0.0-PRE108`, sonst Runtime-Crash**
+
+Mit dem Update auf **`5.0.0-PRE108`** hat `PendingOnboarding` eine neue, nullbare Spalte `CreatedTenantId (int?)`.
+Die Spalte wird per Konvention gemappt (keine `OnModelCreating`-Änderung nötig), **aber** die Migration muss
+host-seitig generiert und angewendet werden — sonst erwartet das Modell eine Spalte, die es in der DB nicht gibt:
+
+```bash
+dotnet ef migrations add PendingOnboardingCreatedTenantId   # im MLM-Host-Projekt (ApplicationDbContext)
+dotnet ef database update
+```
+
+Additive, nullbare Spalte → unkritisch, keine Datenmigration.
+
+### 10.2 Keine Config-/API-Änderung
+
+Kein neuer Schalter, keine geänderte Signatur auf eurer Seite. Nach Paket-Bump auf `5.0.0-PRE108` + Migration
+ist der Flow einfach robust. Bereits durch Fehlversuche entstandene **Alt-Orphan-Tenants** räumt das Feature
+nicht rückwirkend auf (einmalig manuell bereinigen, falls noch vorhanden).
+
+### 10.3 Scope-Hinweis
+
+Gehärtet wurde der **Blazor**-Onboarding-Flow (`OnboardingHandler` / `HierarchyOnboardingHandler`). Der ältere
+**MVC/Telerik**-Flow (`RegistrationController` / `CreateTenant.cshtml.cs`) hat nur den IDENTITY_INSERT-Crash-Fix
+erhalten, **keine** Transaktions-Härtung. Wer den MVC-Pfad noch nutzt, meldet sich für eine gleichwertige Härtung.
+
+### 10.4 Rollendefinitionen-Tab (`/Onboarding/BillingProfile`) — UX + neuer opt-in Schalter
+
+Verbesserungen am Rollendefinitionen-Grid (EmployeeRoleMappings), **keine** Migration/Config-Pflicht:
+
+- **Haupt-Grid zeigt nur bearbeitbare Zeilen:** DirectRole-Zeilen nur bei `Onboarding.Admin.RoleMappings.DirectRole`
+  **oder** `.Write`, PermissionSet-Zeilen nur bei `.PermissionSet` **oder** `.Write`. Ein reiner
+  `.View`-User (ohne Kind-Write) sieht das Haupt-Grid **leer** — bewusst so. Im aufgeklappten Sub-Grid werden die
+  Permission-Sets **immer** angezeigt (nötig zum Zuweisen), unabhängig vom Schreibrecht.
+- **Anzeigename bevorzugt:** Haupt-Liste + Unter-Listen zeigen den (optional mehrsprachigen JSON-)`DisplayName`
+  via Toolkit-`Translate` statt des rohen Rollennamens; Fallback = Rollenname.
+- **Dritter Mapping-Typ „Delegation-Rolle"** (`EmployeeRoleMappingKind.Delegation = 2`, additiver Enum-Wert,
+  **keine** Migration): strukturell wie eine DirectRole (klappt auf, PermissionSets werden per RoleRole-Vererbung
+  aktiviert), aber mit **zwei Berechtigungsstufen**. Zwei neue gated Permissions:
+  - `Onboarding.Admin.RoleMappings.Delegation` — **Voll-Edit** (anlegen/bearbeiten/löschen/umbenennen + Sets zuweisen),
+    analog zu `.DirectRole` / `.PermissionSet` (oder generisch `.Write`).
+  - `Onboarding.Admin.RoleMappings.DelegationAssign` — **schwächere Stufe**: Delegation-Rolle **sehen** und
+    PermissionSets an-/abwählen, aber **nicht** neu anlegen/löschen/umbenennen.
+
+  **Seeding:** die beiden Permission-Namen anlegen/granten wie die übrigen `Onboarding.Admin.RoleMappings.*`
+  (bzw. via Auto-Permission-Registration §9, falls aktiv — sie werden beim Betreten des Tabs angefordert).
+- **Neuer opt-in Schalter** `TenantSetup.ForceDedicatedRoleForMappings` (bool, default `false`): auf `true`
+  gesetzt, blendet der „Neues RoleMapping"-Dialog den „bestehende Rolle wählen"-Picker aus und legt **immer** eine
+  neue TenantRole an; der Handler weist das Verknüpfen einer bestehenden Rolle zusätzlich ab. Verhindert, dass im
+  Produktivbetrieb versehentlich eine bestehende (rechtetragende) Rolle als DirectRole umfunktioniert wird. Bei
+  Namenskollision wird hochgezählt (`Name` → `Name_1` … `Name_5`); sind Basis + 5 Suffixe belegt, schlägt das
+  Speichern fehl. Ein Umbenennen des Mappings ändert nur das Anzeige-Label — die zugrundeliegende SecurityRole
+  behält ihren bei Erstellung vergebenen Namen (stabiler Template-Key).
+
+```json
+{ "TenantSetup": { "ForceDedicatedRoleForMappings": true } }
+```
+
+---
+
+## 11. Verifikation auf eurer Seite
 
 - Build der gesamten Solution grün (alle eigenen FileHandler + Cookie-Scope-Config angepasst).
 - **Onboarding:** Migration angewendet (Tabellen `PendingOnboarding` + `TenantInvitation` existieren);
@@ -838,3 +920,6 @@ die fachlichen Grants der nicht-Admin-Rollen.
 | 10a | **Permissions/Navigation sofort** | gleicher Schalter invalidiert Cookie-Permission-Cache, Navigator & `isAuthenticatedCache` automatisch; für sofortiges UI-Re-Render optional `<EntityChangeRefresher>` (Blazor) um das Menü legen |
 | 11 | **Per-Op-Context** (opt-in, §8) | falls ihr den System-Context als `"sys"`-Dependency konfiguriert: `AddDependency(…, p=>p.GetService<IDbContextFactory<AppCtx>>().CreateDbContext(), disposeWithScope:true)`; Plugin-Konsumenten `using var s = pluginHelper.CreateOperationScope()`; Diag/FK-`RegisterService` ggf. `ScopedDataSource` zurückgeben. **FileHandler** sind automatisch abgedeckt (§8.4) — sobald „sys" scope-owned ist, greift der per-Op-Context im Up-/Download ohne weitere Verdrahtung. Ohne Änderung = bisheriges (geteiltes) Verhalten |
 | 12 | **Auto-Permission-Registration** (opt-in, §9, neu `PRE098`) | `ActivationSettings.AutoRegisterRequestedPermissions = true` + `AutoRegisterPermissionsGrantRole = "<globale Admin-Rolle>"` → angeforderte Permissions werden on-the-fly angelegt und der Admin-Rolle gegrantet; danach `Program.cs`-„ensure permissions"-Block entfernen (Sync-Pflicht). Ohne Änderung = bisheriges Verhalten (statischer Seed nötig) |
+| 13 | **Onboarding Tenant-Anlage** (§10, neu `PRE108`) | **Pflicht-Migration ab `5.0.0-PRE108`** für neue Spalte `PendingOnboarding.CreatedTenantId` (`dotnet ef migrations add PendingOnboardingCreatedTenantId` → `database update`), sonst Runtime-Crash. Behebt IDENTITY_INSERT-Crash beim Template-Apply + macht den Blazor-Abschluss atomar (keine halben/doppelten Tenants). Keine Config-/API-Änderung. MVC-Flow: nur Crash-Fix, keine Tx-Härtung |
+| 14 | **Rollendefinitionen-Tab** (§10.4, `PRE108`) | Automatisch: Haupt-Grid zeigt nur bearbeitbare Zeilen (Kind-Write-gated), Anzeigename bevorzugt (Translate). Optional: `TenantSetup.ForceDedicatedRoleForMappings = true` erzwingt Neu-Rolle beim RoleMapping-Anlegen (kein Picker für bestehende Rollen). Keine Migration |
+| 15 | **Delegation-Rolle** (§10.4, `PRE108`) | Dritter RoleMapping-Typ (Enum additiv, keine Migration). **Zwei neue Permissions seeden:** `Onboarding.Admin.RoleMappings.Delegation` (Voll-Edit) + `Onboarding.Admin.RoleMappings.DelegationAssign` (nur sehen + PermissionSets zuweisen). Via Auto-Permission-Registration (§9) sonst automatisch |

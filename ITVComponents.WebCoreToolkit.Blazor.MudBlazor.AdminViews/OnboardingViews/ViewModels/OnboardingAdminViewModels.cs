@@ -1,7 +1,32 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
+using ITVComponents.WebCoreToolkit.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
+
+/// <summary>
+/// Shared label resolution for the role-mappings grids: prefer the (optionally multilingual) display name over
+/// the raw role name. The display name may be a JSON language record — <see cref="StringExtensions.Translate"/>
+/// resolves it for the current UI culture and returns plain text unchanged. Evaluated lazily in the label
+/// getters so it picks up the render-time culture.
+/// </summary>
+internal static class RoleMappingLabels
+{
+    public static string Localized(string? displayNameJson, string? fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(displayNameJson))
+        {
+            var translated = displayNameJson.Translate(CultureInfo.CurrentUICulture?.Name);
+            if (!string.IsNullOrWhiteSpace(translated))
+            {
+                return translated;
+            }
+        }
+
+        return fallback ?? string.Empty;
+    }
+}
 
 /// <summary>
 /// Admin-side view model over a tenant's <c>BillingProfile</c>. Used by the BillingProfiles admin editor
@@ -87,7 +112,13 @@ public class EmployeeRoleAssignmentViewModel
 
     public string RoleName { get; set; } = string.Empty;
 
+    /// <summary>Optional multilingual display label as JSON (navigation-label convention).</summary>
+    public string? DisplayNameJson { get; set; }
+
     public bool Assigned { get; set; }
+
+    /// <summary>Effective label for the grid: the localized display name if set, otherwise the role name.</summary>
+    public string Label => RoleMappingLabels.Localized(DisplayNameJson, RoleName);
 }
 
 /// <summary>
@@ -115,8 +146,8 @@ public class EmployeeRoleMappingViewModel
     /// <summary>Optional multilingual display label as JSON (navigation-label convention).</summary>
     public string? DisplayNameJson { get; set; }
 
-    /// <summary>Effective label for grids: the JSON label is opaque here, so the role name is shown.</summary>
-    public string Label => RoleName ?? NewRoleName ?? string.Empty;
+    /// <summary>Effective label for grids: the localized display name if set, otherwise the role name.</summary>
+    public string Label => RoleMappingLabels.Localized(DisplayNameJson, RoleName ?? NewRoleName);
 }
 
 /// <summary>A pickable existing tenant security role (for wrapping into a mapping).</summary>
@@ -135,7 +166,14 @@ public class PermissionSetActivationViewModel
 {
     public int PermissionSetMappingId { get; set; }
 
-    public string Label { get; set; } = string.Empty;
+    /// <summary>Underlying role name (fallback label).</summary>
+    public string? RoleName { get; set; }
+
+    /// <summary>Optional multilingual display label as JSON (navigation-label convention).</summary>
+    public string? DisplayNameJson { get; set; }
 
     public bool Active { get; set; }
+
+    /// <summary>Effective label for the grid: the localized display name if set, otherwise the role name.</summary>
+    public string Label => RoleMappingLabels.Localized(DisplayNameJson, RoleName);
 }
