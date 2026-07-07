@@ -117,14 +117,52 @@ gehalten, nur gleicher Tenant). Beide Vererbungs-Implementierungen wurden konsis
   tenantId)`; `ChildLevel` expandiert die `carried`-Rollen vor dem Kanten-Match. Deckt Roots/Children/Pass-Through in
   einem Punkt ab. **Keine Migration nötig** (Live-LINQ).
 - **SQL-Prozeduren/-Funktionen** (`SqlColumnsSyntaxHelper`, CoreIdentityTree; via `GetRawUserQuery`→`GetDownwardsRole
-  TreeProc` auch Permission-Auflösung): neue Inline-TVF `GetEffectiveTenantUserRoles()` (rekursive intra-tenant Closure
-  über `TenantUserRoles`); die 6 Rollen-Tree-Anker (`… tur.RoleId = pr.RoleId`) joinen jetzt diese TVF statt
-  `TenantUserRoles` direkt. **Erfordert eine neue Konsumenten-Migration**, die `ConfigureViews` erneut ausführt
-  (DROP-if-exists + CREATE, idempotent), damit die TVF + neu-generierten Prozeduren deployt werden.
+  TreeProc` auch Permission-Auflösung): neue **parametrisierte** Inline-TVF `GetEffectiveTenantUserRoles(@tenantUserId)`
+  (rekursive intra-tenant Closure der Rollen **genau eines** Tenant-Users); die 6 Rollen-Tree-Anker joinen sie nicht als
+  DB-weiten Join, sondern per **`CROSS APPLY … (tu.TenantUserId) … where er.RoleId = pr.RoleId`** auf den bereits im
+  Scope stehenden Tenant-User — semantisch identisch zum alten Inner-Join, aber die Rekursion berührt nur die Zeilen
+  des aktuellen Users (Kosten skalieren mit dem Query-Scope, nicht mit der Gesamt-`TenantUserRoles`; behebt die unten
+  gemessene Skalierungs-Regression). **Erfordert eine neue Konsumenten-Migration**, die `ConfigureViews` erneut
+  ausführt (DROP-if-exists + CREATE, idempotent), damit die TVF + neu-generierten Prozeduren deployt werden.
 
 Monotonie/Safety: effektive Menge ⊇ direkte Rollen ⇒ kein bestehender Zugriff wird entzogen, nur die intendierte
 intra-tenant Vererbung ergänzt. Terminierung: zyklische Rollen-Vererbung ist verhindert (zusätzlich Guard/`distinct`).
 
-**Offen:** Dev-DB-Validierung der neu generierten SQL-Objekte (im Toolkit-Env nicht ausführbar), Perf-Beobachtung der
-Closure auf großen `TenantUserRoles`, sowie ob `TenantAccessTreeUp/Down` (separater Feature-Pfad, hier bewusst
-unangetastet) dieselbe Weitergabe braucht.
+**Offen:** Dev-DB-Validierung der neu generierten SQL-Objekte (im Toolkit-Env nicht ausführbar) inkl. Perf-Nachmessung
+der jetzt parametrisierten TVF (Erwartung: Overhead skaliert mit dem User-Scope statt der Gesamt-DB), sowie ob
+`TenantAccessTreeUp/Down` (separater Feature-Pfad, hier bewusst unangetastet) dieselbe Weitergabe braucht.
+
+## Perf-Nachmessung PRE113 vs PRE114 (MLM-Session, 2026-07-07) — SKALIERUNGS-REGRESSION
+
+Scratch-DB `MLM_Perf114`: 9-är-Baum von 5000 Tenants, pro Tenant eine **intra-tenant Rollen-Kette der Tiefe 5**
+(4 Vererbungs-Hops), cross-tenant Kante parent-TOP→child-BASE, jeder User hält direkt nur die Basisrolle → die
+Closure muss die ganze Kette expandieren. Beide Proc-Chains (`_old`=PRE113 Anker auf `TenantUserRoles`, `_new`=PRE114
+Anker auf `GetEffectiveTenantUserRoles()`) nebeneinander, gleiche Session (apples-to-apples). `GetDownwardsRoleTreeProc`
+via INSERT..EXEC gemessen (Absolutzeiten plan-noisy, s.u.), 3 Läufe + Warm-up.
+
+**Kernbefund — die parameterlose TVF skaliert mit der GESAMTZAHL der TenantUserRoles, nicht mit dem Query-Scope:**
+`GetEffectiveTenantUserRoles()` hat **keine Parameter** und materialisiert die effektive Rollenmenge für ALLE
+Tenant-User bei jedem Aufruf. Standalone `SELECT COUNT(*) FROM GetEffectiveTenantUserRoles()` (plan-stabil):
+- 5000 User / 25000 direkte TUR → 25000 Closure-Rows: **235 ms**
+- 25000 User / 125000 direkte TUR → 125000 Closure-Rows: **~1210 ms** (≈ linear ×5)
+
+Der Prädikat-Pushdown `tur.TenantUserId = tu.TenantUserId` greift durch die **rekursive** CTE nicht zuverlässig →
+jede Auth-/Tree-Auflösung zahlt (potenziell) die volle DB-weite Closure, auch ein triviales Leaf-Query.
+
+**End-to-end Proc (plan-instabil, aber Trend eindeutig):**
+- @5000 User: leaf 274→485 ms, mid 276→481 ms, root 504→917 ms (old→new), also ~1.7–1.9×; konstanter ~210 ms Aufschlag = die volle Closure.
+- @25000 User: leaf/mid ~gleich (Optimizer pusht dort teils den Filter), aber **root 503 ms → 7703 ms (~15×)** — beim teuren Viewpoint eskaliert der kombinierte Plan (Closure groß + Tenant-Tree-Rekursion groß + Table-Variable-1-Row-Estimates).
+
+**Bewertung:** Bei kleiner DB (aktuelle Dev-DB, wenige tausend User) unkritisch (~200 ms, ~1.8×). Aber es **skaliert
+nicht**: der Fix-Overhead wächst linear mit der DB-weiten TenantUserRoles-Menge und ist beim teuren Viewpoint
+plan-instabil bis ~15× langsamer. Für größere Produktiv-Userbasis = ernsthafte Per-Request-Regression.
+
+**Vorschlag:** Die Closure auf den aufzulösenden User **parametrisieren/filtern** (TenantUserId in die TVF/CTE
+hineinreichen, statt DB-weit), damit die Kosten mit dem Scope statt mit der Gesamt-DB skalieren. (Perf-Absolutzahlen
+sind INSERT..EXEC/Table-Variable-Artefakte — nur die Relationen/das Skalierungsverhalten sind aussagekräftig; Lehre
+aus früheren Messungen: rekursive-CTE+Table-Variable immer in derselben Session vergleichen.)
+
+**Umgesetzt (Toolkit, 2026-07-07):** TVF ist jetzt `GetEffectiveTenantUserRoles(@tenantUserId)` und wird per
+`CROSS APPLY(tu.TenantUserId)` aufgerufen — die Rekursion läuft nur noch über die Rollen des einen aufzulösenden
+Tenant-Users, nicht mehr DB-weit. Erwartung: der ~210 ms-Sockel und die ~15×-Root-Eskalation @25000 fallen weg
+(Scope-lokale Kosten). **Nachmessung auf `MLM_Perf114` (alte vs. neue Proc-Chain, gleiche Session) noch offen.**
