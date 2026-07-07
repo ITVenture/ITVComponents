@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Dynamic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
@@ -74,23 +75,39 @@ namespace ITVComponents.DuckTyping
         /// <param name="binder">Stellt Informationen zum dynamischen Vorgang bereit.Die binder.Name-Eigenschaft gibt den Namen des Members an, für den der dynamische Vorgang ausgeführt wird.Für die Anweisung sampleObject.SampleMethod(100), in der sampleObject eine von der <see cref="T:System.Dynamic.DynamicObject"/>-Klasse abgeleitete Instanz der Klasse ist, gibt binder.Name z. B. "SampleMethod" zurück.Die binder.IgnoreCase-Eigenschaft gibt an, ob der Membername die Groß-/Kleinschreibung berücksichtigt.</param><param name="args">Die Argumente, die während des Aufrufvorgangs an den Objektmember übergeben werden.Für die Anweisung sampleObject.SampleMethod(100), in der sampleObject von der <see cref="T:System.Dynamic.DynamicObject"/>-Klasse abgeleitet ist, entspricht <paramref name="args[0]"/> z. B. 100.</param><param name="result">Das Ergebnis des Memberaufrufs.</param>
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
-            bool retVal = false;
             result = null;
+            MethodInfo method;
             try
             {
-                MethodInfo method = FindMethod(binder.Name, args);
-                if (method != null)
-                {
-                    result = method.Invoke(null, args);
-                    retVal = true;
-                }
+                method = FindMethod(binder.Name, args);
             }
             catch (Exception ex)
             {
+                // Resolving the target method failed - fall back to the DLR (reports the member as missing).
                 LogEnvironment.LogEvent(ex.ToString(), LogSeverity.Error);
+                return false;
             }
 
-            return retVal;
+            if (method == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                result = method.Invoke(null, args);
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException != null)
+            {
+                // Do NOT swallow an exception thrown by the resolved method: swallowing it here makes the DLR
+                // report a misleading "does not contain a definition for '<member>'" RuntimeBinderException that
+                // hides the real failure. Re-throw the original exception preserving its stack-trace.
+                LogEnvironment.LogEvent(ex.InnerException.ToString(), LogSeverity.Error);
+                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+                throw; // unreachable, keeps the compiler happy
+            }
+
+            return true;
         }
 
         /// <summary>

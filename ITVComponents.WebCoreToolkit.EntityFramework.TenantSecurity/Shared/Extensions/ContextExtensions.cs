@@ -147,21 +147,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
                 return true;
             }
 
-            var parentEntity = dbContext.SecurityRoles.Include(n => n.PermissiveRoles)
-                .ThenInclude(n => n.PermissiveRole).Where(n => n.RoleId == parentRole)
-                .SelectMany(n => n.PermissiveRoles.Select(p => p.PermissiveRole)).ToArray();
-            var ids = parentEntity.Select(n => n.RoleId).ToArray();
-            var potentialParents = new List<int>(ids);
-            while (ids.Length > 0)
+            // This method is called from the SecurityModificationInterceptor while SaveChanges is in progress.
+            // Query with the tenant security filters suppressed (like VerifyRoleName/EnsureNavUniqueness) to avoid
+            // re-entrant evaluation of the security-context state on the shared context instance.
+            using (new FullSecurityAccessHelper<TTrustConfig>(dbContext, new() { ShowAllTenants = true, HideGlobals = false }))
             {
-                parentEntity = dbContext.SecurityRoles.Include(n => n.PermissiveRoles)
-                    .ThenInclude(n => n.PermissiveRole).Where(n => ids.Contains(n.RoleId))
-                    .SelectMany(n => n.PermissiveRoles.Select(p => p.PermissiveRole)).ToArray();
-                ids = parentEntity.Select(n => n.RoleId).ToArray();
-                potentialParents.AddRange(ids);
-            }
+                // NOTE: PermissiveRole can be null for a RoleRole that is currently being Added in this same
+                // SaveChanges (only the FK is set, the navigation is not resolved yet) - filter those out so the
+                // subsequent RoleId projection does not dereference a null role.
+                var parentEntity = dbContext.SecurityRoles.Include(n => n.PermissiveRoles)
+                    .ThenInclude(n => n.PermissiveRole).Where(n => n.RoleId == parentRole)
+                    .SelectMany(n => n.PermissiveRoles.Select(p => p.PermissiveRole))
+                    .Where(n => n != null).ToArray();
+                var ids = parentEntity.Select(n => n.RoleId).ToArray();
+                var potentialParents = new List<int>(ids);
+                while (ids.Length > 0)
+                {
+                    parentEntity = dbContext.SecurityRoles.Include(n => n.PermissiveRoles)
+                        .ThenInclude(n => n.PermissiveRole).Where(n => ids.Contains(n.RoleId))
+                        .SelectMany(n => n.PermissiveRoles.Select(p => p.PermissiveRole))
+                        .Where(n => n != null).ToArray();
+                    ids = parentEntity.Select(n => n.RoleId).ToArray();
+                    potentialParents.AddRange(ids);
+                }
 
-            return potentialParents.Contains(newChildRole);
+                return potentialParents.Contains(newChildRole);
+            }
         }
 
         public static bool VerifyRoleName<TContext>(this TContext dbContext, string permissionName)
