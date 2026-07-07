@@ -207,6 +207,8 @@ select * from @vld", new SqlParameter("@name", name),
                 migrationBuilder.Sql($@"DROP FUNCTION if exists [{schema}].[GetUpwardsRoleTreeForIdByLeafId]");
                 migrationBuilder.Sql($@"DROP PROCEDURE if exists [{schema}].[GetDownwardsRoleTreeByVpIdProc]");
                 migrationBuilder.Sql($@"DROP PROCEDURE if exists [{schema}].[GetChildTenantsWithPermsByVpIdProc]");
+                // Effective-role closure TVF is referenced by the role-tree functions/procs above -> drop it after them.
+                migrationBuilder.Sql($@"DROP FUNCTION if exists [{schema}].[GetEffectiveTenantUserRoles]");
 
             migrationBuilder.Sql($@"CREATE VIEW [{schema}].[UpwardsTenantTree]
 AS
@@ -389,7 +391,7 @@ inner join users u on u.id = tu.UserId");
                              inner join Users u on u.id = tu.UserId
                              inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
                              inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
-                             inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+                             inner join [{{schema}}].[GetEffectiveTenantUserRoles]() tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
                              inner join @rawtree d on d.TopmostTenantId = r.ParentTenantId and d.ChildTenantId = OutermostLeafTenantId and d.UserId = u.Id and d.TopmostRoleId = pr.RoleId
                              
                              end
@@ -454,7 +456,7 @@ inner join users u on u.id = tu.UserId");
                                   inner join Users u on u.id = tu.UserId
                                   inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
                                   inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
-                                  inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+                                  inner join [{{schema}}].[GetEffectiveTenantUserRoles]() tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
                                   where u.id = @userId  and (outermostleaftenantname = @FromLeaf or @FromLeaf is null)
                                   )
                                   """;
@@ -483,7 +485,7 @@ inner join users u on u.id = tu.UserId");
                                    inner join openjson(@UserId) with ([value] nvarchar(150) '$') uta on u.NormalizedUserName = uta.value
                                    inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
                                    inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
-                                   inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+                                   inner join [{{schema}}].[GetEffectiveTenantUserRoles]() tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
                                    where @FromLeaf is null or @FromLeaf = OutermostLeafTenantName
                                    )
                                    """;
@@ -543,7 +545,7 @@ inner join users u on u.id = tu.UserId");
              inner join Users u on u.id = tu.UserId
              inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
              inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
-             inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+             inner join [{{schema}}].[GetEffectiveTenantUserRoles]() tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
              inner join @rawtree d on d.TopmostTenantId = r.ParentTenantId and d.ChildTenantId = OutermostLeafTenantId and d.UserId = u.Id and d.TopmostRoleId = pr.RoleId
              
              end
@@ -609,7 +611,7 @@ inner join users u on u.id = tu.UserId");
                   inner join Users u on u.id = tu.UserId
                   inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
                   inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
-                  inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+                  inner join [{{schema}}].[GetEffectiveTenantUserRoles]() tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
                   where u.id = @userId  and (OutermostLeafTenantId = @FromLeafTenantId or @FromLeafTenantId is null)
                   )
                   """;
@@ -639,7 +641,7 @@ inner join users u on u.id = tu.UserId");
                    inner join openjson(@UserId) with ([value] nvarchar(150) '$') uta on u.NormalizedUserName = uta.value
                    inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
                    inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
-                   inner join TenantUserRoles tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
+                   inner join [{{schema}}].[GetEffectiveTenantUserRoles]() tur on tur.TenantUserId = tu.TenantUserId and tur.RoleId = pr.RoleId
                    where @FromLeafTenantId is null or @FromLeafTenantId = OutermostLeafTenantId
                    )
                    """;
@@ -662,6 +664,30 @@ inner join users u on u.id = tu.UserId");
                                 return
                              end
                              """;*/
+                // "Diskrete Weitergabe": effective tenant-user roles = direct TenantUserRoles expanded by the
+                // INTRA-tenant RoleRoles closure ("Permissive reached when Permitted held", same tenant only). The
+                // role-tree functions/procs anchor on this set instead of the raw direct roles, so a role the user only
+                // holds through an in-tenant inheritance edge (e.g. a PermissionSet activation: DirectRole -> Set-Role)
+                // also carries the Set-Role's cross-tenant (downline) reach. Cross-tenant climbing stays the recursive
+                // tree's job. See docs/ISSUE-MLM-PermissionSet-CrossTenant-Propagation.md.
+                var effFn = $$"""
+                             CREATE FUNCTION [{{schema}}].[GetEffectiveTenantUserRoles]()
+                             RETURNS TABLE
+                             AS
+                             RETURN
+                             (
+                                 with effroles as (
+                                     select tur.TenantUserId, tur.RoleId from TenantUserRoles tur where tur.TenantUserId is not null and tur.RoleId is not null
+                                     union all
+                                     select e.TenantUserId, cc.RoleId from effroles e
+                                     inner join RoleRoles roro on roro.PermittedRoleId = e.RoleId
+                                     inner join SecurityRoles pp on pp.RoleId = e.RoleId
+                                     inner join SecurityRoles cc on cc.RoleId = roro.PermissiveRoleId and cc.TenantId = pp.TenantId
+                                 )
+                                 select distinct TenantUserId, RoleId from effroles
+                             )
+                             """;
+                migrationBuilder.Sql(effFn);
                 migrationBuilder.Sql(urtIdFunc);
                 migrationBuilder.Sql(urtLblFunc);
                 //migrationBuilder.Sql(urt);

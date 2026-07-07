@@ -981,28 +981,77 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         private Func<int, int[], List<TenantTreeLevelRow>> ChildLevel(
             IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> ctx,
             int[] userTuIds)
-            => (parentTenantId, carried) => (
-                from c in ctx.Tenants
-                where c.ParentTenantId == parentTenantId
-                from sc in ctx.SecurityRoles.Where(x => x.TenantId == c.TenantId)
-                where ctx.RoleRoles.Any(rr => rr.PermissiveRoleId == sc.RoleId && rr.PermittedRoleId != null && carried.Contains(rr.PermittedRoleId.Value))
-                   || ctx.TenantUserRoles.Any(tur => tur.RoleId == sc.RoleId && tur.TenantUserId != null && userTuIds.Contains(tur.TenantUserId.Value))
-                select new TenantTreeLevelRow
-                {
-                    TenantId = c.TenantId,
-                    ParentTenantId = c.ParentTenantId,
-                    TenantName = c.TenantName,
-                    DisplayName = c.DisplayName,
-                    RoleId = sc.RoleId,
-                    HasPermission = ctx.RolePermissions.Any(rp => rp.RoleId == sc.RoleId)
-                        || ctx.GlobalToLocalRoles.Any(gl => gl.LocalRoleId == sc.RoleId
-                                && ctx.GlobalRolePermissions.Any(grp => grp.GlobalRoleId == gl.GlobalRoleId)),
-                    Direct = ctx.TenantUserRoles.Any(tur => tur.RoleId == sc.RoleId && tur.TenantUserId != null && userTuIds.Contains(tur.TenantUserId.Value))
-                }).ToList();
+            => (parentTenantId, carried) =>
+            {
+                // "Diskrete Weitergabe": expand the carried roles with the intra-tenant RoleRoles closure at the parent
+                // tenant BEFORE matching the single cross-tenant edge down to the children. Without this, a role the
+                // user only holds through an in-tenant inheritance edge (e.g. a PermissionSet activation: DirectRole ->
+                // Set-Role) would not carry the Set-Role's cross-tenant (downline) reach, so an activated downline role
+                // never propagates. See docs/ISSUE-MLM-PermissionSet-CrossTenant-Propagation.md.
+                var effectiveCarried = ExpandIntraTenantClosure(ctx, carried, parentTenantId);
+                return (
+                    from c in ctx.Tenants
+                    where c.ParentTenantId == parentTenantId
+                    from sc in ctx.SecurityRoles.Where(x => x.TenantId == c.TenantId)
+                    where ctx.RoleRoles.Any(rr => rr.PermissiveRoleId == sc.RoleId && rr.PermittedRoleId != null && effectiveCarried.Contains(rr.PermittedRoleId.Value))
+                       || ctx.TenantUserRoles.Any(tur => tur.RoleId == sc.RoleId && tur.TenantUserId != null && userTuIds.Contains(tur.TenantUserId.Value))
+                    select new TenantTreeLevelRow
+                    {
+                        TenantId = c.TenantId,
+                        ParentTenantId = c.ParentTenantId,
+                        TenantName = c.TenantName,
+                        DisplayName = c.DisplayName,
+                        RoleId = sc.RoleId,
+                        HasPermission = ctx.RolePermissions.Any(rp => rp.RoleId == sc.RoleId)
+                            || ctx.GlobalToLocalRoles.Any(gl => gl.LocalRoleId == sc.RoleId
+                                    && ctx.GlobalRolePermissions.Any(grp => grp.GlobalRoleId == gl.GlobalRoleId)),
+                        Direct = ctx.TenantUserRoles.Any(tur => tur.RoleId == sc.RoleId && tur.TenantUserId != null && userTuIds.Contains(tur.TenantUserId.Value))
+                    }).ToList();
+            };
 
         private Func<int, int?> ParentOf(
             IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> ctx)
             => tenantId => ctx.Tenants.Where(t => t.TenantId == tenantId).Select(t => t.ParentTenantId).FirstOrDefault();
+
+        /// <summary>
+        /// Expands <paramref name="roleIds"/> (roles the user effectively holds in <paramref name="tenantId"/>) with the
+        /// intra-tenant <c>RoleRoles</c> closure: for an in-tenant edge ("Permissive is reached when Permitted is held")
+        /// every Permissive role whose Permitted role is already in the set is added, transitively. This is the discrete
+        /// in-tenant propagation that lets a PermissionSet-activated role (the DirectRole -> Set-Role edge) also carry
+        /// the Set-Role's cross-tenant (downline) reach. Only same-tenant edges are followed — cross-tenant reach stays
+        /// the tree walker's job (one structural level per edge). Terminates because cyclic role inheritance is
+        /// prevented (guarded regardless). See docs/ISSUE-MLM-PermissionSet-CrossTenant-Propagation.md.
+        /// </summary>
+        private static int[] ExpandIntraTenantClosure(
+            IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> ctx,
+            int[] roleIds, int tenantId)
+        {
+            var closure = new HashSet<int>(roleIds ?? Array.Empty<int>());
+            if (closure.Count == 0)
+            {
+                return Array.Empty<int>();
+            }
+
+            var grown = true;
+            var guard = 0;
+            while (grown && guard++ < 4096)
+            {
+                var current = closure.ToArray();
+                var next = (from rr in ctx.RoleRoles
+                        where rr.PermittedRoleId != null && rr.PermissiveRoleId != null
+                              && current.Contains(rr.PermittedRoleId.Value)
+                        join s in ctx.SecurityRoles on rr.PermissiveRoleId.Value equals s.RoleId
+                        where s.TenantId == tenantId
+                        select s.RoleId).ToArray();
+                grown = false;
+                foreach (var id in next)
+                {
+                    grown |= closure.Add(id);
+                }
+            }
+
+            return closure.ToArray();
+        }
 
         private sealed class TenantTreeLevelRow
         {
