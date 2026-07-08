@@ -483,10 +483,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             {
                 var pruneRoles = ShouldPrune(template.ApplyModeForRoles, defaultMode);
                 var rn = new List<string>();
+                // Two passes on purpose: a role's RoleGrants may reference a SIBLING role that appears LATER in
+                // this array (e.g. TenantOwner granting the yet-to-be-created Employees role). Materialise every
+                // role first so that grant resolution (ApplyRoleGrants -> SelectPermittedRole) can find any sibling
+                // in the change-tracker regardless of template order; only then wire up permissions and grants.
+                var pending = new List<(TRole Tmp, RoleTemplateMarkup Role)>();
                 foreach (var role in template.Roles)
                 {
                     var tmp = GetRole(tenant.TenantId, role, true);
                     rn.Add(tmp.RoleName);
+                    pending.Add((tmp, role));
+                }
+
+                foreach (var (tmp, role) in pending)
+                {
                     ApplyPermissions(tmp, role, pruneRoles);
                     ApplyRoleGrants(tenant, tmp, role, pruneRoles);
                     ApplyGlobalRoleGrants(tenant, tmp, role, pruneRoles);

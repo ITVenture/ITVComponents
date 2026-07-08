@@ -35,7 +35,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 throw new Exception("selected Tenant does not have a parent.");
             }
 
-            var ret = Db.SecurityRoles.FirstOrDefault(r => r.TenantId == tenantId && r.RoleName == s);
+            // Check the change-tracker's Local buffer as well as the database: a sibling role created earlier in
+            // this same apply pass (but not yet SaveChanges'd) lives only in Local. Without this fallback a grant
+            // to a not-yet-persisted sibling would wrongly report "Role ... was not found!".
+            var ret = Db.SecurityRoles.Local.FirstOrDefault(r => r.TenantId == tenantId && r.RoleName == s)
+                      ?? Db.SecurityRoles.FirstOrDefault(r => r.TenantId == tenantId && r.RoleName == s);
             if (ret == null)
             {
                 throw new Exception($"Role {s} was not found!");
