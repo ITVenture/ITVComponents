@@ -166,3 +166,26 @@ aus früheren Messungen: rekursive-CTE+Table-Variable immer in derselben Session
 `CROSS APPLY(tu.TenantUserId)` aufgerufen — die Rekursion läuft nur noch über die Rollen des einen aufzulösenden
 Tenant-Users, nicht mehr DB-weit. Erwartung: der ~210 ms-Sockel und die ~15×-Root-Eskalation @25000 fallen weg
 (Scope-lokale Kosten). **Nachmessung auf `MLM_Perf114` (alte vs. neue Proc-Chain, gleiche Session) noch offen.**
+
+## Perf-Nachmessung PRE115 (parametrisierte TVF) — MLM-Session, 2026-07-07
+
+PRE115 macht die Closure-TVF parametrisiert: `GetEffectiveTenantUserRoles(@tenantUserId int)` (nur der eine User),
+Anker via `CROSS APPLY (SELECT TOP 1 1 FROM GetEffectiveTenantUserRoles(tu.TenantUserId) er WHERE er.RoleId = pr.RoleId)`.
+MLM auf PRE115 + Migration `RecreateToolkitViewsPre115` (ConfigureViews-Redeploy). Funktionsfix intakt (kurt→Nadja(5)/Upline@5).
+
+Gemessen auf der stehenden `MLM_Perf114` (25000 User), dritte Chain `_new2` (=PRE115) neben `_old`/`_new`.
+
+**Deterministischer Kern (plan-stabil) — das eigentliche Ziel:**
+- PRE114 parameterlos: `COUNT(*) FROM GetEffectiveTenantUserRoles()` = **125000 Rows, ~1200 ms** — DB-weit, jeder Aufruf.
+- PRE115 parametrisiert, 1 User: **5 Rows, ~1 ms**.
+- PRE115 künstlich über ALLE 25000 User (CROSS APPLY): 125000 Rows, ~1285 ms (gleiche Gesamtarbeit — bestätigt: kein Zusatz-Overhead, nur nicht mehr DB-weit erzwungen).
+→ **Skalierung gefixt: Closure kostet jetzt O(aufzulösender User) statt O(alle DB-User).**
+
+**End-to-end Proc (plan-instabil, Trend über mehrere Läufe):**
+- leaf/mid: `_old`≈`_new`≈`_new2` ≈ 280–330 ms (Scope klein → Closure vernachlässigbar in allen Versionen). **Kein Overhead durch PRE115.**
+- root (Admin löst 5000er-Subtree in EINEM Call): `_new`(114) schwankt wild 685–8138 ms; `_new2`(115) stabiler aber ~3600–5300 ms; `_old`(113) ~700 ms — aber `_old` liefert nur 1 Row (propagiert die Downline gar nicht), ist also keine gleiche-Arbeit-Baseline. `_new` vs `_new2` (beide 14 Rows, gleiche korrekte Arbeit) sind grob vergleichbar; `_new2` planstabiler.
+  Der Root-Whole-Tree-Fall wird von der (vorbestehenden, planinstabilen) Tenant-Tree-Rekursion + Table-Variable-1-Row-Estimates dominiert — NICHT von der Closure; PRE115 verschlechtert das nicht.
+
+**Fazit:** Die gemeldete Skalierungs-Regression (O(alle DB-User) Fixkosten je Aufruf) ist mit PRE115 behoben. Für den
+realen Per-User-Auflösungspfad (leaf/mid) kein messbarer Overhead ggü. PRE113. Bleibt nur der von jeher plan-instabile
+Whole-Subtree-Root-Call (alle Versionen) — separater, vorbestehender Punkt (Table-Variables→#temp/RECOMPILE), unabhängig vom Closure-Fix.

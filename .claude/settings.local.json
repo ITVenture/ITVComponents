@@ -129,7 +129,19 @@
       "Bash(dotnet ef *)",
       "Bash(grep -vE '\\\\.csproj$')",
       "Bash(grep -E '\\\\.csproj$')",
-      "Bash(grep -cE '\\\\.csproj$')"
+      "Bash(grep -cE '\\\\.csproj$')",
+      "Bash(timeout 500 dotnet list ITVComponents.sln package --outdated)",
+      "Bash(grep -viE \"^$|wird ausgewertet|being evaluated|Projekt |^Das Projekt|hat keine\")",
+      "Bash(bc)",
+      "Bash(echo \"EXIT=$?\")",
+      "Read(//tmp/**)",
+      "Bash(echo \"done exit=$?\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -riE \"SharedComponents|MudBlazorLib|MudBlazor.SharedComponents\" \"ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/_Imports.razor\")",
+      "Bash(grep -rn \"RefreshButton\" \"ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/_Imports.razor\")",
+      "Bash(awk '{print $1}')",
+      "Bash(grep -viE \"\\\\.csproj$\")",
+      "Bash(perl -i -pe 's/PRE113/PRE118/g' docs/Migration-Future_10-MLM.md)"
     ]
   }
 }
