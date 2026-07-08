@@ -1,9 +1,11 @@
 # Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
 
-> **Stand: `5.0.0-PRE098`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
-> (Phasen 2–5), die danach gebauten Onboarding-Flows (2a/2b/2c, Abschnitt 6), die
-> EntityWriteTracker-/EntityChangeSignal-Invalidierung (Abschnitt 7/7a) **und** die optionale
-> Auto-Permission-Registration (Abschnitt 9) ab.
+> **Stand: `5.0.0-PRE113`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
+> (Phasen 2–5, §1–5), die Onboarding-Flows (2a/2b/2c, §6), die EntityWriteTracker-/EntityChangeSignal-
+> Invalidierung (§7/7a), die Per-Operation-Contexts (§8), die Auto-Permission-Registration (§9) und die
+> Onboarding-Tenant-Anlage/-Härtung (§10) ab — **plus die PRE113-Neuerungen: Paket-Versionen (§12),
+> `ItvErrorBoundary` (§13), cross-tenant PermissionSet-Propagation (§14, Pflicht-Migration) und
+> Tenant-Template `BasicTenantType`/Apply-Modes/Re-apply (§15)**.
 
 Dieser Leitfaden beschreibt, was im MLM-Projekt anzupassen ist, um auf den `Future_10`-Stand der
 ITVComponents-Toolkit zu wechseln. Es ist ein **Major-Release (5.0-PRExx)** mit bewussten Breaking
@@ -17,7 +19,7 @@ Reihenfolge der Abschnitte = empfohlene Reihenfolge der Migration. Pro Abschnitt
 > **Companion-Dokument:** Die **Paket-Konsolidierung** (NuGet-ID-Umbenennungen 103→71, `using`-Sweeps,
 > WebPart-Config-Key-Änderungen) ist separat in
 > [`Migration-Future_10-MLM-Packaging.md`](Migration-Future_10-MLM-Packaging.md) beschrieben. Für den
-> aktuellen Stand (`5.0.0-PRE068`) **beide** Dokumente durcharbeiten.
+> aktuellen Stand (`5.0.0-PRE113`) **beide** Dokumente durcharbeiten.
 
 ---
 
@@ -902,6 +904,99 @@ Verbesserungen am Rollendefinitionen-Grid (EmployeeRoleMappings), **keine** Migr
 
 ---
 
+## 12. Paket-Versionen anheben (`5.0.0-PRE113`)
+
+Beim Hochziehen der `ITVComponents.*`-NuGet-Referenzen auf **`5.0.0-PRE113`** solltet ihr die folgenden Framework-
+und Fremdpaket-Versionen **mitziehen** — das Toolkit ist gegen diese gebaut (sonst Versions-Divergenz / NU-Warnungen):
+
+| Paket(gruppe) | Version |
+|---|---|
+| `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.*`, `Microsoft.Extensions.*`, `System.*` (Runtime), `Microsoft.AspNetCore.Identity.*` | **`10.0.9`** |
+| `Npgsql.EntityFrameworkCore.PostgreSQL` (nur PostgreSQL-Hosts) | **`10.0.2`** |
+| `MudBlazor` | **`9.6.0`** |
+| `BlazorMonaco` | **`3.5.0`** |
+| `Scriban` | **`7.2.5`** |
+| `Microsoft.OpenApi` | **`3.8.0`** |
+| `Microsoft.IdentityModel.Tokens.Saml` (nur SAML) | **`8.19.1`** |
+| `Azure.Storage.Blobs` (nur Azure-Blob) | **`12.29.1`** |
+| `Google.Protobuf` / `Grpc.Tools` (nur gRPC/IPC) | **`3.35.1`** / **`2.82.0`** |
+| `PrettyPrompt` / `System.Management.Automation` (nur PowerShell) | **`6.0.4`** / **`7.6.3`** |
+| `Extended.Wpf.Toolkit` (nur WPF) | **`5.1.2`** |
+| `Stripe.net` (nur Billing) | **`52.1.0`** ⚠️ Major-Sprung 51→52 — prüft eure Stripe-API-Nutzung |
+
+**Bewusst NICHT angehoben** (übernehmt das ebenfalls **nicht**):
+- **`Microsoft.CodeAnalysis.*` bleibt `5.0.0`.** `5.6.0` ist inkompatibel mit `Microsoft.EntityFrameworkCore.Design 10.0.9`, das transitiv `CodeAnalysis.CSharp.Workspaces 5.0.0` zieht und `Common` auf exakt `5.0.0` pinnt → `NU1107` in Projekten, die Scripting **und** EFCore.Design kombinieren.
+- **Test-Stack** (`Microsoft.NET.Test.Sdk` 17, `MSTest.*` 3) unverändert (Major-Sprung, nicht getestet).
+
+MudBlazor `9.4 → 9.6` ist nur ein Minor — prüft eure eigenen MudBlazor-Verwendungen kurz auf Deprecation-Warnungen.
+
+## 13. `ItvErrorBoundary` — Circuit vor Komponenten-Fehlern schützen (opt-in, empfohlen)
+
+Unter **Blazor Server** reißt **jede unbehandelte Exception den ganzen SignalR-Circuit ab** (→ Reconnect-Overlay bzw.
+Ctrl+F5). Neu im Toolkit: die wiederverwendbare Komponente **`ItvErrorBoundary`** (Namespace
+`ITVComponents.WebCoreToolkit.Blazor.SharedComponents`, in `Blazor.MudBlazor`). Sie fängt Render-/Lifecycle-**und
+Event-Handler**-Fehler (also auch fehlgeschlagene Saves) im umschlossenen Bereich ab und **hält den Circuit am Leben** —
+ohne dass ihr überall try/catch braucht.
+
+**Einbau (ein Ort, schützt alle Toolkit-Seiten):** im Host-Layout `@Body` umschließen:
+```razor
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+<ItvErrorBoundary>
+    @Body
+</ItvErrorBoundary>
+```
+Optional die Meldung/den Retry überschreiben (beide Slots bekommen `ItvErrorContext` = `Exception` + `Recover`):
+```razor
+<ItvErrorBoundary>
+    <Actions Context="err"><MudButton OnClick="@(() => err.Recover())">Erneut versuchen</MudButton></Actions>
+    <ChildContent>@Body</ChildContent>
+</ItvErrorBoundary>
+```
+`Notification` = ganze Meldung selbst gestalten, `Actions` = nur der Recover-Bereich. Weitere Parameter: `Title`,
+`RecoverText`, `Severity`, `ShowDetails` (Default false), `RecoverOnNavigation` (Default true → alter Fehler wird beim
+Navigieren automatisch zurückgesetzt), geerbtes `MaximumErrorCount`. Zusätzlich empfehlenswert: das Blazor-**Reconnect-
+Overlay** im Host konfigurieren, damit ein tatsächlich abgerissener Circuit automatisch neu verbindet.
+**Grenze:** echte fire-and-forget-async-Exceptions (nicht awaitet) entkommen jeder Boundary — die müssen an der
+Startstelle behandelt werden.
+
+## 14. PermissionSet-Aktivierung propagiert jetzt cross-tenant — **Pflicht-Migration (`ConfigureViews`)**
+
+Die Rollen-/Tenant-Baum-Auflösung propagiert jetzt auch die **cross-tenant Reichweite** einer per `PermissionSet`
+aktivierten Rolle (intra-tenant Closure der effektiven Rollen). Dafür wurden die generierten SQL-Objekte geändert
+(neue Inline-TVF `GetEffectiveTenantUserRoles(@tenantUserId)`; die Rollen-Tree-Prozeduren/-Funktionen ankern auf die
+effektive statt nur die direkt zugewiesene Rollenmenge).
+
+- **Pflicht:** eine **neue Konsumenten-Migration**, die `SqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` erneut
+  ausführt (idempotent: `DROP … if exists` + `CREATE`), damit die neue TVF **und** die regenerierten Prozeduren
+  deployt werden. Ohne diese Migration bleiben die alten Prozeduren aktiv und die Downline-Propagation greift nicht.
+- Der LINQ-Zwilling (`DbSecurityRepository.GetRootTenants`/`GetChildTenants`, Tenant-Switcher) braucht **keine**
+  Migration — er ist im Toolkit angepasst.
+- Schema **unverändert** (keine EF-`migrations add`-Tabellenänderung nötig, nur die View/Proc-`Sql()`-Ausführung).
+
+Details/Repro: `docs/ISSUE-MLM-PermissionSet-CrossTenant-Propagation.md`.
+
+## 15. Tenant-Template: `BasicTenantType`, Apply-Modes, Re-apply (opt-in, kein Schema-Change)
+
+- **`TenantSetupOptions.BasicTenantType`** (neu, bevorzugt): Onboarding wählt das Template über den **TenantType**
+  (`TenantType.TenantTemplate`) statt über den Template-Namen. Vorrang: Invitation-Override > `BasicTenantType` >
+  `BasicTenantTemplate` (legacy, bleibt als Fallback). Der onboardete Tenant wird mit dem `TenantTypeId` getaggt.
+  Aktion: optional die `TenantSetup`-GlobalSetting um `BasicTenantType` erweitern (sonst greift weiter `BasicTenantTemplate`).
+- **Apply-Modes** (`Auto`/`Additive`/`Forced`) — pro Bereich am Template (`ApplyModeForRoles`, `…ForPlugIns`, …) und/oder
+  als Methoden-Default. `Auto` (Default) erbt: an der Methode → `Forced`, am Template → aufgelöster Methoden-Wert.
+  **Bestandsschutz:** ohne gesetzte Modi = `Forced` = bisheriges (löschendes Sync-)Verhalten, kein Bruch.
+  `Additive` = reines Upsert (nichts löschen).
+- **`TenantTemplateMarkup.Extensions`**: Modell-Änderung (`Dictionary<string,string>` → `Dictionary<string,
+  TemplateExtensionMarkup>` mit `Payload`+`ApplyMode`). **Alte string-Form deserialisiert weiter** (Converter) — gespeicherte
+  Templates brechen **nicht**, keine Aktion nötig.
+- **Template erneut anwenden:** Extension `services.ApplyTenantTypeTemplate(dbContext, tenant, mode = Additive)` (lädt das
+  Template des TenantTyps und wendet es auf den Tenant an) — bzw. im Blazor-Tenants-Grid der neue Re-apply-Button (nur
+  sichtbar, wenn dem Tenant ein TenantType **mit** Template zugewiesen ist; Permission `TenantTemplates.Write`).
+
+Die neuen Settings-Editoren (GlobalSettings/TenantSettings mit CodeEditor + JSON/Plaintext-Switch) sind automatisch —
+keine Host-Aktion, nur die Versionsanhebung (§12).
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -923,3 +1018,7 @@ Verbesserungen am Rollendefinitionen-Grid (EmployeeRoleMappings), **keine** Migr
 | 13 | **Onboarding Tenant-Anlage** (§10, neu `PRE108`) | **Pflicht-Migration ab `5.0.0-PRE108`** für neue Spalte `PendingOnboarding.CreatedTenantId` (`dotnet ef migrations add PendingOnboardingCreatedTenantId` → `database update`), sonst Runtime-Crash. Behebt IDENTITY_INSERT-Crash beim Template-Apply + macht den Blazor-Abschluss atomar (keine halben/doppelten Tenants). Keine Config-/API-Änderung. MVC-Flow: nur Crash-Fix, keine Tx-Härtung |
 | 14 | **Rollendefinitionen-Tab** (§10.4, `PRE108`) | Automatisch: Haupt-Grid zeigt nur bearbeitbare Zeilen (Kind-Write-gated), Anzeigename bevorzugt (Translate). Optional: `TenantSetup.ForceDedicatedRoleForMappings = true` erzwingt Neu-Rolle beim RoleMapping-Anlegen (kein Picker für bestehende Rollen). Keine Migration |
 | 15 | **Delegation-Rolle** (§10.4, `PRE108`) | Dritter RoleMapping-Typ (Enum additiv, keine Migration). **Zwei neue Permissions seeden:** `Onboarding.Admin.RoleMappings.Delegation` (Voll-Edit) + `Onboarding.Admin.RoleMappings.DelegationAssign` (nur sehen + PermissionSets zuweisen). Via Auto-Permission-Registration (§9) sonst automatisch |
+| 16 | **Paket-Versionen** (§12, `PRE113`) | NuGet-Refs auf `ITVComponents 5.0.0-PRE113`; Framework/3rd-party mitziehen (EFCore/AspNetCore/Extensions/System.* `10.0.9`, Npgsql `10.0.2`, MudBlazor `9.6.0`, BlazorMonaco `3.5.0`, Scriban `7.2.5`, OpenApi `3.8.0`, Saml `8.19.1`, Azure.Blobs `12.29.1`, protobuf `3.35.1`/grpc.tools `2.82.0`, PrettyPrompt `6.0.4`, PS.Automation `7.6.3`, WPF-Toolkit `5.1.2`, Stripe `52.1.0`). **NICHT** anheben: `Microsoft.CodeAnalysis.*` (bleibt `5.0.0`, sonst NU1107 mit EFCore.Design), Test-Stack (Test.Sdk 17, MSTest 3) |
+| 17 | **ItvErrorBoundary** (§13, opt-in) | `<ItvErrorBoundary>@Body</ItvErrorBoundary>` im Host-Layout (`@using …Blazor.SharedComponents`) → Komponenten-Fehler reißen den SignalR-Circuit nicht mehr ab. Override-Slots `Notification`/`Actions` mit `ItvErrorContext` |
+| 18 | **PermissionSet cross-tenant** (§14, `PRE113`) | **Pflicht:** neue Migration mit `SqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (deployt neue TVF `GetEffectiveTenantUserRoles` + regenerierte Rollen-Tree-Procs). Ohne = Downline-Propagation aktivierter PermissionSets greift nicht. Kein Schema-Change, LINQ-Zwilling ohne Migration |
+| 19 | **Tenant-Template** (§15, opt-in) | optional `TenantSetup.BasicTenantType` (Template über TenantType statt Name); per-Bereich Apply-Modes `Auto`/`Additive`/`Forced` (Default = altes Forced-Verhalten); `Extensions`-Modell geändert aber **back-compat** (alte Templates deserialisieren weiter); Re-apply via `services.ApplyTenantTypeTemplate(...)` bzw. Grid-Button. Kein Schema-Change |
