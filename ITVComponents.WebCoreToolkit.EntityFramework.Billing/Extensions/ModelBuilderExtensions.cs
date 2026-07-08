@@ -7,7 +7,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
     {
         /// <summary>
         /// Maps the billing entities (<see cref="Plan"/>, <see cref="PlanFeature"/>, <see cref="AddOn"/>,
-        /// <see cref="AddOnFeature"/>, <see cref="TenantSubscription"/>, <see cref="TenantSubscriptionItem"/>).
+        /// <see cref="AddOnFeature"/>, <see cref="PlanAddOn"/>, <see cref="PlanAddOnPrice"/>,
+        /// <see cref="TenantSubscription"/>, <see cref="TenantSubscriptionItem"/>).
         /// Call from the consuming context's <c>OnModelCreating</c>. Keys/indexes/FKs come from data
         /// annotations; this configures decimal precision and safe delete behaviour. No tenant global filter is
         /// applied — Billing is tenant-model-agnostic, the service layer queries by <c>TenantId</c> explicitly.
@@ -15,15 +16,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
         public static ModelBuilder ConfigureBilling(this ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<PlanPrice>().Property(p => p.Amount).HasPrecision(18, 2);
-            modelBuilder.Entity<AddOnPrice>().Property(p => p.Amount).HasPrecision(18, 2);
+            modelBuilder.Entity<PlanAddOnPrice>().Property(p => p.Amount).HasPrecision(18, 2);
 
             modelBuilder.Entity<PlanPrice>()
                 .HasOne(p => p.Plan).WithMany(p => p.Prices)
                 .HasForeignKey(p => p.PlanId).OnDelete(DeleteBehavior.Cascade);
 
-            modelBuilder.Entity<AddOnPrice>()
-                .HasOne(p => p.AddOn).WithMany(a => a.Prices)
-                .HasForeignKey(p => p.AddOnId).OnDelete(DeleteBehavior.Cascade);
+            // Deleting a plan removes its add-on links; deleting an add-on is blocked while any plan still links
+            // it (Restrict), so a booking offer can't vanish through the add-on side.
+            modelBuilder.Entity<PlanAddOn>()
+                .HasOne(pa => pa.Plan).WithMany(p => p.PlanAddOns)
+                .HasForeignKey(pa => pa.PlanId).OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PlanAddOn>()
+                .HasOne(pa => pa.AddOn).WithMany(a => a.PlanAddOns)
+                .HasForeignKey(pa => pa.AddOnId).OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PlanAddOnPrice>()
+                .HasOne(p => p.PlanAddOn).WithMany(pa => pa.Prices)
+                .HasForeignKey(p => p.PlanAddOnId).OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<PlanFeature>()
                 .HasOne(f => f.Plan).WithMany(p => p.Features)

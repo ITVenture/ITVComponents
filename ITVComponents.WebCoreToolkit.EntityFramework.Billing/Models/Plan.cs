@@ -44,5 +44,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models
         public virtual ICollection<PlanPrice> Prices { get; set; } = new List<PlanPrice>();
 
         public virtual ICollection<PlanFeature> Features { get; set; } = new List<PlanFeature>();
+
+        /// <summary>
+        /// Add-ons bookable alongside this plan (n:m via <see cref="PlanAddOn"/>). Each link carries the add-on's
+        /// per-currency price under this plan; the recurring interval is this plan's <see cref="BillingInterval"/>.
+        /// </summary>
+        public virtual ICollection<PlanAddOn> PlanAddOns { get; set; } = new List<PlanAddOn>();
     }
 }

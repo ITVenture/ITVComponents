@@ -23,7 +23,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 
         public async Task SyncPlanAsync(int planId, CancellationToken cancellationToken = default)
         {
-            var plan = await db.Plans.Include(p => p.Prices).FirstOrDefaultAsync(p => p.PlanId == planId, cancellationToken);
+            var plan = await db.Plans
+                .Include(p => p.Prices)
+                .Include(p => p.PlanAddOns).ThenInclude(pa => pa.Prices)
+                .Include(p => p.PlanAddOns).ThenInclude(pa => pa.AddOn)
+                .FirstOrDefaultAsync(p => p.PlanId == planId, cancellationToken);
             if (plan == null)
             {
                 return;
@@ -37,23 +41,37 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                 price.ProviderPriceId = await EnsurePriceAsync(plan.ProviderProductId!, price.ProviderPriceId, price.Amount, price.Currency, plan.BillingInterval, cancellationToken);
             }
 
+            // Add-on prices live on the plan link and inherit the plan's interval: ensure each linked add-on's
+            // product exists, then push its per-currency prices under this plan's billing interval.
+            foreach (var link in plan.PlanAddOns)
+            {
+                var addOn = link.AddOn;
+                if (addOn == null)
+                {
+                    continue;
+                }
+
+                addOn.ProviderProductId = await EnsureProductAsync(addOn.ProviderProductId, addOn.Name, addOn.Description, addOn.IsActive, cancellationToken);
+                foreach (var price in link.Prices)
+                {
+                    price.ProviderPriceId = await EnsurePriceAsync(addOn.ProviderProductId!, price.ProviderPriceId, price.Amount, price.Currency, plan.BillingInterval, cancellationToken);
+                }
+            }
+
             await db.SaveChangesAsync(cancellationToken);
         }
 
         public async Task SyncAddOnAsync(int addOnId, CancellationToken cancellationToken = default)
         {
-            var addOn = await db.AddOns.Include(a => a.Prices).FirstOrDefaultAsync(a => a.AddOnId == addOnId, cancellationToken);
+            var addOn = await db.AddOns.FirstOrDefaultAsync(a => a.AddOnId == addOnId, cancellationToken);
             if (addOn == null)
             {
                 return;
             }
 
+            // An add-on is only a provider product (its identity). Its prices are per-plan and pushed with the
+            // owning plan (see SyncPlanAsync), because a Stripe price carries the plan's recurring interval.
             addOn.ProviderProductId = await EnsureProductAsync(addOn.ProviderProductId, addOn.Name, addOn.Description, addOn.IsActive, cancellationToken);
-
-            foreach (var price in addOn.Prices)
-            {
-                price.ProviderPriceId = await EnsurePriceAsync(addOn.ProviderProductId!, price.ProviderPriceId, price.Amount, price.Currency, addOn.BillingInterval, cancellationToken);
-            }
 
             await db.SaveChangesAsync(cancellationToken);
         }

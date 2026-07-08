@@ -118,10 +118,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
             }
 
             // Provider prices are per-currency rows; map each back to its owning plan/add-on (currency-agnostic).
+            // Add-on prices live on the plan link, so resolve them via PlanAddOnPrice → PlanAddOn → AddOn.
             var priceIds = (sub.Items?.Data ?? new List<SubscriptionItem>()).Select(i => i.Price.Id).ToList();
             var planPrices = await db.PlanPrices.Include(pp => pp.Plan).ThenInclude(p => p!.Features)
                 .Where(pp => pp.ProviderPriceId != null && priceIds.Contains(pp.ProviderPriceId)).ToListAsync(ct);
-            var addOnPrices = await db.AddOnPrices.Include(ap => ap.AddOn).ThenInclude(a => a!.Features)
+            var addOnPrices = await db.PlanAddOnPrices
+                .Include(ap => ap.PlanAddOn).ThenInclude(pa => pa!.AddOn).ThenInclude(a => a!.Features)
                 .Where(ap => ap.ProviderPriceId != null && priceIds.Contains(ap.ProviderPriceId)).ToListAsync(ct);
 
             var featureKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -135,7 +137,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                 };
 
                 var plan = planPrices.FirstOrDefault(pp => pp.ProviderPriceId == priceId)?.Plan;
-                var addOn = addOnPrices.FirstOrDefault(ap => ap.ProviderPriceId == priceId)?.AddOn;
+                var addOn = addOnPrices.FirstOrDefault(ap => ap.ProviderPriceId == priceId)?.PlanAddOn?.AddOn;
                 if (plan != null)
                 {
                     line.PlanId = plan.PlanId;

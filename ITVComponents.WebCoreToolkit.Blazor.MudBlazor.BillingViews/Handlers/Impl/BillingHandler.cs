@@ -10,6 +10,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.EntityFrameworkCore;
 
@@ -88,6 +89,18 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             return vm;
         }
 
+        public async Task<IReadOnlyList<FeatureCatalogItemViewModel>> GetFeatureCatalogAsync(CancellationToken cancellationToken = default)
+        {
+            using var db = dbFactory.CreateDbContext();
+            var features = await db.Set<Feature>().AsNoTracking().OrderBy(f => f.FeatureName).ToListAsync(cancellationToken);
+            return features.Select(f => new FeatureCatalogItemViewModel
+            {
+                Name = f.FeatureName,
+                Description = f.FeatureDescription,
+                Enabled = f.Enabled
+            }).ToList();
+        }
+
         public async Task<IReadOnlyList<PlanViewModel>> GetActivePlansAsync(CancellationToken cancellationToken = default)
         {
             using var db = dbFactory.CreateDbContext();
@@ -102,7 +115,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         private static async Task<IReadOnlyList<PlanViewModel>> QueryPlans(IQueryable<Plan> source, CancellationToken cancellationToken)
         {
-            var plans = await source.AsNoTracking().Include(p => p.Features).Include(p => p.Prices).OrderBy(p => p.Name).ToListAsync(cancellationToken);
+            var plans = await source.AsNoTracking()
+                .Include(p => p.Features)
+                .Include(p => p.Prices)
+                .Include(p => p.PlanAddOns).ThenInclude(pa => pa.Prices)
+                .Include(p => p.PlanAddOns).ThenInclude(pa => pa.AddOn)
+                .OrderBy(p => p.Name).ToListAsync(cancellationToken);
             return plans.Select(p => new PlanViewModel
             {
                 PlanId = p.PlanId,
@@ -112,22 +130,33 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                 TrialDays = p.TrialDays,
                 IsActive = p.IsActive,
                 Prices = p.Prices.Select(pr => new PriceViewModel { Currency = pr.Currency, Amount = pr.Amount, ProviderPriceId = pr.ProviderPriceId }).ToList(),
-                FeatureKeys = p.Features.Select(f => f.FeatureKey).ToList()
+                FeatureKeys = p.Features.Select(f => f.FeatureKey).ToList(),
+                AddOns = p.PlanAddOns.Where(pa => pa.AddOn != null).Select(pa => new PlanAddOnViewModel
+                {
+                    AddOnId = pa.AddOnId,
+                    Name = pa.AddOn!.Name,
+                    Description = pa.AddOn.Description,
+                    Selected = true,
+                    Prices = pa.Prices.Select(pr => new PriceViewModel { Currency = pr.Currency, Amount = pr.Amount, ProviderPriceId = pr.ProviderPriceId }).ToList()
+                }).OrderBy(a => a.Name).ToList()
             }).ToList();
         }
 
         public async Task<IReadOnlyList<AddOnViewModel>> GetActiveAddOnsAsync(CancellationToken cancellationToken = default)
         {
             using var db = dbFactory.CreateDbContext();
-            var addOns = await db.AddOns.AsNoTracking().Where(a => a.IsActive).Include(a => a.Features).Include(a => a.Prices).OrderBy(a => a.Name).ToListAsync(cancellationToken);
+            return await QueryAddOns(db.AddOns.Where(a => a.IsActive), cancellationToken);
+        }
+
+        private static async Task<IReadOnlyList<AddOnViewModel>> QueryAddOns(IQueryable<AddOn> source, CancellationToken cancellationToken)
+        {
+            var addOns = await source.AsNoTracking().Include(a => a.Features).OrderBy(a => a.Name).ToListAsync(cancellationToken);
             return addOns.Select(a => new AddOnViewModel
             {
                 AddOnId = a.AddOnId,
                 Name = a.Name,
                 Description = a.Description,
-                BillingInterval = a.BillingInterval,
                 IsActive = a.IsActive,
-                Prices = a.Prices.Select(pr => new PriceViewModel { Currency = pr.Currency, Amount = pr.Amount, ProviderPriceId = pr.ProviderPriceId }).ToList(),
                 FeatureKeys = a.Features.Select(f => f.FeatureKey).ToList()
             }).ToList();
         }
@@ -152,7 +181,11 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             Plan plan;
             if (model.PlanId != 0)
             {
-                plan = await db.Plans.Include(p => p.Features).Include(p => p.Prices).FirstOrDefaultAsync(p => p.PlanId == model.PlanId, cancellationToken)
+                plan = await db.Plans
+                           .Include(p => p.Features)
+                           .Include(p => p.Prices)
+                           .Include(p => p.PlanAddOns).ThenInclude(pa => pa.Prices)
+                           .FirstOrDefaultAsync(p => p.PlanId == model.PlanId, cancellationToken)
                        ?? throw new InvalidOperationException($"Plan {model.PlanId} not found.");
             }
             else
@@ -205,8 +238,61 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                 }
             }
 
+            ReconcilePlanAddOns(plan, model);
+
             await db.SaveChangesAsync(cancellationToken);
             return plan.PlanId;
+        }
+
+        /// <summary>
+        /// Reconciles the plan's add-on links and their per-currency prices to <paramref name="model"/>. Only
+        /// selected add-ons are kept; editing a price amount keeps the row so a pushed ProviderPriceId survives
+        /// (the synchronizer re-points it only if the amount actually changed).
+        /// </summary>
+        private static void ReconcilePlanAddOns(Plan plan, PlanViewModel model)
+        {
+            var desired = model.AddOns
+                .Where(a => a.Selected && a.AddOnId != 0)
+                .GroupBy(a => a.AddOnId)
+                .ToDictionary(g => g.Key, g => g.Last());
+
+            foreach (var staleLink in plan.PlanAddOns.Where(pa => !desired.ContainsKey(pa.AddOnId)).ToList())
+            {
+                plan.PlanAddOns.Remove(staleLink);
+            }
+
+            foreach (var (addOnId, vm) in desired)
+            {
+                var link = plan.PlanAddOns.FirstOrDefault(pa => pa.AddOnId == addOnId);
+                if (link == null)
+                {
+                    link = new PlanAddOn { AddOnId = addOnId };
+                    plan.PlanAddOns.Add(link);
+                }
+
+                var desiredPrices = vm.Prices
+                    .Where(p => !string.IsNullOrWhiteSpace(p.Currency))
+                    .GroupBy(p => p.Currency.Trim().ToUpperInvariant())
+                    .ToDictionary(g => g.Key, g => g.Last().Amount);
+
+                foreach (var stalePrice in link.Prices.Where(p => !desiredPrices.ContainsKey(p.Currency.ToUpperInvariant())).ToList())
+                {
+                    link.Prices.Remove(stalePrice);
+                }
+
+                foreach (var (cur, amount) in desiredPrices)
+                {
+                    var row = link.Prices.FirstOrDefault(p => string.Equals(p.Currency, cur, StringComparison.OrdinalIgnoreCase));
+                    if (row == null)
+                    {
+                        link.Prices.Add(new PlanAddOnPrice { Currency = cur, Amount = amount });
+                    }
+                    else
+                    {
+                        row.Amount = amount;
+                    }
+                }
+            }
         }
 
         public Task PushPlanAsync(int planId, CancellationToken cancellationToken = default) => planSynchronizer.SyncPlanAsync(planId, cancellationToken);
@@ -214,17 +300,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         public async Task<IReadOnlyList<AddOnViewModel>> GetAllAddOnsAsync(CancellationToken cancellationToken = default)
         {
             using var db = dbFactory.CreateDbContext();
-            var addOns = await db.AddOns.AsNoTracking().Include(a => a.Features).Include(a => a.Prices).OrderBy(a => a.Name).ToListAsync(cancellationToken);
-            return addOns.Select(a => new AddOnViewModel
-            {
-                AddOnId = a.AddOnId,
-                Name = a.Name,
-                Description = a.Description,
-                BillingInterval = a.BillingInterval,
-                IsActive = a.IsActive,
-                Prices = a.Prices.Select(pr => new PriceViewModel { Currency = pr.Currency, Amount = pr.Amount, ProviderPriceId = pr.ProviderPriceId }).ToList(),
-                FeatureKeys = a.Features.Select(f => f.FeatureKey).ToList()
-            }).ToList();
+            return await QueryAddOns(db.AddOns, cancellationToken);
         }
 
         public async Task<int> SaveAddOnAsync(AddOnViewModel model, CancellationToken cancellationToken = default)
@@ -233,7 +309,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             AddOn addOn;
             if (model.AddOnId != 0)
             {
-                addOn = await db.AddOns.Include(a => a.Features).Include(a => a.Prices).FirstOrDefaultAsync(a => a.AddOnId == model.AddOnId, cancellationToken)
+                addOn = await db.AddOns.Include(a => a.Features).FirstOrDefaultAsync(a => a.AddOnId == model.AddOnId, cancellationToken)
                         ?? throw new InvalidOperationException($"Add-on {model.AddOnId} not found.");
             }
             else
@@ -244,10 +320,10 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
             addOn.Name = model.Name;
             addOn.Description = model.Description;
-            addOn.BillingInterval = model.BillingInterval;
             addOn.IsActive = model.IsActive;
 
-            // Reconcile feature keys.
+            // Reconcile feature keys. Pricing and plan bookability live on the plan link (see SavePlanAsync),
+            // so an add-on is just its identity + features here.
             var desired = new HashSet<string>(model.FeatureKeys.Where(k => !string.IsNullOrWhiteSpace(k)), StringComparer.OrdinalIgnoreCase);
             foreach (var stale in addOn.Features.Where(f => !desired.Contains(f.FeatureKey)).ToList())
             {
@@ -258,31 +334,6 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             foreach (var key in desired.Where(k => !existing.Contains(k)))
             {
                 addOn.Features.Add(new AddOnFeature { FeatureKey = key });
-            }
-
-            // Reconcile per-currency prices (keyed by currency). Editing an amount keeps the row so the pushed
-            // ProviderPriceId is preserved; the synchronizer re-points it only if the amount actually changed.
-            var desiredPrices = model.Prices
-                .Where(p => !string.IsNullOrWhiteSpace(p.Currency))
-                .GroupBy(p => p.Currency.Trim().ToUpperInvariant())
-                .ToDictionary(g => g.Key, g => g.Last().Amount);
-
-            foreach (var stalePrice in addOn.Prices.Where(p => !desiredPrices.ContainsKey(p.Currency.ToUpperInvariant())).ToList())
-            {
-                addOn.Prices.Remove(stalePrice);
-            }
-
-            foreach (var (cur, amount) in desiredPrices)
-            {
-                var row = addOn.Prices.FirstOrDefault(p => string.Equals(p.Currency, cur, StringComparison.OrdinalIgnoreCase));
-                if (row == null)
-                {
-                    addOn.Prices.Add(new AddOnPrice { Currency = cur, Amount = amount });
-                }
-                else
-                {
-                    row.Amount = amount;
-                }
             }
 
             await db.SaveChangesAsync(cancellationToken);

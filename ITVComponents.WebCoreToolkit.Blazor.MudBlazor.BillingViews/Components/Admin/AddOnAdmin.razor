@@ -9,6 +9,7 @@
 <PageTitle>Add-ons</PageTitle>
 
 <MudText Typo="Typo.h5" GutterBottom="true">Add-ons</MudText>
+<MudText Typo="Typo.body2" Class="mb-3">An add-on defines a name and the features it grants. Its price and which plans it can be booked with are configured per plan on the Plans page.</MudText>
 
 @if (currentUser is null)
 {
@@ -27,18 +28,16 @@ else
     <MudTable Items="addOns" Dense="true" Hover="true">
         <HeaderContent>
             <MudTh>Name</MudTh>
-            <MudTh>Price</MudTh>
-            <MudTh>Interval</MudTh>
+            <MudTh>Features</MudTh>
             <MudTh>Active</MudTh>
-            <MudTh>Provider price</MudTh>
+            <MudTh>Provider product</MudTh>
             <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Price">@PriceSummary(context)</MudTd>
-            <MudTd DataLabel="Interval">@context.BillingInterval</MudTd>
+            <MudTd DataLabel="Features">@FeatureSummary(context)</MudTd>
             <MudTd DataLabel="Active">@(context.IsActive ? "yes" : "no")</MudTd>
-            <MudTd DataLabel="Provider price">@PushSummary(context)</MudTd>
+            <MudTd DataLabel="Provider product">@ProductSummary(context)</MudTd>
             <MudTd>
                 <MudStack Row="true" Spacing="1">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
@@ -57,30 +56,17 @@ else
             <MudGrid>
                 <MudItem xs="12" sm="6"><MudTextField @bind-Value="editModel.Name" Label="Name" Required="true" /></MudItem>
                 <MudItem xs="12" sm="6"><MudTextField @bind-Value="editModel.Description" Label="Description" /></MudItem>
-                <MudItem xs="6" sm="3">
-                    <MudSelect T="BillingInterval" @bind-Value="editModel.BillingInterval" Label="Interval">
-                        @foreach (var interval in System.Enum.GetValues<BillingInterval>())
+                <MudItem xs="12">
+                    <MudSelect T="string" Label="Features" MultiSelection="true"
+                               SelectedValues="selectedFeatures" SelectedValuesChanged="OnFeaturesChanged"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var opt in featureOptions)
                         {
-                            <MudSelectItem T="BillingInterval" Value="@interval">@interval</MudSelectItem>
+                            <MudSelectItem T="string" Value="@opt.Name">@opt.Display</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12"><MudTextField @bind-Value="featureKeysText" Label="Feature keys (comma-separated)" /></MudItem>
                 <MudItem xs="12"><MudCheckBox T="bool" @bind-Value="editModel.IsActive" Label="Active" /></MudItem>
-
-                <MudItem xs="12">
-                    <MudText Typo="Typo.subtitle2" Class="mt-2">Prices per currency</MudText>
-                    @foreach (var price in editModel.Prices)
-                    {
-                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="my-1">
-                            <MudTextField @bind-Value="price.Currency" Label="Currency" Style="max-width:120px" Immediate="true" />
-                            <MudNumericField T="decimal" @bind-Value="price.Amount" Label="Amount" Style="max-width:160px" />
-                            <MudText Typo="Typo.caption">@(string.IsNullOrEmpty(price.ProviderPriceId) ? "not pushed" : price.ProviderPriceId)</MudText>
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => editModel.Prices.Remove(price))" />
-                        </MudStack>
-                    }
-                    <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="AddPrice">Add price</MudButton>
-                </MudItem>
             </MudGrid>
             <MudStack Row="true" Spacing="2" Class="mt-2">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy" OnClick="Save">Save</MudButton>
@@ -96,7 +82,11 @@ else
     private bool busy;
     private IReadOnlyList<AddOnViewModel> addOns = System.Array.Empty<AddOnViewModel>();
     private AddOnViewModel? editModel;
-    private string featureKeysText = "";
+    private IReadOnlyList<FeatureCatalogItemViewModel> catalog = System.Array.Empty<FeatureCatalogItemViewModel>();
+    private IReadOnlyCollection<string> selectedFeatures = System.Array.Empty<string>();
+    private List<FeatureOption> featureOptions = new();
+
+    private sealed record FeatureOption(string Name, string Display);
 
     protected override async Task OnInitializedAsync()
     {
@@ -105,11 +95,33 @@ else
         canAdmin = Handler.CanAdminister(currentUser);
         if (canAdmin)
         {
+            catalog = await Handler.GetFeatureCatalogAsync();
             await Reload();
         }
     }
 
     private async Task Reload() => addOns = await Handler.GetAllAddOnsAsync();
+
+    private void OnFeaturesChanged(IEnumerable<string> values) => selectedFeatures = values.ToList();
+
+    // Options = catalog features (disabled ones marked) plus any keys already on the add-on that no longer exist
+    // in the catalog (marked "unknown"), so editing never silently drops an orphaned key.
+    private void BuildFeatureOptions()
+    {
+        var opts = new List<FeatureOption>();
+        var seen = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (var f in catalog)
+        {
+            opts.Add(new FeatureOption(f.Name, f.Enabled ? f.Name : $"{f.Name} (disabled)"));
+            seen.Add(f.Name);
+        }
+        foreach (var key in editModel!.FeatureKeys.Where(k => !seen.Contains(k)))
+        {
+            opts.Add(new FeatureOption(key, $"{key} (unknown)"));
+            seen.Add(key);
+        }
+        featureOptions = opts.OrderBy(o => o.Name).ToList();
+    }
 
     private void Edit(AddOnViewModel model)
     {
@@ -118,21 +130,18 @@ else
             AddOnId = model.AddOnId,
             Name = model.Name,
             Description = model.Description,
-            BillingInterval = model.BillingInterval,
             IsActive = model.IsActive,
-            Prices = model.Prices.Select(p => new PriceViewModel { Currency = p.Currency, Amount = p.Amount, ProviderPriceId = p.ProviderPriceId }).ToList(),
             FeatureKeys = new List<string>(model.FeatureKeys)
         };
-        featureKeysText = string.Join(", ", editModel.FeatureKeys);
+        selectedFeatures = new List<string>(editModel.FeatureKeys);
+        BuildFeatureOptions();
     }
 
-    private void AddPrice() => editModel?.Prices.Add(new PriceViewModel { Currency = "EUR" });
+    private string FeatureSummary(AddOnViewModel addOn)
+        => addOn.FeatureKeys.Count == 0 ? "—" : string.Join(", ", addOn.FeatureKeys);
 
-    private string PriceSummary(AddOnViewModel addOn)
-        => addOn.Prices.Count == 0 ? "—" : string.Join(", ", addOn.Prices.Select(p => $"{p.Amount:0.00} {p.Currency.ToUpperInvariant()}"));
-
-    private string PushSummary(AddOnViewModel addOn)
-        => addOn.Prices.Count == 0 ? "—" : $"{addOn.Prices.Count(p => !string.IsNullOrEmpty(p.ProviderPriceId))}/{addOn.Prices.Count}";
+    private string ProductSummary(AddOnViewModel addOn)
+        => "—"; // provider product id is set on push; not surfaced in the identity list
 
     private async Task Save()
     {
@@ -141,8 +150,9 @@ else
             return;
         }
 
-        editModel.FeatureKeys = featureKeysText
-            .Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries)
+        editModel.FeatureKeys = selectedFeatures
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(System.StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         busy = true;

@@ -67,7 +67,16 @@ else
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="6" sm="3"><MudNumericField T="int?" @bind-Value="editModel.TrialDays" Label="@(L["Field_TrialDays"])" /></MudItem>
-                <MudItem xs="12"><MudTextField @bind-Value="featureKeysText" Label="@(L["Field_FeatureKeys"])" /></MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="string" Label="@(L["Field_Features"])" MultiSelection="true"
+                               SelectedValues="selectedFeatures" SelectedValuesChanged="OnFeaturesChanged"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var opt in featureOptions)
+                        {
+                            <MudSelectItem T="string" Value="@opt.Name">@opt.Display</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
                 <MudItem xs="12"><MudCheckBox T="bool" @bind-Value="editModel.IsActive" Label="@(L["Col_Active"])" /></MudItem>
 
                 <MudItem xs="12">
@@ -82,6 +91,34 @@ else
                         </MudStack>
                     }
                     <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="AddPrice">@L["AddPrice"]</MudButton>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle2" Class="mt-2">@L["BookableAddOns"]</MudText>
+                    @if (editAddOns.Count == 0)
+                    {
+                        <MudText Typo="Typo.caption">@L["NoAddOnsDefined"]</MudText>
+                    }
+                    @foreach (var addOn in editAddOns)
+                    {
+                        <MudPaper Class="pa-2 my-1" Outlined="true">
+                            <MudCheckBox T="bool" @bind-Value="addOn.Selected" Label="@addOn.Name" />
+                            @if (addOn.Selected)
+                            {
+                                <MudText Typo="Typo.caption" Class="ml-8">@L["PricesPerCurrency"] (@editModel.BillingInterval)</MudText>
+                                @foreach (var price in addOn.Prices)
+                                {
+                                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="my-1 ml-8">
+                                        <MudTextField @bind-Value="price.Currency" Label="@(L["Field_Currency"])" Style="max-width:120px" Immediate="true" />
+                                        <MudNumericField T="decimal" @bind-Value="price.Amount" Label="@(L["Field_Amount"])" Style="max-width:160px" />
+                                        <MudText Typo="Typo.caption">@(string.IsNullOrEmpty(price.ProviderPriceId) ? L["NotPushed"].Value : price.ProviderPriceId)</MudText>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => addOn.Prices.Remove(price))" />
+                                    </MudStack>
+                                }
+                                <MudButton Size="Size.Small" Class="ml-8" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => AddAddOnPrice(addOn))">@L["AddPrice"]</MudButton>
+                            }
+                        </MudPaper>
+                    }
                 </MudItem>
             </MudGrid>
             <MudStack Row="true" Spacing="2" Class="mt-2">
@@ -98,7 +135,13 @@ else
     private bool busy;
     private IReadOnlyList<PlanViewModel> plans = System.Array.Empty<PlanViewModel>();
     private PlanViewModel? editModel;
-    private string featureKeysText = "";
+    private IReadOnlyList<FeatureCatalogItemViewModel> catalog = System.Array.Empty<FeatureCatalogItemViewModel>();
+    private IReadOnlyCollection<string> selectedFeatures = System.Array.Empty<string>();
+    private List<FeatureOption> featureOptions = new();
+    private IReadOnlyList<AddOnViewModel> allAddOns = System.Array.Empty<AddOnViewModel>();
+    private List<PlanAddOnViewModel> editAddOns = new();
+
+    private sealed record FeatureOption(string Name, string Display);
 
     protected override async Task OnInitializedAsync()
     {
@@ -107,11 +150,34 @@ else
         canAdmin = Handler.CanAdminister(currentUser);
         if (canAdmin)
         {
+            catalog = await Handler.GetFeatureCatalogAsync();
+            allAddOns = await Handler.GetActiveAddOnsAsync();
             await Reload();
         }
     }
 
     private async Task Reload() => plans = await Handler.GetAllPlansAsync();
+
+    private void OnFeaturesChanged(IEnumerable<string> values) => selectedFeatures = values.ToList();
+
+    // Options = catalog features (disabled ones marked) plus any keys already on the plan that no longer exist in
+    // the catalog (marked "unknown"), so editing never silently drops an orphaned key.
+    private void BuildFeatureOptions()
+    {
+        var opts = new List<FeatureOption>();
+        var seen = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (var f in catalog)
+        {
+            opts.Add(new FeatureOption(f.Name, f.Enabled ? f.Name : $"{f.Name} ({L["Feature_Disabled"]})"));
+            seen.Add(f.Name);
+        }
+        foreach (var key in editModel!.FeatureKeys.Where(k => !seen.Contains(k)))
+        {
+            opts.Add(new FeatureOption(key, $"{key} ({L["Feature_Unknown"]})"));
+            seen.Add(key);
+        }
+        featureOptions = opts.OrderBy(o => o.Name).ToList();
+    }
 
     private void Edit(PlanViewModel model)
     {
@@ -126,10 +192,37 @@ else
             Prices = model.Prices.Select(p => new PriceViewModel { Currency = p.Currency, Amount = p.Amount, ProviderPriceId = p.ProviderPriceId }).ToList(),
             FeatureKeys = new List<string>(model.FeatureKeys)
         };
-        featureKeysText = string.Join(", ", editModel.FeatureKeys);
+        selectedFeatures = new List<string>(editModel.FeatureKeys);
+        BuildFeatureOptions();
+        BuildAddOnEditors(model);
+    }
+
+    // Offer every active add-on as a checkbox; pre-select and pre-fill prices for the ones already linked to the
+    // plan (carried on the plan's AddOns), leaving the rest unselected with an empty price list.
+    private void BuildAddOnEditors(PlanViewModel model)
+    {
+        var linked = model.AddOns.ToDictionary(a => a.AddOnId);
+        editAddOns = allAddOns.Select(a =>
+        {
+            if (linked.TryGetValue(a.AddOnId, out var existing))
+            {
+                return new PlanAddOnViewModel
+                {
+                    AddOnId = a.AddOnId,
+                    Name = a.Name,
+                    Description = a.Description,
+                    Selected = true,
+                    Prices = existing.Prices.Select(p => new PriceViewModel { Currency = p.Currency, Amount = p.Amount, ProviderPriceId = p.ProviderPriceId }).ToList()
+                };
+            }
+
+            return new PlanAddOnViewModel { AddOnId = a.AddOnId, Name = a.Name, Description = a.Description, Selected = false };
+        }).OrderBy(a => a.Name).ToList();
     }
 
     private void AddPrice() => editModel?.Prices.Add(new PriceViewModel { Currency = "EUR" });
+
+    private static void AddAddOnPrice(PlanAddOnViewModel addOn) => addOn.Prices.Add(new PriceViewModel { Currency = "EUR" });
 
     private string PriceSummary(PlanViewModel plan)
         => plan.Prices.Count == 0 ? "—" : string.Join(", ", plan.Prices.Select(p => $"{p.Amount:0.00} {p.Currency.ToUpperInvariant()}"));
@@ -144,9 +237,13 @@ else
             return;
         }
 
-        editModel.FeatureKeys = featureKeysText
-            .Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries)
+        editModel.FeatureKeys = selectedFeatures
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(System.StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // Only selected add-ons are persisted as plan links (the handler filters on Selected too).
+        editModel.AddOns = editAddOns.Where(a => a.Selected).ToList();
 
         busy = true;
         try

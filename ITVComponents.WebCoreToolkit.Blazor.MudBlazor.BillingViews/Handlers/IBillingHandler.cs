@@ -23,6 +23,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
 
         Task<SubscriptionOverviewViewModel> GetOverviewAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// The tenant-security feature catalog (all defined features), for offering plan/add-on feature grants as a
+        /// picker instead of free-text keys. Admin-only data.
+        /// </summary>
+        Task<IReadOnlyList<FeatureCatalogItemViewModel>> GetFeatureCatalogAsync(CancellationToken cancellationToken = default);
+
         Task<IReadOnlyList<PlanViewModel>> GetActivePlansAsync(CancellationToken cancellationToken = default);
 
         Task<IReadOnlyList<AddOnViewModel>> GetActiveAddOnsAsync(CancellationToken cancellationToken = default);

@@ -55,17 +55,22 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 
             if (addOnIds is { Count: > 0 })
             {
-                var addOns = await db.AddOns.Include(a => a.Prices)
-                    .Where(a => addOnIds.Contains(a.AddOnId))
+                // Add-ons are only bookable via a plan link; validate the requested ids against this plan's links
+                // (an add-on offered on a different plan must not slip in) and price them from the link.
+                var links = await db.PlanAddOns.Include(pa => pa.Prices).Include(pa => pa.AddOn)
+                    .Where(pa => pa.PlanId == planId && addOnIds.Contains(pa.AddOnId))
                     .ToListAsync(cancellationToken);
 
-                foreach (var addOn in addOns)
+                foreach (var addOnId in addOnIds)
                 {
-                    var addOnPrice = addOn.Prices.FirstOrDefault(p => string.Equals(p.Currency, cur, StringComparison.OrdinalIgnoreCase));
+                    var link = links.FirstOrDefault(l => l.AddOnId == addOnId)
+                               ?? throw new InvalidOperationException($"Add-on {addOnId} is not bookable for plan {planId}.");
+
+                    var addOnPrice = link.Prices.FirstOrDefault(p => string.Equals(p.Currency, cur, StringComparison.OrdinalIgnoreCase));
                     if (addOnPrice?.ProviderPriceId is not { Length: > 0 })
                     {
                         // All items of one subscription must share the currency — fail loudly rather than silently dropping the add-on.
-                        throw new InvalidOperationException($"Add-on {addOn.AddOnId} ('{addOn.Name}') has no provider price in currency '{cur}'.");
+                        throw new InvalidOperationException($"Add-on {addOnId} ('{link.AddOn?.Name}') has no provider price in currency '{cur}' for plan {planId}.");
                     }
 
                     lineItems.Add(new SessionLineItemOptions { Price = addOnPrice.ProviderPriceId, Quantity = 1 });

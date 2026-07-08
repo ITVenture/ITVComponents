@@ -5,6 +5,17 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models;
 
 namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels
 {
+    /// <summary>
+    /// One entry of the tenant-security feature catalog, offered as a pickable option when authoring plan/add-on
+    /// feature grants. <see cref="Name"/> is the <c>Feature.FeatureName</c> that a <c>FeatureKey</c> must match.
+    /// </summary>
+    public class FeatureCatalogItemViewModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public bool Enabled { get; set; }
+    }
+
     /// <summary>A single currency-specific price of a plan/add-on (catalog/edit view).</summary>
     public class PriceViewModel
     {
@@ -13,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels
         public string? ProviderPriceId { get; set; }
     }
 
-    /// <summary>A purchasable base plan (catalog view). Carries one price per supported currency.</summary>
+    /// <summary>A purchasable base plan (catalog view). Carries one price per supported currency plus the add-ons bookable with it.</summary>
     public class PlanViewModel
     {
         public int PlanId { get; set; }
@@ -25,21 +36,40 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels
         public List<PriceViewModel> Prices { get; set; } = new();
         public List<string> FeatureKeys { get; set; } = new();
 
+        /// <summary>Add-ons bookable with this plan; each carries its per-currency price under this plan.</summary>
+        public List<PlanAddOnViewModel> AddOns { get; set; } = new();
+
         /// <summary>The price row for <paramref name="currency"/> (case-insensitive), or null if none.</summary>
         public PriceViewModel? PriceFor(string? currency)
             => currency == null ? null : Prices.FirstOrDefault(p => string.Equals(p.Currency, currency, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>A purchasable add-on (catalog view). Carries one price per supported currency.</summary>
+    /// <summary>
+    /// An add-on's identity (catalog/edit view). Pricing and plan bookability are per-plan and live on the
+    /// plan link (<see cref="PlanAddOnViewModel"/>), not here — an add-on is just a name + features.
+    /// </summary>
     public class AddOnViewModel
     {
         public int AddOnId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
-        public BillingInterval BillingInterval { get; set; }
         public bool IsActive { get; set; } = true;
-        public List<PriceViewModel> Prices { get; set; } = new();
         public List<string> FeatureKeys { get; set; } = new();
+    }
+
+    /// <summary>
+    /// An add-on as bookable under a specific plan: the add-on identity plus its per-currency price for that
+    /// plan. The recurring interval is the owning plan's <c>BillingInterval</c>.
+    /// </summary>
+    public class PlanAddOnViewModel
+    {
+        public int AddOnId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public List<PriceViewModel> Prices { get; set; } = new();
+
+        /// <summary>True while this add-on is linked to the plan being edited (admin picker state).</summary>
+        public bool Selected { get; set; }
 
         /// <summary>The price row for <paramref name="currency"/> (case-insensitive), or null if none.</summary>
         public PriceViewModel? PriceFor(string? currency)

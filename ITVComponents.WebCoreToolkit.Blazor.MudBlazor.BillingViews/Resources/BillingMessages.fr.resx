@@ -32,10 +32,15 @@
   <data name="Field_Currency" xml:space="preserve"><value>Devise</value></data>
   <data name="PriceUnavailable" xml:space="preserve"><value>Non disponible</value></data>
   <data name="PricesPerCurrency" xml:space="preserve"><value>Prix par devise</value></data>
+  <data name="BookableAddOns" xml:space="preserve"><value>Options réservables</value></data>
+  <data name="NoAddOnsDefined" xml:space="preserve"><value>Aucune option définie pour l'instant.</value></data>
   <data name="NotPushed" xml:space="preserve"><value>non transféré</value></data>
   <data name="AddPrice" xml:space="preserve"><value>Ajouter un prix</value></data>
   <data name="Field_TrialDays" xml:space="preserve"><value>Jours d'essai</value></data>
   <data name="Field_FeatureKeys" xml:space="preserve"><value>Clés de fonctionnalité (séparées par des virgules)</value></data>
+  <data name="Field_Features" xml:space="preserve"><value>Fonctionnalités</value></data>
+  <data name="Feature_Disabled" xml:space="preserve"><value>désactivée</value></data>
+  <data name="Feature_Unknown" xml:space="preserve"><value>inconnue</value></data>
   <data name="Save" xml:space="preserve"><value>Enregistrer</value></data>
   <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
   <data name="PlanSaved" xml:space="preserve"><value>Forfait enregistré.</value></data>

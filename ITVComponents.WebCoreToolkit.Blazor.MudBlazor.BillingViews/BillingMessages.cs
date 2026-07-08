@@ -1,3 +1,10 @@
+// The assembly name (…Blazor.MudBlazor.BillingViews) differs from the root namespace (…BillingViews.Blazor).
+// Without this attribute the localizer factory derives the resource base name from the ASSEMBLY name and never
+// finds the embedded resx (it then returns the resource key verbatim, e.g. "Plans_Title"). Declaring the root
+// namespace explicitly makes GetRootNamespace() resolve the base name to …BillingViews.Blazor.Resources.* which
+// matches the embedded manifest names.
+[assembly: Microsoft.Extensions.Localization.RootNamespace("ITVComponents.WebCoreToolkit.BillingViews.Blazor")]
+
 namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor
 {
     /// <summary>

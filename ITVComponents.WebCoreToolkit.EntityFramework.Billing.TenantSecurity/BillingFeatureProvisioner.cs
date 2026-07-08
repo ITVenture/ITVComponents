@@ -8,6 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity.Models
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
 {
@@ -30,10 +31,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
         /// shared circuit-scoped one).
         /// </summary>
         private readonly IToolkitContextFactory contextFactory;
+        private readonly ILogger<BillingFeatureProvisioner<TContext, TTenant, TActivation>> logger;
 
-        public BillingFeatureProvisioner(IToolkitContextFactory contextFactory)
+        public BillingFeatureProvisioner(IToolkitContextFactory contextFactory, ILogger<BillingFeatureProvisioner<TContext, TTenant, TActivation>> logger)
         {
             this.contextFactory = contextFactory;
+            this.logger = logger;
         }
 
         /// <inheritdoc />
@@ -65,7 +68,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
             {
                 if (!featureByKey.TryGetValue(key, out var feature))
                 {
-                    // No matching feature in the catalog — nothing to activate.
+                    // No matching feature in the catalog — nothing to activate. This usually means a plan/add-on
+                    // carries a feature key that does not match any Feature.FeatureName (typo or a feature that was
+                    // never seeded). The tenant silently misses the capability, so surface it as a warning.
+                    logger.LogWarning(
+                        "Billing feature key '{FeatureKey}' has no matching feature in the catalog (tenant {TenantId}); the entitlement is skipped.",
+                        key, tenantId);
                     continue;
                 }
 

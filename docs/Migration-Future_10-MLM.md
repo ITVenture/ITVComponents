@@ -995,6 +995,38 @@ Details/Repro: `docs/ISSUE-MLM-PermissionSet-CrossTenant-Propagation.md`.
 Die neuen Settings-Editoren (GlobalSettings/TenantSettings mit CodeEditor + JSON/Plaintext-Switch) sind automatisch —
 keine Host-Aktion, nur die Versionsanhebung (§12).
 
+## 16. Billing: Add-ons sind jetzt plan-gebunden (n:m) — **Pflicht-Migration + `IBillingContext`-Anpassung**
+
+Add-ons waren bisher **plan-unabhängig** (globale Preise + eigenes `BillingInterval` je Add-on). Neu: ein Add-on ist
+nur noch **Identität** (Name/Beschreibung/Features), und seine **Buchbarkeit + Preis hängen an einer n:m-Verknüpfung
+`PlanAddOn`**. Das Abrechnungs-Interval eines Add-ons wird jetzt **vom Plan geerbt** (ein Stripe-Abo ist single-interval)
+— dadurch kann dasselbe Add-on unter einem Monats- **und** einem Jahresplan zubuchbar sein, mit je eigenem Preis.
+
+**Schema-Änderungen (EF.Billing):**
+- **NEU** `PlanAddOn` (`PlanAddOnId`, `PlanId`, `AddOnId`, unique `(PlanId, AddOnId)`) — die Buchbarkeits-Verknüpfung.
+- **NEU** `PlanAddOnPrice` (`PlanAddOnPriceId`, `PlanAddOnId`, `Currency`, `Amount`, `ProviderPriceId`, unique
+  `(PlanAddOnId, Currency)`) — **ersetzt** `AddOnPrice`.
+- **ENTFERNT**: Tabelle `AddOnPrices`; Spalte `AddOn.BillingInterval`.
+- `AddOn` behält `ProviderProductId` (Stripe-**Product** = Identität, eins je Add-on); die Stripe-**Prices** hängen
+  jetzt an den `PlanAddOnPrice`-Zeilen und tragen das Plan-Interval.
+
+**Pflicht auf eurer Seite:**
+1. **`IBillingContext`-Vertrag geändert** — ersetzt im App-Context den DbSet `AddOnPrices` durch **`PlanAddOns`** +
+   **`PlanAddOnPrices`** (sonst Compile-Break). Die 8 DbSets sind jetzt: `Plans`, `PlanPrices`, `PlanFeatures`,
+   `AddOns`, `PlanAddOns`, `PlanAddOnPrices`, `AddOnFeatures`, `TenantSubscriptions`, `TenantSubscriptionItems`
+   (+ euer `BillingFeatureGrant`). `ConfigureBilling()`-Aufruf bleibt unverändert (mappt die neuen Entities mit).
+2. **Neue EF-Migration** (`dotnet ef migrations add BillingAddOnPlanLink` → `database update`): dropt `AddOnPrices` +
+   `AddOn.BillingInterval`, legt `PlanAddOns` + `PlanAddOnPrices` an. Da Billing bei euch noch nie mit echten
+   Produktivdaten lief, ist das ein sauberer Schnitt (alte Test-Add-on-Preise gehen verloren).
+3. **Ersetzt das früher notierte Multi-Currency-Delta für Add-ons** (`AddOnPrices` existiert nicht mehr) — es gibt nur
+   noch `PlanAddOnPrice`.
+
+**Verhalten/UI (automatisch, keine Host-Aktion):** Add-ons werden jetzt **im Plan-Editor** (`/Billing/Plans`) gepflegt
+— pro Plan ankreuzen, welche Add-ons buchbar sind, und je Add-on den Preis pro Währung setzen. Der Add-on-Editor
+(`/Billing/AddOns`) pflegt nur noch Name/Beschreibung/Features. Der Checkout bietet dem Kunden je Plan nur die dafür
+freigegebenen Add-ons an und lehnt planfremde Add-ons serverseitig ab. Der Synchronizer pusht Add-on-Prices mit dem
+Interval des Plans; der Webhook mappt Stripe-Price → `PlanAddOnPrice` → Add-on.
+
 ---
 
 ## Schnellübersicht der Breaking Changes
@@ -1022,3 +1054,4 @@ keine Host-Aktion, nur die Versionsanhebung (§12).
 | 17 | **ItvErrorBoundary** (§13, opt-in) | `<ItvErrorBoundary>@Body</ItvErrorBoundary>` im Host-Layout (`@using …Blazor.SharedComponents`) → Komponenten-Fehler reißen den SignalR-Circuit nicht mehr ab. Override-Slots `Notification`/`Actions` mit `ItvErrorContext` |
 | 18 | **PermissionSet cross-tenant** (§14, `PRE118`) | **Pflicht:** neue Migration mit `SqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (deployt neue TVF `GetEffectiveTenantUserRoles` + regenerierte Rollen-Tree-Procs). Ohne = Downline-Propagation aktivierter PermissionSets greift nicht. Kein Schema-Change, LINQ-Zwilling ohne Migration |
 | 19 | **Tenant-Template** (§15, opt-in) | optional `TenantSetup.BasicTenantType` (Template über TenantType statt Name); per-Bereich Apply-Modes `Auto`/`Additive`/`Forced` (Default = altes Forced-Verhalten); `Extensions`-Modell geändert aber **back-compat** (alte Templates deserialisieren weiter); Re-apply via `services.ApplyTenantTypeTemplate(...)` bzw. Grid-Button. Kein Schema-Change |
+| 20 | **Billing Add-ons n:m** (§16) | **Pflicht:** im App-Context DbSet `AddOnPrices` → **`PlanAddOns`** + **`PlanAddOnPrices`** (`IBillingContext` geändert, sonst Compile-Break); **neue Migration** `BillingAddOnPlanLink` (dropt `AddOnPrices` + `AddOn.BillingInterval`, legt `PlanAddOns`/`PlanAddOnPrices` an). Add-on-Preis/Buchbarkeit jetzt pro Plan, Interval vom Plan geerbt. UI/Checkout/Sync automatisch. Ersetzt das Add-on-Multi-Currency-Delta |

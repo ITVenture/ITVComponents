@@ -78,10 +78,15 @@
   <data name="Field_Currency" xml:space="preserve"><value>Currency</value></data>
   <data name="PriceUnavailable" xml:space="preserve"><value>Not available</value></data>
   <data name="PricesPerCurrency" xml:space="preserve"><value>Prices per currency</value></data>
+  <data name="BookableAddOns" xml:space="preserve"><value>Bookable add-ons</value></data>
+  <data name="NoAddOnsDefined" xml:space="preserve"><value>No add-ons defined yet.</value></data>
   <data name="NotPushed" xml:space="preserve"><value>not pushed</value></data>
   <data name="AddPrice" xml:space="preserve"><value>Add price</value></data>
   <data name="Field_TrialDays" xml:space="preserve"><value>Trial days</value></data>
   <data name="Field_FeatureKeys" xml:space="preserve"><value>Feature keys (comma-separated)</value></data>
+  <data name="Field_Features" xml:space="preserve"><value>Features</value></data>
+  <data name="Feature_Disabled" xml:space="preserve"><value>disabled</value></data>
+  <data name="Feature_Unknown" xml:space="preserve"><value>unknown</value></data>
   <data name="Save" xml:space="preserve"><value>Save</value></data>
   <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="PlanSaved" xml:space="preserve"><value>Plan saved.</value></data>

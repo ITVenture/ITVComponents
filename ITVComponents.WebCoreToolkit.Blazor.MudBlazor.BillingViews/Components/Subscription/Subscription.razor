@@ -67,24 +67,10 @@ else
         </MudSelect>
     }
 
-    @if (addOns.Count > 0)
-    {
-        <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
-            <MudText Typo="Typo.subtitle2">@L["OptionalAddOns"]</MudText>
-            @foreach (var addOn in addOns)
-            {
-                <MudCheckBox T="bool"
-                             Value="@selectedAddOns.Contains(addOn.AddOnId)"
-                             ValueChanged="@(v => ToggleAddOn(addOn.AddOnId, v))"
-                             Disabled="@(addOn.PriceFor(selectedCurrency) is null)"
-                             Label="@($"{addOn.Name} — {FormatPrice(addOn.PriceFor(selectedCurrency), addOn.BillingInterval)}")" />
-            }
-        </MudPaper>
-    }
-
     <MudGrid>
         @foreach (var plan in plans)
         {
+            var bookableAddOns = plan.AddOns.Where(a => a.PriceFor(selectedCurrency) is not null).ToList();
             <MudItem xs="12" sm="6" md="4">
                 <MudCard Outlined="true">
                     <MudCardContent>
@@ -107,6 +93,18 @@ else
                                 }
                             </MudList>
                         }
+                        @if (bookableAddOns.Count > 0)
+                        {
+                            <MudDivider Class="my-2" />
+                            <MudText Typo="Typo.subtitle2">@L["OptionalAddOns"]</MudText>
+                            @foreach (var addOn in bookableAddOns)
+                            {
+                                <MudCheckBox T="bool"
+                                             Value="@IsAddOnSelected(plan.PlanId, addOn.AddOnId)"
+                                             ValueChanged="@(v => ToggleAddOn(plan.PlanId, addOn.AddOnId, v))"
+                                             Label="@($"{addOn.Name} — {FormatPrice(addOn.PriceFor(selectedCurrency), plan.BillingInterval)}")" />
+                            }
+                        }
                     </MudCardContent>
                     <MudCardActions>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary"
@@ -127,8 +125,8 @@ else
     private bool busy;
     private SubscriptionOverviewViewModel overview = new();
     private IReadOnlyList<PlanViewModel> plans = System.Array.Empty<PlanViewModel>();
-    private IReadOnlyList<AddOnViewModel> addOns = System.Array.Empty<AddOnViewModel>();
-    private readonly HashSet<int> selectedAddOns = new();
+    // Add-on selection per plan (a subscription targets exactly one plan; add-ons are plan-scoped).
+    private readonly Dictionary<int, HashSet<int>> selectedAddOnsByPlan = new();
     private List<string> availableCurrencies = new();
     private string? selectedCurrency;
 
@@ -146,7 +144,6 @@ else
         if (!overview.HasSubscription)
         {
             plans = await Handler.GetActivePlansAsync();
-            addOns = await Handler.GetActiveAddOnsAsync();
 
             // Currencies a customer can actually subscribe in = those offered by at least one plan.
             availableCurrencies = plans.SelectMany(p => p.Prices).Select(pr => pr.Currency.ToUpperInvariant())
@@ -159,18 +156,33 @@ else
     {
         selectedCurrency = currency;
         // Drop any selected add-on that is not priced in the newly chosen currency (subscription is single-currency).
-        selectedAddOns.RemoveWhere(id => addOns.FirstOrDefault(a => a.AddOnId == id)?.PriceFor(selectedCurrency) is null);
+        foreach (var plan in plans)
+        {
+            if (selectedAddOnsByPlan.TryGetValue(plan.PlanId, out var set))
+            {
+                set.RemoveWhere(id => plan.AddOns.FirstOrDefault(a => a.AddOnId == id)?.PriceFor(selectedCurrency) is null);
+            }
+        }
     }
 
-    private void ToggleAddOn(int addOnId, bool selected)
+    private bool IsAddOnSelected(int planId, int addOnId)
+        => selectedAddOnsByPlan.TryGetValue(planId, out var set) && set.Contains(addOnId);
+
+    private void ToggleAddOn(int planId, int addOnId, bool selected)
     {
+        if (!selectedAddOnsByPlan.TryGetValue(planId, out var set))
+        {
+            set = new HashSet<int>();
+            selectedAddOnsByPlan[planId] = set;
+        }
+
         if (selected)
         {
-            selectedAddOns.Add(addOnId);
+            set.Add(addOnId);
         }
         else
         {
-            selectedAddOns.Remove(addOnId);
+            set.Remove(addOnId);
         }
     }
 
@@ -179,10 +191,11 @@ else
         busy = true;
         try
         {
+            var addOnIds = selectedAddOnsByPlan.TryGetValue(planId, out var set) ? set.ToList() : new List<int>();
             var basePath = Nav.BaseUri.TrimEnd('/');
             var success = $"{basePath}/Account/Manage/Subscription?checkout=success";
             var cancel = $"{basePath}/Account/Manage/Subscription?checkout=cancel";
-            var url = await Handler.StartCheckoutAsync(currentUser!, planId, selectedAddOns.ToList(), success, cancel, selectedCurrency);
+            var url = await Handler.StartCheckoutAsync(currentUser!, planId, addOnIds, success, cancel, selectedCurrency);
             Nav.NavigateTo(url, forceLoad: true);
         }
         catch (System.Exception ex)
