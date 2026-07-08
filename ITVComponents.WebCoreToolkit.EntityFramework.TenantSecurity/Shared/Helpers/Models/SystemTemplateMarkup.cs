@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.DataSync;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models
 {
@@ -41,5 +42,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         public ExternalOAuthServiceTemplateMarkup[] ExternalOAuthServices { get; set; }
 
         public TemplateModuleTemplateMarkup[] TemplateModules { get; set; }
+
+        /// <summary>
+        /// Additional config sections contributed by feature libraries via <see cref="IConfigExtension"/>
+        /// (polymorphic; each entry is a registered <see cref="ConfigExtensionMarkup"/> subtype). Null on older
+        /// exports and on systems without any registered extension.
+        /// </summary>
+        public List<ConfigExtensionMarkup> Extensions { get; set; }
     }
 }

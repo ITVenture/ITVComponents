@@ -20,6 +20,7 @@
          EntityFramework.TenantSecurity: Billing stays tenant-model-agnostic (TenantId is a plain int,
          features are string keys). The bridge to TenantFeatureActivation lives in the separate adapter
          lib ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity (implements IFeatureProvisioner). -->
+    <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
   </ItemGroup>
 </Project>

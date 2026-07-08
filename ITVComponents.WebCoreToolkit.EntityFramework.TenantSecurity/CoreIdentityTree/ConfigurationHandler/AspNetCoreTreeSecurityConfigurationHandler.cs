@@ -24,7 +24,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>
         where TContext : AspNetTreeSecurityContext<TContext>
     {
-        public AspNetCoreTreeSecurityConfigurationHandler(TContext db) : base(db)
+        public AspNetCoreTreeSecurityConfigurationHandler(TContext db, IServiceProvider services = null) : base(db, services)
         {
         }
     }

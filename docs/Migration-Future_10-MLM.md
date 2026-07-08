@@ -1027,6 +1027,36 @@ nur noch **Identität** (Name/Beschreibung/Features), und seine **Buchbarkeit + 
 freigegebenen Add-ons an und lehnt planfremde Add-ons serverseitig ab. Der Synchronizer pusht Add-on-Prices mit dem
 Interval des Plans; der Webhook mappt Stripe-Price → `PlanAddOnPrice` → Add-on.
 
+## 17. System-Konfigurations-Export ist erweiterbar + Billing-Sektion (opt-in, kein Schema-Change)
+
+Der herunterladbare System-Config (`Util/AssemblyDiagnostics` → „DownloadConfig", `sysCfg`) hatte eine **fest
+verdrahtete** Sektionsliste (Permissions, Rollen, PlugIns, Navigation, TenantTemplates, …). Neu: **Feature-Libraries
+können eigene Sektionen beisteuern** — ohne den Kern anzufassen. Dadurch exportiert/diff't der Config jetzt auch den
+**Billing-Katalog** (Pläne, Add-ons, Verknüpfungen, Preise, Feature-Keys).
+
+**Mechanik (für eigene Erweiterungen):**
+- Neu in `ITVComponents.EFRepo.DataSync`: `IConfigExtension` (`Describe` = IST-Sektion als typisiertes Markup,
+  `Compare` = liefert `Change[]`), polymorpher Basistyp `ConfigExtensionMarkup`, Attribut `[SystemConfigHandler(key,
+  handlerType)]`, `ConfigExtensionOptions`, `services.AddSystemConfigExtension<TMarkup>()`.
+- Der Markup-Typ wird per **System.Text.Json-Polymorphie** (`JsonHelper.ExtendNativeProtocolType`) registriert →
+  die Sektion steht **typisiert** im Config-JSON (kein opaker Payload-String). Unbekannte Sektionen (Lib nicht
+  installiert) werden beim Import **übersprungen** (`FallBackToBaseType`), nicht als Fehler.
+- Apply ist geschenkt: die `Change`-Objekte laufen durch den bestehenden `SimpleDataApplyer` — kein eigener Apply-Code.
+
+**Pflicht auf eurer Seite, damit die Billing-Sektion greift (rein Wiring, KEINE Migration):**
+1. `services.AddBillingConfigExtension();` beim Startup (aus `ITVComponents.WebCoreToolkit.EntityFramework.Billing.Configuration`).
+2. Euer Security-/Config-Handler-Context muss `IBillingContext` implementieren (tut er bereits fürs Billing).
+3. **Das Config-Handler-Plugin muss den `IServiceProvider` in seinen Konstruktor gereicht bekommen** (die
+   `SysConfigurationHandler`-Ableitungen nehmen ihn jetzt als optionalen 2. Ctor-Parameter). Fehlt er, bleibt die
+   Erweiterung still wirkungslos (kein Crash), aber der Billing-Teil taucht dann nicht im Export auf.
+
+**Bewusst NICHT im Export:** Stripe-Provider-IDs (umgebungsspezifisch → via „Push to Stripe" pro Umgebung neu) und
+`TenantSubscription`s (Laufzeit-Zustand, kein Katalog).
+
+**Beim ersten Host-Test besonders prüfen:** die Add-on-Preis-Sektion (`PlanAddOnPrice`) löst ihren Eltern-Datensatz
+über `Plan.Name` + `AddOn.Name` auf (der einzige Navigations-basierte FK-Lookup) — Import einer Config mit Add-on-Preisen
+gezielt gegentesten.
+
 ---
 
 ## Schnellübersicht der Breaking Changes
@@ -1055,3 +1085,4 @@ Interval des Plans; der Webhook mappt Stripe-Price → `PlanAddOnPrice` → Add-
 | 18 | **PermissionSet cross-tenant** (§14, `PRE118`) | **Pflicht:** neue Migration mit `SqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (deployt neue TVF `GetEffectiveTenantUserRoles` + regenerierte Rollen-Tree-Procs). Ohne = Downline-Propagation aktivierter PermissionSets greift nicht. Kein Schema-Change, LINQ-Zwilling ohne Migration |
 | 19 | **Tenant-Template** (§15, opt-in) | optional `TenantSetup.BasicTenantType` (Template über TenantType statt Name); per-Bereich Apply-Modes `Auto`/`Additive`/`Forced` (Default = altes Forced-Verhalten); `Extensions`-Modell geändert aber **back-compat** (alte Templates deserialisieren weiter); Re-apply via `services.ApplyTenantTypeTemplate(...)` bzw. Grid-Button. Kein Schema-Change |
 | 20 | **Billing Add-ons n:m** (§16) | **Pflicht:** im App-Context DbSet `AddOnPrices` → **`PlanAddOns`** + **`PlanAddOnPrices`** (`IBillingContext` geändert, sonst Compile-Break); **neue Migration** `BillingAddOnPlanLink` (dropt `AddOnPrices` + `AddOn.BillingInterval`, legt `PlanAddOns`/`PlanAddOnPrices` an). Add-on-Preis/Buchbarkeit jetzt pro Plan, Interval vom Plan geerbt. UI/Checkout/Sync automatisch. Ersetzt das Add-on-Multi-Currency-Delta |
+| 21 | **Config-Export erweiterbar + Billing-Sektion** (§17, opt-in) | Kein Schema-Change. Für Billing im Export: `services.AddBillingConfigExtension()` beim Startup + Config-Handler-Plugin bekommt `IServiceProvider` in den Ctor (optionaler 2. Param) + Context implementiert `IBillingContext`. Ohne = Billing fehlt im System-Config (kein Crash). Provider-IDs/Subscriptions bewusst ausgeschlossen. Neue Erweiterungspunkte in `EFRepo.DataSync` (`IConfigExtension`/`AddSystemConfigExtension`) |

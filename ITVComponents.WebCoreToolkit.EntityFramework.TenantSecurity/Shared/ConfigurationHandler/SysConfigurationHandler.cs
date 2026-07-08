@@ -17,11 +17,13 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.
 using ITVComponents.WebCoreToolkit.Models;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Feature = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Feature;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ConfigurationHandler
 {
-    public abstract class SysConfigurationHandler<TContext, TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : ConfigurationHandlerBase
+    public abstract class SysConfigurationHandler<TContext, TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : ConfigurationHandlerBase, IConfigChangeContext
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -70,12 +72,81 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
     {
 
-        public SysConfigurationHandler(TContext db)
+        public SysConfigurationHandler(TContext db, IServiceProvider services = null)
         {
             DbContext = db;
+            this.services = services;
         }
 
+        private readonly IServiceProvider services;
+
         private TContext DbContext { get; }
+
+        // Resolved manually (the plugin system doesn't inject arbitrary DI deps into the ctor; only the
+        // IServiceProvider is passed in). Empty options when no extension is registered.
+        private ConfigExtensionOptions ExtensionOptions
+            => services?.GetService<IOptions<ConfigExtensionOptions>>()?.Value ?? new ConfigExtensionOptions();
+
+        ChangeDetail IConfigChangeContext.MakeDetail(string columnName, string value, string valueExpression, string currentValue, bool multiline, bool apply)
+            => MakeDetail(columnName, value, valueExpression, currentValue, multiline, apply);
+
+        string IConfigChangeContext.MakeLinqAssign(string targetProperty, string sourceEntity, string filterProperty, string additionalWhere, bool ignoreFail, string managedFilterType, string scriptedFilterType)
+            => MakeLinqAssign<TContext>(targetProperty, sourceEntity, filterProperty, additionalWhere, ignoreFail, managedFilterType, scriptedFilterType);
+
+        string IConfigChangeContext.MakeLinqQuery(string sourceEntity, string filterProperty, string additionalWhere, bool ignoreFail, string managedFilterType, string scriptedFilterType, string filterValueVariable)
+            => MakeLinqQuery<TContext>(sourceEntity, filterProperty, additionalWhere, ignoreFail, managedFilterType, scriptedFilterType, filterValueVariable);
+
+        /// <summary>Builds the current (IST) markup for every registered config-extension (null if none).</summary>
+        private List<ConfigExtensionMarkup> DescribeExtensions()
+        {
+            var opts = ExtensionOptions;
+            if (services == null || opts.Handlers.Count == 0)
+            {
+                return null;
+            }
+
+            var result = new List<ConfigExtensionMarkup>();
+            using var scope = services.CreateScope();
+            foreach (var reg in opts.Handlers)
+            {
+                var handler = (IConfigExtension)ActivatorUtilities.CreateInstance(scope.ServiceProvider, reg.HandlerType);
+                var markup = handler.Describe(DbContext);
+                if (markup != null)
+                {
+                    markup.SectionKey = reg.SectionKey;
+                    result.Add(markup);
+                }
+            }
+
+            return result.Count > 0 ? result : null;
+        }
+
+        /// <summary>Dispatches each uploaded extension-section to its handler and registers the resulting changes.</summary>
+        private void CompareExtensions(List<ConfigExtensionMarkup> current, List<ConfigExtensionMarkup> uploaded)
+        {
+            var opts = ExtensionOptions;
+            if (services == null || uploaded == null || opts.Handlers.Count == 0)
+            {
+                return;
+            }
+
+            using var scope = services.CreateScope();
+            foreach (var up in uploaded)
+            {
+                var reg = opts.Handlers.FirstOrDefault(h => string.Equals(h.SectionKey, up.SectionKey, StringComparison.OrdinalIgnoreCase));
+                if (reg == null)
+                {
+                    continue; // section whose contributing library isn't installed here -> skip
+                }
+
+                var handler = (IConfigExtension)ActivatorUtilities.CreateInstance(scope.ServiceProvider, reg.HandlerType);
+                var cur = current?.FirstOrDefault(c => string.Equals(c.SectionKey, up.SectionKey, StringComparison.OrdinalIgnoreCase));
+                foreach (var change in handler.Compare(DbContext, cur, up, this))
+                {
+                    RegisterChange(change);
+                }
+            }
+        }
 
         /// <summary>
         /// Provides a list of Permissions that a user must have any of, to perform a specific task
@@ -135,6 +206,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                         {
                             CompareTemplateModules(sys.TemplateModules, upSys.TemplateModules);
                         }
+
+                        // Feature-library-contributed sections (e.g. Billing). Null on older exports / no extension.
+                        CompareExtensions(sys.Extensions, upSys.Extensions);
                     }
 
                     break;
@@ -213,6 +287,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                         .Include(n => n.Scripts).AsEnumerable().Select(n => SelectTemplateModuleTemplateMarkup(n)).ToArray()
                 };
 
+                retVal.Extensions = DescribeExtensions();
 
                 return retVal;
             }
