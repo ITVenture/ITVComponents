@@ -3,6 +3,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models
 
 @inject ITenantAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
@@ -64,6 +65,14 @@ else
                 <CellTemplate>
                     <MudStack Row="true" Spacing="1">
                         <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details" OnClick="@(() => OpenDetail(context.Item))" />
+                        @if (context.Item.CanReapplyTemplate)
+                        {
+                            <SecureView RequiredPermissions="TenantTemplates.Write">
+                                <Permitted>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Autorenew" Size="Size.Small" Color="Color.Primary" Title="Re-apply tenant-type template" OnClick="@(() => ReapplyTemplate(context.Item))" />
+                                </Permitted>
+                            </SecureView>
+                        }
                         <SecureView RequiredPermissions="Tenants.Write">
                             <Permitted>
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
@@ -176,6 +185,19 @@ else
         var success = await Handler.DeleteTenantAsync(currentUser!, tenant.TenantId);
         if (success) { Snackbar.Add("Tenant deleted", Severity.Success); await ReloadGrid(); }
         else Snackbar.Add("Failed to delete tenant", Severity.Error);
+    }
+
+    private async Task ReapplyTemplate(TenantViewModel tenant)
+    {
+        var title = string.IsNullOrEmpty(tenant.DisplayName) ? $"Re-apply template: {tenant.TenantName}" : $"Re-apply template: {tenant.DisplayName}";
+        var dlg = await DialogService.ShowAsync<ReapplyTemplateDialog>(title, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: TemplateApplyMode mode })
+        {
+            var ok = await Handler.ReapplyTenantTemplateAsync(currentUser!, tenant.TenantId, mode);
+            if (ok) { Snackbar.Add("Template re-applied", Severity.Success); await ReloadGrid(); }
+            else Snackbar.Add("Failed to re-apply template", Severity.Error);
+        }
     }
 
     private async Task OpenDetail(TenantViewModel tenant)

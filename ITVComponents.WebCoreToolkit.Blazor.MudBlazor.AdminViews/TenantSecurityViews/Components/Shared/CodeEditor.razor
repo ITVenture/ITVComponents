@@ -11,6 +11,7 @@
 *@
 @using BlazorMonaco
 @using BlazorMonaco.Editor
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 <div class="itv-code-editor-host" style="@($"height:{Height}px;border:1px solid var(--mud-palette-lines-inputs);border-radius:var(--mud-default-borderradius);overflow:hidden;")">
     <StandaloneCodeEditor @ref="editor" ConstructionOptions="BuildOptions" />
@@ -51,6 +52,7 @@
         Language = languageId;
         if (editor is null) return;
         var model = await editor.GetModel();
-        if (model is not null) await Global.SetModelLanguage(model, languageId);
+        // Use the IJSRuntime overload: the parameterless one is WASM-only and is a silent no-op under Blazor Server.
+        if (model is not null) await Global.SetModelLanguage(JS, model, languageId);
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers;
 
@@ -38,4 +39,11 @@ public interface ITenantAdminHandler
 
     Task<TenantTemplateViewModel?> ExtractTemplateAsync(
         ClaimsPrincipal user, int tenantId, string name, string? description);
+
+    /// <summary>
+    /// Re-applies the template attached to the tenant's own <c>TenantType</c> to that tenant, using
+    /// <paramref name="defaultMode"/> as the default apply mode (per-kind template modes still win). Returns false when
+    /// the caller lacks permission, the tenant is not visible/found, or has no type/template.
+    /// </summary>
+    Task<bool> ReapplyTenantTemplateAsync(ClaimsPrincipal user, int tenantId, TemplateApplyMode defaultMode);
 }

@@ -4,12 +4,12 @@
     <DialogContent>
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.SettingsKey" Label="Key" Required="true" MaxLength="100" />
-            <MudCheckBox @bind-Value="Model.JsonSetting" Label="JSON setting" />
-            <MudTextField @bind-Value="Model.SettingsValue"
-                          Label="Value"
-                          Required="true"
-                          Lines="6"
-                          HelperText="For JSON settings, sensitive `encrypt:`-prefixed leaf values are encrypted server-side using the tenant password." />
+            <div class="d-flex align-center justify-space-between mt-3">
+                <MudText Typo="Typo.caption">Value</MudText>
+                <MudSwitch T="bool" Value="@Model.JsonSetting" ValueChanged="OnJsonChanged" Label="JSON" Color="Color.Primary" />
+            </div>
+            <CodeEditor @ref="valueEditor" Value="@Model.SettingsValue" Language="@editorLanguage" Height="280" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">For JSON settings, sensitive `encrypt:`-prefixed leaf values are encrypted server-side using the tenant password.</MudText>
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -24,12 +24,28 @@
     [Parameter] public bool IsCreate { get; set; }
 
     private MudForm? form;
+    private CodeEditor? valueEditor;
+    private string editorLanguage = "plaintext";
+
+    protected override void OnInitialized()
+    {
+        editorLanguage = Model.JsonSetting ? "json" : "plaintext";
+    }
+
+    private async Task OnJsonChanged(bool isJson)
+    {
+        Model.JsonSetting = isJson;
+        editorLanguage = isJson ? "json" : "plaintext";
+        if (valueEditor is not null) await valueEditor.SetLanguageAsync(editorLanguage);
+    }
 
     private async Task Save()
     {
         if (form is null) return;
         await form.Validate();
         if (!form.IsValid) { Snackbar.Add("Please correct invalid fields", Severity.Warning); return; }
+        if (valueEditor is not null) Model.SettingsValue = await valueEditor.GetValueAsync();
+        if (string.IsNullOrWhiteSpace(Model.SettingsValue)) { Snackbar.Add("Value is required", Severity.Warning); return; }
         MudDialog.Close(DialogResult.Ok(Model));
     }
 

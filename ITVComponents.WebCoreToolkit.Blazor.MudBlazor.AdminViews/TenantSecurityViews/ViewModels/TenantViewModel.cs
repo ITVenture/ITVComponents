@@ -16,8 +16,14 @@ public class TenantViewModel
     public string? TimeZone { get; set; }
 
     public int? TenantTypeId { get; set; }
-    
+
     public int? ParentTenantId { get; set; }
+
+    /// <summary>
+    /// True when the tenant has a <c>TenantType</c> assigned whose <c>TenantTemplate</c> is set — i.e. the tenant's
+    /// type template can be (re-)applied. Drives the visibility of the re-apply action in the tenants grid.
+    /// </summary>
+    public bool CanReapplyTemplate { get; set; }
 }
 
 public sealed class TenantAssignmentViewModel

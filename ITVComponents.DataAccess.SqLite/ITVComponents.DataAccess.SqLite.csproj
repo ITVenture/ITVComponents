@@ -18,7 +18,7 @@
     <Compile Update="Resources\SqlCommands.Designer.cs" AutoGen="True" DependentUpon="SqlCommands.resx" DesignTime="True" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />

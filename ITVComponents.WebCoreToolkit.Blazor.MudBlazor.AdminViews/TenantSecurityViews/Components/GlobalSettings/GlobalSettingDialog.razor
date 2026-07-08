@@ -2,8 +2,11 @@
     <DialogContent>
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.SettingsKey" Label="Key" Required="true" RequiredError="Key is required" />
-            <MudTextField @bind-Value="Model.SettingsValue" Label="Value" Lines="6" />
-            <MudCheckBox @bind-Value="Model.JsonSetting" Label="JSON setting" />
+            <div class="d-flex align-center justify-space-between mt-3">
+                <MudText Typo="Typo.caption">Value</MudText>
+                <MudSwitch T="bool" Value="@Model.JsonSetting" ValueChanged="OnJsonChanged" Label="JSON" Color="Color.Primary" />
+            </div>
+            <CodeEditor @ref="valueEditor" Value="@Model.SettingsValue" Language="@editorLanguage" Height="280" />
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -19,6 +22,20 @@
     [Parameter] public bool IsCreate { get; set; }
 
     private MudForm? form;
+    private CodeEditor? valueEditor;
+    private string editorLanguage = "plaintext";
+
+    protected override void OnInitialized()
+    {
+        editorLanguage = Model.JsonSetting ? "json" : "plaintext";
+    }
+
+    private async Task OnJsonChanged(bool isJson)
+    {
+        Model.JsonSetting = isJson;
+        editorLanguage = isJson ? "json" : "plaintext";
+        if (valueEditor is not null) await valueEditor.SetLanguageAsync(editorLanguage);
+    }
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -27,6 +44,7 @@
         if (form is null) return;
         await form.Validate();
         if (!form.IsValid) return;
+        if (valueEditor is not null) Model.SettingsValue = await valueEditor.GetValueAsync();
         MudDialog.Close(DialogResult.Ok(Model));
     }
 }

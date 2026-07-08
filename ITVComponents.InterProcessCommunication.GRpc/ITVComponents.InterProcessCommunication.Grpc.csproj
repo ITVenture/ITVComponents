@@ -12,13 +12,13 @@
   <ItemGroup>
     <PackageReference Include="grpc.net.client" Version="2.80.0" />
     <PackageReference Include="grpc.aspnetcore.server" Version="2.80.0" />
-    <PackageReference Include="grpc.tools" version="2.80.0">
+    <PackageReference Include="grpc.tools" version="2.82.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="google.protobuf" version="3.35.0" />
+    <PackageReference Include="google.protobuf" version="3.35.1" />
     <!-- System.Collections.Concurrent removed: in-box on net10.0. -->
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.9" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.GenericService\ITVComponents.GenericService.csproj" />

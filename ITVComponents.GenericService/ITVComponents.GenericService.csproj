@@ -43,13 +43,13 @@
     <Compile Update="ServiceStartup.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.8" />
-    <PackageReference Include="Microsoft.extensions.configuration" Version="10.0.8" />
-    <PackageReference Include="Microsoft.extensions.configuration.binder" Version="10.0.8" />
-    <PackageReference Include="Microsoft.extensions.configuration.json" Version="10.0.8" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
-    <PackageReference Include="microsoft.extensions.primitives" Version="10.0.8" />
-    <PackageReference Include="PrettyPrompt" Version="6.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.9" />
+    <PackageReference Include="Microsoft.extensions.configuration" Version="10.0.9" />
+    <PackageReference Include="Microsoft.extensions.configuration.binder" Version="10.0.9" />
+    <PackageReference Include="Microsoft.extensions.configuration.json" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageReference Include="microsoft.extensions.primitives" Version="10.0.9" />
+    <PackageReference Include="PrettyPrompt" Version="6.0.4" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <!--Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" /-->

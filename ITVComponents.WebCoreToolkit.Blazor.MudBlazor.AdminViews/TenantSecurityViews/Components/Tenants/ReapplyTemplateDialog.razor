@@ -1,0 +1,33 @@
+@using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Re-applies the template of the assigned tenant type. Choose the default apply mode — per-kind modes set on
+            the template itself still take precedence.
+        </MudText>
+        <MudToggleGroup T="TemplateApplyMode" @bind-Value="mode" Color="Color.Primary" CheckMark="true" Size="Size.Medium">
+            <MudToggleItem Value="TemplateApplyMode.Additive" Text="Additive" />
+            <MudToggleItem Value="TemplateApplyMode.Forced" Text="Forced (sync)" />
+        </MudToggleGroup>
+        <MudText Typo="Typo.caption" Class="mt-3 d-block">
+            @(mode == TemplateApplyMode.Forced
+                ? "Forced: the tenant is synced to the template — entries of the covered kinds that are not in the template are deleted."
+                : "Additive: only create/update — nothing is deleted (recommended).")
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="@(mode == TemplateApplyMode.Forced ? Color.Warning : Color.Primary)" Variant="Variant.Filled" OnClick="Apply">Apply</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private TemplateApplyMode mode = TemplateApplyMode.Additive;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Apply() => MudDialog.Close(DialogResult.Ok(mode));
+}

@@ -142,6 +142,21 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         }
         var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
             .Select(tenantSelect).ToListAsync();
+
+        // Flag which tenants can have their TenantType's template re-applied (type assigned + type carries a template).
+        // Done as a separate lookup (not in the projection) so it also holds when a custom SelectTenant is configured.
+        var typeIds = items.Where(i => i.TenantTypeId != null).Select(i => i.TenantTypeId!.Value).Distinct().ToArray();
+        if (typeIds.Length > 0)
+        {
+            var typesWithTemplate = (await db.TenantTypes.AsNoTracking()
+                .Where(tt => typeIds.Contains(tt.TenantTypeId) && tt.TenantTemplateId != null)
+                .Select(tt => tt.TenantTypeId).ToListAsync()).ToHashSet();
+            foreach (var it in items)
+            {
+                it.CanReapplyTemplate = it.TenantTypeId != null && typesWithTemplate.Contains(it.TenantTypeId.Value);
+            }
+        }
+
         return new PagedResult<TenantViewModel> { Items = items, TotalCount = total };
     }
 
@@ -493,6 +508,21 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             return true;
         }
 
+        return true;
+    }
+
+    public async Task<bool> ReapplyTenantTemplateAsync(ClaimsPrincipal user, int tenantId, TemplateApplyMode defaultMode)
+    {
+        if (!HasPermission(user, "TenantTemplates.Write")) return false;
+        using var db = dbFactory.CreateDbContext();
+        ApplyContextScope(db, IsSysAdmin());
+
+        // Scope-respecting lookup: a caller who cannot see the tenant gets null -> false.
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.TenantId == tenantId);
+        if (tenant == null) return false;
+
+        // Re-applies the tenant's own TenantType template (resolved + applied on the helper's own leased context).
+        templateHelper.ApplyTenantTypeTemplate(tenant, defaultMode);
         return true;
     }
 

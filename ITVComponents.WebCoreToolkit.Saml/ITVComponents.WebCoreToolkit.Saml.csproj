@@ -21,7 +21,7 @@
     </ItemGroup>
   </Target-->
   <ItemGroup>
-    <PackageReference Include="Microsoft.IdentityModel.Tokens.Saml" Version="8.18.0" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens.Saml" Version="8.19.1" />
     <PackageReference Include="Sustainsys.Saml2.AspNetCore2" Version="2.11.0" />
   </ItemGroup>
   <ItemGroup>

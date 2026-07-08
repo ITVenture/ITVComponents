@@ -14,7 +14,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- System.Collections.Concurrent removed: in-box on net10.0. -->
-    <PackageReference Include="System.Threading.AccessControl" Version="10.0.8" />
+    <PackageReference Include="System.Threading.AccessControl" Version="10.0.9" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />

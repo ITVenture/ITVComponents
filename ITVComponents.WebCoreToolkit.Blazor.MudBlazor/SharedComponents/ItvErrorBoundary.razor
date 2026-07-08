@@ -1,0 +1,143 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@inherits ErrorBoundaryBase
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@inject ILogger<ItvErrorBoundary> Logger
+@inject NavigationManager Navigation
+
+@*
+    Reusable Blazor-Server error boundary. Contains a failure in the wrapped component subtree (rendering,
+    lifecycle AND event handlers) and keeps the SignalR circuit alive instead of tearing it down, so a Save that
+    throws no longer kills the whole app. No try/catch needed in the wrapped components.
+
+    Global use in the host layout (catches every toolkit page rendered into @Body):
+
+        <ItvErrorBoundary>
+            @Body
+        </ItvErrorBoundary>
+
+    Override just the retry control (keeps the default alert):
+
+        <ItvErrorBoundary>
+            <Actions Context="err">
+                <MudButton OnClick="@(() => err.Recover())">Try again</MudButton>
+            </Actions>
+            <ChildContent>@Body</ChildContent>
+        </ItvErrorBoundary>
+
+    Fully custom notification (you own everything incl. the recover call via err.Recover):
+
+        <ItvErrorBoundary>
+            <Notification Context="err">
+                <MySnackbarStyleBanner Message="@err.Exception.Message" OnClose="@(() => err.Recover())" />
+            </Notification>
+            <ChildContent>@Body</ChildContent>
+        </ItvErrorBoundary>
+
+    Note: genuinely fire-and-forget async exceptions (not awaited on the render sync-context) can still escape any
+    ErrorBoundary — those must be handled where they are started.
+*@
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else if (Notification is not null)
+{
+    @Notification(CurrentContext())
+}
+else
+{
+    <MudAlert Severity="@Severity" Variant="@Variant" NoIcon="@NoIcon" Class="@Class">
+        <div class="d-flex align-center" style="width:100%; gap:16px;">
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1">@Title</MudText>
+                @if (ShowDetails)
+                {
+                    <MudText Typo="Typo.caption">@CurrentException!.Message</MudText>
+                }
+            </div>
+            @if (Actions is not null)
+            {
+                @Actions(CurrentContext())
+            }
+            else
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Inherit" OnClick="@(() => RecoverAndRender())">@RecoverText</MudButton>
+            }
+        </div>
+    </MudAlert>
+}
+
+@code {
+    /// <summary>
+    /// Full override of the notification UI. Receives the <see cref="ItvErrorContext"/> (exception + recover) and
+    /// REPLACES the entire default alert — including the recover control, so use <c>context.Recover</c> for your
+    /// own retry button. When null, the default MudBlazor alert is shown.
+    /// </summary>
+    [Parameter] public RenderFragment<ItvErrorContext>? Notification { get; set; }
+
+    /// <summary>
+    /// Override only the action/recover area inside the default alert (the "Retry" button region). Receives the
+    /// <see cref="ItvErrorContext"/>. Ignored when <see cref="Notification"/> is supplied.
+    /// </summary>
+    [Parameter] public RenderFragment<ItvErrorContext>? Actions { get; set; }
+
+    /// <summary>Headline of the default alert.</summary>
+    [Parameter] public string Title { get; set; } = "Something went wrong.";
+
+    /// <summary>Caption of the default retry button.</summary>
+    [Parameter] public string RecoverText { get; set; } = "Retry";
+
+    [Parameter] public Severity Severity { get; set; } = Severity.Error;
+    [Parameter] public Variant Variant { get; set; } = Variant.Filled;
+    [Parameter] public bool NoIcon { get; set; }
+
+    /// <summary>Whether the default alert shows the exception message. Leave false for production; custom slots can
+    /// always read <c>context.Exception</c> regardless.</summary>
+    [Parameter] public bool ShowDetails { get; set; }
+
+    [Parameter] public string? Class { get; set; } = "ma-4";
+
+    /// <summary>When true (default), the boundary auto-recovers on navigation, so moving to another page clears a
+    /// stale error instead of showing the error UI over the newly navigated page.</summary>
+    [Parameter] public bool RecoverOnNavigation { get; set; } = true;
+
+    protected override void OnInitialized()
+    {
+        if (RecoverOnNavigation)
+        {
+            Navigation.LocationChanged += OnLocationChanged;
+        }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (CurrentException is not null)
+        {
+            RecoverAndRender();
+        }
+    }
+
+    private ItvErrorContext CurrentContext() => new ItvErrorContext(CurrentException!, RecoverAndRender);
+
+    private void RecoverAndRender()
+    {
+        Recover();
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override Task OnErrorAsync(Exception exception)
+    {
+        Logger.LogError(exception, "Unhandled error captured by ItvErrorBoundary.");
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        if (RecoverOnNavigation)
+        {
+            Navigation.LocationChanged -= OnLocationChanged;
+        }
+    }
+}
