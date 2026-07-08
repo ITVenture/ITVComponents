@@ -8,8 +8,10 @@ using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
+using Microsoft.Extensions.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
@@ -31,6 +33,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.P
         private readonly IGlobalSettings<TenantSetupOptions> setupOptions;
         private readonly ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer;
         //private readonly ITenantTemplateHelper<ISecurityContextWithOnboarding> tenantInitializer;
+        private readonly ILogger<CreateTenantModel> logger;
 
         public CreateTenantModel(
             UserManager<User> userManager,
@@ -38,7 +41,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.P
             IStringLocalizer<IdentityMessages> localizer,
             ISecurityContextWithOnboarding dbContext,
             IGlobalSettings<TenantSetupOptions> setupOptions,
-            ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer)
+            ITenantTemplateHelper<Tenant, FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer,
+            ILogger<CreateTenantModel> logger)
         {
             _userManager = userManager;
             _signInManager = signInManager;
@@ -46,6 +50,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.P
             this.dbContext = dbContext;
             this.setupOptions = setupOptions;
             this.tenantInitializer = tenantInitializer;
+            this.logger = logger;
         }
 
         public string ReturnUrl { get; set; }
@@ -180,10 +185,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.P
 
             await dbContext.SaveChangesAsync();
             var cfg = setupOptions.ValueOrDefault;
-            if (!string.IsNullOrEmpty(cfg.BasicTenantTemplate))
+            var resolved = await OnboardingTemplateResolver.ResolveAsync(dbContext.TenantTypes, dbContext.TenantTemplates,
+                cfg, templateNameOverride: null, logger, HttpContext.RequestAborted);
+            if (resolved != null)
             {
-                var tmpl = dbContext.TenantTemplates.First(n => n.Name == cfg.BasicTenantTemplate);
-                var mku = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup, SerializationTypingMode.NativePolymorphism);
+                if (resolved.TenantTypeId != null && tenant.TenantTypeId == null)
+                {
+                    tenant.TenantTypeId = resolved.TenantTypeId;
+                }
+
+                var mku = resolved.Markup;
                 tenantInitializer.ApplyTemplate(tenant, mku, ct =>
                 {
                     var ctx = ct as ISecurityContextWithOnboarding;

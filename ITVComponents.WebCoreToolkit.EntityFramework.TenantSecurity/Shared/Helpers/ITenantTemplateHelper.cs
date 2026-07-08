@@ -27,11 +27,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         void ApplyAllTenantsFor(int tenantTypeId);
 
+        /// <summary>
+        /// Re-applies the template attached to the tenant's own <c>TenantType</c> (resolved via
+        /// <c>Tenant.TenantTypeId</c>). No-op (logged) when the tenant has no type or the type carries no template.
+        /// Per-kind template modes win over <paramref name="defaultMode"/>.
+        /// </summary>
+        void ApplyTenantTypeTemplate(TTenant tenant, TemplateApplyMode defaultMode);
+
         void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template);
+
+        /// <summary>
+        /// Applies the template with an explicit default apply mode. Per-kind modes on the template override it; an
+        /// <see cref="TemplateApplyMode.Auto"/> default resolves to <see cref="TemplateApplyMode.Forced"/>.
+        /// </summary>
+        void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, TemplateApplyMode defaultMode);
 
         void RevokeTemplate(TTenant tenant, TenantTemplateMarkup template);
 
         void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply);
+
+        void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply, TemplateApplyMode defaultMode);
 
         /// <summary>
         /// Applies a template on an EXTERNALLY supplied, caller-owned context instead of leasing a fresh one. Use this
@@ -42,6 +57,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         /// security-context type the lease would otherwise have produced.
         /// </summary>
         void ApplyTemplate(DbContext externalContext, TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply);
+
+        void ApplyTemplate(DbContext externalContext, TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply, TemplateApplyMode defaultMode);
 
         void RevokeTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterRevoke);
 

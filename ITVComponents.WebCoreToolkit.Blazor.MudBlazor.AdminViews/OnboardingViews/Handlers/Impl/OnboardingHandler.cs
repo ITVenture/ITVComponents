@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
@@ -321,19 +322,22 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
     private async Task ApplyTenantTemplateAsync(TContext db, Tenant tenant, TenantUser admin, CancellationToken ct)
     {
         var cfg = setupOptions.ValueOrDefault;
-        if (cfg == null || string.IsNullOrEmpty(cfg.BasicTenantTemplate))
+
+        var resolved = await OnboardingTemplateResolver.ResolveAsync(db.TenantTypes, db.TenantTemplates, cfg,
+            templateNameOverride: null, logger, ct);
+        if (resolved == null)
         {
             return;
         }
 
-        var tmpl = await db.TenantTemplates.FirstOrDefaultAsync(n => n.Name == cfg.BasicTenantTemplate, ct);
-        if (tmpl == null)
+        // Tag the tenant with the resolved TenantType (BasicTenantType path) unless it already carries one, so a later
+        // re-apply can resolve "the tenant's template" from its type.
+        if (resolved.TenantTypeId != null && tenant.TenantTypeId == null)
         {
-            logger.LogWarning("Tenant template {Template} not found; skipping.", cfg.BasicTenantTemplate);
-            return;
+            tenant.TenantTypeId = resolved.TenantTypeId;
         }
 
-        var markup = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup, SerializationTypingMode.NativePolymorphism);
+        var markup = resolved.Markup;
         // Apply on the SAME context 'db' (external-context overload) so the template writes enlist in the caller's
         // transaction instead of a separately-leased context that would commit independently.
         tenantInitializer.ApplyTemplate(db, tenant, markup, baseCtx =>

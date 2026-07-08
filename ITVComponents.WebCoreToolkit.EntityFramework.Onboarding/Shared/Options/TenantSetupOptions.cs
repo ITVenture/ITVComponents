@@ -8,6 +8,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options
     [SettingName("TenantSetup")]
     public class TenantSetupOptions
     {
+        /// <summary>
+        /// Preferred way to pick the onboarding template: the <c>TenantTypeName</c> of a <c>TenantType</c> whose
+        /// attached <c>TenantTemplate</c> is applied to a newly onboarded tenant (and the tenant is tagged with that
+        /// type). Takes precedence over <see cref="BasicTenantTemplate"/>. When set but the type is missing or carries
+        /// no template, no template is applied (a warning is logged).
+        /// </summary>
+        public string BasicTenantType { get; set; }
+
+        /// <summary>
+        /// Legacy: the <c>Name</c> of the <c>TenantTemplate</c> to apply directly. Used as a fallback only when
+        /// <see cref="BasicTenantType"/> is not set. Prefer <see cref="BasicTenantType"/>.
+        /// </summary>
         public string BasicTenantTemplate { get; set; }
 
         public string AdminUserRole { get; set; }

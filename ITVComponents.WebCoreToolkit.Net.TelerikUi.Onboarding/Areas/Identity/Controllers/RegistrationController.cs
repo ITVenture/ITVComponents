@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.Extras.EmailDnsValidation;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
@@ -337,10 +338,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.C
 
                     await dbContext.SaveChangesAsync();
                     var cfg = setupOptions.ValueOrDefault;
-                    if (!string.IsNullOrEmpty(cfg.BasicTenantTemplate))
+                    var resolved = await OnboardingTemplateResolver.ResolveAsync(dbContext.TenantTypes, dbContext.TenantTemplates,
+                        cfg, templateNameOverride: null, logger, HttpContext.RequestAborted);
+                    if (resolved != null)
                     {
-                        var tmpl = dbContext.TenantTemplates.First(n => n.Name == cfg.BasicTenantTemplate);
-                        var mku = JsonHelper.FromJsonString<TenantTemplateMarkup>(tmpl.Markup, SerializationTypingMode.NativePolymorphism);
+                        if (resolved.TenantTypeId != null && tenant.TenantTypeId == null)
+                        {
+                            tenant.TenantTypeId = resolved.TenantTypeId;
+                        }
+
+                        var mku = resolved.Markup;
                         tenantInitializer.ApplyTemplate(tenant, mku, ct =>
                         {
                             var ctx = ct as ISecurityContextWithOnboarding;

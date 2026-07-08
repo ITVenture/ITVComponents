@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.GenericsHelperInterfaces.Impl
@@ -34,6 +35,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         public void ApplyTenantTemplates(IServiceProvider services, TenantType tenantType)
         {
             decorated.ApplyTenantTemplates(services, tenantType);
+        }
+
+        public void ApplyTenantTypeTemplate(IServiceProvider services, Tenant tenant, TemplateApplyMode defaultMode)
+        {
+            decorated.ApplyTenantTypeTemplate(services, tenant, defaultMode);
         }
     }
 }

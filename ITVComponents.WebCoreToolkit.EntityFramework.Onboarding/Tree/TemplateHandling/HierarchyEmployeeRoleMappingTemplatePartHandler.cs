@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.Json;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.TemplateHandling;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,7 +37,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.TemplateH
             return entries.Count == 0 ? null : JsonSerializer.Serialize(entries);
         }
 
-        public void Apply(DbContext db, int tenantId, string payload)
+        public void Apply(DbContext db, int tenantId, string payload, TemplateApplyMode mode)
         {
             if (db is not IHierarchySecurityContextWithOnboarding ctx)
             {
@@ -50,6 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.TemplateH
             }
 
             var changed = false;
+            var appliedRoleIds = new List<int>();
             foreach (var entry in entries)
             {
                 if (string.IsNullOrEmpty(entry.RoleName))
@@ -64,6 +66,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.TemplateH
                     continue;
                 }
 
+                appliedRoleIds.Add(role.RoleId);
                 var existing = ctx.EmployeeRoleMappings.IgnoreQueryFilters()
                     .FirstOrDefault(m => m.TenantId == tenantId && m.RoleId == role.RoleId);
                 if (existing == null)
@@ -83,6 +86,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree.TemplateH
                 }
 
                 changed = true;
+            }
+
+            // Forced also prunes tenant mappings not present in the payload; Additive leaves them in place.
+            if (mode == TemplateApplyMode.Forced)
+            {
+                var stale = ctx.EmployeeRoleMappings.IgnoreQueryFilters()
+                    .Where(m => m.TenantId == tenantId && !appliedRoleIds.Contains(m.RoleId))
+                    .ToList();
+                if (stale.Count > 0)
+                {
+                    ctx.EmployeeRoleMappings.RemoveRange(stale);
+                    changed = true;
+                }
             }
 
             if (changed)

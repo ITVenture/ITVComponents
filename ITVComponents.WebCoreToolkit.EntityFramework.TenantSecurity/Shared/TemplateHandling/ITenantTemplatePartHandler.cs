@@ -1,3 +1,4 @@
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.TemplateHandling
@@ -23,7 +24,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Tem
         /// </summary>
         string Extract(DbContext db, int tenantId);
 
-        /// <summary>Applies a previously extracted payload to <paramref name="tenantId"/>.</summary>
-        void Apply(DbContext db, int tenantId, string payload);
+        /// <summary>
+        /// Applies a previously extracted payload to <paramref name="tenantId"/>. <paramref name="mode"/> is the
+        /// resolved apply mode for this part (never <see cref="TemplateApplyMode.Auto"/>): <see cref="TemplateApplyMode.Additive"/>
+        /// should only upsert, <see cref="TemplateApplyMode.Forced"/> may additionally prune entries not in the payload.
+        /// </summary>
+        void Apply(DbContext db, int tenantId, string payload, TemplateApplyMode mode);
     }
 }

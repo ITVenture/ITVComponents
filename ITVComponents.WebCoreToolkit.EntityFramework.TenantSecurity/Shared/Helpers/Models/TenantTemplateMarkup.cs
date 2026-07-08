@@ -28,9 +28,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         /// <summary>
         /// Open extension bag for decoupled template parts contributed by feature libraries via
-        /// <c>ITenantTemplatePartHandler</c> (key = part key, value = the handler's serialized payload). Kept as
-        /// plain string→string so the engine never needs to know the concrete part types.
+        /// <c>ITenantTemplatePartHandler</c> (key = part key, value = the handler's payload + its apply mode).
         /// </summary>
-        public Dictionary<string, string> Extensions { get; set; }
+        public Dictionary<string, TemplateExtensionMarkup> Extensions { get; set; }
+
+        /// <summary>
+        /// Per-kind apply mode. <see cref="TemplateApplyMode.Auto"/> (the default) inherits the applying method's
+        /// mode; set <see cref="TemplateApplyMode.Additive"/> to keep the tenant's own extra entries of that kind, or
+        /// <see cref="TemplateApplyMode.Forced"/> to prune them so the tenant matches the template exactly.
+        /// </summary>
+        public TemplateApplyMode ApplyModeForPermissions { get; set; }
+
+        public TemplateApplyMode ApplyModeForRoles { get; set; }
+
+        public TemplateApplyMode ApplyModeForSettings { get; set; }
+
+        public TemplateApplyMode ApplyModeForFeatures { get; set; }
+
+        public TemplateApplyMode ApplyModeForPlugIns { get; set; }
+
+        public TemplateApplyMode ApplyModeForConstants { get; set; }
+
+        public TemplateApplyMode ApplyModeForNavigation { get; set; }
+
+        public TemplateApplyMode ApplyModeForQueries { get; set; }
+
+        public TemplateApplyMode ApplyModeForExternalOAuthServices { get; set; }
     }
 }

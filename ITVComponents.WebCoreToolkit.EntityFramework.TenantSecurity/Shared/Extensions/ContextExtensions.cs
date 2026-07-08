@@ -469,6 +469,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
              ctx.ChangeTracker.AutoDetectChangesEnabled = false;*/
         }
 
+        /// <summary>
+        /// Re-applies the template attached to <paramref name="tenant"/>'s own <c>TenantType</c> to that single tenant.
+        /// <paramref name="dbContext"/> only identifies the concrete security-context type (its generic type arguments
+        /// resolve the correctly-typed template helper); the apply itself runs on a freshly leased context. Default
+        /// mode is <see cref="TemplateApplyMode.Additive"/> (safe re-apply); per-kind template modes override it.
+        /// </summary>
+        public static void ApplyTenantTypeTemplate(this IServiceProvider services, object dbContext, Tenant tenant,
+            TemplateApplyMode defaultMode = TemplateApplyMode.Additive)
+        {
+            GetWrapper(dbContext).ApplyTenantTypeTemplate(services, tenant, defaultMode);
+        }
+
+        public static void ApplyTenantTypeTemplate<TContext, TTenant, TWebPlugin, TWebPluginConstant,
+            TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
+            TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>(this IServiceProvider services,
+            Tenant tenant, TemplateApplyMode defaultMode)
+            where TTenant : Tenant
+            where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
+            where TWebPluginConstant : WebPluginConstant<TTenant>
+            where TWebPluginGenericParameter : WebPluginGenericParameter<TTenant, TWebPlugin, TWebPluginGenericParameter>
+            where TSequence : Sequence<TTenant>
+            where TTenantSetting : TenantSetting<TTenant>
+            where TTenantFeatureActivation : TenantFeatureActivation<TTenant>
+            where TTrustConfig : BaseTenantContextSecurityTrustConfig<TTrustConfig>, new()
+            where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+            where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+            where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+            where TContext : DbContext
+        {
+            var tth = services.GetService<ITenantTemplateHelper<TTenant, TWebPlugin, TWebPluginConstant,
+                TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
+                TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
+            if (tth != null && tenant is TTenant t)
+            {
+                tth.ApplyTenantTypeTemplate(t, defaultMode);
+            }
+        }
+
         private static IContextExtensions GetWrapper(object wrapper)
         {
             var act = wrapper.GetType();

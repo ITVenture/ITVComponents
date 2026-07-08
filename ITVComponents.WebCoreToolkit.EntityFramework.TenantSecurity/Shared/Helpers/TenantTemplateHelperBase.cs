@@ -175,8 +175,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                         var payload = handler.Extract(dbc, tenant.TenantId);
                         if (!string.IsNullOrEmpty(payload))
                         {
-                            markup.Extensions ??= new Dictionary<string, string>();
-                            markup.Extensions[handler.PartKey] = payload;
+                            markup.Extensions ??= new Dictionary<string, TemplateExtensionMarkup>();
+                            markup.Extensions[handler.PartKey] = new TemplateExtensionMarkup(payload);
                         }
                     }
                 }
@@ -327,7 +327,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 //PrepareAllEntities();
                 foreach (var tenant in tenants)
                 {
-                    ApplyTemplatePrivate(tenant, tpi, false);
+                    ApplyTemplatePrivate(tenant, tpi, false, TemplateApplyMode.Auto);
                     i++;
                     if (i % 1000 == 0)
                     {
@@ -347,6 +347,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             }
         }
 
+        public void ApplyTenantTypeTemplate(TTenant tenant, TemplateApplyMode defaultMode)
+        {
+            if (tenant.TenantTypeId == null)
+            {
+                logger.LogWarning("Tenant {Tenant} has no TenantType; nothing to re-apply.", tenant.TenantId);
+                return;
+            }
+
+            TenantTemplateMarkup markup;
+            using (var lease = contextFactory.Lease<TContext>())
+            {
+                var ctx = lease.Context;
+                using (new FullSecurityAccessHelper<TTrustConfig>(ctx, new() { ShowAllTenants = true, HideGlobals = false }))
+                {
+                    var tt = ctx.TenantTypes.Include(n => n.TenantTemplate)
+                        .FirstOrDefault(n => n.TenantTypeId == tenant.TenantTypeId.Value);
+                    if (tt?.TenantTemplate == null)
+                    {
+                        logger.LogWarning("Tenant {Tenant}'s type carries no template; nothing to re-apply.", tenant.TenantId);
+                        return;
+                    }
+
+                    markup = JsonHelper.FromJsonString<TenantTemplateMarkup>(tt.TenantTemplate.Markup, SerializationTypingMode.NativePolymorphism);
+                }
+            }
+
+            ApplyTemplate(tenant, markup, defaultMode);
+        }
+
         public void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template)
         {
             ApplyTemplate(tenant, template, null);
@@ -357,7 +386,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             RevokeTemplate(tenant,template,null);
         }
 
-        public void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply) 
+        public void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, TemplateApplyMode defaultMode)
+        {
+            ApplyTemplate(tenant, template, null, defaultMode);
+        }
+
+        public void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply)
+        {
+            ApplyTemplate(tenant, template, afterApply, TemplateApplyMode.Auto);
+        }
+
+        public void ApplyTemplate(TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply, TemplateApplyMode defaultMode)
         {
             using var lease = contextFactory.Lease<TContext>();
             var previousDb = db;
@@ -367,7 +406,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             db.EnsureNavUniqueness();
             using (new FullSecurityAccessHelper<TTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false }))
             {
-                ApplyTemplatePrivate(tenant, template,true);
+                ApplyTemplatePrivate(tenant, template, true, defaultMode);
                 afterApply?.Invoke(db);
             }
             }
@@ -378,6 +417,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         }
 
         public void ApplyTemplate(DbContext externalContext, TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply)
+        {
+            ApplyTemplate(externalContext, tenant, template, afterApply, TemplateApplyMode.Auto);
+        }
+
+        public void ApplyTemplate(DbContext externalContext, TTenant tenant, TenantTemplateMarkup template, Action<IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>> afterApply, TemplateApplyMode defaultMode)
         {
             // Run on the caller's context (NOT a fresh lease) so every write enlists in the caller's ambient
             // transaction. Deliberately does not dispose the context or commit — the caller owns both. Scope flags
@@ -395,7 +439,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 db.EnsureNavUniqueness();
                 using (new FullSecurityAccessHelper<TTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false }))
                 {
-                    ApplyTemplatePrivate(tenant, template, true);
+                    ApplyTemplatePrivate(tenant, template, true, defaultMode);
                     afterApply?.Invoke(db);
                 }
             }
@@ -405,7 +449,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             }
         }
 
-        private void ApplyTemplatePrivate(TTenant tenant, TenantTemplateMarkup template, bool autoSave)
+        /// <summary>
+        /// Resolves the effective mode for one template kind: an explicit per-kind mode wins; <c>Auto</c> inherits the
+        /// applying method's mode, and an <c>Auto</c> method mode itself resolves to <c>Forced</c> (historical
+        /// behaviour). Returns true when tenant entries of that kind absent from the template should be pruned.
+        /// </summary>
+        protected static bool ShouldPrune(TemplateApplyMode perKind, TemplateApplyMode methodDefault)
+        {
+            var effectiveDefault = methodDefault == TemplateApplyMode.Auto ? TemplateApplyMode.Forced : methodDefault;
+            var mode = perKind == TemplateApplyMode.Auto ? effectiveDefault : perKind;
+            return mode == TemplateApplyMode.Forced;
+        }
+
+        private void ApplyTemplatePrivate(TTenant tenant, TenantTemplateMarkup template, bool autoSave, TemplateApplyMode defaultMode)
         {
             var fmtRoot = new
             {
@@ -425,24 +481,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
             if (template.Roles != null)
             {
+                var pruneRoles = ShouldPrune(template.ApplyModeForRoles, defaultMode);
                 var rn = new List<string>();
                 foreach (var role in template.Roles)
                 {
                     var tmp = GetRole(tenant.TenantId, role, true);
                     rn.Add(tmp.RoleName);
-                    ApplyPermissions(tmp, role);
-                    ApplyRoleGrants(tenant, tmp, role);
-                    ApplyGlobalRoleGrants(tenant, tmp, role);
+                    ApplyPermissions(tmp, role, pruneRoles);
+                    ApplyRoleGrants(tenant, tmp, role, pruneRoles);
+                    ApplyGlobalRoleGrants(tenant, tmp, role, pruneRoles);
                 }
 
-                var rmRoles = (from t in db.SecurityRoles.Include(r => r.PermittedRoles).Include(r => r.PermissiveRoles).Include(r => r.RolePermissions).Where(n => n.TenantId == tenant.TenantId)
-                               join r in rn on t.RoleName.ToLower() equals r.ToLower() into lj
-                               from l in lj.DefaultIfEmpty()
-                               where string.IsNullOrEmpty(l)
-                               select t).ToArray();
-                db.RolePermissions.RemoveRange(rmRoles.SelectMany(n => n.RolePermissions));
-                db.RoleRoles.RemoveRange(rmRoles.SelectMany(n => n.PermissiveRoles).Union(rmRoles.SelectMany(n => n.PermittedRoles)));
-                db.SecurityRoles.RemoveRange(rmRoles);
+                if (pruneRoles)
+                {
+                    var rmRoles = (from t in db.SecurityRoles.Include(r => r.PermittedRoles).Include(r => r.PermissiveRoles).Include(r => r.RolePermissions).Where(n => n.TenantId == tenant.TenantId)
+                                   join r in rn on t.RoleName.ToLower() equals r.ToLower() into lj
+                                   from l in lj.DefaultIfEmpty()
+                                   where string.IsNullOrEmpty(l)
+                                   select t).ToArray();
+                    db.RolePermissions.RemoveRange(rmRoles.SelectMany(n => n.RolePermissions));
+                    db.RoleRoles.RemoveRange(rmRoles.SelectMany(n => n.PermissiveRoles).Union(rmRoles.SelectMany(n => n.PermittedRoles)));
+                    db.SecurityRoles.RemoveRange(rmRoles);
+                }
             }
 
             if (template.Settings != null)
@@ -462,12 +522,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     }
                 }
 
-                db.TenantSettings.RemoveRange(from t in db.TenantSettings.Where(n => n.TenantId == tenant.TenantId)
-                                              join r in settingsNames
-                    on t.SettingsKey.ToLower() equals r.ToLower() into lj
-                                              from l in lj.DefaultIfEmpty()
-                                              where string.IsNullOrEmpty(l)
-                                              select t);
+                if (ShouldPrune(template.ApplyModeForSettings, defaultMode))
+                {
+                    db.TenantSettings.RemoveRange(from t in db.TenantSettings.Where(n => n.TenantId == tenant.TenantId)
+                                                  join r in settingsNames
+                        on t.SettingsKey.ToLower() equals r.ToLower() into lj
+                                                  from l in lj.DefaultIfEmpty()
+                                                  where string.IsNullOrEmpty(l)
+                                                  select t);
+                }
             }
 
             if (template.Constants != null)
@@ -486,12 +549,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     }
                 }
 
-                db.WebPluginConstants.RemoveRange(from t in db.WebPluginConstants.Where(n => n.TenantId == tenant.TenantId)
-                                                  join r in constNames
-                                                      on t.Name.ToLower() equals r.ToLower() into lj
-                                                  from l in lj.DefaultIfEmpty()
-                                                  where string.IsNullOrEmpty(l)
-                                                  select t);
+                if (ShouldPrune(template.ApplyModeForConstants, defaultMode))
+                {
+                    db.WebPluginConstants.RemoveRange(from t in db.WebPluginConstants.Where(n => n.TenantId == tenant.TenantId)
+                                                      join r in constNames
+                                                          on t.Name.ToLower() equals r.ToLower() into lj
+                                                      from l in lj.DefaultIfEmpty()
+                                                      where string.IsNullOrEmpty(l)
+                                                      select t);
+                }
             }
 
             if (template.PlugIns != null)
@@ -518,15 +584,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     }
                 }
 
-                var rems = (from t in db.WebPlugins.Include(p => p.Parameters)
-                        .Where(n => n.TenantId == tenant.TenantId)
-                            join r in piKeys
-                                on t.UniqueName.ToLower() equals r.ToLower() into lj
-                            from l in lj.DefaultIfEmpty()
-                            where string.IsNullOrEmpty(l)
-                            select t).ToArray();
-                db.GenericPluginParams.RemoveRange(rems.SelectMany(n => n.Parameters));
-                db.WebPlugins.RemoveRange(rems);
+                if (ShouldPrune(template.ApplyModeForPlugIns, defaultMode))
+                {
+                    var rems = (from t in db.WebPlugins.Include(p => p.Parameters)
+                            .Where(n => n.TenantId == tenant.TenantId)
+                                join r in piKeys
+                                    on t.UniqueName.ToLower() equals r.ToLower() into lj
+                                from l in lj.DefaultIfEmpty()
+                                where string.IsNullOrEmpty(l)
+                                select t).ToArray();
+                    db.GenericPluginParams.RemoveRange(rems.SelectMany(n => n.Parameters));
+                    db.WebPlugins.RemoveRange(rems);
+                }
             }
 
             if (template.Navigation != null)
@@ -543,11 +612,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     }
                 }
 
-                db.TenantNavigation.RemoveRange(from t in db.TenantNavigation.Include(n => n.NavigationMenu)
-                                                join r in urlUqs on t.NavigationMenu.UrlUniqueness.ToLower() equals r.ToLower() into lj
-                                                from j in lj.DefaultIfEmpty()
-                                                where string.IsNullOrEmpty(j) && t.TenantId == tenant.TenantId
-                                                select t);
+                if (ShouldPrune(template.ApplyModeForNavigation, defaultMode))
+                {
+                    db.TenantNavigation.RemoveRange(from t in db.TenantNavigation.Include(n => n.NavigationMenu)
+                                                    join r in urlUqs on t.NavigationMenu.UrlUniqueness.ToLower() equals r.ToLower() into lj
+                                                    from j in lj.DefaultIfEmpty()
+                                                    where string.IsNullOrEmpty(j) && t.TenantId == tenant.TenantId
+                                                    select t);
+                }
             }
 
             if (template.Queries != null)
@@ -559,13 +631,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     GetQuery(tenant.TenantId, query, true);
                 }
 
-                db.TenantDiagnosticsQueries.RemoveRange(
-                    from t in db.TenantDiagnosticsQueries.Include(n => n.DiagnosticsQuery)
-                    join
-                        r in qn on t.DiagnosticsQuery.DiagnosticsQueryName.ToLower() equals r.ToLower() into lj
-                    from j in lj.DefaultIfEmpty()
-                    where string.IsNullOrEmpty(j) && t.TenantId == tenant.TenantId
-                    select t);
+                if (ShouldPrune(template.ApplyModeForQueries, defaultMode))
+                {
+                    db.TenantDiagnosticsQueries.RemoveRange(
+                        from t in db.TenantDiagnosticsQueries.Include(n => n.DiagnosticsQuery)
+                        join
+                            r in qn on t.DiagnosticsQuery.DiagnosticsQueryName.ToLower() equals r.ToLower() into lj
+                        from j in lj.DefaultIfEmpty()
+                        where string.IsNullOrEmpty(j) && t.TenantId == tenant.TenantId
+                        select t);
+                }
             }
 
             if (template.Features != null)
@@ -585,11 +660,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     }
                 }
 
-                db.TenantFeatureActivations.RemoveRange(from t in db.TenantFeatureActivations.Include(a => a.Feature)
-                                                        join r in fn on t.Feature.FeatureName.ToLower() equals r.ToLower() into lj
-                                                        from l in lj.DefaultIfEmpty()
-                                                        where t.TenantId == tenant.TenantId && string.IsNullOrEmpty(l)
-                                                        select t);
+                if (ShouldPrune(template.ApplyModeForFeatures, defaultMode))
+                {
+                    db.TenantFeatureActivations.RemoveRange(from t in db.TenantFeatureActivations.Include(a => a.Feature)
+                                                            join r in fn on t.Feature.FeatureName.ToLower() equals r.ToLower() into lj
+                                                            from l in lj.DefaultIfEmpty()
+                                                            where t.TenantId == tenant.TenantId && string.IsNullOrEmpty(l)
+                                                            select t);
+                }
             }
 
             if (template.ExternalOAuthServices != null)
@@ -613,24 +691,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     }
                 }
 
-                db.ExternalOAuthServices.RemoveRange(from t in db.ExternalOAuthServices.Where(n => n.TenantId == tenant.TenantId)
-                                                     join r in svcNames
-                                                         on t.UniqueConnectionName.ToLower() equals r.ToLower() into lj
-                                                     from l in lj.DefaultIfEmpty()
-                                                     where string.IsNullOrEmpty(l)
-                                                     select t);
+                if (ShouldPrune(template.ApplyModeForExternalOAuthServices, defaultMode))
+                {
+                    db.ExternalOAuthServices.RemoveRange(from t in db.ExternalOAuthServices.Where(n => n.TenantId == tenant.TenantId)
+                                                         join r in svcNames
+                                                             on t.UniqueConnectionName.ToLower() equals r.ToLower() into lj
+                                                         from l in lj.DefaultIfEmpty()
+                                                         where string.IsNullOrEmpty(l)
+                                                         select t);
+                }
             }
 
-            db.Permissions.RemoveRange(from p in db.Permissions.Where(n => n.TenantId == tenant.TenantId)
-                                       join
-                                           r in pns on p.PermissionName.ToLower() equals r.ToLower() into lj
-                                       from l in lj.DefaultIfEmpty()
-                                       where string.IsNullOrEmpty(l)
-                                       select p);
+            if (ShouldPrune(template.ApplyModeForPermissions, defaultMode))
+            {
+                db.Permissions.RemoveRange(from p in db.Permissions.Where(n => n.TenantId == tenant.TenantId)
+                                           join
+                                               r in pns on p.PermissionName.ToLower() equals r.ToLower() into lj
+                                           from l in lj.DefaultIfEmpty()
+                                           where string.IsNullOrEmpty(l)
+                                           select p);
+            }
             if (autoSave)
             {
                 db.SaveChanges();
-                ApplyParts(tenant.TenantId, template);
+                ApplyParts(tenant.TenantId, template, defaultMode);
             }
         }
 
@@ -639,23 +723,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         /// after the built-in sections are persisted (so by-name lookups resolve). Each handler manages its own
         /// persistence. Only runs on the auto-saving (single-tenant) apply path.
         /// </summary>
-        private void ApplyParts(int tenantId, TenantTemplateMarkup template)
+        private void ApplyParts(int tenantId, TenantTemplateMarkup template, TemplateApplyMode defaultMode)
         {
             if (template.Extensions == null || db is not DbContext dbc)
             {
                 return;
             }
 
+            var effectiveDefault = defaultMode == TemplateApplyMode.Auto ? TemplateApplyMode.Forced : defaultMode;
             foreach (var handler in partHandlers)
             {
-                if (template.Extensions.TryGetValue(handler.PartKey, out var payload) && !string.IsNullOrEmpty(payload))
+                if (template.Extensions.TryGetValue(handler.PartKey, out var ext) && ext != null && !string.IsNullOrEmpty(ext.Payload))
                 {
-                    handler.Apply(dbc, tenantId, payload);
+                    var mode = ext.ApplyMode == TemplateApplyMode.Auto ? effectiveDefault : ext.ApplyMode;
+                    handler.Apply(dbc, tenantId, ext.Payload, mode);
                 }
             }
         }
 
-        protected virtual void ApplyRoleGrants(TTenant tenant, TRole tmp, RoleTemplateMarkup role)
+        protected virtual void ApplyRoleGrants(TTenant tenant, TRole tmp, RoleTemplateMarkup role, bool prune)
         {
             db.RoleRoles.Include(n => n.PermittedRole).Include(n => n.PermissiveRole).Where(n => n.PermissiveRole == tmp).Load();
             var permittedRoles = role.RoleGrants.Select(n => SelectPermittedRole(tenant, n)).ToArray();
@@ -670,10 +756,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 from nwNj in nwLj.DefaultIfEmpty()
                 where (oriNj == null && nwNj != null) || (oriNj != null && nwNj == null)
                 select new { r.RoleName, r.TenantId, Add = nwNj != null, Delete = oriNj != null }).ToArray();
-            db.RoleRoles.RemoveRange(from t in db.RoleRoles.Local.Where(n => n.PermissiveRole == tmp) join d in raw.Where(n => n.Delete)
-                on new {t.PermittedRole.RoleName,t.PermittedRole.TenantId} equals new {d.RoleName,d.TenantId}
-                                     select t);
-            db.RoleRoles.AddRange(from t in permittedRoles join i in raw.Where(n => n.Add) on 
+            if (prune)
+            {
+                db.RoleRoles.RemoveRange(from t in db.RoleRoles.Local.Where(n => n.PermissiveRole == tmp) join d in raw.Where(n => n.Delete)
+                    on new {t.PermittedRole.RoleName,t.PermittedRole.TenantId} equals new {d.RoleName,d.TenantId}
+                                         select t);
+            }
+            db.RoleRoles.AddRange(from t in permittedRoles join i in raw.Where(n => n.Add) on
                 new {t.RoleName, t.TenantId} equals new {i.RoleName, i.TenantId}
                                   select new TRoleRole
                                   {
@@ -682,7 +771,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                                   });
         }
 
-        protected virtual void ApplyGlobalRoleGrants(TTenant tenant, TRole tmp, RoleTemplateMarkup role)
+        protected virtual void ApplyGlobalRoleGrants(TTenant tenant, TRole tmp, RoleTemplateMarkup role, bool prune)
         {
             db.GlobalToLocalRoles.Include(n => n.LocalRole).Include(n => n.GlobalRole).Where(n => n.LocalRole == tmp).Load();
             var permittedRoles = role.GlobalRoleGrants.Select(n => SelectGlobalRole(n)).ToArray();
@@ -697,10 +786,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 from nwNj in nwLj.DefaultIfEmpty()
                 where (oriNj == null && nwNj != null) || (oriNj != null && nwNj == null)
                 select new { r.RoleName, Add = nwNj != null, Delete = oriNj != null }).ToArray();
-            db.GlobalToLocalRoles.RemoveRange(from t in db.GlobalToLocalRoles.Local.Where(n => n.LocalRole== tmp)
-                join d in raw.Where(n => n.Delete)
-                    on new { t.GlobalRole.RoleName} equals new { d.RoleName}
-                select t);
+            if (prune)
+            {
+                db.GlobalToLocalRoles.RemoveRange(from t in db.GlobalToLocalRoles.Local.Where(n => n.LocalRole== tmp)
+                    join d in raw.Where(n => n.Delete)
+                        on new { t.GlobalRole.RoleName} equals new { d.RoleName}
+                    select t);
+            }
             db.GlobalToLocalRoles.AddRange(from t in permittedRoles
                 join i in raw.Where(n => n.Add) on
                     new { t.RoleName } equals new { i.RoleName }
@@ -920,7 +1012,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         {
         }
 
-        protected virtual void ApplyPermissions(TRole role, RoleTemplateMarkup template)
+        protected virtual void ApplyPermissions(TRole role, RoleTemplateMarkup template, bool prune)
         {
             foreach (var perm in template.Permissions)
             {
@@ -939,13 +1031,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 }
             }
 
-            var removes = (from t in db.RolePermissions.Where(n => n.RoleRoleId == null && n.OriginId == null &&
-                                                        n.RoleId == role.RoleId) join r in template.Permissions
-                    on t.Permission.PermissionName.ToLower() equals r.ToLower() into lj
-                from l in lj.DefaultIfEmpty()
-                          where string.IsNullOrEmpty(l)
-                          select t).ToArray();
-            db.RolePermissions.RemoveRange(removes);
+            if (prune)
+            {
+                var removes = (from t in db.RolePermissions.Where(n => n.RoleRoleId == null && n.OriginId == null &&
+                                                            n.RoleId == role.RoleId) join r in template.Permissions
+                        on t.Permission.PermissionName.ToLower() equals r.ToLower() into lj
+                    from l in lj.DefaultIfEmpty()
+                              where string.IsNullOrEmpty(l)
+                              select t).ToArray();
+                db.RolePermissions.RemoveRange(removes);
+            }
         }
 
         protected virtual void RevokePermissions(TRole role, RoleTemplateMarkup template, IList<int> permissionsToCheck)
