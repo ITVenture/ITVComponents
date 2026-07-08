@@ -19,16 +19,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Tem
         string PartKey { get; }
 
         /// <summary>
-        /// Extracts this part from <paramref name="tenantId"/> as a serialized payload, or null/empty to
-        /// contribute nothing to the template.
+        /// Extracts this part from <paramref name="tenantId"/> as a typed payload, or null to contribute nothing
+        /// to the template.
         /// </summary>
-        string Extract(DbContext db, int tenantId);
+        TemplateExtensionPayload Extract(DbContext db, int tenantId);
 
         /// <summary>
         /// Applies a previously extracted payload to <paramref name="tenantId"/>. <paramref name="mode"/> is the
         /// resolved apply mode for this part (never <see cref="TemplateApplyMode.Auto"/>): <see cref="TemplateApplyMode.Additive"/>
         /// should only upsert, <see cref="TemplateApplyMode.Forced"/> may additionally prune entries not in the payload.
         /// </summary>
-        void Apply(DbContext db, int tenantId, string payload, TemplateApplyMode mode);
+        void Apply(DbContext db, int tenantId, TemplateExtensionPayload payload, TemplateApplyMode mode);
     }
 }

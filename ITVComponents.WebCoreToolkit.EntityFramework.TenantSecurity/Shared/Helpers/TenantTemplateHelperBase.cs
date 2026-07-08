@@ -173,7 +173,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     foreach (var handler in partHandlers)
                     {
                         var payload = handler.Extract(dbc, tenant.TenantId);
-                        if (!string.IsNullOrEmpty(payload))
+                        if (payload != null)
                         {
                             markup.Extensions ??= new Dictionary<string, TemplateExtensionMarkup>();
                             markup.Extensions[handler.PartKey] = new TemplateExtensionMarkup(payload);
@@ -743,7 +743,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             var effectiveDefault = defaultMode == TemplateApplyMode.Auto ? TemplateApplyMode.Forced : defaultMode;
             foreach (var handler in partHandlers)
             {
-                if (template.Extensions.TryGetValue(handler.PartKey, out var ext) && ext != null && !string.IsNullOrEmpty(ext.Payload))
+                if (template.Extensions.TryGetValue(handler.PartKey, out var ext) && ext?.Payload != null)
                 {
                     var mode = ext.ApplyMode == TemplateApplyMode.Auto ? effectiveDefault : ext.ApplyMode;
                     handler.Apply(dbc, tenantId, ext.Payload, mode);

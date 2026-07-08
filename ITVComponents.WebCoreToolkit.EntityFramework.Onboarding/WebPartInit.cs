@@ -1,9 +1,12 @@
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.TemplateHandling;
 using System;
 using System.Collections.Generic;
+using ITVComponents.Json;
 using ITVComponents.Settings.Native;
 using Microsoft.Extensions.Configuration;
 using ITVComponents.Scripting.CScript.Core;
@@ -64,6 +67,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding
             // Picked up by the tenant-template engine via IEnumerable<ITenantTemplatePartHandler>.
             if (partOptions.ActivateFilters)
             {
+                // Register the typed part payload once (strategy-independent), so it round-trips as typed JSON in
+                // the template via native polymorphism. Both strategies share the same part key + payload type.
+                JsonHelper.ExtendNativeProtocolType<TemplateExtensionPayload, EmployeeRoleMappingTemplatePayload>(EmployeeRoleMappingTemplateEntry.PartKey);
+
                 if (partOptions.Strategy == TenantStrategy.Tree)
                 {
                     services.AddScoped<ITenantTemplatePartHandler, Tree.TemplateHandling.HierarchyEmployeeRoleMappingTemplatePartHandler>();

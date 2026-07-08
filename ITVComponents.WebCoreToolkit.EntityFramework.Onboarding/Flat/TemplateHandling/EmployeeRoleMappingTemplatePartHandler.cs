@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
@@ -18,7 +17,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.TemplateH
     {
         public string PartKey => EmployeeRoleMappingTemplateEntry.PartKey;
 
-        public string Extract(DbContext db, int tenantId)
+        public TemplateExtensionPayload Extract(DbContext db, int tenantId)
         {
             if (db is not ISecurityContextWithOnboarding ctx)
             {
@@ -35,21 +34,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.TemplateH
                 })
                 .ToList();
 
-            return entries.Count == 0 ? null : JsonSerializer.Serialize(entries);
+            return entries.Count == 0 ? null : new EmployeeRoleMappingTemplatePayload { Mappings = entries };
         }
 
-        public void Apply(DbContext db, int tenantId, string payload, TemplateApplyMode mode)
+        public void Apply(DbContext db, int tenantId, TemplateExtensionPayload payload, TemplateApplyMode mode)
         {
             if (db is not ISecurityContextWithOnboarding ctx)
             {
                 return;
             }
 
-            var entries = JsonSerializer.Deserialize<List<EmployeeRoleMappingTemplateEntry>>(payload);
-            if (entries == null || entries.Count == 0)
+            if (payload is not EmployeeRoleMappingTemplatePayload p || p.Mappings == null || p.Mappings.Count == 0)
             {
                 return;
             }
+
+            var entries = p.Mappings;
 
             var changed = false;
             var appliedRoleIds = new List<int>();

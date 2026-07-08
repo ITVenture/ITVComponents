@@ -986,8 +986,8 @@ Details/Repro: `docs/ISSUE-MLM-PermissionSet-CrossTenant-Propagation.md`.
   **Bestandsschutz:** ohne gesetzte Modi = `Forced` = bisheriges (löschendes Sync-)Verhalten, kein Bruch.
   `Additive` = reines Upsert (nichts löschen).
 - **`TenantTemplateMarkup.Extensions`**: Modell-Änderung (`Dictionary<string,string>` → `Dictionary<string,
-  TemplateExtensionMarkup>` mit `Payload`+`ApplyMode`). **Alte string-Form deserialisiert weiter** (Converter) — gespeicherte
-  Templates brechen **nicht**, keine Aktion nötig.
+  TemplateExtensionMarkup>` mit `Payload`+`ApplyMode`). ⚠️ **Payload-Form seit §18 auf typisiert-polymorph umgestellt
+  (Clean Cut)** — siehe §18; die frühere string-Back-Compat entfällt.
 - **Template erneut anwenden:** Extension `services.ApplyTenantTypeTemplate(dbContext, tenant, mode = Additive)` (lädt das
   Template des TenantTyps und wendet es auf den Tenant an) — bzw. im Blazor-Tenants-Grid der neue Re-apply-Button (nur
   sichtbar, wenn dem Tenant ein TenantType **mit** Template zugewiesen ist; Permission `TenantTemplates.Write`).
@@ -1057,6 +1057,28 @@ können eigene Sektionen beisteuern** — ohne den Kern anzufassen. Dadurch expo
 über `Plan.Name` + `AddOn.Name` auf (der einzige Navigations-basierte FK-Lookup) — Import einer Config mit Add-on-Preisen
 gezielt gegentesten.
 
+## 18. TenantTemplate-Extensions: typisierter polymorpher Payload statt opaquem String — **Clean Cut**
+
+Die decoupled Template-Parts (`TenantTemplateMarkup.Extensions`, Mechanik aus §15) speicherten ihren Payload bisher als
+**opaquen String** (jeder Part-Handler serialisierte sein Sub-DTO selbst in einen String → doppelt-escapetes JSON im
+Template). Jetzt **typisiert-polymorph** — dasselbe Muster wie der erweiterbare Config-Export (§17): das Template-JSON
+wird lesbar/direkt editierbar.
+
+**Was sich änderte (library-seitig, schon erledigt):**
+- `TemplateExtensionMarkup.Payload`: `string` → polymorpher Basistyp **`TemplateExtensionPayload`**
+  (`[JsonPolymorphic]`, `FallBackToBaseType`). Der Legacy-`TemplateExtensionMarkupJsonConverter` (string-Back-Compat) **entfällt**.
+- `ITenantTemplatePartHandler.Extract/Apply` arbeiten mit `TemplateExtensionPayload` statt `string`.
+- Der EmployeeRoleMapping-Part-Handler nutzt jetzt `EmployeeRoleMappingTemplatePayload : TemplateExtensionPayload`
+  (`Mappings`-Liste); der Payload-Subtyp wird in Onboarding-`WebPartInit` einmalig via
+  `JsonHelper.ExtendNativeProtocolType<TemplateExtensionPayload, EmployeeRoleMappingTemplatePayload>(PartKey)` registriert
+  (`ActivateFilters`-gegated, strategie-unabhängig).
+
+**Konsequenz für euch:** ⚠️ **Bereits in der DB gespeicherte Templates, die eine `Extensions`-Sektion enthalten
+(EmployeeRoleMappings), lassen sich nach dem Update nicht mehr deserialisieren** (das alte string-Payload-Format ist
+inkompatibel). Templates **ohne** Extensions sind unberührt. Da Billing/Onboarding noch Preview sind: betroffene Templates
+einfach **neu extrahieren** (Template aus Tenant neu erzeugen). Kein Schema-Change, keine Migration, kein API-Aufruf nötig
+— nur ggf. Templates neu ziehen.
+
 ---
 
 ## Schnellübersicht der Breaking Changes
@@ -1083,6 +1105,7 @@ gezielt gegentesten.
 | 16 | **Paket-Versionen** (§12, `PRE118`) | NuGet-Refs auf `ITVComponents 5.0.0-PRE118`; Framework/3rd-party mitziehen (EFCore/AspNetCore/Extensions/System.* `10.0.9`, Npgsql `10.0.2`, MudBlazor `9.6.0`, BlazorMonaco `3.5.0`, Scriban `7.2.5`, OpenApi `3.8.0`, Saml `8.19.1`, Azure.Blobs `12.29.1`, protobuf `3.35.1`/grpc.tools `2.82.0`, PrettyPrompt `6.0.4`, PS.Automation `7.6.3`, WPF-Toolkit `5.1.2`, Stripe `52.1.0`). **NICHT** anheben: `Microsoft.CodeAnalysis.*` (bleibt `5.0.0`, sonst NU1107 mit EFCore.Design), Test-Stack (Test.Sdk 17, MSTest 3) |
 | 17 | **ItvErrorBoundary** (§13, opt-in) | `<ItvErrorBoundary>@Body</ItvErrorBoundary>` im Host-Layout (`@using …Blazor.SharedComponents`) → Komponenten-Fehler reißen den SignalR-Circuit nicht mehr ab. Override-Slots `Notification`/`Actions` mit `ItvErrorContext` |
 | 18 | **PermissionSet cross-tenant** (§14, `PRE118`) | **Pflicht:** neue Migration mit `SqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (deployt neue TVF `GetEffectiveTenantUserRoles` + regenerierte Rollen-Tree-Procs). Ohne = Downline-Propagation aktivierter PermissionSets greift nicht. Kein Schema-Change, LINQ-Zwilling ohne Migration |
-| 19 | **Tenant-Template** (§15, opt-in) | optional `TenantSetup.BasicTenantType` (Template über TenantType statt Name); per-Bereich Apply-Modes `Auto`/`Additive`/`Forced` (Default = altes Forced-Verhalten); `Extensions`-Modell geändert aber **back-compat** (alte Templates deserialisieren weiter); Re-apply via `services.ApplyTenantTypeTemplate(...)` bzw. Grid-Button. Kein Schema-Change |
+| 19 | **Tenant-Template** (§15, opt-in) | optional `TenantSetup.BasicTenantType` (Template über TenantType statt Name); per-Bereich Apply-Modes `Auto`/`Additive`/`Forced` (Default = altes Forced-Verhalten); `Extensions`-Modell geändert (Payload seit §18 typisiert-polymorph, **nicht** mehr back-compat — s. Zeile 22); Re-apply via `services.ApplyTenantTypeTemplate(...)` bzw. Grid-Button. Kein Schema-Change |
 | 20 | **Billing Add-ons n:m** (§16) | **Pflicht:** im App-Context DbSet `AddOnPrices` → **`PlanAddOns`** + **`PlanAddOnPrices`** (`IBillingContext` geändert, sonst Compile-Break); **neue Migration** `BillingAddOnPlanLink` (dropt `AddOnPrices` + `AddOn.BillingInterval`, legt `PlanAddOns`/`PlanAddOnPrices` an). Add-on-Preis/Buchbarkeit jetzt pro Plan, Interval vom Plan geerbt. UI/Checkout/Sync automatisch. Ersetzt das Add-on-Multi-Currency-Delta |
 | 21 | **Config-Export erweiterbar + Billing-Sektion** (§17, opt-in) | Kein Schema-Change. Für Billing im Export: `services.AddBillingConfigExtension()` beim Startup + Config-Handler-Plugin bekommt `IServiceProvider` in den Ctor (optionaler 2. Param) + Context implementiert `IBillingContext`. Ohne = Billing fehlt im System-Config (kein Crash). Provider-IDs/Subscriptions bewusst ausgeschlossen. Neue Erweiterungspunkte in `EFRepo.DataSync` (`IConfigExtension`/`AddSystemConfigExtension`) |
+| 22 | **TenantTemplate-Extensions typisiert** (§18) | Payload `string` → polymorpher `TemplateExtensionPayload`; `ITenantTemplatePartHandler.Extract/Apply` typisiert; Legacy-string-Converter entfällt. **Clean Cut:** in DB gespeicherte Templates **mit** Extensions (EmployeeRoleMappings) brechen beim Deserialisieren → betroffene Templates neu extrahieren. Templates ohne Extensions unberührt. Keine Migration. Library-seitig erledigt |
