@@ -1,9 +1,9 @@
 # Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
 
-> **Stand: `5.0.0-PRE113`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
+> **Stand: `5.0.0-PRE118`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
 > (Phasen 2–5, §1–5), die Onboarding-Flows (2a/2b/2c, §6), die EntityWriteTracker-/EntityChangeSignal-
 > Invalidierung (§7/7a), die Per-Operation-Contexts (§8), die Auto-Permission-Registration (§9) und die
-> Onboarding-Tenant-Anlage/-Härtung (§10) ab — **plus die PRE113-Neuerungen: Paket-Versionen (§12),
+> Onboarding-Tenant-Anlage/-Härtung (§10) ab — **plus die PRE118-Neuerungen: Paket-Versionen (§12),
 > `ItvErrorBoundary` (§13), cross-tenant PermissionSet-Propagation (§14, Pflicht-Migration) und
 > Tenant-Template `BasicTenantType`/Apply-Modes/Re-apply (§15)**.
 
@@ -19,7 +19,7 @@ Reihenfolge der Abschnitte = empfohlene Reihenfolge der Migration. Pro Abschnitt
 > **Companion-Dokument:** Die **Paket-Konsolidierung** (NuGet-ID-Umbenennungen 103→71, `using`-Sweeps,
 > WebPart-Config-Key-Änderungen) ist separat in
 > [`Migration-Future_10-MLM-Packaging.md`](Migration-Future_10-MLM-Packaging.md) beschrieben. Für den
-> aktuellen Stand (`5.0.0-PRE113`) **beide** Dokumente durcharbeiten.
+> aktuellen Stand (`5.0.0-PRE118`) **beide** Dokumente durcharbeiten.
 
 ---
 
@@ -904,9 +904,9 @@ Verbesserungen am Rollendefinitionen-Grid (EmployeeRoleMappings), **keine** Migr
 
 ---
 
-## 12. Paket-Versionen anheben (`5.0.0-PRE113`)
+## 12. Paket-Versionen anheben (`5.0.0-PRE118`)
 
-Beim Hochziehen der `ITVComponents.*`-NuGet-Referenzen auf **`5.0.0-PRE113`** solltet ihr die folgenden Framework-
+Beim Hochziehen der `ITVComponents.*`-NuGet-Referenzen auf **`5.0.0-PRE118`** solltet ihr die folgenden Framework-
 und Fremdpaket-Versionen **mitziehen** — das Toolkit ist gegen diese gebaut (sonst Versions-Divergenz / NU-Warnungen):
 
 | Paket(gruppe) | Version |
@@ -1018,7 +1018,7 @@ keine Host-Aktion, nur die Versionsanhebung (§12).
 | 13 | **Onboarding Tenant-Anlage** (§10, neu `PRE108`) | **Pflicht-Migration ab `5.0.0-PRE108`** für neue Spalte `PendingOnboarding.CreatedTenantId` (`dotnet ef migrations add PendingOnboardingCreatedTenantId` → `database update`), sonst Runtime-Crash. Behebt IDENTITY_INSERT-Crash beim Template-Apply + macht den Blazor-Abschluss atomar (keine halben/doppelten Tenants). Keine Config-/API-Änderung. MVC-Flow: nur Crash-Fix, keine Tx-Härtung |
 | 14 | **Rollendefinitionen-Tab** (§10.4, `PRE108`) | Automatisch: Haupt-Grid zeigt nur bearbeitbare Zeilen (Kind-Write-gated), Anzeigename bevorzugt (Translate). Optional: `TenantSetup.ForceDedicatedRoleForMappings = true` erzwingt Neu-Rolle beim RoleMapping-Anlegen (kein Picker für bestehende Rollen). Keine Migration |
 | 15 | **Delegation-Rolle** (§10.4, `PRE108`) | Dritter RoleMapping-Typ (Enum additiv, keine Migration). **Zwei neue Permissions seeden:** `Onboarding.Admin.RoleMappings.Delegation` (Voll-Edit) + `Onboarding.Admin.RoleMappings.DelegationAssign` (nur sehen + PermissionSets zuweisen). Via Auto-Permission-Registration (§9) sonst automatisch |
-| 16 | **Paket-Versionen** (§12, `PRE113`) | NuGet-Refs auf `ITVComponents 5.0.0-PRE113`; Framework/3rd-party mitziehen (EFCore/AspNetCore/Extensions/System.* `10.0.9`, Npgsql `10.0.2`, MudBlazor `9.6.0`, BlazorMonaco `3.5.0`, Scriban `7.2.5`, OpenApi `3.8.0`, Saml `8.19.1`, Azure.Blobs `12.29.1`, protobuf `3.35.1`/grpc.tools `2.82.0`, PrettyPrompt `6.0.4`, PS.Automation `7.6.3`, WPF-Toolkit `5.1.2`, Stripe `52.1.0`). **NICHT** anheben: `Microsoft.CodeAnalysis.*` (bleibt `5.0.0`, sonst NU1107 mit EFCore.Design), Test-Stack (Test.Sdk 17, MSTest 3) |
+| 16 | **Paket-Versionen** (§12, `PRE118`) | NuGet-Refs auf `ITVComponents 5.0.0-PRE118`; Framework/3rd-party mitziehen (EFCore/AspNetCore/Extensions/System.* `10.0.9`, Npgsql `10.0.2`, MudBlazor `9.6.0`, BlazorMonaco `3.5.0`, Scriban `7.2.5`, OpenApi `3.8.0`, Saml `8.19.1`, Azure.Blobs `12.29.1`, protobuf `3.35.1`/grpc.tools `2.82.0`, PrettyPrompt `6.0.4`, PS.Automation `7.6.3`, WPF-Toolkit `5.1.2`, Stripe `52.1.0`). **NICHT** anheben: `Microsoft.CodeAnalysis.*` (bleibt `5.0.0`, sonst NU1107 mit EFCore.Design), Test-Stack (Test.Sdk 17, MSTest 3) |
 | 17 | **ItvErrorBoundary** (§13, opt-in) | `<ItvErrorBoundary>@Body</ItvErrorBoundary>` im Host-Layout (`@using …Blazor.SharedComponents`) → Komponenten-Fehler reißen den SignalR-Circuit nicht mehr ab. Override-Slots `Notification`/`Actions` mit `ItvErrorContext` |
-| 18 | **PermissionSet cross-tenant** (§14, `PRE113`) | **Pflicht:** neue Migration mit `SqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (deployt neue TVF `GetEffectiveTenantUserRoles` + regenerierte Rollen-Tree-Procs). Ohne = Downline-Propagation aktivierter PermissionSets greift nicht. Kein Schema-Change, LINQ-Zwilling ohne Migration |
+| 18 | **PermissionSet cross-tenant** (§14, `PRE118`) | **Pflicht:** neue Migration mit `SqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (deployt neue TVF `GetEffectiveTenantUserRoles` + regenerierte Rollen-Tree-Procs). Ohne = Downline-Propagation aktivierter PermissionSets greift nicht. Kein Schema-Change, LINQ-Zwilling ohne Migration |
 | 19 | **Tenant-Template** (§15, opt-in) | optional `TenantSetup.BasicTenantType` (Template über TenantType statt Name); per-Bereich Apply-Modes `Auto`/`Additive`/`Forced` (Default = altes Forced-Verhalten); `Extensions`-Modell geändert aber **back-compat** (alte Templates deserialisieren weiter); Re-apply via `services.ApplyTenantTypeTemplate(...)` bzw. Grid-Button. Kein Schema-Change |
