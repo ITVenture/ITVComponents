@@ -65,6 +65,7 @@
   <data name="NoPortal" xml:space="preserve"><value>No customer portal available yet.</value></data>
   <data name="Plans_Title" xml:space="preserve"><value>Billing plans</value></data>
   <data name="NoAdminPermission" xml:space="preserve"><value>You do not have permission to administer plans.</value></data>
+  <data name="NoViewPermission" xml:space="preserve"><value>You do not have permission to view this page.</value></data>
   <data name="NewPlan" xml:space="preserve"><value>New plan</value></data>
   <data name="Col_Name" xml:space="preserve"><value>Name</value></data>
   <data name="Col_Price" xml:space="preserve"><value>Price</value></data>

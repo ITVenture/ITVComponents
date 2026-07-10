@@ -9,6 +9,8 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">Subscriptions</MudText>
 
+<SecureView RequiredPermissions="Billing.Subscriptions.View,Billing.Subscriptions.Write,Sysadmin" RequiredFeatures="ITVAdminViews">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
@@ -46,6 +48,11 @@ else
         </NoRecordsContent>
     </MudTable>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">You don't have permission to view this page.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;

@@ -11,6 +11,8 @@
 <MudText Typo="Typo.h5" GutterBottom="true">Add-ons</MudText>
 <MudText Typo="Typo.body2" Class="mb-3">An add-on defines a name and the features it grants. Its price and which plans it can be booked with are configured per plan on the Plans page.</MudText>
 
+<SecureView RequiredPermissions="Billing.AddOns.View,Billing.AddOns.Write,Sysadmin" RequiredFeatures="ITVAdminViews">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
@@ -75,6 +77,11 @@ else
         </MudPaper>
     }
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">You don't have permission to view this page.</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;

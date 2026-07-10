@@ -19,6 +19,7 @@
   <data name="NoPortal" xml:space="preserve"><value>Nessun portale clienti disponibile al momento.</value></data>
   <data name="Plans_Title" xml:space="preserve"><value>Piani di fatturazione</value></data>
   <data name="NoAdminPermission" xml:space="preserve"><value>Non hai l'autorizzazione per amministrare i piani.</value></data>
+  <data name="NoViewPermission" xml:space="preserve"><value>Non hai l'autorizzazione per visualizzare questa pagina.</value></data>
   <data name="NewPlan" xml:space="preserve"><value>Nuovo piano</value></data>
   <data name="Col_Name" xml:space="preserve"><value>Nome</value></data>
   <data name="Col_Price" xml:space="preserve"><value>Prezzo</value></data>

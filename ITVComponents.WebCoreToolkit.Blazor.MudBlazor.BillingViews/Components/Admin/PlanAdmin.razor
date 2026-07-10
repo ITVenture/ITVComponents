@@ -11,6 +11,8 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Plans_Title"]</MudText>
 
+<SecureView RequiredPermissions="Billing.Plans.View,Billing.Plans.Write,Sysadmin" RequiredFeatures="ITVAdminViews">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
@@ -128,6 +130,11 @@ else
         </MudPaper>
     }
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">@L["NoViewPermission"]</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;
