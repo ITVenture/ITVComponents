@@ -1,0 +1,144 @@
+@inject IHelpAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@* Recursive help-topic tree level. Loads its own children on demand (MudDataGrid ServerData) and nests itself
+   under each expandable row — the same recursive pattern as NavigationTreeGrid. Containers/content pages both
+   appear; only nodes with children get the expand arrow. *@
+
+<MudDataGrid T="HelpTopicNodeViewModel" @ref="grid" ServerData="LoadData" Dense="true" Hover="true" Groupable="false">
+    <ToolBarContent>
+        @if (Root)
+        {
+            <MudText Typo="Typo.subtitle2">Help topics</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="Reload" Title="Refresh" />
+            <SecureView RequiredPermissions="Help.Admin.Topics.Write">
+                <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               OnClick="@(() => Add(null))">Add root topic</MudButton>
+                </Permitted>
+            </SecureView>
+        }
+    </ToolBarContent>
+    <Columns>
+        <HierarchyColumn T="HelpTopicNodeViewModel" ButtonDisabledFunc="@(x => x.ChildCount == 0)" />
+        <TemplateColumn T="HelpTopicNodeViewModel" Title="Title" Sortable="false">
+            <CellTemplate>
+                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                    <MudIcon Size="Size.Small" Icon="@(context.Item.Kind == HelpTopicKind.Container ? Icons.Material.Filled.Folder : Icons.Material.Filled.Article)" />
+                    <MudText>@context.Item.Title</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Item.Slug</MudText>
+                    @if (!context.Item.IsPublished)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Default">draft</MudChip>
+                    }
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="HelpTopicNodeViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                <SecureView RequiredPermissions="Help.Admin.Topics.Write">
+                    <Permitted>
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.CreateNewFolder" Size="Size.Small" Title="Add child"
+                                           OnClick="@(() => Add(context.Item.HelpTopicId))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Title="Edit"
+                                           OnClick="@(() => Edit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Title="Delete"
+                                           OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    </Permitted>
+                </SecureView>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <ChildRowContent>
+        @if (context.Item.ChildCount > 0)
+        {
+            <MudPaper Elevation="0" Class="pa-2 ml-4">
+                <HelpTopicTree ParentId="context.Item.HelpTopicId" />
+            </MudPaper>
+        }
+    </ChildRowContent>
+    <NoRecordsContent>
+        <MudText Typo="Typo.body2" Class="pa-2">No topics.</MudText>
+    </NoRecordsContent>
+</MudDataGrid>
+
+@code {
+    [Parameter] public int? ParentId { get; set; }
+    [Parameter] public bool Root { get; set; }
+
+    private MudDataGrid<HelpTopicNodeViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<HelpTopicNodeViewModel>> LoadData(GridState<HelpTopicNodeViewModel> state, CancellationToken token)
+    {
+        if (currentUser is null)
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            currentUser = auth.User;
+        }
+
+        var items = await Handler.ListChildrenAsync(currentUser!, ParentId);
+        return new GridData<HelpTopicNodeViewModel> { Items = items, TotalItems = items.Length };
+    }
+
+    private Task Reload() => grid is null ? Task.CompletedTask : grid.ReloadServerData();
+
+    private Task Add(int? parentId) => OpenDialog(new HelpTopicEditViewModel { ParentId = parentId, Kind = HelpTopicKind.ContentPage });
+
+    private async Task Edit(HelpTopicNodeViewModel node)
+    {
+        var model = await Handler.GetTopicAsync(currentUser!, node.HelpTopicId);
+        if (model is not null)
+        {
+            await OpenDialog(model);
+        }
+    }
+
+    private async Task OpenDialog(HelpTopicEditViewModel model)
+    {
+        var parameters = new DialogParameters<HelpTopicDialog> { { d => d.Model, model } };
+        var title = model.HelpTopicId == 0 ? "New help topic" : "Edit help topic";
+        var dlg = await DialogService.ShowAsync<HelpTopicDialog>(title, parameters, EditDialogDefaults.Detail);
+        var result = await dlg.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await Reload();
+        }
+    }
+
+    private async Task Delete(HelpTopicNodeViewModel node)
+    {
+        if (node.ChildCount > 0)
+        {
+            Snackbar.Add("Remove or move the child topics first.", Severity.Warning);
+            return;
+        }
+
+        var confirmed = await DialogService.ShowMessageBoxAsync("Delete", $"Delete the topic '{node.Title}'?", yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        if (await Handler.DeleteTopicAsync(currentUser!, node.HelpTopicId))
+        {
+            Snackbar.Add("Topic deleted.", Severity.Success);
+            await Reload();
+        }
+        else
+        {
+            Snackbar.Add("Delete failed.", Severity.Error);
+        }
+    }
+}

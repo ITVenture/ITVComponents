@@ -1,0 +1,20 @@
+@page "/Help/Admin/Topics"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Help topics</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Help topics</MudText>
+
+<SecureView RequiredPermissions="Help.Admin.Topics.View,Help.Admin.Topics.Write" RequiredFeatures="ITVAdminViews">
+    <Permitted>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Organise the help tree. A topic is either a <b>container</b> (grouping node) or a <b>content page</b>
+            (Markdown, per language). Only <b>published</b> topics appear in the public viewer.
+        </MudText>
+        <HelpTopicTree Root="true" />
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">You don't have permission to manage help topics.</MudAlert>
+    </NotPermitted>
+</SecureView>

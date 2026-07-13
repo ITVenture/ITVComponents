@@ -1,0 +1,78 @@
+@page "/help"
+@page "/help/{Slug}"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject IHelpViewerHandler Viewer
+
+<PageTitle>Help</PageTitle>
+
+<MudGrid>
+    <MudItem xs="12" md="4" lg="3">
+        <MudPaper Outlined="true" Class="pa-1">
+            @if (tree.Count > 0)
+            {
+                <MudNavMenu>
+                    <HelpNavTree Nodes="tree" />
+                </MudNavMenu>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="pa-2">No help topics available.</MudText>
+            }
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="8" lg="9">
+        @if (current is not null)
+        {
+            <MudText Typo="Typo.h4" GutterBottom="true">@current.Title</MudText>
+            @if (current.Kind == HelpTopicKind.ContentPage && !string.IsNullOrEmpty(current.Html))
+            {
+                <MudPaper Outlined="true" Class="pa-4 itv-help-content">@((MarkupString)current.Html!)</MudPaper>
+            }
+            else
+            {
+                <MudText Typo="Typo.body1">Select a topic from the navigation.</MudText>
+            }
+        }
+        else if (!string.IsNullOrEmpty(Slug))
+        {
+            <MudAlert Severity="Severity.Info">This help topic was not found.</MudAlert>
+        }
+        else
+        {
+            <MudText Typo="Typo.h4" GutterBottom="true">Help</MudText>
+            <MudText Typo="Typo.body1">Select a topic from the navigation to get started.</MudText>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter] public string? Slug { get; set; }
+
+    private List<HelpTreeNodeViewModel> tree = new();
+    private HelpTopicViewViewModel? current;
+    private string? loadedSlug;
+    private bool treeLoaded;
+
+    private static string Culture => System.Globalization.CultureInfo.CurrentUICulture.Name;
+
+    protected override async Task OnInitializedAsync()
+    {
+        tree = (await Viewer.GetPublishedTreeAsync(Culture)).ToList();
+        treeLoaded = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!treeLoaded)
+        {
+            return;
+        }
+
+        if (Slug != loadedSlug)
+        {
+            loadedSlug = Slug;
+            current = string.IsNullOrEmpty(Slug) ? null : await Viewer.GetPublishedTopicAsync(Slug, Culture);
+        }
+    }
+}

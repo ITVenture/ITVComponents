@@ -1,0 +1,29 @@
+@* Recursive published-topic navigation for the public viewer. Content pages link to /help/{slug}; nodes with
+   children render as an expandable group (a content page that also has children gets both). *@
+
+@foreach (var node in Nodes)
+{
+    @if (node.Children.Count > 0)
+    {
+        <MudNavGroup Title="@node.Title" Icon="@IconOf(node)" Expanded="false">
+            @if (node.Kind == HelpTopicKind.ContentPage)
+            {
+                <MudNavLink Href="@($"/help/{node.Slug}")" Icon="@Icons.Material.Filled.Article">@node.Title</MudNavLink>
+            }
+            <HelpNavTree Nodes="node.Children" />
+        </MudNavGroup>
+    }
+    else
+    {
+        <MudNavLink Href="@($"/help/{node.Slug}")" Icon="@IconOf(node)">@node.Title</MudNavLink>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public List<HelpTreeNodeViewModel> Nodes { get; set; } = new();
+
+    private static string IconOf(HelpTreeNodeViewModel node)
+        => !string.IsNullOrEmpty(node.Icon)
+            ? node.Icon!
+            : (node.Kind == HelpTopicKind.Container ? Icons.Material.Filled.Folder : Icons.Material.Filled.Article);
+}

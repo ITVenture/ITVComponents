@@ -1,0 +1,197 @@
+@using System.IO
+@inject IHelpResourceHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+@* Create/edit a media resource. Save the metadata first (a resource needs an id before files can attach), then
+   upload one file per language. Upload reads the bytes and stores them through IHelpResourceStore — NOT the
+   plugin file-handler — so the anonymous viewer can read them back. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" For="@(() => Model.Name)"
+                                  HelperText="Referenced from Markdown as resource:{name}" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="HelpResourceKind" @bind-Value="Model.Kind" Label="Kind">
+                        <MudSelectItem T="HelpResourceKind" Value="HelpResourceKind.Image">Image</MudSelectItem>
+                        <MudSelectItem T="HelpResourceKind" Value="HelpResourceKind.Video">Video</MudSelectItem>
+                        <MudSelectItem T="HelpResourceKind" Value="HelpResourceKind.Other">Other</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="Model.Description" Label="Description (optional)" Lines="2" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy" OnClick="SaveDetails">Save details</MudButton>
+                </MudItem>
+
+                @if (Model.HelpResourceId != 0)
+                {
+                    <MudItem xs="12"><MudDivider Class="my-1" /></MudItem>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.subtitle2" GutterBottom="true">Files per language</MudText>
+                        <MudTable Items="Model.Files" Dense="true" Elevation="0">
+                            <HeaderContent>
+                                <MudTh>Language</MudTh>
+                                <MudTh>File</MudTh>
+                                <MudTh>Type</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Culture</MudTd>
+                                <MudTd>
+                                    <MudLink Href="@ResourceUrl(context.Culture)" Target="_blank">@(context.OriginalName ?? "(view)")</MudLink>
+                                </MudTd>
+                                <MudTd>@context.ContentType</MudTd>
+                                <MudTd>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                                   OnClick="@(() => DeleteFile(context.Culture))" />
+                                </MudTd>
+                            </RowTemplate>
+                            <NoRecordsContent><MudText Typo="Typo.body2">No files yet.</MudText></NoRecordsContent>
+                        </MudTable>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                            <MudTextField @bind-Value="uploadCulture" Label="Language (DEFAULT, de, de-CH, …)" Style="max-width:260px" />
+                            <MudButton HtmlTag="label" for="@inputId" StartIcon="@Icons.Material.Filled.CloudUpload"
+                                       Variant="Variant.Filled" Color="Color.Secondary" Disabled="@busy">Upload file</MudButton>
+                            <InputFile id="@inputId" OnChange="OnFileSelected" hidden accept="image/*,video/*" />
+                            @if (busy)
+                            {
+                                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                            }
+                        </MudStack>
+                    </MudItem>
+                }
+                else
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Info">Save the details to attach files.</MudAlert>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public HelpResourceEditViewModel Model { get; set; } = default!;
+
+    private readonly string inputId = "helpres_" + System.Guid.NewGuid().ToString("N");
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private MudForm? form;
+    private bool busy;
+    private string uploadCulture = "DEFAULT";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private string ResourceUrl(string culture) => HelpRoutes.ResourceUrl(Model.Name, culture);
+
+    private async Task SaveDetails()
+    {
+        if (form is null || currentUser is null)
+        {
+            return;
+        }
+
+        await form.Validate();
+        if (!form.IsValid)
+        {
+            Snackbar.Add("Please fix the highlighted fields.", Severity.Warning);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var id = await Handler.SaveResourceAsync(currentUser, Model);
+            if (id is null)
+            {
+                Snackbar.Add("Save failed (duplicate name or missing permission).", Severity.Error);
+                return;
+            }
+
+            Model.HelpResourceId = id.Value;
+            await ReloadFiles();
+            Snackbar.Add("Resource saved.", Severity.Success);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        if (currentUser is null || Model.HelpResourceId == 0 || string.IsNullOrWhiteSpace(uploadCulture))
+        {
+            return;
+        }
+
+        var file = e.File;
+        busy = true;
+        try
+        {
+            byte[] bytes;
+            await using (var stream = file.OpenReadStream(maxAllowedSize: 200L * 1024 * 1024))
+            using (var ms = new MemoryStream())
+            {
+                await stream.CopyToAsync(ms);
+                bytes = ms.ToArray();
+            }
+
+            var error = await Handler.SaveResourceFileAsync(currentUser, Model.HelpResourceId, uploadCulture.Trim(),
+                bytes, file.ContentType, file.Name);
+            if (error is not null)
+            {
+                Snackbar.Add(error, Severity.Error);
+                return;
+            }
+
+            await ReloadFiles();
+            Snackbar.Add("File uploaded.", Severity.Success);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DeleteFile(string culture)
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        if (await Handler.DeleteResourceFileAsync(currentUser, Model.HelpResourceId, culture))
+        {
+            await ReloadFiles();
+            Snackbar.Add("File removed.", Severity.Success);
+        }
+    }
+
+    private async Task ReloadFiles()
+    {
+        var loaded = await Handler.GetResourceAsync(currentUser!, Model.HelpResourceId);
+        if (loaded is not null)
+        {
+            Model.Files = loaded.Files;
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(Model.HelpResourceId));
+}

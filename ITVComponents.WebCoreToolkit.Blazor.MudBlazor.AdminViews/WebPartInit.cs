@@ -11,8 +11,14 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Options;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using HelpExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Extensions.DependencyInjectionExtensions;
+using HelpEndpoints = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Endpoints.HelpResourceEndpoints;
 using TsvExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Extensions.DependencyInjectionExtensions;
 using FlatUserExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Extensions.DependencyInjectionExtensions;
 using TreeUserExt = ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTreeTenantSecurityUserView.Extensions.DependencyInjectionExtensions;
@@ -41,6 +47,8 @@ public static class WebPartInit
                 return config.GetSection<ActivationOptions>(path);
             case "Onboarding":
                 return config.GetSection<OnboardingViewOptions>(path);
+            case "Help":
+                return config.GetSection<HelpViewOptions>(path);
         }
 
         return null;
@@ -51,6 +59,7 @@ public static class WebPartInit
         [WebPartConfig("SecurityContext")] SecurityContextOptions? securityOptions,
         [WebPartConfig("Activation")] ActivationOptions? activation,
         [WebPartConfig("Onboarding")] OnboardingViewOptions? onboardingOptions,
+        [WebPartConfig("Help")] HelpViewOptions? helpOptions,
         [WebPartConfig(Global.PartTypeLoadBehaviorOption)] AssemblyPartTypeLoadBehaviorOptions? partTypeLoadBehavior)
     {
         services.AddBlazorRoutingAssembly(typeof(WebPartInit).Assembly, partTypeLoadBehavior);
@@ -118,5 +127,42 @@ public static class WebPartInit
                 method(services, partTypeLoadBehavior);
             }
         }
+
+        //-- Help system (global, optional). Wires the topic/resource/viewer handlers + renderer + resource store
+        // over the host context. The context type is the shared SecurityContext one (a help context is always at
+        // least an ICoreSystemContext), so it is not configured separately — help just needs its enable flag.
+        if (helpOptions is { ConfigureContext: true }
+            && securityOptions is { ContextType: { Length: > 0 } helpContextTypeName }
+            && TryResolveHelpContext(helpContextTypeName, out var helpContextType))
+        {
+            var method = typeof(HelpExt).GetMethod<Func<IServiceCollection, AssemblyPartTypeLoadBehaviorOptions?, IServiceCollection>>(
+                helpContextType, nameof(HelpExt.AddMudBlazorHelpViews));
+            method(services, partTypeLoadBehavior);
+        }
+    }
+
+    [EndpointRegistrationMethod]
+    public static void RegisterEndpoints(WebApplication app,
+        [WebPartConfig("SecurityContext")] SecurityContextOptions? securityOptions,
+        [WebPartConfig("Help")] HelpViewOptions? helpOptions)
+    {
+        // The anonymous resource resolver endpoint (/help/res/{name}) — closed over the host help context (taken
+        // from SecurityContextOptions.ContextType, same as the service registration above).
+        if (helpOptions is { ConfigureContext: true }
+            && securityOptions is { ContextType: { Length: > 0 } helpContextTypeName }
+            && TryResolveHelpContext(helpContextTypeName, out var helpContextType))
+        {
+            var map = typeof(HelpEndpoints).GetMethod<Func<IEndpointRouteBuilder, IEndpointRouteBuilder>>(
+                helpContextType, nameof(HelpEndpoints.MapHelpResourceEndpoints));
+            map(app);
+        }
+    }
+
+    // Resolves the configured context type and confirms it actually hosts the help tables. Guards against a host
+    // that enables help but whose DbContext does not implement IHelpSystemContext (help is skipped, not crashed).
+    private static bool TryResolveHelpContext(string contextTypeName, out Type contextType)
+    {
+        contextType = (Type)ExpressionParser.Parse(contextTypeName, new Dictionary<string, object>());
+        return typeof(IHelpSystemContext).IsAssignableFrom(contextType);
     }
 }

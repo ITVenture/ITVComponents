@@ -1,0 +1,135 @@
+@page "/Help/Admin/Resources"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject IHelpResourceHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Help resources</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Help resources</MudText>
+
+<SecureView RequiredPermissions="Help.Admin.Resources.View,Help.Admin.Resources.Write" RequiredFeatures="ITVAdminViews">
+    <Permitted>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Named media (images / videos) referenced from help content as <code>resource:{name}</code>. Each
+            resource can hold one file per language (<code>DEFAULT</code> is the fallback).
+        </MudText>
+        <MudTable Items="resources" Dense="true" Hover="true" Loading="@loading">
+            <ToolBarContent>
+                <MudText Typo="Typo.subtitle2">Resources</MudText>
+                <MudSpacer />
+                <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="Reload" />
+                <SecureView RequiredPermissions="Help.Admin.Resources.Write">
+                    <Permitted>
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => Edit(null))">Add resource</MudButton>
+                    </Permitted>
+                </SecureView>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Kind</MudTh>
+                <MudTh>Files</MudTh>
+                <MudTh>Description</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Kind">@context.Kind</MudTd>
+                <MudTd DataLabel="Files">@context.FileCount</MudTd>
+                <MudTd DataLabel="Description">@context.Description</MudTd>
+                <MudTd>
+                    <SecureView RequiredPermissions="Help.Admin.Resources.Write">
+                        <Permitted>
+                            <MudStack Row="true" Spacing="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => Delete(context))" />
+                            </MudStack>
+                        </Permitted>
+                    </SecureView>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText>No resources.</MudText></NoRecordsContent>
+        </MudTable>
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">You don't have permission to manage help resources.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool loading;
+    private HelpResourceViewModel[] resources = System.Array.Empty<HelpResourceViewModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        loading = true;
+        try
+        {
+            resources = await Handler.ListResourcesAsync(currentUser);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Edit(HelpResourceViewModel? resource)
+    {
+        HelpResourceEditViewModel model;
+        if (resource is null)
+        {
+            model = new HelpResourceEditViewModel();
+        }
+        else
+        {
+            var loaded = await Handler.GetResourceAsync(currentUser!, resource.HelpResourceId);
+            if (loaded is null)
+            {
+                return;
+            }
+
+            model = loaded;
+        }
+
+        var parameters = new DialogParameters<HelpResourceDialog> { { d => d.Model, model } };
+        var title = model.HelpResourceId == 0 ? "New resource" : "Edit resource";
+        var dlg = await DialogService.ShowAsync<HelpResourceDialog>(title, parameters, EditDialogDefaults.Detail);
+        await dlg.Result;
+        await Reload();
+    }
+
+    private async Task Delete(HelpResourceViewModel resource)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync("Delete", $"Delete the resource '{resource.Name}' and all its files?", yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        if (await Handler.DeleteResourceAsync(currentUser!, resource.HelpResourceId))
+        {
+            Snackbar.Add("Resource deleted.", Severity.Success);
+            await Reload();
+        }
+        else
+        {
+            Snackbar.Add("Delete failed.", Severity.Error);
+        }
+    }
+}
