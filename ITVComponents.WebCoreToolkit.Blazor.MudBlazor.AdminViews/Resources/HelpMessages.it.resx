@@ -55,4 +55,6 @@
   <data name="Help_SelectTopic" xml:space="preserve"><value>Seleziona un argomento dalla navigazione.</value></data>
   <data name="Help_NotFound" xml:space="preserve"><value>Argomento della guida non trovato.</value></data>
   <data name="Help_Welcome" xml:space="preserve"><value>Seleziona un argomento dalla navigazione per iniziare.</value></data>
+  <data name="Help_Close" xml:space="preserve"><value>Chiudi</value></data>
+  <data name="Help_ButtonTooltip" xml:space="preserve"><value>Mostra la guida per questa pagina</value></data>
 </root>

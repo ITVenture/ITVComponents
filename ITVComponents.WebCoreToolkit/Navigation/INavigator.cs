@@ -16,5 +16,12 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         /// Gets the Navigation-Collection for this site
         /// </summary>
         ICollection<NavigationMenu> SiteNavigation { get; }
+
+        /// <summary>
+        /// Gets the navigation entry that matches the current request path (the deepest active node), or null
+        /// when the current page has no navigation entry. Its <see cref="NavigationMenu.MetadataValues"/> expose
+        /// the per-entry metadata for the current page (e.g. a context-help slug).
+        /// </summary>
+        NavigationMenu SelectedNavigationItem { get; }
     }
 }

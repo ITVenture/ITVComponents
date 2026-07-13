@@ -123,6 +123,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             };
         }
 
+        public async Task<bool> PublishedTopicExistsAsync(string slug, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return false;
+            }
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            return await db.HelpTopics.AsNoTracking()
+                .AnyAsync(t => t.IsPublished && t.Kind == HelpTopicKind.ContentPage && t.Slug == slug, ct);
+        }
+
         private static string ResolveTitle(List<CultureTitle> contents, string culture, string slug)
         {
             var match = HelpCulture.Resolve(culture, contents.Select(c => c.Culture));

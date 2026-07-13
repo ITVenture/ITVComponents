@@ -1,0 +1,62 @@
+@* Popup that renders a single help topic (resolved by slug) as sanitized HTML. Opened by HelpButton. *@
+@inject IHelpViewerHandler Viewer
+@inject AuthenticationStateProvider AuthState
+
+<style>
+    /* Media is injected via MarkupString, so scoped CSS cannot reach it — force large images/videos to the
+       container width while keeping aspect-ratio (mirrors the full-page viewer). */
+    .itv-help-content img,
+    .itv-help-content video,
+    .itv-help-content iframe {
+        max-width: 100%;
+        height: auto;
+    }
+</style>
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(topic?.Title ?? string.Empty)</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (loading)
+        {
+            <div class="d-flex justify-center pa-4">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            </div>
+        }
+        else if (topic is not null && !string.IsNullOrEmpty(topic.Html))
+        {
+            <div class="itv-help-content">@((MarkupString)topic.Html)</div>
+        }
+        else
+        {
+            <MudText Typo="Typo.body1">@L["Help_NotFound"]</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">@L["Help_Close"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public string Slug { get; set; } = default!;
+
+    [Inject] private IStringLocalizer<HelpMessages> L { get; set; } = default!;
+
+    private HelpTopicViewViewModel? topic;
+    private bool loading = true;
+
+    private static string Culture => System.Globalization.CultureInfo.CurrentUICulture.Name;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var authenticated = auth.User?.Identity?.IsAuthenticated ?? false;
+        topic = await Viewer.GetPublishedTopicAsync(Slug, Culture, authenticated);
+        loading = false;
+    }
+
+    private void Close() => MudDialog.Close();
+}

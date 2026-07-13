@@ -24,6 +24,12 @@ public class NavigationMenuViewModel
 
     public bool IsPublic { get; set; }
 
+    /// <summary>
+    /// Optional free-form metadata as a JSON object (key → value), e.g. <c>{ "HelpSlug": "orders-overview" }</c>.
+    /// Surfaced on the runtime navigation model so UI can enrich the entry (context-help button, …).
+    /// </summary>
+    public string? Metadata { get; set; }
+
     public int[] Tenants { get; set; } = Array.Empty<int>();
 
     public int ChildCount { get; set; }

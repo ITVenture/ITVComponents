@@ -55,4 +55,6 @@
   <data name="Help_SelectTopic" xml:space="preserve"><value>Wählen Sie ein Thema aus der Navigation.</value></data>
   <data name="Help_NotFound" xml:space="preserve"><value>Dieses Hilfethema wurde nicht gefunden.</value></data>
   <data name="Help_Welcome" xml:space="preserve"><value>Wählen Sie links ein Thema, um zu beginnen.</value></data>
+  <data name="Help_Close" xml:space="preserve"><value>Schließen</value></data>
+  <data name="Help_ButtonTooltip" xml:space="preserve"><value>Hilfe zu dieser Seite anzeigen</value></data>
 </root>

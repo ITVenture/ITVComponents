@@ -132,6 +132,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
                     RequiredFeature = item.Feature?.FeatureName,
                     SortOrder = item.SortOrder ?? 0,
                     SpanClass = item.SpanClass,
+                    Metadata = item.Metadata,
                     Url = !string.IsNullOrEmpty(item.Url) ? $"{(!string.IsNullOrEmpty(explicitTenant) ? $"/{explicitTenant}" : "")}{(!item.Url.StartsWith("/") ? "/" : "")}{item.Url}" : ""
                 };
                 

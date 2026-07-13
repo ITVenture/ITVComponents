@@ -119,6 +119,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
                 n.FeatureId,
                 n.SpanClass,
                 n.IsPublic,
+                n.Metadata,
                 Tenants = n.Tenants.Select(t => t.TenantId).ToArray(),
                 ChildCount = n.Children.Count()
             }).ToListAsync();
@@ -134,6 +135,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
             FeatureId = r.FeatureId,
             SpanClass = r.SpanClass,
             IsPublic = r.IsPublic,
+            Metadata = r.Metadata,
             Tenants = r.Tenants,
             ChildCount = r.ChildCount
         }).ToList();
@@ -158,6 +160,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
             FeatureId = input.FeatureId,
             SpanClass = input.SpanClass ?? string.Empty,
             IsPublic = input.IsPublic,
+            Metadata = string.IsNullOrWhiteSpace(input.Metadata) ? null : input.Metadata,
             RefTag = Guid.NewGuid().ToString("D")
         };
         db.Navigation.Add(entity);
@@ -188,6 +191,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         entity.FeatureId = input.FeatureId;
         entity.SpanClass = input.SpanClass ?? string.Empty;
         entity.IsPublic = input.IsPublic;
+        entity.Metadata = string.IsNullOrWhiteSpace(input.Metadata) ? null : input.Metadata;
 
         ApplyTenants(db, entity, input.Tenants);
         await db.SaveChangesAsync();

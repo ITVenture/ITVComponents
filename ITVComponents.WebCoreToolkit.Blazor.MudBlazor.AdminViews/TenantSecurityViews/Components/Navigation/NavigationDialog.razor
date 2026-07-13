@@ -15,6 +15,10 @@
             <ForeignKeyAutocomplete T="int?" Table="Features" @bind-Value="Model.FeatureId" Label="Feature" Clearable="true" />
             <MudTextField @bind-Value="Model.SpanClass" Label="Span class (icon)" />
             <MudCheckBox @bind-Value="Model.IsPublic" Label="Public" />
+            <MudTextField @bind-Value="Model.Metadata" Label="Metadata (JSON)" Lines="4"
+                          Placeholder="@("{ \"HelpSlug\": \"...\" }")"
+                          HelperText="Optional JSON object (key/value), e.g. a HelpSlug for the context-help button."
+                          Validation="@((Func<string?, string?>)ValidateMetadata)" />
             <MudSelect T="int" MultiSelection="true"
                        SelectedValues="@selectedTenants"
                        SelectedValuesChanged="@OnTenantsChanged"
@@ -54,6 +58,27 @@
         var arr = values.ToArray();
         selectedTenants = arr;
         Model.Tenants = arr;
+    }
+
+    // Accept empty metadata; otherwise require a well-formed JSON object so a typo can't slip into navigation.
+    private static string? ValidateMetadata(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                ? null
+                : "Metadata must be a JSON object.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return "Invalid JSON.";
+        }
     }
 
     private void Cancel() => MudDialog.Cancel();

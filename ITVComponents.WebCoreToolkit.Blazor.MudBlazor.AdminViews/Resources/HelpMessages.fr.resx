@@ -55,4 +55,6 @@
   <data name="Help_SelectTopic" xml:space="preserve"><value>Sélectionnez un thème dans la navigation.</value></data>
   <data name="Help_NotFound" xml:space="preserve"><value>Ce thème d’aide est introuvable.</value></data>
   <data name="Help_Welcome" xml:space="preserve"><value>Sélectionnez un thème dans la navigation pour commencer.</value></data>
+  <data name="Help_Close" xml:space="preserve"><value>Fermer</value></data>
+  <data name="Help_ButtonTooltip" xml:space="preserve"><value>Afficher l’aide de cette page</value></data>
 </root>

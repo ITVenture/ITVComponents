@@ -51,6 +51,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         [MaxLength(1024)]
         public string RefTag { get; set; }
 
+        /// <summary>
+        /// Optional free-form metadata for this navigation entry, stored as a JSON object (key → value). Consumed
+        /// by the navigation builder and surfaced on the runtime navigation model so UI can enrich a menu entry
+        /// (e.g. a <c>HelpSlug</c> that drives a context-help button). Null/empty means "no metadata".
+        /// </summary>
+        public string Metadata { get; set; }
+
         [ForeignKey(nameof(ParentId))]
         public virtual TNavigationMenu Parent { get; set; }
 

@@ -44,18 +44,65 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         {
             get
             {
-                if (rootObject == null || IsStale())
-                {
-                    builtAtUtc = DateTime.UtcNow;
-                    rootObject = BuildRootObject();
-                }
-
+                EnsureBuilt();
                 return rootObject.Children;
+            }
+        }
+
+        /// <summary>
+        /// Gets the navigation entry whose Url matches the current request path, or null when the current page
+        /// has no navigation entry. Resolved live against the current path on every access (the menu tree itself
+        /// stays cached), so it stays correct across client-side navigations within the same circuit.
+        /// </summary>
+        public NavigationMenu SelectedNavigationItem
+        {
+            get
+            {
+                EnsureBuilt();
+                return FindByPath(rootObject.Children, userProvider.RequestPath);
+            }
+        }
+
+        private void EnsureBuilt()
+        {
+            if (rootObject == null || IsStale())
+            {
+                builtAtUtc = DateTime.UtcNow;
+                rootObject = BuildRootObject();
             }
         }
 
         private bool IsStale()
             => changeSignal != null && changeSignal.GetLastChange(EntityChangeTopics.Navigation) > builtAtUtc;
+
+        /// <summary>
+        /// Finds the deepest navigation node whose Url equals <paramref name="path"/> (case-insensitive, tolerant
+        /// of a trailing slash). Returns null when the path has no navigation entry.
+        /// </summary>
+        private static NavigationMenu FindByPath(IEnumerable<NavigationMenu> nodes, string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return null;
+            }
+
+            foreach (var node in nodes)
+            {
+                var childMatch = FindByPath(node.Children, path);
+                if (childMatch != null)
+                {
+                    return childMatch;
+                }
+
+                if (!string.IsNullOrEmpty(node.Url) &&
+                    string.Equals(node.Url.TrimEnd('/'), path.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                {
+                    return node;
+                }
+            }
+
+            return null;
+        }
 
         /// <summary>
         /// Creates an cleans the root object for the site-navigation

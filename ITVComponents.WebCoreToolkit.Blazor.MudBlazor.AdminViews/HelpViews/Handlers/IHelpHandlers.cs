@@ -64,5 +64,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
         /// links or as plain title text.
         /// </summary>
         Task<HelpTopicViewViewModel?> GetPublishedTopicAsync(string slug, string? culture, bool userAuthenticated, CancellationToken ct = default);
+
+        /// <summary>
+        /// Lightweight check whether a published content topic exists for <paramref name="slug"/> (no rendering).
+        /// Used to decide whether a context-help affordance should be shown at all.
+        /// </summary>
+        Task<bool> PublishedTopicExistsAsync(string slug, CancellationToken ct = default);
     }
 }

@@ -1,0 +1,90 @@
+@* Context-help button for the host layout/app-bar. Reads the current navigation entry's "HelpSlug" metadata
+   and, only when a matching published help topic exists, shows a button that opens the help in a popup. Fully
+   fail-silent: no navigation entry, no HelpSlug, no topic, or help/navigation not wired => renders nothing. *@
+@using ITVComponents.WebCoreToolkit.Navigation
+@implements IDisposable
+@inject IServiceProvider Services
+@inject NavigationManager Nav
+@inject IDialogService DialogService
+@inject IStringLocalizer<HelpMessages> L
+
+@if (visible)
+{
+    <MudTooltip Text="@Tooltip">
+        <MudIconButton Icon="@Icon" Size="@Size" Color="@Color" OnClick="OpenAsync" aria-label="@Tooltip" />
+    </MudTooltip>
+}
+
+@code {
+    /// <summary>Metadata key on the navigation entry that carries the help topic slug.</summary>
+    [Parameter] public string MetadataKey { get; set; } = "HelpSlug";
+
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Help;
+    [Parameter] public Size Size { get; set; } = Size.Medium;
+    [Parameter] public Color Color { get; set; } = Color.Inherit;
+
+    /// <summary>Tooltip text; defaults to the localized "Show help for this page".</summary>
+    [Parameter] public string? Tooltip { get; set; }
+
+    private INavigator? navigator;
+    private IHelpViewerHandler? viewer;
+    private bool visible;
+    private string? slug;
+
+    protected override void OnInitialized()
+    {
+        // Resolve optionally: if the help system or navigation isn't wired on this host, stay invisible.
+        navigator = Services.GetService(typeof(INavigator)) as INavigator;
+        viewer = Services.GetService(typeof(IHelpViewerHandler)) as IHelpViewerHandler;
+        Tooltip ??= L["Help_ButtonTooltip"];
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnInitializedAsync() => await ResolveAsync();
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        await ResolveAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ResolveAsync()
+    {
+        visible = false;
+        slug = null;
+
+        if (navigator is null || viewer is null)
+        {
+            return;
+        }
+
+        var item = navigator.SelectedNavigationItem;
+        if (item is null ||
+            !item.MetadataValues.TryGetValue(MetadataKey, out var s) ||
+            string.IsNullOrWhiteSpace(s))
+        {
+            return;
+        }
+
+        if (!await viewer.PublishedTopicExistsAsync(s))
+        {
+            return;
+        }
+
+        slug = s;
+        visible = true;
+    }
+
+    private async Task OpenAsync()
+    {
+        if (string.IsNullOrEmpty(slug))
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<HelpDialog> { { d => d.Slug, slug } };
+        await DialogService.ShowAsync<HelpDialog>(null, parameters, EditDialogDefaults.Detail);
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}
