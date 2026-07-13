@@ -105,7 +105,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Ren
 
             if (TryResourceName(url, out var name))
             {
-                link.Url = HelpRoutes.ResourceUrl(name, culture);
+                // Same tenant-scoping as module: links — the resource endpoint is reached under the current
+                // tenant path segment (/{tenant}/help/res/...), so embedded media resolves against the tenant the
+                // reader is on. [SlashPermissionScope] expands to /{tenant} (path-segment mode) or "" (cookie mode).
+                link.Url = urlFormat.FormatUrl("[SlashPermissionScope]" + HelpRoutes.ResourceUrl(name, culture));
             }
 
             base.Write(renderer, link);

@@ -1,5 +1,7 @@
-@* Recursive published-topic navigation for the public viewer. Content pages link to /help/{slug}; nodes with
-   children render as an expandable group (a content page that also has children gets both). *@
+@* Recursive published-topic navigation for the public viewer. Content pages link to {tenant?}/help/{slug}; nodes
+   with children render as an expandable group (a content page that also has children gets both). *@
+@using ITVComponents.WebCoreToolkit.Routing
+@inject IUrlFormat UrlFormat
 
 @foreach (var node in Nodes)
 {
@@ -8,19 +10,24 @@
         <MudNavGroup Title="@node.Title" Icon="@IconOf(node)" Expanded="false">
             @if (node.Kind == HelpTopicKind.ContentPage)
             {
-                <MudNavLink Href="@($"/help/{node.Slug}")" Icon="@Icons.Material.Filled.Article">@node.Title</MudNavLink>
+                <MudNavLink Href="@TopicHref(node.Slug)" Icon="@Icons.Material.Filled.Article">@node.Title</MudNavLink>
             }
             <HelpNavTree Nodes="node.Children" />
         </MudNavGroup>
     }
     else
     {
-        <MudNavLink Href="@($"/help/{node.Slug}")" Icon="@IconOf(node)">@node.Title</MudNavLink>
+        <MudNavLink Href="@TopicHref(node.Slug)" Icon="@IconOf(node)">@node.Title</MudNavLink>
     }
 }
 
 @code {
     [Parameter, EditorRequired] public List<HelpTreeNodeViewModel> Nodes { get; set; } = new();
+
+    // Keep help navigation on the tenant the reader is on: [SlashPermissionScope] expands to /{tenant}
+    // (path-segment mode) or "" (cookie/anonymous mode), so a topic on tenant ADM stays at /ADM/help/{slug}.
+    private string TopicHref(string slug)
+        => UrlFormat.FormatUrl($"[SlashPermissionScope]/help/{slug}");
 
     private static string IconOf(HelpTreeNodeViewModel node)
         => !string.IsNullOrEmpty(node.Icon)
