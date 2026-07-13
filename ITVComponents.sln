@@ -171,6 +171,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.IdentityShared", "ITVComponents.WebCoreToolkit.IdentityShared\ITVComponents.WebCoreToolkit.IdentityShared.csproj", "{2926F9B4-E650-491E-AC27-402AF7BE747E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem", "ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem\ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.csproj", "{4D625E71-1500-4BB8-A61C-520700186E82}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1189,6 +1191,18 @@ Global
 		{2926F9B4-E650-491E-AC27-402AF7BE747E}.Release|x86.Build.0 = Release|Any CPU
 		{2926F9B4-E650-491E-AC27-402AF7BE747E}.Release|x64.ActiveCfg = Release|Any CPU
 		{2926F9B4-E650-491E-AC27-402AF7BE747E}.Release|x64.Build.0 = Release|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Debug|x86.Build.0 = Debug|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Debug|x64.Build.0 = Debug|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Release|x86.ActiveCfg = Release|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Release|x86.Build.0 = Release|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Release|x64.ActiveCfg = Release|Any CPU
+		{4D625E71-1500-4BB8-A61C-520700186E82}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
