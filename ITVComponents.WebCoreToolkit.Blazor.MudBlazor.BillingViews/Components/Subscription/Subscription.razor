@@ -12,6 +12,8 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Subscription_Title"]</MudText>
 
+<SecureView RequiredPermissions="ManageSubscription,Sysadmin,TenantAdmin">
+    <Permitted>
 @if (currentUser is null)
 {
     <MudProgressCircular Indeterminate="true" />
@@ -118,6 +120,11 @@ else
         }
     </MudGrid>
 }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">@L["NoManagePermission"]</MudAlert>
+    </NotPermitted>
+</SecureView>
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;
