@@ -8,6 +8,17 @@
 
 <PageTitle>@L["Help_Title"]</PageTitle>
 
+<style>
+    /* Media in help content is injected via MarkupString, so scoped CSS cannot reach it.
+       Force large images/videos to shrink to the container width while keeping aspect-ratio. */
+    .itv-help-content img,
+    .itv-help-content video,
+    .itv-help-content iframe {
+        max-width: 100%;
+        height: auto;
+    }
+</style>
+
 <MudGrid>
     <MudItem xs="12" md="4" lg="3">
         <MudPaper Outlined="true" Class="pa-1">

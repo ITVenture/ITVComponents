@@ -8,6 +8,17 @@
    (for content pages) the Markdown body in the Monaco editor with a server-rendered preview. Editing one
    language at a time keeps a single editor instance; switching flushes the current text into the model first. *@
 
+<style>
+    /* Preview media is injected via MarkupString, so scoped CSS cannot reach it.
+       Force large images/videos to shrink to the container width while keeping aspect-ratio. */
+    .itv-help-content img,
+    .itv-help-content video,
+    .itv-help-content iframe {
+        max-width: 100%;
+        height: auto;
+    }
+</style>
+
 <MudDialog>
     <DialogContent>
         <MudForm @ref="form" Model="Model">
