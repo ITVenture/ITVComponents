@@ -37,7 +37,7 @@ else
 
         @* ---- Tab 1: billing profile / address -------------------------------------------------- *@
         <MudTabPanel Text="@L["OnbAdm_Tab_Address"]">
-            <SecureView RequiredPermissions="Onboarding.Admin.BillingProfile.View,Onboarding.Admin.BillingProfile.Write" RequiredFeatures="ITVAdminViews">
+            <SecureView RequiredPermissions="Onboarding.Admin.BillingProfile.View,Onboarding.Admin.BillingProfile.Write">
                 <Permitted>
                     @if (model is null)
                     {
@@ -108,7 +108,7 @@ else
 
         @* ---- Tab 2: users & invitations (filled in commit 2) ----------------------------------- *@
         <MudTabPanel Text="@L["OnbAdm_Tab_Users"]">
-            <SecureView RequiredPermissions="Onboarding.Admin.Employees.View,Onboarding.Admin.Employees.Write" RequiredFeatures="ITVAdminViews">
+            <SecureView RequiredPermissions="Onboarding.Admin.Employees.View,Onboarding.Admin.Employees.Write">
                 <Permitted>
                     <EmployeesTab BillingProfileId="@(model?.BillingProfileId ?? 0)" TenantId="@currentTenant.TenantId" />
                 </Permitted>
@@ -120,7 +120,7 @@ else
 
         @* ---- Tab 3: role-mapping definitions (filled in commit 3) ------------------------------ *@
         <MudTabPanel Text="@L["OnbAdm_Tab_RoleMappings"]">
-            <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.View,Onboarding.Admin.RoleMappings.Write,Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.PermissionSet" RequiredFeatures="ITVAdminViews">
+            <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.View,Onboarding.Admin.RoleMappings.Write,Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.PermissionSet">
                 <Permitted>
                     <RoleMappingsTab />
                 </Permitted>
@@ -134,7 +134,7 @@ else
         @if (subTenantSupported)
         {
             <MudTabPanel Text="@L["OnbAdm_Tab_SubTenants"]">
-                <SecureView RequiredPermissions="Onboarding.Admin.SubTenants.View,Onboarding.Admin.SubTenants.Write" RequiredFeatures="ITVAdminViews">
+                <SecureView RequiredPermissions="Onboarding.Admin.SubTenants.View,Onboarding.Admin.SubTenants.Write">
                     <Permitted>
                         <SubTenantInvitationsTab TenantId="@currentTenant.TenantId" />
                     </Permitted>
