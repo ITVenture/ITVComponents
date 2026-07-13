@@ -49,15 +49,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 .ToListAsync(ct);
 
             var present = new HashSet<int>(topics.Select(t => t.HelpTopicId));
+            // Group by parent, mapping "no parent" (root) to the sentinel 0 — HelpTopicId identities start at 1,
+            // so 0 never collides. Avoids an int?-keyed dictionary (null key / ToDictionary's notnull constraint).
+            const int rootKey = 0;
             var byParent = topics
-                .GroupBy(t => t.ParentId)
+                .GroupBy(t => t.ParentId ?? rootKey)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
             // A published child of an UNpublished parent has no reachable path, so treat its parent as absent and
             // hang it at the root rather than losing it entirely.
-            List<HelpTreeNodeViewModel> Build(int? parentId)
+            List<HelpTreeNodeViewModel> Build(int parentKey)
             {
-                if (!byParent.TryGetValue(parentId, out var children))
+                if (!byParent.TryGetValue(parentKey, out var children))
                 {
                     return new List<HelpTreeNodeViewModel>();
                 }
@@ -73,10 +76,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 }).ToList();
             }
 
-            var roots = Build(null);
+            var roots = Build(rootKey);
             foreach (var kvp in byParent)
             {
-                if (kvp.Key.HasValue && !present.Contains(kvp.Key.Value))
+                if (kvp.Key != rootKey && !present.Contains(kvp.Key))
                 {
                     roots.AddRange(kvp.Value.Select(t => new HelpTreeNodeViewModel
                     {
