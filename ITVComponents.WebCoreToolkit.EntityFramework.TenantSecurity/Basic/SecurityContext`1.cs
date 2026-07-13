@@ -102,9 +102,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
                 this.modelBuilderOptions.ConfigureExpressionProperty(()=>CurrentUserName);
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => CurrentTenantIdForFiltering);
             }
-            catch
+            catch (Exception ex)
             {
-
+                logger?.LogError(ex, "Failed to configure expression-properties for security context {ContextType}.", typeof(TImpl).FullName);
             }
         }
 

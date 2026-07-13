@@ -114,8 +114,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 this.modelBuilderOptions.ConfigureExpressionProperty(() => IncludeChildTree);
                 //logger.LogDebug($@"SecurityContext initialized. useFilters={useFilters}, CurrentTenant: {tenantProvider?.PermissionPrefix}, ShowAllTenants: {showAllTenants}, HideGlobals: {hideGlobals}");
             }
-            catch
+            catch (Exception ex)
             {
+                logger?.LogError(ex, "Failed to configure expression-properties for security context {ContextType}.", typeof(TImpl).FullName);
             }
         }
 
