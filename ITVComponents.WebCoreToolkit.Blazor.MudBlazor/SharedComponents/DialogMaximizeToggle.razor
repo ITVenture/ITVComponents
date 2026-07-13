@@ -1,0 +1,37 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+@* Reusable maximize/restore toggle for Mud dialogs. Place inside a dialog (e.g. as the first item in
+   <DialogActions>) — it toggles the hosting dialog between its normal size and full screen via the cascading
+   IMudDialogInstance. Opt-in: only dialogs that add it become maximizable. *@
+
+<MudTooltip Text="@(maximized ? RestoreTooltip : MaximizeTooltip)">
+    <MudIconButton Icon="@(maximized ? Icons.Material.Filled.FullscreenExit : Icons.Material.Filled.Fullscreen)"
+                   Size="@Size" Color="@Color" OnClick="Toggle"
+                   aria-label="@(maximized ? RestoreTooltip : MaximizeTooltip)" />
+</MudTooltip>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Size to restore to when un-maximizing — should match the size the dialog was opened with.</summary>
+    [Parameter] public MaxWidth NormalMaxWidth { get; set; } = MaxWidth.ExtraLarge;
+
+    [Parameter] public Size Size { get; set; } = Size.Small;
+    [Parameter] public Color Color { get; set; } = Color.Default;
+    [Parameter] public string MaximizeTooltip { get; set; } = "Maximize";
+    [Parameter] public string RestoreTooltip { get; set; } = "Restore";
+
+    private bool maximized;
+
+    private async Task Toggle()
+    {
+        maximized = !maximized;
+        await MudDialog.SetOptionsAsync(new DialogOptions
+        {
+            MaxWidth = maximized ? MaxWidth.False : NormalMaxWidth,
+            FullWidth = true,
+            FullScreen = maximized,
+            CloseOnEscapeKey = true
+        });
+    }
+}

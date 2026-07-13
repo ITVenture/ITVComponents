@@ -98,6 +98,8 @@
         </MudForm>
     </DialogContent>
     <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.ExtraLarge" />
+        <MudSpacer />
         <MudButton OnClick="Cancel">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy" OnClick="Save">Save</MudButton>
     </DialogActions>

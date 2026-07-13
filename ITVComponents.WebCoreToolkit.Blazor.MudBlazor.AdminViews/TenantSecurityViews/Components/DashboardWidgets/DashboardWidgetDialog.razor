@@ -12,6 +12,8 @@
         </MudForm>
     </DialogContent>
     <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.Medium" />
+        <MudSpacer />
         <MudButton OnClick="Cancel">Cancel</MudButton>
         <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
     </DialogActions>
