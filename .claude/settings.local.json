@@ -141,7 +141,11 @@
       "Bash(grep -rn \"RefreshButton\" \"ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/_Imports.razor\")",
       "Bash(awk '{print $1}')",
       "Bash(grep -viE \"\\\\.csproj$\")",
-      "Bash(perl -i -pe 's/PRE113/PRE118/g' docs/Migration-Future_10-MLM.md)"
+      "Bash(perl -i -pe 's/PRE113/PRE118/g' docs/Migration-Future_10-MLM.md)",
+      "Bash(grep -nE \"^#{1,3} |^## §|Billing|AddOnPrice|PlanPrice\" docs/Migration-Future_10-MLM.md)",
+      "Bash(grep -vE \"^[+-]$\")",
+      "Bash(find . -name \"Feature.cs\" -path \"*TenantSecurity*\")",
+      "Bash(grep -rn \"FeatureName\\\\|Enabled\\\\|FeatureId\\\\|FeatureDescription\" ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity/Shared/Models/Feature.cs)"
     ]
   }
 }
