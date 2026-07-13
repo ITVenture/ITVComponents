@@ -1,11 +1,13 @@
 # Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
 
-> **Stand: `5.0.0-PRE118`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
+> **Stand: `5.0.0-PRE130`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
 > (Phasen 2–5, §1–5), die Onboarding-Flows (2a/2b/2c, §6), die EntityWriteTracker-/EntityChangeSignal-
 > Invalidierung (§7/7a), die Per-Operation-Contexts (§8), die Auto-Permission-Registration (§9) und die
 > Onboarding-Tenant-Anlage/-Härtung (§10) ab — **plus die PRE118-Neuerungen: Paket-Versionen (§12),
 > `ItvErrorBoundary` (§13), cross-tenant PermissionSet-Propagation (§14, Pflicht-Migration) und
-> Tenant-Template `BasicTenantType`/Apply-Modes/Re-apply (§15)**.
+> Tenant-Template `BasicTenantType`/Apply-Modes/Re-apply (§15)** — **sowie die neueren Punkte: Billing
+> Add-ons n:m (§16, Pflicht-Migration), erweiterbarer Config-Export/Billing-Sektion (§17), typisierte
+> TenantTemplate-Extensions (§18) und Navigations-Metadata/Help-Button (§19, `PRE130`, Pflicht-Migration)**.
 
 Dieser Leitfaden beschreibt, was im MLM-Projekt anzupassen ist, um auf den `Future_10`-Stand der
 ITVComponents-Toolkit zu wechseln. Es ist ein **Major-Release (5.0-PRExx)** mit bewussten Breaking
@@ -1081,6 +1083,49 @@ einfach **neu extrahieren** (Template aus Tenant neu erzeugen). Kein Schema-Chan
 
 ---
 
+## 19. Navigations-Metadata + kontextsensitiver Help-Button (`5.0.0-PRE130`) — **Pflicht-Migration**
+
+Navigationsmenü-Einträge können jetzt ein freies **JSON-Metadata-Objekt** tragen (neue Spalte
+`NavigationMenu.Metadata`). Der Navigations-Builder reicht es ins Runtime-Modell durch, und `INavigator` bekommt
+eine neue Property **`SelectedNavigationItem`** (der zur aktuellen Seite passende Nav-Eintrag). Darauf baut ein
+neuer **`<HelpButton />`** auf, der die Hilfe zur aktuellen Seite in einem Popup zeigt.
+
+**⚠️ Pflicht-Migration (sonst Runtime-Crash):** Das EF-Modell enthält jetzt die Spalte `NavigationMenu.Metadata`,
+und der Navigations-Builder selektiert sie. Ohne Migration schlägt **jede Navigations-Query** mit
+*„Invalid column name 'Metadata'"* fehl.
+
+```
+dotnet ef migrations add NavigationMenuMetadata
+dotnet ef database update
+```
+
+Die Migration fügt nur eine **nullable** Spalte `Metadata` (nvarchar(max)) an der Navigations-Tabelle hinzu —
+additiv, nicht-destruktiv. Bestehende Einträge haben `Metadata = NULL` (= keine Metadaten).
+
+**Opt-in — Help-Button pro Seite (kein Zwang):**
+1. Am jeweiligen Navigations-Eintrag im Nav-Admin ein JSON-Objekt mit `HelpSlug` hinterlegen, z.B.
+   `{ "HelpSlug": "orders-overview" }` (Slug eines **published** Help-Topics, §…/Hilfesystem).
+2. Im Host-Layout (z.B. AppBar) die Komponente platzieren:
+   `@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews` + `<HelpButton />`.
+
+Der Button ist **fail-silent**: kein Nav-Eintrag für die Seite / kein `HelpSlug` / kein passendes published Topic /
+Help- oder Navigation-Feature nicht verdrahtet → er rendert **nichts**. Voraussetzung fürs Anzeigen sind also nur
+gepflegte Metadaten + vorhandene Hilfe; sonst bleibt alles wie bisher. Der Metadata-Key ist über den Parameter
+`MetadataKey` überschreibbar; `MetadataValues` (case-insensitives Dictionary) steht für eigene Zwecke bereit.
+
+**Ebenfalls in `PRE130` (automatisch, keine Migration/Config):**
+- **Maximierbare Detail-/Editor-Dialoge:** User/Tenant-Detail, RoleMapping und die CodeEditor-Dialoge
+  (HelpTopic, Tenant-/Global-Setting, Tenant-Template, HealthScript, DiagnosticsQuery, DashboardWidget) haben einen
+  Maximieren/Wiederherstellen-Knopf (Vollbild). Rein UI, kein Eingriff nötig.
+- **Hilfe im Tenant-Kontext:** Help-Navigation, `module:`-Links und eingebettete `resource:`-Medien bleiben jetzt am
+  aktuellen Tenant (`/{tenant}/help/...`); grosse Bilder/Videos skalieren auf Container-Breite.
+- **Config-Export:** ein leeres `catch` in den SecurityContext-Konstruktoren protokolliert jetzt (statt Konfig-Fehler
+  still zu schlucken); der polymorphe Config-Export crasht nicht mehr, wenn **keine** Config-Extension registriert ist.
+  Die Billing-Sektion im System-Config-Export ist jetzt per **WebPart-Flag** aktivierbar (statt manuellem Startup-Aufruf,
+  s. §17): WebPart `…EntityFramework.Billing.WebPartInit`, Option `BillingConfigExportPartOptions.ActivateBillingConfigExport = true`.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -1109,3 +1154,5 @@ einfach **neu extrahieren** (Template aus Tenant neu erzeugen). Kein Schema-Chan
 | 20 | **Billing Add-ons n:m** (§16) | **Pflicht:** im App-Context DbSet `AddOnPrices` → **`PlanAddOns`** + **`PlanAddOnPrices`** (`IBillingContext` geändert, sonst Compile-Break); **neue Migration** `BillingAddOnPlanLink` (dropt `AddOnPrices` + `AddOn.BillingInterval`, legt `PlanAddOns`/`PlanAddOnPrices` an). Add-on-Preis/Buchbarkeit jetzt pro Plan, Interval vom Plan geerbt. UI/Checkout/Sync automatisch. Ersetzt das Add-on-Multi-Currency-Delta |
 | 21 | **Config-Export erweiterbar + Billing-Sektion** (§17, opt-in) | Kein Schema-Change. Für Billing im Export: `services.AddBillingConfigExtension()` beim Startup + Config-Handler-Plugin bekommt `IServiceProvider` in den Ctor (optionaler 2. Param) + Context implementiert `IBillingContext`. Ohne = Billing fehlt im System-Config (kein Crash). Provider-IDs/Subscriptions bewusst ausgeschlossen. Neue Erweiterungspunkte in `EFRepo.DataSync` (`IConfigExtension`/`AddSystemConfigExtension`) |
 | 22 | **TenantTemplate-Extensions typisiert** (§18) | Payload `string` → polymorpher `TemplateExtensionPayload`; `ITenantTemplatePartHandler.Extract/Apply` typisiert; Legacy-string-Converter entfällt. **Clean Cut:** in DB gespeicherte Templates **mit** Extensions (EmployeeRoleMappings) brechen beim Deserialisieren → betroffene Templates neu extrahieren. Templates ohne Extensions unberührt. Keine Migration. Library-seitig erledigt |
+| 23 | **Navigations-Metadata** (§19, `PRE130`) | **Pflicht-Migration** für neue Spalte `NavigationMenu.Metadata` (`dotnet ef migrations add NavigationMenuMetadata` → `database update`), sonst schlägt jede Navigations-Query mit *„Invalid column name 'Metadata'"* fehl. Nur additive nullable Spalte, keine Datenmigration. Bestehende Einträge = NULL |
+| 24 | **Help-Button + maximierbare Dialoge** (§19, `PRE130`, opt-in/automatisch) | Opt-in: `HelpSlug` als Metadata am Nav-Eintrag + `<HelpButton />` (`@using …AdminViews.HelpViews`) ins Host-Layout → Seiten-Hilfe als Popup (fail-silent). Automatisch: maximierbare Detail-/CodeEditor-Dialoge, Hilfe tenant-präfixiert + Medien-Skalierung, Config-Export-Härtung; Billing-Export-Sektion jetzt via WebPart-Flag `BillingConfigExportPartOptions.ActivateBillingConfigExport` (statt manuellem `AddBillingConfigExtension()`, §17) |
