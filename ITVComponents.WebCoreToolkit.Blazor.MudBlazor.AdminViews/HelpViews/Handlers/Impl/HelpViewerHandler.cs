@@ -93,7 +93,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             return roots.ToArray();
         }
 
-        public async Task<HelpTopicViewViewModel?> GetPublishedTopicAsync(string slug, string? culture, CancellationToken ct = default)
+        public async Task<HelpTopicViewViewModel?> GetPublishedTopicAsync(string slug, string? culture, bool userAuthenticated, CancellationToken ct = default)
         {
             var uiCulture = string.IsNullOrWhiteSpace(culture) ? CultureInfo.CurrentUICulture.Name : culture;
             await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -116,7 +116,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 Slug = topic.Slug,
                 Kind = topic.Kind,
                 Title = string.IsNullOrWhiteSpace(content?.Title) ? topic.Slug : content!.Title,
-                Html = topic.Kind == HelpTopicKind.Container ? string.Empty : renderer.ToHtml(content?.Body, match)
+                Html = topic.Kind == HelpTopicKind.Container ? string.Empty : renderer.ToHtml(content?.Body, match, userAuthenticated)
             };
         }
 

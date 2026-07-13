@@ -3,6 +3,7 @@
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IHelpViewerHandler Viewer
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<HelpMessages> L
 
 <PageTitle>@L["Help_Title"]</PageTitle>
@@ -54,11 +55,14 @@
     private HelpTopicViewViewModel? current;
     private string? loadedSlug;
     private bool treeLoaded;
+    private bool authenticated;
 
     private static string Culture => System.Globalization.CultureInfo.CurrentUICulture.Name;
 
     protected override async Task OnInitializedAsync()
     {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        authenticated = auth.User?.Identity?.IsAuthenticated ?? false;
         tree = (await Viewer.GetPublishedTreeAsync(Culture)).ToList();
         treeLoaded = true;
     }
@@ -73,7 +77,7 @@
         if (Slug != loadedSlug)
         {
             loadedSlug = Slug;
-            current = string.IsNullOrEmpty(Slug) ? null : await Viewer.GetPublishedTopicAsync(Slug, Culture);
+            current = string.IsNullOrEmpty(Slug) ? null : await Viewer.GetPublishedTopicAsync(Slug, Culture, authenticated);
         }
     }
 }

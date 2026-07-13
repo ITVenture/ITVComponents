@@ -166,7 +166,8 @@
     private async Task Preview()
     {
         await FlushAsync();
-        previewHtml = Renderer.ToHtml(CurrentContent?.Body, selectedCulture);
+        // Preview is shown to the signed-in admin, so module links render as (tenant-scoped) links.
+        previewHtml = Renderer.ToHtml(CurrentContent?.Body, selectedCulture, userAuthenticated: true);
     }
 
     private async Task Save()

@@ -95,6 +95,11 @@ Der Markdown-Editor nutzt BlazorMonaco; die AdminViews-WebPart registriert die C
   `/Help/Admin/Resources` (Medien, pro Sprache Datei).
 - Content-Embeds: im Markdown `resource:{name}` bzw. `/resource/{name}` → beim Rendern automatisch auf
   `/help/res/{name}?c={culture}` umgeschrieben (Range-fähig für Video).
+- Modul-Links: im Markdown `[Titel](module:/MasterData/Customers)`. Beim Rendern:
+  - **angemeldet** → echter Link, mit aktuellem Tenant präfixiert (`/TENANT1234/MasterData/Customers` im
+    Path-Segment-Modus bzw. `/MasterData/Customers` im Cookie-Modus, via `IUrlFormat`/`[SlashPermissionScope]`);
+  - **anonym** → nur der Titel als `<span class="itv-help-module-link">Titel</span>` (kein Link).
+  (CSS-Klasse `itv-help-module-link` optional im Host stylen.)
 - Viewer: `/help` und `/help/{slug}` (anonym), nur **veröffentlichte** Themen.
 
 ## Sprach-Fallback

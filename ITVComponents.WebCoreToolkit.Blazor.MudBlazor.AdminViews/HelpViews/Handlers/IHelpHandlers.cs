@@ -58,7 +58,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
         /// <summary>The full published topic tree (nested), titles resolved for <paramref name="culture"/>.</summary>
         Task<HelpTreeNodeViewModel[]> GetPublishedTreeAsync(string? culture, CancellationToken ct = default);
 
-        /// <summary>Resolves a published topic by slug and renders its localized body to HTML; null if not found.</summary>
-        Task<HelpTopicViewViewModel?> GetPublishedTopicAsync(string slug, string? culture, CancellationToken ct = default);
+        /// <summary>
+        /// Resolves a published topic by slug and renders its localized body to HTML; null if not found.
+        /// <paramref name="userAuthenticated"/> drives whether <c>module:</c> links render as (tenant-scoped)
+        /// links or as plain title text.
+        /// </summary>
+        Task<HelpTopicViewViewModel?> GetPublishedTopicAsync(string slug, string? culture, bool userAuthenticated, CancellationToken ct = default);
     }
 }
