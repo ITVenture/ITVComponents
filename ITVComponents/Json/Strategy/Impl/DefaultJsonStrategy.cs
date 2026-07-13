@@ -49,6 +49,15 @@ namespace ITVComponents.Json.Strategy.Impl
                 {
                     if (t.Type == typeof(TProto))
                     {
+                        // Polymorphism for these protocol bases is built entirely here rather than via a static
+                        // [JsonPolymorphic] attribute. That way a base type whose derived types are all contributed
+                        // by feature libraries that are not installed on this system stays non-polymorphic and
+                        // serializes as the plain base, instead of System.Text.Json throwing
+                        // "should specify at least one derived type" for an attribute with an empty derived-type set.
+                        t.PolymorphismOptions ??= new JsonPolymorphismOptions
+                        {
+                            UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType
+                        };
                         t.PolymorphismOptions.DerivedTypes.Add(new JsonDerivedType(typeof(TExt), discriminator));
                     }
                 });
