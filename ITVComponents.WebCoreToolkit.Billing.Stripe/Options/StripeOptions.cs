@@ -6,7 +6,6 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Options
     /// Stripe-specific secrets and settings. Bind from configuration section <c>Billing:Stripe</c>
     /// (user-secrets in dev, KeyVault / env-vars in prod).
     /// </summary>
-    [SettingName("Billing:Stripe")]
     public class StripeOptions
     {
         /// <summary>Stripe secret API key (<c>sk_...</c>).</summary>
