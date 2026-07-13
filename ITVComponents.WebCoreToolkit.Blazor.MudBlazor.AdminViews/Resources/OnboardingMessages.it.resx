@@ -80,6 +80,10 @@
   <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>Nome del nuovo ruolo</value></data>
   <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Etichetta visualizzata (JSON facoltativo)</value></data>
   <data name="OnbAdm_Rm_LabelHint" xml:space="preserve"><value>Etichetta multilingue in formato JSON, ad es. {&quot;en&quot;:&quot;Master data&quot;,&quot;de&quot;:&quot;Stammdaten&quot;}. Lascia vuoto per usare il nome del ruolo.</value></data>
+  <data name="OnbAdm_Rm_Feature" xml:space="preserve"><value>Funzionalità di visibilità</value></data>
+  <data name="OnbAdm_Rm_FeatureHint" xml:space="preserve"><value>Solo i tenant che hanno attivato questa funzionalità vedono questo ruolo. Lascia vuoto per un ruolo neutro visibile a tutti.</value></data>
+  <data name="OnbAdm_Rm_FeatureNone" xml:space="preserve"><value>(nessuna – sempre visibile)</value></data>
+  <data name="OnbAdm_Rm_FeatureDisabled" xml:space="preserve"><value>disattivata</value></data>
   <data name="OnbAdm_Rm_DeleteConfirm" xml:space="preserve"><value>Eliminare davvero la definizione per '{0}'? Le assegnazioni dei dipendenti vengono rimosse; il ruolo sottostante viene mantenuto.</value></data>
   <data name="OnbAdm_Rm_Deleted" xml:space="preserve"><value>Definizione eliminata.</value></data>
   <data name="OnbAdm_Ps_Title" xml:space="preserve"><value>Set di autorizzazioni</value></data>

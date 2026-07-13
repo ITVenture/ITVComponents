@@ -33,6 +33,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models
         /// </summary>
         public string DisplayNameJson { get; set; }
 
+        /// <summary>
+        /// Optional feature gate: the <c>Feature.FeatureName</c> that must be activated in the mapping's tenant
+        /// for this mapping to be offered/visible. Null or empty means a "neutral" mapping that is always
+        /// available. A tenant admin holding <c>Onboarding.Admin.RoleMappings.AllFeatures</c> sees every mapping
+        /// regardless of this gate (and is the only one allowed to set it).
+        /// </summary>
+        public string VisibilityFeature { get; set; }
+
         [ForeignKey(nameof(TenantId))]
         public virtual TTenant Tenant { get; set; }
 

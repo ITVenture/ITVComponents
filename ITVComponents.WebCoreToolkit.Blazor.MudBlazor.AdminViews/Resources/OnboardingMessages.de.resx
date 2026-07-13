@@ -135,6 +135,10 @@
   <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>Name der neuen Rolle</value></data>
   <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Anzeigename (optionales JSON)</value></data>
   <data name="OnbAdm_Rm_LabelHint" xml:space="preserve"><value>Mehrsprachiges Label als JSON, z. B. {&quot;en&quot;:&quot;Master data&quot;,&quot;de&quot;:&quot;Stammdaten&quot;}. Leer lassen, um den Rollennamen zu verwenden.</value></data>
+  <data name="OnbAdm_Rm_Feature" xml:space="preserve"><value>Sichtbarkeits-Feature</value></data>
+  <data name="OnbAdm_Rm_FeatureHint" xml:space="preserve"><value>Nur Mandanten mit aktiviertem Feature sehen diese Rolle. Leer lassen für eine neutrale, für alle sichtbare Rolle.</value></data>
+  <data name="OnbAdm_Rm_FeatureNone" xml:space="preserve"><value>(kein – immer sichtbar)</value></data>
+  <data name="OnbAdm_Rm_FeatureDisabled" xml:space="preserve"><value>deaktiviert</value></data>
   <data name="OnbAdm_Rm_DeleteConfirm" xml:space="preserve"><value>Zuordnung für '{0}' wirklich löschen? Mitarbeiter-Zuweisungen darauf werden entfernt; die zugrunde liegende Rolle bleibt erhalten.</value></data>
   <data name="OnbAdm_Rm_Deleted" xml:space="preserve"><value>Zuordnung gelöscht.</value></data>
   <data name="OnbAdm_Ps_Title" xml:space="preserve"><value>Berechtigungs-Sets</value></data>

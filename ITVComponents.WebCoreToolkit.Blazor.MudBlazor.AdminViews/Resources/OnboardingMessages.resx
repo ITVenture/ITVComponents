@@ -180,6 +180,10 @@
   <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>New role name</value></data>
   <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Display label (optional JSON)</value></data>
   <data name="OnbAdm_Rm_LabelHint" xml:space="preserve"><value>Multilingual label as JSON, e.g. {&quot;en&quot;:&quot;Master data&quot;,&quot;de&quot;:&quot;Stammdaten&quot;}. Leave empty to use the role name.</value></data>
+  <data name="OnbAdm_Rm_Feature" xml:space="preserve"><value>Visibility feature</value></data>
+  <data name="OnbAdm_Rm_FeatureHint" xml:space="preserve"><value>Only tenants that have this feature activated see this role. Leave empty for a neutral role visible to everyone.</value></data>
+  <data name="OnbAdm_Rm_FeatureNone" xml:space="preserve"><value>(none — always visible)</value></data>
+  <data name="OnbAdm_Rm_FeatureDisabled" xml:space="preserve"><value>disabled</value></data>
   <data name="OnbAdm_Rm_DeleteConfirm" xml:space="preserve"><value>Really delete the mapping for '{0}'? Employee assignments to it are removed; the underlying role is kept.</value></data>
   <data name="OnbAdm_Rm_Deleted" xml:space="preserve"><value>Mapping deleted.</value></data>
   <data name="OnbAdm_Ps_Title" xml:space="preserve"><value>Permission sets</value></data>

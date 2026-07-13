@@ -57,6 +57,22 @@
                 <MudItem xs="12">
                     <MudTextField @bind-Value="Model.DisplayNameJson" Label="@L["OnbAdm_Rm_Label"]" Lines="2" HelperText="@L["OnbAdm_Rm_LabelHint"]" />
                 </MudItem>
+
+                @* Feature visibility gate — only holders of Onboarding.Admin.RoleMappings.AllFeatures may set it; for
+                   everyone else the mapping is (and stays) neutral, so the picker is hidden entirely. *@
+                @if (canManageAllFeatures)
+                {
+                    <MudItem xs="12">
+                        <MudSelect T="string" @bind-Value="Model.VisibilityFeature" Label="@L["OnbAdm_Rm_Feature"]"
+                                   Clearable="true" HelperText="@L["OnbAdm_Rm_FeatureHint"]">
+                            <MudSelectItem T="string" Value="@("")">@L["OnbAdm_Rm_FeatureNone"]</MudSelectItem>
+                            @foreach (var f in features)
+                            {
+                                <MudSelectItem T="string" Value="@f.FeatureName">@(f.Enabled ? f.FeatureName : $"{f.FeatureName} ({L["OnbAdm_Rm_FeatureDisabled"]})")</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
             </MudGrid>
         </MudForm>
     </DialogContent>
@@ -72,9 +88,11 @@
 
     private System.Security.Claims.ClaimsPrincipal? currentUser;
     private TenantRoleOption[] roles = Array.Empty<TenantRoleOption>();
+    private FeatureOption[] features = Array.Empty<FeatureOption>();
     private MudForm? form;
     private bool busy;
     private bool forceNewRole;
+    private bool canManageAllFeatures;
 
     protected override async Task OnInitializedAsync()
     {
@@ -89,6 +107,15 @@
         else
         {
             roles = await Handler.ListTenantRolesAsync(currentUser);
+        }
+
+        // The feature-gate picker is only available to the AllFeatures override; load the catalog only then.
+        canManageAllFeatures = Handler.CanManageAllFeatures(currentUser);
+        if (canManageAllFeatures)
+        {
+            features = await Handler.ListFeaturesAsync(currentUser);
+            // Normalize null -> "" so the "(none)" select item is selected for an ungated mapping.
+            Model.VisibilityFeature ??= "";
         }
     }
 

@@ -24,6 +24,13 @@ public interface IOnboardingAdminHandler
     bool CanManage(ClaimsPrincipal user);
 
     /// <summary>
+    /// True when the current user holds <see cref="OnboardingAdminPermissions.RoleMappingsAllFeatures"/> — i.e. may
+    /// assign a feature gate to a role mapping and see mappings gated to features the tenant lacks. Drives whether
+    /// the feature dropdown is shown and whether the visibility filter is bypassed.
+    /// </summary>
+    bool CanManageAllFeatures(ClaimsPrincipal user);
+
+    /// <summary>
     /// True when new role-mappings must always create a dedicated new role (the "wrap an existing role" option is
     /// disabled), per <c>TenantSetupOptions.ForceDedicatedRoleForMappings</c>. The dialog hides the role picker
     /// accordingly; the handler enforces it on save regardless of the UI.
@@ -89,6 +96,13 @@ public interface IOnboardingAdminHandler
     Task<TenantRoleOption[]> ListTenantRolesAsync(ClaimsPrincipal admin, CancellationToken ct = default);
 
     /// <summary>
+    /// The feature catalog (name + description + enabled), for the mapping's optional visibility-gate dropdown.
+    /// Only meaningful for callers holding <see cref="OnboardingAdminPermissions.RoleMappingsAllFeatures"/>;
+    /// returns empty for everyone else.
+    /// </summary>
+    Task<FeatureOption[]> ListFeaturesAsync(ClaimsPrincipal admin, CancellationToken ct = default);
+
+    /// <summary>
     /// Creates (EmployeeRoleMappingId == 0) or updates an employee-role mapping in the current scope tenant.
     /// On create, links <c>RoleId</c> when set, otherwise creates a new role from <c>NewRoleName</c>. Returns
     /// the mapping id, or null when not authorized / out of scope / invalid.
@@ -135,6 +149,15 @@ public static class OnboardingAdminPermissions
 
     /// <summary>Weaker "delegate" tier: see a Delegation role and activate/deactivate its PermissionSets only — no create/edit/delete/rename.</summary>
     public const string RoleMappingsDelegationAssign = "Onboarding.Admin.RoleMappings.DelegationAssign";
+
+    /// <summary>
+    /// Override that lifts the per-tenant feature gate on role mappings: the holder sees mappings gated to a
+    /// feature the tenant has not subscribed, and is the only one allowed to assign a feature gate when creating
+    /// a mapping. Users without it only see neutral (ungated) or currently-entitled mappings, and can only
+    /// create neutral ones. This is a modifier — it grants no access on its own; a normal RoleMappings read/write
+    /// permission is still required to reach the tab.
+    /// </summary>
+    public const string RoleMappingsAllFeatures = "Onboarding.Admin.RoleMappings.AllFeatures";
     public const string SubTenantsView = "Onboarding.Admin.SubTenants.View";
     public const string SubTenantsWrite = "Onboarding.Admin.SubTenants.Write";
 
@@ -164,6 +187,9 @@ public static class OnboardingAdminPermissions
 
     /// <summary>Any write within role mappings (used to gate delete before the row's kind is known).</summary>
     public static readonly string[] RoleMappingsAnyWrite = { RoleMappingsDirectRole, RoleMappingsPermissionSet, RoleMappingsDelegation, RoleMappingsWrite };
+
+    /// <summary>The feature-gate override (see <see cref="RoleMappingsAllFeatures"/>), in array form for the permission check.</summary>
+    public static readonly string[] AllFeatures = { RoleMappingsAllFeatures };
 
     /// <summary>Read access to the sub-tenant invitations tab (View or Write).</summary>
     public static readonly string[] SubTenantsRead = { SubTenantsView, SubTenantsWrite };

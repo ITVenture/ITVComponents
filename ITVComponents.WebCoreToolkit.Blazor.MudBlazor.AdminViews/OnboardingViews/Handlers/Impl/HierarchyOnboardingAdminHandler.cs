@@ -7,6 +7,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.V
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +37,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     public bool HasPermission(ClaimsPrincipal user, params string[] permissions) => services.VerifyUserPermissions(permissions);
 
     public bool CanManage(ClaimsPrincipal user) => services.VerifyUserPermissions(OnboardingAdminPermissions.AnyAccess);
+
+    public bool CanManageAllFeatures(ClaimsPrincipal user) => services.VerifyUserPermissions(OnboardingAdminPermissions.AllFeatures);
 
     public bool ForceDedicatedRoleForMappings =>
         services.GetService<IGlobalSettings<TenantSetupOptions>>()?.ValueOrDefault?.ForceDedicatedRoleForMappings ?? false;
@@ -263,8 +266,11 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             .ToListAsync(ct);
 
         // Only DirectRole mappings are assignable to employees; PermissionSet mappings are composition blocks.
-        return await db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
-            .Where(m => m.TenantId == current && m.Kind == EmployeeRoleMappingKind.DirectRole)
+        var query = db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
+            .Where(m => m.TenantId == current && m.Kind == EmployeeRoleMappingKind.DirectRole);
+        query = ApplyFeatureGate(query);
+
+        return await query
             .OrderBy(m => m.Role.RoleName)
             .Select(m => new EmployeeRoleAssignmentViewModel
             {
@@ -327,11 +333,14 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         var canPermSet = services.VerifyUserPermissions(OnboardingAdminPermissions.PermissionSetWrite);
         var canDelegation = services.VerifyUserPermissions(OnboardingAdminPermissions.DelegationAssign);
 
-        return await db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
+        var query = db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
             .Where(m => m.TenantId == current)
             .Where(m => (m.Kind == EmployeeRoleMappingKind.DirectRole && canDirect)
                      || (m.Kind == EmployeeRoleMappingKind.PermissionSet && canPermSet)
-                     || (m.Kind == EmployeeRoleMappingKind.Delegation && canDelegation))
+                     || (m.Kind == EmployeeRoleMappingKind.Delegation && canDelegation));
+        query = ApplyFeatureGate(query);
+
+        return await query
             .OrderBy(m => m.Kind).ThenBy(m => m.Role.RoleName)
             .Select(m => new EmployeeRoleMappingViewModel
             {
@@ -339,7 +348,8 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
                 Kind = m.Kind,
                 RoleId = m.RoleId,
                 RoleName = m.Role.RoleName,
-                DisplayNameJson = m.DisplayNameJson
+                DisplayNameJson = m.DisplayNameJson,
+                VisibilityFeature = m.VisibilityFeature
             })
             .ToArrayAsync(ct);
     }
@@ -357,6 +367,27 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             .Where(r => r.TenantId == current)
             .OrderBy(r => r.RoleName)
             .Select(r => new TenantRoleOption { RoleId = r.RoleId, RoleName = r.RoleName })
+            .ToArrayAsync(ct);
+    }
+
+    public async Task<FeatureOption[]> ListFeaturesAsync(ClaimsPrincipal admin, CancellationToken ct = default)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var (ok, _) = Authorize(db, OnboardingAdminPermissions.RoleMappingsRead);
+        // Only the feature-gate override may assign a gate, so only it gets the catalog; hide it from everyone else.
+        if (!ok || !services.VerifyUserPermissions(OnboardingAdminPermissions.AllFeatures))
+        {
+            return Array.Empty<FeatureOption>();
+        }
+
+        return await db.Set<ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Feature>().AsNoTracking()
+            .OrderBy(f => f.FeatureName)
+            .Select(f => new FeatureOption
+            {
+                FeatureName = f.FeatureName,
+                FeatureDescription = f.FeatureDescription,
+                Enabled = f.Enabled
+            })
             .ToArrayAsync(ct);
     }
 
@@ -453,6 +484,18 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         // created with (stable template key), so renaming the mapping never renames its role.
         mapping.Kind = model.Kind;
         mapping.DisplayNameJson = model.DisplayNameJson;
+
+        // The visibility feature-gate is a privileged setting: only the AllFeatures override may set/change it.
+        // Everyone else creates strictly neutral mappings and cannot alter an existing gate (which stays intact).
+        if (services.VerifyUserPermissions(OnboardingAdminPermissions.AllFeatures))
+        {
+            mapping.VisibilityFeature = string.IsNullOrWhiteSpace(model.VisibilityFeature) ? null : model.VisibilityFeature.Trim();
+        }
+        else if (model.EmployeeRoleMappingId == 0)
+        {
+            mapping.VisibilityFeature = null;
+        }
+
         await db.SaveChangesAsync(ct);
         return mapping.EmployeeRoleMappingId;
     }
@@ -541,8 +584,11 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             .Select(rr => rr.PermissiveRoleId)
             .ToListAsync(ct);
 
-        return await db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
-            .Where(m => m.TenantId == current && m.Kind == EmployeeRoleMappingKind.PermissionSet)
+        var query = db.EmployeeRoleMappings.IgnoreQueryFilters().AsNoTracking()
+            .Where(m => m.TenantId == current && m.Kind == EmployeeRoleMappingKind.PermissionSet);
+        query = ApplyFeatureGate(query);
+
+        return await query
             .OrderBy(m => m.Role.RoleName)
             .Select(m => new PermissionSetActivationViewModel
             {
@@ -618,6 +664,41 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         var current = db.CurrentTenantId ?? 0;
         var required = requiredAnyOf is { Length: > 0 } ? requiredAnyOf : OnboardingAdminPermissions.AnyAccess;
         return current == 0 || !services.VerifyUserPermissions(required) ? (false, 0) : (true, current);
+    }
+
+    /// <summary>
+    /// Restricts a role-mapping query to the ones visible in the current tenant: unless the caller holds the
+    /// <see cref="OnboardingAdminPermissions.RoleMappingsAllFeatures"/> override, only neutral (no gate) mappings
+    /// and mappings whose <c>VisibilityFeature</c> is currently activated in the tenant survive.
+    /// </summary>
+    private IQueryable<HierarchyEmployeeRoleMapping> ApplyFeatureGate(IQueryable<HierarchyEmployeeRoleMapping> query)
+    {
+        if (services.VerifyUserPermissions(OnboardingAdminPermissions.AllFeatures))
+        {
+            return query;
+        }
+
+        var active = GetActiveFeatureNames();
+        return query.Where(m => m.VisibilityFeature == null || m.VisibilityFeature == "" || active.Contains(m.VisibilityFeature));
+    }
+
+    /// <summary>
+    /// The feature names currently activated in the caller's permission-scope (the current tenant) — the same
+    /// source the SecureView / <c>VerifyActivatedFeatures</c> feature checks use.
+    /// </summary>
+    private List<string> GetActiveFeatureNames()
+    {
+        var scope = services.GetService<IPermissionScope>();
+        var repo = services.GetService<ISecurityRepository>();
+        if (scope == null || repo == null)
+        {
+            return new List<string>();
+        }
+
+        return repo.GetFeatures(scope.PermissionPrefix)
+            .Where(f => f.Enabled)
+            .Select(f => f.FeatureName)
+            .ToList();
     }
 
     private Task<bool> ProfileInScopeAsync(TContext db, int billingProfileId, int current, CancellationToken ct)

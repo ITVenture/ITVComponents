@@ -49,6 +49,14 @@
             </CellTemplate>
         </TemplateColumn>
         <PropertyColumn Property="x => x.Label" Title="@L["OnbAdm_Roles_Col"]" />
+        <TemplateColumn T="EmployeeRoleMappingViewModel" Title="@L["OnbAdm_Rm_Feature"]" Sortable="false">
+            <CellTemplate>
+                @if (!string.IsNullOrEmpty(context.Item.VisibilityFeature))
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Lock">@context.Item.VisibilityFeature</MudChip>
+                }
+            </CellTemplate>
+        </TemplateColumn>
         <TemplateColumn T="EmployeeRoleMappingViewModel" Title="" Sortable="false">
             <CellTemplate>
                 <SecureView RequiredPermissions="@WritePermFor(context.Item.Kind)">
@@ -117,7 +125,8 @@
         Kind = mapping.Kind,
         RoleId = mapping.RoleId,
         RoleName = mapping.RoleName,
-        DisplayNameJson = mapping.DisplayNameJson
+        DisplayNameJson = mapping.DisplayNameJson,
+        VisibilityFeature = mapping.VisibilityFeature
     });
 
     private async Task OpenDialog(EmployeeRoleMappingViewModel model)

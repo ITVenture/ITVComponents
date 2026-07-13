@@ -146,6 +146,13 @@ public class EmployeeRoleMappingViewModel
     /// <summary>Optional multilingual display label as JSON (navigation-label convention).</summary>
     public string? DisplayNameJson { get; set; }
 
+    /// <summary>
+    /// Optional feature gate (<c>Feature.FeatureName</c>): the mapping is only offered/visible in tenants that
+    /// have this feature activated. Null/empty = neutral (always visible). Only settable by callers holding
+    /// <c>Onboarding.Admin.RoleMappings.AllFeatures</c>; the handler enforces that regardless of the UI.
+    /// </summary>
+    public string? VisibilityFeature { get; set; }
+
     /// <summary>Effective label for grids: the localized display name if set, otherwise the role name.</summary>
     public string Label => RoleMappingLabels.Localized(DisplayNameJson, RoleName ?? NewRoleName);
 }
@@ -156,6 +163,17 @@ public class TenantRoleOption
     public int RoleId { get; set; }
 
     public string RoleName { get; set; } = string.Empty;
+}
+
+/// <summary>A selectable feature from the catalog, for the role-mapping visibility-gate dropdown.</summary>
+public class FeatureOption
+{
+    public string FeatureName { get; set; } = string.Empty;
+
+    public string? FeatureDescription { get; set; }
+
+    /// <summary>Whether the feature is globally enabled; a disabled feature can still be picked but is flagged.</summary>
+    public bool Enabled { get; set; }
 }
 
 /// <summary>

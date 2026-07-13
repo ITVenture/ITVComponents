@@ -91,6 +91,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Extension
             {
                 b.HasOne(m => m.Tenant).WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Restrict);
                 b.HasOne(m => m.Role).WithMany().HasForeignKey(m => m.RoleId).OnDelete(DeleteBehavior.Restrict);
+                // Optional feature gate: stores a Feature.FeatureName (loose, decoupled reference — no FK, matching
+                // the FeatureName length used across the security model).
+                b.Property(m => m.VisibilityFeature).HasMaxLength(150);
             });
 
             return modelBuilder;

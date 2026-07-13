@@ -80,6 +80,10 @@
   <data name="OnbAdm_Rm_NewRoleName" xml:space="preserve"><value>Nom du nouveau rôle</value></data>
   <data name="OnbAdm_Rm_Label" xml:space="preserve"><value>Libellé d'affichage (JSON facultatif)</value></data>
   <data name="OnbAdm_Rm_LabelHint" xml:space="preserve"><value>Libellé multilingue au format JSON, p. ex. {&quot;en&quot;:&quot;Master data&quot;,&quot;de&quot;:&quot;Stammdaten&quot;}. Laisser vide pour utiliser le nom du rôle.</value></data>
+  <data name="OnbAdm_Rm_Feature" xml:space="preserve"><value>Fonctionnalité de visibilité</value></data>
+  <data name="OnbAdm_Rm_FeatureHint" xml:space="preserve"><value>Seuls les locataires ayant activé cette fonctionnalité voient ce rôle. Laisser vide pour un rôle neutre visible par tous.</value></data>
+  <data name="OnbAdm_Rm_FeatureNone" xml:space="preserve"><value>(aucune – toujours visible)</value></data>
+  <data name="OnbAdm_Rm_FeatureDisabled" xml:space="preserve"><value>désactivée</value></data>
   <data name="OnbAdm_Rm_DeleteConfirm" xml:space="preserve"><value>Vraiment supprimer la définition pour « {0} » ? Les attributions d'employés correspondantes sont supprimées ; le rôle sous-jacent est conservé.</value></data>
   <data name="OnbAdm_Rm_Deleted" xml:space="preserve"><value>Définition supprimée.</value></data>
   <data name="OnbAdm_Ps_Title" xml:space="preserve"><value>Ensembles d'autorisations</value></data>

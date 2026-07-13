@@ -16,5 +16,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models
         public EmployeeRoleMappingKind Kind { get; set; }
 
         public string DisplayNameJson { get; set; }
+
+        /// <summary>Optional feature-gate (<c>Feature.FeatureName</c>) that must be active for the mapping to show.</summary>
+        public string VisibilityFeature { get; set; }
     }
 }

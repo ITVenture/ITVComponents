@@ -30,7 +30,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.TemplateH
                 {
                     RoleName = m.Role.RoleName,
                     Kind = m.Kind,
-                    DisplayNameJson = m.DisplayNameJson
+                    DisplayNameJson = m.DisplayNameJson,
+                    VisibilityFeature = m.VisibilityFeature
                 })
                 .ToList();
 
@@ -78,13 +79,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.TemplateH
                         TenantId = tenantId,
                         RoleId = role.RoleId,
                         Kind = entry.Kind,
-                        DisplayNameJson = entry.DisplayNameJson
+                        DisplayNameJson = entry.DisplayNameJson,
+                        VisibilityFeature = entry.VisibilityFeature
                     });
                 }
                 else
                 {
                     existing.Kind = entry.Kind;
                     existing.DisplayNameJson = entry.DisplayNameJson;
+                    existing.VisibilityFeature = entry.VisibilityFeature;
                 }
 
                 changed = true;
