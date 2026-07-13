@@ -3,8 +3,9 @@
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IHelpViewerHandler Viewer
+@inject IStringLocalizer<HelpMessages> L
 
-<PageTitle>Help</PageTitle>
+<PageTitle>@L["Help_Title"]</PageTitle>
 
 <MudGrid>
     <MudItem xs="12" md="4" lg="3">
@@ -17,7 +18,7 @@
             }
             else
             {
-                <MudText Typo="Typo.body2" Class="pa-2">No help topics available.</MudText>
+                <MudText Typo="Typo.body2" Class="pa-2">@L["Help_NoTopics"]</MudText>
             }
         </MudPaper>
     </MudItem>
@@ -31,17 +32,17 @@
             }
             else
             {
-                <MudText Typo="Typo.body1">Select a topic from the navigation.</MudText>
+                <MudText Typo="Typo.body1">@L["Help_SelectTopic"]</MudText>
             }
         }
         else if (!string.IsNullOrEmpty(Slug))
         {
-            <MudAlert Severity="Severity.Info">This help topic was not found.</MudAlert>
+            <MudAlert Severity="Severity.Info">@L["Help_NotFound"]</MudAlert>
         }
         else
         {
-            <MudText Typo="Typo.h4" GutterBottom="true">Help</MudText>
-            <MudText Typo="Typo.body1">Select a topic from the navigation to get started.</MudText>
+            <MudText Typo="Typo.h4" GutterBottom="true">@L["Help_Title"]</MudText>
+            <MudText Typo="Typo.body1">@L["Help_Welcome"]</MudText>
         }
     </MudItem>
 </MudGrid>
