@@ -269,25 +269,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             if (t != null)
             {
                 var ti = t.Value;
-                IQueryable<UserTenantLevel<TUser>> tenantUsers;
                 var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = false });
                 if (isUser)
                 {
-                    //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
-                    tenantUsers = GetRawUserQuery(out _, userLabels, securityContext.CurrentTenantName);
+                    // Existence-only: IsAuthenticated needs to know the user is reachable in the current tenant
+                    // tree, not their resolved roles, so it checks the tree ONCE (the phase1 join) instead of
+                    // the two-pass role-resolving GetRawUserQuery — a smaller query with a smaller memory grant.
+                    var reachableUserIds = from tu in securityContext.TenantUsers
+                                           join j in securityContext.GetUpwardsTenantUserRoles(userLabels, securityContext.CurrentTenantName)
+                                               on tu.TenantUserId equals j.TenantUserId
+                                           where j.OutermostLeafTenantId == ti
+                                           select tu.UserId;
+                    return securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
+                        .Join(reachableUserIds, UserId, x => x, (u, x) => 1)
+                        .Any();
                 }
-                else
-                {
-                    var filteredLabels = (from ul in userLabels
-                        where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
-                    var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
-                    tenantUsers = appUsers
-                        .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
-                        .Select(n => new UserTenantLevel<TUser>{User=n.TenantUser.User,TenantId = ti, Level=1});
-                }
+
+                var filteredLabels = (from ul in userLabels
+                    where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
+                var tenantUsers = appUsers
+                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Select(n => new UserTenantLevel<TUser>{User=n.TenantUser.User,TenantId = ti, Level=1});
 
                 return tenantUsers.Select(n => n.User).Any(UserFilter(userLabels, userAuthenticationType));
             }
@@ -304,23 +310,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             if (t != null)
             {
                 var ti = t.Value;
-                IQueryable<UserTenantLevel<TUser>> tenantUsers;
-               
+
                 if (isUser)
                 {
-                    //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == ti).Select(u => u.User);
-                    tenantUsers = GetRawUserQuery(out _,userLabels, forScope);
+                    // Existence-only (see IsAuthenticatedCore): one tree pass instead of GetRawUserQuery's two.
+                    var reachableUserIds = from tu in securityContext.TenantUsers
+                                           join j in securityContext.GetUpwardsTenantUserRoles(userLabels, forScope)
+                                               on tu.TenantUserId equals j.TenantUserId
+                                           where j.OutermostLeafTenantId == ti
+                                           select tu.UserId;
+                    return securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
+                        .Join(reachableUserIds, UserId, x => x, (u, x) => 1)
+                        .Any();
                 }
-                else
-                {
-                    var filteredLabels = (from ul in userLabels
-                        where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
-                    var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
-                    tenantUsers = appUsers
-                        .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
-                        .Select(n => new UserTenantLevel<TUser> { User = n.TenantUser.User, TenantId = ti, Level = 1 });
-                }
+
+                var filteredLabels = (from ul in userLabels
+                    where Regex.IsMatch(ul, Global.AppUserKeyPattern)
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                var appUsers = securityContext.ClientAppUsers.Where(n => n.TenantUser.TenantId == ti);
+                var tenantUsers = appUsers
+                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Select(n => new UserTenantLevel<TUser> { User = n.TenantUser.User, TenantId = ti, Level = 1 });
 
                 return tenantUsers.Select(n => n.User).Any(UserFilter(userLabels, userAuthenticationType));
             }
@@ -457,21 +467,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             if (isUser)
             {
                 var preFiltered = GetRawUserQuery(out var currentTenant, userLabels);
-                var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
-                    preFiltered,
-                    UserId, IdOfUserLevelRecord, (l, r) => new { r.Level, r.TenantId, r.RoleId, User=l });
-                var pr = (from t in tmptu
-                    join r in securityContext.RolePermissions on t.RoleId equals r.RoleId
-                    join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
-                    select new { t.TenantId, t.User, t.Level, Permission=p })
+                // See GetPermissions(labels, forScope, authType): materialize the effective role-ids in the current
+                // tenant ONCE so the recursive upwards-role-tree is evaluated a single time instead of being re-inlined
+                // into both UNION branches (which ran the tree 4x with UNION+DISTINCT -> large memory grant ->
+                // RESOURCE_SEMAPHORE stalls under concurrency). The permission lookups then run as light IN-list joins.
+                var roleIds = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
+                    .Join(preFiltered, UserId, IdOfUserLevelRecord, (l, r) => new { r.TenantId, r.RoleId })
                     .Where(n => n.TenantId == currentTenant)
-                    .Select(n => n.Permission).Union(from t in tmptu
-                        join rj in securityContext.GlobalToLocalRoles on t.RoleId equals rj.LocalRoleId
-                        join rp in securityContext.GlobalRolePermissions on rj.GlobalRoleId equals rp.GlobalRoleId
-                        join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
-                                                     where t.TenantId == currentTenant
-                                                     select p).Distinct();
-                var parr = pr.ToArray();
+                    .Select(n => n.RoleId)
+                    .Distinct()
+                    .ToArray();
+
+                var localPerms = from r in securityContext.RolePermissions
+                                 where roleIds.Contains(r.RoleId)
+                                 join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
+                                 select p;
+                var globalPerms = from rj in securityContext.GlobalToLocalRoles
+                                  where roleIds.Contains(rj.LocalRoleId)
+                                  join rp in securityContext.GlobalRolePermissions on rj.GlobalRoleId equals rp.GlobalRoleId
+                                  join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
+                                  select p;
+                var parr = localPerms.Union(globalPerms).Distinct().ToArray();
                 return parr;
                 //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
             }
@@ -535,21 +551,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             if (isUser)
             {
                 var preFiltered = GetRawUserQuery(out var currentTenantId,userLabels, forScope);
-                var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
-                    preFiltered,
-                    UserId, IdOfUserLevelRecord, (l, r) => new { r.Level, r.TenantId, r.RoleId, User = l });
-                var pr = (from t in tmptu
-                        join r in securityContext.RolePermissions on t.RoleId equals r.RoleId
-                        join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
-                        select new { t.TenantId, t.User, t.Level, Permission = p })
+                // Resolve the user's effective role-ids in the current tenant in a SINGLE query and materialize them,
+                // so the recursive upwards-role-tree is evaluated once instead of being re-inlined into both UNION
+                // branches below. The previously-composed query ran the recursive tree FOUR times (2x per branch) with
+                // UNION+DISTINCT on top -> large memory grant -> under concurrency (per-write scope-resolution fan-out)
+                // those grants exhaust a small memory pool and the query stalls on RESOURCE_SEMAPHORE until the command
+                // timeout. Splitting into one tree query + two light IN-list permission lookups keeps every grant tiny.
+                var roleIds = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
+                    .Join(preFiltered, UserId, IdOfUserLevelRecord, (l, r) => new { r.TenantId, r.RoleId })
                     .Where(n => n.TenantId == currentTenantId)
-                    .Select(n => n.Permission).Union(from t in tmptu
-                        join rj in securityContext.GlobalToLocalRoles on t.RoleId equals rj.LocalRoleId
-                        join rp in securityContext.GlobalRolePermissions on rj.GlobalRoleId equals rp.GlobalRoleId
-                        join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
-                        where t.TenantId == currentTenantId
-                        select p).Distinct();
-                var parr = pr.ToArray();
+                    .Select(n => n.RoleId)
+                    .Distinct()
+                    .ToArray();
+
+                var localPerms = from r in securityContext.RolePermissions
+                                 where roleIds.Contains(r.RoleId)
+                                 join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
+                                 select p;
+                var globalPerms = from rj in securityContext.GlobalToLocalRoles
+                                  where roleIds.Contains(rj.LocalRoleId)
+                                  join rp in securityContext.GlobalRolePermissions on rj.GlobalRoleId equals rp.GlobalRoleId
+                                  join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
+                                  select p;
+                var parr = localPerms.Union(globalPerms).Distinct().ToArray();
                 return parr;
                 //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
             }
@@ -1187,28 +1211,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             }
 
             currentTenantId = currentTenant;
-            var phase1 = (from t in securityContext.TenantUsers
-                join j in securityContext.GetUpwardsTenantUserRoles(userLabels,forTenant) on t.TenantUserId equals j.TenantUserId
-                where j.OutermostLeafTenantId == currentTenant
-                select new { t.UserId, t.User, j.ParentLevel });
-            var phase2 = (from gj in phase1
-                group gj by gj.UserId
-                into g
-                select new
-                {
-                    TenantId = currentTenant,
-                    UserId = g.Key,
-                    Level = g.Min(us => us.ParentLevel)
-                });
-            return (from p in phase2
-                join t in securityContext.GetUpwardsTenantUserRoles(userLabels, forTenant) on new { p.Level, p.UserId, p.TenantId } equals new
-                    { Level = t.ParentLevel, t.UserId, TenantId = t.OutermostLeafTenantId }
+
+            // One recursive-tree pass instead of two: the previous phase1(min level)/phase2/final(re-join) shape
+            // invoked the tree TVF twice. RANK() OVER (PARTITION BY UserId ORDER BY ParentLevel) selects each
+            // user's closest rows (minimum ParentLevel) in a single pass — RANK, not ROW_NUMBER, so all ties at
+            // the minimum level are kept, exactly matching the old MIN(ParentLevel)+equi-join. Halves the TVF work
+            // and the memory grant. Verified against the previous two-pass query: identical rows for every
+            // user/tenant. The projection/return shape is unchanged, so callers compose exactly as before.
+            var labelsJson = JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping);
+            var closest = ((DbContext)securityContext).Set<UpwardsRoleUserView<TUserId>>().FromSqlInterpolated(
+                $@"SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId]
+FROM (
+    SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId],
+           RANK() OVER (PARTITION BY [UserId] ORDER BY [ParentLevel]) AS [__rnk]
+    FROM [dbo].[GetUpwardsRoleTreeForLabels]({labelsJson}, {forTenant})
+    WHERE [OutermostLeafTenantId] = {currentTenant}
+) AS [x]
+WHERE [x].[__rnk] = 1");
+
+            return from t in closest
                 join tn in securityContext.TenantUsers on t.TenantUserId equals tn.TenantUserId
                 select new UserTenantLevel<TUser>
                 {
                     User = tn.User, Level = t.ParentLevel, TenantId = t.OutermostLeafTenantId,
                     RoleId = t.OutermostRoleId
-                });
+                };
         }
 
         private ExternalServiceConnection TryRegisterService(string uniqueName, TExternalOAuthService serviceData)
