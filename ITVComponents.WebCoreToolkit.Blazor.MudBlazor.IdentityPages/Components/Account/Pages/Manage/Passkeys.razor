@@ -32,7 +32,7 @@ else
 
     @if (currentPasskeys is { Count: > 0 })
     {
-        <MudTable Items="currentPasskeys" Hover="true" Dense="true" Class="mb-3">
+        <MudTable Items="currentPasskeys" Hover="true" Dense="true" Class="mb-3" Breakpoint="Breakpoint.Sm">
             <HeaderContent>
                 <MudTh>@L["Name"]</MudTh>
                 <MudTh Style="width: 120px;">@L["Actions"]</MudTh>

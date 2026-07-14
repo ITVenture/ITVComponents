@@ -13,7 +13,7 @@
 @using BlazorMonaco.Editor
 @inject Microsoft.JSInterop.IJSRuntime JS
 
-<div class="itv-code-editor-host" style="@($"height:{Height}px;border:1px solid var(--mud-palette-lines-inputs);border-radius:var(--mud-default-borderradius);overflow:hidden;")">
+<div class="itv-code-editor-host @(Fill ? "itv-code-editor-fill" : "")" style="@HostStyle">
     <StandaloneCodeEditor @ref="editor" ConstructionOptions="BuildOptions" />
 </div>
 
@@ -24,11 +24,23 @@
     /// <summary>Monaco language id, e.g. "sql", "javascript", "html".</summary>
     [Parameter] public string Language { get; set; } = "plaintext";
 
+    /// <summary>Normal editor height in px. In <see cref="Fill"/> mode this becomes the minimum height.</summary>
     [Parameter] public int Height { get; set; } = 320;
+
+    /// <summary>
+    /// When true the editor grows to fill the available vertical space of a flex-column parent (e.g. a
+    /// maximized dialog) instead of staying at a fixed <see cref="Height"/>; <see cref="Height"/> is the
+    /// minimum. Monaco's AutomaticLayout re-measures on the resulting container resize.
+    /// </summary>
+    [Parameter] public bool Fill { get; set; }
 
     [Parameter] public bool ReadOnly { get; set; }
 
     private StandaloneCodeEditor? editor;
+
+    private string HostStyle
+        => $"{(Fill ? $"min-height:{Height}px;" : $"height:{Height}px;")}"
+           + "border:1px solid var(--mud-palette-lines-inputs);border-radius:var(--mud-default-borderradius);overflow:hidden;";
 
     private StandaloneEditorConstructionOptions BuildOptions(StandaloneCodeEditor _)
         => new StandaloneEditorConstructionOptions

@@ -107,6 +107,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
                 o.Enabled = partActivation.AutoRegisterRequestedPermissions;
                 o.GrantToGlobalRole = partActivation.AutoRegisterPermissionsGrantRole;
                 o.DebounceMilliseconds = partActivation.AutoRegisterDebounceMilliseconds;
+                o.WriteCommandTimeoutSeconds = partActivation.AutoRegisterWriteCommandTimeoutSeconds;
             });
 
             if (partActivation.AutoRegisterRequestedPermissions)

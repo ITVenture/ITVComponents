@@ -1,0 +1,95 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+@* Emits the global CSS that lets opt-in dialogs fill the available height and scroll their inner content
+   instead of the whole dialog. Include once inside a dialog whose <MudDialog> carries one of the marker
+   classes below. Ships as a plain <style> (like the HelpViews media CSS) so no host stylesheet include is
+   needed. All rules are gated on the itv-* marker classes, so nothing leaks to other dialogs.
+
+   Markers:
+     itv-fill-dialog  (on <MudDialog Class=...>)  -> tab-style detail dialog: content+tabs fill, grids scroll
+     itv-fill-tabs    (on <MudTabs Class=...>)     -> the tab strip inside such a dialog
+     itv-fill-editor  (on <MudDialog Class=...>)   -> code-editor dialog: the editor grows when maximized *@
+
+<style>
+    /* ============ Detail dialogs with tabs (Tenant / User) ============ */
+    /* Give the non-fullscreen dialog a definite height so the inner flex chain has room to distribute;
+       fullscreen height is owned by MudBlazor. */
+    .mud-dialog.itv-fill-dialog:not(.mud-dialog-fullscreen) {
+        height: 85vh;
+    }
+
+    .itv-fill-dialog .mud-dialog-content {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Tab host + its panel area fill the content box; only the inner list scrolls. */
+    .itv-fill-tabs {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .itv-fill-tabs .mud-tabs-panels {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .itv-fill-tabs .mud-tab-panel {
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* MudDataGrid inside a filled panel: table fills the panel, only the data body scrolls, the pager
+       stays pinned at the bottom. Works without touching each grid component. */
+    .itv-fill-tabs .mud-table {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        height: 100%;
+    }
+
+    .itv-fill-tabs .mud-table .mud-table-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    /* Keep the pager at its natural height at the bottom — never let the flex column squeeze it (which
+       otherwise gives the pager its own scrollbar). */
+    .itv-fill-tabs .mud-table .mud-table-pagination,
+    .itv-fill-tabs .mud-table .mud-table-pager {
+        flex: 0 0 auto;
+        overflow: visible;
+    }
+
+    /* ============ Code-editor dialogs ============ */
+    /* Only fill when maximized; in normal size the editor keeps its natural (min-)height. */
+    .itv-fill-editor.mud-dialog-fullscreen .mud-dialog-content {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .itv-fill-editor.mud-dialog-fullscreen .mud-dialog-content > form {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Editors that live inside a nested layout (e.g. HelpTopic's MudGrid) can't join the form flex chain;
+       give the editor host a generous viewport height when maximized so it still grows. Harmless for the
+       flex-filled editors above — their flex-grow height wins over this minimum. */
+    .itv-fill-editor.mud-dialog-fullscreen .itv-code-editor-host {
+        min-height: 55vh;
+    }
+</style>

@@ -94,5 +94,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Opt
         /// is enabled.
         /// </summary>
         public int AutoRegisterDebounceMilliseconds { get; set; } = 100;
+
+        /// <summary>
+        /// Command timeout (seconds) for the background auto-registration write. Bounds how long it may wait on
+        /// lock/schema contention before aborting and being retried on a later request, instead of blocking for the
+        /// connection's default command timeout (typically 60s) — which would otherwise coincide with the
+        /// permission-read on the render hot-path. Default 15. Only relevant when
+        /// <see cref="AutoRegisterRequestedPermissions"/> is enabled.
+        /// </summary>
+        public int AutoRegisterWriteCommandTimeoutSeconds { get; set; } = 15;
     }
 }

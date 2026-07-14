@@ -35,5 +35,13 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// (each with its own notification). Default 100.
         /// </summary>
         public int DebounceMilliseconds { get; set; } = 100;
+
+        /// <summary>
+        /// Command timeout (seconds) applied to the background registration write. Bounds how long the write may
+        /// wait on lock/schema contention before it aborts and is retried on a later request — instead of blocking
+        /// for the connection's default command timeout (typically 60s), which would otherwise coincide with the
+        /// permission-read on the render hot-path. Must be &gt; 0 to take effect; default 15.
+        /// </summary>
+        public int WriteCommandTimeoutSeconds { get; set; } = 15;
     }
 }

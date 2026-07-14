@@ -19,8 +19,9 @@
     }
 </style>
 
-<MudDialog>
+<MudDialog Class="itv-fill-editor">
     <DialogContent>
+        <DialogFillStyles />
         <MudForm @ref="form" Model="Model">
             <MudGrid Spacing="2">
                 <MudItem xs="12" sm="6">
@@ -77,7 +78,7 @@
                                 <MudSpacer />
                                 <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Visibility" OnClick="Preview">Preview</MudButton>
                             </MudStack>
-                            <CodeEditor @ref="bodyEditor" @key="selectedCulture" Value="@CurrentContent.Body" Language="markdown" Height="320" />
+                            <CodeEditor @ref="bodyEditor" @key="selectedCulture" Value="@CurrentContent.Body" Language="markdown" Height="320" Fill="true" />
                         </MudItem>
                         @if (!string.IsNullOrEmpty(previewHtml))
                         {

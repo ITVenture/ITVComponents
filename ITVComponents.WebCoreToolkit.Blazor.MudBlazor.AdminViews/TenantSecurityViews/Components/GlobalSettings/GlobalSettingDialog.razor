@@ -1,12 +1,13 @@
-<MudDialog>
+<MudDialog Class="itv-fill-editor">
     <DialogContent>
+        <DialogFillStyles />
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.SettingsKey" Label="Key" Required="true" RequiredError="Key is required" />
             <div class="d-flex align-center justify-space-between mt-3">
                 <MudText Typo="Typo.caption">Value</MudText>
                 <MudSwitch T="bool" Value="@Model.JsonSetting" ValueChanged="OnJsonChanged" Label="JSON" Color="Color.Primary" />
             </div>
-            <CodeEditor @ref="valueEditor" Value="@Model.SettingsValue" Language="@editorLanguage" Height="280" />
+            <CodeEditor @ref="valueEditor" Value="@Model.SettingsValue" Language="@editorLanguage" Height="280" Fill="true" />
         </MudForm>
     </DialogContent>
     <DialogActions>

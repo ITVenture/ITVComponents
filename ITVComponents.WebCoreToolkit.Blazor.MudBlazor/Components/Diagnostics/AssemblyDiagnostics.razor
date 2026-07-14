@@ -29,10 +29,18 @@ else if (!hasView)
 }
 else
 {
+    <style>
+        /* Keep wide grids from pushing the page layout: the tab area never exceeds the viewport width, and each
+           grid scrolls its own content (horizontally and vertically) instead of overflowing. */
+        .itv-diag-constrain { max-width: 100%; overflow-x: hidden; }
+        .itv-diag-constrain .mud-table-container { overflow: auto; }
+    </style>
+    <div class="itv-diag-constrain">
     <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
         <MudTabPanel Text="Assemblies">
             <MudDataGrid T="AssemblyInfoViewModel" Items="@assemblies" Filterable="false" SortMode="SortMode.Multiple"
-                         QuickFilter="@AssemblyFilter" Hover="true" Dense="true" RowsPerPage="50">
+                         QuickFilter="@AssemblyFilter" Hover="true" Dense="true" RowsPerPage="50"
+                         Height="70vh" FixedHeader="true">
                 <ToolBarContent>
                     <MudText Typo="Typo.h6">Loaded assemblies (@assemblies.Count)</MudText>
                     <MudSpacer />
@@ -54,7 +62,8 @@ else
 
         <MudTabPanel Text="Claims">
             <MudDataGrid T="ClaimInfoViewModel" Items="@claims" Filterable="false" SortMode="SortMode.Multiple"
-                         QuickFilter="@ClaimFilter" Hover="true" Dense="true" RowsPerPage="50">
+                         QuickFilter="@ClaimFilter" Hover="true" Dense="true" RowsPerPage="50"
+                         Height="70vh" FixedHeader="true">
                 <ToolBarContent>
                     <MudText Typo="Typo.h6">Current user claims (@claims.Count)</MudText>
                     <MudSpacer />
@@ -74,7 +83,8 @@ else
         @if (Handler.HealthAvailable)
         {
             <MudTabPanel Text="Health">
-                <MudDataGrid T="HealthTestViewModel" Items="@health" Filterable="false" Hover="true" Dense="true">
+                <MudDataGrid T="HealthTestViewModel" Items="@health" Filterable="false" Hover="true" Dense="true"
+                             Height="70vh" FixedHeader="true">
                     <ToolBarContent>
                         <MudText Typo="Typo.h6">Health checks</MudText>
                         <MudSpacer />
@@ -142,6 +152,7 @@ else
             </MudTabPanel>
         }
     </MudTabs>
+    </div>
 }
 
 @code {

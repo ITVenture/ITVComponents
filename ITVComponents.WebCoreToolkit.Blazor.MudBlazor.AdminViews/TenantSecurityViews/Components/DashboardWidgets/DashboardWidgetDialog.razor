@@ -1,5 +1,6 @@
-<MudDialog>
+<MudDialog Class="itv-fill-editor">
     <DialogContent>
+        <DialogFillStyles />
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.SystemName" Label="System name" Required="true" RequiredError="System name is required" MaxLength="100" />
             <MudTextField @bind-Value="Model.DisplayName" Label="Display name" MaxLength="1024" />
@@ -8,7 +9,7 @@
             <MudTextField @bind-Value="Model.Area" Label="Area" />
             <MudTextField @bind-Value="Model.CustomQueryString" Label="Custom query string" Lines="3" />
             <MudText Typo="Typo.caption" Class="mt-3">Template (Scriban)</MudText>
-            <CodeEditor @ref="templateEditor" Value="@Model.Template" Language="html" Height="280" />
+            <CodeEditor @ref="templateEditor" Value="@Model.Template" Language="html" Height="280" Fill="true" />
         </MudForm>
     </DialogContent>
     <DialogActions>

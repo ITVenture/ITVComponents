@@ -27,6 +27,44 @@ namespace ITVComponents.EFRepo.Interceptors
         // collected tables are keyed by the saving context rather than held in an instance field.
         private readonly ConditionalWeakTable<DbContext, HashSet<string>> pendingTables = new();
 
+        // Per-async-flow tracking-suppression. A save that runs inside a SuppressTracking() scope still persists
+        // normally but is NOT reported to the write-tracker, so it raises no change-signal. Used by bootstrap-style
+        // writes (e.g. auto-permission-registration) whose rows no active session is waiting on: reporting them
+        // would force every circuit to drop its memoized permission scope and re-resolve inline on the render
+        // thread, turning a single background seed into a synchronous permission-read storm.
+        private static readonly AsyncLocal<bool> suppressed = new();
+
+        /// <summary>
+        /// Suppresses write-tracking (and thereby the derived change-signals) for the writes saved within the
+        /// returned scope on the current async flow. Dispose to restore the previous state. Nesting-safe.
+        /// </summary>
+        public static IDisposable SuppressTracking()
+        {
+            var previous = suppressed.Value;
+            suppressed.Value = true;
+            return new SuppressionScope(previous);
+        }
+
+        private sealed class SuppressionScope : IDisposable
+        {
+            private readonly bool previous;
+            private bool disposed;
+
+            public SuppressionScope(bool previous)
+            {
+                this.previous = previous;
+            }
+
+            public void Dispose()
+            {
+                if (!disposed)
+                {
+                    disposed = true;
+                    suppressed.Value = previous;
+                }
+            }
+        }
+
         public EntityWriteTrackerInterceptor(IServiceProvider services)
         {
             this.services = services;
@@ -118,6 +156,13 @@ namespace ITVComponents.EFRepo.Interceptors
             }
 
             pendingTables.Remove(context);
+
+            // A save that ran inside a SuppressTracking() scope is persisted but deliberately not reported, so it
+            // raises no change-signal (the pending set is still cleared above to avoid leaking it).
+            if (suppressed.Value)
+            {
+                return;
+            }
 
             var tracker = localTracker ?? ResolveTracker(context);
             if (tracker == null)

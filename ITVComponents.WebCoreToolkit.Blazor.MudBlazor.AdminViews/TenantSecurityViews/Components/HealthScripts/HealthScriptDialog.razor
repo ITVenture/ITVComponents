@@ -1,9 +1,10 @@
-<MudDialog>
+<MudDialog Class="itv-fill-editor">
     <DialogContent>
+        <DialogFillStyles />
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.HealthScriptName" Label="Name" Required="true" RequiredError="Name is required" MaxLength="128" />
             <MudText Typo="Typo.caption" Class="mt-3" Color="@(scriptError ? Color.Error : Color.Default)">Script</MudText>
-            <CodeEditor @ref="scriptEditor" Value="@Model.Script" Language="javascript" Height="400" />
+            <CodeEditor @ref="scriptEditor" Value="@Model.Script" Language="javascript" Height="400" Fill="true" />
             @if (scriptError)
             {
                 <MudText Typo="Typo.caption" Color="Color.Error">Script is required</MudText>

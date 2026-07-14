@@ -1,14 +1,15 @@
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Components.CrossGrids
 
-<MudDialog>
+<MudDialog Class="itv-fill-dialog">
     <DialogContent>
+        <DialogFillStyles />
         @{
             var u = User;
             var globalUserId = IsSysAdmin && u.TenantId == null ? u.Id : null;
             var isTenantUser = u.TenantId != null && int.TryParse(u.Id, out _);
             int? tenantUserId = isTenantUser ? int.Parse(u.Id!) : null;
         }
-        <MudTabs Elevation="0" Rounded="true" Outlined="true" PanelClass="pa-2">
+        <MudTabs Elevation="0" Rounded="true" Outlined="true" PanelClass="pa-2" Class="itv-fill-tabs">
             @if (globalUserId is not null)
             {
                 <MudTabPanel Text="Properties">

@@ -10,9 +10,10 @@
 @inject ITenantAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
 
-<MudDialog>
+<MudDialog Class="itv-fill-dialog">
     <DialogContent>
-        <MudTabs Elevation="0" Rounded="true" Outlined="true" PanelClass="pa-2">
+        <DialogFillStyles />
+        <MudTabs Elevation="0" Rounded="true" Outlined="true" PanelClass="pa-2" Class="itv-fill-tabs">
             <MudTabPanel Text="Settings">
                 <TenantSettingsGrid TenantId="@Tenant.TenantId" />
             </MudTabPanel>

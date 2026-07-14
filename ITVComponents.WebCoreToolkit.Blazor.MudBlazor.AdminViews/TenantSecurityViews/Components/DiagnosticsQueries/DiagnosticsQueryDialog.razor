@@ -1,5 +1,6 @@
-<MudDialog>
+<MudDialog Class="itv-fill-editor">
     <DialogContent>
+        <DialogFillStyles />
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.DiagnosticsQueryName" Label="Name" Required="true" RequiredError="Name is required" MaxLength="128" />
             <MudTextField @bind-Value="Model.DbContext" Label="DbContext" Required="true" RequiredError="DbContext is required" MaxLength="128" />
@@ -12,7 +13,7 @@
                     <MudToggleItem Value="@("csharp")" Text="C#" />
                 </MudToggleGroup>
             </div>
-            <CodeEditor @ref="queryEditor" Value="@Model.QueryText" Language="@editorLanguage" Height="280" />
+            <CodeEditor @ref="queryEditor" Value="@Model.QueryText" Language="@editorLanguage" Height="280" Fill="true" />
             <MudSelect T="int" MultiSelection="true"
                        SelectedValues="@selectedTenants"
                        SelectedValuesChanged="@OnTenantsChanged"

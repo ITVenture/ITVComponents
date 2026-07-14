@@ -795,13 +795,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
                 if (dirty)
                 {
-                    securityContext.SaveChanges();
+                    // Fail-fast, tracking-suppressed and idempotent: never stalls the render hot-path on lock/schema
+                    // contention and never storms every circuit with a redundant permission re-resolve. See guard.
+                    Shared.Security.AutoPermissionWriteGuard.SaveIdempotent(securityContext as DbContext, logger,
+                        options.WriteCommandTimeoutSeconds);
                 }
             }
             catch (Exception e)
             {
-                // The registrar releases the batch on failure, so a later request re-enqueues and retries.
-                logger.LogError(e, "Auto-permission-registration failed; the affected permissions will be retried on a later request.");
+                // Surface the failure so the batching registrar releases these names and re-enqueues them on a
+                // later request (a duplicate-key race is already absorbed as success inside the write-guard, so it
+                // never reaches here). Swallowing here would instead mark the batch permanently handled and, with
+                // the fail-fast write timeout, leave a contended permission un-registered until a process restart.
+                logger.LogWarning(e, "Auto-permission-registration write failed; the batch will be retried on a later request.");
+                throw;
             }
         }
 

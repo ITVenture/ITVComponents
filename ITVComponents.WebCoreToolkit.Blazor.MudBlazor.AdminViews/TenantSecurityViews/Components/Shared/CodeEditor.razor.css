@@ -1,6 +1,18 @@
 /* Monaco's StandaloneCodeEditor renders a child div with auto height, which collapses to ~5px.
-   Force it to fill the fixed-height host so AutomaticLayout measures the intended size. */
+   The host is a flex column so the editor child fills it in both fixed-height and Fill mode. */
+.itv-code-editor-host {
+    display: flex;
+    flex-direction: column;
+}
+
 .itv-code-editor-host ::deep > div {
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     width: 100%;
+}
+
+/* Fill mode: the host itself grows within a flex-column parent (e.g. a maximized dialog's form). */
+.itv-code-editor-fill {
+    flex: 1 1 auto;
+    min-height: 0;
 }

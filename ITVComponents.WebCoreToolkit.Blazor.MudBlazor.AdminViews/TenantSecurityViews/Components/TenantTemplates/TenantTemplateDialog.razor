@@ -1,10 +1,11 @@
-<MudDialog>
+<MudDialog Class="itv-fill-editor">
     <DialogContent>
+        <DialogFillStyles />
         <MudForm @ref="form" Model="Model">
             <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" RequiredError="Name is required" />
             <MudTextField @bind-Value="Model.Description" Label="Description" Lines="3" />
             <MudText Typo="Typo.caption" Class="mt-3">Markup</MudText>
-            <CodeEditor @ref="markupEditor" Value="@Model.Markup" Language="json" Height="400" />
+            <CodeEditor @ref="markupEditor" Value="@Model.Markup" Language="json" Height="400" Fill="true" />
         </MudForm>
     </DialogContent>
     <DialogActions>
