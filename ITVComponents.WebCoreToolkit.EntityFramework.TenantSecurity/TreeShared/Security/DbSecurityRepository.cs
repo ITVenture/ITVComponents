@@ -644,24 +644,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
             if (isUser)
             {
-                var preFiltered = GetRawUserQuery(out var currentTenantId,userLabels, forScope, securityContext);
-                var tmptu = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType)).Join(
-                    preFiltered,
-                    UserId, IdOfUserLevelRecord, (l, r) => new { r.Level, r.TenantId, r.RoleId, User = l });
-                var pr = (from t in tmptu
-                        join r in securityContext.RolePermissions on t.RoleId equals r.RoleId
-                        join p in securityContext.Permissions on r.PermissionId equals p.PermissionId
-                        select new { t.TenantId, t.User, t.Level, Permission = p })
+                var preFiltered = GetRawUserQuery(out var currentTenantId, userLabels, forScope, securityContext);
+                // Resolve the user's effective role-ids in the current tenant in a SINGLE query and materialize
+                // them, so the recursive upwards-role-tree is evaluated once instead of being re-inlined into both
+                // UNION branches below. The previously-composed query ran the recursive tree FOUR times (2x per
+                // branch) with UNION+DISTINCT on top, which makes the optimizer request a large memory grant; under
+                // concurrency (the per-write scope-resolution fan-out) those grants exhaust a small memory pool
+                // (LocalDB) and the query stalls on RESOURCE_SEMAPHORE until the command timeout. Splitting it into
+                // one tree query + two light IN-list permission lookups keeps every grant tiny.
+                var roleIds = securityContext.Users.Where(UserFilter(userLabels, userAuthenticationType))
+                    .Join(preFiltered, UserId, IdOfUserLevelRecord, (l, r) => new { r.TenantId, r.RoleId })
                     .Where(n => n.TenantId == currentTenantId)
-                    .Select(n => n.Permission).Union(from t in tmptu
-                        join rj in securityContext.GlobalToLocalRoles on t.RoleId equals rj.LocalRoleId
-                        join rp in securityContext.GlobalRolePermissions on rj.GlobalRoleId equals rp.GlobalRoleId
-                        join p in securityContext.Permissions on rp.PermissionId equals p.PermissionId
-                        where t.TenantId == currentTenantId
-                        select p).Distinct();
-                var parr = pr.ToArray();
+                    .Select(n => n.RoleId)
+                    .Distinct()
+                    .ToArray();
+
+                var localPerms = securityContext.RolePermissions
+                    .Where(rp => roleIds.Contains(rp.RoleId))
+                    .Select(rp => rp.Permission);
+                var globalPerms = securityContext.GlobalToLocalRoles
+                    .Where(rj => roleIds.Contains(rj.LocalRoleId))
+                    .SelectMany(rj => rj.GlobalRole.RolePermissions)
+                    .Select(grp => grp.Permission);
+                var parr = localPerms.Union(globalPerms).Distinct().ToArray();
                 return parr;
-                //tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
             }
 
             var filteredLabels = (from ul in userLabels
