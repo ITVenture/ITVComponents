@@ -1849,28 +1849,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             }
 
             currentTenantId = currentTenant;
-            var phase1 = (from t in sc.TenantUsers
-                join j in sc.GetUpwardsTenantUserRoles(userLabels,forTenant) on t.TenantUserId equals j.TenantUserId
-                where j.OutermostLeafTenantId == currentTenant
-                select new { t.UserId, t.User, j.ParentLevel });
-            var phase2 = (from gj in phase1
-                group gj by gj.UserId
-                into g
-                select new
-                {
-                    TenantId = currentTenant,
-                    UserId = g.Key,
-                    Level = g.Min(us => us.ParentLevel)
-                });
-            return (from p in phase2
-                join t in sc.GetUpwardsTenantUserRoles(userLabels, forTenant) on new { p.Level, p.UserId, p.TenantId } equals new
-                    { Level = t.ParentLevel, t.UserId, TenantId = t.OutermostLeafTenantId }
+
+            // One recursive-tree pass instead of two: the previous phase1(min level)/phase2/final(re-join) shape
+            // invoked the tree TVF twice. RANK() OVER (PARTITION BY UserId ORDER BY ParentLevel) selects each
+            // user's closest rows (minimum ParentLevel) in a single pass — RANK, not ROW_NUMBER, so all ties at
+            // the minimum level are kept, exactly matching the old MIN(ParentLevel)+equi-join. Halves the TVF work
+            // and the memory grant. Verified against the previous two-pass query: identical rows for every
+            // user/tenant. The projection/return shape is unchanged, so callers compose exactly as before.
+            var labelsJson = JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping);
+            var closest = ((DbContext)sc).Set<UpwardsRoleUserView<TUserId>>().FromSqlInterpolated(
+                $@"SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId]
+FROM (
+    SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId],
+           RANK() OVER (PARTITION BY [UserId] ORDER BY [ParentLevel]) AS [__rnk]
+    FROM [dbo].[GetUpwardsRoleTreeForLabels]({labelsJson}, {forTenant})
+    WHERE [OutermostLeafTenantId] = {currentTenant}
+) AS [x]
+WHERE [x].[__rnk] = 1");
+
+            return from t in closest
                 join tn in sc.TenantUsers on t.TenantUserId equals tn.TenantUserId
                 select new UserTenantLevel<TUser>
                 {
                     User = tn.User, Level = t.ParentLevel, TenantId = t.OutermostLeafTenantId,
                     RoleId = t.OutermostRoleId
-                });
+                };
         }
 
         private ExternalServiceConnection TryRegisterService(string uniqueName, TExternalOAuthService serviceData, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
