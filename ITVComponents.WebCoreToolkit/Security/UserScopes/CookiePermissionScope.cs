@@ -238,7 +238,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             return (from t in userLabels
                     select
                         scc.GetEligibleScopes(t.UserLabels, t.AuthenticationType))
-                .SelectMany(n => n).Distinct(new ScopeInfoComparer())
+                .SelectMany(n => n).DistinctPreferDirectAccess()
                 .Select(n => new ScopeInfo
                 {
                     AccessMode = n.AccessMode,
