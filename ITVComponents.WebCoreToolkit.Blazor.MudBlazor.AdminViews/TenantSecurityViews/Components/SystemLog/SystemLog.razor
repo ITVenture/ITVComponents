@@ -7,6 +7,7 @@
 
 @inject ISystemLogAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
 
 <PageTitle>System log</PageTitle>
 
@@ -62,8 +63,17 @@ else
         </MudGrid>
     </MudPaper>
 
+    @* table-layout:fixed pins the table to the container width so it never spills past the window and the
+       trace button stays reachable without horizontal scrolling; the long text columns (Category/Title)
+       truncate with an ellipsis instead of stretching the table. *@
+    <style>
+        .systemlog-grid table { table-layout: fixed; width: 100%; }
+        .systemlog-grid td.sl-trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+
     <MudDataGrid T="SystemEventViewModel"
                  @ref="grid"
+                 Class="systemlog-grid"
                  ServerData="LoadData"
                  SortMode="SortMode.None"
                  RowsPerPage="50"
@@ -84,15 +94,31 @@ else
                           OnClearButtonClick="ReloadGrid" />
         </ToolBarContent>
         <Columns>
-            <HierarchyColumn T="SystemEventViewModel" ButtonDisabledFunc="@(item => string.IsNullOrEmpty(item.Message))" />
-            <TemplateColumn T="SystemEventViewModel" Title="Level" Sortable="false">
+            <HierarchyColumn T="SystemEventViewModel" ButtonDisabledFunc="@(item => string.IsNullOrEmpty(item.Message))" HeaderStyle="width:48px" />
+            <TemplateColumn T="SystemEventViewModel" Title="Level" Sortable="false" HeaderStyle="width:104px">
                 <CellTemplate>
                     <MudChip T="string" Size="Size.Small" Color="@LevelColor(context.Item.LogLevel)">@context.Item.LogLevel</MudChip>
                 </CellTemplate>
             </TemplateColumn>
-            <PropertyColumn Property="x => x.EventTime" Title="Time" Format="yyyy-MM-dd HH:mm:ss" />
-            <PropertyColumn Property="x => x.Category" Title="Category" />
-            <PropertyColumn Property="x => x.Title" Title="Title" />
+            <PropertyColumn Property="x => x.EventTime" Title="Time" Format="yyyy-MM-dd HH:mm:ss" HeaderStyle="width:170px" CellStyle="white-space:nowrap;" />
+            <TemplateColumn T="SystemEventViewModel" Title="Category" Sortable="false" HeaderStyle="width:24%" CellClass="sl-trunc">
+                <CellTemplate>
+                    <span title="@context.Item.Category">@context.Item.Category</span>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="SystemEventViewModel" Title="Title" Sortable="false" CellClass="sl-trunc">
+                <CellTemplate>
+                    <span title="@context.Item.Title">@context.Item.Title</span>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="SystemEventViewModel" Title="" Sortable="false" HeaderStyle="width:56px">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                   Size="Size.Small"
+                                   Title="Trace entry — show the entries logged around this one"
+                                   OnClick="@(() => TraceEntry(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
         </Columns>
         <ChildRowContent>
             <MudPaper Elevation="0" Class="pa-3 my-1" Style="background: var(--mud-palette-background-grey);">
@@ -161,6 +187,20 @@ else
         titleFilter = null;
         search = null;
         await ReloadGrid();
+    }
+
+    private async Task TraceEntry(SystemEventViewModel item)
+    {
+        var parameters = new DialogParameters<SystemLogContextDialog>
+        {
+            { d => d.Anchor, item },
+            { d => d.User, currentUser! }
+        };
+        var dlg = await DialogService.ShowAsync<SystemLogContextDialog>(
+            $"Trace entry: {item.EventTime:yyyy-MM-dd HH:mm:ss} — {item.Title}",
+            parameters,
+            EditDialogDefaults.Detail);
+        await dlg.Result;
     }
 
     private static Color LevelColor(LogLevel level) => level switch

@@ -1126,6 +1126,47 @@ gepflegte Metadaten + vorhandene Hilfe; sonst bleibt alles wie bisher. Der Metad
 
 ---
 
+## 20. System-Log: „Eintrag verfolgen" + Index auf `SystemLog` — **Migration empfohlen**
+
+Die View `/Util/SystemLog` hat pro Zeile einen neuen Augen-Button **„Trace entry"**. Er öffnet einen Dialog, der
+die Einträge **vor und nach** der gewählten Nachricht zeigt (je 20 als Default, frei einstellbar bis 500 pro
+Seite), damit der Ablauf um einen Fehler herum nachvollziehbar wird. Die Filter der Hauptliste gelten im Dialog
+bewusst **nicht** — sonst blendet man genau die Nachbar-Einträge aus, die man sehen will. Rein additiv: kein
+Interface-Break auf Konsumentenseite, keine Config, keine neue Permission (es gilt weiterhin `SystemLog.View`).
+
+**Index (empfohlen, kein Zwang):** Das EF-Modell deklariert auf `SystemEvent` jetzt
+
+```
+[Index(nameof(EventTime), nameof(SystemEventId), IsUnique = false, Name = "IX_SystemLogEventTime")]
+```
+
+`EventTime` ist nicht eindeutig (der Log-Provider schreibt gepuffert in Batches), deshalb ist `SystemEventId` als
+zweite Schlüsselspalte im Index — nur so ist der Tie-Break seekbar statt ein Sort. Der Index bedient beide
+Zugriffe: die gepagte Liste (`ORDER BY EventTime DESC`) und das Kontext-Fenster (Seek auf den Anker + TOP n in
+beide Richtungen). Ohne Index funktioniert alles, sortiert aber über die ganze Tabelle — bei grossem `SystemLog`
+spürbar.
+
+**⚠️ Nicht per `dotnet ef migrations add` erzeugen lassen!** Der `SecurityContextModelSnapshot` im Repo hinkt dem
+Modell deutlich hinterher (OAuth-Services, GlobalRoles, ServerCookies, `Navigation.Metadata`/`IsPublic`,
+`WebPlugins.Transient` …). Eine auto-generierte Migration würde diesen ganzen Drift mitschleppen. Zieht den Index
+wie gewohnt manuell nach:
+
+```sql
+CREATE NONCLUSTERED INDEX IX_SystemLogEventTime
+    ON dbo.SystemLog (EventTime, SystemEventId);
+```
+
+PostgreSQL:
+
+```sql
+CREATE INDEX "IX_SystemLogEventTime" ON "SystemLog" ("EventTime", "SystemEventId");
+```
+
+Bei grosser Tabelle unter Last lohnt sich SQL Server Enterprise `WITH (ONLINE = ON)`. Nachträglich hinzugefügt
+ist der Index **rein additiv** — keine Daten-, keine Verhaltensänderung.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -1156,3 +1197,4 @@ gepflegte Metadaten + vorhandene Hilfe; sonst bleibt alles wie bisher. Der Metad
 | 22 | **TenantTemplate-Extensions typisiert** (§18) | Payload `string` → polymorpher `TemplateExtensionPayload`; `ITenantTemplatePartHandler.Extract/Apply` typisiert; Legacy-string-Converter entfällt. **Clean Cut:** in DB gespeicherte Templates **mit** Extensions (EmployeeRoleMappings) brechen beim Deserialisieren → betroffene Templates neu extrahieren. Templates ohne Extensions unberührt. Keine Migration. Library-seitig erledigt |
 | 23 | **Navigations-Metadata** (§19, `PRE130`) | **Pflicht-Migration** für neue Spalte `NavigationMenu.Metadata` (`dotnet ef migrations add NavigationMenuMetadata` → `database update`), sonst schlägt jede Navigations-Query mit *„Invalid column name 'Metadata'"* fehl. Nur additive nullable Spalte, keine Datenmigration. Bestehende Einträge = NULL |
 | 24 | **Help-Button + maximierbare Dialoge** (§19, `PRE130`, opt-in/automatisch) | Opt-in: `HelpSlug` als Metadata am Nav-Eintrag + `<HelpButton />` (`@using …AdminViews.HelpViews`) ins Host-Layout → Seiten-Hilfe als Popup (fail-silent). Automatisch: maximierbare Detail-/CodeEditor-Dialoge, Hilfe tenant-präfixiert + Medien-Skalierung, Config-Export-Härtung; Billing-Export-Sektion jetzt via WebPart-Flag `BillingConfigExportPartOptions.ActivateBillingConfigExport` (statt manuellem `AddBillingConfigExtension()`, §17) |
+| 25 | **System-Log „Eintrag verfolgen" + Index** (§20) | Kein Breaking Change, keine Config, keine neue Permission — der Augen-Button in `/Util/SystemLog` zeigt je 20 Einträge vor/nach einer Nachricht (einstellbar). **Empfohlen:** Index `IX_SystemLogEventTime` auf `SystemLog (EventTime, SystemEventId)` **manuell** nachziehen (SQL in §20) — **nicht** via `dotnet ef migrations add`, der Snapshot driftet und würde fremde Änderungen mitschleppen. Ohne Index läuft alles, sortiert aber über die ganze Tabelle |

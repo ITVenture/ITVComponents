@@ -291,7 +291,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         // One context + one transaction for the whole flow: consuming the pending record, creating the tenant and
         // applying the template all commit or roll back together (see OnboardingPendingHelper.CompleteAsync). The
         // core runs on the shared context and does not commit; CompleteAsync owns the transaction.
-        return await OnboardingPendingHelper.CompleteAsync(dbFactory, userManager, user, CreateOrResumeTenantAsync, ct);
+        return await OnboardingPendingHelper.CompleteAsync(dbFactory, userManager, user, CreateOrResumeTenantAsync, ct, logger);
     }
 
     public async Task<ParticipatingTenantViewModel[]> ListMyTenantsAsync(ClaimsPrincipal user, CancellationToken ct = default)
@@ -441,11 +441,11 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             if (string.IsNullOrEmpty(adminRole)) return;
             var role = ctx.SecurityRoles.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.RoleName == adminRole);
             if (role == null) return;
-            // FK scalar, not the navigation: 'admin' (and its Tenant nav) is tracked by the handler's per-operation
-            // 'db', NOT by this template helper's separately-leased 'ctx'. Assigning it as a navigation makes EF treat
-            // both admin (TenantUsers) and its tenant (Tenants) as new principals and emit INSERTs with explicit
-            // identity values → "Cannot insert explicit value for identity column". 'admin' was already saved, so its
-            // PK is populated; only the FK scalar is needed. 'role' is fetched from 'ctx', so its navigation is safe.
+            // FK scalar, not the navigation: 'admin' was saved above, so its PK is populated. Assigning the scalar
+            // keeps this correct no matter which context tracks 'admin' — via a navigation, a context that does not
+            // track it would treat it (and its Tenant) as new principals and emit INSERTs with explicit identity
+            // values → "Cannot insert explicit value for identity column". 'role' is read from 'ctx', so its
+            // navigation is safe.
             ctx.TenantUserRoles.Add(new UserRole { Role = role, TenantUserId = admin.TenantUserId });
             ctx.SaveChanges();
         });

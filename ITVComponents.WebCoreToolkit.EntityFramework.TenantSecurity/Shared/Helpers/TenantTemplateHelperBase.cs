@@ -484,15 +484,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 var pruneRoles = ShouldPrune(template.ApplyModeForRoles, defaultMode);
                 var rn = new List<string>();
                 // Two passes on purpose: a role's RoleGrants may reference a SIBLING role that appears LATER in
-                // this array (e.g. TenantOwner granting the yet-to-be-created Employees role). Materialise every
-                // role first so that grant resolution (ApplyRoleGrants -> SelectPermittedRole) can find any sibling
-                // in the change-tracker regardless of template order; only then wire up permissions and grants.
+                // this array (e.g. TenantOwner granting the yet-to-be-created Employees role). Materialise and
+                // persist every role first, so that grant resolution (ApplyRoleGrants -> SelectPermittedRole) finds
+                // any sibling regardless of template order AND with a real RoleId; only then wire up permissions
+                // and grants.
                 var pending = new List<(TRole Tmp, RoleTemplateMarkup Role)>();
                 foreach (var role in template.Roles)
                 {
                     var tmp = GetRole(tenant.TenantId, role, true);
                     rn.Add(tmp.RoleName);
                     pending.Add((tmp, role));
+                }
+
+                // Persist the roles BEFORE anything links to them. EF keeps a store-generated key as a temporary
+                // value in the change tracker and leaves the entity's RoleId at 0 until it is saved, and the
+                // SecurityModificationInterceptor's cycle guard compares exactly those RoleIds: a grant between two
+                // still-unsaved sibling roles would compare 0 == 0 and be rejected as "Cyclic Role-Inheritance
+                // detected!". A RoleId of 0 is exactly that "not persisted yet" signal. Only pay the extra
+                // round-trip when such a role is present, so re-applying to a tenant whose roles all exist (the
+                // batching ApplyAllTenantsFor path) stays a single save.
+                if (pending.Any(p => p.Tmp.RoleId == 0))
+                {
+                    db.SaveChanges();
                 }
 
                 foreach (var (tmp, role) in pending)

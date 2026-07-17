@@ -87,6 +87,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                 throw new InvalidOperationException($"Tenant {tenantId} already has an active subscription — use the billing portal to change it.");
             }
 
+            // Pin a dedicated Stripe customer to THIS tenant up front and hand it to the session. Without an
+            // explicit customer, Checkout may attach the session to a customer Stripe recognises by e-mail/Link —
+            // so a person who owns several tenants would keep billing under the first tenant's customer, and a
+            // shared customer id then makes MarkPastDueAsync (keyed on customer id) hit every tenant that shares
+            // it. The tenantId metadata makes the customer traceable in the Stripe dashboard and via the API.
+            var customerId = await EnsureTenantCustomerAsync(tenantId, existing, cancellationToken);
+
             var options = new SessionCreateOptions
             {
                 Mode = "subscription",
@@ -94,7 +101,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                 SuccessUrl = successUrl,
                 CancelUrl = cancelUrl,
                 ClientReferenceId = tenantId.ToString(),
-                Customer = string.IsNullOrEmpty(existing?.ProviderCustomerId) ? null : existing!.ProviderCustomerId,
+                Customer = customerId,
                 SubscriptionData = new SessionSubscriptionDataOptions
                 {
                     Metadata = new Dictionary<string, string> { ["tenantId"] = tenantId.ToString() }
@@ -108,6 +115,41 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 
             var session = await new SessionService(client).CreateAsync(options, cancellationToken: cancellationToken);
             return session.Url;
+        }
+
+        /// <summary>
+        /// Returns the Stripe customer id dedicated to <paramref name="tenantId"/>, creating one (stamped with the
+        /// tenant id) and persisting it on the subscription mirror when none exists yet. Reused by later checkouts
+        /// and by the billing portal, so a tenant always maps to exactly one Stripe customer.
+        /// </summary>
+        private async Task<string> EnsureTenantCustomerAsync(int tenantId, TenantSubscription? existing, CancellationToken cancellationToken)
+        {
+            if (!string.IsNullOrEmpty(existing?.ProviderCustomerId))
+            {
+                return existing!.ProviderCustomerId!;
+            }
+
+            var customer = await new CustomerService(client).CreateAsync(new CustomerCreateOptions
+            {
+                Description = $"Tenant {tenantId}",
+                Metadata = new Dictionary<string, string> { ["tenantId"] = tenantId.ToString() }
+            }, cancellationToken: cancellationToken);
+
+            // Persist immediately so a failed checkout does not orphan the customer: the next attempt reuses this
+            // row instead of creating a second customer. The webhook later fills in the subscription id on the
+            // same row (matched by tenant id).
+            var row = existing;
+            if (row == null)
+            {
+                row = new TenantSubscription { TenantId = tenantId, Created = DateTime.UtcNow };
+                db.TenantSubscriptions.Add(row);
+            }
+
+            row.ProviderCustomerId = customer.Id;
+            row.Updated = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+
+            return customer.Id;
         }
     }
 

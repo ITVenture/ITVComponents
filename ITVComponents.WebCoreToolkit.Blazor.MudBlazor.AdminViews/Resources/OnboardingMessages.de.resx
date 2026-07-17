@@ -37,7 +37,7 @@
   <data name="Onb_RecipientName" xml:space="preserve"><value>Empfängername</value></data>
   <data name="Onb_AddressLine2" xml:space="preserve"><value>Adresszeile 2</value></data>
   <data name="Onb_AddressLine3" xml:space="preserve"><value>Adresszeile 3</value></data>
-  <data name="Onb_Street" xml:space="preserve"><value>Straße</value></data>
+  <data name="Onb_Street" xml:space="preserve"><value>Strasse</value></data>
   <data name="Onb_Number" xml:space="preserve"><value>Nummer</value></data>
   <data name="Onb_Zip" xml:space="preserve"><value>PLZ</value></data>
   <data name="Onb_City" xml:space="preserve"><value>Ort</value></data>
@@ -47,7 +47,7 @@
   <data name="Onb_Start_Password" xml:space="preserve"><value>Passwort</value></data>
   <data name="Onb_Start_ConfirmPassword" xml:space="preserve"><value>Passwort bestätigen</value></data>
   <data name="Onb_Start_Submit" xml:space="preserve"><value>Konto erstellen</value></data>
-  <data name="Onb_Start_CheckMail" xml:space="preserve"><value>Ihr Konto wurde erstellt. Bitte bestätigen Sie Ihre E-Mail-Adresse und melden Sie sich an, um die Einrichtung des Mandanten abzuschließen.</value></data>
+  <data name="Onb_Start_CheckMail" xml:space="preserve"><value>Ihr Konto wurde erstellt. Bitte bestätigen Sie Ihre E-Mail-Adresse und melden Sie sich an, um die Einrichtung des Mandanten abzuschliessen.</value></data>
   <data name="Onb_Start_ToLogin" xml:space="preserve"><value>Zur Anmeldung</value></data>
   <data name="Onb_Inv_Title" xml:space="preserve"><value>Mandanten-Einladung</value></data>
   <data name="Onb_Inv_NotSupported" xml:space="preserve"><value>Mandanten-Einladungen sind in dieser Konfiguration nicht verfügbar.</value></data>

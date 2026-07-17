@@ -2,6 +2,7 @@
 @page "/Account/Onboarding/MyTenants"
 @rendermode @(RenderMode.InteractiveServer)
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Logging
 @attribute [Authorize]
 
 @inject IOnboardingHandler Handler
@@ -9,6 +10,7 @@
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<OnboardingMessages> L
+@inject ILogger<MyTenants> Logger
 
 <PageTitle>@L["Onb_MyTenants"]</PageTitle>
 
@@ -62,18 +64,43 @@
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated == true)
+        if (state.User.Identity?.IsAuthenticated == true && RendererInfo.IsInteractive)
         {
+            // Finish a deferred direct onboarding: the tenant is created on the first authenticated landing after
+            // the user confirmed their e-mail. Interactive pass ONLY — this page prerenders, so OnInitializedAsync
+            // runs twice, and a tenant-creating write must not happen in the prerender pass: that pass runs on the
+            // HTTP request scope, can be discarded, and would attempt the whole unit of work a second time.
             try
             {
-                // Finish a deferred direct onboarding: the tenant is created on the first authenticated
-                // landing after the user confirmed their e-mail. Idempotent and best-effort.
-                await Handler.CompletePendingOnboardingAsync(state.User);
+                var completed = await Handler.CompletePendingOnboardingAsync(state.User);
+                Logger.LogInformation("Pending onboarding completion for {User} returned {Completed}.",
+                    state.User.Identity?.Name, completed);
+
+                if (completed)
+                {
+                    // A tenant was just created for a user who arrived without any tenant scope. The host resolves
+                    // the current tenant on a full request (nav menu, permissions and their icons are tenant-scoped);
+                    // the interactive circuit that ran the completion never went through that resolution, so the
+                    // shell renders half-initialised until a reload. Force one full navigation so the freshly owned
+                    // tenant becomes the active scope. Loop-free: after the reload the pending record is Committed,
+                    // so completion returns false and this branch is not taken again.
+                    Nav.NavigateTo(Nav.Uri, forceLoad: true);
+                    return;
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                // a failed completion must not block the tenant list
+                // A failed completion must not block the tenant list — but it must not vanish either: without
+                // this log the tenant silently never appears and the only trace is EF's MARS/savepoint warning.
+                Logger.LogError(ex, "Completing the pending onboarding for {User} failed; the tenant was not created.",
+                    state.User.Identity?.Name);
             }
+        }
+        else if (state.User.Identity?.IsAuthenticated == true)
+        {
+            // So that "no completion log at all" is unambiguous rather than a silent skip.
+            Logger.LogDebug("Onboarding completion deferred to the interactive pass (current pass: {Renderer}).",
+                RendererInfo.Name);
         }
         await ReloadAsync();
     }

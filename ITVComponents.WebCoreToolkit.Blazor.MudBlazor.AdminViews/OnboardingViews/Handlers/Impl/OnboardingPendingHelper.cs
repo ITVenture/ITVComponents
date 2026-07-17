@@ -9,6 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 
@@ -75,13 +76,15 @@ internal static class OnboardingPendingHelper
     /// tenant id plus the billing-profile id, or null to signal failure (rolls back).
     /// </summary>
     public static async Task<bool> CompleteAsync<TCtx, TUser>(IDbContextFactory<TCtx> dbFactory, UserManager<TUser> userManager, ClaimsPrincipal principal,
-        Func<ClaimsPrincipal, BillingProfileViewModel, TCtx, int?, CancellationToken, Task<(int tenantId, int billingProfileId)?>> createTenant, CancellationToken ct)
+        Func<ClaimsPrincipal, BillingProfileViewModel, TCtx, int?, CancellationToken, Task<(int tenantId, int billingProfileId)?>> createTenant, CancellationToken ct,
+        ILogger logger = null)
         where TCtx : DbContext, IOnboardingPendingContext
         where TUser : IdentityUser
     {
         var owner = await userManager.GetUserAsync(principal);
         if (string.IsNullOrEmpty(owner?.Email))
         {
+            logger?.LogWarning("Onboarding completion skipped: no user/e-mail resolved for the current principal.");
             return false;
         }
 
@@ -98,6 +101,8 @@ internal static class OnboardingPendingHelper
                 .FirstOrDefaultAsync(p => p.Email == owner.Email && p.Status == InvitationStatus.Pending, ct);
             if (pending == null)
             {
+                // Normal on every later visit (already committed) — only interesting while chasing a missing tenant.
+                logger?.LogDebug("No pending onboarding for {Email}; nothing to complete.", owner.Email);
                 return false;
             }
 
@@ -108,6 +113,9 @@ internal static class OnboardingPendingHelper
             var created = await createTenant(principal, profile, db, pending.CreatedTenantId, ct);
             if (created == null)
             {
+                logger?.LogWarning(
+                    "Onboarding for {Email} was rejected by the strategy handler (resume marker: {ResumeTenantId}); rolling back, no tenant created.",
+                    owner.Email, pending.CreatedTenantId);
                 return false;
             }
 

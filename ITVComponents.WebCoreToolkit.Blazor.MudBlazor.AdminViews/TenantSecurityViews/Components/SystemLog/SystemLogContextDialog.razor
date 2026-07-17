@@ -1,0 +1,184 @@
+@using Microsoft.Extensions.Logging
+
+@inject ISystemLogAdminHandler Handler
+
+<MudDialog>
+    <DialogContent>
+        <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background: var(--mud-palette-background-grey);">
+            <MudGrid Spacing="2" Justify="Justify.FlexStart">
+                <MudItem xs="6" sm="2">
+                    <MudNumericField T="int" @bind-Value="before" Label="Entries before" Min="0" Max="@SystemLogContextQuery.MaxContextSize" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6" sm="2">
+                    <MudNumericField T="int" @bind-Value="after" Label="Entries after" Min="0" Max="@SystemLogContextQuery.MaxContextSize" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField T="string" @bind-Value="search" Label="Contains" Placeholder="message, title or category…"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Clearable="true" Margin="Margin.Dense" Variant="Variant.Outlined"
+                                  Immediate="false" OnKeyUp="OnSearchKey" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-flex align-center justify-end gap-2">
+                    <MudSwitch T="bool" @bind-Value="sameCategoryOnly" Label="Same category only" Color="Color.Primary" />
+                    <MudButton StartIcon="@Icons.Material.Filled.Refresh" Variant="Variant.Filled" Color="Color.Primary" OnClick="Load" Disabled="@loading">Load</MudButton>
+                </MudItem>
+                <MudItem xs="12" Class="d-flex align-center flex-wrap gap-2">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary mr-1">Levels:</MudText>
+                    <MudChipSet T="LogLevel" SelectionMode="SelectionMode.MultiSelection" CheckMark="true"
+                                @bind-SelectedValues="selectedLevels">
+                        @foreach (var lvl in AllLevels)
+                        {
+                            <MudChip T="LogLevel" Value="@lvl" Color="@LevelColor(lvl)" Variant="Variant.Outlined" Size="Size.Small">@lvl</MudChip>
+                        }
+                    </MudChipSet>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary ml-2">All levels off = no level filter (show every level).</MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @if (loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+        }
+        else if (items.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">This entry no longer exists.</MudAlert>
+        }
+        else
+        {
+            @if (hasMoreBefore)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-1">
+                    … further entries exist before this window — raise "Entries before" to see them.
+                </MudText>
+            }
+            <MudDataGrid T="SystemEventViewModel"
+                         Items="items"
+                         SortMode="SortMode.None"
+                         Hover="true"
+                         Dense="true"
+                         FixedHeader="true"
+                         Height="55vh"
+                         RowStyleFunc="RowStyle">
+                <Columns>
+                    <HierarchyColumn T="SystemEventViewModel" ButtonDisabledFunc="@(item => string.IsNullOrEmpty(item.Message))" />
+                    <TemplateColumn T="SystemEventViewModel" Title="Level" Sortable="false">
+                        <CellTemplate>
+                            <MudChip T="string" Size="Size.Small" Color="@LevelColor(context.Item.LogLevel)">@context.Item.LogLevel</MudChip>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.EventTime" Title="Time" Format="yyyy-MM-dd HH:mm:ss.fff" />
+                    <TemplateColumn T="SystemEventViewModel" Title="Δ" Sortable="false">
+                        <CellTemplate>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@Offset(context.Item)</MudText>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.Category" Title="Category" />
+                    <PropertyColumn Property="x => x.Title" Title="Title" />
+                </Columns>
+                <ChildRowContent>
+                    <MudPaper Elevation="0" Class="pa-3 my-1" Style="background: var(--mud-palette-background-grey);">
+                        <pre style="margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace; font-size: 0.8125rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; overflow-x: auto; max-height: 40vh; overflow-y: auto;">@context.Item.Message</pre>
+                    </MudPaper>
+                </ChildRowContent>
+            </MudDataGrid>
+            @if (hasMoreAfter)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-1">
+                    … further entries exist after this window — raise "Entries after" to see them.
+                </MudText>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.ExtraLarge" />
+        <MudSpacer />
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>The entry the surrounding entries are loaded around.</summary>
+    [Parameter, EditorRequired] public SystemEventViewModel Anchor { get; set; } = default!;
+
+    /// <summary>The user the permission check is run against.</summary>
+    [Parameter, EditorRequired] public System.Security.Claims.ClaimsPrincipal User { get; set; } = default!;
+
+    /// <summary>The levels offered as toggle chips, in ascending severity — "None" is not a real entry level.</summary>
+    private static readonly LogLevel[] AllLevels =
+        { LogLevel.Trace, LogLevel.Debug, LogLevel.Information, LogLevel.Warning, LogLevel.Error, LogLevel.Critical };
+
+    private int before = 20;
+    private int after = 20;
+    private bool sameCategoryOnly;
+    private string? search;
+    private IReadOnlyCollection<LogLevel> selectedLevels = AllLevels.ToArray();
+    private bool loading = true;
+    private bool hasMoreBefore;
+    private bool hasMoreAfter;
+    private IReadOnlyList<SystemEventViewModel> items = Array.Empty<SystemEventViewModel>();
+
+    protected override Task OnInitializedAsync() => Load();
+
+    private async Task Load()
+    {
+        loading = true;
+
+        // When every level is still selected the set carries no information — pass null so the handler skips the
+        // level filter entirely instead of building an IN-list of all six.
+        var levels = selectedLevels.Count == AllLevels.Length ? null : selectedLevels;
+
+        var result = await Handler.GetContextAsync(User, new SystemLogContextQuery
+        {
+            AnchorId = Anchor.SystemEventId,
+            Before = before,
+            After = after,
+            SameCategoryOnly = sameCategoryOnly,
+            IncludeLevels = levels,
+            Search = string.IsNullOrWhiteSpace(search) ? null : search
+        });
+        items = result.Items;
+        hasMoreBefore = result.HasMoreBefore;
+        hasMoreAfter = result.HasMoreAfter;
+        loading = false;
+    }
+
+    private async Task OnSearchKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or "NumpadEnter")
+            await Load();
+    }
+
+    private string RowStyle(SystemEventViewModel item, int index)
+        => item.SystemEventId == Anchor.SystemEventId
+            ? "background: var(--mud-palette-primary-hover); font-weight: 500;"
+            : string.Empty;
+
+    private string Offset(SystemEventViewModel item)
+    {
+        if (item.SystemEventId == Anchor.SystemEventId) return "—";
+        var delta = item.EventTime - Anchor.EventTime;
+        var sign = delta < TimeSpan.Zero ? "-" : "+";
+        var abs = delta.Duration();
+        return abs.TotalSeconds < 1
+            ? $"{sign}{abs.TotalMilliseconds:0} ms"
+            : abs.TotalMinutes < 1
+                ? $"{sign}{abs.TotalSeconds:0.###} s"
+                : $"{sign}{abs:hh\\:mm\\:ss}";
+    }
+
+    private void Close() => MudDialog.Close();
+
+    private static Color LevelColor(LogLevel level) => level switch
+    {
+        LogLevel.Trace => Color.Default,
+        LogLevel.Debug => Color.Secondary,
+        LogLevel.Information => Color.Info,
+        LogLevel.Warning => Color.Warning,
+        LogLevel.Error => Color.Error,
+        LogLevel.Critical => Color.Error,
+        _ => Color.Default
+    };
+}

@@ -145,7 +145,13 @@
       "Bash(grep -nE \"^#{1,3} |^## §|Billing|AddOnPrice|PlanPrice\" docs/Migration-Future_10-MLM.md)",
       "Bash(grep -vE \"^[+-]$\")",
       "Bash(find . -name \"Feature.cs\" -path \"*TenantSecurity*\")",
-      "Bash(grep -rn \"FeatureName\\\\|Enabled\\\\|FeatureId\\\\|FeatureDescription\" ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity/Shared/Models/Feature.cs)"
+      "Bash(grep -rn \"FeatureName\\\\|Enabled\\\\|FeatureId\\\\|FeatureDescription\" ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity/Shared/Models/Feature.cs)",
+      "PowerShell(dotnet ef migrations *)",
+      "PowerShell(Set-Location \"c:\\\\users\\\\mw\\\\source\\\\cleanworkspace\\\\itvcomponents-public\"; Get-Content \"docs\\\\Migration-Future_10-MLM.md\" | Select-Object -Last 3 | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(110, $_.Length\\)\\) }; Write-Output \"=== git status ===\"; git status --short)",
+      "Bash(awk 'NR>=140 && NR<=215' \"ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity/Shared/Extensions/ContextExtensions.cs\")",
+      "PowerShell(Set-Content *)",
+      "Bash(grep -viE '\\\\.csproj$')",
+      "Bash(grep -ciE '\\\\.csproj$')"
     ]
   }
 }
