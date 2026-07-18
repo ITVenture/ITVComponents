@@ -689,6 +689,91 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
 
         #endregion
 
+        #region Funktionen und Objekt-Literale
+
+        public override INode VisitFunctionDeclaration(ITVScriptingParser.FunctionDeclarationContext context)
+        {
+            return BuildFunction(context, context.Identifier()?.GetText(), context.formalParameterList(),
+                context.functionBody());
+        }
+
+        public override INode VisitFunctionExpression(ITVScriptingParser.FunctionExpressionContext context)
+        {
+            return BuildFunction(context, context.Identifier()?.GetText(), context.formalParameterList(),
+                context.functionBody());
+        }
+
+        public override INode VisitObjectLiteralExpression(
+            ITVScriptingParser.ObjectLiteralExpressionContext context)
+        {
+            return Visit(context.objectLiteral());
+        }
+
+        public override INode VisitObjectLiteral(ITVScriptingParser.ObjectLiteralContext context)
+        {
+            var properties = new List<KeyValuePair<string, IExpressionNode>>();
+            var assignments = context.propertyNameAndValueList()?.propertyAssignment();
+            if (assignments != null)
+            {
+                foreach (var assignment in assignments)
+                {
+                    // Die Grammatik fuehrt propertyAssignment als eigene Regel mit mehreren
+                    // Alternativen. Der abgeloeste Builder typisierte die Schleifenvariable
+                    // hart auf die Ausdrucks-Alternative und waere bei jeder anderen mit einer
+                    // InvalidCastException gescheitert.
+                    if (!(assignment is ITVScriptingParser.PropertyExpressionAssignmentContext property))
+                    {
+                        throw new ScriptException(
+                            $"Unsupported property-assignment '{assignment.GetText()}' at " +
+                            $"{Position(assignment).Line}/{Position(assignment).Column}");
+                    }
+
+                    properties.Add(new KeyValuePair<string, IExpressionNode>(
+                        property.identifierName().GetText(), Expression(property.singleExpression())));
+                }
+            }
+
+            return new ObjectLiteralNode(Position(context), properties);
+        }
+
+        /// <summary>
+        /// Baut eine Funktionsdefinition. Der Rumpf bekommt einen frischen Gueltigkeitsrahmen:
+        /// return ist darin erlaubt, break und continue der umgebenden Schleife dagegen nicht.
+        /// </summary>
+        private INode BuildFunction(ParserRuleContext context, string name,
+            ITVScriptingParser.FormalParameterListContext parameterList,
+            ITVScriptingParser.FunctionBodyContext bodyContext)
+        {
+            string[] parameters = parameterList?.Identifier()?.Select(p => p.GetText()).ToArray()
+                                  ?? Array.Empty<string>();
+
+            int loops = loopDepth;
+            int switches = switchDepth;
+            bool returns = returnAllowed;
+            bool catching = inCatch;
+            loopDepth = 0;
+            switchDepth = 0;
+            returnAllowed = true;
+            inCatch = false;
+            try
+            {
+                var elements = bodyContext?.sourceElements();
+                IStatementNode body = elements == null
+                    ? new BlockNode(Position(context), Array.Empty<IStatementNode>(), false)
+                    : Statement(elements);
+                return new FunctionNode(Position(context), name, parameters, body);
+            }
+            finally
+            {
+                loopDepth = loops;
+                switchDepth = switches;
+                returnAllowed = returns;
+                inCatch = catching;
+            }
+        }
+
+        #endregion
+
         #region Helfer
 
         private IStatementNode Statement(IParseTree tree)

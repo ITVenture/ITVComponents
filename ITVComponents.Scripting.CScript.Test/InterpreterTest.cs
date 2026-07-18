@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System;
 using ITVComponents.Scripting.CScript.Core;
+using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Interpreter;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -230,6 +232,85 @@ namespace ITVComponents.Scripting.CScript.Test
             Assert.ThrowsException<ScriptException>(
                 () => ScriptInterpreter.CompileBlock("try { } finally { return 1; }"));
             Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.CompileBlock("throw;"));
+        }
+
+        [TestMethod]
+        public void Functions()
+        {
+            AssertSameBlock(7, "function add(a,b) { return a+b; } return add(3,4);");
+            AssertSameBlock(6, "f = function(x) { return x*2; }; return f(3);");
+
+            // Eine Funktion ohne return liefert null.
+            AssertSameBlock(null, "function nix() { x=1; } return nix();");
+
+            // Fehlende Argumente werden zu null.
+            AssertSameBlock(null, "function f(a) { return a; } return f();");
+
+            // Die Funktion nimmt den umgebenden Zustand als Momentaufnahme mit.
+            AssertSameBlock(1, "x=1; function f() { return x; } x=2; return f();");
+        }
+
+        /// <summary>
+        /// Haelt fest, dass Rekursion auf oberster Ebene in beiden Maschinen nicht funktioniert.
+        /// </summary>
+        /// <remarks>
+        /// Eine Funktion nimmt ihren umgebenden Scope als Momentaufnahme mit - und die entsteht,
+        /// bevor die Funktion unter ihrem Namen abgelegt wird. Sie kennt sich also selbst nicht,
+        /// und der rekursive Aufruf laeuft ins Leere.
+        ///
+        /// Innerhalb einer anderen Funktion sieht es anders aus: dort bekommt die innere
+        /// Funktion einen ParentScope gesetzt und findet ihren Namen darueber.
+        ///
+        /// Das ist keine Eigenheit des Interpreters, sondern folgt aus der Closure-Semantik der
+        /// gemeinsamen Runtime (FunctionLiteral + FunctionScope). Der Interpreter uebernimmt sie
+        /// unveraendert. Wenn Rekursion gewuenscht ist, muesste die Funktion vor dem Snapshot in
+        /// ihren eigenen Scope gebunden werden - das waere eine Sprachaenderung und gehoert
+        /// entschieden, nicht nebenbei geaendert.
+        /// </remarks>
+        [TestMethod]
+        public void RecursionIsUnsupportedInBothEngines()
+        {
+            const string script =
+                "function fac(n) { if(n<=1) { return 1; } return n*fac(n-1); } return fac(5);";
+            Assert.ThrowsException<ScriptException>(
+                () => ExpressionParser.ParseBlock(script, new Dictionary<string, object>()),
+                "ScriptVisitor sollte weiterhin an der Rekursion scheitern.");
+            Assert.ThrowsException<ScriptException>(
+                () => ScriptInterpreter.ParseBlock(script, new Dictionary<string, object>()),
+                "Interpreter sollte dasselbe Verhalten zeigen wie der ScriptVisitor.");
+        }
+
+        [TestMethod]
+        public void ObjectLiterals()
+        {
+            AssertSameBlock(5, "o = { a: 5 }; return o.a;");
+            AssertSameBlock(9, "o = { a: 4, b: 5 }; return o.a + o.b;");
+
+            // Eine Methode des Literals sieht die Geschwister-Eigenschaften ueber den
+            // Elternscope, den das Literal ihr setzt.
+            AssertSameBlock(12, "o = { faktor: 3, mal: function(x) { return x*faktor; } }; return o.mal(4);");
+        }
+
+        [TestMethod]
+        public void FunctionsInterfaceWithSharedRuntime()
+        {
+            // Eine interpretierte Funktion muss dort funktionieren, wo die gemeinsame Runtime
+            // auf FunctionLiteral prueft - sonst waere sie nur fuer den Interpreter brauchbar.
+            var function = ScriptInterpreter.ParseBlock("return function(x) { return x*3; };",
+                new Dictionary<string, object>());
+            Assert.IsInstanceOfType<FunctionLiteral>(function,
+                "Der Interpreter muss echte FunctionLiterals erzeugen.");
+            Assert.AreEqual(9, ((FunctionLiteral)function).Invoke(new object[] { 3 }));
+
+            // Copy() muss den Rumpf behalten - ObjectLiteral klont darueber jede Methode.
+            FunctionLiteral copy = ((FunctionLiteral)function).Copy();
+            Assert.AreEqual(12, copy.Invoke(new object[] { 4 }),
+                "Der Klon muss denselben Rumpf ausfuehren wie das Original.");
+
+            // Als Delegat verwendbar, etwa fuer Ereignis-Anbindung.
+            var asDelegate = (Func<object, object>)((FunctionLiteral)function)
+                .CreateDelegate(typeof(Func<object, object>));
+            Assert.AreEqual(15, asDelegate(5));
         }
 
         private static void AssertSameBlock(object expected, string script,

@@ -51,15 +51,45 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         /// <param name="body">the method body of this method</param>
         public FunctionLiteral(Dictionary<string, object> values, string[] arguments,
             ITVScriptingParser.FunctionBodyContext body, ScriptingPolicy policy)
+            : this(values, arguments, policy)
+        {
+            visitor = new ScriptVisitor(scope);
+            visitor.ScriptingPolicy = policy;
+            this.body = body;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the FunctionLiteral class without a script-visitor.
+        /// </summary>
+        /// <param name="values">the local values that are surrounding the method at the moment of creation</param>
+        /// <param name="arguments">the argument names that are passed to this method</param>
+        /// <param name="policy">the policy that applies to this method</param>
+        /// <remarks>
+        /// For derived implementations that run the method-body themselves. See
+        /// <see cref="ExecuteBody"/>.
+        /// </remarks>
+        protected FunctionLiteral(Dictionary<string, object> values, string[] arguments, ScriptingPolicy policy)
         {
             initialValues = values;
             scope = new FunctionScope(values, policy);
-            visitor = new ScriptVisitor(scope);
-            visitor.ScriptingPolicy = policy;
             this.arguments = arguments;
-            this.body = body;
             this.policy = policy;
         }
+
+        /// <summary>
+        /// Gets the scope this method runs in.
+        /// </summary>
+        protected FunctionScope Scope { get { return scope; } }
+
+        /// <summary>
+        /// Gets the policy that applies to this method.
+        /// </summary>
+        protected ScriptingPolicy Policy { get { return policy; } }
+
+        /// <summary>
+        /// Gets the initial values that surround this method-definition.
+        /// </summary>
+        protected Dictionary<string, object> InitialValues { get { return initialValues; } }
 
         public IScope ParentScope { get { return scope.ParentScope; } set { scope.ParentScope = value; } }
 
@@ -177,7 +207,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
 
                 parameters["parameters"] = arguments;
                 scope.Clear(parameters);
-                return ScriptValueHelper.GetScriptValueResult<object>(visitor.Visit(body), false, policy);
+                return ExecuteBody();
             }
             finally
             {
@@ -186,10 +216,23 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         }
 
         /// <summary>
+        /// Runs the body of this method. The scope is already prepared when this is called.
+        /// </summary>
+        /// <returns>the result of the method-body</returns>
+        /// <remarks>
+        /// Override this to run the body with something other than the script-visitor - the
+        /// interpreter does so to execute its own node-tree.
+        /// </remarks>
+        protected virtual object ExecuteBody()
+        {
+            return ScriptValueHelper.GetScriptValueResult<object>(visitor.Visit(body), false, policy);
+        }
+
+        /// <summary>
         /// Creates a copy with a new scope of this functionLiteral
         /// </summary>
         /// <returns></returns>
-        public FunctionLiteral Copy()
+        public virtual FunctionLiteral Copy()
         {
             return new FunctionLiteral(initialValues, arguments, body, policy);
         }
