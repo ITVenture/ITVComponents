@@ -4,6 +4,8 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Interpreter;
+using ITVComponents.Scripting.CScript.Security;
+using ITVComponents.Scripting.CScript.Security.Extensions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.Scripting.CScript.Test
@@ -311,6 +313,154 @@ namespace ITVComponents.Scripting.CScript.Test
             var asDelegate = (Func<object, object>)((FunctionLiteral)function)
                 .CreateDelegate(typeof(Func<object, object>));
             Assert.AreEqual(15, asDelegate(5));
+        }
+
+        [TestMethod]
+        public void Increments()
+        {
+            AssertSameBlock(1, "x=0; x++; return x;");
+            AssertSameBlock(0, "x=0; return x++;");
+            AssertSameBlock(1, "x=0; return ++x;");
+            AssertSameBlock(-1, "x=0; x--; return x;");
+            AssertSameBlock(0, "x=0; return x--;");
+            AssertSameBlock(-1, "x=0; return --x;");
+
+            // Auf einem Element, nicht nur auf einer Variablen.
+            AssertSameBlock(2, "a=[1,2,3]; a[0]++; return a[0];");
+        }
+
+        [TestMethod]
+        public void NewInstances()
+        {
+            var vars = new Dictionary<string, object>
+            {
+                { "Dictionary", typeof(Dictionary<string, object>) },
+                { "StringBuilder", typeof(System.Text.StringBuilder) }
+            };
+
+            AssertSameBlock(0, "d = new Dictionary(); return d.Count;", vars);
+            AssertSameBlock("abc", "s = new StringBuilder(\"abc\"); return s.ToString();", vars);
+
+            // Objekt-Initialisierer auf einer frischen Instanz.
+            AssertSameBlock(5, "s = new StringBuilder() { Capacity: 5 }; return s.Capacity;", vars);
+        }
+
+        /// <summary>
+        /// Prueft die Ausfuehrungsschalter. Bewusst nur gegen den Interpreter.
+        /// </summary>
+        /// <remarks>
+        /// Diese Skripte duerfen nicht durch den ScriptVisitor laufen: dessen Schalter sind
+        /// Instanzfelder, die ClearScope nicht zuruecksetzt, und InterpreterBuffer verwendet
+        /// die Instanzen wieder - ein Pragma wuerde in nachfolgende, voellig unbeteiligte
+        /// Auswertungen durchschlagen. Siehe PragmaStateLeaksAcrossVisitorRuns.
+        /// </remarks>
+        [TestMethod]
+        public void Pragmas()
+        {
+            // Ohne Typpruefung wendet die Runtime die dynamischen Operatoren direkt an, mit
+            // Typpruefung gleicht sie die Operanden vorher an. Bei decimal und float ist das
+            // der Unterschied zwischen Ergebnis und Fehler.
+            var vars = new Dictionary<string, object> { { "f", 99M }, { "e", .75F } };
+            AssertInterpreterBlock(98.25M, "return f-e;", vars);
+            Assert.ThrowsException<ScriptException>(
+                () => ScriptInterpreter.ParseBlock("\"@@TYPESAFETY OFF\"; return f-e;", Copy(vars)),
+                "Ohne Typpruefung muss die Operation an den unvereinbaren Typen scheitern.");
+
+            // Der Schalter liefert weiterhin seinen Text als Wert.
+            AssertInterpreterBlock("@@TYPESAFETY OFF", "return \"@@TYPESAFETY OFF\";");
+
+            // Ein Schalter gilt ab seiner Stelle im Ablauf, nicht fuer das ganze Script: in
+            // einem nicht genommenen Zweig wirkt er nicht.
+            AssertInterpreterBlock(98.25M,
+                "if(false) { \"@@TYPESAFETY OFF\"; } return f-e;", vars);
+
+            // Der Inline-Cache darf am Ergebnis nichts aendern.
+            AssertInterpreterBlock(6,
+                "\"@@LAZYINVOKATION ON\"; s=0; for(i=0;i<3;i=i+1) { s=s+(i+1); } return s;");
+        }
+
+        /// <summary>
+        /// Haelt einen Fehler des ScriptVisitors fest: ein Pragma wirkt ueber den Lauf hinaus.
+        /// </summary>
+        /// <remarks>
+        /// typeSafety, lazyInvokation und bypassCompatibilityOnLazyInvokation sind Felder der
+        /// Visitor-Instanz, und ClearScope setzt sie nicht zurueck. InterpreterBuffer poolt
+        /// diese Instanzen - ein Script, das ein Pragma setzt, veraendert damit das Verhalten
+        /// spaeterer, voellig unbeteiligter Auswertungen.
+        ///
+        /// Genau dagegen richtet sich der Umbau: der Interpreter haelt diese Schalter im
+        /// ExecutionContext, der pro Lauf entsteht. Der zweite Teil des Tests weist nach, dass
+        /// er nicht leckt.
+        ///
+        /// Der Visitor-Zustand wird am Ende wiederhergestellt, sonst wuerde dieser Test andere
+        /// Tests im selben Lauf beschaedigen - was den Fehler zugleich anschaulich macht.
+        /// </remarks>
+        [TestMethod]
+        public void PragmaStateLeaksAcrossVisitorRuns()
+        {
+            var vars = new Dictionary<string, object> { { "f", 99M }, { "e", .75F } };
+            try
+            {
+                Assert.AreEqual(98.25M, ExpressionParser.Parse("f-e", Copy(vars)),
+                    "Vor dem Pragma rechnet der ScriptVisitor mit Typpruefung.");
+
+                ExpressionParser.ParseBlock("\"@@TYPESAFETY OFF\";", new Dictionary<string, object>());
+
+                Assert.ThrowsException<ScriptException>(
+                    () => ExpressionParser.Parse("f-e", Copy(vars)),
+                    "Der ScriptVisitor traegt den Schalter in den naechsten Lauf hinueber.");
+
+                // Der Interpreter ist davon unberuehrt - eigener Kontext pro Lauf.
+                ScriptInterpreter.ParseBlock("\"@@TYPESAFETY OFF\";", new Dictionary<string, object>());
+                Assert.AreEqual(98.25M, ScriptInterpreter.Parse("f-e", Copy(vars)),
+                    "Der Interpreter darf den Schalter nicht in den naechsten Lauf tragen.");
+            }
+            finally
+            {
+                ExpressionParser.ParseBlock("\"@@TYPESAFETY ON\";", new Dictionary<string, object>());
+            }
+        }
+
+        [TestMethod]
+        public void ExplicitTypeHints()
+        {
+            // Typ-Hinweise waren im abgeloesten Builder wirkungslos, weil der Typpfad beim
+            // Bauen verlorenging. Hier muss er ankommen.
+            var vars = new Dictionary<string, object> { { "s", "abc" } };
+            AssertSameBlock(3, "return s.Length;", vars);
+        }
+
+        [TestMethod]
+        public void NativeScripting()
+        {
+            const string script =
+                "`E(foo as list -> DEFAULT)::\"List<string>list = Global.list;" +
+                "return list.FirstOrDefault(n => n.Equals((string)Global.search));\" with {search:\"schimmel\"}";
+            var vars = new Dictionary<string, object>
+            {
+                { "foo", new List<string> { "hue", "ha", "ho", "halter", "horst", "schimmel" } }
+            };
+
+            AssertSame("schimmel", script, vars);
+
+            // Die Policy-Pruefung liegt im Ausfuehrungspfad, nicht im Bauen: derselbe Baum kann
+            // unter verschiedenen Policies laufen.
+            var denied = ScriptingPolicy.Default.Configure(n => n.NativeScripting = PolicyMode.Deny);
+            Assert.ThrowsException<ScriptSecurityException>(
+                () => ScriptInterpreter.Parse(script, Copy(vars), policy: denied),
+                "Natives Scripting muss von der Policy unterbunden werden koennen.");
+
+            // Derselbe uebersetzte Baum laeuft ohne die Sperre weiterhin.
+            Assert.AreEqual("schimmel", ScriptInterpreter.Parse(script, Copy(vars)),
+                "Die Sperre darf nicht am Baum haengenbleiben.");
+        }
+
+        [TestMethod]
+        public void NativeCodeBlock()
+        {
+            // Die Literal-Variante ohne Zielobjekt: der Code steht zwischen @# und #.
+            const string script = "`E(#DEFAULT)::@#return Global.a + Global.b;# with {a:20,b:22}";
+            AssertSame(42, script);
         }
 
         private static void AssertSameBlock(object expected, string script,

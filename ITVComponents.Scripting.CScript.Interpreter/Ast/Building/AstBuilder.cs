@@ -464,6 +464,56 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
             return new UnaryOpNode(Position(context), Expression(context.singleExpression()), UnaryOperator.Invert);
         }
 
+        public override INode VisitPreIncrementExpression(ITVScriptingParser.PreIncrementExpressionContext context)
+        {
+            return new IncrementNode(Position(context), Expression(context.singleExpression()),
+                IncrementType.PreIncrement);
+        }
+
+        public override INode VisitPostIncrementExpression(
+            ITVScriptingParser.PostIncrementExpressionContext context)
+        {
+            return new IncrementNode(Position(context), Expression(context.singleExpression()),
+                IncrementType.PostIncrement);
+        }
+
+        public override INode VisitPreDecreaseExpression(ITVScriptingParser.PreDecreaseExpressionContext context)
+        {
+            return new IncrementNode(Position(context), Expression(context.singleExpression()),
+                IncrementType.PreDecrement);
+        }
+
+        public override INode VisitPostDecreaseExpression(
+            ITVScriptingParser.PostDecreaseExpressionContext context)
+        {
+            return new IncrementNode(Position(context), Expression(context.singleExpression()),
+                IncrementType.PostDecrement);
+        }
+
+        #endregion
+
+        #region Instanzerzeugung
+
+        public override INode VisitNewExpression(ITVScriptingParser.NewExpressionContext context)
+        {
+            return new NewNode(Position(context), Expression(context.singleExpression()),
+                ArgumentNodes(context.arguments()), GenericArguments(context.typeArguments(), context),
+                Initializer(context.objectLiteral()));
+        }
+
+        public override INode VisitNewImplicitInit(ITVScriptingParser.NewImplicitInitContext context)
+        {
+            // Ohne Argumentliste: der Standardkonstruktor, danach der Initialisierer.
+            return new NewNode(Position(context), Expression(context.singleExpression()),
+                Array.Empty<IExpressionNode>(), GenericArguments(context.typeArguments(), context),
+                Initializer(context.objectLiteral()));
+        }
+
+        private ObjectLiteralNode Initializer(ITVScriptingParser.ObjectLiteralContext context)
+        {
+            return context == null ? null : (ObjectLiteralNode)Visit(context);
+        }
+
         #endregion
 
         #region Zuweisungen
@@ -623,9 +673,27 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
                     // Wahrheitswert anschliessend mit seiner Textform.
                     return new LiteralNode(Position(context),
                         boolean.GetText().Equals("true", StringComparison.OrdinalIgnoreCase));
+                case ITVScriptingParser.RefLiteralContext refLiteral:
+                    return Visit(refLiteral);
                 default:
-                    return new LiteralNode(Position(context), StringHelper.Parse(child.GetText()));
+                    string text = StringHelper.Parse(child.GetText());
+
+                    // Manche Zeichenketten sind Ausfuehrungsschalter. Erkannt wird das hier
+                    // einmalig; gesetzt wird der Schalter erst beim Auswerten.
+                    return (INode)PragmaNode.TryCreate(Position(context), text)
+                           ?? new LiteralNode(Position(context), text);
             }
+        }
+
+        public override INode VisitRefLiteral(ITVScriptingParser.RefLiteralContext context)
+        {
+            return new RefLiteralNode(Position(context), Expression(context.typeLiteral()));
+        }
+
+        public override INode VisitTypeIdentifier(ITVScriptingParser.TypeIdentifierContext context)
+        {
+            string[] path = context.Identifier().Select(i => i.GetText()).ToArray();
+            return new TypeIdentifierNode(Position(context), path);
         }
 
         public override INode VisitNumericLiteral(ITVScriptingParser.NumericLiteralContext context)
@@ -770,6 +838,45 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
                 returnAllowed = returns;
                 inCatch = catching;
             }
+        }
+
+        #endregion
+
+        #region Native Scripts
+
+        public override INode VisitNativeExpression(ITVScriptingParser.NativeExpressionContext context)
+        {
+            var expressions = context.singleExpression();
+            var identifier = context.Identifier();
+
+            // identifier[0] ist der Name, unter dem das Ziel im C#-Code sichtbar wird
+            // ("as hicks"), identifier[1] die native Konfiguration ("-> DUMMY").
+            return new NativeExpressionNode(Position(context), Expression(expressions[0]),
+                Expression(expressions[1]), Expression(expressions[2]),
+                identifier[0].GetText(), identifier[1].GetText());
+        }
+
+        public override INode VisitNativeLiteralExpression(
+            ITVScriptingParser.NativeLiteralExpressionContext context)
+        {
+            // Der Codeblock ist von @# und # umschlossen; beides gehoert nicht zum Code.
+            string raw = context.NativeCodeLiteral().GetText();
+            string code = raw.Substring(2, raw.Length - 3);
+
+            return new NativeLiteralNode(Position(context), code,
+                Expression(context.singleExpression()), context.Identifier().GetText());
+        }
+
+        public override INode VisitNativeReference(ITVScriptingParser.NativeReferenceContext context)
+        {
+            return new NativeReferenceNode(Position(context), context.Identifier().GetText(),
+                StringHelper.Parse(context.StringLiteral().GetText()));
+        }
+
+        public override INode VisitNativeUsing(ITVScriptingParser.NativeUsingContext context)
+        {
+            return new NativeUsingNode(Position(context), context.Identifier().GetText(),
+                StringHelper.Parse(context.StringLiteral().GetText()));
         }
 
         #endregion
