@@ -25,9 +25,14 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
         private readonly IStatementNode body;
         private readonly string[] argumentNames;
 
+        /// <param name="name">
+        /// der Name, unter dem die Funktion definiert wurde, oder null bei einer anonymen.
+        /// Die Basisklasse bindet die Funktion darunter in ihren eigenen Scope, damit sie sich
+        /// selbst aufrufen kann.
+        /// </param>
         public InterpretedFunction(Dictionary<string, object> values, string[] arguments, IStatementNode body,
-            ScriptingPolicy policy)
-            : base(values, arguments, policy)
+            ScriptingPolicy policy, string name)
+            : base(values, arguments, policy, name)
         {
             this.body = body ?? throw new ArgumentNullException(nameof(body));
             this.argumentNames = arguments;
@@ -60,7 +65,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
         /// </remarks>
         public override FunctionLiteral Copy()
         {
-            return new InterpretedFunction(InitialValues, argumentNames, body, Policy);
+            return new InterpretedFunction(InitialValues, argumentNames, body, Policy, FunctionName);
         }
 
         private static Exception AsException(Completion completion)

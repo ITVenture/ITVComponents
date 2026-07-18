@@ -251,33 +251,33 @@ namespace ITVComponents.Scripting.CScript.Test
         }
 
         /// <summary>
-        /// Haelt fest, dass Rekursion auf oberster Ebene in beiden Maschinen nicht funktioniert.
+        /// Prueft, dass eine benannte Funktion sich selbst aufrufen kann.
         /// </summary>
         /// <remarks>
-        /// Eine Funktion nimmt ihren umgebenden Scope als Momentaufnahme mit - und die entsteht,
-        /// bevor die Funktion unter ihrem Namen abgelegt wird. Sie kennt sich also selbst nicht,
-        /// und der rekursive Aufruf laeuft ins Leere.
-        ///
-        /// Innerhalb einer anderen Funktion sieht es anders aus: dort bekommt die innere
-        /// Funktion einen ParentScope gesetzt und findet ihren Namen darueber.
-        ///
-        /// Das ist keine Eigenheit des Interpreters, sondern folgt aus der Closure-Semantik der
-        /// gemeinsamen Runtime (FunctionLiteral + FunctionScope). Der Interpreter uebernimmt sie
-        /// unveraendert. Wenn Rekursion gewuenscht ist, muesste die Funktion vor dem Snapshot in
-        /// ihren eigenen Scope gebunden werden - das waere eine Sprachaenderung und gehoert
-        /// entschieden, nicht nebenbei geaendert.
+        /// Zuvor ging das nicht: eine Funktion nimmt ihren umgebenden Scope als Momentaufnahme
+        /// mit, und die entstand, bevor die Funktion unter ihrem Namen abgelegt wurde - sie
+        /// kannte sich selbst nicht. Seit FunctionLiteral den Namen kennt, bindet es sich
+        /// darunter in seinen eigenen Scope. Beide Maschinen koennen es.
         /// </remarks>
         [TestMethod]
-        public void RecursionIsUnsupportedInBothEngines()
+        public void Recursion()
         {
-            const string script =
-                "function fac(n) { if(n<=1) { return 1; } return n*fac(n-1); } return fac(5);";
-            Assert.ThrowsException<ScriptException>(
-                () => ExpressionParser.ParseBlock(script, new Dictionary<string, object>()),
-                "ScriptVisitor sollte weiterhin an der Rekursion scheitern.");
-            Assert.ThrowsException<ScriptException>(
-                () => ScriptInterpreter.ParseBlock(script, new Dictionary<string, object>()),
-                "Interpreter sollte dasselbe Verhalten zeigen wie der ScriptVisitor.");
+            AssertSameBlock(120,
+                "function fac(n) { if(n<=1) { return 1; } return n*fac(n-1); } return fac(5);");
+
+            // Wechselseitige Rekursion geht weiterhin nicht: die zuerst definierte Funktion
+            // kennt die spaeter definierte nicht, weil deren Name zum Zeitpunkt der
+            // Momentaufnahme noch nicht gebunden war.
+            AssertSameBlock(8,
+                "function fib(n) { if(n<2) { return n; } return fib(n-1)+fib(n-2); } return fib(6);");
+
+            // Auch als benannter Funktionsausdruck.
+            AssertSameBlock(120,
+                "f = function fac(n) { if(n<=1) { return 1; } return n*fac(n-1); }; return f(5);");
+
+            // Die Selbstbindung muss Copy() ueberleben - ein Objekt-Literal klont jede Methode.
+            AssertSameBlock(120,
+                "o = { fac: function fac(n) { if(n<=1) { return 1; } return n*fac(n-1); } }; return o.fac(5);");
         }
 
         [TestMethod]

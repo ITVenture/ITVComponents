@@ -2855,7 +2855,11 @@ namespace ITVComponents.Scripting.CScript.Core
                 args = (from t in context.formalParameterList().Identifier() select t.GetText()).ToArray();
             }
 
-            FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody(), ScriptingPolicy);
+            // Der Name wird mitgegeben, damit die Methode sich selbst sieht und sich aufrufen
+            // kann. Ohne ihn steht im Snapshot der umgebenden Werte nichts unter diesem Namen,
+            // weil er erst nach dem Snapshot gebunden wird.
+            FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody(), ScriptingPolicy,
+                context.Identifier().GetText());
             if (variables is FunctionScope)
             {
                 function.ParentScope = ((FunctionScope)variables).ParentScope;
@@ -2888,13 +2892,17 @@ namespace ITVComponents.Scripting.CScript.Core
                     args = (from t in context.formalParameterList().Identifier() select t.GetText()).ToArray();
                 }
 
-                FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody(), ScriptingPolicy);
+                string identifier = context.Identifier()?.GetText();
+
+                // Ein benannter Funktionsausdruck sieht sich selbst; ein anonymer hat keinen
+                // Namen, unter dem er sich finden koennte.
+                FunctionLiteral function = new FunctionLiteral(initial, args, context.functionBody(),
+                    ScriptingPolicy, identifier);
                 if (variables is FunctionScope)
                 {
                     function.ParentScope = ((FunctionScope)variables).ParentScope;
                 }
 
-                string identifier = context.Identifier()?.GetText();
                 LiteralScriptValue retVal = new LiteralScriptValue(bypassCompatibilityOnLazyInvokation);
                 retVal.Initialize(function);
                 if (identifier != null)

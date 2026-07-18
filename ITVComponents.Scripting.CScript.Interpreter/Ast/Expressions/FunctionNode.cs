@@ -42,7 +42,11 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
             // spaetere Aenderungen daran also nicht - eine Momentaufnahme, keine lebende
             // Referenz. Das ist Ist-Verhalten des ScriptVisitors.
             Dictionary<string, object> initial = context.Variables.Snapshot();
-            var function = new InterpretedFunction(initial, parameters, body, context.Policy);
+
+            // Der Name geht mit: die Funktion bindet sich darunter in ihren eigenen Scope und
+            // kann sich damit selbst aufrufen. Ohne das steht im Snapshot nichts unter diesem
+            // Namen, weil er erst danach gebunden wird.
+            var function = new InterpretedFunction(initial, parameters, body, context.Policy, name);
             if (context.Variables is FunctionScope functionScope)
             {
                 function.ParentScope = functionScope.ParentScope;
