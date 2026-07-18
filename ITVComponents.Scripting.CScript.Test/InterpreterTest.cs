@@ -136,6 +136,123 @@ namespace ITVComponents.Scripting.CScript.Test
             Assert.AreEqual(20, compiled.Execute(new Dictionary<string, object> { { "a", 4 }, { "b", 5 } }));
         }
 
+        [TestMethod]
+        public void ControlFlow()
+        {
+            AssertSameBlock(10, "x=0; while(x<10) { x=x+1; } return x;");
+            AssertSameBlock(10, "x=0; do { x=x+1; } while(x<10); return x;");
+            AssertSameBlock(45, "s=0; for(i=0;i<10;i=i+1) { s=s+i; } return s;");
+            AssertSameBlock(6, "s=0; foreach(i in [1,2,3]) { s=s+i; } return s;");
+
+            // break und continue
+            AssertSameBlock(5, "x=0; while(true) { x=x+1; if(x==5) { break; } } return x;");
+            AssertSameBlock(25, "s=0; for(i=0;i<10;i=i+1) { if(i%2==0) { continue; } s=s+i; } return s;");
+
+            // return aus einer Schleife heraus
+            AssertSameBlock(3, "for(i=0;i<10;i=i+1) { if(i==3) { return i; } } return -1;");
+
+            // if/else
+            AssertSameBlock("gross", "x=10; if(x>5) { return \"gross\"; } else { return \"klein\"; }");
+            AssertSameBlock("klein", "x=1; if(x>5) { return \"gross\"; } else { return \"klein\"; }");
+
+            // Ein Programm ohne return liefert null.
+            AssertSameBlock(null, "x=1;");
+        }
+
+        [TestMethod]
+        public void SwitchAndTry()
+        {
+            AssertSameBlock("zwei", "x=2; switch(x) { case 1: return \"eins\"; case 2: return \"zwei\"; }");
+            AssertSameBlock("sonst", "x=9; switch(x) { case 1: return \"eins\"; default: return \"sonst\"; }");
+
+            // Ausdrueckliches Fall-Through per continue.
+            AssertSameBlock(2,
+                "n=0; x=1; switch(x) { case 1: n=n+1; continue; case 2: n=n+1; break; } return n;");
+
+            // catch ohne return aus dem catch heraus - das beherrschen beide Maschinen.
+            AssertSameBlock(1, "x=0; try { throw \"boom\"; } catch(e) { x=1; } return x;");
+            AssertSameBlock("boom", "m=0; try { throw \"boom\"; } catch(e) { m=e; } return m;");
+            AssertSameBlock(3, "x=0; try { x=1; } finally { x=3; } return x;");
+        }
+
+        [TestMethod]
+        public void ScopesFollowBlocks()
+        {
+            // Eine Zuweisung legt keine neue Variable an, sondern trifft die vorhandene im
+            // aeusseren Scope - der Schleifenkopf ueberschreibt hier also das aeussere i, und
+            // nach der Schleife steht dessen letzter Wert. Beide Maschinen tun das gleich.
+            AssertSameBlock(2, "i=3; for(i=0;i<2;i=i+1) { } return i;");
+
+            // Der Rumpf teilt den Scope mit dem Kopf: die Laufvariable ist darin sichtbar.
+            AssertSameBlock(3, "s=0; for(i=1;i<3;i=i+1) { s=s+i; } return s;");
+        }
+
+        /// <summary>
+        /// Faelle, die der ScriptVisitor nicht beherrscht - hier wird nur der Interpreter
+        /// geprueft, mit Nachweis, dass die alte Maschine daran scheitert.
+        /// </summary>
+        [TestMethod]
+        public void InterpreterFixesVisitorDefects()
+        {
+            // Mehrfach-Markierung: leerer case-Rumpf faellt in den naechsten durch.
+            // Der ScriptVisitor lief hier in eine NullReferenceException.
+            AssertInterpreterBlock("treffer",
+                "x=2; switch(x) { case 1: case 2: return \"treffer\"; default: return \"daneben\"; }");
+
+            // return aus einem catch nach einem Script-throw. Der ScriptVisitor verwarf jedes
+            // Ergebnis des catch-Blocks ausser ReThrow - das return verschwand spurlos und die
+            // Auswertung lieferte null.
+            AssertInterpreterBlock(42, "try { throw \"x\"; } catch(e) { return 42; }");
+            AssertInterpreterBlock("gefangen", "try { throw \"boom\"; } catch(e) { return \"gefangen\"; }");
+            AssertInterpreterBlock("boom", "try { throw \"boom\"; } catch(e) { return e; }");
+            Assert.IsNull(ExpressionParser.ParseBlock("try { throw \"x\"; } catch(e) { return 42; }",
+                new Dictionary<string, object>()),
+                "ScriptVisitor sollte das return aus dem catch weiterhin verschlucken.");
+
+            // Ein throw ohne Ausdruck reicht die urspruengliche Nutzlast weiter. Beim
+            // ScriptVisitor kam oben null an.
+            AssertInterpreterBlock("boom",
+                "try { try { throw \"boom\"; } catch(e) { throw; } } catch(e2) { return e2; }");
+
+            // for ohne Kopfteile. Der abgeloeste Builder verlangte alle drei.
+            AssertInterpreterBlock(3, "i=0; for(;;) { i=i+1; if(i==3) { break; } } return i;");
+            AssertInterpreterBlock(4, "i=0; for(;i<4;) { i=i+1; } return i;");
+        }
+
+        [TestMethod]
+        public void MisplacedJumpsAreRejectedWhileBuilding()
+        {
+            // Der Erbauer kennt die lexikalische Verschachtelung und lehnt diese Faelle ab,
+            // bevor irgendetwas ausgefuehrt wird. Der ScriptVisitor merkte es erst zur
+            // Laufzeit - und nur, wenn die Stelle auch erreicht wurde.
+            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.CompileBlock("break;"));
+            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.CompileBlock("continue;"));
+            Assert.ThrowsException<ScriptException>(
+                () => ScriptInterpreter.CompileBlock("try { } finally { return 1; }"));
+            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.CompileBlock("throw;"));
+        }
+
+        private static void AssertSameBlock(object expected, string script,
+            IDictionary<string, object> variables = null)
+        {
+            object visitorResult = ExpressionParser.ParseBlock(script, Copy(variables));
+            object interpreterResult = ScriptInterpreter.ParseBlock(script, Copy(variables));
+
+            Assert.AreEqual(expected, visitorResult,
+                $"ScriptVisitor liefert fuer '{script}' nicht den erwarteten Wert.");
+            Assert.AreEqual(expected, interpreterResult,
+                $"Interpreter liefert fuer '{script}' nicht den erwarteten Wert.");
+            Assert.AreEqual(visitorResult, interpreterResult,
+                $"Interpreter und ScriptVisitor weichen fuer '{script}' voneinander ab.");
+        }
+
+        private static void AssertInterpreterBlock(object expected, string script,
+            IDictionary<string, object> variables = null)
+        {
+            Assert.AreEqual(expected, ScriptInterpreter.ParseBlock(script, Copy(variables)),
+                $"Interpreter liefert fuer '{script}' nicht den erwarteten Wert.");
+        }
+
         private static void AssertSame(object expected, string expression,
             IDictionary<string, object> variables = null)
         {

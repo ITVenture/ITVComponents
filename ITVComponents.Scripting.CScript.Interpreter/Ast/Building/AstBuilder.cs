@@ -6,6 +6,7 @@ using Antlr4.Runtime.Tree;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions;
+using ITVComponents.Scripting.CScript.Interpreter.Ast.Statements;
 using ITVComponents.Scripting.CScript.Operating;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
@@ -27,27 +28,270 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
     public class AstBuilder : ITVScriptingBaseVisitor<INode>
     {
         /// <summary>
+        /// Wie tief der gerade gebaute Knoten in Schleifen beziehungsweise switch-Bloecken
+        /// steckt, und ob return erlaubt ist.
+        /// </summary>
+        /// <remarks>
+        /// Damit wird schon beim Bauen entschieden, ob break, continue und return an ihrer
+        /// Stelle zulaessig sind. Der ScriptVisitor musste das zur Laufzeit ueber die
+        /// Instanzfelder loopJumpAllowed, catching und returnSupported pruefen, weil er keine
+        /// Bauphase hat - ein falsch platziertes break fiel dort erst auf, wenn es ausgefuehrt
+        /// wurde, und dann als nicht fangbarer Fehler.
+        /// </remarks>
+        private int loopDepth;
+        private int switchDepth;
+        private bool returnAllowed = true;
+        private bool inCatch;
+
+        /// <summary>
         /// Baut den Ausdrucks-Knoten fuer einen Parsebaum.
         /// </summary>
         public IExpressionNode BuildExpression(IParseTree tree)
         {
+            // ExpressionParser.GetRawExpressionTree liefert auch fuer einen einzelnen Ausdruck
+            // einen Statement-Rahmen; der wird hier ausgepackt.
+            if (tree is ITVScriptingParser.ExpressionStatementContext statement)
+            {
+                return SingleExpression(statement.expressionSequence());
+            }
+
             return Expression(tree);
         }
 
         /// <summary>
-        /// Packt den Statement-Rahmen aus, in den der Parser auch einen einzelnen Ausdruck
-        /// legt (ExpressionParser.GetRawExpressionTree liefert einen ExpressionStatementContext).
+        /// Baut den Anweisungs-Knoten fuer ein ganzes Programm.
         /// </summary>
+        public IStatementNode BuildProgram(ITVScriptingParser.ProgramContext tree)
+        {
+            return Statement(tree.sourceElements());
+        }
+
+        #region Programm und Anweisungsfolgen
+
+        public override INode VisitProgram(ITVScriptingParser.ProgramContext context)
+        {
+            return Visit(context.sourceElements());
+        }
+
+        public override INode VisitSourceElements(ITVScriptingParser.SourceElementsContext context)
+        {
+            // Kein eigener Scope: die Wurzel laeuft im Scope, den der Aufrufer mitgibt.
+            return new BlockNode(Position(context), Statements(context.sourceElement()), false);
+        }
+
+        public override INode VisitStatementList(ITVScriptingParser.StatementListContext context)
+        {
+            return new BlockNode(Position(context), Statements(context.statement()), false);
+        }
+
+        public override INode VisitBlock(ITVScriptingParser.BlockContext context)
+        {
+            return BuildBlock(context, true);
+        }
+
+        public override INode VisitEmptyStatement(ITVScriptingParser.EmptyStatementContext context)
+        {
+            return new EmptyStatementNode(Position(context));
+        }
+
         public override INode VisitExpressionStatement(ITVScriptingParser.ExpressionStatementContext context)
         {
-            return Visit(context.expressionSequence());
+            return new ExpressionStatementNode(Position(context),
+                SingleExpression(context.expressionSequence()));
         }
+
+        #endregion
+
+        #region Verzweigungen und Schleifen
+
+        public override INode VisitIfStatement(ITVScriptingParser.IfStatementContext context)
+        {
+            var branches = context.statement();
+            return new IfNode(Position(context), Expression(context.singleExpression()),
+                Statement(branches[0]), branches.Length > 1 ? Statement(branches[1]) : null);
+        }
+
+        public override INode VisitWhileStatement(ITVScriptingParser.WhileStatementContext context)
+        {
+            IExpressionNode condition = Expression(context.singleExpression());
+            return new WhileNode(Position(context), condition, LoopBody(context.statement(), true));
+        }
+
+        public override INode VisitDoStatement(ITVScriptingParser.DoStatementContext context)
+        {
+            IStatementNode body = LoopBody(context.statement(), true);
+            return new DoWhileNode(Position(context), Expression(context.singleExpression()), body);
+        }
+
+        public override INode VisitForStatement(ITVScriptingParser.ForStatementContext context)
+        {
+            // Die Grammatik fuehrt alle drei Kopfteile als optional. Der abgeloeste Builder
+            // verlangte alle drei und lehnte for(;;) zur Laufzeit ab.
+            IReadOnlyList<IExpressionNode> initializer = HeaderPart(context, 0);
+            IReadOnlyList<IExpressionNode> condition = HeaderPart(context, 1);
+            IReadOnlyList<IExpressionNode> iterator = HeaderPart(context, 2);
+
+            // Kopf und Rumpf teilen den Scope, den ForNode oeffnet.
+            return new ForNode(Position(context), initializer, condition, iterator,
+                LoopBody(context.statement(), false));
+        }
+
+        public override INode VisitForInStatement(ITVScriptingParser.ForInStatementContext context)
+        {
+            var expressions = context.singleExpression();
+            return new ForEachNode(Position(context), Expression(expressions[0]), Expression(expressions[1]),
+                LoopBody(context.statement(), false));
+        }
+
+        public override INode VisitContinueStatement(ITVScriptingParser.ContinueStatementContext context)
+        {
+            if (loopDepth == 0 && switchDepth == 0)
+            {
+                throw new ScriptException(
+                    $"Invalid usage of Continue found at {Position(context).Line}/{Position(context).Column}");
+            }
+
+            return new ContinueNode(Position(context));
+        }
+
+        public override INode VisitBreakStatement(ITVScriptingParser.BreakStatementContext context)
+        {
+            if (loopDepth == 0 && switchDepth == 0)
+            {
+                throw new ScriptException(
+                    $"Invalid usage of Break found at {Position(context).Line}/{Position(context).Column}");
+            }
+
+            return new BreakNode(Position(context));
+        }
+
+        public override INode VisitReturnStatement(ITVScriptingParser.ReturnStatementContext context)
+        {
+            if (!returnAllowed)
+            {
+                throw new ScriptException(
+                    $"Invalid usage of Return found at {Position(context).Line}/{Position(context).Column}");
+            }
+
+            var value = context.singleExpression();
+            return new ReturnNode(Position(context), value == null ? null : Expression(value));
+        }
+
+        #endregion
+
+        #region switch
+
+        public override INode VisitSwitchStatement(ITVScriptingParser.SwitchStatementContext context)
+        {
+            IExpressionNode value = Expression(context.singleExpression());
+            var caseBlock = context.caseBlock();
+
+            switchDepth++;
+            try
+            {
+                var clauses = new List<CaseClause>();
+                var caseClauses = caseBlock.caseClauses();
+                if (caseClauses != null)
+                {
+                    foreach (var clause in caseClauses.caseClause())
+                    {
+                        // Ein leerer Rumpf ist zulaessig und faellt in die naechste Klausel
+                        // durch - der uebliche Mehrfach-Label-Fall.
+                        var list = clause.statementList();
+                        clauses.Add(new CaseClause(Expression(clause.singleExpression()),
+                            list == null ? null : Statement(list)));
+                    }
+                }
+
+                var defaultClause = caseBlock.defaultClause();
+                IStatementNode defaultBody = null;
+                if (defaultClause != null)
+                {
+                    var list = defaultClause.statementList();
+                    defaultBody = list == null ? null : Statement(list);
+                }
+
+                return new SwitchNode(Position(context), value, clauses, defaultBody);
+            }
+            finally
+            {
+                switchDepth--;
+            }
+        }
+
+        #endregion
+
+        #region try
+
+        public override INode VisitTryStatement(ITVScriptingParser.TryStatementContext context)
+        {
+            IStatementNode tryBlock = BuildBlock(context.block(), true);
+
+            var catchProduction = context.catchProduction();
+            string exceptionVariable = null;
+            IStatementNode catchBlock = null;
+            if (catchProduction != null)
+            {
+                exceptionVariable = catchProduction.Identifier().GetText();
+                bool wasInCatch = inCatch;
+                inCatch = true;
+                try
+                {
+                    // Der catch-Rumpf teilt den Scope mit der Ausnahmevariablen, die TryNode
+                    // dort ablegt - deshalb ohne eigenen Scope.
+                    catchBlock = BuildBlock(catchProduction.block(), false);
+                }
+                finally
+                {
+                    inCatch = wasInCatch;
+                }
+            }
+
+            var finallyProduction = context.finallyProduction();
+            IStatementNode finallyBlock = null;
+            if (finallyProduction != null)
+            {
+                // Aus einem finally-Block heraus darf der Kontrollfluss nicht abrupt
+                // verlassen werden - sonst verschwaende er das Ergebnis, das er schuetzen soll.
+                int loops = loopDepth;
+                int switches = switchDepth;
+                bool returns = returnAllowed;
+                loopDepth = 0;
+                switchDepth = 0;
+                returnAllowed = false;
+                try
+                {
+                    finallyBlock = BuildBlock(finallyProduction.block(), true);
+                }
+                finally
+                {
+                    loopDepth = loops;
+                    switchDepth = switches;
+                    returnAllowed = returns;
+                }
+            }
+
+            return new TryNode(Position(context), tryBlock, exceptionVariable, catchBlock, finallyBlock);
+        }
+
+        public override INode VisitThrowStatement(ITVScriptingParser.ThrowStatementContext context)
+        {
+            var value = context.singleExpression();
+            if (value == null && !inCatch)
+            {
+                throw new ScriptException("Illegal Re-Throw statement found!");
+            }
+
+            return new ThrowNode(Position(context), value == null ? null : Expression(value));
+        }
+
+        #endregion
 
         /// <summary>
         /// Eine Ausdrucksfolge in Ausdrucksposition. Mehrere durch Komma getrennte Ausdruecke
         /// sind hier nicht sinnvoll - erst als Argumentliste, und die wird anderswo gelesen.
         /// </summary>
-        public override INode VisitExpressionSequence(ITVScriptingParser.ExpressionSequenceContext context)
+        private IExpressionNode SingleExpression(ITVScriptingParser.ExpressionSequenceContext context)
         {
             var expressions = context.singleExpression();
             if (expressions.Length != 1)
@@ -56,7 +300,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
                     $"Single expression expected at {Position(context).Line}/{Position(context).Column}");
             }
 
-            return Visit(expressions[0]);
+            return Expression(expressions[0]);
         }
 
         #region Operatoren
@@ -446,6 +690,100 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
         #endregion
 
         #region Helfer
+
+        private IStatementNode Statement(IParseTree tree)
+        {
+            INode node = Visit(tree);
+            if (node is IStatementNode statement)
+            {
+                return statement;
+            }
+
+            // Ein Ausdruck in Anweisungsposition, den die Grammatik nicht als
+            // expressionStatement fuehrt.
+            if (node is IExpressionNode expression)
+            {
+                return new ExpressionStatementNode(expression.Position, expression);
+            }
+
+            throw new ScriptException($"Statement expected, got {node?.GetType().Name ?? "nothing"}");
+        }
+
+        private IReadOnlyList<IStatementNode> Statements(IEnumerable<IParseTree> trees)
+        {
+            return trees.Select(Statement).ToArray();
+        }
+
+        private BlockNode BuildBlock(ITVScriptingParser.BlockContext context, bool ownsScope)
+        {
+            var list = context.statementList();
+            IReadOnlyList<IStatementNode> statements = list == null
+                ? Array.Empty<IStatementNode>()
+                : Statements(list.statement());
+            return new BlockNode(Position(context), statements, ownsScope);
+        }
+
+        /// <summary>
+        /// Baut den Rumpf einer Schleife und zaehlt dabei die Schleifentiefe hoch, damit break
+        /// und continue darin zulaessig sind.
+        /// </summary>
+        /// <param name="ownsScope">
+        /// ob der Rumpf einen eigenen Scope oeffnet. Bei for und foreach nicht - dort oeffnet
+        /// ihn der Schleifenknoten, damit Kopf und Rumpf sich denselben teilen.
+        /// </param>
+        private IStatementNode LoopBody(ITVScriptingParser.StatementContext context, bool ownsScope)
+        {
+            loopDepth++;
+            try
+            {
+                var block = context.block();
+                if (block != null)
+                {
+                    return BuildBlock(block, ownsScope);
+                }
+
+                return Statement(context);
+            }
+            finally
+            {
+                loopDepth--;
+            }
+        }
+
+        /// <summary>
+        /// Liest einen der drei Teile eines for-Kopfes. Fehlt er, ist die Liste leer.
+        /// </summary>
+        /// <remarks>
+        /// Die Zuordnung laeuft ueber die Position der Semikola, nicht ueber den Index im
+        /// Array: expressionSequence() liefert nur die tatsaechlich vorhandenen Teile, sodass
+        /// bei "for(;i&lt;n;i++)" das erste Array-Element die Bedingung waere und nicht die
+        /// Initialisierung.
+        /// </remarks>
+        private IReadOnlyList<IExpressionNode> HeaderPart(ITVScriptingParser.ForStatementContext context,
+            int slot)
+        {
+            var sequences = context.expressionSequence();
+            var semicolons = context.SemiColon();
+            if (sequences == null || sequences.Length == 0 || semicolons == null || semicolons.Length < 2)
+            {
+                return Array.Empty<IExpressionNode>();
+            }
+
+            int firstSemicolon = semicolons[0].Symbol.TokenIndex;
+            int secondSemicolon = semicolons[1].Symbol.TokenIndex;
+
+            foreach (var sequence in sequences)
+            {
+                int token = sequence.Start.TokenIndex;
+                int actualSlot = token < firstSemicolon ? 0 : token < secondSemicolon ? 1 : 2;
+                if (actualSlot == slot)
+                {
+                    return Expressions(sequence.singleExpression());
+                }
+            }
+
+            return Array.Empty<IExpressionNode>();
+        }
 
         private IExpressionNode Expression(IParseTree tree)
         {

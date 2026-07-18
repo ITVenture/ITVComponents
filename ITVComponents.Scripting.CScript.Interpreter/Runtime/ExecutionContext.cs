@@ -21,8 +21,6 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
     /// </remarks>
     public sealed class ExecutionContext
     {
-        private readonly Stack<object> switchValues = new Stack<object>();
-
         /// <summary>
         /// Initialisiert eine neue Ausfuehrung.
         /// </summary>
@@ -72,34 +70,6 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
         /// Der Debugger-Hook. Null bedeutet: keine Beobachtung, kein Overhead.
         /// </summary>
         public IExecutionObserver Observer { get; set; }
-
-        /// <summary>
-        /// Legt den Vergleichswert eines switch-Blocks ab. Als Stack, damit verschachtelte
-        /// switch-Bloecke sich nicht gegenseitig ueberschreiben - beim ScriptVisitor war das
-        /// ein einzelnes Feld.
-        /// </summary>
-        public void PushSwitchValue(object value)
-        {
-            switchValues.Push(value);
-        }
-
-        /// <summary>
-        /// Nimmt den Vergleichswert des innersten switch-Blocks wieder herunter.
-        /// </summary>
-        public void PopSwitchValue()
-        {
-            switchValues.Pop();
-        }
-
-        /// <summary>
-        /// Der Vergleichswert des innersten switch-Blocks.
-        /// </summary>
-        public object CurrentSwitchValue => switchValues.Peek();
-
-        /// <summary>
-        /// Gibt an, ob gerade ein switch-Block ausgewertet wird.
-        /// </summary>
-        public bool InSwitch => switchValues.Count != 0;
 
         /// <summary>
         /// Erzeugt eine Momentaufnahme des Zustands fuer den Debugger. Nur diese Aufnahme wird

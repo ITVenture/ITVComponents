@@ -28,6 +28,13 @@ namespace ITVComponents.Scripting.CScript.Interpreter
             new ConcurrentDictionary<string, Lazy<CompiledScript>>();
 
         /// <summary>
+        /// Zwischenspeicher der uebersetzten Programme. Getrennt von den Ausdruecken, weil
+        /// derselbe Quelltext als Ausdruck und als Programm unterschiedlich uebersetzt wird.
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, Lazy<CompiledScript>> compiledPrograms =
+            new ConcurrentDictionary<string, Lazy<CompiledScript>>();
+
+        /// <summary>
         /// Uebersetzt einen einzelnen Ausdruck.
         /// </summary>
         /// <param name="expression">der Ausdruck</param>
@@ -58,20 +65,56 @@ namespace ITVComponents.Scripting.CScript.Interpreter
         }
 
         /// <summary>
+        /// Uebersetzt ein ganzes Programm.
+        /// </summary>
+        /// <param name="script">der Quelltext</param>
+        /// <returns>das uebersetzte Script</returns>
+        public static CompiledScript CompileBlock(string script)
+        {
+            if (script == null)
+            {
+                throw new ArgumentNullException(nameof(script));
+            }
+
+            return compiledPrograms.GetOrAdd(script,
+                key => new Lazy<CompiledScript>(() => BuildProgram(key))).Value;
+        }
+
+        /// <summary>
+        /// Fuehrt ein ganzes Programm aus.
+        /// </summary>
+        /// <param name="script">der Quelltext</param>
+        /// <param name="variables">die Startvariablen</param>
+        /// <param name="scopeInitializer">ein Initialisierer fuer den Scope, oder null</param>
+        /// <param name="policy">die geltende Sicherheits-Policy, oder null</param>
+        /// <returns>der Wert eines return, sonst null</returns>
+        public static object ParseBlock(string script, IDictionary<string, object> variables,
+            InitializeScopeVariables scopeInitializer = null, ScriptingPolicy policy = null)
+        {
+            return CompileBlock(script).Execute(variables, scopeInitializer, policy);
+        }
+
+        /// <summary>
         /// Leert den Uebersetzungs-Zwischenspeicher.
         /// </summary>
         public static void ClearCache()
         {
             compiledExpressions.Clear();
+            compiledPrograms.Clear();
         }
 
         private static CompiledScript Build(string expression)
         {
             ParserRuleContext tree = ExpressionParser.GetRawExpressionTree(expression,
                 ExpressionParser.ExpressionMode.Expression);
-            var builder = new AstBuilder();
-            IExpressionNode root = builder.BuildExpression(tree);
-            return new CompiledScript(root);
+            return new CompiledScript(new AstBuilder().BuildExpression(tree));
+        }
+
+        private static CompiledScript BuildProgram(string script)
+        {
+            var tree = (ITVScriptingParser.ProgramContext)ExpressionParser.GetRawExpressionTree(script,
+                ExpressionParser.ExpressionMode.Program);
+            return new CompiledScript(new AstBuilder().BuildProgram(tree));
         }
     }
 }

@@ -20,7 +20,18 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
         Return,
 
         /// <summary>Im Script wurde geworfen. Laeuft als Signal, nicht als CLR-Exception.</summary>
-        Throw
+        Throw,
+
+        /// <summary>
+        /// Ein throw ohne Ausdruck: die gerade behandelte Ausnahme wird erneut geworfen.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst eine eigene Art und keine Unterform von Throw. Beim ScriptVisitor erbte
+        /// ReThrow von Throw, wodurch jedes "is Throw" auch ReThrow traf - unter anderem
+        /// deshalb verlor ein ReThrow im Script-Pfad seine Nutzlast und lief oben als
+        /// NullReferenceException auf.
+        /// </remarks>
+        ReThrow
     }
 
     /// <summary>
@@ -35,26 +46,37 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
         /// </summary>
         public static readonly Completion Normal = default;
 
-        private Completion(CompletionKind kind, ScriptValue value, string label)
+        private Completion(CompletionKind kind, ScriptValue value, object thrown, bool catchable)
         {
             Kind = kind;
             Value = value;
-            Label = label;
+            Thrown = thrown;
+            Catchable = catchable;
         }
 
         /// <summary>Wie die Anweisung geendet hat.</summary>
         public CompletionKind Kind { get; }
 
         /// <summary>
-        /// Der mitgefuehrte Wert: der Rueckgabewert bei <see cref="CompletionKind.Return"/>,
-        /// das geworfene Objekt bei <see cref="CompletionKind.Throw"/>, sonst null.
+        /// Der Rueckgabewert bei <see cref="CompletionKind.Return"/>, sonst null.
         /// </summary>
         public ScriptValue Value { get; }
 
         /// <summary>
-        /// Ziel-Label eines break/continue, falls angegeben; sonst null.
+        /// Das geworfene Objekt bei <see cref="CompletionKind.Throw"/>: bei einem Script-throw
+        /// der geworfene Wert, bei einer durchgereichten CLR-Ausnahme diese selbst.
         /// </summary>
-        public string Label { get; }
+        public object Thrown { get; }
+
+        /// <summary>
+        /// Gibt an, ob ein catch im Script diesen Fehler abfangen darf.
+        /// </summary>
+        /// <remarks>
+        /// Interne Fehler des Interpreters - etwa ein Ausdruck, der keinen Wahrheitswert
+        /// liefert - sind bewusst nicht fangbar. Nur was das Script selbst geworfen hat und
+        /// durchgereichte CLR-Ausnahmen sind es.
+        /// </remarks>
+        public bool Catchable { get; }
 
         /// <summary>
         /// Gibt an, ob die Anweisung normal durchlief. Nur dann darf die umgebende
@@ -70,27 +92,34 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
 
         public static Completion Return(ScriptValue value)
         {
-            return new Completion(CompletionKind.Return, value, null);
+            return new Completion(CompletionKind.Return, value, null, false);
         }
 
-        public static Completion Break(string label = null)
+        public static readonly Completion Break = new Completion(CompletionKind.Break, null, null, false);
+
+        public static readonly Completion Continue = new Completion(CompletionKind.Continue, null, null, false);
+
+        public static readonly Completion ReThrow = new Completion(CompletionKind.ReThrow, null, null, false);
+
+        /// <summary>
+        /// Ein Fehler, den das Script mit catch abfangen darf.
+        /// </summary>
+        public static Completion Throw(object thrown)
         {
-            return new Completion(CompletionKind.Break, null, label);
+            return new Completion(CompletionKind.Throw, null, thrown, true);
         }
 
-        public static Completion Continue(string label = null)
+        /// <summary>
+        /// Ein Fehler des Interpreters selbst, den kein catch im Script abfangen darf.
+        /// </summary>
+        public static Completion Fail(string message)
         {
-            return new Completion(CompletionKind.Continue, null, label);
-        }
-
-        public static Completion Throw(ScriptValue thrown)
-        {
-            return new Completion(CompletionKind.Throw, thrown, null);
+            return new Completion(CompletionKind.Throw, null, message, false);
         }
 
         public override string ToString()
         {
-            return Label != null ? $"{Kind} {Label}" : Kind.ToString();
+            return Kind == CompletionKind.Throw ? $"Throw({Thrown})" : Kind.ToString();
         }
     }
 }
