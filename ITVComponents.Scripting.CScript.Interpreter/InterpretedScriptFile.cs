@@ -26,19 +26,23 @@ namespace ITVComponents.Scripting.CScript.Interpreter
     /// Gegenstueck zu ITVComponents.Scripting.CScript.ScriptFile, das auf dem ScriptVisitor
     /// aufsetzt. Gleicher Zweck, gleiche Einstiegspunkte - aber ohne dessen Sperrwerk.
     ///
+    /// Bewusst anders benannt als das Original: waehrend der Umstellung stehen beide
+    /// nebeneinander, und ein gleicher Name in verschiedenen Namensraeumen zwaenge jede Datei,
+    /// die beide sieht, zu Aliassen oder voll qualifizierten Namen.
+    ///
     /// Beim ScriptVisitor musste ein Neuladen warten, bis keine Ausfuehrung mehr laeuft: es
     /// tauschte den ANTLR-Baum aus, den laufende Ausfuehrungen gerade begehen. Hier ist das
     /// uebersetzte Script unveraenderlich, ein Neuladen also ein Referenzwechsel. Laufende
     /// Ausfuehrungen behalten ihren Stand, neue nehmen den neuen - Laufzaehler und Wartesperre
     /// entfallen ersatzlos.
     /// </remarks>
-    public class ScriptFile<TOutput>
+    public class InterpretedScriptFile<TOutput>
     {
         /// <summary>
         /// Zwischenspeicher der aus Dateien geladenen Scripts, mit dem Pfad als Schluessel.
         /// </summary>
-        private static readonly ConcurrentDictionary<string, Lazy<ScriptFile<TOutput>>> bufferedScripts =
-            new ConcurrentDictionary<string, Lazy<ScriptFile<TOutput>>>();
+        private static readonly ConcurrentDictionary<string, Lazy<InterpretedScriptFile<TOutput>>> bufferedScripts =
+            new ConcurrentDictionary<string, Lazy<InterpretedScriptFile<TOutput>>>();
 
         private readonly string fileName;
         private readonly Stream source;
@@ -58,7 +62,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter
         /// </summary>
         private volatile Definition definition;
 
-        private ScriptFile(string fileName, Stream source, bool isStatic)
+        private InterpretedScriptFile(string fileName, Stream source, bool isStatic)
         {
             this.fileName = fileName;
             this.source = source;
@@ -69,24 +73,24 @@ namespace ITVComponents.Scripting.CScript.Interpreter
         /// <summary>
         /// Laedt ein Script aus einer Datei. Aenderungen an der Datei werden uebernommen.
         /// </summary>
-        public static ScriptFile<TOutput> FromFile(string fileName)
+        public static InterpretedScriptFile<TOutput> FromFile(string fileName)
         {
             return bufferedScripts.GetOrAdd(fileName,
-                key => new Lazy<ScriptFile<TOutput>>(() => new ScriptFile<TOutput>(key, null, false))).Value;
+                key => new Lazy<InterpretedScriptFile<TOutput>>(() => new InterpretedScriptFile<TOutput>(key, null, false))).Value;
         }
 
         /// <summary>
         /// Laedt ein Script aus einem Datenstrom.
         /// </summary>
-        public static ScriptFile<TOutput> FromStream(Stream file)
+        public static InterpretedScriptFile<TOutput> FromStream(Stream file)
         {
-            return new ScriptFile<TOutput>(null, file, true);
+            return new InterpretedScriptFile<TOutput>(null, file, true);
         }
 
         /// <summary>
         /// Laedt ein Script aus einem Text.
         /// </summary>
-        public static ScriptFile<TOutput> FromText(string scriptText)
+        public static InterpretedScriptFile<TOutput> FromText(string scriptText)
         {
             var stream = new MemoryStream(Encoding.Default.GetBytes(scriptText));
             stream.Seek(0, SeekOrigin.Begin);
@@ -195,7 +199,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter
             scope["Call"] = new Func<string, IDictionary<string, object>, object>(
                 (script, variables) => CallScript(script, variables, prepareVariables, policy, scope.CopyInitial()));
             scope["Run"] = new Func<string, object>(
-                script => ScriptFile<object>.FromFile(script).Execute(scope, policy));
+                script => InterpretedScriptFile<object>.FromFile(script).Execute(scope, policy));
         }
 
         /// <summary>
@@ -223,7 +227,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter
                     }
                 }
 
-                return ScriptFile<object>.FromFile(scriptFile).Execute(construct, prepareVariables, policy);
+                return InterpretedScriptFile<object>.FromFile(scriptFile).Execute(construct, prepareVariables, policy);
             }
             finally
             {
