@@ -25,7 +25,13 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
     /// Stand: Ausdruecke. Statements folgen in der naechsten Phase - die entsprechenden
     /// Visit-Methoden sind noch nicht ueberschrieben und laufen in NotSupported.
     /// </remarks>
-    public class AstBuilder : ITVScriptingBaseVisitor<INode>
+    /// <remarks>
+    /// Bewusst nicht oeffentlich: der Erbauer ist ein Implementierungsdetail hinter
+    /// ScriptInterpreter und CompiledScript. Waere er Teil der veroeffentlichten API, waeren
+    /// es auch seine rund siebzig Visit-Methoden - und damit die Grammatik-Anbindung, die sich
+    /// mit jeder Grammatikaenderung verschiebt.
+    /// </remarks>
+    internal class AstBuilder : ITVScriptingBaseVisitor<INode>
     {
         /// <summary>
         /// Wie tief der gerade gebaute Knoten in Schleifen beziehungsweise switch-Bloecken
