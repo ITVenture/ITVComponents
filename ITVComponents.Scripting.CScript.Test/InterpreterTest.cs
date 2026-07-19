@@ -33,37 +33,7 @@ namespace ITVComponents.Scripting.CScript.Test
             AssertSame(1d + 2D * 3 / 4, "1+2D*3/4");
             AssertSame(1 + 2M * 3 / 4, "1+2M*3/4");
             AssertSame(1 + 2F * 3 / 4, "1+2F*3/4");
-
-            // "value.GetType().Name" fehlt hier bewusst - siehe MemberAccessOnTypeIsBroken.
-        }
-
-        /// <summary>
-        /// Haelt einen vorbestehenden Fehler der gemeinsamen Runtime fest.
-        /// </summary>
-        /// <remarks>
-        /// "value.GetType().Name" wirft in beiden Maschinen "Member Name is not declared on".
-        /// Ursache ist MemberAccessHelper.FindMember: liefert ein Ausdruck einen Type, wird
-        /// der Folgezugriff als statischer Zugriff auf diesen Type gedeutet - gesucht wird
-        /// also ein statisches Name auf System.Int32 statt der Eigenschaft Name des
-        /// Type-Objekts.
-        ///
-        /// Der Fehler ist aelter als der Interpreter: er tritt unveraendert im Basis-Commit
-        /// 0c9e016c auf und laesst dort bereits Tests.TestMath scheitern. Der Interpreter
-        /// erbt ihn, weil er MemberAccessHelper bewusst unveraendert weiterverwendet.
-        ///
-        /// Dieser Test schlaegt fehl, sobald jemand FindMember repariert - dann gehoert die
-        /// Zeile zurueck nach TestMath und dieser Test geloescht.
-        /// </remarks>
-        [TestMethod]
-        public void MemberAccessOnTypeIsBroken()
-        {
-            var vars = new Dictionary<string, object> { { "value", 1 } };
-            Assert.ThrowsException<ScriptException>(
-                () => ExpressionParser.Parse("value.GetType().Name", Copy(vars)),
-                "ScriptVisitor sollte weiterhin scheitern.");
-            Assert.ThrowsException<ScriptException>(
-                () => ScriptInterpreter.Parse("value.GetType().Name", Copy(vars)),
-                "Interpreter sollte dasselbe Verhalten zeigen wie der ScriptVisitor.");
+            AssertSame("Int32", "value.GetType().Name", new Dictionary<string, object> { { "value", 1 } });
         }
 
         [TestMethod]

@@ -16,6 +16,15 @@ namespace ITVComponents.Scripting.CScript.Helpers
 {
     internal static class MemberAccessHelper
     {
+        /// <summary>
+        /// The synthetic member that yields the Type an expression stands for.
+        /// </summary>
+        /// <remarks>
+        /// The '$' is deliberate: C# identifiers can not contain it, so this name can never
+        /// shadow a real member.
+        /// </remarks>
+        internal const string TypeMemberName = "$Type";
+
         public static object GetMemberValue(this object target, string name, Type explicitType, ScriptValues.ValueType valueType, ScriptingPolicy policy, MemberAccessMode mode)
         {
             if (valueType== ScriptValues.ValueType.Method || valueType == ScriptValues.ValueType.Constructor)
@@ -27,6 +36,15 @@ namespace ITVComponents.Scripting.CScript.Helpers
                 }
 
                 return mode == MemberAccessMode.Read ? bv : true;
+            }
+
+            if (name == TypeMemberName)
+            {
+                // Liefert bewusst das nackte Type-Objekt und keine Huelle: der Wert wandert von
+                // hier aus in Variablen, Argumente und Vergleiche, und die Auspack-Stellen fuer
+                // Durchgangs-Werte (TypedNull, ReferenceWrapper) decken nur Methodenargumente ab.
+                // Eine Huelle waere ueberall sonst ein Fremdkoerper.
+                return mode == MemberAccessMode.Read ? TypeOf(target) : (object)true;
             }
 
             object targetObject;
@@ -330,7 +348,40 @@ namespace ITVComponents.Scripting.CScript.Helpers
             }
 
             Type t = (Type)baseVal;
-            return (from m in t.GetMembers(BindingFlags.Public | (isStatic ? BindingFlags.Static : BindingFlags.Instance)) where m.Name == memberName select m).FirstOrDefault();
+            MemberInfo retVal = FindMember(t, memberName, isStatic);
+            if (retVal != null || !isStatic)
+            {
+                return retVal;
+            }
+
+            // Statisch hat Vorrang - ein Type steht im Scripting fuer seine Klasse. Gibt es
+            // dort kein passendes Member, ist das Type-Objekt selbst gemeint: so wird
+            // "value.GetType().Name" zu "Int32", waehrend "'System.Math'.PI" unveraendert die
+            // statische Konstante liefert.
+            retVal = FindMember(typeof(Type), memberName, false);
+            if (retVal != null)
+            {
+                targetObject = t;
+            }
+
+            return retVal;
+        }
+
+        private static MemberInfo FindMember(Type type, string memberName, bool isStatic)
+        {
+            return (from m in type.GetMembers(BindingFlags.Public |
+                                              (isStatic ? BindingFlags.Static : BindingFlags.Instance))
+                where m.Name == memberName
+                select m).FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Gets the type an expression stands for: a Type stands for itself, anything else for
+        /// its runtime-type.
+        /// </summary>
+        private static Type TypeOf(object target)
+        {
+            return target as Type ?? target?.GetType();
         }
     }
 
