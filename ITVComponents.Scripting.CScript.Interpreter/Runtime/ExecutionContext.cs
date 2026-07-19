@@ -70,14 +70,5 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
         /// Der Debugger-Hook. Null bedeutet: keine Beobachtung, kein Overhead.
         /// </summary>
         public IExecutionObserver Observer { get; set; }
-
-        /// <summary>
-        /// Erzeugt eine Momentaufnahme des Zustands fuer den Debugger. Nur diese Aufnahme wird
-        /// ueber die IPC-Schnittstelle transportiert - die Ausfuehrung selbst bleibt in-process.
-        /// </summary>
-        public ExecutionSnapshot CreateSnapshot()
-        {
-            return new ExecutionSnapshot(Variables.Snapshot());
-        }
     }
 }

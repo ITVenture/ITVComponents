@@ -8,8 +8,9 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
     /// </summary>
     /// <remarks>
     /// Die Ausfuehrung bleibt immer dort, wo sie ist - der Observer laeuft synchron im
-    /// ausfuehrenden Thread. Fuer Remote-Debugging ueber die IPC-Schnittstelle wird nicht der
-    /// Live-Zustand transportiert, sondern ein <see cref="ExecutionSnapshot"/>.
+    /// ausfuehrenden Thread. Fuer entferntes Debuggen ueber die IPC-Schnittstelle wird nicht
+    /// der Live-Zustand transportiert, sondern eine Momentaufnahme; siehe
+    /// Debugging.DebugStop.
     /// </remarks>
     public interface IExecutionObserver
     {
