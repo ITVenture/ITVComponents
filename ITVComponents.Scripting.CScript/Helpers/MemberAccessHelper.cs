@@ -25,7 +25,12 @@ namespace ITVComponents.Scripting.CScript.Helpers
         /// </remarks>
         internal const string TypeMemberName = "$Type";
 
-        public static object GetMemberValue(this object target, string name, Type explicitType, ScriptValues.ValueType valueType, ScriptingPolicy policy, MemberAccessMode mode)
+        /// <param name="instanceSemantics">
+        /// when the target is a Type: whether to access the members of the Type-object itself
+        /// instead of the static members of the class it stands for. Set by a preceding
+        /// '$Type'.
+        /// </param>
+        public static object GetMemberValue(this object target, string name, Type explicitType, ScriptValues.ValueType valueType, ScriptingPolicy policy, MemberAccessMode mode, bool instanceSemantics = false)
         {
             if (valueType== ScriptValues.ValueType.Method || valueType == ScriptValues.ValueType.Constructor)
             {
@@ -40,16 +45,18 @@ namespace ITVComponents.Scripting.CScript.Helpers
 
             if (name == TypeMemberName)
             {
-                // Liefert bewusst das nackte Type-Objekt und keine Huelle: der Wert wandert von
-                // hier aus in Variablen, Argumente und Vergleiche, und die Auspack-Stellen fuer
-                // Durchgangs-Werte (TypedNull, ReferenceWrapper) decken nur Methodenargumente ab.
-                // Eine Huelle waere ueberall sonst ein Fremdkoerper.
+                // Yields the bare Type-object, no wrapper: from here the value travels into
+                // variables, arguments and comparisons, and the unwrapping done for transient
+                // values (TypedNull, ReferenceWrapper) only covers method-arguments. A wrapper
+                // would be a foreign body everywhere else.
+                // What switches the strategy is not this value but the access that follows it.
                 return mode == MemberAccessMode.Read ? TypeOf(target) : (object)true;
             }
 
             object targetObject;
             bool isEnum;
-            MemberInfo mi = FindMember(target, name, explicitType, out targetObject, out isEnum);
+            MemberInfo mi = FindMember(target, name, explicitType, out targetObject, out isEnum,
+                instanceSemantics);
             ObjectLiteral ojl = targetObject as ObjectLiteral;
             FunctionLiteral ful = targetObject as FunctionLiteral;
             IDictionary<string, object> odi = targetObject as IDictionary<string, object>;
@@ -321,7 +328,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
         /// <param name="targetObject">the target object from which to read the value of the returned member</param>
         /// <param name="isEnum">indicates whether the base object is an enum type</param>
         /// <returns>a memberinfo that represents the name of this memberAccessValue object</returns>
-        private static MemberInfo FindMember(object baseVal, string memberName, Type explicitTargetType, out object targetObject, out bool isEnum)
+        private static MemberInfo FindMember(object baseVal, string memberName, Type explicitTargetType, out object targetObject, out bool isEnum, bool instanceSemantics = false)
         {
             if (baseVal == null)
             {
@@ -331,7 +338,11 @@ namespace ITVComponents.Scripting.CScript.Helpers
             targetObject = baseVal;
             isEnum = false;
             bool isStatic = false;
-            if (baseVal is Type)
+
+            // A Type normally stands for its class, so members are looked up statically.
+            // After a '$Type' the Type-object itself is meant - it is then treated like any
+            // other object, which is exactly what skipping this branch achieves.
+            if (baseVal is Type && !instanceSemantics)
             {
                 targetObject = null;
                 isStatic = true;
@@ -347,24 +358,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
                 baseVal = explicitTargetType ?? baseVal.GetType();
             }
 
-            Type t = (Type)baseVal;
-            MemberInfo retVal = FindMember(t, memberName, isStatic);
-            if (retVal != null || !isStatic)
-            {
-                return retVal;
-            }
-
-            // Statisch hat Vorrang - ein Type steht im Scripting fuer seine Klasse. Gibt es
-            // dort kein passendes Member, ist das Type-Objekt selbst gemeint: so wird
-            // "value.GetType().Name" zu "Int32", waehrend "'System.Math'.PI" unveraendert die
-            // statische Konstante liefert.
-            retVal = FindMember(typeof(Type), memberName, false);
-            if (retVal != null)
-            {
-                targetObject = t;
-            }
-
-            return retVal;
+            return FindMember((Type)baseVal, memberName, isStatic);
         }
 
         private static MemberInfo FindMember(Type type, string memberName, bool isStatic)

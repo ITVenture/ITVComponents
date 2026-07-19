@@ -32,6 +32,12 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         private string memberName;
 
         /// <summary>
+        /// indicates whether the members of a Type-object itself are meant instead of the
+        /// static members of the class it stands for
+        /// </summary>
+        private bool instanceSemantics;
+
+        /// <summary>
         /// Initializes a new instance of the MemberAccessValue class
         /// </summary>
         /// <param name="handler">the handler that is used to lock/unlock this value</param>
@@ -47,9 +53,27 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         /// <param name="memberName"></param>
         public void Initialize(ScriptValue baseValue, string memberName, Type explicitType)
         {
+            Initialize(baseValue, memberName, explicitType, false);
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the MemberAccessValue class
+        /// </summary>
+        /// <param name="baseValue">the value the member is read from</param>
+        /// <param name="memberName">the name of the member</param>
+        /// <param name="explicitType">an explicit type for the access, or null</param>
+        /// <param name="instanceSemantics">
+        /// when the base value is a Type: whether the members of that Type-object are meant
+        /// instead of the static members of the class it stands for. Set by a preceding
+        /// '$Type'.
+        /// </param>
+        public void Initialize(ScriptValue baseValue, string memberName, Type explicitType,
+            bool instanceSemantics)
+        {
             this.baseValue = baseValue;
             this.memberName = memberName;
             this.explicitType = explicitType;
+            this.instanceSemantics = instanceSemantics;
             ValueType = ValueType.PropertyOrField;
         }
 
@@ -88,7 +112,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
             get
             {
                 object baseVal = baseValue.GetValue(null, policy);
-                return baseVal.GetMemberValue(Name, explicitType, ValueType, policy, MemberAccessMode.Read);
+                return baseVal.GetMemberValue(Name, explicitType, ValueType, policy, MemberAccessMode.Read, instanceSemantics);
             }
         }
 
@@ -135,7 +159,7 @@ namespace ITVComponents.Scripting.CScript.ScriptValues
         protected override bool HasValue()
         {
             object baseVal = baseValue.GetValue(null, policy);
-            return (bool)baseVal.GetMemberValue(Name, explicitType, ValueType, policy, MemberAccessMode.CheckExists);
+            return (bool)baseVal.GetMemberValue(Name, explicitType, ValueType, policy, MemberAccessMode.CheckExists, instanceSemantics);
         }
     }
 }

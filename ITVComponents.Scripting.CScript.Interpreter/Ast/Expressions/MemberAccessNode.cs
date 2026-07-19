@@ -19,15 +19,23 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
         private readonly string memberName;
         private readonly IExpressionNode explicitType;
         private readonly bool nullPropagating;
+        private readonly bool instanceSemantics;
 
+        /// <param name="instanceSemantics">
+        /// ob der Zugriff auf ein Type-Objekt dessen eigene Member meint statt der statischen
+        /// Member der Klasse, fuer die es steht. Setzt der Erbauer, wenn die Basis ein $Type
+        /// ist - siehe <see cref="TypeOfNode"/>.
+        /// </param>
         public MemberAccessNode(SourcePosition position, IExpressionNode target, string memberName,
-            IExpressionNode explicitType = null, bool nullPropagating = false)
+            IExpressionNode explicitType = null, bool nullPropagating = false,
+            bool instanceSemantics = false)
             : base(position)
         {
             this.target = target ?? throw new ArgumentNullException(nameof(target));
             this.memberName = memberName ?? throw new ArgumentNullException(nameof(memberName));
             this.explicitType = explicitType;
             this.nullPropagating = nullPropagating;
+            this.instanceSemantics = instanceSemantics;
         }
 
         /// <summary>
@@ -48,7 +56,7 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
                 : new MemberAccessValue(CacheSlot(context), context.BypassCompatibilityOnLazyInvokation,
                     context.Policy);
 
-            retVal.Initialize(baseValue, memberName, typeHint);
+            retVal.Initialize(baseValue, memberName, typeHint, instanceSemantics);
             return retVal;
         }
 

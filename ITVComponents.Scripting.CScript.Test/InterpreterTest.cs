@@ -33,7 +33,10 @@ namespace ITVComponents.Scripting.CScript.Test
             AssertSame(1d + 2D * 3 / 4, "1+2D*3/4");
             AssertSame(1 + 2M * 3 / 4, "1+2M*3/4");
             AssertSame(1 + 2F * 3 / 4, "1+2F*3/4");
-            AssertSame("Int32", "value.GetType().Name", new Dictionary<string, object> { { "value", 1 } });
+            // GetType() liefert die Klasse - fuer die Member des Type-Objekts braucht es $Type,
+            // und das beherrscht nur der Interpreter. Siehe TypeAccessTest.
+            Assert.AreEqual("Int32", ScriptInterpreter.Parse("value.GetType().$Type.Name",
+                new Dictionary<string, object> { { "value", 1 } }));
         }
 
         [TestMethod]

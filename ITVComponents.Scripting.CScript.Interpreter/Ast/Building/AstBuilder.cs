@@ -38,6 +38,11 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
         /// Bauphase hat - ein falsch platziertes break fiel dort erst auf, wenn es ausgefuehrt
         /// wurde, und dann als nicht fangbarer Fehler.
         /// </remarks>
+        /// <summary>
+        /// Das kuenstliche Member, das den Typ liefert, fuer den ein Ausdruck steht.
+        /// </summary>
+        private const string TypeMemberName = "$Type";
+
         private int loopDepth;
         private int switchDepth;
         private bool returnAllowed = true;
@@ -583,14 +588,38 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
 
         public override INode VisitMemberDotExpression(ITVScriptingParser.MemberDotExpressionContext context)
         {
-            return new MemberAccessNode(Position(context), Expression(context.singleExpression()),
-                context.identifierName().GetText(), TypeHint(context.explicitTypeHint()));
+            return MemberAccess(context, context.singleExpression(), context.identifierName().GetText(),
+                context.explicitTypeHint(), false);
         }
 
         public override INode VisitMemberDotQExpression(ITVScriptingParser.MemberDotQExpressionContext context)
         {
-            return new MemberAccessNode(Position(context), Expression(context.singleExpression()),
-                context.identifierName().GetText(), TypeHint(context.explicitTypeHint()), true);
+            return MemberAccess(context, context.singleExpression(), context.identifierName().GetText(),
+                context.explicitTypeHint(), true);
+        }
+
+        /// <summary>
+        /// Baut einen Memberzugriff und faltet dabei $Type in den folgenden Zugriff ein.
+        /// </summary>
+        /// <remarks>
+        /// $Type ist kein gewoehnliches Member, sondern ein Wechsel der Auswertungsstrategie.
+        /// Der Erbauer setzt ihn hier um: "x.$Type" wird zu einem TypeOfNode, und der Zugriff,
+        /// der darauf folgt, wird fest auf Instanz-Ebene geschaltet. Damit steht die
+        /// Entscheidung im Baum statt in einer Fallunterscheidung zur Laufzeit, und ein
+        /// gleichnamiges statisches Member kann nicht mehr dazwischenkommen.
+        /// </remarks>
+        private INode MemberAccess(ParserRuleContext context,
+            ITVScriptingParser.SingleExpressionContext targetContext, string memberName,
+            ITVScriptingParser.ExplicitTypeHintContext typeHint, bool nullPropagating)
+        {
+            IExpressionNode target = Expression(targetContext);
+            if (memberName == TypeMemberName)
+            {
+                return new TypeOfNode(Position(context), target);
+            }
+
+            return new MemberAccessNode(Position(context), target, memberName, TypeHint(typeHint),
+                nullPropagating, target is TypeOfNode);
         }
 
         public override INode VisitMemberIndexExpression(ITVScriptingParser.MemberIndexExpressionContext context)
