@@ -6,6 +6,8 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.Interpreter.Ast;
 using ITVComponents.Scripting.CScript.Interpreter.Ast.Building;
+using ITVComponents.Scripting.CScript.Interpreter.Runtime.Debugging;
+using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Interpreter
@@ -92,6 +94,31 @@ namespace ITVComponents.Scripting.CScript.Interpreter
             InitializeScopeVariables scopeInitializer = null, ScriptingPolicy policy = null)
         {
             return CompileBlock(script).Execute(variables, scopeInitializer, policy);
+        }
+
+        /// <summary>
+        /// Fuehrt ein Programm unter der Aufsicht eines Debuggers aus.
+        /// </summary>
+        /// <param name="script">der Quelltext</param>
+        /// <param name="debugger">der Debugger, der Haltepunkte und Schritte steuert</param>
+        /// <param name="variables">die Startvariablen</param>
+        /// <param name="policy">die geltende Sicherheits-Policy, oder null</param>
+        /// <returns>der Wert eines return, sonst null</returns>
+        /// <remarks>
+        /// Laeuft synchron im aufrufenden Thread. Haelt der Debugger an, blockiert dieser
+        /// Aufruf, bis dessen Rueckruf entschieden hat, wie es weitergeht.
+        /// </remarks>
+        public static object Debug(string script, ScriptDebugger debugger,
+            IDictionary<string, object> variables, ScriptingPolicy policy = null)
+        {
+            if (debugger == null)
+            {
+                throw new ArgumentNullException(nameof(debugger));
+            }
+
+            CompiledScript compiled = CompileBlock(script);
+            var scope = new Scope(variables, policy);
+            return debugger.Run(() => compiled.Execute(scope, policy, debugger));
         }
 
         /// <summary>

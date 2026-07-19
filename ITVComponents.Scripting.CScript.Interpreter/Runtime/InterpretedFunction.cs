@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
+using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Interpreter.Ast;
+using ITVComponents.Scripting.CScript.Interpreter.Runtime.Debugging;
 using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
@@ -39,9 +41,25 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Die Funktion baut sich einen eigenen ExecutionContext - sie laeuft in ihrem
+        /// FunctionScope, nicht im Scope des Aufrufers. Ein laufender Debugger wird dabei
+        /// uebernommen, sonst endete jeder Einzelschritt an der Funktionsgrenze und man kaeme
+        /// nie in einen Funktionsrumpf hinein.
+        /// </remarks>
         protected override object ExecuteBody()
         {
-            var context = new ExecutionContext(Scope, Policy);
+            ScriptDebugger debugger = ScriptDebugger.Current;
+            var context = new ExecutionContext(Scope, Policy) { Observer = debugger };
+
+            using (debugger?.EnterFunction(FunctionName ?? "(anonym)", new FunctionScopeSource(Scope)))
+            {
+                return Run(context);
+            }
+        }
+
+        private object Run(ExecutionContext context)
+        {
             Completion completion = body.Execute(context);
 
             switch (completion.Kind)
@@ -66,6 +84,24 @@ namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
         public override FunctionLiteral Copy()
         {
             return new InterpretedFunction(InitialValues, argumentNames, body, Policy, FunctionName);
+        }
+
+        /// <summary>
+        /// Reicht den Scope einer laufenden Funktion an den Debugger, ohne ihn festzuhalten.
+        /// </summary>
+        private sealed class FunctionScopeSource : IScopeSnapshotSource
+        {
+            private readonly IScope scope;
+
+            public FunctionScopeSource(IScope scope)
+            {
+                this.scope = scope;
+            }
+
+            public Dictionary<string, object> Snapshot()
+            {
+                return scope.Snapshot();
+            }
         }
 
         private static Exception AsException(Completion completion)
