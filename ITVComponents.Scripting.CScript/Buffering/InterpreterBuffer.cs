@@ -1,207 +1,117 @@
-﻿using System;
-using System.Collections.Concurrent;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using Antlr4.Runtime.Atn;
-using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Buffering
 {
+    /// <summary>
+    /// Baut Repl-Sitzungen fuer den Interpreter.
+    /// </summary>
+    /// <remarks>
+    /// Eine Sitzung ist nur noch ein Scope samt Policy (<see cref="ReplSession"/>). Der fruehere
+    /// Aufbau - ein Pool aus <c>ScriptVisitor</c>-Instanzen (RunnerItem) mit Lock, weil eine
+    /// Visitor-Instanz ihren Laufzustand auf sich selbst trug und darum nicht nebenlaeufig
+    /// wiederverwendbar war - entfaellt ersatzlos: der Interpreter fuehrt gegen den Scope aus,
+    /// sein Ausfuehrungsbaum ist unveraenderlich, und jeder Lauf bekommt ohnehin seinen eigenen
+    /// ExecutionContext. Damit braucht es keinen wiederverwendbaren Zustandstraeger und keinen
+    /// Pool mehr; das Erzeugen einer Sitzung ist ein blosses Einpacken des Scopes.
+    /// </remarks>
     internal static class InterpreterBuffer
     {
         /// <summary>
-        /// Holds a list of runners that have alredy been initialized
+        /// Beginnt eine Repl-Sitzung ueber die angegebenen Startwerte.
         /// </summary>
-        private static ConcurrentBag<RunnerItem> runners = new ConcurrentBag<RunnerItem>();
-
-        static InterpreterBuffer()
-        {
-            
-        }
-
-        /// <summary>
-        /// Gets an existing free repl session or creates a new one if required
-        /// </summary>
-        /// <param name="baseValues">the base values used to initialize the repl - session</param>
-        /// <param name="scopeInitializer">a callback that is used to prepare the scope variables for the scripting</param>
-        /// <param name="visitorInstance">the visitor instance that is capable to process expressions and scripts</param>
-        /// <returns>a runner item that can be used to control the repl session</returns>
         public static IDisposable GetReplInstance(IDictionary<string, object> baseValues,
-            InitializeScopeVariables scopeInitializer,
-            out ScriptVisitor visitorInstance)
+            InitializeScopeVariables scopeInitializer)
         {
-            return GetReplInstance(baseValues, scopeInitializer, ScriptingPolicy.Default, out visitorInstance);
+            return GetReplInstance(baseValues, scopeInitializer, ScriptingPolicy.Default);
         }
 
         /// <summary>
-            /// Gets an existing free repl session or creates a new one if required
-            /// </summary>
-            /// <param name="baseValues">the base values used to initialize the repl - session</param>
-            /// <param name="scopeInitializer">a callback that is used to prepare the scope variables for the scripting</param>
-            /// <param name="visitorInstance">the visitor instance that is capable to process expressions and scripts</param>
-            /// <returns>a runner item that can be used to control the repl session</returns>
-            public static IDisposable GetReplInstance(IDictionary<string, object> baseValues,
-            InitializeScopeVariables scopeInitializer,
-            ScriptingPolicy policy,
-            out ScriptVisitor visitorInstance)
-        {
-            bool simpleInit = (baseValues is Scope);
-            lock (runners)
-            {
-                RunnerItem retVal = runners.FirstOrDefault(n => !simpleInit && n.Lock(policy));
-                if (retVal == null)
-                {
-                    ScriptVisitor visitor = simpleInit
-                        ? new ScriptVisitor((Scope) baseValues)
-                        : new ScriptVisitor();
-                    retVal = new RunnerItem(visitor, simpleInit);
-                    retVal.Lock(policy);
-                    if (visitor.Reactivateable)
-                    {
-                        runners.Add(retVal);
-                    }
-                }
-
-                visitorInstance = (ScriptVisitor) retVal.Visitor;
-                if (!simpleInit)
-                {
-                    visitorInstance.ClearScope(baseValues);
-                }
-
-                InitializeScopeVariables dff = scopeInitializer ??
-                                               (a =>
-                                               {
-                                                   DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession);
-                                               });
-                visitorInstance.Prepare(dff);
-                return retVal;
-            }
-        }
-
-        /// <summary>
-        /// Gets an existing free repl session or creates a new one if required
+        /// Beginnt eine Repl-Sitzung ueber die angegebenen Startwerte unter einer Policy.
         /// </summary>
-        /// <param name="baseValues">the base values used to initialize the repl - session</param>
-        /// <param name="scopeInitializer">a callback that is used to prepare the scope variables for the scripting</param>
-        /// <param name="visitorInstance">the visitor instance that is capable to process expressions and scripts</param>
-        /// <returns>a runner item that can be used to control the repl session</returns>
+        /// <remarks>
+        /// Ist <paramref name="baseValues"/> bereits ein Scope, wird er unmittelbar zur Sitzung;
+        /// sonst wird ein neuer Scope aus den Werten aufgebaut. Das entspricht der frueheren
+        /// Fallunterscheidung simpleInit/ClearScope des ScriptVisitors.
+        /// </remarks>
+        public static IDisposable GetReplInstance(IDictionary<string, object> baseValues,
+            InitializeScopeVariables scopeInitializer, ScriptingPolicy policy)
+        {
+            IScope scope = baseValues as IScope
+                           ?? new Scope(baseValues ?? new Dictionary<string, object>(), policy);
+            return CreateSession(scope, scopeInitializer, policy);
+        }
+
+        /// <summary>
+        /// Beginnt eine Repl-Sitzung mit einem impliziten Kontext ($data).
+        /// </summary>
         public static IDisposable GetReplInstance(object implicitContext,
-            InitializeScopeVariables scopeInitializer,
-            out ScriptVisitor visitorInstance)
+            InitializeScopeVariables scopeInitializer)
         {
-            return GetReplInstance(implicitContext, scopeInitializer, ScriptingPolicy.Default, out visitorInstance);
+            return GetReplInstance(implicitContext, scopeInitializer, ScriptingPolicy.Default);
         }
 
         /// <summary>
-        /// Gets an existing free repl session or creates a new one if required
+        /// Beginnt eine Repl-Sitzung mit einem impliziten Kontext ($data) unter einer Policy.
         /// </summary>
-        /// <param name="baseValues">the base values used to initialize the repl - session</param>
-        /// <param name="scopeInitializer">a callback that is used to prepare the scope variables for the scripting</param>
-        /// <param name="visitorInstance">the visitor instance that is capable to process expressions and scripts</param>
-        /// <returns>a runner item that can be used to control the repl session</returns>
         public static IDisposable GetReplInstance(object implicitContext,
-            InitializeScopeVariables scopeInitializer,
-            ScriptingPolicy policy,
-            out ScriptVisitor visitorInstance)
+            InitializeScopeVariables scopeInitializer, ScriptingPolicy policy)
         {
-            Scope s = new Scope(new Dictionary<string, object> { { "$data", implicitContext } }, policy);
-            s.ImplicitContext = "$data";
-            return GetReplInstance(s, scopeInitializer, policy, out visitorInstance);
+            var scope = new Scope(new Dictionary<string, object> { { "$data", implicitContext } }, policy);
+            scope.ImplicitContext = "$data";
+            return CreateSession(scope, scopeInitializer, policy);
         }
 
         /// <summary>
-        /// Gets the RunnerItem of the specified interpreter session
+        /// Packt den vorbereiteten Scope in eine Sitzung und laesst den Initialisierer laufen.
         /// </summary>
-        /// <param name="interpreterSession">the current interpreter session</param>
-        /// <returns>a scriptvisitor that is capable for running a script</returns>
-        public static ITVScriptingBaseVisitor<ScriptValue> GetInterpreter(IDisposable interpreterSession)
+        /// <remarks>
+        /// Der Initialisierer bekommt die Sitzung selbst als <c>ReplSession</c> (fuer die
+        /// Standard-Rueckrufe, die sie als Fixture <c>session</c> im Scope hinterlegen) und
+        /// bewusst keinen Visitor - kein Aufrufer liest ihn, seit der Interpreter ausfuehrt.
+        /// </remarks>
+        private static IDisposable CreateSession(IScope scope, InitializeScopeVariables scopeInitializer,
+            ScriptingPolicy policy)
         {
-            if (!(interpreterSession is RunnerItem))
-            {
-                throw new InvalidOperationException("Interpreter session expected!");
-            }
-
-            return ((RunnerItem) interpreterSession).Visitor;
+            scope.OverridePolicy(policy);
+            var session = new ReplSession(scope, policy);
+            InitializeScopeVariables init = scopeInitializer ??
+                (a => DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession));
+            init(new ScopePreparationCallbackArguments(scope, session, null));
+            return session;
         }
 
         /// <summary>
-        /// Runner controller item
+        /// Eine Repl-Sitzung: der Scope, gegen den der Interpreter ausfuehrt, samt Policy.
         /// </summary>
-        internal class RunnerItem : IDisposable
+        internal sealed class ReplSession : IDisposable
         {
-            /// <summary>
-            /// Avoids concurrent access on this runnerItem
-            /// </summary>
-            private object innerLock = new object();
-
-            /// <summary>
-            /// Indicates whether this runnerItem is currently free
-            /// </summary>
-            private bool available;
-
-            private bool isSimpleInit;
-
-            private ScriptingPolicy policy;
-
-            /// <summary>
-            /// Initializes a new instance of the RunnerItem class
-            /// </summary>
-            /// <param name="visitor"></param>
-            public RunnerItem(ScriptVisitor visitor, bool isSimpleInit)
+            public ReplSession(IScope scope, ScriptingPolicy policy)
             {
-                Visitor = visitor;
-                visitor.Context = this;
-                available = true;
-                this.isSimpleInit = isSimpleInit;
-            }
-
-            public ScriptingPolicy Policy => policy;
-
-            /// <summary>
-            /// The ScriptVisitor that is attached to this runner-session
-            /// </summary>
-            public ScriptVisitor Visitor { get; private set; }
-
-            /// <summary>
-            /// Acquires a lock for this runner item so that no other repl-session can use the same instance
-            /// </summary>
-            /// <returns></returns>
-            public bool Lock(ScriptingPolicy policy)
-            {
-                lock (innerLock)
-                {
-                    //GarbageControl.CurrentCrypt.Use();
-                    bool retVal = available;
-                    if (retVal)
-                    {
-                        this.policy = policy;
-                        (Visitor).ScriptingPolicy = policy;
-                        available = false;
-                    }
-
-                    return retVal;
-                }
+                Scope = scope;
+                Policy = policy;
             }
 
             /// <summary>
-            /// Frees this runner instance
+            /// Der Scope, der die Sitzung ist. Aufeinanderfolgende Auswertungen sehen die
+            /// Variablen der jeweils vorigen.
+            /// </summary>
+            public IScope Scope { get; }
+
+            /// <summary>
+            /// Die Policy, unter der in dieser Sitzung ausgefuehrt wird.
+            /// </summary>
+            public ScriptingPolicy Policy { get; }
+
+            /// <summary>
+            /// Nichts freizugeben: keine gepoolte Instanz, kein Lock. Bleibt IDisposable, weil
+            /// die Aufrufer die Sitzung in using(...) fuehren.
             /// </summary>
             public void Dispose()
             {
-                lock (innerLock)
-                {
-                    //GarbageControl.CurrentCrypt.Release();
-                    if (!isSimpleInit)
-                    {
-                        ((ScriptVisitor) Visitor).ClearScope(null);
-                    }
-
-                    available = true;
-                }
             }
         }
     }

@@ -126,7 +126,7 @@ namespace ITVComponents.Scripting.CScript.Helpers
         [ExternalMethod(MappedMethodName="Eval")]
         public static object Eval([DefaultParameter(FixtureName = "session")] IDisposable scriptingSession, IScope context, string expression)
         {
-            var policy = ((InterpreterBuffer.RunnerItem)scriptingSession).Policy;
+            var policy = ((InterpreterBuffer.ReplSession)scriptingSession).Policy;
             return ExpressionParser.Parse(expression,context, policy:policy);
         }
 

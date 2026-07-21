@@ -172,12 +172,12 @@ namespace ITVComponents.Scripting.CScript
         /// </remarks>
         public TOutput Execute(IDisposable session)
         {
-            if (session is not InterpreterBuffer.RunnerItem rii)
+            if (session is not InterpreterBuffer.ReplSession rss)
             {
                 throw new InvalidOperationException("Interpreter session expected!");
             }
 
-            return Execute(rii.Visitor.Variables, rii.Policy);
+            return Execute(rss.Scope, rss.Policy);
         }
 
         /// <summary>
