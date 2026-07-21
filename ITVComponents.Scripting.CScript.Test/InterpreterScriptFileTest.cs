@@ -14,8 +14,8 @@ namespace ITVComponents.Scripting.CScript.Test
     /// Prueft das Laden und Ausfuehren von Scripts aus Dateien und Texten.
     /// </summary>
     /// <remarks>
-    /// Gegenstueck zu ITVComponents.Scripting.CScript.ScriptFile, das auf dem ScriptVisitor
-    /// aufsetzt.
+    /// Prueft ITVComponents.Scripting.CScript.ScriptFile, das ueber den Interpreter ausfuehrt
+    /// und den ScriptVisitor-basierten Vorgaenger abgeloest hat.
     /// </remarks>
     [TestClass]
     public class InterpreterScriptFileTest
@@ -40,20 +40,20 @@ namespace ITVComponents.Scripting.CScript.Test
             }
 
             tempFiles.Clear();
-            InterpretedScriptFile<object>.ClearCache();
+            ScriptFile<object>.ClearCache();
         }
 
         [TestMethod]
         public void RunsScriptFromText()
         {
-            var script = InterpretedScriptFile<object>.FromText("a = 2; b = 3; return a*b;");
+            var script = ScriptFile<object>.FromText("a = 2; b = 3; return a*b;");
             Assert.AreEqual(6, script.Execute(new Dictionary<string, object>()));
         }
 
         [TestMethod]
         public void UsesProvidedVariables()
         {
-            var script = InterpretedScriptFile<object>.FromText("return a+b;");
+            var script = ScriptFile<object>.FromText("return a+b;");
             Assert.AreEqual(7, script.Execute(new Dictionary<string, object> { { "a", 3 }, { "b", 4 } }));
         }
 
@@ -61,14 +61,14 @@ namespace ITVComponents.Scripting.CScript.Test
         public void RunsScriptFromFile()
         {
             string path = WriteScript("return 21*2;");
-            Assert.AreEqual(42, InterpretedScriptFile<object>.FromFile(path).Execute(new Dictionary<string, object>()));
+            Assert.AreEqual(42, ScriptFile<object>.FromFile(path).Execute(new Dictionary<string, object>()));
         }
 
         [TestMethod]
         public void SameFileIsLoadedOnlyOnce()
         {
             string path = WriteScript("return 1;");
-            Assert.AreSame(InterpretedScriptFile<object>.FromFile(path), InterpretedScriptFile<object>.FromFile(path),
+            Assert.AreSame(ScriptFile<object>.FromFile(path), ScriptFile<object>.FromFile(path),
                 "Derselbe Pfad muss dieselbe Instanz liefern.");
         }
 
@@ -76,7 +76,7 @@ namespace ITVComponents.Scripting.CScript.Test
         public void PicksUpChangesToTheFile()
         {
             string path = WriteScript("return 1;");
-            var script = InterpretedScriptFile<object>.FromFile(path);
+            var script = ScriptFile<object>.FromFile(path);
             Assert.AreEqual(1, script.Execute(new Dictionary<string, object>()));
 
             // Der Zeitstempel muss sich messbar unterscheiden.
@@ -91,7 +91,7 @@ namespace ITVComponents.Scripting.CScript.Test
         [TestMethod]
         public void BrokenScriptReportsWhereItFailed()
         {
-            var script = InterpretedScriptFile<object>.FromText("a = ;;;");
+            var script = ScriptFile<object>.FromText("a = ;;;");
             var error = Assert.ThrowsException<ScriptException>(
                 () => script.Execute(new Dictionary<string, object>()));
             Assert.IsTrue(error.Message.Contains("not runnable"),
@@ -102,7 +102,7 @@ namespace ITVComponents.Scripting.CScript.Test
         public void ScriptsCanCallOtherScripts()
         {
             string helper = WriteScript("return x*2;");
-            var script = InterpretedScriptFile<object>.FromText($"return Call(\"{helper.Replace("\\", "\\\\")}\", Dict([\"x\"],[21]));");
+            var script = ScriptFile<object>.FromText($"return Call(\"{helper.Replace("\\", "\\\\")}\", Dict([\"x\"],[21]));");
 
             Assert.AreEqual(42, script.Execute(new Dictionary<string, object>()),
                 "Call muss ein anderes Script mit eigenen Variablen ausfuehren.");
@@ -112,7 +112,7 @@ namespace ITVComponents.Scripting.CScript.Test
         public void CalledScriptInheritsValuesOfTheCaller()
         {
             string helper = WriteScript("return faktor*3;");
-            var script = InterpretedScriptFile<object>.FromText(
+            var script = ScriptFile<object>.FromText(
                 $"return Call(\"{helper.Replace("\\", "\\\\")}\", Dict([],[]));");
 
             Assert.AreEqual(9, script.Execute(new Dictionary<string, object> { { "faktor", 3 } }),
@@ -125,9 +125,9 @@ namespace ITVComponents.Scripting.CScript.Test
             // Der Scope ist die Sitzung: wer ihn selbst aufbaut, kann ihn mehrfach benutzen und
             // sieht die Aenderungen des Scripts darin.
             var scope = new Scope(new Dictionary<string, object> { { "a", 5 } });
-            InterpretedScriptFile<object>.Prepare(scope);
+            ScriptFile<object>.Prepare(scope);
 
-            var script = InterpretedScriptFile<object>.FromText("b = a*2; return b;");
+            var script = ScriptFile<object>.FromText("b = a*2; return b;");
             Assert.AreEqual(10, script.Execute(scope));
             Assert.AreEqual(10, scope["b"], "Das Script muss im uebergebenen Scope gearbeitet haben.");
         }
@@ -139,7 +139,7 @@ namespace ITVComponents.Scripting.CScript.Test
             // es tauschte den Baum aus, den laufende Ausfuehrungen gerade begingen. Hier ist der
             // uebersetzte Stand unveraenderlich; ein Neuladen ist ein Referenzwechsel.
             string path = WriteScript("s=0; for(i=0;i<200;i=i+1) { s=s+1; } return s;");
-            var script = InterpretedScriptFile<object>.FromFile(path);
+            var script = ScriptFile<object>.FromFile(path);
 
             var runs = new Task<object>[8];
             for (int i = 0; i < runs.Length; i++)
@@ -176,7 +176,7 @@ namespace ITVComponents.Scripting.CScript.Test
         public void FailedReloadKeepsTheWorkingVersion()
         {
             string path = WriteScript("return 1;");
-            var script = InterpretedScriptFile<object>.FromFile(path);
+            var script = ScriptFile<object>.FromFile(path);
             Assert.AreEqual(1, script.Execute(new Dictionary<string, object>()));
 
             // Datei aendern und exklusiv sperren - das Neuladen kommt nicht an sie heran.
