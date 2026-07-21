@@ -241,10 +241,28 @@ return 'System.Convert'.ToInt64(Val3.Subtract(dt1).TotalDays);,-10:x] Tage verga
             };
             var tokenizer = new StringFormatParser();
 
-            Assert.ThrowsException<ScriptException>(() => tokenizer.FormatString(t, "[new Object()]", null, null).ToString());
-            Assert.ThrowsException<ScriptException>(() => tokenizer.FormatString(t,
+            // Auf ScriptException einschliesslich Unterklassen pruefen: seit die Formatierung
+            // ueber den Interpreter ausfuehrt, kommt die Verweigerung als ScriptSecurityException
+            // (Unterklasse von ScriptException) unverpackt an, statt wie beim ScriptVisitor als
+            // generische ScriptException. Auf den genauen Subtyp festzunageln waere bruechig.
+            void AssertDenied(Func<object> format)
+            {
+                try
+                {
+                    format();
+                }
+                catch (ScriptException)
+                {
+                    return;
+                }
+
+                Assert.Fail("Die Formatierung haette abgewiesen werden muessen.");
+            }
+
+            AssertDenied(() => tokenizer.FormatString(t, "[new Object()]", null, null).ToString());
+            AssertDenied(() => tokenizer.FormatString(t,
                 "[(`E(t as t->DEFAULT)::\"var t = Global.t;return t.List.First();\" with {})]", null, null).ToString());
-            Assert.ThrowsException<ScriptException>(() => tokenizer.FormatString(t, "['System.Object']", null, null).ToString());
+            AssertDenied(() => tokenizer.FormatString(t, "['System.Object']", null, null).ToString());
         }
     }
 }

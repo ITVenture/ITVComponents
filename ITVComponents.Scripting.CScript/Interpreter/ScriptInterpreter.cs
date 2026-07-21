@@ -67,6 +67,45 @@ namespace ITVComponents.Scripting.CScript.Interpreter
         }
 
         /// <summary>
+        /// Wertet einen einzelnen Ausdruck gegen einen bestehenden Scope aus (Repl-Fall).
+        /// </summary>
+        /// <param name="expression">der Ausdruck</param>
+        /// <param name="scope">der Scope, der zugleich die Sitzung ist</param>
+        /// <param name="policy">die geltende Sicherheits-Policy, oder null fuer die des Scopes</param>
+        /// <returns>das Ergebnis der Auswertung</returns>
+        /// <remarks>
+        /// Der Scope ist die Sitzung: aufeinanderfolgende Auswertungen sehen die Variablen der
+        /// jeweils vorigen, weil die Programmwurzel keinen eigenen Scope oeffnet. So ersetzt der
+        /// Interpreter die Repl-Ausfuehrung des ScriptVisitors, ohne dessen Instanzen-Pool.
+        /// </remarks>
+        public static object Parse(string expression, IScope scope, ScriptingPolicy policy = null)
+        {
+            if (scope == null)
+            {
+                throw new ArgumentNullException(nameof(scope));
+            }
+
+            return Compile(expression).Execute(scope, policy);
+        }
+
+        /// <summary>
+        /// Fuehrt ein ganzes Programm gegen einen bestehenden Scope aus (Repl-Fall).
+        /// </summary>
+        /// <param name="script">der Quelltext</param>
+        /// <param name="scope">der Scope, der zugleich die Sitzung ist</param>
+        /// <param name="policy">die geltende Sicherheits-Policy, oder null fuer die des Scopes</param>
+        /// <returns>der Wert eines return, sonst null</returns>
+        public static object ParseBlock(string script, IScope scope, ScriptingPolicy policy = null)
+        {
+            if (scope == null)
+            {
+                throw new ArgumentNullException(nameof(scope));
+            }
+
+            return CompileBlock(script).Execute(scope, policy);
+        }
+
+        /// <summary>
         /// Uebersetzt ein ganzes Programm.
         /// </summary>
         /// <param name="script">der Quelltext</param>

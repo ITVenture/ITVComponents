@@ -85,6 +85,15 @@ namespace ITVComponents.Scripting.CScript.Core
 
         public IDisposable Context { get; internal set; }
 
+        /// <summary>
+        /// Der Scope dieser Sitzung. Seit dem Umbau auf den Interpreter fuehrt ExpressionParser
+        /// Ausdruecke und Bloecke nicht mehr ueber diesen Visitor aus, sondern ueber den
+        /// Interpreter gegen genau diesen Scope. Der Visitor bleibt vorerst als Traeger der
+        /// Sitzung (Pool, Callback-Vorbereitung, Policy), bis auch die Sitzungs-Maschinerie
+        /// abgeloest ist.
+        /// </summary>
+        internal IScope Variables => variables;
+
         public void ClearScope(IDictionary<string, object> baseValues)
         {
             preparer = null;

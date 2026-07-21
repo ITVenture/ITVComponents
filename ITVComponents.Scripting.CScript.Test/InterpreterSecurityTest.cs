@@ -151,16 +151,18 @@ namespace ITVComponents.Scripting.CScript.Test
         }
 
         /// <summary>
-        /// Haelt einen bewussten Unterschied zum ScriptVisitor fest.
+        /// Sicherheitsausnahmen werden unverpackt durchgereicht - ueber beide Einstiegspunkte.
         /// </summary>
         /// <remarks>
-        /// Der ScriptVisitor faengt beim Methodenaufruf jede Ausnahme und verpackt sie in eine
-        /// ScriptException ("Method-Call failed!"). Der Sicherheitsgrund landet dadurch in der
-        /// InnerException, und wer gezielt auf ScriptSecurityException prueft, sieht ihn nicht.
+        /// Der abgeloeste ScriptVisitor fing beim Methodenaufruf jede Ausnahme und verpackte sie
+        /// in eine ScriptException ("Method-Call failed!"); der Sicherheitsgrund landete in der
+        /// InnerException, und wer gezielt auf ScriptSecurityException pruefte, sah ihn nicht.
         ///
-        /// Der Interpreter reicht ScriptSecurityException unveraendert durch. Da sie von
-        /// ScriptException erbt, faengt bestehender Code sie weiterhin - betroffen sind nur
-        /// Pruefungen auf den genauen Typ.
+        /// Der Interpreter reicht ScriptSecurityException unveraendert durch, und seit
+        /// ExpressionParser ueber den Interpreter ausfuehrt, gilt das auch dort. Da
+        /// ScriptSecurityException von ScriptException erbt, faengt bestehender Code sie
+        /// weiterhin - betroffen war nur, wer auf den genauen Typ prueft, und der sieht jetzt
+        /// ueberall den praezisen Typ.
         /// </remarks>
         [TestMethod]
         public void SecurityExceptionsArePropagatedUnwrapped()
@@ -176,11 +178,13 @@ namespace ITVComponents.Scripting.CScript.Test
             Assert.IsTrue(fromInterpreter.Message.Contains("denied"),
                 "Die Meldung soll den Grund nennen.");
 
-            // Der ScriptVisitor verpackt: die aeussere Ausnahme ist keine ScriptSecurityException.
-            var fromVisitor = Assert.ThrowsException<ScriptException>(
-                () => ExpressionParser.Parse("foo.Add(\"Hallo\",42)", Copy(vars), policy: policy));
-            Assert.IsNotInstanceOfType<ScriptSecurityException>(fromVisitor,
-                "Erwartet: der ScriptVisitor verpackt die Sicherheitsausnahme weiterhin.");
+            // ExpressionParser fuehrt ueber denselben Interpreter aus: auch hier kommt die
+            // ScriptSecurityException unverpackt an, mit demselben Grund in der Meldung.
+            var fromExpressionParser = Assert.ThrowsException<ScriptSecurityException>(
+                () => ExpressionParser.Parse("foo.Add(\"Hallo\",42)", Copy(vars), policy: policy),
+                "ExpressionParser soll den Sicherheitsgrund ebenfalls direkt melden.");
+            Assert.IsTrue(fromExpressionParser.Message.Contains("denied"),
+                "Die Meldung soll den Grund nennen.");
         }
 
         private static Dictionary<string, object> Copy(IDictionary<string, object> variables)

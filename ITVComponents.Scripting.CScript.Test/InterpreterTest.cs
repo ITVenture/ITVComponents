@@ -182,9 +182,12 @@ namespace ITVComponents.Scripting.CScript.Test
             AssertInterpreterBlock(42, "try { throw \"x\"; } catch(e) { return 42; }");
             AssertInterpreterBlock("gefangen", "try { throw \"boom\"; } catch(e) { return \"gefangen\"; }");
             AssertInterpreterBlock("boom", "try { throw \"boom\"; } catch(e) { return e; }");
-            Assert.IsNull(ExpressionParser.ParseBlock("try { throw \"x\"; } catch(e) { return 42; }",
+            // ExpressionParser fuehrt seit dem Umbau ueber den Interpreter aus, also ist der
+            // Defekt jetzt auch ueber den oeffentlichen Einstiegspunkt behoben: das return wird
+            // respektiert, das Ergebnis ist 42 statt null.
+            Assert.AreEqual(42, ExpressionParser.ParseBlock("try { throw \"x\"; } catch(e) { return 42; }",
                 new Dictionary<string, object>()),
-                "ScriptVisitor sollte das return aus dem catch weiterhin verschlucken.");
+                "ExpressionParser laeuft ueber den Interpreter und darf das return aus dem catch nicht mehr verschlucken.");
 
             // Ein throw ohne Ausdruck reicht die urspruengliche Nutzlast weiter. Beim
             // ScriptVisitor kam oben null an.
@@ -353,45 +356,36 @@ namespace ITVComponents.Scripting.CScript.Test
         }
 
         /// <summary>
-        /// Haelt einen Fehler des ScriptVisitors fest: ein Pragma wirkt ueber den Lauf hinaus.
+        /// Ein Pragma darf nicht ueber den Lauf hinaus wirken - weder ueber den Interpreter noch
+        /// ueber ExpressionParser, das seit dem Umbau denselben Interpreter benutzt.
         /// </summary>
         /// <remarks>
-        /// typeSafety, lazyInvokation und bypassCompatibilityOnLazyInvokation sind Felder der
-        /// Visitor-Instanz, und ClearScope setzt sie nicht zurueck. InterpreterBuffer poolt
-        /// diese Instanzen - ein Script, das ein Pragma setzt, veraendert damit das Verhalten
-        /// spaeterer, voellig unbeteiligter Auswertungen.
+        /// Beim ScriptVisitor lagen typeSafety, lazyInvokation und
+        /// bypassCompatibilityOnLazyInvokation als Felder auf der gepoolten Visitor-Instanz, und
+        /// ClearScope setzte sie nicht zurueck. Ein Script, das ein Pragma setzte, veraenderte
+        /// damit das Verhalten spaeterer, voellig unbeteiligter Auswertungen. Genau dagegen
+        /// richtet sich der Umbau: der Interpreter haelt diese Schalter im ExecutionContext, der
+        /// pro Lauf entsteht - deshalb leckt er nicht, und seit ExpressionParser ueber den
+        /// Interpreter ausfuehrt, erbt es diese Eigenschaft.
         ///
-        /// Genau dagegen richtet sich der Umbau: der Interpreter haelt diese Schalter im
-        /// ExecutionContext, der pro Lauf entsteht. Der zweite Teil des Tests weist nach, dass
-        /// er nicht leckt.
-        ///
-        /// Der Visitor-Zustand wird am Ende wiederhergestellt, sonst wuerde dieser Test andere
-        /// Tests im selben Lauf beschaedigen - was den Fehler zugleich anschaulich macht.
+        /// Kein Wiederherstellen des Zustands mehr noetig: nichts leckt, das die anderen Tests
+        /// beschaedigen koennte.
         /// </remarks>
         [TestMethod]
-        public void PragmaStateLeaksAcrossVisitorRuns()
+        public void PragmaStateDoesNotLeakAcrossRuns()
         {
             var vars = new Dictionary<string, object> { { "f", 99M }, { "e", .75F } };
-            try
-            {
-                Assert.AreEqual(98.25M, ExpressionParser.Parse("f-e", Copy(vars)),
-                    "Vor dem Pragma rechnet der ScriptVisitor mit Typpruefung.");
 
-                ExpressionParser.ParseBlock("\"@@TYPESAFETY OFF\";", new Dictionary<string, object>());
+            Assert.AreEqual(98.25M, ExpressionParser.Parse("f-e", Copy(vars)),
+                "Vor dem Pragma rechnet die Auswertung mit Typpruefung.");
 
-                Assert.ThrowsException<ScriptException>(
-                    () => ExpressionParser.Parse("f-e", Copy(vars)),
-                    "Der ScriptVisitor traegt den Schalter in den naechsten Lauf hinueber.");
+            ExpressionParser.ParseBlock("\"@@TYPESAFETY OFF\";", new Dictionary<string, object>());
+            Assert.AreEqual(98.25M, ExpressionParser.Parse("f-e", Copy(vars)),
+                "ExpressionParser laeuft ueber den Interpreter und darf den Schalter nicht weitertragen.");
 
-                // Der Interpreter ist davon unberuehrt - eigener Kontext pro Lauf.
-                ScriptInterpreter.ParseBlock("\"@@TYPESAFETY OFF\";", new Dictionary<string, object>());
-                Assert.AreEqual(98.25M, ScriptInterpreter.Parse("f-e", Copy(vars)),
-                    "Der Interpreter darf den Schalter nicht in den naechsten Lauf tragen.");
-            }
-            finally
-            {
-                ExpressionParser.ParseBlock("\"@@TYPESAFETY ON\";", new Dictionary<string, object>());
-            }
+            ScriptInterpreter.ParseBlock("\"@@TYPESAFETY OFF\";", new Dictionary<string, object>());
+            Assert.AreEqual(98.25M, ScriptInterpreter.Parse("f-e", Copy(vars)),
+                "Der Interpreter darf den Schalter nicht in den naechsten Lauf tragen.");
         }
 
         [TestMethod]

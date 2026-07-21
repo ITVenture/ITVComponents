@@ -2,6 +2,7 @@
 using ITVComponents.Scripting.CScript.Buffering;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
+using ITVComponents.Scripting.CScript.Interpreter;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 using System;
@@ -104,10 +105,11 @@ namespace ITVComponents.Scripting.CScript.Core
         {
             if (replSession is InterpreterBuffer.RunnerItem rii)
             {
-                ITVScriptingBaseVisitor<ScriptValue> visitor = InterpreterBuffer.GetInterpreter(rii);
-                ITVScriptingParser.ProgramContext executor = GetProgramTree(expression);
-                ScriptValue retVal = visitor.VisitProgram(executor);
-                return ScriptValueHelper.GetScriptValueResult<object>(retVal, false, rii.Policy);
+                // Ausgefuehrt wird ueber den Interpreter gegen den Scope der Sitzung, nicht mehr
+                // ueber den ScriptVisitor. Der Scope traegt die bisher gesetzten Variablen, und
+                // die Programmwurzel oeffnet keinen eigenen Scope - Zuweisungen dieses Blocks
+                // bleiben also fuer den naechsten Aufruf der Sitzung sichtbar (Repl-Semantik).
+                return ScriptInterpreter.ParseBlock(expression, rii.Visitor.Variables, rii.Policy);
             }
 
             return ParseBlock(expression, replSession, null);
@@ -123,10 +125,8 @@ namespace ITVComponents.Scripting.CScript.Core
         {
             if (replSession is InterpreterBuffer.RunnerItem rii)
             {
-                ITVScriptingBaseVisitor<ScriptValue> visitor = InterpreterBuffer.GetInterpreter(rii);
-                ITVScriptingParser.ExpressionStatementContext executor = GetExpressionTree(expression);
-                ScriptValue retVal = visitor.Visit(executor);
-                return ScriptValueHelper.GetScriptValueResult<object>(retVal, true, rii.Policy);
+                // Wie bei ParseBlock: der Interpreter wertet gegen den Scope der Sitzung aus.
+                return ScriptInterpreter.Parse(expression, rii.Visitor.Variables, rii.Policy);
             }
 
             return Parse(expression, replSession, null);
