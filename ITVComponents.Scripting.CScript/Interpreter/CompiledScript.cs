@@ -103,17 +103,15 @@ namespace ITVComponents.Scripting.CScript.Interpreter
         /// <param name="policy">die geltende Sicherheits-Policy, oder null</param>
         /// <returns>das Ergebnis der Auswertung</returns>
         /// <remarks>
-        /// Der Initialisierer bekommt vorerst weder Repl-Session noch Visitor:
-        /// ScopePreparationCallbackArguments verlangt eine ScriptVisitor-Instanz, an die der
-        /// Interpreter bewusst nicht gebunden ist. Initialisierer, die nur den Scope
-        /// bestuecken, funktionieren damit; alles Weitere wird mit der Repl-Anbindung in
-        /// einer spaeteren Phase nachgezogen.
+        /// Dieser Weg baut einen frischen Scope ohne Repl-Session auf (ReplSession bleibt null).
+        /// Fuer eine laufende Sitzung fuehrt <see cref="Execute(IScope, ScriptingPolicy, IExecutionObserver)"/>
+        /// direkt gegen deren Scope aus.
         /// </remarks>
         public object Execute(System.Collections.Generic.IDictionary<string, object> variables,
             InitializeScopeVariables scopeInitializer = null, ScriptingPolicy policy = null)
         {
             var scope = new Scope(variables, policy);
-            scopeInitializer?.Invoke(new ScopePreparationCallbackArguments(scope, null, null));
+            scopeInitializer?.Invoke(new ScopePreparationCallbackArguments(scope, null));
             return Execute(scope, policy);
         }
     }

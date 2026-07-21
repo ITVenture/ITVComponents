@@ -80,7 +80,7 @@ namespace ITVComponents.Scripting.CScript.Buffering
             var session = new ReplSession(scope, policy);
             InitializeScopeVariables init = scopeInitializer ??
                 (a => DefaultCallbacks.PrepareDefaultCallbacks(a.Scope, a.ReplSession));
-            init(new ScopePreparationCallbackArguments(scope, session, null));
+            init(new ScopePreparationCallbackArguments(scope, session));
             return session;
         }
 

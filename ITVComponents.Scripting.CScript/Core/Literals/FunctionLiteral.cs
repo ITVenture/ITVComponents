@@ -13,7 +13,14 @@ using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Core.Literals
 {
-    public class FunctionLiteral : DynamicObject
+    /// <remarks>
+    /// Abstrakt, seit der ScriptVisitor entfallen ist: eine Script-Funktion wird immer vom
+    /// Interpreter ausgefuehrt (<see cref="ITVComponents.Scripting.CScript.Interpreter.Runtime.InterpretedFunction"/>).
+    /// Die Basisklasse bleibt bestehen, weil die Runtime an vielen Stellen auf genau diesen Typ
+    /// prueft; das Ausfuehren des Rumpfs liegt aber vollstaendig in der abgeleiteten Klasse
+    /// (<see cref="ExecuteBody"/>, <see cref="Copy"/>).
+    /// </remarks>
+    public abstract class FunctionLiteral : DynamicObject
     {
         /// <summary>
         /// The Scope of this function
@@ -21,19 +28,9 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         private FunctionScope scope;
 
         /// <summary>
-        /// The Script visitor that is used to interpret this method
-        /// </summary>
-        private ScriptVisitor visitor;
-
-        /// <summary>
         /// The method names that are expected by this method
         /// </summary>
         private string[] arguments;
-
-        /// <summary>
-        /// The functionbody of this method
-        /// </summary>
-        private ITVScriptingParser.FunctionBodyContext body;
 
         private readonly ScriptingPolicy policy;
 
@@ -48,37 +45,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         private Dictionary<string, object> initialValues;
 
         /// <summary>
-        /// Initializes a new instance of the FunctionLiteral class
-        /// </summary>
-        /// <param name="values">the local values that are surrounding the method at the moment of creation</param>
-        /// <param name="parent">the parent scope of this method</param>
-        /// <param name="arguments">the argument names that are passed to this method</param>
-        /// <param name="body">the method body of this method</param>
-        public FunctionLiteral(Dictionary<string, object> values, string[] arguments,
-            ITVScriptingParser.FunctionBodyContext body, ScriptingPolicy policy)
-            : this(values, arguments, body, policy, null)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the FunctionLiteral class
-        /// </summary>
-        /// <param name="values">the local values that are surrounding the method at the moment of creation</param>
-        /// <param name="arguments">the argument names that are passed to this method</param>
-        /// <param name="body">the method body of this method</param>
-        /// <param name="policy">the policy that applies to this method</param>
-        /// <param name="name">the name this method was declared with, or null when anonymous</param>
-        public FunctionLiteral(Dictionary<string, object> values, string[] arguments,
-            ITVScriptingParser.FunctionBodyContext body, ScriptingPolicy policy, string name)
-            : this(values, arguments, policy, name)
-        {
-            visitor = new ScriptVisitor(scope);
-            visitor.ScriptingPolicy = policy;
-            this.body = body;
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the FunctionLiteral class without a script-visitor.
+        /// Initializes a new instance of the FunctionLiteral class.
         /// </summary>
         /// <param name="values">the local values that are surrounding the method at the moment of creation</param>
         /// <param name="arguments">the argument names that are passed to this method</param>
@@ -257,22 +224,16 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         /// </summary>
         /// <returns>the result of the method-body</returns>
         /// <remarks>
-        /// Override this to run the body with something other than the script-visitor - the
-        /// interpreter does so to execute its own node-tree.
+        /// Implemented by the derived class that owns the body - the interpreter executes its
+        /// own node-tree here.
         /// </remarks>
-        protected virtual object ExecuteBody()
-        {
-            return ScriptValueHelper.GetScriptValueResult<object>(visitor.Visit(body), false, policy);
-        }
+        protected abstract object ExecuteBody();
 
         /// <summary>
-        /// Creates a copy with a new scope of this functionLiteral
+        /// Creates a copy with a new scope of this functionLiteral.
         /// </summary>
-        /// <returns></returns>
-        public virtual FunctionLiteral Copy()
-        {
-            return new FunctionLiteral(initialValues, arguments, body, policy, name);
-        }
+        /// <returns>a fresh copy that carries its own scope</returns>
+        public abstract FunctionLiteral Copy();
 
         /// <summary>
         /// Creates an eventhandler for the specified event info

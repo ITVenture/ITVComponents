@@ -195,7 +195,7 @@ namespace ITVComponents.Scripting.CScript
             {
                 if (prepareVariables != null)
                 {
-                    prepareVariables(new ScopePreparationCallbackArguments(scope, session, null));
+                    prepareVariables(new ScopePreparationCallbackArguments(scope, session));
                 }
                 else
                 {
