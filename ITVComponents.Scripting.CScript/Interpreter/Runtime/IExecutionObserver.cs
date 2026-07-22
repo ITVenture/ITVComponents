@@ -1,6 +1,6 @@
-using ITVComponents.Scripting.CScript.Interpreter.Ast;
+using ITVComponents.Scripting.CScript.Ast;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
+namespace ITVComponents.Scripting.CScript.Runtime
 {
     /// <summary>
     /// Naht fuer den Debugger. Ist am <see cref="ExecutionContext"/> per Default null, damit

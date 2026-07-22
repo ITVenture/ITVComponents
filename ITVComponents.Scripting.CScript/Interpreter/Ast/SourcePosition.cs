@@ -1,6 +1,6 @@
 using Antlr4.Runtime;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast
+namespace ITVComponents.Scripting.CScript.Ast
 {
     /// <summary>
     /// Position eines Knotens im Quelltext. Wird an jedem Knoten mitgefuehrt, damit der

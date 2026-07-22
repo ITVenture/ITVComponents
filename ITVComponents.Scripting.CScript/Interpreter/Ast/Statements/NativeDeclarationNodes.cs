@@ -1,9 +1,9 @@
 using System;
 using ITVComponents.Scripting.CScript.Core.Native;
-using ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Ast.Expressions;
+using ITVComponents.Scripting.CScript.Runtime;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Statements
+namespace ITVComponents.Scripting.CScript.Ast.Statements
 {
     /// <summary>
     /// Meldet eine Assembly-Referenz fuer eine native Konfiguration an: `R(konfiguration)"...".

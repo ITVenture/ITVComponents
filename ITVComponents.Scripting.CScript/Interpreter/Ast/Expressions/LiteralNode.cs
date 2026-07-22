@@ -1,7 +1,7 @@
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.ScriptValues;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
+namespace ITVComponents.Scripting.CScript.Ast.Expressions
 {
     /// <summary>
     /// Ein konstanter Wert. Zahl, Zeichenkette, Wahrheitswert oder null.

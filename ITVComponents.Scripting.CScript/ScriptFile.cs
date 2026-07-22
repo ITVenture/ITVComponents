@@ -12,10 +12,9 @@ using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.Scripting.CScript.Interpreter;
-using ITVComponents.Scripting.CScript.Interpreter.Ast;
-using ITVComponents.Scripting.CScript.Interpreter.Ast.Building;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Ast;
+using ITVComponents.Scripting.CScript.Ast.Building;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Exceptions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ITVComponents.Scripting.CScript.Interpreter;
+using ITVComponents.Scripting.CScript;
 
 namespace ITVComponents.Scripting.CScript.Test
 {

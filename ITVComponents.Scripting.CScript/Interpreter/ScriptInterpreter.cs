@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using Antlr4.Runtime;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.Scripting.CScript.Interpreter.Ast;
-using ITVComponents.Scripting.CScript.Interpreter.Ast.Building;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime.Debugging;
+using ITVComponents.Scripting.CScript.Ast;
+using ITVComponents.Scripting.CScript.Ast.Building;
+using ITVComponents.Scripting.CScript.Runtime.Debugging;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Security;
 
-namespace ITVComponents.Scripting.CScript.Interpreter
+namespace ITVComponents.Scripting.CScript
 {
     /// <summary>
     /// Einstiegspunkt des Interpreters. Gegenstueck zu ExpressionParser, das auf dem

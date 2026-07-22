@@ -1,11 +1,11 @@
 using System;
 using ITVComponents.Scripting.CScript.Exceptions;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.Operating;
 using ITVComponents.Scripting.CScript.Optimization.LazyExecutors;
 using ITVComponents.Scripting.CScript.ScriptValues;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
+namespace ITVComponents.Scripting.CScript.Ast.Expressions
 {
     /// <summary>
     /// Die Vergleichsoperatoren.

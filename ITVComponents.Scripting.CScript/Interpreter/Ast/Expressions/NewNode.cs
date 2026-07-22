@@ -4,10 +4,10 @@ using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.ScriptValues;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
+namespace ITVComponents.Scripting.CScript.Ast.Expressions
 {
     /// <summary>
     /// Das Erzeugen einer Instanz: new T(x) beziehungsweise new T { a: 1 }.

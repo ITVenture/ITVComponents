@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
-using ITVComponents.Scripting.CScript.Interpreter.Ast;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime.Debugging;
+using ITVComponents.Scripting.CScript.Ast;
+using ITVComponents.Scripting.CScript.Runtime.Debugging;
 using ITVComponents.Scripting.CScript.Security;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
+namespace ITVComponents.Scripting.CScript.Runtime
 {
     /// <summary>
     /// Eine im Script definierte Funktion, deren Rumpf der Interpreter ausfuehrt.

@@ -1,8 +1,8 @@
 using System;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.ScriptValues;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Statements
+namespace ITVComponents.Scripting.CScript.Ast.Statements
 {
     /// <summary>
     /// Ein Ausdruck in Anweisungsposition. Der Wert wird verworfen.

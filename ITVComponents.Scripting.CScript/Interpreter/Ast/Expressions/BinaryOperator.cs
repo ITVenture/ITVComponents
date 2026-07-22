@@ -1,4 +1,4 @@
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
+namespace ITVComponents.Scripting.CScript.Ast.Expressions
 {
     /// <summary>
     /// Die zweistelligen Rechen- und Bitoperatoren.

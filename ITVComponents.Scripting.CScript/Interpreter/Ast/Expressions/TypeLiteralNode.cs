@@ -4,12 +4,12 @@ using System.Linq;
 using System.Reflection;
 using ITVComponents.AssemblyResolving;
 using ITVComponents.Scripting.CScript.Exceptions;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 using ITVComponents.Scripting.CScript.Security.Restrictions;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
+namespace ITVComponents.Scripting.CScript.Ast.Expressions
 {
     /// <summary>
     /// Ein Typ-Literal: 'System.Int32' beziehungsweise 'X.Y'@"Assembly".

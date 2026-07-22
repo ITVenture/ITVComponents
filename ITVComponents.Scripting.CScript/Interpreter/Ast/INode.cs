@@ -1,7 +1,7 @@
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.ScriptValues;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast
+namespace ITVComponents.Scripting.CScript.Ast
 {
     /// <summary>
     /// Basis aller Knoten des Ausfuehrungsbaums. Knoten sind nach dem Bauen unveraenderlich

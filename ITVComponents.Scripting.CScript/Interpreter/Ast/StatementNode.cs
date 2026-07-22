@@ -1,6 +1,6 @@
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast
+namespace ITVComponents.Scripting.CScript.Ast
 {
     /// <summary>
     /// Basisklasse der Anweisungs-Knoten.

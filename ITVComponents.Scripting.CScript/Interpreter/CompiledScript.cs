@@ -2,12 +2,12 @@ using System;
 using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.Scripting.CScript.Interpreter.Ast;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Ast;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 
-namespace ITVComponents.Scripting.CScript.Interpreter
+namespace ITVComponents.Scripting.CScript
 {
     /// <summary>
     /// Ein uebersetztes Script: die unveraenderliche Wurzel eines Ausfuehrungsbaums.

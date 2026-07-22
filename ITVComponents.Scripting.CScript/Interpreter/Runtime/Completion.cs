@@ -1,6 +1,6 @@
 using ITVComponents.Scripting.CScript.ScriptValues;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
+namespace ITVComponents.Scripting.CScript.Runtime
 {
     /// <summary>
     /// Art, auf die eine Anweisung geendet hat.

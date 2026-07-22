@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Core.Native;
 using ITVComponents.Scripting.CScript.Exceptions;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions
+namespace ITVComponents.Scripting.CScript.Ast.Expressions
 {
     /// <summary>
     /// Gemeinsames fuer die Knoten, die C#-Code ueber Roslyn ausfuehren.

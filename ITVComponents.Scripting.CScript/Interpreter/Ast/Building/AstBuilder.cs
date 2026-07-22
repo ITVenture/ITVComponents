@@ -5,11 +5,11 @@ using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Exceptions;
-using ITVComponents.Scripting.CScript.Interpreter.Ast.Expressions;
-using ITVComponents.Scripting.CScript.Interpreter.Ast.Statements;
+using ITVComponents.Scripting.CScript.Ast.Expressions;
+using ITVComponents.Scripting.CScript.Ast.Statements;
 using ITVComponents.Scripting.CScript.Operating;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Building
+namespace ITVComponents.Scripting.CScript.Ast.Building
 {
     /// <summary>
     /// Baut aus dem ANTLR-Parsebaum den Ausfuehrungsbaum des Interpreters.

@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using ITVComponents.Scripting.CScript.Interpreter;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime.Debugging;
+using ITVComponents.Scripting.CScript;
+using ITVComponents.Scripting.CScript.Runtime.Debugging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.Scripting.CScript.Test

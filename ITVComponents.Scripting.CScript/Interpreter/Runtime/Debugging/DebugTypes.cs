@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using ITVComponents.Scripting.CScript.Interpreter.Ast;
+using ITVComponents.Scripting.CScript.Ast;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Runtime.Debugging
+namespace ITVComponents.Scripting.CScript.Runtime.Debugging
 {
     /// <summary>
     /// Was der Debugger nach einem Halt als Naechstes tun soll.

@@ -4,7 +4,7 @@ using ITVComponents.Scripting.CScript.Core.RuntimeSafety;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Scripting.CScript.Security;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
+namespace ITVComponents.Scripting.CScript.Runtime
 {
     /// <summary>
     /// Zustand einer einzelnen Script-Ausfuehrung.

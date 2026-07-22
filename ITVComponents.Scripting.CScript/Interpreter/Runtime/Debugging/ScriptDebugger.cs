@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using ITVComponents.Scripting.CScript.Interpreter.Ast;
+using ITVComponents.Scripting.CScript.Ast;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Runtime.Debugging
+namespace ITVComponents.Scripting.CScript.Runtime.Debugging
 {
     /// <summary>
     /// Wird geworfen, wenn der Debugger die Ausfuehrung abbricht.

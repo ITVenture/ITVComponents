@@ -15,7 +15,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
 {
     /// <remarks>
     /// Abstrakt, seit der ScriptVisitor entfallen ist: eine Script-Funktion wird immer vom
-    /// Interpreter ausgefuehrt (<see cref="ITVComponents.Scripting.CScript.Interpreter.Runtime.InterpretedFunction"/>).
+    /// Interpreter ausgefuehrt (<see cref="ITVComponents.Scripting.CScript.Runtime.InterpretedFunction"/>).
     /// Die Basisklasse bleibt bestehen, weil die Runtime an vielen Stellen auf genau diesen Typ
     /// prueft; das Ausfuehren des Rumpfs liegt aber vollstaendig in der abgeleiteten Klasse
     /// (<see cref="ExecuteBody"/>, <see cref="Copy"/>).

@@ -2,7 +2,6 @@
 using ITVComponents.Scripting.CScript.Buffering;
 using ITVComponents.Scripting.CScript.Exceptions;
 using ITVComponents.Scripting.CScript.Helpers;
-using ITVComponents.Scripting.CScript.Interpreter;
 using ITVComponents.Scripting.CScript.ScriptValues;
 using ITVComponents.Scripting.CScript.Security;
 using System;

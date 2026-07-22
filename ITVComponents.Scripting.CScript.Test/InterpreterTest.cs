@@ -3,7 +3,7 @@ using System;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.Literals;
 using ITVComponents.Scripting.CScript.Exceptions;
-using ITVComponents.Scripting.CScript.Interpreter;
+using ITVComponents.Scripting.CScript;
 using ITVComponents.Scripting.CScript.Security;
 using ITVComponents.Scripting.CScript.Security.Extensions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

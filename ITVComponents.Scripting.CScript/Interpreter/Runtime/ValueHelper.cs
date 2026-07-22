@@ -1,6 +1,6 @@
 using ITVComponents.Scripting.CScript.ScriptValues;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Runtime
+namespace ITVComponents.Scripting.CScript.Runtime
 {
     /// <summary>
     /// Kleine Helfer rund um ScriptValue, die mehrere Knoten teilen.

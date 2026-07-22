@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Exceptions;
-using ITVComponents.Scripting.CScript.Interpreter;
+using ITVComponents.Scripting.CScript;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.Scripting.CScript.Test

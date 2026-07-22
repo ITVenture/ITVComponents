@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using ITVComponents.Scripting.CScript.Interpreter.Runtime;
+using ITVComponents.Scripting.CScript.Runtime;
 
-namespace ITVComponents.Scripting.CScript.Interpreter.Ast.Statements
+namespace ITVComponents.Scripting.CScript.Ast.Statements
 {
     /// <summary>
     /// Eine case-Klausel eines switch-Blocks.

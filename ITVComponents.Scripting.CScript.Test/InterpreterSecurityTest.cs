@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using ITVComponents.DataAccess;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Exceptions;
-using ITVComponents.Scripting.CScript.Interpreter;
+using ITVComponents.Scripting.CScript;
 using ITVComponents.Scripting.CScript.Security;
 using ITVComponents.Scripting.CScript.Security.Extensions;
 using ITVComponents.Scripting.CScript.Security.Restrictions;
