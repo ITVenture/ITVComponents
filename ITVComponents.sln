@@ -121,8 +121,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.StateMachine"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.PowerShell", "ITVComponents.PowerShell\ITVComponents.PowerShell.csproj", "{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.Scripting.CScript.Interpreter", "ITVComponents.Scripting.CScript.Interpreter\ITVComponents.Scripting.CScript.Interpreter.csproj", "{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.BlobStore", "ITVComponents.BlobStore\ITVComponents.BlobStore.csproj", "{70712DCD-9FD4-ABBE-1EE4-A4466EE65791}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.BlobStore.Test", "ITVComponents.BlobStore.Test\ITVComponents.BlobStore.Test.csproj", "{A099BDD1-8FBA-3B28-A95A-08781A525166}"
@@ -891,18 +889,6 @@ Global
 		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Release|x86.Build.0 = Release|Any CPU
 		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Release|x64.ActiveCfg = Release|Any CPU
 		{A8949B4D-1549-40F3-5A7E-016B70C7C1D8}.Release|x64.Build.0 = Release|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Debug|x86.Build.0 = Debug|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Debug|x64.Build.0 = Debug|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Release|x86.ActiveCfg = Release|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Release|x86.Build.0 = Release|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Release|x64.ActiveCfg = Release|Any CPU
-		{7E410585-BEA0-E7B9-AE01-D5AC8CBF1010}.Release|x64.Build.0 = Release|Any CPU
 		{70712DCD-9FD4-ABBE-1EE4-A4466EE65791}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{70712DCD-9FD4-ABBE-1EE4-A4466EE65791}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{70712DCD-9FD4-ABBE-1EE4-A4466EE65791}.Debug|x86.ActiveCfg = Debug|Any CPU

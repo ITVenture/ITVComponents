@@ -13,7 +13,14 @@ using ITVComponents.Scripting.CScript.Security;
 
 namespace ITVComponents.Scripting.CScript.Core.Literals
 {
-    public class FunctionLiteral : DynamicObject
+    /// <remarks>
+    /// Abstrakt, seit der ScriptVisitor entfallen ist: eine Script-Funktion wird immer vom
+    /// Interpreter ausgefuehrt (<see cref="ITVComponents.Scripting.CScript.Runtime.InterpretedFunction"/>).
+    /// Die Basisklasse bleibt bestehen, weil die Runtime an vielen Stellen auf genau diesen Typ
+    /// prueft; das Ausfuehren des Rumpfs liegt aber vollstaendig in der abgeleiteten Klasse
+    /// (<see cref="ExecuteBody"/>, <see cref="Copy"/>).
+    /// </remarks>
+    public abstract class FunctionLiteral : DynamicObject
     {
         /// <summary>
         /// The Scope of this function
@@ -21,21 +28,16 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         private FunctionScope scope;
 
         /// <summary>
-        /// The Script visitor that is used to interpret this method
-        /// </summary>
-        private ScriptVisitor visitor;
-
-        /// <summary>
         /// The method names that are expected by this method
         /// </summary>
         private string[] arguments;
 
-        /// <summary>
-        /// The functionbody of this method
-        /// </summary>
-        private ITVScriptingParser.FunctionBodyContext body;
-
         private readonly ScriptingPolicy policy;
+
+        /// <summary>
+        /// The name this method was declared with, or null when it is anonymous
+        /// </summary>
+        private readonly string name;
 
         /// <summary>
         /// The initialValues that are surrounding this functiondefinition
@@ -43,23 +45,55 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         private Dictionary<string, object> initialValues;
 
         /// <summary>
-        /// Initializes a new instance of the FunctionLiteral class
+        /// Initializes a new instance of the FunctionLiteral class.
         /// </summary>
         /// <param name="values">the local values that are surrounding the method at the moment of creation</param>
-        /// <param name="parent">the parent scope of this method</param>
         /// <param name="arguments">the argument names that are passed to this method</param>
-        /// <param name="body">the method body of this method</param>
-        public FunctionLiteral(Dictionary<string, object> values, string[] arguments,
-            ITVScriptingParser.FunctionBodyContext body, ScriptingPolicy policy)
+        /// <param name="policy">the policy that applies to this method</param>
+        /// <param name="name">the name this method was declared with, or null when anonymous</param>
+        /// <remarks>
+        /// For derived implementations that run the method-body themselves. See
+        /// <see cref="ExecuteBody"/>.
+        /// </remarks>
+        protected FunctionLiteral(Dictionary<string, object> values, string[] arguments, ScriptingPolicy policy,
+            string name)
         {
             initialValues = values;
             scope = new FunctionScope(values, policy);
-            visitor = new ScriptVisitor(scope);
-            visitor.ScriptingPolicy = policy;
             this.arguments = arguments;
-            this.body = body;
             this.policy = policy;
+            this.name = name;
+
+            // A named method must see itself, otherwise it can not call itself. The surrounding
+            // values are a snapshot taken before the method was bound to its name, so without
+            // this the name would resolve to nothing inside the body.
+            // Binding happens on the base-values of the scope, so every call sees it - and it
+            // survives Copy(), which an object-literal uses for each method it takes in.
+            if (name != null)
+            {
+                scope.SetBaseValue(name, this);
+            }
         }
+
+        /// <summary>
+        /// Gets the name this method was declared with, or null when it is anonymous.
+        /// </summary>
+        protected string FunctionName { get { return name; } }
+
+        /// <summary>
+        /// Gets the scope this method runs in.
+        /// </summary>
+        protected FunctionScope Scope { get { return scope; } }
+
+        /// <summary>
+        /// Gets the policy that applies to this method.
+        /// </summary>
+        protected ScriptingPolicy Policy { get { return policy; } }
+
+        /// <summary>
+        /// Gets the initial values that surround this method-definition.
+        /// </summary>
+        protected Dictionary<string, object> InitialValues { get { return initialValues; } }
 
         public IScope ParentScope { get { return scope.ParentScope; } set { scope.ParentScope = value; } }
 
@@ -177,7 +211,7 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
 
                 parameters["parameters"] = arguments;
                 scope.Clear(parameters);
-                return ScriptValueHelper.GetScriptValueResult<object>(visitor.Visit(body), false, policy);
+                return ExecuteBody();
             }
             finally
             {
@@ -186,13 +220,20 @@ namespace ITVComponents.Scripting.CScript.Core.Literals
         }
 
         /// <summary>
-        /// Creates a copy with a new scope of this functionLiteral
+        /// Runs the body of this method. The scope is already prepared when this is called.
         /// </summary>
-        /// <returns></returns>
-        public FunctionLiteral Copy()
-        {
-            return new FunctionLiteral(initialValues, arguments, body, policy);
-        }
+        /// <returns>the result of the method-body</returns>
+        /// <remarks>
+        /// Implemented by the derived class that owns the body - the interpreter executes its
+        /// own node-tree here.
+        /// </remarks>
+        protected abstract object ExecuteBody();
+
+        /// <summary>
+        /// Creates a copy with a new scope of this functionLiteral.
+        /// </summary>
+        /// <returns>a fresh copy that carries its own scope</returns>
+        public abstract FunctionLiteral Copy();
 
         /// <summary>
         /// Creates an eventhandler for the specified event info

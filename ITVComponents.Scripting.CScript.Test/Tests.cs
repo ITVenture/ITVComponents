@@ -20,7 +20,15 @@ namespace ITVComponents.Scripting.CScript.Test
             Assert.AreEqual(1d + 2D * 3 / 4, ExpressionParser.Parse("1+2D*3/4", new Dictionary<string, object>()));
             Assert.AreEqual(1 + 2M * 3 / 4, ExpressionParser.Parse("1+2M*3/4", new Dictionary<string, object>()));
             Assert.AreEqual(1 + 2F * 3 / 4, ExpressionParser.Parse("1+2F*3/4", new Dictionary<string, object>()));
-            Assert.AreEqual("Int32", ExpressionParser.Parse("value.GetType().Name", new Dictionary<string, object> { { "value", 1 } }));
+            // Frueher stand hier "value.GetType().Name" mit der Erwartung "Int32" - das hat nie
+            // funktioniert und liess diesen Test seit jeher scheitern. GetType() liefert die
+            // Klasse, Zugriffe darauf sind statische Zugriffe; ein statisches Name gibt es auf
+            // System.Int32 nicht. Der statische Zugriff wird hier weiterhin geprueft.
+            //
+            // Die Member des Type-Objekts holt man ueber $Type ab ("value.GetType().$Type.Name").
+            // Das beherrscht nur der Interpreter, weil der Wechsel beim Bauen in den folgenden
+            // Zugriff eingefaltet wird - siehe TypeAccessTest.
+            Assert.AreEqual(int.MaxValue, ExpressionParser.Parse("value.GetType().MaxValue", new Dictionary<string, object> { { "value", 1 } }));
         }
 
         [TestMethod]

@@ -36,8 +36,8 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>the evaluation result</returns>
         public static object Parse(string expression, IDictionary<string, object> variables, InitializeScopeVariables scopeInitializer = null, ScriptingPolicy policy = null)
         {
-            using (var session = (policy == null)?InterpreterBuffer.GetReplInstance(variables, scopeInitializer, out _):
-                       InterpreterBuffer.GetReplInstance(variables, scopeInitializer, policy, out _))
+            using (var session = (policy == null)?InterpreterBuffer.GetReplInstance(variables, scopeInitializer):
+                       InterpreterBuffer.GetReplInstance(variables, scopeInitializer, policy))
             {
                 return Parse(expression, session);
             }
@@ -53,8 +53,8 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>the evaluation result</returns>
         public static object ParseBlock(string expression, IDictionary<string, object> variables, InitializeScopeVariables scopeInitializer = null, ScriptingPolicy policy = null)
         {
-            using (var session = (policy == null) ? InterpreterBuffer.GetReplInstance(variables, scopeInitializer, out _) :
-                       InterpreterBuffer.GetReplInstance(variables, scopeInitializer, policy, out _))
+            using (var session = (policy == null) ? InterpreterBuffer.GetReplInstance(variables, scopeInitializer) :
+                       InterpreterBuffer.GetReplInstance(variables, scopeInitializer, policy))
             {
                 return ParseBlock(expression, session);
             }
@@ -70,8 +70,8 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>the evaluation result</returns>
         public static object Parse(string expression, object implicitContext, InitializeScopeVariables scopeInitializer = null, ScriptingPolicy policy = null)
         {
-            using (var session = (policy == null) ? InterpreterBuffer.GetReplInstance(implicitContext, scopeInitializer, out _) :
-                       InterpreterBuffer.GetReplInstance(implicitContext, scopeInitializer, policy, out _))
+            using (var session = (policy == null) ? InterpreterBuffer.GetReplInstance(implicitContext, scopeInitializer) :
+                       InterpreterBuffer.GetReplInstance(implicitContext, scopeInitializer, policy))
             {
                 return Parse(expression, session);
             }
@@ -87,8 +87,8 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>the evaluation result</returns>
         public static object ParseBlock(string expression, object implicitContext, InitializeScopeVariables scopeInitializer = null, ScriptingPolicy policy = null)
         {
-            using (var session = (policy == null) ? InterpreterBuffer.GetReplInstance(implicitContext, scopeInitializer, out _) :
-                       InterpreterBuffer.GetReplInstance(implicitContext, scopeInitializer, policy, out _))
+            using (var session = (policy == null) ? InterpreterBuffer.GetReplInstance(implicitContext, scopeInitializer) :
+                       InterpreterBuffer.GetReplInstance(implicitContext, scopeInitializer, policy))
             {
                 return ParseBlock(expression, session);
             }
@@ -102,12 +102,13 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>the result of the Execution-block</returns>
         public static object ParseBlock(string expression, IDisposable replSession)
         {
-            if (replSession is InterpreterBuffer.RunnerItem rii)
+            if (replSession is InterpreterBuffer.ReplSession rss)
             {
-                ITVScriptingBaseVisitor<ScriptValue> visitor = InterpreterBuffer.GetInterpreter(rii);
-                ITVScriptingParser.ProgramContext executor = GetProgramTree(expression);
-                ScriptValue retVal = visitor.VisitProgram(executor);
-                return ScriptValueHelper.GetScriptValueResult<object>(retVal, false, rii.Policy);
+                // Ausgefuehrt wird ueber den Interpreter gegen den Scope der Sitzung. Der Scope
+                // traegt die bisher gesetzten Variablen, und die Programmwurzel oeffnet keinen
+                // eigenen Scope - Zuweisungen dieses Blocks bleiben also fuer den naechsten
+                // Aufruf der Sitzung sichtbar (Repl-Semantik).
+                return ScriptInterpreter.ParseBlock(expression, rss.Scope, rss.Policy);
             }
 
             return ParseBlock(expression, replSession, null);
@@ -121,12 +122,10 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>the result of the provided expression</returns>
         public static object Parse(string expression, IDisposable replSession)
         {
-            if (replSession is InterpreterBuffer.RunnerItem rii)
+            if (replSession is InterpreterBuffer.ReplSession rss)
             {
-                ITVScriptingBaseVisitor<ScriptValue> visitor = InterpreterBuffer.GetInterpreter(rii);
-                ITVScriptingParser.ExpressionStatementContext executor = GetExpressionTree(expression);
-                ScriptValue retVal = visitor.Visit(executor);
-                return ScriptValueHelper.GetScriptValueResult<object>(retVal, true, rii.Policy);
+                // Wie bei ParseBlock: der Interpreter wertet gegen den Scope der Sitzung aus.
+                return ScriptInterpreter.Parse(expression, rss.Scope, rss.Policy);
             }
 
             return Parse(expression, replSession, null);
@@ -140,7 +139,7 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>a value that can be used to end this repl - session</returns>
         public static IDisposable BeginRepl(IDictionary<string, object> baseValues, InitializeScopeVariables scopePreparer)
         {
-            return InterpreterBuffer.GetReplInstance(baseValues, scopePreparer, out _);
+            return InterpreterBuffer.GetReplInstance(baseValues, scopePreparer);
         }
 
         /// <summary>
@@ -152,7 +151,7 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>a value that can be used to end this repl - session</returns>
         public static IDisposable BeginRepl(IDictionary<string, object> baseValues, InitializeScopeVariables scopePreparer, ScriptingPolicy policy)
         {
-            return InterpreterBuffer.GetReplInstance(baseValues, scopePreparer, policy, out _);
+            return InterpreterBuffer.GetReplInstance(baseValues, scopePreparer, policy);
         }
 
         /// <summary>
@@ -162,7 +161,7 @@ namespace ITVComponents.Scripting.CScript.Core
         /// <returns>a value indicating whether the provided object is a repl-session</returns>
         public static bool IsReplSession(IDisposable session)
         {
-            return session is InterpreterBuffer.RunnerItem;
+            return session is InterpreterBuffer.ReplSession;
         }
 
         public static ParserRuleContext GetRawExpressionTree(string expression, ExpressionMode mode)
