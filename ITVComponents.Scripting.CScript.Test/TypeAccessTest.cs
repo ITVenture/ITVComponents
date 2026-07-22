@@ -19,9 +19,8 @@ namespace ITVComponents.Scripting.CScript.Test
     /// kein gewoehnliches Member, sondern ein Sprachmittel, das sich zur Laufzeit anders
     /// verhaelt - der Erbauer faltet es in den folgenden Zugriff ein.
     ///
-    /// Nur der Interpreter beherrscht das. Der ScriptVisitor hat keine Bauphase und kann den
-    /// Wechsel nicht einfalten; er wird ohnehin abgeloest. Wo beide geprueft werden, ist es
-    /// ausdruecklich vermerkt.
+    /// $Type war von Anfang an nur dem Interpreter moeglich: der abgeloeste ScriptVisitor hatte
+    /// keine Bauphase und konnte den Wechsel nicht in den Folgezugriff einfalten.
     /// </remarks>
     [TestClass]
     public class TypeAccessTest
@@ -40,10 +39,9 @@ namespace ITVComponents.Scripting.CScript.Test
         [TestMethod]
         public void StaticAccessIsUnchanged()
         {
-            // Die Gegenprobe zuerst: der bisherige Sinn von Type darf sich nicht verschieben -
-            // in beiden Maschinen.
-            AssertBoth(Math.PI, "Math.PI");
-            AssertBoth(int.MaxValue, "'System.Int32'.MaxValue");
+            // Die Gegenprobe zuerst: der bisherige Sinn von Type darf sich nicht verschieben.
+            AssertInterpreter(Math.PI, "Math.PI");
+            AssertInterpreter(int.MaxValue, "'System.Int32'.MaxValue");
         }
 
         /// <summary>
@@ -82,8 +80,8 @@ namespace ITVComponents.Scripting.CScript.Test
         {
             // "Name" ist kein statisches Member von System.Int32 - der Zugriff muss scheitern.
             // Das ist gewollt: wer das Type-Objekt meint, schreibt $Type.
-            AssertBothThrow("value.GetType().Name");
-            AssertBothThrow("'System.Int32'.Name");
+            AssertInterpreterThrows("value.GetType().Name");
+            AssertInterpreterThrows("'System.Int32'.Name");
         }
 
         [TestMethod]
@@ -106,7 +104,7 @@ namespace ITVComponents.Scripting.CScript.Test
             // System.String hat ein statisches Empty; Type hat kein Empty - waere es ein
             // Rueckfall statt eines Wechsels, gewaenne hier das statische Member.
             AssertInterpreter("String", "'System.String'.$Type.Name");
-            AssertBoth(string.Empty, "'System.String'.Empty");
+            AssertInterpreter(string.Empty, "'System.String'.Empty");
         }
 
         [TestMethod]
@@ -130,26 +128,16 @@ namespace ITVComponents.Scripting.CScript.Test
                 ScriptInterpreter.ParseBlock("t = value.$Type; return t.MaxValue;", Vars()));
         }
 
-        private static void AssertBoth(object expected, string expression)
-        {
-            Assert.AreEqual(expected, ExpressionParser.Parse(expression, Vars()),
-                $"ScriptVisitor liefert fuer '{expression}' nicht den erwarteten Wert.");
-            Assert.AreEqual(expected, ScriptInterpreter.Parse(expression, Vars()),
-                $"Interpreter liefert fuer '{expression}' nicht den erwarteten Wert.");
-        }
-
-        private static void AssertBothThrow(string expression)
-        {
-            Assert.ThrowsException<ScriptException>(() => ExpressionParser.Parse(expression, Vars()),
-                $"ScriptVisitor sollte '{expression}' abweisen.");
-            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.Parse(expression, Vars()),
-                $"Interpreter sollte '{expression}' abweisen.");
-        }
-
         private static void AssertInterpreter(object expected, string expression)
         {
             Assert.AreEqual(expected, ScriptInterpreter.Parse(expression, Vars()),
                 $"Interpreter liefert fuer '{expression}' nicht den erwarteten Wert.");
+        }
+
+        private static void AssertInterpreterThrows(string expression)
+        {
+            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.Parse(expression, Vars()),
+                $"Interpreter sollte '{expression}' abweisen.");
         }
     }
 }

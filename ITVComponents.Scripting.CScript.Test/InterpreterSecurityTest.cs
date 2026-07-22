@@ -13,12 +13,12 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace ITVComponents.Scripting.CScript.Test
 {
     /// <summary>
-    /// Prueft, dass der Interpreter dieselben Sperren durchsetzt wie der ScriptVisitor.
+    /// Prueft, dass der Interpreter die Sperren der Policy durchsetzt.
     /// </summary>
     /// <remarks>
     /// Spiegelt SecurityTests. Eine Ausfuehrungsmaschine, die schneller oder sauberer ist, aber
-    /// eine Sperre durchlaesst, waere unbrauchbar - deshalb wird hier jede Sperre einzeln gegen
-    /// beide Maschinen geprueft.
+    /// eine Sperre durchlaesst, waere unbrauchbar - deshalb wird hier jede Sperre einzeln
+    /// geprueft.
     ///
     /// Wichtig fuer den Interpreter: die Policy gehoert in den Ausfuehrungspfad, nicht in die
     /// Bauphase. Derselbe zwischengespeicherte Baum kann unter verschiedenen Policies laufen -
@@ -45,10 +45,10 @@ namespace ITVComponents.Scripting.CScript.Test
                     PropertyAccessMode.Read, PolicyMode.Deny)
                 .WithFieldAccessRestriction(() => DBNull.Value, FieldAccessMode.Read, PolicyMode.Deny);
 
-            AssertBothDeny("foo.ToString()", vars, policy);
-            AssertBothDeny("foo.Add(\"Hallo\",42)", vars, policy);
-            AssertBothDeny("bar = foo.Count", vars, policy);
-            AssertBothDeny("bar = DBNull.Value", vars, policy);
+            AssertDenied("foo.ToString()", vars, policy);
+            AssertDenied("foo.Add(\"Hallo\",42)", vars, policy);
+            AssertDenied("bar = foo.Count", vars, policy);
+            AssertDenied("bar = DBNull.Value", vars, policy);
         }
 
         [TestMethod]
@@ -86,7 +86,7 @@ namespace ITVComponents.Scripting.CScript.Test
             Assert.AreEqual(typeof(IDbWrapper), ScriptInterpreter.Parse(typeAccess, Copy(vars), policy: policy));
 
             // Nicht freigegebener Typ: TypeLoading steht auf Deny.
-            AssertBothDeny(
+            AssertDenied(
                 "bar = new 'ITVComponents.DataAccess.Where@@\"ITVComponents.DataAccess.dll\"'()", vars, policy);
         }
 
@@ -120,18 +120,16 @@ namespace ITVComponents.Scripting.CScript.Test
         }
 
         /// <summary>
-        /// Prueft, dass beide Maschinen denselben Ausdruck unter derselben Policy abweisen.
+        /// Prueft, dass der Interpreter den Ausdruck unter der Policy abweist.
         /// </summary>
         /// <remarks>
         /// Geprueft wird auf ScriptException einschliesslich Unterklassen, nicht auf den genauen
-        /// Typ: der Interpreter reicht ScriptSecurityException durch, waehrend der ScriptVisitor
-        /// sie in eine ScriptException verpackt. Siehe SecurityExceptionsArePropagatedUnwrapped.
+        /// Typ: je nach Denial-Pfad wirft der Interpreter ScriptSecurityException oder eine
+        /// generische ScriptException. Siehe SecurityExceptionsArePropagatedUnwrapped.
         /// </remarks>
-        private static void AssertBothDeny(string expression, IDictionary<string, object> variables,
+        private static void AssertDenied(string expression, IDictionary<string, object> variables,
             ScriptingPolicy policy)
         {
-            AssertThrows(() => ExpressionParser.Parse(expression, Copy(variables), policy: policy),
-                $"ScriptVisitor sollte '{expression}' abweisen.");
             AssertThrows(() => ScriptInterpreter.Parse(expression, Copy(variables), policy: policy),
                 $"Interpreter sollte '{expression}' abweisen.");
         }
