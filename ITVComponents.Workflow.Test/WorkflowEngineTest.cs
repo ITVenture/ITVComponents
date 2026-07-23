@@ -207,24 +207,158 @@ namespace ITVComponents.Workflow.Test
         }
 
         [TestMethod]
-        public void ParallelGatewayIsRejectedUntilPhase2()
+        public void ParallelSplitAndJoinRunsBothBranches()
         {
+            activities.Register("setX", ctx => ctx.Variables["x"] = 1);
+            activities.Register("setY", ctx => ctx.Variables["y"] = 1);
+            activities.Register("after", ctx =>
+                ctx.Variables["ran"] = (ctx.Variables.TryGetValue("ran", out object r) ? (int)r : 0) + 1);
+
             store.SaveDefinition(new WorkflowDefinition
             {
                 Id = "par",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
-                    new ParallelGatewayNode { Id = "p" },
+                    new ParallelGatewayNode { Id = "split" },
+                    new AutomatedActivityNode { Id = "a", ActivityRef = "setX" },
+                    new AutomatedActivityNode { Id = "b", ActivityRef = "setY" },
+                    new ParallelGatewayNode { Id = "join" },
+                    new AutomatedActivityNode { Id = "after", ActivityRef = "after" },
                     new EndNode { Id = "e" }
                 },
-                Flows = new List<SequenceFlow> { Flow("s", "p"), Flow("p", "e") }
+                Flows = new List<SequenceFlow>
+                {
+                    Flow("s", "split"),
+                    Flow("split", "a"), Flow("split", "b"),
+                    Flow("a", "join"), Flow("b", "join"),
+                    Flow("join", "after"), Flow("after", "e")
+                }
             });
 
             WorkflowInstance instance = engine.StartWorkflow("par");
 
+            Assert.AreEqual(WorkflowStatus.Completed, instance.Status);
+            Assert.AreEqual(1, instance.Variables["x"]);
+            Assert.AreEqual(1, instance.Variables["y"]);
+            Assert.AreEqual(1, instance.Variables["ran"], "The join must fire exactly once, not per branch.");
+        }
+
+        [TestMethod]
+        public void ParallelJoinWaitsForWaitingBranch()
+        {
+            activities.Register("setX", ctx => ctx.Variables["x"] = 1);
+
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "parwait",
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new ParallelGatewayNode { Id = "split" },
+                    new AutomatedActivityNode { Id = "a", ActivityRef = "setX" },
+                    new WaitNode { Id = "w", SignalName = "go" },
+                    new ParallelGatewayNode { Id = "join" },
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    Flow("s", "split"),
+                    Flow("split", "a"), Flow("split", "w"),
+                    Flow("a", "join"), Flow("w", "join"),
+                    Flow("join", "e")
+                }
+            });
+
+            WorkflowInstance instance = engine.StartWorkflow("parwait");
+
+            // Ein Zweig ist am Join geparkt, der andere wartet auf das Signal -> Instanz ruht.
+            Assert.AreEqual(WorkflowStatus.Waiting, instance.Status);
+            Assert.AreEqual(1, instance.Variables["x"]);
+
+            engine.SignalWorkflow(instance.Id, "go");
+
+            Assert.AreEqual(WorkflowStatus.Completed, store.GetInstance(instance.Id).Status);
+        }
+
+        [TestMethod]
+        public void ParallelBranchDivertedFromJoinDeadlocks()
+        {
+            activities.Register("a", ctx => { });
+
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "deadlock",
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new ParallelGatewayNode { Id = "split" },
+                    new AutomatedActivityNode { Id = "a", ActivityRef = "a" },
+                    new ExclusiveGatewayNode { Id = "xor", DefaultFlowId = "xor->e2" },
+                    new ParallelGatewayNode { Id = "join" },
+                    new EndNode { Id = "e1" },
+                    new EndNode { Id = "e2" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    Flow("s", "split"),
+                    Flow("split", "a"), Flow("split", "xor"),
+                    Flow("a", "join"),
+                    // Der zweite Zweig biegt am XOR weg vom Join ab: der Join wartet ewig auf ihn.
+                    FlowIf("xor", "join", "false"),
+                    Flow("xor", "e2"),
+                    Flow("join", "e1")
+                }
+            });
+
+            WorkflowInstance instance = engine.StartWorkflow("deadlock");
+
             Assert.AreEqual(WorkflowStatus.Faulted, instance.Status);
-            StringAssert.Contains(instance.FaultMessage, "phase 2");
+            StringAssert.Contains(instance.FaultMessage, "Deadlock");
+        }
+
+        [TestMethod]
+        public void CombinedJoinAndSplitForksAgain()
+        {
+            foreach (string name in new[] { "a", "b", "c", "d" })
+            {
+                string captured = name;
+                activities.Register(captured, ctx => ctx.Variables[captured] = true);
+            }
+
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "combined",
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new ParallelGatewayNode { Id = "split1" },
+                    new AutomatedActivityNode { Id = "a", ActivityRef = "a" },
+                    new AutomatedActivityNode { Id = "b", ActivityRef = "b" },
+                    new ParallelGatewayNode { Id = "gw" }, // 2 in, 2 out: joint UND splittet erneut
+                    new AutomatedActivityNode { Id = "c", ActivityRef = "c" },
+                    new AutomatedActivityNode { Id = "d", ActivityRef = "d" },
+                    new ParallelGatewayNode { Id = "join2" },
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    Flow("s", "split1"),
+                    Flow("split1", "a"), Flow("split1", "b"),
+                    Flow("a", "gw"), Flow("b", "gw"),
+                    Flow("gw", "c"), Flow("gw", "d"),
+                    Flow("c", "join2"), Flow("d", "join2"),
+                    Flow("join2", "e")
+                }
+            });
+
+            WorkflowInstance instance = engine.StartWorkflow("combined");
+
+            Assert.AreEqual(WorkflowStatus.Completed, instance.Status);
+            foreach (string name in new[] { "a", "b", "c", "d" })
+            {
+                Assert.AreEqual(true, instance.Variables[name], $"Activity '{name}' should have run.");
+            }
         }
 
         private static WorkflowDefinition GatewayDefinition()

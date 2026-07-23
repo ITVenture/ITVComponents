@@ -13,6 +13,13 @@ namespace ITVComponents.Workflow.Instances
         /// <summary>Wartend: das Token haengt an einem Wartepunkt (Signal oder Timer).</summary>
         Waiting,
 
+        /// <summary>
+        /// An einem parallelen Join geparkt: das Token ist angekommen und wartet, bis auf jeder
+        /// eingehenden Kante ein Token liegt. Anders als <see cref="Waiting"/> ist das ein internes
+        /// Warten auf Geschwister-Tokens, nicht auf ein aeusseres Ereignis.
+        /// </summary>
+        Joining,
+
         /// <summary>Verbraucht: das Token hat einen Endpunkt erreicht oder ist in einem Join aufgegangen.</summary>
         Consumed
     }

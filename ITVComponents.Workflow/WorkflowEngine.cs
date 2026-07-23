@@ -320,10 +320,8 @@ namespace ITVComponents.Workflow
                 case TimerNode timer:
                     return ArmTimer(instance, token, timer);
 
-                case ParallelGatewayNode:
-                    Fault(instance,
-                        $"Parallel gateways are not executed yet (node '{node.Id}') - scheduled for phase 2.");
-                    return false;
+                case ParallelGatewayNode parallel:
+                    return ProcessParallelGateway(instance, definition, token, parallel);
 
                 default:
                     Fault(instance, $"Unsupported node type '{node.GetType().Name}' (node '{node.Id}').");
@@ -448,6 +446,77 @@ namespace ITVComponents.Workflow
             return true;
         }
 
+        /// <summary>
+        /// Verarbeitet ein paralleles Gateway (AND). Mit hoechstens einer eingehenden Kante wirkt es
+        /// als Split (ein Token je Ausgang); mit mehreren eingehenden Kanten als Join (feuert erst,
+        /// wenn auf jeder eingehenden Kante ein Token angekommen ist).
+        /// </summary>
+        /// <remarks>
+        /// Der Join zaehlt die am Knoten geparkten Tokens gegen die Zahl der eingehenden Kanten. Das
+        /// deckt die uebliche, strukturierte Split-/Join-Klammer ab (ein Split, ein zugehoeriger
+        /// Join). Ein Zaehlen je einzelner eingehender Kante - noetig bei unbalancierten Graphen mit
+        /// Schleifen ueber denselben Join - ist bewusst noch nicht umgesetzt.
+        /// </remarks>
+        private bool ProcessParallelGateway(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            ParallelGatewayNode node)
+        {
+            IReadOnlyList<SequenceFlow> incoming = definition.IncomingFlows(node.Id);
+            IReadOnlyList<SequenceFlow> outgoing = definition.OutgoingFlows(node.Id);
+
+            if (outgoing.Count == 0)
+            {
+                Fault(instance, $"Parallel gateway '{node.Id}' has no outgoing flow.");
+                return false;
+            }
+
+            // Split (oder Durchreiche): hoechstens eine eingehende Kante. Ein Token je Ausgang.
+            if (incoming.Count <= 1)
+            {
+                token.Status = TokenStatus.Consumed;
+                instance.Log(outgoing.Count > 1 ? "ParallelSplit" : "Entered", node.Id, node.Name);
+                return SpawnOutgoing(instance, outgoing);
+            }
+
+            // Join: dieses Token kommt an und parkt, bis auf jeder eingehenden Kante eines liegt.
+            token.Status = TokenStatus.Joining;
+            instance.Log("Joining", node.Id, node.Name);
+
+            var parked = instance.Tokens
+                .Where(t => t.NodeId == node.Id && t.Status == TokenStatus.Joining)
+                .ToList();
+            if (parked.Count < incoming.Count)
+            {
+                return true;
+            }
+
+            foreach (Token p in parked.Take(incoming.Count))
+            {
+                p.Status = TokenStatus.Consumed;
+            }
+
+            instance.Log("ParallelJoin", node.Id, node.Name);
+            return SpawnOutgoing(instance, outgoing);
+        }
+
+        private bool SpawnOutgoing(WorkflowInstance instance, IReadOnlyList<SequenceFlow> outgoing)
+        {
+            foreach (SequenceFlow flow in outgoing)
+            {
+                if (flow.TargetId == null)
+                {
+                    Fault(instance, $"Flow '{flow.Id}' has no target.");
+                    return false;
+                }
+            }
+
+            foreach (SequenceFlow flow in outgoing)
+            {
+                instance.Tokens.Add(new Token { NodeId = flow.TargetId, Status = TokenStatus.Active });
+            }
+
+            return true;
+        }
+
         /// <summary>Bewegt einen Token ueber die einzige ausgehende Kante seines aktuellen Knotens.</summary>
         private bool MoveAlongSingleOutgoing(WorkflowInstance instance, WorkflowDefinition definition, Token token)
         {
@@ -483,7 +552,15 @@ namespace ITVComponents.Workflow
             }
             else if (instance.Tokens.Any(t => t.Status == TokenStatus.Waiting))
             {
+                // Ein wartender Zweig kann noch an einen offenen Join liefern - die Instanz ruht.
                 instance.Status = WorkflowStatus.Waiting;
+            }
+            else if (instance.Tokens.Any(t => t.Status == TokenStatus.Joining))
+            {
+                // Tokens haengen an einem AND-Join, aber es gibt weder aktive noch wartende Zweige,
+                // die noch liefern koennten - der Join kann nie feuern.
+                Fault(instance,
+                    "Deadlock: a parallel join is missing tokens and no branch can still deliver one.");
             }
             else
             {
