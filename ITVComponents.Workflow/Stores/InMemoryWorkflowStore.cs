@@ -90,6 +90,12 @@ namespace ITVComponents.Workflow.Stores
                 .ToList();
         }
 
+        /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindRunnable()
+        {
+            return instances.Values.Where(i => i.Status == WorkflowStatus.Running).ToList();
+        }
+
         private static string Key(string id, int version)
         {
             return $"{id}#{version}";

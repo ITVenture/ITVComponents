@@ -152,6 +152,18 @@ namespace ITVComponents.Workflow.EntityFramework
             return LoadInstances(ctx, ids);
         }
 
+        /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindRunnable()
+        {
+            using WorkflowContext ctx = contextFactory();
+            int running = (int)WorkflowStatus.Running;
+            return ctx.WorkflowInstances
+                .Where(r => r.Status == running)
+                .ToList()
+                .Select(ToInstance)
+                .ToList();
+        }
+
         private static List<WorkflowInstance> LoadInstances(WorkflowContext ctx, List<string> ids)
         {
             if (ids.Count == 0)

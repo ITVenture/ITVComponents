@@ -41,5 +41,12 @@ namespace ITVComponents.Workflow.Stores
 
         /// <summary>Findet Instanzen mit einem faelligen Timer-Token (DueUtc &lt;= nowUtc).</summary>
         IEnumerable<WorkflowInstance> FindDueTimers(DateTime nowUtc);
+
+        /// <summary>
+        /// Findet lauffaehige Instanzen (Status <see cref="WorkflowStatus.Running"/>). Damit nimmt
+        /// ein startender Dienst Instanzen wieder auf, deren Vortrieb - etwa durch einen Absturz
+        /// mitten im Lauf - liegengeblieben ist.
+        /// </summary>
+        IEnumerable<WorkflowInstance> FindRunnable();
     }
 }
