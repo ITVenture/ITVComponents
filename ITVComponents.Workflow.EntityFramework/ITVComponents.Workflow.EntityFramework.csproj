@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE140</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="microsoft.entityframeworkcore" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.Workflow\ITVComponents.Workflow.csproj" />
+  </ItemGroup>
+</Project>

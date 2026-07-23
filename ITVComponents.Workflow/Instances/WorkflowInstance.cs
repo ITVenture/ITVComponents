@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace ITVComponents.Workflow.Instances
 {
@@ -93,9 +94,11 @@ namespace ITVComponents.Workflow.Instances
         public DateTime UpdatedUtc { get; set; }
 
         /// <summary>Die aktuell aktiven Tokens (stehen auf einem Knoten, bereit zur Verarbeitung).</summary>
+        [JsonIgnore]
         public IEnumerable<Token> ActiveTokens => Tokens.Where(t => t.Status == TokenStatus.Active);
 
         /// <summary>Die aktuell wartenden Tokens (Signal oder Timer).</summary>
+        [JsonIgnore]
         public IEnumerable<Token> WaitingTokens => Tokens.Where(t => t.Status == TokenStatus.Waiting);
 
         /// <summary>Haengt einen Protokolleintrag an (Zeitstempel wird gesetzt).</summary>

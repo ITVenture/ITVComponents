@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ITVComponents.Workflow.Model
 {
     /// <summary>
@@ -35,7 +37,19 @@ namespace ITVComponents.Workflow.Model
     /// Ein Knoten ist reine Definition (Daten), kein Laufzeitobjekt - der Laufzeitfortschritt lebt
     /// in den Tokens einer Instanz. Erst dadurch ist eine Instanz vollstaendig serialisierbar und
     /// wiederaufnehmbar.
+    ///
+    /// Die Polymorphie wird ueber stabile, selbstgewaehlte Diskriminatoren ("kind") abgebildet -
+    /// bewusst nicht ueber .NET-Typnamen, damit sich gespeicherte Definitionen bei Umbenennungen
+    /// nicht loesen und der spaetere Modeler denselben stabilen Vertrag nutzen kann.
     /// </remarks>
+    [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+    [JsonDerivedType(typeof(StartNode), "start")]
+    [JsonDerivedType(typeof(EndNode), "end")]
+    [JsonDerivedType(typeof(AutomatedActivityNode), "activity")]
+    [JsonDerivedType(typeof(WaitNode), "wait")]
+    [JsonDerivedType(typeof(TimerNode), "timer")]
+    [JsonDerivedType(typeof(ExclusiveGatewayNode), "xor")]
+    [JsonDerivedType(typeof(ParallelGatewayNode), "and")]
     public abstract class WorkflowNode
     {
         /// <summary>Innerhalb der Definition eindeutige Kennung des Knotens.</summary>
@@ -44,7 +58,8 @@ namespace ITVComponents.Workflow.Model
         /// <summary>Anzeigename des Knotens (fuer Modeler und Protokoll).</summary>
         public string Name { get; set; }
 
-        /// <summary>Die Art des Knotens.</summary>
+        /// <summary>Die Art des Knotens. Redundant zum Serialisierungs-Diskriminator, daher nicht mitserialisiert.</summary>
+        [JsonIgnore]
         public abstract NodeKind Kind { get; }
 
         /// <summary>Grafische Angaben fuer den Modeler; von der Engine ignoriert.</summary>
