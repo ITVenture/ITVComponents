@@ -1,33 +1,49 @@
 using System;
 using System.Collections.Generic;
+using ITVComponents.Workflow.Instances;
 
 namespace ITVComponents.Workflow.Activities
 {
     /// <summary>
-    /// Loest den <c>ActivityRef</c> eines automatischen Knotens in eine ausfuehrbare Aktivitaet auf.
+    /// Ein Aufloesungs-Kontext fuer die Dauer eines Vortriebs (eines Advance-Laufs) einer Instanz.
+    /// Aktivitaeten werden hierueber aufgeloest; beim Schliessen werden die dabei bezogenen
+    /// Ressourcen freigegeben.
     /// </summary>
     /// <remarks>
-    /// Diese Abstraktion trennt die Engine von der Herkunft der Aktivitaet. In Phase 0/1 dient eine
-    /// einfache In-Memory-Registrierung (<see cref="ActivityRegistry"/>); spaeter tritt ein
-    /// Plugin-basierter Resolver an ihre Stelle, der die Aktivitaet on demand aus der PluginFactory
-    /// laedt. Gibt der Resolver ein <see cref="IDisposable"/> zurueck, gibt die Engine es nach dem
-    /// Schritt frei.
+    /// So oeffnet eine Plugin-basierte Implementierung einen PluginFactory-Scope je Vortrieb, laedt
+    /// die benoetigten Schritt-Plugins darin on demand und disposed sie beim Schliessen wieder -
+    /// waehrend eine Instanz wartet, haelt sie keine Plugin-Ressourcen. Die In-Memory-Registrierung
+    /// braucht nichts freizugeben und schliesst folgenlos.
     /// </remarks>
-    public interface IActivityResolver
+    public interface IActivityScope : IDisposable
     {
         /// <summary>
-        /// Loest den Verweis auf. Wirft, wenn kein passender Eintrag existiert.
+        /// Loest den <c>ActivityRef</c> eines Knotens in eine ausfuehrbare Aktivitaet auf. Wirft,
+        /// wenn kein passender Eintrag existiert.
         /// </summary>
-        /// <param name="activityRef">der Verweis aus dem Knoten</param>
-        /// <returns>die Aktivitaet</returns>
         IWorkflowActivity Resolve(string activityRef);
     }
 
     /// <summary>
-    /// Eine einfache, prozessweite Registrierung von Aktivitaeten nach Name. Fuer Tests und feste
-    /// Aktivitaeten ohne Plugin-Infrastruktur.
+    /// Vergibt Aufloesungs-Kontexte fuer Aktivitaeten. Die Engine oeffnet je Vortrieb einer Instanz
+    /// genau einen Scope.
     /// </summary>
-    public class ActivityRegistry : IActivityResolver
+    /// <remarks>
+    /// Trennt die Engine von der Herkunft der Aktivitaeten. In Tests und einfachen Szenarien dient
+    /// die In-Memory-<see cref="ActivityRegistry"/>; ein Plugin-basierter Host laedt die Aktivitaet
+    /// je Schritt on demand aus der PluginFactory.
+    /// </remarks>
+    public interface IActivityHost
+    {
+        /// <summary>Oeffnet einen Aufloesungs-Kontext fuer den Vortrieb der angegebenen Instanz.</summary>
+        IActivityScope OpenScope(WorkflowInstance instance);
+    }
+
+    /// <summary>
+    /// Eine einfache, prozessweite Registrierung von Aktivitaeten nach Name (In-Memory, ohne
+    /// Plugins). Fuer Tests und feste Aktivitaeten.
+    /// </summary>
+    public class ActivityRegistry : IActivityHost
     {
         private readonly Dictionary<string, IWorkflowActivity> activities =
             new Dictionary<string, IWorkflowActivity>(StringComparer.OrdinalIgnoreCase);
@@ -46,7 +62,12 @@ namespace ITVComponents.Workflow.Activities
         }
 
         /// <inheritdoc/>
-        public IWorkflowActivity Resolve(string activityRef)
+        public IActivityScope OpenScope(WorkflowInstance instance)
+        {
+            return new RegistryScope(this);
+        }
+
+        private IWorkflowActivity Resolve(string activityRef)
         {
             if (activityRef != null && activities.TryGetValue(activityRef, out IWorkflowActivity activity))
             {
@@ -54,6 +75,26 @@ namespace ITVComponents.Workflow.Activities
             }
 
             throw new KeyNotFoundException($"No activity registered for '{activityRef}'.");
+        }
+
+        private sealed class RegistryScope : IActivityScope
+        {
+            private readonly ActivityRegistry owner;
+
+            public RegistryScope(ActivityRegistry owner)
+            {
+                this.owner = owner;
+            }
+
+            public IWorkflowActivity Resolve(string activityRef)
+            {
+                return owner.Resolve(activityRef);
+            }
+
+            public void Dispose()
+            {
+                // Registrierte Aktivitaeten gehoeren der Registry - nichts freizugeben.
+            }
         }
 
         private sealed class DelegateActivity : IWorkflowActivity

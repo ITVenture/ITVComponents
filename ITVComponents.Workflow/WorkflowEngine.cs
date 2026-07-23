@@ -30,16 +30,16 @@ namespace ITVComponents.Workflow
         private const int MaxStepsPerAdvance = 100000;
 
         private readonly IWorkflowStore store;
-        private readonly IActivityResolver activities;
+        private readonly IActivityHost activities;
         private readonly IExpressionEvaluator evaluator;
 
         /// <summary>
         /// Initialisiert die Engine.
         /// </summary>
         /// <param name="store">der Persistenz-Store</param>
-        /// <param name="activities">der Aufloeser fuer automatische Schritte</param>
+        /// <param name="activities">der Host, der je Vortrieb einen Aktivitaets-Scope vergibt</param>
         /// <param name="evaluator">der Ausdrucks-Auswerter, oder null fuer den CScript-Standard</param>
-        public WorkflowEngine(IWorkflowStore store, IActivityResolver activities,
+        public WorkflowEngine(IWorkflowStore store, IActivityHost activities,
             IExpressionEvaluator evaluator = null)
         {
             this.store = store ?? throw new ArgumentNullException(nameof(store));
@@ -246,6 +246,12 @@ namespace ITVComponents.Workflow
                 return;
             }
 
+            // Ein Aktivitaets-Scope je Vortrieb: Schritt-Plugins werden darin on demand geladen und
+            // beim Schliessen wieder freigegeben. Der Scope ist bewusst nur fuer diesen Lauf offen -
+            // eine wartende Instanz haelt keine Ressourcen. Die Umsetzung ist traege: kostet nichts,
+            // wenn dieser Lauf keine Aktivitaet aufloest.
+            using IActivityScope activityScope = activities.OpenScope(instance);
+
             int steps = 0;
             while (true)
             {
@@ -262,7 +268,7 @@ namespace ITVComponents.Workflow
                     break;
                 }
 
-                if (!ProcessActiveToken(instance, definition, token))
+                if (!ProcessActiveToken(instance, definition, token, activityScope))
                 {
                     // ProcessActiveToken hat die Instanz auf Faulted gesetzt.
                     break;
@@ -285,7 +291,8 @@ namespace ITVComponents.Workflow
         /// Verarbeitet einen aktiven Token an seinem Knoten. Liefert false, wenn die Instanz dabei
         /// auf Faulted gelaufen ist.
         /// </summary>
-        private bool ProcessActiveToken(WorkflowInstance instance, WorkflowDefinition definition, Token token)
+        private bool ProcessActiveToken(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            IActivityScope activityScope)
         {
             WorkflowNode node = definition.GetNode(token.NodeId);
             if (node == null)
@@ -306,7 +313,7 @@ namespace ITVComponents.Workflow
                     return true;
 
                 case AutomatedActivityNode activity:
-                    return RunActivity(instance, definition, token, activity);
+                    return RunActivity(instance, definition, token, activity, activityScope);
 
                 case ExclusiveGatewayNode gateway:
                     return RouteExclusive(instance, definition, token, gateway);
@@ -330,17 +337,15 @@ namespace ITVComponents.Workflow
         }
 
         private bool RunActivity(WorkflowInstance instance, WorkflowDefinition definition, Token token,
-            AutomatedActivityNode node)
+            AutomatedActivityNode node, IActivityScope activityScope)
         {
             instance.Log("Entered", node.Id, node.Name);
             try
             {
-                IWorkflowActivity activity = activities.Resolve(node.ActivityRef);
+                // On-demand aufgeloest; die Lebensdauer der Aktivitaet (bei Plugins: der geladenen
+                // Instanz) gehoert dem Scope und endet mit dem Vortrieb.
+                IWorkflowActivity activity = activityScope.Resolve(node.ActivityRef);
                 activity.Execute(new WorkflowActivityContext(instance, node));
-                if (activity is IDisposable disposable)
-                {
-                    disposable.Dispose();
-                }
             }
             catch (Exception ex)
             {
