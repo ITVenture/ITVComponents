@@ -78,30 +78,31 @@ namespace ITVComponents.Workflow.Plugins
                 return StaticValues(attr);
             }
 
-            if (attr.ValuesProvider == null || !typeof(IValuesProvider).IsAssignableFrom(attr.ValuesProvider))
-            {
-                LogEnvironment.LogEvent(
-                    $"Parameter '{parameterName}' of activity '{activityRef}' is a CallbackList but declares no " +
-                    "valid IValuesProvider type.", LogSeverity.Error);
-                return new List<ActivityParameterValue>();
-            }
+            // Der Provider wird ueber seinen UniqueName aufgeloest (DynamicLoader -> konfigurierter
+            // Konstruktions-String). Kein expliziter Name -> die Aktivitaet selbst muss IValuesProvider sein.
+            string providerName = string.IsNullOrEmpty(attr.ValuesProvider) ? activityRef : attr.ValuesProvider;
 
             IPluginFactory scope = null;
             try
             {
-                // Eigener Scope: der Provider wird darin konstruiert (volle Konstruktor-Injection ueber die
-                // Factory) und beim Schliessen wieder freigegeben.
+                // Eigener Scope: der Provider wird darin (mit seiner gebundenen Konfiguration) geladen und
+                // beim Schliessen wieder freigegeben.
                 scope = factory.NewScope(new Dictionary<string, object>(), null, false);
-                string constructor = $"[{attr.ValuesProvider.Assembly.Location}]<{attr.ValuesProvider.FullName}>";
-                IValuesProvider provider = scope.LoadPlugin<IValuesProvider>(
-                    $"valuesprovider:{activityRef}:{parameterName}", constructor);
-                return provider.GetValues(parameterName)?.ToList() ?? new List<ActivityParameterValue>();
+                if (scope[providerName, true] is IValuesProvider provider)
+                {
+                    return provider.GetValues(parameterName)?.ToList() ?? new List<ActivityParameterValue>();
+                }
+
+                LogEnvironment.LogEvent(
+                    $"Value provider '{providerName}' for parameter '{parameterName}' of activity " +
+                    $"'{activityRef}' could not be resolved as an IValuesProvider.", LogSeverity.Error);
+                return new List<ActivityParameterValue>();
             }
             catch (Exception ex)
             {
                 LogEnvironment.LogEvent(
-                    $"Value provider '{attr.ValuesProvider?.FullName}' for parameter '{parameterName}' of " +
-                    $"activity '{activityRef}' failed: {ex.OutlineException()}", LogSeverity.Error);
+                    $"Value provider '{providerName}' for parameter '{parameterName}' of activity " +
+                    $"'{activityRef}' failed: {ex.OutlineException()}", LogSeverity.Error);
                 return new List<ActivityParameterValue>();
             }
             finally

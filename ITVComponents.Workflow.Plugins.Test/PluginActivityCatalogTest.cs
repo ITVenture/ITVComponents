@@ -18,7 +18,7 @@ namespace ITVComponents.Workflow.Plugins.Test
     [ActivityParameter("to", Kind = ActivityParameterKind.String, Required = true, Description = "Recipient", Order = 1)]
     [ActivityParameter("priority", Kind = ActivityParameterKind.Picklist, Values = new[] { "low", "high" }, Order = 2)]
     [ActivityParameter("body", Kind = ActivityParameterKind.Multiline, Order = 3)]
-    [ActivityParameter("queue", Kind = ActivityParameterKind.CallbackList, ValuesProvider = typeof(QueueValuesProvider), Order = 4)]
+    [ActivityParameter("queue", Kind = ActivityParameterKind.CallbackList, ValuesProvider = "mailQueues", Order = 4)]
     [ActivityParameter("messageId", Kind = ActivityParameterKind.String, Direction = ActivityParameterDirection.Output, Order = 5)]
     public class SendMailActivity : IActivityPlugin
     {
@@ -71,10 +71,39 @@ namespace ITVComponents.Workflow.Plugins.Test
         }
     }
 
-    /// <summary>Ein Test-Loader, der die dekorierte Aktivitaet als Scoped-Plugin bereitstellt.</summary>
+    /// <summary>
+    /// Eine Aktivitaet, die ihren dynamischen Wert selbst liefert (Fallback: kein separater Provider,
+    /// die Aktivitaet implementiert IValuesProvider und wird ueber ihren eigenen Namen aufgeloest).
+    /// </summary>
+    [ActivityParameter("region", Kind = ActivityParameterKind.CallbackList, Order = 1)]
+    public class SelfProvidingActivity : IActivityPlugin, IValuesProvider
+    {
+        public string UniqueName { get; set; }
+
+        public event EventHandler Disposed;
+
+        public void Execute(WorkflowActivityContext context)
+        {
+        }
+
+        public void Dispose() => Disposed?.Invoke(this, EventArgs.Empty);
+
+        public IEnumerable<ActivityParameterValue> GetValues(string parameterName)
+            => new[] { new ActivityParameterValue { Value = "eu" }, new ActivityParameterValue { Value = "us" } };
+    }
+
+    /// <summary>
+    /// Ein Test-Loader, der die Aktivitaeten UND den separaten Werte-Provider als Scoped-Plugins
+    /// bereitstellt (der Provider unter seinem eigenen UniqueName "mailQueues").
+    /// </summary>
     public class CatalogTestLoader : IDynamicLoader
     {
-        private const string Ctor = "[wftest]<ITVComponents.Workflow.Plugins.Test.SendMailActivity>";
+        private static readonly Dictionary<string, string> Scoped = new Dictionary<string, string>
+        {
+            { "sendmail", "[wftest]<ITVComponents.Workflow.Plugins.Test.SendMailActivity>" },
+            { "mailQueues", "[wftest]<ITVComponents.Workflow.Plugins.Test.QueueValuesProvider>" },
+            { "selfprovider", "[wftest]<ITVComponents.Workflow.Plugins.Test.SelfProvidingActivity>" }
+        };
 
         public string UniqueName { get; set; }
 
@@ -92,15 +121,15 @@ namespace ITVComponents.Workflow.Plugins.Test
         {
         }
 
-        public bool HasScopedPlugin(string pluginName) => pluginName == "sendmail";
+        public bool HasScopedPlugin(string pluginName) => Scoped.ContainsKey(pluginName);
 
         public PluginConfigurationItem GetScopedPlugin(string pluginName)
-            => pluginName == "sendmail"
-                ? new PluginConfigurationItem { Name = "sendmail", ConstructionString = Ctor }
+            => Scoped.TryGetValue(pluginName, out string ctor)
+                ? new PluginConfigurationItem { Name = pluginName, ConstructionString = ctor }
                 : null;
 
         public IEnumerable<PluginConfigurationItem> GetScopedPluginNames()
-            => new[] { new PluginConfigurationItem { Name = "sendmail", ConstructionString = Ctor } };
+            => Scoped.Select(kv => new PluginConfigurationItem { Name = kv.Key, ConstructionString = kv.Value });
     }
 
     /// <summary>
@@ -177,6 +206,15 @@ namespace ITVComponents.Workflow.Plugins.Test
             Assert.AreEqual(1, QueueValuesProvider.Constructed, "the values provider must be constructed (not a static call)");
             // Die Aktivitaet selbst wird dabei nie instanziert.
             Assert.AreEqual(0, SendMailActivity.Constructed);
+        }
+
+        [TestMethod]
+        public void GetValidValues_FallsBackToActivityAsProvider()
+        {
+            // Kein expliziter Provider-Name -> der Katalog loest ueber den Aktivitaets-Namen auf, die
+            // Aktivitaet implementiert IValuesProvider selbst.
+            var vals = catalog.GetValidValues("selfprovider", "region");
+            CollectionAssert.AreEquivalent(new[] { "eu", "us" }, vals.Select(v => (string)v.Value).ToArray());
         }
 
         [TestMethod]

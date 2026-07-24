@@ -49,11 +49,17 @@ namespace ITVComponents.Workflow.Plugins
         public string[] Labels { get; set; }
 
         /// <summary>
-        /// Der Typ eines <see cref="IValuesProvider"/>, der die Auswahlwerte dynamisch liefert. Pflicht
-        /// bei <see cref="ActivityParameterKind.CallbackList"/>. Der Katalog konstruiert diesen Typ in
-        /// einem eigenen Scope (volle Konstruktor-Injection) und ruft <see cref="IValuesProvider.GetValues"/>.
+        /// Der <c>UniqueName</c> eines registrierten <see cref="IValuesProvider"/>-Scoped-Plugins, das die
+        /// Auswahlwerte liefert. Nur bei <see cref="ActivityParameterKind.CallbackList"/> relevant.
         /// </summary>
-        public Type ValuesProvider { get; set; }
+        /// <remarks>
+        /// Der Name bindet - wie ueblich im Plugin-System - eine konkrete Konfiguration (Konstruktions-
+        /// String mit Ctor-Werten, ueber den <c>IDynamicLoader</c>) an einen Plugin-Namen; derselbe
+        /// Provider-Typ kann so unter verschiedenen Namen mit verschiedener Konfiguration existieren. Ist
+        /// kein Name angegeben, muss die Aktivitaet SELBST <see cref="IValuesProvider"/> implementieren -
+        /// der Katalog loest dann ueber den Namen der Aktivitaet auf.
+        /// </remarks>
+        public string ValuesProvider { get; set; }
     }
 
     /// <summary>
