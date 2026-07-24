@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.ViewModels;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.Model;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers
 {
@@ -19,6 +20,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
         /// <summary>Laedt eine Instanz vollstaendig (Variablen, Tokens, Protokoll), oder null.</summary>
         Task<WorkflowInstance?> GetInstanceAsync(ClaimsPrincipal user, string instanceId);
+
+        /// <summary>
+        /// Laedt die Definition zu Id+Version - fuer die Graph-Ansicht des Instanz-Details, in der die
+        /// aktuellen Token-Positionen ueberlagert werden. Liefert null, wenn nichts gefunden wird.
+        /// </summary>
+        Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int version);
 
         /// <summary>
         /// Liefert ein Signal an eine wartende Instanz (Operate). Liefert false ohne Berechtigung

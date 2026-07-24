@@ -27,6 +27,16 @@
                         </tbody>
                     </MudSimpleTable>
                 </MudTabPanel>
+                <MudTabPanel Text="Graph">
+                    @if (definition is null)
+                    {
+                        <MudText Typo="Typo.body2">No definition available for this instance.</MudText>
+                    }
+                    else
+                    {
+                        <WorkflowGraph Definition="definition" HighlightedNodeIds="activeNodeIds" />
+                    }
+                </MudTabPanel>
                 <MudTabPanel Text="@($"Variables ({instance.Variables.Count})")">
                     <MudSimpleTable Dense="true" Hover="true">
                         <thead><tr><th>Name</th><th>Value</th></tr></thead>
@@ -99,6 +109,8 @@
     [Parameter] public string InstanceId { get; set; } = "";
 
     private WorkflowInstance? instance;
+    private ITVComponents.Workflow.Model.WorkflowDefinition? definition;
+    private string[] activeNodeIds = Array.Empty<string>();
     private ClaimsPrincipal? currentUser;
     private string? signalName;
 
@@ -107,6 +119,17 @@
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
         instance = await Handler.GetInstanceAsync(currentUser, InstanceId);
+        if (instance is not null)
+        {
+            // Aktuelle Token-Positionen: alles, was nicht bereits verbraucht ist, wird im Graphen
+            // hervorgehoben.
+            activeNodeIds = instance.Tokens
+                .Where(t => t.Status != TokenStatus.Consumed && !string.IsNullOrEmpty(t.NodeId))
+                .Select(t => t.NodeId!)
+                .Distinct()
+                .ToArray();
+            definition = await Handler.GetDefinitionAsync(currentUser, instance.DefinitionId, instance.DefinitionVersion);
+        }
     }
 
     private async Task SendSignal()

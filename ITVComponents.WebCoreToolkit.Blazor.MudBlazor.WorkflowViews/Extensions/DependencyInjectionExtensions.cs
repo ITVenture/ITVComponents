@@ -1,6 +1,8 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers.Impl;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers.Impl;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +32,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Extensions
             if (partTypeLoadBehavior.ShouldLoadType(typeof(WorkflowMonitorHandler)))
             {
                 services.AddScoped<IWorkflowMonitorHandler, WorkflowMonitorHandler>();
+            }
+
+            if (partTypeLoadBehavior.ShouldLoadType(typeof(WorkflowDesignHandler)))
+            {
+                services.AddScoped<IWorkflowDesignHandler, WorkflowDesignHandler>();
             }
 
             return services;

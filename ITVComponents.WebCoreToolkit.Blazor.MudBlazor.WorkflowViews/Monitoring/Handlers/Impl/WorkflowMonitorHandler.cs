@@ -8,6 +8,7 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.Workflow;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Stores;
 using Microsoft.EntityFrameworkCore;
 
@@ -73,6 +74,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public Task<WorkflowInstance?> GetInstanceAsync(ClaimsPrincipal user, string instanceId)
         {
             return Task.FromResult<WorkflowInstance?>(store.GetInstance(instanceId));
+        }
+
+        /// <inheritdoc/>
+        public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int version)
+        {
+            return Task.FromResult<WorkflowDefinition?>(store.GetDefinition(definitionId, version));
         }
 
         /// <inheritdoc/>

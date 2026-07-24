@@ -1,0 +1,109 @@
+@page "/Workflow/Definitions"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@inject IWorkflowDesignHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Workflow definitions</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Workflow definitions</MudText>
+
+<SecureView RequiredPermissions="Workflow.Design" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        @if (currentUser is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudDataGrid T="WorkflowDefinitionListItem"
+                         @ref="grid"
+                         ServerData="LoadData"
+                         SortMode="SortMode.Single"
+                         RowsPerPage="25"
+                         Hover="true"
+                         Dense="true">
+                <ToolBarContent>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="Refresh" OnClick="ReloadGrid" />
+                    <MudText Typo="Typo.h6">Definitions</MudText>
+                    <MudSpacer />
+                    <MudTextField @bind-Value="search"
+                                  Placeholder="Search id…"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="mt-0 ml-2"
+                                  DebounceInterval="300"
+                                  OnDebounceIntervalElapsed="ReloadGrid" />
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="x => x.Id" Title="Id" />
+                    <PropertyColumn Property="x => x.Version" Title="Ver" />
+                    <PropertyColumn Property="x => x.Name" Title="Name" />
+                    <PropertyColumn Property="x => x.NodeCount" Title="Nodes" Sortable="false" />
+                    <PropertyColumn Property="x => x.FlowCount" Title="Flows" Sortable="false" />
+                    <TemplateColumn T="WorkflowDefinitionListItem" Title="" Sortable="false">
+                        <CellTemplate>
+                            <MudIconButton Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Title="Open graph"
+                                           OnClick="@(() => OpenGraph(context.Item))" />
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="WorkflowDefinitionListItem" />
+                </PagerContent>
+            </MudDataGrid>
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view workflow definitions.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private MudDataGrid<WorkflowDefinitionListItem>? grid;
+    private ClaimsPrincipal? currentUser;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<WorkflowDefinitionListItem>> LoadData(GridState<WorkflowDefinitionListItem> state,
+        CancellationToken ct)
+    {
+        if (currentUser is null)
+        {
+            return new GridData<WorkflowDefinitionListItem> { Items = Array.Empty<WorkflowDefinitionListItem>(), TotalItems = 0 };
+        }
+
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+
+        var result = await Handler.ListDefinitionsAsync(currentUser, query);
+        return new GridData<WorkflowDefinitionListItem> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null)
+        {
+            await grid.ReloadServerData();
+        }
+    }
+
+    private void OpenGraph(WorkflowDefinitionListItem item)
+    {
+        Nav.NavigateTo($"/Workflow/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}");
+    }
+}

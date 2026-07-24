@@ -1,0 +1,140 @@
+@using System.Globalization
+@using System.Text
+@using System.Net
+@using ITVComponents.Workflow.Model
+
+@*
+    Zeichnet eine WorkflowDefinition als statisches, theme-faehiges SVG (read-only). Genutzt vom
+    Definition-Viewer und - mit hervorgehobenen Token-Positionen - vom Monitoring-Detail.
+    Zahlen werden invariant formatiert (SVG verlangt '.' als Dezimaltrenner). Der Zeichenkoerper wird
+    als MarkupString erzeugt, weil Razor das SVG-<text>-Element sonst als eigenes Steuer-Tag deutet.
+*@
+
+@if (Definition is null)
+{
+    <MudText Typo="Typo.body2">No definition.</MudText>
+}
+else
+{
+    <div style="overflow:auto; width:100%; border:1px solid var(--mud-palette-lines-default); border-radius:6px;">
+        <svg width="@N(layout.Width)" height="@N(layout.Height)"
+             viewBox="0 0 @N(layout.Width) @N(layout.Height)"
+             style="display:block; min-width:100%; font-family:var(--mud-typography-body1-family, sans-serif);">
+            <defs>
+                <marker id="wf-arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+                    <path d="M0,0 L8,4 L0,8 z" fill="var(--mud-palette-lines-default)" />
+                </marker>
+            </defs>
+            @Body()
+        </svg>
+    </div>
+}
+
+@code {
+    /// <summary>Die zu zeichnende Definition.</summary>
+    [Parameter] public WorkflowDefinition? Definition { get; set; }
+
+    /// <summary>Optional hervorzuhebende Knoten (z.B. aktuelle Token-Positionen).</summary>
+    [Parameter] public IReadOnlyCollection<string>? HighlightedNodeIds { get; set; }
+
+    private GraphLayout layout = GraphLayout.Compute(new WorkflowDefinition());
+
+    protected override void OnParametersSet()
+    {
+        if (Definition is not null)
+        {
+            layout = GraphLayout.Compute(Definition, HighlightedNodeIds);
+        }
+    }
+
+    private MarkupString Body()
+    {
+        var sb = new StringBuilder();
+
+        foreach (var edge in layout.Edges)
+        {
+            sb.Append($"<line x1=\"{N(edge.X1)}\" y1=\"{N(edge.Y1)}\" x2=\"{N(edge.X2)}\" y2=\"{N(edge.Y2)}\" ")
+              .Append("stroke=\"var(--mud-palette-lines-default)\" stroke-width=\"1.5\" marker-end=\"url(#wf-arrow)\" />");
+            if (!string.IsNullOrEmpty(edge.Label))
+            {
+                Text(sb, edge.LabelX, edge.LabelY - 4, "middle", "var(--mud-palette-text-secondary)", 11, edge.Label!, null);
+            }
+        }
+
+        foreach (var node in layout.Nodes)
+        {
+            string stroke = node.Highlighted ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
+            string strokeWidth = node.Highlighted ? "3" : "1.5";
+            string fill = node.Highlighted
+                ? "var(--mud-palette-primary-hover, var(--mud-palette-surface))"
+                : "var(--mud-palette-surface)";
+            string style = $"fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{strokeWidth}\"";
+
+            switch (node.Shape)
+            {
+                case NodeShape.Ellipse:
+                    sb.Append($"<ellipse cx=\"{N(node.CenterX)}\" cy=\"{N(node.CenterY)}\" rx=\"{N(node.Width / 2)}\" ry=\"{N(node.Height / 2)}\" {style} />");
+                    break;
+                case NodeShape.Diamond:
+                    sb.Append($"<polygon points=\"{DiamondPoints(node)}\" {style} />");
+                    break;
+                case NodeShape.Rectangle:
+                    sb.Append($"<rect x=\"{N(node.X)}\" y=\"{N(node.Y)}\" width=\"{N(node.Width)}\" height=\"{N(node.Height)}\" {style} />");
+                    break;
+                default:
+                    sb.Append($"<rect x=\"{N(node.X)}\" y=\"{N(node.Y)}\" width=\"{N(node.Width)}\" height=\"{N(node.Height)}\" rx=\"8\" ry=\"8\" {style} />");
+                    break;
+            }
+
+            if (GatewaySymbol(node.Kind) is string symbol)
+            {
+                Text(sb, node.CenterX, node.CenterY, "middle", "var(--mud-palette-text-primary)", 20, symbol, "central");
+            }
+
+            if (LabelBelow(node.Shape))
+            {
+                Text(sb, node.CenterX, node.Y + node.Height + 13, "middle", "var(--mud-palette-text-primary)", 11, node.Label, null);
+            }
+            else
+            {
+                Text(sb, node.CenterX, node.CenterY, "middle", "var(--mud-palette-text-primary)", 12, Clip(node.Label), "central");
+            }
+        }
+
+        return new MarkupString(sb.ToString());
+    }
+
+    private static void Text(StringBuilder sb, double x, double y, string anchor, string fill, int fontSize,
+        string content, string? baseline)
+    {
+        sb.Append($"<text x=\"{N(x)}\" y=\"{N(y)}\" text-anchor=\"{anchor}\" fill=\"{fill}\" font-size=\"{fontSize}\"");
+        if (baseline != null)
+        {
+            sb.Append($" dominant-baseline=\"{baseline}\"");
+        }
+
+        sb.Append('>').Append(WebUtility.HtmlEncode(content)).Append("</text>");
+    }
+
+    private static string N(double value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string DiamondPoints(LaidOutNode n)
+    {
+        return string.Join(" ",
+            $"{N(n.CenterX)},{N(n.Y)}",
+            $"{N(n.X + n.Width)},{N(n.CenterY)}",
+            $"{N(n.CenterX)},{N(n.Y + n.Height)}",
+            $"{N(n.X)},{N(n.CenterY)}");
+    }
+
+    private static string? GatewaySymbol(NodeKind kind) => kind switch
+    {
+        NodeKind.ExclusiveGateway => "×",
+        NodeKind.ParallelGateway => "+",
+        _ => null
+    };
+
+    private static bool LabelBelow(NodeShape shape) => shape is NodeShape.Ellipse or NodeShape.Diamond;
+
+    private static string Clip(string label) => label.Length <= 18 ? label : label.Substring(0, 16) + "…";
+}
