@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using ITVComponents.Helpers;
 using ITVComponents.Plugins;
+using ITVComponents.Plugins.Config;
+using ITVComponents.Plugins.Initialization;
 using ITVComponents.Workflow;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
@@ -64,14 +68,81 @@ namespace ITVComponents.Workflow.Plugins.Test
     }
 
     /// <summary>
+    /// Ein Test-<see cref="IDynamicLoader"/>, der die Scoped-Plugin-Definitionen der Aktivitaeten
+    /// bereitstellt - so, wie es in Produktion der datenbankgetriebene Loader tut. Der
+    /// <see cref="PluginActivityHost"/> laesst die Factory ueber diesen Loader aufloesen; der
+    /// Loader traegt den Konstruktions-String je ActivityRef.
+    /// </summary>
+    public class TestScopedActivityLoader : IDynamicLoader
+    {
+        private static readonly Dictionary<string, string> ScopedPlugins = new Dictionary<string, string>
+        {
+            { "setvar", "[wftest]<ITVComponents.Workflow.Plugins.Test.SetVariableActivity>" }
+        };
+
+        /// <inheritdoc/>
+        public string UniqueName { get; set; }
+
+        /// <inheritdoc/>
+        public event EventHandler Disposed;
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            Disposed?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <inheritdoc/>
+        public IEnumerable<string> LoadDynamicAssemblies(PluginLoadType currentLoadType, bool writeAccess = true)
+        {
+            return Array.Empty<string>();
+        }
+
+        /// <inheritdoc/>
+        public bool HasParamsFor(string uniqueName)
+        {
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public void GetGenericParams(string uniqueName, List<GenericTypeArgument> genericTypeArguments,
+            Dictionary<string, object> customVariables, StringFormatProvider formatter)
+        {
+        }
+
+        /// <inheritdoc/>
+        public bool HasScopedPlugin(string pluginName)
+        {
+            return ScopedPlugins.ContainsKey(pluginName);
+        }
+
+        /// <inheritdoc/>
+        public PluginConfigurationItem GetScopedPlugin(string pluginName)
+        {
+            return ScopedPlugins.TryGetValue(pluginName, out string ctor)
+                ? new PluginConfigurationItem { Name = pluginName, ConstructionString = ctor }
+                : null;
+        }
+
+        /// <inheritdoc/>
+        public IEnumerable<PluginConfigurationItem> GetScopedPluginNames()
+        {
+            return ScopedPlugins.Select(kv => new PluginConfigurationItem
+            {
+                Name = kv.Key,
+                ConstructionString = kv.Value
+            });
+        }
+    }
+
+    /// <summary>
     /// Prueft die Plugin-basierte Aktivitaets-Aufloesung: Schritte werden on demand aus der
-    /// PluginFactory geladen und beim Schliessen des Vortriebs-Scopes wieder freigegeben.
+    /// PluginFactory geladen (die Factory loest sie selbst ueber den <see cref="IDynamicLoader"/>
+    /// auf) und beim Schliessen des Vortriebs-Scopes wieder freigegeben.
     /// </summary>
     [TestClass]
     public class PluginActivityHostTest
     {
-        private const string Ctor = "[wftest]<ITVComponents.Workflow.Plugins.Test.SetVariableActivity>";
-
         private PluginFactory factory;
         private InMemoryWorkflowStore store;
         private WorkflowEngine engine;
@@ -81,13 +152,17 @@ namespace ITVComponents.Workflow.Plugins.Test
         {
             SetVariableActivity.Reset();
             // PerAsyncContext: der Scope ueberlebt Ausfuehrungsgrenzen (die Engine laeuft ggf. auf
-            // Workern). Die Test-Assembly wird registriert, damit der Konstruktions-String sie ohne
-            // Datei-Probing findet.
+            // Workern). Die Test-Assembly wird registriert, damit die Konstruktions-Strings sie ohne
+            // Datei-Probing finden.
             factory = new PluginFactory(ScopeMode.PerAsyncContext);
             factory.RegisterAssembly("wftest", typeof(SetVariableActivity).Assembly);
 
-            var host = new PluginActivityHost(factory,
-                new Dictionary<string, string> { { "setvar", Ctor } });
+            // Den DynamicLoader auf Factory-Ebene laden (wie in Produktion) - der Scope sieht ihn und
+            // loest 'setvar' selbst auf. Kein ActivityRef->Konstruktions-String-Callback mehr im Host.
+            factory.LoadPlugin<TestScopedActivityLoader>("activityLoader",
+                "[wftest]<ITVComponents.Workflow.Plugins.Test.TestScopedActivityLoader>");
+
+            var host = new PluginActivityHost(factory);
 
             store = new InMemoryWorkflowStore();
             engine = new WorkflowEngine(store, host);

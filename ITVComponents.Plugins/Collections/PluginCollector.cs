@@ -76,8 +76,25 @@ namespace ITVComponents.Plugins.Collections
             }
         }
 
-        public IDynamicLoader[] DynamicLoaders =>
-            (from t in plugins where t.Value is IDynamicLoader select (IDynamicLoader)t.Value).ToArray();
+        public IDynamicLoader[] DynamicLoaders
+        {
+            get
+            {
+                // Include the parent's loaders, just like every other member here traverses the parent.
+                // A scope-collector wraps the main factory's collector; scoped-plugin resolution
+                // (RequestScopePlugin) reads DynamicLoaders through the scope, so a loader registered on
+                // the main factory must be visible from within a scope - otherwise scope[name,true] never
+                // finds it.
+                IEnumerable<IDynamicLoader> own =
+                    from t in plugins where t.Value is IDynamicLoader select (IDynamicLoader)t.Value;
+                if (parent != null)
+                {
+                    own = own.Concat(parent.DynamicLoaders);
+                }
+
+                return own.ToArray();
+            }
+        }
 
         public string[] Names
         {
