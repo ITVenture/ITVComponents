@@ -79,8 +79,15 @@ namespace ITVComponents.Workflow.Plugins
             }
 
             // Der Provider wird ueber seinen UniqueName aufgeloest (DynamicLoader -> konfigurierter
-            // Konstruktions-String). Kein expliziter Name -> die Aktivitaet selbst muss IValuesProvider sein.
-            string providerName = string.IsNullOrEmpty(attr.ValuesProvider) ? activityRef : attr.ValuesProvider;
+            // Konstruktions-String). Der Name im Attribut ist ein Template: {UniqueName} (der Name der
+            // Activity) und {ParameterName} werden ersetzt - so kann derselbe Activity-Klassen-Typ unter
+            // verschiedenen UniqueNames verschiedene Provider ansprechen. Kein Name -> die Aktivitaet
+            // selbst muss IValuesProvider sein (aufgeloest ueber ihren eigenen Namen).
+            string providerName = string.IsNullOrEmpty(attr.ValuesProvider)
+                ? activityRef
+                : attr.ValuesProvider
+                    .Replace("{UniqueName}", activityRef)
+                    .Replace("{ParameterName}", parameterName);
 
             IPluginFactory scope = null;
             try

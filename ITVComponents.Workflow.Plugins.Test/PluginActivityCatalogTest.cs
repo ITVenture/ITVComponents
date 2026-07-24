@@ -93,6 +93,24 @@ namespace ITVComponents.Workflow.Plugins.Test
     }
 
     /// <summary>
+    /// Eine Aktivitaet, deren Provider-Name aus einem Template kommt (<c>queues-{UniqueName}</c>) - so
+    /// bekommt dieselbe Klasse unter verschiedenen UniqueNames verschiedene Provider.
+    /// </summary>
+    [ActivityParameter("x", Kind = ActivityParameterKind.CallbackList, ValuesProvider = "queues-{UniqueName}")]
+    public class TemplatedActivity : IActivityPlugin
+    {
+        public string UniqueName { get; set; }
+
+        public event EventHandler Disposed;
+
+        public void Execute(WorkflowActivityContext context)
+        {
+        }
+
+        public void Dispose() => Disposed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
     /// Ein Test-Loader, der die Aktivitaeten UND den separaten Werte-Provider als Scoped-Plugins
     /// bereitstellt (der Provider unter seinem eigenen UniqueName "mailQueues").
     /// </summary>
@@ -102,7 +120,10 @@ namespace ITVComponents.Workflow.Plugins.Test
         {
             { "sendmail", "[wftest]<ITVComponents.Workflow.Plugins.Test.SendMailActivity>" },
             { "mailQueues", "[wftest]<ITVComponents.Workflow.Plugins.Test.QueueValuesProvider>" },
-            { "selfprovider", "[wftest]<ITVComponents.Workflow.Plugins.Test.SelfProvidingActivity>" }
+            { "selfprovider", "[wftest]<ITVComponents.Workflow.Plugins.Test.SelfProvidingActivity>" },
+            { "templated", "[wftest]<ITVComponents.Workflow.Plugins.Test.TemplatedActivity>" },
+            // Der pro-Activity aufgeloeste Provider-Name (ValuesProvider = "queues-{UniqueName}").
+            { "queues-templated", "[wftest]<ITVComponents.Workflow.Plugins.Test.QueueValuesProvider>" }
         };
 
         public string UniqueName { get; set; }
@@ -215,6 +236,15 @@ namespace ITVComponents.Workflow.Plugins.Test
             // Aktivitaet implementiert IValuesProvider selbst.
             var vals = catalog.GetValidValues("selfprovider", "region");
             CollectionAssert.AreEquivalent(new[] { "eu", "us" }, vals.Select(v => (string)v.Value).ToArray());
+        }
+
+        [TestMethod]
+        public void GetValidValues_ProviderNameTemplate_ResolvesPerActivity()
+        {
+            // ValuesProvider = "queues-{UniqueName}" -> fuer Activity "templated" wird der Provider
+            // "queues-templated" geladen (nicht ein fixer, geteilter Name).
+            var vals = catalog.GetValidValues("templated", "x");
+            Assert.AreEqual(2, vals.Count);
         }
 
         [TestMethod]

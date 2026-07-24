@@ -49,15 +49,18 @@ namespace ITVComponents.Workflow.Plugins
         public string[] Labels { get; set; }
 
         /// <summary>
-        /// Der <c>UniqueName</c> eines registrierten <see cref="IValuesProvider"/>-Scoped-Plugins, das die
+        /// Ein Namens-Template fuer das registrierte <see cref="IValuesProvider"/>-Scoped-Plugin, das die
         /// Auswahlwerte liefert. Nur bei <see cref="ActivityParameterKind.CallbackList"/> relevant.
         /// </summary>
         /// <remarks>
-        /// Der Name bindet - wie ueblich im Plugin-System - eine konkrete Konfiguration (Konstruktions-
-        /// String mit Ctor-Werten, ueber den <c>IDynamicLoader</c>) an einen Plugin-Namen; derselbe
-        /// Provider-Typ kann so unter verschiedenen Namen mit verschiedener Konfiguration existieren. Ist
-        /// kein Name angegeben, muss die Aktivitaet SELBST <see cref="IValuesProvider"/> implementieren -
-        /// der Katalog loest dann ueber den Namen der Aktivitaet auf.
+        /// Der aufgeloeste Name bindet - wie ueblich im Plugin-System - eine konkrete Konfiguration
+        /// (Konstruktions-String mit Ctor-Werten, ueber den <c>IDynamicLoader</c>) an einen Plugin-Namen.
+        /// Da das Attribut klassenweit konstant ist, ist der Wert ein <b>Template</b>: <c>{UniqueName}</c>
+        /// (der UniqueName der konkreten Activity) und <c>{ParameterName}</c> werden bei der Aufloesung
+        /// ersetzt - so kann derselbe Activity-Klassen-Typ unter verschiedenen UniqueNames verschiedene
+        /// Provider ansprechen. Ein Wert ohne Platzhalter ist ein konstanter (geteilter) Name. Ist kein
+        /// Wert angegeben, muss die Aktivitaet SELBST <see cref="IValuesProvider"/> implementieren (der
+        /// Katalog loest ueber den Namen der Aktivitaet auf).
         /// </remarks>
         public string ValuesProvider { get; set; }
     }
