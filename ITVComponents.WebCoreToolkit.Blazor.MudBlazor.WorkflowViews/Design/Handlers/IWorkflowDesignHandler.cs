@@ -23,5 +23,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         /// geliefert. Liefert null, wenn nichts gefunden wird.
         /// </summary>
         Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int? version);
+
+        /// <summary>
+        /// Speichert eine Definition (Upsert nach Id+Version). Liefert false ohne
+        /// <c>Workflow.Design</c>-Berechtigung, bei ungueltiger Eingabe oder wenn das Speichern
+        /// fehlschlaegt (der Grund wird protokolliert).
+        /// </summary>
+        Task<bool> SaveDefinitionAsync(ClaimsPrincipal user, WorkflowDefinition definition);
     }
 }

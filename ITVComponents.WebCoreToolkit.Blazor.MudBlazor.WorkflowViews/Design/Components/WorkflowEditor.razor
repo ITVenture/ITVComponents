@@ -1,0 +1,571 @@
+@page "/Workflow/Editor/new"
+@page "/Workflow/Definitions/{DefinitionId}/{Version:int}/edit"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Globalization
+@using System.Text
+@using System.Net
+@using ITVComponents.Helpers
+@using ITVComponents.Logging
+@using ITVComponents.Workflow.Model
+
+@inject IWorkflowDesignHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Workflow editor</PageTitle>
+
+<SecureView RequiredPermissions="Workflow.Design" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        @if (!loaded)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (def is null)
+        {
+            <MudAlert Severity="Severity.Warning">Definition not found.</MudAlert>
+        }
+        else
+        {
+            <MudToolBar Dense="true" Class="mb-2">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Title="Back" OnClick="Back" />
+                @if (isNew)
+                {
+                    <MudTextField @bind-Value="def.Id" Label="Id" Margin="Margin.Dense" Style="max-width:200px" Class="mr-2" />
+                }
+                else
+                {
+                    <MudText Typo="Typo.subtitle1" Class="mr-4"><b>@def.Id</b></MudText>
+                }
+                <MudTextField @bind-Value="def.Name" Label="Name" Margin="Margin.Dense" Style="max-width:240px" Class="mr-2" />
+                <MudNumericField @bind-Value="def.Version" Label="Version" Min="1" Margin="Margin.Dense" Style="max-width:100px" />
+                <MudSpacer />
+                <MudButton StartIcon="@Icons.Material.Filled.Save" Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="Save">Save</MudButton>
+            </MudToolBar>
+
+            <div style="display:flex; gap:8px; align-items:flex-start;">
+                @* Palette *@
+                <MudPaper Class="pa-2" Style="min-width:150px;">
+                    <MudText Typo="Typo.overline">Palette</MudText>
+                    <MudStack Spacing="1">
+                        @foreach (var p in Palette)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" FullWidth="true"
+                                       StartIcon="@Icons.Material.Filled.Add"
+                                       OnClick="@(() => AddNode(p.Kind))">@p.Label</MudButton>
+                        }
+                    </MudStack>
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.caption">
+                        Drag nodes to move. Drag from the right port onto another node to connect.
+                    </MudText>
+                </MudPaper>
+
+                @* Canvas *@
+                <div @ref="hostEl" style="flex:1; overflow:auto; max-height:72vh; border:1px solid var(--mud-palette-lines-default); border-radius:6px;">
+                    <svg @ref="svgEl" width="@N(canvasW)" height="@N(canvasH)"
+                         viewBox="0 0 @N(canvasW) @N(canvasH)"
+                         style="display:block; background:var(--mud-palette-background); touch-action:none; font-family:var(--mud-typography-body1-family, sans-serif);">
+                        <defs>
+                            <marker id="wf-arrow-ed" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+                                <path d="M0,0 L8,4 L0,8 z" fill="var(--mud-palette-lines-default)" />
+                            </marker>
+                        </defs>
+                        @CanvasBody()
+                    </svg>
+                </div>
+
+                @* Property panel *@
+                <MudPaper Class="pa-3" Style="min-width:280px; max-width:320px;">
+                    @if (selectedNode is not null)
+                    {
+                        <MudText Typo="Typo.subtitle2" GutterBottom="true">Node</MudText>
+                        <MudTextField Value="@selectedNode.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+                        <MudTextField @bind-Value="selectedNode.Name" Label="Name" Margin="Margin.Dense" />
+                        <MudText Typo="Typo.caption" Class="mt-1">Kind: @selectedNode.Kind</MudText>
+
+                        @switch (selectedNode)
+                        {
+                            case AutomatedActivityNode act:
+                                <MudTextField @bind-Value="act.ActivityRef" Label="Activity reference" Margin="Margin.Dense" />
+                                break;
+                            case WaitNode wait:
+                                <MudTextField @bind-Value="wait.SignalName" Label="Signal name" Margin="Margin.Dense" />
+                                <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
+                                <CScriptField @key="@("corr-" + selectedNode.Id)" @ref="exprField"
+                                              Value="@wait.CorrelationExpression"
+                                              ValueChanged="@(v => wait.CorrelationExpression = v)" />
+                                break;
+                            case TimerNode timer:
+                                <MudText Typo="Typo.caption" Class="mt-2">Due (CScript: DateTime or TimeSpan)</MudText>
+                                <CScriptField @key="@("due-" + selectedNode.Id)" @ref="exprField"
+                                              Value="@timer.DueExpression"
+                                              ValueChanged="@(v => timer.DueExpression = v)" />
+                                break;
+                            case ExclusiveGatewayNode xor:
+                                <MudSelect T="string" @bind-Value="xor.DefaultFlowId" Label="Default flow" Clearable="true"
+                                           Margin="Margin.Dense">
+                                    @foreach (var f in def.Flows.Where(f => f.SourceId == xor.Id))
+                                    {
+                                        <MudSelectItem T="string" Value="@f.Id">@FlowLabel(f)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                                break;
+                        }
+
+                        <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
+                                   Class="mt-3" OnClick="DeleteSelectedNode">Delete node</MudButton>
+                    }
+                    else if (selectedFlow is not null)
+                    {
+                        <MudText Typo="Typo.subtitle2" GutterBottom="true">Connection</MudText>
+                        <MudText Typo="Typo.caption">@NodeName(selectedFlow.SourceId) → @NodeName(selectedFlow.TargetId)</MudText>
+                        <MudTextField @bind-Value="selectedFlow.Name" Label="Label" Margin="Margin.Dense" />
+                        <MudText Typo="Typo.caption" Class="mt-2">Condition (CScript, for XOR gateways)</MudText>
+                        <CScriptField @key="@("cond-" + selectedFlow.Id)" @ref="exprField"
+                                      Value="@selectedFlow.Condition"
+                                      ValueChanged="@(v => selectedFlow.Condition = v)" />
+                        <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
+                                   Class="mt-3" OnClick="DeleteSelectedFlow">Delete connection</MudButton>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2">Select a node or connection to edit its properties.</MudText>
+                    }
+                </MudPaper>
+            </div>
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to edit workflow definitions.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    [Parameter] public string? DefinitionId { get; set; }
+
+    [Parameter] public int Version { get; set; }
+
+    private WorkflowDefinition? def;
+    private bool loaded;
+    private bool isNew;
+
+    private WorkflowNode? selectedNode;
+    private SequenceFlow? selectedFlow;
+    private CScriptField? exprField;
+
+    private double canvasW = 1400;
+    private double canvasH = 800;
+
+    private ElementReference hostEl;
+    private ElementReference svgEl;
+    private DotNetObjectReference<WorkflowEditor>? selfRef;
+    private bool jsAttached;
+
+    private static readonly (NodeKind Kind, string Label)[] Palette = new[]
+    {
+        (NodeKind.Start, "Start"),
+        (NodeKind.AutomatedActivity, "Activity"),
+        (NodeKind.Wait, "Wait"),
+        (NodeKind.Timer, "Timer"),
+        (NodeKind.ExclusiveGateway, "XOR"),
+        (NodeKind.ParallelGateway, "AND"),
+        (NodeKind.End, "End")
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loaded = false;
+        isNew = string.IsNullOrEmpty(DefinitionId);
+        var auth = await AuthState.GetAuthenticationStateAsync();
+
+        if (isNew)
+        {
+            def = new WorkflowDefinition { Id = "new-workflow", Version = 1, Name = "New workflow" };
+        }
+        else
+        {
+            def = await Handler.GetDefinitionAsync(auth.User, DefinitionId!, Version);
+            if (def is not null)
+            {
+                EnsureDiagram(def);
+            }
+        }
+
+        selectedNode = null;
+        selectedFlow = null;
+        RecomputeCanvasSize();
+        loaded = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Erst anhaengen, wenn das SVG wirklich gerendert ist (Definition geladen, sonst kein svgEl).
+        if (!jsAttached && loaded && def is not null)
+        {
+            selfRef ??= DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeAsync<IJSObjectReference>("import",
+                    "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews/graph-editor.js");
+                await JS.InvokeVoidAsync("itvWfEditor.attach", hostEl, svgEl, selfRef);
+                jsAttached = true;
+            }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { /* circuit gone */ }
+            catch (Exception ex)
+            {
+                // Ohne JS bleibt der Editor statisch nutzbar (Palette/Panel); der Grund muss ins Log.
+                LogEnvironment.LogEvent(
+                    $"Workflow-Editor: JS-Interop nicht initialisiert: {ex.OutlineException()}",
+                    LogSeverity.Warning);
+            }
+        }
+    }
+
+    // --- Interop callbacks -------------------------------------------------------------------
+
+    /// <summary>Ein Knoten wurde im Canvas verschoben (finale Position in SVG-Koordinaten).</summary>
+    [JSInvokable]
+    public void OnNodeMoved(string nodeId, double x, double y)
+    {
+        WorkflowNode? node = def?.GetNode(nodeId);
+        if (node is null)
+        {
+            return;
+        }
+
+        node.Diagram ??= new DiagramShape();
+        node.Diagram.X = Math.Round(x, 1);
+        node.Diagram.Y = Math.Round(y, 1);
+        RecomputeCanvasSize();
+        StateHasChanged();
+    }
+
+    /// <summary>Der Nutzer hat vom Port des Quellknotens auf einen Zielknoten gezogen.</summary>
+    [JSInvokable]
+    public void OnEdgeCreated(string sourceId, string targetId)
+    {
+        if (def is null || sourceId == targetId
+            || def.GetNode(sourceId) is null || def.GetNode(targetId) is null)
+        {
+            return;
+        }
+
+        var flow = new SequenceFlow { Id = NewId("f"), SourceId = sourceId, TargetId = targetId };
+        def.Flows.Add(flow);
+        selectedNode = null;
+        selectedFlow = flow;
+        StateHasChanged();
+    }
+
+    /// <summary>Ein Knoten wurde ausgewaehlt.</summary>
+    [JSInvokable]
+    public void OnSelectNode(string nodeId)
+    {
+        selectedFlow = null;
+        selectedNode = def?.GetNode(nodeId);
+        StateHasChanged();
+    }
+
+    /// <summary>Eine Kante wurde ausgewaehlt.</summary>
+    [JSInvokable]
+    public void OnSelectEdge(string edgeId)
+    {
+        selectedNode = null;
+        selectedFlow = def?.Flows.FirstOrDefault(f => f.Id == edgeId);
+        StateHasChanged();
+    }
+
+    /// <summary>Leere Flaeche angeklickt - Auswahl aufheben.</summary>
+    [JSInvokable]
+    public void OnSelectNone()
+    {
+        selectedNode = null;
+        selectedFlow = null;
+        StateHasChanged();
+    }
+
+    // --- Editing -----------------------------------------------------------------------------
+
+    private void AddNode(NodeKind kind)
+    {
+        if (def is null)
+        {
+            return;
+        }
+
+        WorkflowNode node = kind switch
+        {
+            NodeKind.Start => new StartNode(),
+            NodeKind.End => new EndNode(),
+            NodeKind.AutomatedActivity => new AutomatedActivityNode(),
+            NodeKind.Wait => new WaitNode(),
+            NodeKind.Timer => new TimerNode(),
+            NodeKind.ExclusiveGateway => new ExclusiveGatewayNode(),
+            NodeKind.ParallelGateway => new ParallelGatewayNode(),
+            _ => new AutomatedActivityNode()
+        };
+
+        node.Id = NewId("n");
+        node.Name = kind.ToString();
+        int cascade = def.Nodes.Count % 6;
+        node.Diagram = new DiagramShape { X = 60 + (cascade * 26), Y = 60 + (cascade * 26) };
+        def.Nodes.Add(node);
+        def.RebuildIndex();
+
+        selectedFlow = null;
+        selectedNode = node;
+        RecomputeCanvasSize();
+    }
+
+    private void DeleteSelectedNode()
+    {
+        if (def is null || selectedNode is null)
+        {
+            return;
+        }
+
+        string id = selectedNode.Id;
+        def.Nodes.Remove(selectedNode);
+        def.Flows.RemoveAll(f => f.SourceId == id || f.TargetId == id);
+        def.RebuildIndex();
+        selectedNode = null;
+        RecomputeCanvasSize();
+    }
+
+    private void DeleteSelectedFlow()
+    {
+        if (def is null || selectedFlow is null)
+        {
+            return;
+        }
+
+        def.Flows.Remove(selectedFlow);
+        selectedFlow = null;
+    }
+
+    private async Task Save()
+    {
+        if (def is null)
+        {
+            return;
+        }
+
+        await FlushExprAsync();
+
+        if (string.IsNullOrWhiteSpace(def.Id))
+        {
+            Snackbar.Add("An id is required.", Severity.Warning);
+            return;
+        }
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        bool ok = await Handler.SaveDefinitionAsync(auth.User, def);
+        if (ok)
+        {
+            Snackbar.Add($"Definition '{def.Id}' v{def.Version} saved", Severity.Success);
+            isNew = false;
+            Nav.NavigateTo($"/Workflow/Definitions/{Uri.EscapeDataString(def.Id)}/{def.Version}/edit");
+        }
+        else
+        {
+            Snackbar.Add("Could not save (see log / permissions).", Severity.Error);
+        }
+    }
+
+    private void Back()
+    {
+        Nav.NavigateTo("/Workflow/Definitions");
+    }
+
+    /// <summary>Holt den aktuellen Text des gerade sichtbaren Ausdrucks-Editors ins Modell.</summary>
+    private async Task FlushExprAsync()
+    {
+        // Nur lesen, wenn die aktuelle Auswahl auch tatsaechlich ein Ausdrucksfeld gemountet hat -
+        // sonst zeigt exprField evtl. noch auf einen bereits entfernten Editor.
+        object? target = (object?)selectedFlow ?? selectedNode;
+        if (exprField is null || target is not (SequenceFlow or TimerNode or WaitNode))
+        {
+            return;
+        }
+
+        string v = await exprField.GetValueAsync();
+        switch (target)
+        {
+            case SequenceFlow f:
+                f.Condition = v;
+                break;
+            case TimerNode t:
+                t.DueExpression = v;
+                break;
+            case WaitNode w:
+                w.CorrelationExpression = v;
+                break;
+        }
+    }
+
+    // --- Helpers -----------------------------------------------------------------------------
+
+    private static string NewId(string prefix) => prefix + Guid.NewGuid().ToString("N").Substring(0, 8);
+
+    private string NodeName(string? id)
+    {
+        WorkflowNode? n = id is null ? null : def?.GetNode(id);
+        return n is null ? (id ?? "?") : (string.IsNullOrEmpty(n.Name) ? n.Id : n.Name);
+    }
+
+    private static string FlowLabel(SequenceFlow f)
+        => string.IsNullOrWhiteSpace(f.Name) ? (f.Id ?? "?") : f.Name!;
+
+    private static void EnsureDiagram(WorkflowDefinition definition)
+    {
+        if (definition.Nodes.Count == 0 || definition.Nodes.All(n => n.Diagram != null))
+        {
+            return;
+        }
+
+        // Fehlende Positionen aus dem automatischen Layout materialisieren, damit im Editor jeder
+        // Knoten eine feste (ziehbare) Position hat.
+        GraphLayout layout = GraphLayout.Compute(definition);
+        var byId = layout.Nodes.ToDictionary(n => n.Id, n => n);
+        foreach (WorkflowNode node in definition.Nodes)
+        {
+            if (node.Diagram == null && node.Id != null && byId.TryGetValue(node.Id, out LaidOutNode? laid))
+            {
+                node.Diagram = new DiagramShape { X = laid.X, Y = laid.Y };
+            }
+        }
+    }
+
+    private void RecomputeCanvasSize()
+    {
+        if (def is null || def.Nodes.Count == 0)
+        {
+            canvasW = 1400;
+            canvasH = 800;
+            return;
+        }
+
+        GraphLayout layout = GraphLayout.Compute(def);
+        canvasW = Math.Max(1400, layout.Width + 60);
+        canvasH = Math.Max(800, layout.Height + 60);
+    }
+
+    private static string N(double value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private MarkupString CanvasBody()
+    {
+        var sb = new StringBuilder();
+        if (def is null)
+        {
+            return new MarkupString(string.Empty);
+        }
+
+        GraphLayout layout = GraphLayout.Compute(def);
+
+        // Kanten zuerst (liegen unter den Knoten).
+        foreach (LaidOutEdge edge in layout.Edges)
+        {
+            bool sel = selectedFlow != null && edge.Id == selectedFlow.Id;
+            string stroke = sel ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
+            string width = sel ? "2.5" : "1.5";
+            sb.Append($"<line data-wf-edge data-edge-id=\"{Enc(edge.Id)}\" data-source=\"{Enc(edge.SourceId)}\" data-target=\"{Enc(edge.TargetId)}\" ")
+              .Append($"x1=\"{N(edge.X1)}\" y1=\"{N(edge.Y1)}\" x2=\"{N(edge.X2)}\" y2=\"{N(edge.Y2)}\" ")
+              .Append($"stroke=\"{stroke}\" stroke-width=\"{width}\" marker-end=\"url(#wf-arrow-ed)\" style=\"cursor:pointer\" />");
+            if (!string.IsNullOrEmpty(edge.Label))
+            {
+                AppendText(sb, edge.LabelX, edge.LabelY - 4, "middle", "var(--mud-palette-text-secondary)", 11, edge.Label!, null);
+            }
+        }
+
+        // Knoten als verschiebbare Gruppen (lokale Koordinaten, Position via translate).
+        foreach (LaidOutNode node in layout.Nodes)
+        {
+            bool sel = selectedNode != null && node.Id == selectedNode.Id;
+            string stroke = sel ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
+            string strokeWidth = sel ? "3" : "1.5";
+            string fill = "var(--mud-palette-surface)";
+            string style = $"fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{strokeWidth}\"";
+            double w = node.Width;
+            double h = node.Height;
+
+            sb.Append($"<g data-wf-node data-node-id=\"{Enc(node.Id)}\" data-w=\"{N(w)}\" data-h=\"{N(h)}\" transform=\"translate({N(node.X)},{N(node.Y)})\">");
+
+            switch (node.Shape)
+            {
+                case NodeShape.Ellipse:
+                    sb.Append($"<ellipse cx=\"{N(w / 2)}\" cy=\"{N(h / 2)}\" rx=\"{N(w / 2)}\" ry=\"{N(h / 2)}\" {style} />");
+                    break;
+                case NodeShape.Diamond:
+                    sb.Append($"<polygon points=\"{N(w / 2)},0 {N(w)},{N(h / 2)} {N(w / 2)},{N(h)} 0,{N(h / 2)}\" {style} />");
+                    break;
+                case NodeShape.Rectangle:
+                    sb.Append($"<rect x=\"0\" y=\"0\" width=\"{N(w)}\" height=\"{N(h)}\" {style} />");
+                    break;
+                default:
+                    sb.Append($"<rect x=\"0\" y=\"0\" width=\"{N(w)}\" height=\"{N(h)}\" rx=\"8\" ry=\"8\" {style} />");
+                    break;
+            }
+
+            if (GatewaySymbol(node.Kind) is string symbol)
+            {
+                AppendText(sb, w / 2, h / 2, "middle", "var(--mud-palette-text-primary)", 20, symbol, "central");
+            }
+
+            if (node.Shape is NodeShape.Ellipse or NodeShape.Diamond)
+            {
+                AppendText(sb, w / 2, h + 13, "middle", "var(--mud-palette-text-primary)", 11, node.Label, null);
+            }
+            else
+            {
+                AppendText(sb, w / 2, h / 2, "middle", "var(--mud-palette-text-primary)", 12, Clip(node.Label), "central");
+            }
+
+            // Ausgangs-Port (rechte Mitte), an dem Verbindungen gezogen werden.
+            sb.Append($"<circle data-wf-port cx=\"{N(w)}\" cy=\"{N(h / 2)}\" r=\"5\" fill=\"var(--mud-palette-primary)\" stroke=\"var(--mud-palette-surface)\" stroke-width=\"1\" />");
+
+            sb.Append("</g>");
+        }
+
+        return new MarkupString(sb.ToString());
+    }
+
+    private static void AppendText(StringBuilder sb, double x, double y, string anchor, string fill, int fontSize,
+        string content, string? baseline)
+    {
+        sb.Append($"<text x=\"{N(x)}\" y=\"{N(y)}\" text-anchor=\"{anchor}\" fill=\"{fill}\" font-size=\"{fontSize}\" style=\"pointer-events:none; user-select:none\"");
+        if (baseline != null)
+        {
+            sb.Append($" dominant-baseline=\"{baseline}\"");
+        }
+
+        sb.Append('>').Append(Enc(content)).Append("</text>");
+    }
+
+    private static string Enc(string? s) => WebUtility.HtmlEncode(s ?? string.Empty);
+
+    private static string? GatewaySymbol(NodeKind kind) => kind switch
+    {
+        NodeKind.ExclusiveGateway => "×",
+        NodeKind.ParallelGateway => "+",
+        _ => null
+    };
+
+    private static string Clip(string label) => label.Length <= 18 ? label : label.Substring(0, 16) + "…";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (jsAttached)
+        {
+            try { await JS.InvokeVoidAsync("itvWfEditor.detach", hostEl); }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch { /* element gone */ }
+        }
+
+        selfRef?.Dispose();
+    }
+}

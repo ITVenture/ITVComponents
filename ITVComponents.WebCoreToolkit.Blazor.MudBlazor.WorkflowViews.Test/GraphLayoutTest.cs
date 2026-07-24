@@ -114,6 +114,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         }
 
         [TestMethod]
+        public void Edge_CarriesSourceAndTargetIds()
+        {
+            // Der Editor zeichnet Kanten beim Ziehen client-seitig neu und braucht dafuer die
+            // Endknoten-Ids je Kante.
+            GraphLayout layout = GraphLayout.Compute(LinearDefinition(withDiagram: true));
+
+            LaidOutEdge f1 = layout.Edges.Single(e => e.Id == "f1");
+            Assert.AreEqual("start", f1.SourceId);
+            Assert.AreEqual("act", f1.TargetId);
+        }
+
+        [TestMethod]
         public void EmptyDefinition_ProducesNonZeroCanvas()
         {
             GraphLayout layout = GraphLayout.Compute(new WorkflowDefinition());

@@ -66,6 +66,38 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
             return Task.FromResult<WorkflowDefinition?>(store.GetDefinition(definitionId, version));
         }
 
+        /// <inheritdoc/>
+        public Task<bool> SaveDefinitionAsync(ClaimsPrincipal user, WorkflowDefinition definition)
+        {
+            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Design }))
+            {
+                LogEnvironment.LogEvent(
+                    "Speichern einer Workflow-Definition ohne Berechtigung 'Workflow.Design' abgelehnt.",
+                    LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            if (definition == null || string.IsNullOrWhiteSpace(definition.Id))
+            {
+                LogEnvironment.LogEvent(
+                    "Workflow-Definition nicht gespeichert: keine oder leere Id.", LogSeverity.Error);
+                return Task.FromResult(false);
+            }
+
+            try
+            {
+                store.SaveDefinition(definition);
+                return Task.FromResult(true);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Konnte Workflow-Definition '{definition.Id}' v{definition.Version} nicht speichern: {ex.OutlineException()}",
+                    LogSeverity.Error);
+                return Task.FromResult(false);
+            }
+        }
+
         private static WorkflowDefinitionListItem ToListItem(WorkflowDefinitionRow row)
         {
             // Die Zaehl-/Namensfelder stecken nur im JSON-Blob. Fuer die Uebersicht reicht ein

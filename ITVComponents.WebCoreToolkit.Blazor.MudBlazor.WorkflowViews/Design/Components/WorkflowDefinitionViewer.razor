@@ -16,6 +16,9 @@
                 @(string.IsNullOrEmpty(definition?.Name) ? DefinitionId : definition!.Name)
                 <MudText Typo="Typo.caption" Class="ml-2" Inline="true">@DefinitionId (v@Version)</MudText>
             </MudText>
+            <MudSpacer />
+            <MudButton StartIcon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="Color.Primary"
+                       Href="@($"/Workflow/Definitions/{Uri.EscapeDataString(DefinitionId)}/{Version}/edit")">Edit</MudButton>
         </MudStack>
 
         @if (!loaded)

@@ -64,6 +64,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// <summary>Kanten-Id.</summary>
         public string Id { get; init; } = "";
 
+        /// <summary>Id des Quellknotens (fuer den Editor, der Kanten beim Ziehen neu berechnet).</summary>
+        public string SourceId { get; init; } = "";
+
+        /// <summary>Id des Zielknotens.</summary>
+        public string TargetId { get; init; } = "";
+
         /// <summary>Startpunkt X (auf dem Rand des Quellknotens).</summary>
         public double X1 { get; init; }
 
@@ -185,6 +191,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 edges.Add(new LaidOutEdge
                 {
                     Id = flow.Id ?? "",
+                    SourceId = flow.SourceId,
+                    TargetId = flow.TargetId,
                     X1 = sx,
                     Y1 = sy,
                     X2 = tx,
