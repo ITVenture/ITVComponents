@@ -31,16 +31,33 @@ namespace ITVComponents.Workflow.Model
         public override NodeKind Kind => NodeKind.AutomatedActivity;
 
         /// <summary>
-        /// Verweist auf die auszufuehrende Aktivitaet. Ein <see cref="Activities.IActivityResolver"/>
-        /// loest diesen Verweis zur Laufzeit auf (spaeter: Plugin aus der Factory).
+        /// Verweist auf die auszufuehrende Aktivitaet. Ein <see cref="Activities.IActivityHost"/>
+        /// loest diesen Verweis zur Laufzeit auf (Plugin aus der Factory).
         /// </summary>
         public string ActivityRef { get; set; }
 
         /// <summary>
-        /// Optionale, statische Konfiguration fuer die Aktivitaet (z.B. fest verdrahtete
-        /// Parameter). Dynamische Werte kommen ueber die Variablen der Instanz.
+        /// Optionale, statische Konfiguration fuer <b>generische</b> Aktivitaeten (z.B. Skripte), die
+        /// keine deklarierten Parameter haben und ihre Konfiguration selbst aus diesem Dictionary
+        /// lesen. Spezialisierte (Plugin-)Aktivitaeten mit deklarierten Parametern nutzen stattdessen
+        /// <see cref="Inputs"/> und <see cref="Outputs"/>.
         /// </summary>
         public Dictionary<string, object> Configuration { get; set; } = new Dictionary<string, object>();
+
+        /// <summary>
+        /// Datenfluss <b>hinein</b>: bindet die deklarierten Eingabeparameter der Aktivitaet an
+        /// Wertquellen (Konstante, Variable oder Ausdruck). Die Engine loest diese Bindungen vor der
+        /// Ausfuehrung auf und stellt die Werte ueber
+        /// <see cref="Activities.WorkflowActivityContext.Inputs"/> bereit.
+        /// </summary>
+        public List<ActivityInputBinding> Inputs { get; set; } = new List<ActivityInputBinding>();
+
+        /// <summary>
+        /// Datenfluss <b>heraus</b>: bildet die deklarierten Ausgabeparameter der Aktivitaet auf
+        /// Instanz-Variablen ab. Nach der Ausfuehrung schreibt die Engine die von der Aktivitaet in
+        /// <see cref="Activities.WorkflowActivityContext.Outputs"/> abgelegten Werte in diese Variablen.
+        /// </summary>
+        public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
     }
 
     /// <summary>

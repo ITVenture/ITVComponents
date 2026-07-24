@@ -377,12 +377,31 @@ namespace ITVComponents.Workflow
             AutomatedActivityNode node, IActivityScope activityScope)
         {
             instance.Log("Entered", node.Id, node.Name);
+
+            // Datenfluss hinein: die Eingabe-Bindungen des Knotens aufloesen. Ein Fehler hier (z.B. ein
+            // ungueltiger Ausdruck) hat eine andere Ursache als ein Fehler in der Aktivitaet selbst -
+            // deshalb ein eigener Zweig mit eigener, unterscheidbarer Log-/Fault-Meldung.
+            IDictionary<string, object> inputs;
+            try
+            {
+                inputs = ResolveInputs(instance, node);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Input binding of node '{node.Id}' (activity '{node.ActivityRef}') in instance " +
+                    $"'{instance.Id}' could not be resolved: {ex.OutlineException()}", LogSeverity.Error);
+                Fault(instance, $"Input binding of node '{node.Id}' failed: {ex.Message}", node.Id);
+                return false;
+            }
+
+            var outputs = new Dictionary<string, object>(StringComparer.Ordinal);
             try
             {
                 // On-demand aufgeloest; die Lebensdauer der Aktivitaet (bei Plugins: der geladenen
                 // Instanz) gehoert dem Scope und endet mit dem Vortrieb.
                 IWorkflowActivity activity = activityScope.Resolve(node.ActivityRef);
-                activity.Execute(new WorkflowActivityContext(instance, node));
+                activity.Execute(new WorkflowActivityContext(instance, node, inputs, outputs));
             }
             catch (Exception ex)
             {
@@ -395,8 +414,97 @@ namespace ITVComponents.Workflow
                 return false;
             }
 
+            // Datenfluss heraus: die deklarierten Ausgaben auf die konfigurierten Variablen abbilden.
+            ApplyOutputs(instance, node, outputs);
+
             instance.Log("Completed", node.Id, node.Name);
             return MoveAlongSingleOutgoing(instance, definition, token);
+        }
+
+        /// <summary>
+        /// Loest die Eingabe-Bindungen eines Aktivitaets-Knotens gegen den aktuellen Instanzzustand
+        /// auf. Eine fehlende Variable (bei <see cref="ParameterBindingKind.Variable"/>) ist ein
+        /// definierter Normalfall (der Wert ist dann null) - kein Fehler, aber protokolliert, damit er
+        /// nachvollziehbar bleibt. Ein Ausdrucksfehler wird an den Aufrufer geworfen (der faultet).
+        /// </summary>
+        private IDictionary<string, object> ResolveInputs(WorkflowInstance instance, AutomatedActivityNode node)
+        {
+            var result = new Dictionary<string, object>(StringComparer.Ordinal);
+            if (node.Inputs == null)
+            {
+                return result;
+            }
+
+            foreach (ActivityInputBinding binding in node.Inputs)
+            {
+                if (binding == null || string.IsNullOrEmpty(binding.Parameter))
+                {
+                    continue;
+                }
+
+                switch (binding.Kind)
+                {
+                    case ParameterBindingKind.Literal:
+                        result[binding.Parameter] = binding.Literal;
+                        break;
+
+                    case ParameterBindingKind.Variable:
+                        if (!string.IsNullOrEmpty(binding.Source)
+                            && instance.Variables.TryGetValue(binding.Source, out object value))
+                        {
+                            result[binding.Parameter] = value;
+                        }
+                        else
+                        {
+                            result[binding.Parameter] = null;
+                            LogEnvironment.LogEvent(
+                                $"Input '{binding.Parameter}' of node '{node.Id}' in instance '{instance.Id}' " +
+                                $"is bound to variable '{binding.Source}', which is not set - resolved to null.",
+                                LogSeverity.Report);
+                        }
+
+                        break;
+
+                    case ParameterBindingKind.Expression:
+                        result[binding.Parameter] = evaluator.Evaluate(binding.Source, instance.Variables);
+                        break;
+
+                    default:
+                        LogEnvironment.LogEvent(
+                            $"Input '{binding.Parameter}' of node '{node.Id}' uses an unsupported binding " +
+                            $"kind '{binding.Kind}' - resolved to null.", LogSeverity.Warning);
+                        result[binding.Parameter] = null;
+                        break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Bildet die deklarierten Ausgaben eines Aktivitaets-Knotens auf Instanz-Variablen ab. Der
+        /// Wert wird auch dann geschrieben, wenn die Aktivitaet den Ausgabeparameter nicht gesetzt hat
+        /// (dann null) - das ist ein bewusstes, beobachtbares Ergebnis.
+        /// </summary>
+        private static void ApplyOutputs(WorkflowInstance instance, AutomatedActivityNode node,
+            IDictionary<string, object> outputs)
+        {
+            if (node.Outputs == null)
+            {
+                return;
+            }
+
+            foreach (ActivityOutputBinding binding in node.Outputs)
+            {
+                if (binding == null || string.IsNullOrEmpty(binding.Parameter)
+                    || string.IsNullOrEmpty(binding.Variable))
+                {
+                    continue;
+                }
+
+                outputs.TryGetValue(binding.Parameter, out object value);
+                instance.Variables[binding.Variable] = value;
+            }
         }
 
         private bool RouteExclusive(WorkflowInstance instance, WorkflowDefinition definition, Token token,

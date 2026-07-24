@@ -156,6 +156,85 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual("d", ((ExclusiveGatewayNode)def.GetNode("g")).DefaultFlowId);
         }
 
+        [TestMethod]
+        public void ActivityBindingsRoundTrip()
+        {
+            var store = NewStore();
+            var activity = new AutomatedActivityNode { Id = "a", ActivityRef = "step" };
+            activity.Inputs.Add(new ActivityInputBinding
+            {
+                Parameter = "count", Kind = ParameterBindingKind.Literal, Literal = 7
+            });
+            activity.Inputs.Add(new ActivityInputBinding
+            {
+                Parameter = "who", Kind = ParameterBindingKind.Variable, Source = "user"
+            });
+            activity.Inputs.Add(new ActivityInputBinding
+            {
+                Parameter = "sum", Kind = ParameterBindingKind.Expression, Source = "a + b"
+            });
+            activity.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "answer" });
+
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "bindings",
+                Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, activity, new EndNode { Id = "e" } },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->a", SourceId = "s", TargetId = "a" },
+                    new SequenceFlow { Id = "a->e", SourceId = "a", TargetId = "e" }
+                }
+            });
+
+            var reloaded = (AutomatedActivityNode)store.GetDefinition("bindings").GetNode("a");
+
+            Assert.AreEqual(3, reloaded.Inputs.Count);
+            ActivityInputBinding count = reloaded.Inputs.Single(i => i.Parameter == "count");
+            Assert.AreEqual(ParameterBindingKind.Literal, count.Kind);
+            Assert.IsInstanceOfType<int>(count.Literal, "the literal object value must round-trip as int.");
+            Assert.AreEqual(7, count.Literal);
+            Assert.AreEqual(ParameterBindingKind.Variable, reloaded.Inputs.Single(i => i.Parameter == "who").Kind);
+            Assert.AreEqual("a + b", reloaded.Inputs.Single(i => i.Parameter == "sum").Source);
+
+            Assert.AreEqual(1, reloaded.Outputs.Count);
+            Assert.AreEqual("answer", reloaded.Outputs[0].Variable);
+        }
+
+        [TestMethod]
+        public void DataFlowRunsThroughTheStore()
+        {
+            var store = NewStore();
+            var activity = new AutomatedActivityNode { Id = "a", ActivityRef = "add" };
+            activity.Inputs.Add(new ActivityInputBinding
+            {
+                Parameter = "x", Kind = ParameterBindingKind.Variable, Source = "seed"
+            });
+            activity.Inputs.Add(new ActivityInputBinding
+            {
+                Parameter = "y", Kind = ParameterBindingKind.Literal, Literal = 5
+            });
+            activity.Outputs.Add(new ActivityOutputBinding { Parameter = "sum", Variable = "total" });
+
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "dataflow",
+                Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, activity, new EndNode { Id = "e" } },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->a", SourceId = "s", TargetId = "a" },
+                    new SequenceFlow { Id = "a->e", SourceId = "a", TargetId = "e" }
+                }
+            });
+
+            var activities = new ActivityRegistry().Register("add",
+                ctx => ctx.Outputs["sum"] = (int)ctx.Inputs["x"] + (int)ctx.Inputs["y"]);
+            WorkflowInstance instance = new WorkflowEngine(store, activities)
+                .StartWorkflow("dataflow", new Dictionary<string, object> { { "seed", 10 } });
+
+            Assert.AreEqual(WorkflowStatus.Completed, instance.Status);
+            Assert.AreEqual(15, store.GetInstance(instance.Id).Variables["total"]);
+        }
+
         private static WorkflowDefinition WaitDefinition()
         {
             return new WorkflowDefinition
