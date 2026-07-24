@@ -8,6 +8,7 @@
 @using ITVComponents.Helpers
 @using ITVComponents.Logging
 @using ITVComponents.Workflow.Model
+@using ITVComponents.Workflow.Validation
 
 @inject IWorkflowDesignHandler Handler
 @inject AuthenticationStateProvider AuthState
@@ -43,9 +44,33 @@
                 <MudTextField @bind-Value="def.Name" Label="Name" Margin="Margin.Dense" Style="max-width:240px" Class="mr-2" />
                 <MudNumericField @bind-Value="def.Version" Label="Version" Min="1" Margin="Margin.Dense" Style="max-width:100px" />
                 <MudSpacer />
-                <MudButton StartIcon="@Icons.Material.Filled.Save" Variant="Variant.Filled" Color="Color.Primary"
-                           OnClick="Save">Save</MudButton>
+                <MudButton StartIcon="@Icons.Material.Filled.Checklist" Variant="Variant.Outlined"
+                           Class="mr-2" OnClick="ValidateOnly">Validate</MudButton>
+                @if (isNew)
+                {
+                    <MudButton StartIcon="@Icons.Material.Filled.Save" Variant="Variant.Filled" Color="Color.Primary"
+                               OnClick="@(() => Save(asNewVersion: false))">Save</MudButton>
+                }
+                else
+                {
+                    <MudMenu Label="Save" Variant="Variant.Filled" Color="Color.Primary"
+                             StartIcon="@Icons.Material.Filled.Save" EndIcon="@Icons.Material.Filled.ArrowDropDown">
+                        <MudMenuItem OnClick="@(() => Save(asNewVersion: false))">Overwrite v@def.Version</MudMenuItem>
+                        <MudMenuItem OnClick="@(() => Save(asNewVersion: true))">Save as new version</MudMenuItem>
+                    </MudMenu>
+                }
             </MudToolBar>
+
+            @if (issues.Count > 0)
+            {
+                <MudPaper Outlined="true" Elevation="0" Class="pa-2 mb-2">
+                    @foreach (var issue in issues)
+                    {
+                        <MudAlert Severity="@(issue.Severity == ValidationSeverity.Error ? Severity.Error : Severity.Warning)"
+                                  Dense="true" Class="my-1">@issue.Message</MudAlert>
+                    }
+                </MudPaper>
+            }
 
             <div style="display:flex; gap:8px; align-items:flex-start;">
                 @* Palette *@
@@ -165,6 +190,8 @@
     private ElementReference svgEl;
     private DotNetObjectReference<WorkflowEditor>? selfRef;
     private bool jsAttached;
+
+    private List<ValidationIssue> issues = new();
 
     private static readonly (NodeKind Kind, string Label)[] Palette = new[]
     {
@@ -348,7 +375,27 @@
         selectedFlow = null;
     }
 
-    private async Task Save()
+    /// <summary>Prueft die Definition ohne zu speichern und zeigt die Befunde an.</summary>
+    private void ValidateOnly()
+    {
+        if (def is null)
+        {
+            return;
+        }
+
+        issues = WorkflowDefinitionValidator.Validate(def).ToList();
+        if (issues.Count == 0)
+        {
+            Snackbar.Add("No issues found.", Severity.Success);
+        }
+    }
+
+    /// <summary>
+    /// Speichert die Definition. Bei Fehlern (nicht Warnungen) wird abgebrochen und die Liste
+    /// angezeigt. <paramref name="asNewVersion"/> hebt die Version auf die naechste nach der hoechsten
+    /// bestehenden - so bleibt die alte Version (und die daran laufenden Instanzen) unangetastet.
+    /// </summary>
+    private async Task Save(bool asNewVersion)
     {
         if (def is null)
         {
@@ -363,12 +410,26 @@
             return;
         }
 
+        issues = WorkflowDefinitionValidator.Validate(def).ToList();
+        if (issues.Any(i => i.Severity == ValidationSeverity.Error))
+        {
+            Snackbar.Add("Please fix the errors before saving.", Severity.Error);
+            return;
+        }
+
         var auth = await AuthState.GetAuthenticationStateAsync();
+        if (asNewVersion)
+        {
+            WorkflowDefinition latest = await Handler.GetDefinitionAsync(auth.User, def.Id, null);
+            def.Version = (latest?.Version ?? def.Version) + 1;
+        }
+
         bool ok = await Handler.SaveDefinitionAsync(auth.User, def);
         if (ok)
         {
             Snackbar.Add($"Definition '{def.Id}' v{def.Version} saved", Severity.Success);
             isNew = false;
+            issues = new List<ValidationIssue>();
             Nav.NavigateTo($"/Workflow/Definitions/{Uri.EscapeDataString(def.Id)}/{def.Version}/edit");
         }
         else
