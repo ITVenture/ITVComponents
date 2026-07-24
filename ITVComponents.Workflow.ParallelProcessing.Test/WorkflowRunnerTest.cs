@@ -31,7 +31,8 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
             store = new InMemoryWorkflowStore();
             var activities = new ActivityRegistry().Register("finish", ctx => ctx.Variables["done"] = true);
             engine = new WorkflowEngine(store, activities);
-            worker = new WorkflowTaskWorker(engine, store, new InstanceGate());
+            // Das Gate kommt jetzt aus der Laufzeit-Umgebung der Engine und wird per Property gesetzt.
+            worker = new WorkflowTaskWorker(engine, store) { Runtime = engine.Runtime };
         }
 
         [TestMethod]

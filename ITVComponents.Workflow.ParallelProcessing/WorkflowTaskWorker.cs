@@ -3,6 +3,7 @@ using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.ParallelProcessing;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Stores;
 
 namespace ITVComponents.Workflow.ParallelProcessing
@@ -11,23 +12,45 @@ namespace ITVComponents.Workflow.ParallelProcessing
     /// Arbeitet <see cref="WorkflowTask"/>s ab: laedt die Instanz aus dem Store und treibt sie ueber
     /// die Engine voran, jeweils unter der Pro-Instanz-Sperre.
     /// </summary>
-    public sealed class WorkflowTaskWorker : TaskWorkerBase<WorkflowTask>
+    /// <remarks>
+    /// Das <see cref="InstanceGate"/> kommt NICHT ueber den Konstruktor, sondern als garantiert
+    /// gesetztes Property (<see cref="IWorkflowRuntimeAware"/>) aus der geteilten Laufzeit-Umgebung der
+    /// Engine - so laesst sich der Worker auch als Plugin laden, wo ein zur Kompositionszeit erzeugtes,
+    /// geteiltes Gate nicht als Konstruktor-Argument aufloesbar waere.
+    /// </remarks>
+    public sealed class WorkflowTaskWorker : TaskWorkerBase<WorkflowTask>, IWorkflowRuntimeAware
     {
         private readonly WorkflowEngine engine;
         private readonly IWorkflowStore store;
-        private readonly InstanceGate gate;
+        private WorkflowRuntimeContext runtime;
 
         /// <summary>Initialisiert einen Worker.</summary>
-        public WorkflowTaskWorker(WorkflowEngine engine, IWorkflowStore store, InstanceGate gate)
+        public WorkflowTaskWorker(WorkflowEngine engine, IWorkflowStore store)
         {
             this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
             this.store = store ?? throw new ArgumentNullException(nameof(store));
-            this.gate = gate ?? throw new ArgumentNullException(nameof(gate));
+        }
+
+        /// <inheritdoc/>
+        public WorkflowRuntimeContext Runtime
+        {
+            set => runtime = value;
         }
 
         /// <inheritdoc/>
         public override void Process(WorkflowTask task)
         {
+            InstanceGate gate = runtime?.Gate;
+            if (gate == null)
+            {
+                // Verdrahtungsfehler: die Laufzeit-Umgebung wurde nie gesetzt. Nicht still ueberspringen.
+                LogEnvironment.LogEvent(
+                    $"Workflow-Worker ohne Laufzeit-Umgebung (InstanceGate nicht gesetzt). Auftrag " +
+                    $"'{task.Trigger}' fuer Instanz '{task.InstanceId}' wird uebersprungen.",
+                    LogSeverity.Error);
+                return;
+            }
+
             try
             {
                 // Pro Instanz nur ein Worker gleichzeitig. Auftraege fuer verschiedene Instanzen

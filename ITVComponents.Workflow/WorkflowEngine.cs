@@ -7,6 +7,7 @@ using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Expressions;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Stores;
 
 namespace ITVComponents.Workflow
@@ -45,7 +46,15 @@ namespace ITVComponents.Workflow
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             this.activities = activities ?? throw new ArgumentNullException(nameof(activities));
             this.evaluator = evaluator ?? new CScriptExpressionEvaluator();
+            Runtime = new WorkflowRuntimeContext();
         }
+
+        /// <summary>
+        /// Die geteilte Laufzeit-Umgebung dieser Engine (u.a. das <see cref="InstanceGate"/>). Wird an
+        /// mitwirkende Dienste (etwa die Worker der Ausfuehrungsschicht) als Property weitergereicht -
+        /// siehe <see cref="IWorkflowRuntimeAware"/>.
+        /// </summary>
+        public WorkflowRuntimeContext Runtime { get; }
 
         /// <summary>
         /// Startet eine neue Instanz der angegebenen Definition und treibt sie bis zum ersten

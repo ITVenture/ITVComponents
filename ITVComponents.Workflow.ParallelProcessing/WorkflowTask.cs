@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using ITVComponents.ParallelProcessing;
 using ITVComponents.Threading;
@@ -93,22 +92,6 @@ namespace ITVComponents.Workflow.ParallelProcessing
         /// <summary>Auftraege werden fuer Phase 4 nicht serialisiert - nichts zu ergaenzen.</summary>
         protected override void CompleteObjectData()
         {
-        }
-    }
-
-    /// <summary>
-    /// Serialisiert den Zugriff je Instanz: zwei Worker duerfen dieselbe Instanz nie gleichzeitig
-    /// vorantreiben (sonst zwei Schreiber auf derselben DB-Zeile). Verschiedene Instanzen laufen
-    /// nebenlaeufig.
-    /// </summary>
-    public sealed class InstanceGate
-    {
-        private readonly ConcurrentDictionary<string, object> gates = new ConcurrentDictionary<string, object>();
-
-        /// <summary>Liefert das Sperrobjekt fuer eine Instanz.</summary>
-        public object For(string instanceId)
-        {
-            return gates.GetOrAdd(instanceId ?? string.Empty, _ => new object());
         }
     }
 }

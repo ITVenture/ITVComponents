@@ -56,10 +56,11 @@ namespace ITVComponents.Workflow.ParallelProcessing
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             options ??= new WorkflowRunnerOptions();
 
-            var gate = new InstanceGate();
+            // Das InstanceGate gehoert zur geteilten Laufzeit-Umgebung der Engine und wird jedem Worker
+            // als Property "reingedrueckt" (nicht als Konstruktor-Argument) - siehe IWorkflowRuntimeAware.
             processor = new ParallelTaskProcessor<WorkflowTask>(
                 options.Identifier,
-                () => new WorkflowTaskWorker(engine, store, gate),
+                () => new WorkflowTaskWorker(engine, store) { Runtime = engine.Runtime },
                 highestPriority: 0,
                 lowestPriority: 0,
                 workerCount: options.WorkerCount,
