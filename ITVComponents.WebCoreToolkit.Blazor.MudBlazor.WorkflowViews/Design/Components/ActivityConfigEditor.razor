@@ -4,8 +4,10 @@
 
 @*
     Konfiguriert einen AutomatedActivityNode. Kennt der Katalog den Activity-Typ, wird ein getyptes
-    Formular aus den deklarierten Parametern gebaut; sonst (generische/Script-Aktivitaet oder kein
-    Katalog) ein roher Key/Value-Editor. Beide schreiben in dasselbe Node.Configuration-Dictionary.
+    Formular aus den deklarierten Parametern gebaut: je Eingabe eine Bindung (Konstante/Variable/
+    Ausdruck), je Ausgabe eine Ziel-Variable - geschrieben in Node.Inputs/Node.Outputs. Kennt der
+    Katalog den Typ nicht (generische/Script-Aktivitaet oder kein Katalog), bleibt der rohe
+    Key/Value-Editor auf Node.Configuration.
 *@
 
 @if (Node is not null)
@@ -30,53 +32,82 @@
         <MudText Typo="Typo.caption" Class="mt-3">Parameters</MudText>
         @foreach (var p in parameters)
         {
-            <div class="mt-1">
+            <div class="mt-2">
                 @if (p.Direction == ActivityParameterDirection.Output)
                 {
-                    <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
+                    @* Ausgabe: das Ergebnis dieses Parameters wird in einer Instanz-Variable abgelegt. *@
+                    <MudTextField T="string" Value="@GetOutputVariable(p)" ValueChanged="@(v => SetOutputVariable(p, v))"
                                   Label="@($"{Label(p)} → variable")" HelperText="Store the result in this variable"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.ArrowForward"
                                   Margin="Margin.Dense" />
                 }
                 else
                 {
-                    switch (p.Kind)
-                    {
-                        case ActivityParameterKind.Bool:
-                            <MudSwitch T="bool" Value="@GetBool(p)" ValueChanged="@(v => SetValue(p, v))"
-                                       Label="@Label(p)" Color="Color.Primary" />
-                            break;
-                        case ActivityParameterKind.Number:
-                            <MudNumericField T="decimal?" Value="@GetNumber(p)" ValueChanged="@(v => SetValue(p, v))"
-                                             Label="@Label(p)" Margin="Margin.Dense" />
-                            break;
-                        case ActivityParameterKind.Multiline:
-                            <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
-                                          Label="@Label(p)" Lines="3" Margin="Margin.Dense" />
-                            break;
-                        case ActivityParameterKind.Password:
-                            <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
-                                          Label="@Label(p)" InputType="InputType.Password" Margin="Margin.Dense" />
-                            break;
-                        case ActivityParameterKind.Picklist:
-                        case ActivityParameterKind.CallbackList:
-                            <MudSelect T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
-                                       Label="@Label(p)" Clearable="true" Margin="Margin.Dense">
-                                @foreach (var v in ValuesFor(p))
+                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                        @* Woher kommt der Wert: Konstante, Variable oder Ausdruck. *@
+                        <MudSelect T="ParameterBindingKind" Value="@GetKind(p)" ValueChanged="@(k => SetKind(p, k))"
+                                   Dense="true" Margin="Margin.Dense" Style="max-width:130px" Label="Source">
+                            <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Literal">Constant</MudSelectItem>
+                            <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Variable">Variable</MudSelectItem>
+                            <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Expression">Expression</MudSelectItem>
+                        </MudSelect>
+
+                        <div style="flex:1 1 auto">
+                            @if (GetKind(p) == ParameterBindingKind.Variable)
+                            {
+                                <MudTextField T="string" Value="@GetSource(p)" ValueChanged="@(v => SetSource(p, v))"
+                                              Label="@($"{Label(p)} (variable name)")" Margin="Margin.Dense" />
+                            }
+                            else if (GetKind(p) == ParameterBindingKind.Expression)
+                            {
+                                <MudText Typo="Typo.caption">@Label(p) (CScript)</MudText>
+                                <CScriptField @key="@("apx-" + Node.Id + "-" + p.Name)" Value="@GetSource(p)"
+                                              ValueChanged="@(v => SetSource(p, v))" Height="70" />
+                            }
+                            else
+                            {
+                                @* Konstanter Wert: getyptes Widget je Parameter-Art. *@
+                                switch (p.Kind)
                                 {
-                                    <MudSelectItem T="string" Value="@ValueString(v)">@(v.Label ?? ValueString(v))</MudSelectItem>
+                                    case ActivityParameterKind.Bool:
+                                        <MudSwitch T="bool" Value="@GetBool(p)" ValueChanged="@(v => SetLiteral(p, v))"
+                                                   Label="@Label(p)" Color="Color.Primary" />
+                                        break;
+                                    case ActivityParameterKind.Number:
+                                        <MudNumericField T="decimal?" Value="@GetNumber(p)" ValueChanged="@(v => SetLiteral(p, v))"
+                                                         Label="@Label(p)" Margin="Margin.Dense" />
+                                        break;
+                                    case ActivityParameterKind.Multiline:
+                                        <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetLiteral(p, v))"
+                                                      Label="@Label(p)" Lines="3" Margin="Margin.Dense" />
+                                        break;
+                                    case ActivityParameterKind.Password:
+                                        <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetLiteral(p, v))"
+                                                      Label="@Label(p)" InputType="InputType.Password" Margin="Margin.Dense" />
+                                        break;
+                                    case ActivityParameterKind.Picklist:
+                                    case ActivityParameterKind.CallbackList:
+                                        <MudSelect T="string" Value="@GetString(p)" ValueChanged="@(v => SetLiteral(p, v))"
+                                                   Label="@Label(p)" Clearable="true" Margin="Margin.Dense">
+                                            @foreach (var v in ValuesFor(p))
+                                            {
+                                                <MudSelectItem T="string" Value="@ValueString(v)">@(v.Label ?? ValueString(v))</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                        break;
+                                    case ActivityParameterKind.Expression:
+                                        <MudText Typo="Typo.caption">@Label(p) (CScript)</MudText>
+                                        <CScriptField @key="@("apl-" + Node.Id + "-" + p.Name)" Value="@GetString(p)"
+                                                      ValueChanged="@(v => SetLiteral(p, v))" Height="70" />
+                                        break;
+                                    default:
+                                        <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetLiteral(p, v))"
+                                                      Label="@Label(p)" Margin="Margin.Dense" />
+                                        break;
                                 }
-                            </MudSelect>
-                            break;
-                        case ActivityParameterKind.Expression:
-                            <MudText Typo="Typo.caption" Class="mt-1">@Label(p) (CScript)</MudText>
-                            <CScriptField @key="@("ap-" + Node.Id + "-" + p.Name)" Value="@GetString(p)"
-                                          ValueChanged="@(v => SetValue(p, v))" Height="70" />
-                            break;
-                        default:
-                            <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
-                                          Label="@Label(p)" Margin="Margin.Dense" />
-                            break;
-                    }
+                            }
+                        </div>
+                    </MudStack>
                 }
                 @if (!string.IsNullOrWhiteSpace(p.Description))
                 {
@@ -126,7 +157,7 @@
     {
         activityTypes = Catalog?.GetActivityTypes() ?? new List<ActivityTypeInfo>();
         // Parameter nur neu laden, wenn sich der Activity-Verweis (oder der Knoten) geaendert hat.
-        string current = Node?.ActivityRef;
+        string? current = Node?.ActivityRef;
         if (!string.Equals(current, loadedForRef, StringComparison.Ordinal))
         {
             LoadParameters();
@@ -139,6 +170,15 @@
         if (Node is null)
         {
             return;
+        }
+
+        // Anderer Typ = anderer Parametersatz: alte Bindungen/Konfiguration wuerden verwaisen, also
+        // frisch beginnen.
+        if (!string.Equals(activityRef, Node.ActivityRef, StringComparison.Ordinal))
+        {
+            Node.Inputs.Clear();
+            Node.Outputs.Clear();
+            Node.Configuration.Clear();
         }
 
         Node.ActivityRef = activityRef;
@@ -162,25 +202,75 @@
         }
     }
 
-    private IReadOnlyList<ActivityParameterValue> ValuesFor(ActivityParameter p)
-        => p.Kind == ActivityParameterKind.CallbackList && dynamicValues.TryGetValue(p.Name, out var v) ? v : p.Values;
+    // --- Eingabe-Bindungen (Node.Inputs) -------------------------------------------------------
 
-    private static string Label(ActivityParameter p)
-        => p.Required ? p.Name + " *" : p.Name;
+    private ActivityInputBinding? FindIn(ActivityParameter p)
+        => Node?.Inputs.FirstOrDefault(b => b.Parameter == p.Name);
+
+    private ActivityInputBinding Ensure(ActivityParameter p)
+    {
+        ActivityInputBinding? b = FindIn(p);
+        if (b is null)
+        {
+            b = new ActivityInputBinding { Parameter = p.Name, Kind = ParameterBindingKind.Literal };
+            Node!.Inputs.Add(b);
+        }
+
+        return b;
+    }
+
+    private void Prune(ActivityInputBinding b)
+    {
+        // Eine leere Konstant-Bindung ist Rauschen - entfernen (der Default greift dann). Eine
+        // Variablen-/Ausdrucks-Bindung ohne Quelle bleibt: der Nutzer hat die Art bewusst gewaehlt.
+        bool empty = b.Kind == ParameterBindingKind.Literal
+            && (b.Literal is null || (b.Literal is string s && string.IsNullOrEmpty(s)));
+        if (empty)
+        {
+            Node!.Inputs.Remove(b);
+        }
+    }
+
+    private ParameterBindingKind GetKind(ActivityParameter p)
+        => FindIn(p)?.Kind ?? ParameterBindingKind.Literal;
+
+    private void SetKind(ActivityParameter p, ParameterBindingKind kind)
+    {
+        ActivityInputBinding b = Ensure(p);
+        if (b.Kind == kind)
+        {
+            return;
+        }
+
+        // Beim Wechsel der Quelle die alten Werte fallen lassen (sie passen nicht mehr zur neuen Art).
+        b.Kind = kind;
+        b.Literal = null;
+        b.Source = null;
+        Prune(b);
+    }
+
+    private string GetSource(ActivityParameter p) => FindIn(p)?.Source ?? string.Empty;
+
+    private void SetSource(ActivityParameter p, string? value)
+    {
+        Ensure(p).Source = string.IsNullOrEmpty(value) ? null : value;
+    }
 
     private string GetString(ActivityParameter p)
     {
-        if (Node != null && Node.Configuration.TryGetValue(p.Name, out object v) && v != null)
+        object? v = FindIn(p)?.Literal;
+        if (v is not null)
         {
             return ToStr(v);
         }
 
-        return p.Default != null ? ToStr(p.Default) : string.Empty;
+        return p.Default is not null ? ToStr(p.Default) : string.Empty;
     }
 
     private bool GetBool(ActivityParameter p)
     {
-        if (Node != null && Node.Configuration.TryGetValue(p.Name, out object v) && v != null)
+        object? v = FindIn(p)?.Literal;
+        if (v is not null)
         {
             try { return Convert.ToBoolean(v, CultureInfo.InvariantCulture); } catch { return false; }
         }
@@ -190,8 +280,8 @@
 
     private decimal? GetNumber(ActivityParameter p)
     {
-        object v = Node != null && Node.Configuration.TryGetValue(p.Name, out object o) ? o : p.Default;
-        if (v == null)
+        object? v = FindIn(p)?.Literal ?? p.Default;
+        if (v is null)
         {
             return null;
         }
@@ -199,22 +289,50 @@
         try { return Convert.ToDecimal(v, CultureInfo.InvariantCulture); } catch { return null; }
     }
 
-    private void SetValue(ActivityParameter p, object value)
+    private void SetLiteral(ActivityParameter p, object? value)
     {
-        if (Node is null)
+        ActivityInputBinding b = Ensure(p);
+        b.Kind = ParameterBindingKind.Literal;
+        b.Source = null;
+        b.Literal = value is string s && string.IsNullOrEmpty(s) ? null : value;
+        Prune(b);
+    }
+
+    // --- Ausgabe-Bindungen (Node.Outputs) ------------------------------------------------------
+
+    private string GetOutputVariable(ActivityParameter p)
+        => Node?.Outputs.FirstOrDefault(b => b.Parameter == p.Name)?.Variable ?? string.Empty;
+
+    private void SetOutputVariable(ActivityParameter p, string? variable)
+    {
+        ActivityOutputBinding? b = Node!.Outputs.FirstOrDefault(x => x.Parameter == p.Name);
+        if (string.IsNullOrEmpty(variable))
         {
+            if (b is not null)
+            {
+                Node.Outputs.Remove(b);
+            }
+
             return;
         }
 
-        if (value == null || (value is string s && string.IsNullOrEmpty(s)))
+        if (b is null)
         {
-            Node.Configuration.Remove(p.Name);
+            Node.Outputs.Add(new ActivityOutputBinding { Parameter = p.Name, Variable = variable });
         }
         else
         {
-            Node.Configuration[p.Name] = value;
+            b.Variable = variable;
         }
     }
+
+    // --- Anzeige -------------------------------------------------------------------------------
+
+    private IReadOnlyList<ActivityParameterValue> ValuesFor(ActivityParameter p)
+        => p.Kind == ActivityParameterKind.CallbackList && dynamicValues.TryGetValue(p.Name, out var v) ? v : p.Values;
+
+    private static string Label(ActivityParameter p)
+        => p.Required ? p.Name + " *" : p.Name;
 
     private void AddKey()
     {
@@ -236,11 +354,11 @@
     private static string ValueString(ActivityParameterValue v)
         => v.Value?.ToString() ?? string.Empty;
 
-    private static string ToStr(object value)
+    private static string ToStr(object? value)
         => value switch
         {
             null => string.Empty,
             IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-            _ => value.ToString()
+            _ => value.ToString() ?? string.Empty
         };
 }
