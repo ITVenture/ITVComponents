@@ -17,7 +17,13 @@ namespace ITVComponents.Workflow.Plugins
     /// und liest ihre Parameter per Reflection aus den Klassen-Attributen - OHNE die Aktivitaeten zu
     /// instanzieren.
     /// </summary>
-    public sealed class PluginActivityCatalog : IWorkflowActivityCatalog
+    /// <remarks>
+    /// Ist zugleich <see cref="IPlugin"/>, damit der Katalog unter einem UniqueName in einer Factory
+    /// registriert und - fuer den verteilten Betrieb - ueber die InterProcessCommunication exponiert
+    /// werden kann (der Vertrag ist bewusst serialisierbar/typfrei gehalten). Der Client-Gegenpart ist
+    /// <c>WorkflowActivityCatalogClient</c> in <c>ITVComponents.Workflow.Plugins.Ipc</c>.
+    /// </remarks>
+    public sealed class PluginActivityCatalog : IWorkflowActivityCatalog, IPlugin
     {
         private readonly PluginFactory factory;
 
@@ -26,6 +32,12 @@ namespace ITVComponents.Workflow.Plugins
         {
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
         }
+
+        /// <summary>Gets or sets the UniqueName of this Plugin.</summary>
+        public string UniqueName { get; set; }
+
+        /// <summary>Informs a calling class of a Disposal of this Instance.</summary>
+        public event EventHandler Disposed;
 
         /// <inheritdoc/>
         public IReadOnlyList<ActivityTypeInfo> GetActivityTypes()
@@ -42,7 +54,10 @@ namespace ITVComponents.Workflow.Plugins
                 });
             }
 
-            return result;
+            // Bewusst als Array (nicht List): ueber die InterProcessCommunication muss der Laufzeittyp
+            // eines Rueckgabewerts ein Array sein - der Deserialisierer bildet den TypeName sonst auf
+            // T[] statt auf das Element ab und scheitert. Ein Array erfuellt zugleich IReadOnlyList<T>.
+            return result.ToArray();
         }
 
         /// <inheritdoc/>
@@ -51,14 +66,14 @@ namespace ITVComponents.Workflow.Plugins
             Type type = TypeFor(activityRef);
             if (type == null)
             {
-                return new List<ActivityParameter>();
+                return Array.Empty<ActivityParameter>();
             }
 
             return type.GetCustomAttributes<ActivityParameterAttribute>(true)
                 .Select(ToParameter)
                 .OrderBy(p => p.Order)
                 .ThenBy(p => p.Name, StringComparer.Ordinal)
-                .ToList();
+                .ToArray();
         }
 
         /// <inheritdoc/>
@@ -69,7 +84,7 @@ namespace ITVComponents.Workflow.Plugins
                 .FirstOrDefault(a => a.Name == parameterName);
             if (attr == null)
             {
-                return new List<ActivityParameterValue>();
+                return Array.Empty<ActivityParameterValue>();
             }
 
             if (attr.Kind != ActivityParameterKind.CallbackList)
@@ -97,20 +112,20 @@ namespace ITVComponents.Workflow.Plugins
                 scope = factory.NewScope(new Dictionary<string, object>(), null, false);
                 if (scope[providerName, true] is IValuesProvider provider)
                 {
-                    return provider.GetValues(parameterName)?.ToList() ?? new List<ActivityParameterValue>();
+                    return provider.GetValues(parameterName)?.ToArray() ?? Array.Empty<ActivityParameterValue>();
                 }
 
                 LogEnvironment.LogEvent(
                     $"Value provider '{providerName}' for parameter '{parameterName}' of activity " +
                     $"'{activityRef}' could not be resolved as an IValuesProvider.", LogSeverity.Error);
-                return new List<ActivityParameterValue>();
+                return Array.Empty<ActivityParameterValue>();
             }
             catch (Exception ex)
             {
                 LogEnvironment.LogEvent(
                     $"Value provider '{providerName}' for parameter '{parameterName}' of activity " +
                     $"'{activityRef}' failed: {ex.OutlineException()}", LogSeverity.Error);
-                return new List<ActivityParameterValue>();
+                return Array.Empty<ActivityParameterValue>();
             }
             finally
             {
@@ -172,11 +187,11 @@ namespace ITVComponents.Workflow.Plugins
                 Group = a.Group,
                 Order = a.Order,
                 // CallbackList-Werte kommen lazy ueber GetValidValues; statische nur bei Picklist inline.
-                Values = a.Kind == ActivityParameterKind.Picklist ? StaticValues(a) : new List<ActivityParameterValue>()
+                Values = a.Kind == ActivityParameterKind.Picklist ? StaticValues(a) : Array.Empty<ActivityParameterValue>()
             };
         }
 
-        private static List<ActivityParameterValue> StaticValues(ActivityParameterAttribute a)
+        private static ActivityParameterValue[] StaticValues(ActivityParameterAttribute a)
         {
             var result = new List<ActivityParameterValue>();
             if (a.Values != null)
@@ -191,7 +206,16 @@ namespace ITVComponents.Workflow.Plugins
                 }
             }
 
-            return result;
+            return result.ToArray();
+        }
+
+        /// <summary>
+        /// Gibt den Katalog frei. Die zugrunde liegende <see cref="PluginFactory"/> gehoert dem Katalog
+        /// NICHT (sie wird geteilt und vom Host verwaltet) und wird daher hier nicht disposed.
+        /// </summary>
+        public void Dispose()
+        {
+            Disposed?.Invoke(this, EventArgs.Empty);
         }
     }
 }

@@ -46,8 +46,13 @@ namespace ITVComponents.Workflow.Activities
     /// <summary>Ein zulaessiger Wert eines Auswahl-Parameters (Wert + Anzeigelabel).</summary>
     public sealed class ActivityParameterValue
     {
-        /// <summary>Der Wert, der in der Konfiguration gespeichert wird.</summary>
-        public object Value { get; set; }
+        /// <summary>
+        /// Der Wert, der in der Konfiguration gespeichert wird. Bewusst ein <c>string</c> (kein
+        /// <c>object</c>): Auswahlwerte sind immer Text (der Editor legt die getroffene Auswahl als
+        /// String in der Konfiguration ab), und ein string traegt problemlos typtreu ueber die IPC -
+        /// ein <c>object</c> kaeme dort als JSON-Knoten zurueck.
+        /// </summary>
+        public string Value { get; set; }
 
         /// <summary>Der Anzeigetext (faellt auf den Wert zurueck, wenn leer).</summary>
         public string Label { get; set; }
