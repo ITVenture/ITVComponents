@@ -1,0 +1,245 @@
+@using System.Globalization
+@using ITVComponents.Workflow.Model
+@using ITVComponents.Workflow.Activities
+
+@*
+    Konfiguriert einen AutomatedActivityNode. Kennt der Katalog den Activity-Typ, wird ein getyptes
+    Formular aus den deklarierten Parametern gebaut; sonst (generische/Script-Aktivitaet oder kein
+    Katalog) ein roher Key/Value-Editor. Beide schreiben in dasselbe Node.Configuration-Dictionary.
+*@
+
+@if (Node is not null)
+{
+    @if (activityTypes.Count > 0)
+    {
+        <MudSelect T="string" Value="Node.ActivityRef" ValueChanged="OnActivitySelected"
+                   Label="Activity" Margin="Margin.Dense" Dense="true">
+            @foreach (var at in activityTypes)
+            {
+                <MudSelectItem T="string" Value="@at.ActivityRef">@at.DisplayName</MudSelectItem>
+            }
+        </MudSelect>
+    }
+    else
+    {
+        <MudTextField @bind-Value="Node.ActivityRef" Label="Activity reference" Margin="Margin.Dense" />
+    }
+
+    @if (parameters.Count > 0)
+    {
+        <MudText Typo="Typo.caption" Class="mt-3">Parameters</MudText>
+        @foreach (var p in parameters)
+        {
+            <div class="mt-1">
+                @if (p.Direction == ActivityParameterDirection.Output)
+                {
+                    <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
+                                  Label="@($"{Label(p)} → variable")" HelperText="Store the result in this variable"
+                                  Margin="Margin.Dense" />
+                }
+                else
+                {
+                    switch (p.Kind)
+                    {
+                        case ActivityParameterKind.Bool:
+                            <MudSwitch T="bool" Value="@GetBool(p)" ValueChanged="@(v => SetValue(p, v))"
+                                       Label="@Label(p)" Color="Color.Primary" />
+                            break;
+                        case ActivityParameterKind.Number:
+                            <MudNumericField T="decimal?" Value="@GetNumber(p)" ValueChanged="@(v => SetValue(p, v))"
+                                             Label="@Label(p)" Margin="Margin.Dense" />
+                            break;
+                        case ActivityParameterKind.Multiline:
+                            <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
+                                          Label="@Label(p)" Lines="3" Margin="Margin.Dense" />
+                            break;
+                        case ActivityParameterKind.Password:
+                            <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
+                                          Label="@Label(p)" InputType="InputType.Password" Margin="Margin.Dense" />
+                            break;
+                        case ActivityParameterKind.Picklist:
+                            <MudSelect T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
+                                       Label="@Label(p)" Clearable="true" Margin="Margin.Dense">
+                                @foreach (var v in ValuesFor(p))
+                                {
+                                    <MudSelectItem T="string" Value="@ValueString(v)">@(v.Label ?? ValueString(v))</MudSelectItem>
+                                }
+                            </MudSelect>
+                            break;
+                        case ActivityParameterKind.Expression:
+                            <MudText Typo="Typo.caption" Class="mt-1">@Label(p) (CScript)</MudText>
+                            <CScriptField @key="@("ap-" + Node.Id + "-" + p.Name)" Value="@GetString(p)"
+                                          ValueChanged="@(v => SetValue(p, v))" Height="70" />
+                            break;
+                        default:
+                            <MudTextField T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
+                                          Label="@Label(p)" Margin="Margin.Dense" />
+                            break;
+                    }
+                }
+                @if (!string.IsNullOrWhiteSpace(p.Description))
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@p.Description</MudText>
+                }
+            </div>
+        }
+    }
+    else if (!string.IsNullOrWhiteSpace(Node.ActivityRef))
+    {
+        @* Generische Aktivitaet: rohes Key/Value-Editieren des Dictionaries. *@
+        <MudText Typo="Typo.caption" Class="mt-3">Configuration</MudText>
+        @foreach (var key in Node.Configuration.Keys.ToList())
+        {
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+                <MudTextField T="string" Value="@key" ReadOnly="true" Margin="Margin.Dense" Style="max-width:110px" />
+                <MudTextField T="string" Value="@ToStr(Node.Configuration[key])"
+                              ValueChanged="@(v => Node.Configuration[key] = v)" Margin="Margin.Dense" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => RemoveKey(key))" />
+            </MudStack>
+        }
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-2">
+            <MudTextField T="string" @bind-Value="newKey" Placeholder="key" Margin="Margin.Dense" Style="max-width:110px" />
+            <MudTextField T="string" @bind-Value="newValue" Placeholder="value" Margin="Margin.Dense" />
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddKey" />
+        </MudStack>
+    }
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Aktivitaets-Knoten.</summary>
+    [Parameter] public AutomatedActivityNode? Node { get; set; }
+
+    /// <summary>Der Katalog, oder null (dann nur der generische Editor).</summary>
+    [Parameter] public IWorkflowActivityCatalog? Catalog { get; set; }
+
+    private IReadOnlyList<ActivityTypeInfo> activityTypes = new List<ActivityTypeInfo>();
+    private List<ActivityParameter> parameters = new();
+    private readonly Dictionary<string, IReadOnlyList<ActivityParameterValue>> dynamicValues = new();
+
+    private string? newKey;
+    private string? newValue;
+    private string? loadedForRef;
+
+    protected override void OnParametersSet()
+    {
+        activityTypes = Catalog?.GetActivityTypes() ?? new List<ActivityTypeInfo>();
+        // Parameter nur neu laden, wenn sich der Activity-Verweis (oder der Knoten) geaendert hat.
+        string current = Node?.ActivityRef;
+        if (!string.Equals(current, loadedForRef, StringComparison.Ordinal))
+        {
+            LoadParameters();
+            loadedForRef = current;
+        }
+    }
+
+    private void OnActivitySelected(string activityRef)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        Node.ActivityRef = activityRef;
+        LoadParameters();
+        loadedForRef = activityRef;
+    }
+
+    private void LoadParameters()
+    {
+        parameters = new List<ActivityParameter>();
+        dynamicValues.Clear();
+        if (Catalog is null || Node is null || string.IsNullOrWhiteSpace(Node.ActivityRef))
+        {
+            return;
+        }
+
+        parameters = Catalog.GetParameters(Node.ActivityRef).ToList();
+        foreach (ActivityParameter p in parameters.Where(p => p.HasDynamicValues))
+        {
+            dynamicValues[p.Name] = Catalog.GetValidValues(Node.ActivityRef, p.Name);
+        }
+    }
+
+    private IReadOnlyList<ActivityParameterValue> ValuesFor(ActivityParameter p)
+        => p.HasDynamicValues && dynamicValues.TryGetValue(p.Name, out var v) ? v : p.Values;
+
+    private static string Label(ActivityParameter p)
+        => p.Required ? p.Name + " *" : p.Name;
+
+    private string GetString(ActivityParameter p)
+    {
+        if (Node != null && Node.Configuration.TryGetValue(p.Name, out object v) && v != null)
+        {
+            return ToStr(v);
+        }
+
+        return p.Default != null ? ToStr(p.Default) : string.Empty;
+    }
+
+    private bool GetBool(ActivityParameter p)
+    {
+        if (Node != null && Node.Configuration.TryGetValue(p.Name, out object v) && v != null)
+        {
+            try { return Convert.ToBoolean(v, CultureInfo.InvariantCulture); } catch { return false; }
+        }
+
+        return p.Default is bool b && b;
+    }
+
+    private decimal? GetNumber(ActivityParameter p)
+    {
+        object v = Node != null && Node.Configuration.TryGetValue(p.Name, out object o) ? o : p.Default;
+        if (v == null)
+        {
+            return null;
+        }
+
+        try { return Convert.ToDecimal(v, CultureInfo.InvariantCulture); } catch { return null; }
+    }
+
+    private void SetValue(ActivityParameter p, object value)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        if (value == null || (value is string s && string.IsNullOrEmpty(s)))
+        {
+            Node.Configuration.Remove(p.Name);
+        }
+        else
+        {
+            Node.Configuration[p.Name] = value;
+        }
+    }
+
+    private void AddKey()
+    {
+        if (Node is null || string.IsNullOrWhiteSpace(newKey))
+        {
+            return;
+        }
+
+        Node.Configuration[newKey] = newValue ?? string.Empty;
+        newKey = null;
+        newValue = null;
+    }
+
+    private void RemoveKey(string key)
+    {
+        Node?.Configuration.Remove(key);
+    }
+
+    private static string ValueString(ActivityParameterValue v)
+        => v.Value?.ToString() ?? string.Empty;
+
+    private static string ToStr(object value)
+        => value switch
+        {
+            null => string.Empty,
+            IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString()
+        };
+}

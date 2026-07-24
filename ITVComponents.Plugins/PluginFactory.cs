@@ -581,6 +581,47 @@ namespace ITVComponents.Plugins
         }
 
         /// <summary>
+        /// Resolves the CLR-Type a construction-string refers to, reflection-only - WITHOUT creating an
+        /// instance. Useful for introspecting a plugin (e.g. reading class-level attributes) without
+        /// loading it. Returns false (and logs) if the type cannot be resolved.
+        /// </summary>
+        /// <param name="constructionString">a plugin construction-string ([Assembly]&lt;FullType&gt;params)</param>
+        /// <param name="pluginType">the resolved type, or null</param>
+        public bool TryGetPluginType(string constructionString, out Type pluginType)
+        {
+            pluginType = null;
+            if (string.IsNullOrWhiteSpace(constructionString))
+            {
+                return false;
+            }
+
+            try
+            {
+                PluginConstructionElement parsed =
+                    PluginConstructorParser.ParsePluginString(constructionString, null, ScopeFormatter);
+                Assembly a;
+                if (registeredAssemblies.TryGetValue(parsed.AssemblyName, out var known))
+                {
+                    a = known.Value;
+                }
+                else
+                {
+                    a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext);
+                }
+
+                pluginType = a?.GetType(parsed.TypeName);
+                return pluginType != null;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Could not resolve the plugin type for '{constructionString}': {ex.OutlineException()}",
+                    LogSeverity.Warning);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Initializes the known plugins in the order they were initialized
         /// </summary>
         public void InitializeDeferrables()
