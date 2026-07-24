@@ -1,0 +1,39 @@
+@page "/Workflow"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Workflow</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Workflow</MudText>
+
+@* Das Feature schaltet den Bereich frei; die Kacheln erscheinen je nach Aspekt-Berechtigung. *@
+<SecureView RequiredPermissions="Workflow.Monitor,Workflow.Design" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        <MudStack Spacing="3">
+            <SecureView RequiredPermissions="Workflow.Monitor">
+                <Permitted>
+                    <MudPaper Class="pa-4">
+                        <MudText Typo="Typo.h6">Monitoring</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">Laufende und beendete Instanzen ansehen.</MudText>
+                        <MudButton Href="/Workflow/Instances" Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Monitor">Instanzen</MudButton>
+                    </MudPaper>
+                </Permitted>
+            </SecureView>
+            <SecureView RequiredPermissions="Workflow.Design">
+                <Permitted>
+                    <MudPaper Class="pa-4">
+                        <MudText Typo="Typo.h6">Design</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">Workflow-Definitionen anlegen und bearbeiten.</MudText>
+                        <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Edit" Disabled="true">
+                            Definitionen (folgt)
+                        </MudButton>
+                    </MudPaper>
+                </Permitted>
+            </SecureView>
+        </MudStack>
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">Keine Berechtigung fuer den Workflow-Bereich.</MudAlert>
+    </NotPermitted>
+</SecureView>

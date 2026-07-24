@@ -237,6 +237,34 @@ namespace ITVComponents.Workflow
             return count;
         }
 
+        /// <summary>
+        /// Bricht eine Instanz ab: verbraucht ihre Tokens und setzt den Status auf
+        /// <see cref="WorkflowStatus.Cancelled"/>. Bereits beendete Instanzen bleiben unveraendert.
+        /// </summary>
+        /// <param name="instanceId">die Instanz-Id</param>
+        /// <returns>true, wenn die Instanz abgebrochen wurde</returns>
+        public bool CancelWorkflow(string instanceId)
+        {
+            WorkflowInstance instance = store.GetInstance(instanceId);
+            if (instance == null
+                || instance.Status == WorkflowStatus.Completed
+                || instance.Status == WorkflowStatus.Faulted
+                || instance.Status == WorkflowStatus.Cancelled)
+            {
+                return false;
+            }
+
+            foreach (Token token in instance.Tokens)
+            {
+                token.Status = TokenStatus.Consumed;
+            }
+
+            instance.Status = WorkflowStatus.Cancelled;
+            instance.Log("Cancelled");
+            store.SaveInstance(instance);
+            return true;
+        }
+
         private void Advance(WorkflowInstance instance, WorkflowDefinition definition)
         {
             if (instance.Status == WorkflowStatus.Completed

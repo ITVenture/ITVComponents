@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ITVComponents.Workflow;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
@@ -359,6 +360,34 @@ namespace ITVComponents.Workflow.Test
             {
                 Assert.AreEqual(true, instance.Variables[name], $"Activity '{name}' should have run.");
             }
+        }
+
+        [TestMethod]
+        public void CancelWorkflowConsumesTokensAndSetsCancelled()
+        {
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "cancel",
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new WaitNode { Id = "w", SignalName = "go" },
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow> { Flow("s", "w"), Flow("w", "e") }
+            });
+
+            WorkflowInstance instance = engine.StartWorkflow("cancel");
+            Assert.AreEqual(WorkflowStatus.Waiting, instance.Status);
+
+            Assert.IsTrue(engine.CancelWorkflow(instance.Id));
+
+            WorkflowInstance reloaded = store.GetInstance(instance.Id);
+            Assert.AreEqual(WorkflowStatus.Cancelled, reloaded.Status);
+            Assert.IsTrue(reloaded.Tokens.All(t => t.Status == TokenStatus.Consumed));
+
+            // Ein bereits abgebrochener Workflow laesst sich nicht erneut abbrechen.
+            Assert.IsFalse(engine.CancelWorkflow(instance.Id));
         }
 
         private static WorkflowDefinition GatewayDefinition()

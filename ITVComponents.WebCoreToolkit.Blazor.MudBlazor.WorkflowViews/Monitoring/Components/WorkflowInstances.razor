@@ -1,0 +1,125 @@
+@page "/Workflow/Instances"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@inject IWorkflowMonitorHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+
+<PageTitle>Workflow instances</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Workflow instances</MudText>
+
+<SecureView RequiredPermissions="Workflow.Monitor" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        @if (currentUser is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudDataGrid T="WorkflowInstanceListItem"
+                         @ref="grid"
+                         ServerData="LoadData"
+                         SortMode="SortMode.Single"
+                         RowsPerPage="25"
+                         Hover="true"
+                         Dense="true">
+                <ToolBarContent>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="Refresh" OnClick="ReloadGrid" />
+                    <MudText Typo="Typo.h6">Instances</MudText>
+                    <MudSpacer />
+                    <MudSelect T="int?" @bind-Value="statusFilter" Label="Status" Clearable="true" Dense="true"
+                               Style="max-width:170px" Margin="Margin.Dense" OnClearButtonClick="ReloadGrid">
+                        @foreach (var status in Enum.GetValues<WorkflowStatus>())
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)(int)status)">@status</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTextField @bind-Value="search"
+                                  Placeholder="Search id / definition / correlation…"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="mt-0 ml-2"
+                                  DebounceInterval="300"
+                                  OnDebounceIntervalElapsed="ReloadGrid" />
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="x => x.DefinitionId" Title="Definition" />
+                    <PropertyColumn Property="x => x.DefinitionVersion" Title="Ver" />
+                    <PropertyColumn Property="x => x.Status" Title="Status" />
+                    <PropertyColumn Property="x => x.CorrelationKey" Title="Correlation" />
+                    <PropertyColumn Property="x => x.UpdatedUtc" Title="Updated (UTC)" />
+                    <TemplateColumn T="WorkflowInstanceListItem" Title="" Sortable="false">
+                        <CellTemplate>
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details"
+                                           OnClick="@(() => OpenDetail(context.Item))" />
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="WorkflowInstanceListItem" />
+                </PagerContent>
+            </MudDataGrid>
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view workflow instances.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private MudDataGrid<WorkflowInstanceListItem>? grid;
+    private ClaimsPrincipal? currentUser;
+    private string? search;
+    private int? statusFilter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<WorkflowInstanceListItem>> LoadData(GridState<WorkflowInstanceListItem> state,
+        CancellationToken ct)
+    {
+        if (currentUser is null)
+        {
+            return new GridData<WorkflowInstanceListItem> { Items = Array.Empty<WorkflowInstanceListItem>(), TotalItems = 0 };
+        }
+
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new ListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search,
+            Status = statusFilter
+        };
+
+        var result = await Handler.ListInstancesAsync(currentUser, query);
+        return new GridData<WorkflowInstanceListItem> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null)
+        {
+            await grid.ReloadServerData();
+        }
+    }
+
+    private async Task OpenDetail(WorkflowInstanceListItem item)
+    {
+        var parameters = new DialogParameters<WorkflowInstanceDetailDialog> { { d => d.InstanceId, item.Id } };
+        var dlg = await DialogService.ShowAsync<WorkflowInstanceDetailDialog>(
+            $"Instance {item.Id}", parameters, EditDialogDefaults.Detail);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            await ReloadGrid();
+        }
+    }
+}

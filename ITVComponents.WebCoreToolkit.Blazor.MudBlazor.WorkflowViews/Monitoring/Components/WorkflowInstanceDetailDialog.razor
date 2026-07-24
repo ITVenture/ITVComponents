@@ -1,0 +1,154 @@
+@inject IWorkflowMonitorHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (instance is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudTabs Elevation="0" Rounded="true" PanelClass="pa-4">
+                <MudTabPanel Text="Overview">
+                    <MudSimpleTable Dense="true" Hover="true">
+                        <tbody>
+                            <tr><td>Id</td><td>@instance.Id</td></tr>
+                            <tr><td>Definition</td><td>@instance.DefinitionId (v@instance.DefinitionVersion)</td></tr>
+                            <tr><td>Status</td><td>@instance.Status</td></tr>
+                            <tr><td>Correlation</td><td>@instance.CorrelationKey</td></tr>
+                            <tr><td>Created (UTC)</td><td>@instance.CreatedUtc</td></tr>
+                            <tr><td>Updated (UTC)</td><td>@instance.UpdatedUtc</td></tr>
+                            @if (!string.IsNullOrEmpty(instance.FaultMessage))
+                            {
+                                <tr><td>Fault</td><td>@instance.FaultMessage</td></tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudTabPanel>
+                <MudTabPanel Text="@($"Variables ({instance.Variables.Count})")">
+                    <MudSimpleTable Dense="true" Hover="true">
+                        <thead><tr><th>Name</th><th>Value</th></tr></thead>
+                        <tbody>
+                            @foreach (var kv in instance.Variables)
+                            {
+                                <tr><td>@kv.Key</td><td>@kv.Value</td></tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudTabPanel>
+                <MudTabPanel Text="@($"Tokens ({instance.Tokens.Count})")">
+                    <MudSimpleTable Dense="true" Hover="true">
+                        <thead><tr><th>Node</th><th>Status</th><th>Waiting for</th></tr></thead>
+                        <tbody>
+                            @foreach (var token in instance.Tokens)
+                            {
+                                <tr>
+                                    <td>@token.NodeId</td>
+                                    <td>@token.Status</td>
+                                    <td>@(token.WaitingSignal ?? (token.DueUtc.HasValue ? $"timer {token.DueUtc:o}" : ""))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudTabPanel>
+                <MudTabPanel Text="@($"History ({instance.History.Count})")">
+                    <MudSimpleTable Dense="true" Hover="true">
+                        <thead><tr><th>Time (UTC)</th><th>Event</th><th>Node</th><th>Detail</th></tr></thead>
+                        <tbody>
+                            @foreach (var entry in instance.History)
+                            {
+                                <tr><td>@entry.TimestampUtc</td><td>@entry.Event</td><td>@entry.NodeId</td><td>@entry.Detail</td></tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudTabPanel>
+            </MudTabs>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (instance is not null && instance.Status == WorkflowStatus.Waiting)
+        {
+            <SecureView RequiredPermissions="Workflow.Operate">
+                <Permitted>
+                    <MudTextField @bind-Value="signalName" Placeholder="Signal name" Margin="Margin.Dense"
+                                  Class="mr-2" Style="max-width:200px" />
+                    <MudButton Color="Color.Primary" OnClick="SendSignal"
+                               Disabled="@string.IsNullOrWhiteSpace(signalName)">Send signal</MudButton>
+                </Permitted>
+            </SecureView>
+        }
+        @if (instance is not null
+             && (instance.Status == WorkflowStatus.Running || instance.Status == WorkflowStatus.Waiting))
+        {
+            <SecureView RequiredPermissions="Workflow.Operate">
+                <Permitted>
+                    <MudButton Color="Color.Error" OnClick="Cancel">Cancel workflow</MudButton>
+                </Permitted>
+            </SecureView>
+        }
+        <MudSpacer />
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string InstanceId { get; set; } = "";
+
+    private WorkflowInstance? instance;
+    private ClaimsPrincipal? currentUser;
+    private string? signalName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        instance = await Handler.GetInstanceAsync(currentUser, InstanceId);
+    }
+
+    private async Task SendSignal()
+    {
+        if (currentUser is null || string.IsNullOrWhiteSpace(signalName))
+        {
+            return;
+        }
+
+        var ok = await Handler.SignalAsync(currentUser, InstanceId, signalName!);
+        if (ok)
+        {
+            Snackbar.Add("Signal delivered", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            Snackbar.Add("No token was waiting for that signal (or no permission).", Severity.Warning);
+        }
+    }
+
+    private async Task Cancel()
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        var ok = await Handler.CancelAsync(currentUser, InstanceId);
+        if (ok)
+        {
+            Snackbar.Add("Workflow cancelled", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            Snackbar.Add("Could not cancel (or no permission).", Severity.Warning);
+        }
+    }
+
+    private void Close()
+    {
+        MudDialog.Close(DialogResult.Ok(false));
+    }
+}
