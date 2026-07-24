@@ -10,5 +10,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration
     public sealed class DummyUserAwareDbContext:DbContext, IUserAwareContext
     {
         public string CurrentUserName { get; }
+
+        public string CurrentTenant { get; }
     }
 }

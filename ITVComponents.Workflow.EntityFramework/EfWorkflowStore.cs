@@ -4,6 +4,7 @@ using System.Linq;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Stores;
+using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.Workflow.EntityFramework
 {
@@ -44,13 +45,21 @@ namespace ITVComponents.Workflow.EntityFramework
             }
 
             using WorkflowContext ctx = contextFactory();
-            WorkflowDefinitionRow row = ctx.WorkflowDefinitions.Find(definition.Id, definition.Version);
+            // Bewusst OHNE Query-Filter und explizit auf den Tenant der zu speichernden Definition
+            // gematcht: das Schreiben soll deterministisch die richtige Zeile treffen, unabhaengig vom
+            // gerade aktiven Tenant-Kontext (sonst koennte der Filter die zu aktualisierende Zeile
+            // verstecken und ein Duplikat/Schluesselkonflikt entstehen).
+            WorkflowDefinitionRow row = ctx.WorkflowDefinitions
+                .IgnoreQueryFilters()
+                .FirstOrDefault(d => d.Id == definition.Id && d.Version == definition.Version
+                                     && d.TenantId == definition.TenantId);
             if (row == null)
             {
                 row = new WorkflowDefinitionRow { Id = definition.Id, Version = definition.Version };
                 ctx.WorkflowDefinitions.Add(row);
             }
 
+            row.TenantId = definition.TenantId;
             // Die Knoten-Polymorphie steckt in den Diskriminator-Attributen - das JSON bleibt frei
             // von .NET-Typnamen.
             row.DefinitionJson = WorkflowJson.Serialize(definition);
@@ -61,8 +70,12 @@ namespace ITVComponents.Workflow.EntityFramework
         public WorkflowDefinition GetDefinition(string definitionId, int? version = null)
         {
             using WorkflowContext ctx = contextFactory();
+            // Bewusst .Where statt .Find: Find umgeht in EF Core die globalen Query-Filter - der Tenant-
+            // Filter (eigener Tenant ODER oeffentlich) muss hier aber greifen.
             WorkflowDefinitionRow row = version.HasValue
-                ? ctx.WorkflowDefinitions.Find(definitionId, version.Value)
+                ? ctx.WorkflowDefinitions
+                    .Where(d => d.Id == definitionId && d.Version == version.Value)
+                    .FirstOrDefault()
                 : ctx.WorkflowDefinitions
                     .Where(d => d.Id == definitionId)
                     .OrderByDescending(d => d.Version)
@@ -82,10 +95,18 @@ namespace ITVComponents.Workflow.EntityFramework
             instance.UpdatedUtc = DateTime.UtcNow;
 
             using WorkflowContext ctx = contextFactory();
-            WorkflowInstanceRow row = ctx.WorkflowInstances.Find(instance.Id);
+            // Instanz-Id ist global eindeutig (GUID) - der Lookup ignoriert bewusst die Query-Filter,
+            // damit ein Speichern die vorhandene Zeile trifft, egal welcher Tenant gerade aktiv ist.
+            WorkflowInstanceRow row = ctx.WorkflowInstances
+                .IgnoreQueryFilters()
+                .FirstOrDefault(r => r.Id == instance.Id);
             if (row == null)
             {
-                row = new WorkflowInstanceRow { Id = instance.Id };
+                // Neue Instanz: Tenant festschreiben (aus der Instanz oder dem aktiven Kontext) und
+                // zurueckspiegeln. Bei bestehenden Zeilen bleibt der Tenant unveraendert.
+                string tenant = instance.TenantId ?? ctx.CurrentTenant;
+                row = new WorkflowInstanceRow { Id = instance.Id, TenantId = tenant };
+                instance.TenantId = tenant;
                 ctx.WorkflowInstances.Add(row);
             }
 
@@ -122,7 +143,8 @@ namespace ITVComponents.Workflow.EntityFramework
         public WorkflowInstance GetInstance(string instanceId)
         {
             using WorkflowContext ctx = contextFactory();
-            WorkflowInstanceRow row = ctx.WorkflowInstances.Find(instanceId);
+            // .Where statt .Find, damit der strikte Instanz-Tenant-Filter greift (Find umgeht ihn).
+            WorkflowInstanceRow row = ctx.WorkflowInstances.FirstOrDefault(r => r.Id == instanceId);
             return row == null ? null : ToInstance(row);
         }
 
@@ -185,6 +207,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 Id = row.Id,
                 DefinitionId = row.DefinitionId,
                 DefinitionVersion = row.DefinitionVersion,
+                TenantId = row.TenantId,
                 Status = (WorkflowStatus)row.Status,
                 CorrelationKey = row.CorrelationKey,
                 FaultMessage = row.FaultMessage,

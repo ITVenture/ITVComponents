@@ -130,7 +130,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         /// </summary>
         protected bool UseFilters => useFilters;
 
-        private string CurrentTenant
+        public string CurrentTenant
         {
             get
             {

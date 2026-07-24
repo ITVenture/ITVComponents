@@ -63,6 +63,13 @@ namespace ITVComponents.Workflow.Instances
         /// <summary>Version der Definition, an der diese Instanz laeuft.</summary>
         public int DefinitionVersion { get; set; }
 
+        /// <summary>
+        /// Name des Tenants, in dessen Kontext diese Instanz laeuft, oder null fuer eine tenant-freie
+        /// Ausfuehrung. Die Ausfuehrung ist strikt an diesen Tenant gebunden. Der Kern wertet den Wert
+        /// nicht aus - er wird von der Persistenzschicht gesetzt/gefiltert.
+        /// </summary>
+        public string TenantId { get; set; }
+
         /// <summary>Der aktuelle Status der Instanz.</summary>
         public WorkflowStatus Status { get; set; } = WorkflowStatus.Running;
 

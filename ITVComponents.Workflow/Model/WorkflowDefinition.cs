@@ -21,6 +21,13 @@ namespace ITVComponents.Workflow.Model
         /// <summary>Anzeigename des Workflows.</summary>
         public string Name { get; set; }
 
+        /// <summary>
+        /// Name des Tenants, dem die Definition gehoert, oder null fuer eine oeffentliche Definition.
+        /// Oeffentliche Definitionen sind fuer alle Tenants sichtbar und im Kontext eines beliebigen
+        /// Tenants startbar; tenant-eigene nur im eigenen Tenant. Der Kern wertet den Wert nicht aus.
+        /// </summary>
+        public string TenantId { get; set; }
+
         /// <summary>Die Knoten des Graphen.</summary>
         public List<WorkflowNode> Nodes { get; set; } = new List<WorkflowNode>();
 

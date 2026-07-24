@@ -1,5 +1,11 @@
 using System;
+using ITVComponents.EFRepo.DIIntegration;
+using ITVComponents.EFRepo.Options;
+using ITVComponents.Plugins;
+using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
+using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace ITVComponents.Workflow.EntityFramework
 {
@@ -21,6 +27,12 @@ namespace ITVComponents.Workflow.EntityFramework
 
         /// <summary>Status als Zahl (indizierbar).</summary>
         public int Status { get; set; }
+
+        /// <summary>
+        /// Name des Tenants, dem die Instanz gehoert, oder null fuer eine tenant-freie Instanz. Eine
+        /// laufende Instanz ist strikt an ihren Tenant gebunden (anders als eine oeffentliche Definition).
+        /// </summary>
+        public string TenantId { get; set; }
 
         /// <summary>Korrelationsschluessel, oder null.</summary>
         public string CorrelationKey { get; set; }
@@ -77,6 +89,13 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Version der Definition.</summary>
         public int Version { get; set; }
 
+        /// <summary>
+        /// Name des Tenants, dem die Definition gehoert, oder null fuer eine oeffentliche Definition.
+        /// Oeffentliche Definitionen sind fuer alle Tenants sichtbar und koennen im Kontext eines
+        /// beliebigen Tenants gestartet werden.
+        /// </summary>
+        public string TenantId { get; set; }
+
         /// <summary>Die vollstaendige Definition als JSON.</summary>
         public string DefinitionJson { get; set; }
     }
@@ -85,12 +104,64 @@ namespace ITVComponents.Workflow.EntityFramework
     /// Der EF-Core-Kontext des Workflow-Stores. Provider-agnostisch: SqlServer, PostgreSql oder
     /// SQLite werden erst beim Bauen der <see cref="DbContextOptions"/> gewaehlt.
     /// </summary>
-    public class WorkflowContext : DbContext
+    /// <remarks>
+    /// Plugin- und tenant-faehig nach dem Vorbild des Toolkit-<c>TaskSchedulerContext</c>: als
+    /// <see cref="ScopedDependencyAttribute">ScopedDependency</see> und <see cref="IPlugin"/> laesst
+    /// er sich per WebPluginHelper (Web) ODER in einem Service laden. Den aktiven Tenant liest er aus
+    /// einem injizierten <see cref="IUserAwareContext"/> (typischerweise der Security-Context) - nicht
+    /// aus dem Web-Stack direkt. Der options-only-Ctor (Migrationen/Tests) laesst die Tenant-Filter aus.
+    /// </remarks>
+    [ScopedDependency(FriendlyName = "WorkflowContext")]
+    public class WorkflowContext : DbContext, IPlugin
     {
-        /// <summary>Initialisiert den Kontext.</summary>
+        private readonly DbContextModelBuilderOptions<WorkflowContext> modelOptions;
+        private readonly IUserAwareContext userContext;
+
+        /// <summary>
+        /// Options-only-Ctor fuer Migrationen/Design-Time/Tests. Es wird KEIN Tenant-Filter gesetzt -
+        /// alle Zeilen sind sichtbar.
+        /// </summary>
         public WorkflowContext(DbContextOptions<WorkflowContext> options) : base(options)
         {
         }
+
+        /// <summary>
+        /// Basis-Ctor mit Model-Optionen und Tenant-Quelle. Wird vom Plugin-Ctor genutzt.
+        /// </summary>
+        public WorkflowContext(DbContextOptions options, DbContextModelBuilderOptions<WorkflowContext> modelOptions,
+            IUserAwareContext userContext) : base(options)
+        {
+            this.modelOptions = modelOptions;
+            this.userContext = userContext;
+        }
+
+        /// <summary>
+        /// Plugin-/Laufzeit-Ctor: die Options kommen ueber einen <see cref="ContextOptionsLoader{TContext}"/>
+        /// (Provider-Wahl im Host), der Tenant ueber den injizierten <see cref="IUserAwareContext"/>.
+        /// <paramref name="useTenantFilter"/> schaltet die Tenant-Schicht.
+        /// </summary>
+        public WorkflowContext(ContextOptionsLoader<WorkflowContext> dbOptions, IUserAwareContext userContext,
+            bool useTenantFilter, IOptions<DbContextModelBuilderOptions<WorkflowContext>> modelOptions)
+            : this(dbOptions.Options, modelOptions.Value, userContext)
+        {
+            UseTenantFilter = useTenantFilter;
+            this.modelOptions.ConfigureExpressionProperty(() => CurrentTenant);
+        }
+
+        /// <summary>Schaltet die tenant-abhaengige Filterung.</summary>
+        public bool UseTenantFilter { get; set; }
+
+        /// <summary>
+        /// Der aktuell aktive Tenant (nur bei aktivem Filter), gelesen aus dem injizierten
+        /// <see cref="IUserAwareContext"/>. Speist die globalen Query-Filter und das Stempeln neuer Zeilen.
+        /// </summary>
+        public string CurrentTenant => UseTenantFilter ? userContext?.CurrentTenant : null;
+
+        /// <inheritdoc/>
+        public string UniqueName { get; set; }
+
+        /// <inheritdoc/>
+        public event EventHandler Disposed;
 
         /// <summary>Die Workflow-Instanzen.</summary>
         public DbSet<WorkflowInstanceRow> WorkflowInstances { get; set; }
@@ -111,6 +182,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasKey(n => n.Id);
                 e.HasIndex(n => n.Status);
                 e.HasIndex(n => n.CorrelationKey);
+                e.HasIndex(n => n.TenantId);
             });
 
             modelBuilder.Entity<WaitingTokenRow>(e =>
@@ -124,7 +196,19 @@ namespace ITVComponents.Workflow.EntityFramework
             modelBuilder.Entity<WorkflowDefinitionRow>(e =>
             {
                 e.HasKey(n => new { n.Id, n.Version });
+                e.HasIndex(n => n.TenantId);
             });
+
+            // Nur wenn der Plugin-Ctor Model-Optionen gesetzt hat, werden die tenant-abhaengigen
+            // globalen Query-Filter angewendet. Der options-only-Pfad bleibt filterfrei.
+            modelOptions?.ConfigureModelBuilder(modelBuilder);
+        }
+
+        /// <inheritdoc/>
+        public override void Dispose()
+        {
+            base.Dispose();
+            Disposed?.Invoke(this, EventArgs.Empty);
         }
     }
 }
