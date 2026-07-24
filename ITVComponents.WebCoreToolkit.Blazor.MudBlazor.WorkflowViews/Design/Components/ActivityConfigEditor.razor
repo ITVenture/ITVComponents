@@ -58,6 +58,7 @@
                                           Label="@Label(p)" InputType="InputType.Password" Margin="Margin.Dense" />
                             break;
                         case ActivityParameterKind.Picklist:
+                        case ActivityParameterKind.CallbackList:
                             <MudSelect T="string" Value="@GetString(p)" ValueChanged="@(v => SetValue(p, v))"
                                        Label="@Label(p)" Clearable="true" Margin="Margin.Dense">
                                 @foreach (var v in ValuesFor(p))
@@ -155,14 +156,14 @@
         }
 
         parameters = Catalog.GetParameters(Node.ActivityRef).ToList();
-        foreach (ActivityParameter p in parameters.Where(p => p.HasDynamicValues))
+        foreach (ActivityParameter p in parameters.Where(p => p.Kind == ActivityParameterKind.CallbackList))
         {
             dynamicValues[p.Name] = Catalog.GetValidValues(Node.ActivityRef, p.Name);
         }
     }
 
     private IReadOnlyList<ActivityParameterValue> ValuesFor(ActivityParameter p)
-        => p.HasDynamicValues && dynamicValues.TryGetValue(p.Name, out var v) ? v : p.Values;
+        => p.Kind == ActivityParameterKind.CallbackList && dynamicValues.TryGetValue(p.Name, out var v) ? v : p.Values;
 
     private static string Label(ActivityParameter p)
         => p.Required ? p.Name + " *" : p.Name;

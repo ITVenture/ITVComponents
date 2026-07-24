@@ -17,8 +17,14 @@ namespace ITVComponents.Workflow.Activities
         /// <summary>Ja/Nein-Flag.</summary>
         Bool,
 
-        /// <summary>Auswahl aus einer Liste zulaessiger Werte (statisch oder ueber einen Provider).</summary>
+        /// <summary>Auswahl aus einer Liste statisch deklarierter Werte.</summary>
         Picklist,
+
+        /// <summary>
+        /// Auswahl aus einer Liste, die zur Entwurfszeit dynamisch von einem <c>IValuesProvider</c>
+        /// ermittelt wird (der Katalog konstruiert das Provider-Objekt in einem eigenen Scope).
+        /// </summary>
+        CallbackList,
 
         /// <summary>Maskierte Eingabe (z.B. Passwort).</summary>
         Password,
@@ -79,14 +85,12 @@ namespace ITVComponents.Workflow.Activities
         /// <summary>Sortierung im Formular.</summary>
         public int Order { get; set; }
 
-        /// <summary>Statische Auswahlwerte (bei <see cref="ActivityParameterKind.Picklist"/>), oder leer.</summary>
-        public IReadOnlyList<ActivityParameterValue> Values { get; set; } = new List<ActivityParameterValue>();
-
         /// <summary>
-        /// True, wenn die Auswahlwerte dynamisch ueber einen Provider ermittelt werden - der Editor holt
-        /// sie dann bei Bedarf ueber <see cref="IWorkflowActivityCatalog.GetValidValues"/>.
+        /// Statische Auswahlwerte (bei <see cref="ActivityParameterKind.Picklist"/>), oder leer. Bei
+        /// <see cref="ActivityParameterKind.CallbackList"/> holt der Editor die Werte bei Bedarf ueber
+        /// <see cref="IWorkflowActivityCatalog.GetValidValues"/>.
         /// </summary>
-        public bool HasDynamicValues { get; set; }
+        public IReadOnlyList<ActivityParameterValue> Values { get; set; } = new List<ActivityParameterValue>();
     }
 
     /// <summary>Die Kurzbeschreibung eines verfuegbaren Aktivitaets-Typs.</summary>

@@ -72,33 +72,36 @@ namespace ITVComponents.Workflow.Plugins
                 return new List<ActivityParameterValue>();
             }
 
-            if (string.IsNullOrEmpty(attr.ValuesProvider))
+            if (attr.Kind != ActivityParameterKind.CallbackList)
             {
+                // Statische Picklist (oder nichts).
                 return StaticValues(attr);
             }
 
-            MethodInfo method = type.GetMethod(attr.ValuesProvider, BindingFlags.Public | BindingFlags.Static);
-            if (method == null)
+            if (attr.ValuesProvider == null || !typeof(IValuesProvider).IsAssignableFrom(attr.ValuesProvider))
             {
                 LogEnvironment.LogEvent(
-                    $"Value provider '{attr.ValuesProvider}' for parameter '{parameterName}' of activity " +
-                    $"'{activityRef}' was not found (expected a public static method).", LogSeverity.Error);
+                    $"Parameter '{parameterName}' of activity '{activityRef}' is a CallbackList but declares no " +
+                    "valid IValuesProvider type.", LogSeverity.Error);
                 return new List<ActivityParameterValue>();
             }
 
             IPluginFactory scope = null;
             try
             {
-                // Eigener Scope, damit der Provider z.B. Hilfs-Plugins laden kann; wird danach abgeraeumt.
+                // Eigener Scope: der Provider wird darin konstruiert (volle Konstruktor-Injection ueber die
+                // Factory) und beim Schliessen wieder freigegeben.
                 scope = factory.NewScope(new Dictionary<string, object>(), null, false);
-                var raw = method.Invoke(null, new object[] { scope }) as IEnumerable<ActivityParameterValue>;
-                return raw?.ToList() ?? new List<ActivityParameterValue>();
+                string constructor = $"[{attr.ValuesProvider.Assembly.Location}]<{attr.ValuesProvider.FullName}>";
+                IValuesProvider provider = scope.LoadPlugin<IValuesProvider>(
+                    $"valuesprovider:{activityRef}:{parameterName}", constructor);
+                return provider.GetValues(parameterName)?.ToList() ?? new List<ActivityParameterValue>();
             }
             catch (Exception ex)
             {
                 LogEnvironment.LogEvent(
-                    $"Value provider '{attr.ValuesProvider}' for parameter '{parameterName}' of activity " +
-                    $"'{activityRef}' failed: {ex.OutlineException()}", LogSeverity.Error);
+                    $"Value provider '{attr.ValuesProvider?.FullName}' for parameter '{parameterName}' of " +
+                    $"activity '{activityRef}' failed: {ex.OutlineException()}", LogSeverity.Error);
                 return new List<ActivityParameterValue>();
             }
             finally
@@ -150,7 +153,6 @@ namespace ITVComponents.Workflow.Plugins
 
         private static ActivityParameter ToParameter(ActivityParameterAttribute a)
         {
-            bool dynamic = !string.IsNullOrEmpty(a.ValuesProvider);
             return new ActivityParameter
             {
                 Name = a.Name,
@@ -161,8 +163,8 @@ namespace ITVComponents.Workflow.Plugins
                 Description = a.Description,
                 Group = a.Group,
                 Order = a.Order,
-                HasDynamicValues = dynamic,
-                Values = dynamic ? new List<ActivityParameterValue>() : StaticValues(a)
+                // CallbackList-Werte kommen lazy ueber GetValidValues; statische nur bei Picklist inline.
+                Values = a.Kind == ActivityParameterKind.Picklist ? StaticValues(a) : new List<ActivityParameterValue>()
             };
         }
 

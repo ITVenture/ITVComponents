@@ -49,11 +49,11 @@ namespace ITVComponents.Workflow.Plugins
         public string[] Labels { get; set; }
 
         /// <summary>
-        /// Name einer statischen Methode auf derselben Klasse, die die Auswahlwerte dynamisch ermittelt.
-        /// Signatur: <c>public static IEnumerable&lt;ActivityParameterValue&gt; M(IPluginFactory scope)</c>.
-        /// Der Katalog ruft sie in einem eigenen, danach abgeraeumten Scope auf.
+        /// Der Typ eines <see cref="IValuesProvider"/>, der die Auswahlwerte dynamisch liefert. Pflicht
+        /// bei <see cref="ActivityParameterKind.CallbackList"/>. Der Katalog konstruiert diesen Typ in
+        /// einem eigenen Scope (volle Konstruktor-Injection) und ruft <see cref="IValuesProvider.GetValues"/>.
         /// </summary>
-        public string ValuesProvider { get; set; }
+        public Type ValuesProvider { get; set; }
     }
 
     /// <summary>

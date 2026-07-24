@@ -18,7 +18,7 @@ namespace ITVComponents.Workflow.Plugins.Test
     [ActivityParameter("to", Kind = ActivityParameterKind.String, Required = true, Description = "Recipient", Order = 1)]
     [ActivityParameter("priority", Kind = ActivityParameterKind.Picklist, Values = new[] { "low", "high" }, Order = 2)]
     [ActivityParameter("body", Kind = ActivityParameterKind.Multiline, Order = 3)]
-    [ActivityParameter("queue", Kind = ActivityParameterKind.Picklist, ValuesProvider = nameof(GetQueues), Order = 4)]
+    [ActivityParameter("queue", Kind = ActivityParameterKind.CallbackList, ValuesProvider = typeof(QueueValuesProvider), Order = 4)]
     [ActivityParameter("messageId", Kind = ActivityParameterKind.String, Direction = ActivityParameterDirection.Output, Order = 5)]
     public class SendMailActivity : IActivityPlugin
     {
@@ -42,9 +42,26 @@ namespace ITVComponents.Workflow.Plugins.Test
         {
             Disposed?.Invoke(this, EventArgs.Empty);
         }
+    }
 
-        /// <summary>Dynamischer Werte-Provider - laeuft im Katalog-Scope.</summary>
-        public static IEnumerable<ActivityParameterValue> GetQueues(IPluginFactory scope)
+    /// <summary>Dynamischer Werte-Provider - wird vom Katalog im Scope konstruiert.</summary>
+    public class QueueValuesProvider : IValuesProvider
+    {
+        /// <summary>Zaehlt die Konstruktionen, um zu belegen, dass der Provider tatsaechlich gebaut wird.</summary>
+        public static int Constructed;
+
+        public QueueValuesProvider()
+        {
+            Constructed++;
+        }
+
+        public string UniqueName { get; set; }
+
+        public event EventHandler Disposed;
+
+        public void Dispose() => Disposed?.Invoke(this, EventArgs.Empty);
+
+        public IEnumerable<ActivityParameterValue> GetValues(string parameterName)
         {
             return new[]
             {
@@ -133,12 +150,12 @@ namespace ITVComponents.Workflow.Plugins.Test
             Assert.AreEqual(ActivityParameterDirection.Output, ps.Single(p => p.Name == "messageId").Direction);
 
             ActivityParameter priority = ps.Single(p => p.Name == "priority");
+            Assert.AreEqual(ActivityParameterKind.Picklist, priority.Kind);
             Assert.AreEqual(2, priority.Values.Count);
-            Assert.IsFalse(priority.HasDynamicValues);
 
             ActivityParameter queue = ps.Single(p => p.Name == "queue");
-            Assert.IsTrue(queue.HasDynamicValues);
-            Assert.AreEqual(0, queue.Values.Count, "dynamic values are fetched lazily, not inline");
+            Assert.AreEqual(ActivityParameterKind.CallbackList, queue.Kind);
+            Assert.AreEqual(0, queue.Values.Count, "callback-list values are fetched lazily, not inline");
 
             Assert.AreEqual(0, SendMailActivity.Constructed);
         }
@@ -151,11 +168,15 @@ namespace ITVComponents.Workflow.Plugins.Test
         }
 
         [TestMethod]
-        public void GetValidValues_DynamicProviderRunsAndReturns()
+        public void GetValidValues_ConstructsProviderAndReturns()
         {
+            QueueValuesProvider.Constructed = 0;
             var vals = catalog.GetValidValues("sendmail", "queue");
             Assert.AreEqual(2, vals.Count);
             Assert.AreEqual("Queue 1", vals.Single(v => (string)v.Value == "q1").Label);
+            Assert.AreEqual(1, QueueValuesProvider.Constructed, "the values provider must be constructed (not a static call)");
+            // Die Aktivitaet selbst wird dabei nie instanziert.
+            Assert.AreEqual(0, SendMailActivity.Constructed);
         }
 
         [TestMethod]
