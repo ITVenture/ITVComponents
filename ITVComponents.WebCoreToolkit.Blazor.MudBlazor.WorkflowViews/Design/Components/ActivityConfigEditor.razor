@@ -135,6 +135,69 @@
             <MudTextField T="string" @bind-Value="newValue" Placeholder="value" Margin="Margin.Dense" />
             <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddKey" />
         </MudStack>
+
+        @* Freier Datenfluss-Editor: auch ohne deklarierte Parameter kann ein generischer Worker
+           Eingaben (Konstante/Variable/Ausdruck) und Ausgaben (-> Variable) verdrahten. Namen sind
+           frei, da es keinen Katalog gibt; die Engine liest/schreibt sie ueber ctx.Inputs/Outputs. *@
+        <MudText Typo="Typo.caption" Class="mt-4">Inputs (data flow)</MudText>
+        @foreach (var b in Node.Inputs)
+        {
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1" @key="b">
+                <MudTextField T="string" Value="@b.Parameter" ValueChanged="@(v => b.Parameter = v)"
+                              Placeholder="name" Margin="Margin.Dense" Style="max-width:110px" />
+                <MudSelect T="ParameterBindingKind" Value="@b.Kind" ValueChanged="@(k => SetFreeKind(b, k))"
+                           Dense="true" Margin="Margin.Dense" Style="max-width:120px">
+                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Literal">Constant</MudSelectItem>
+                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Variable">Variable</MudSelectItem>
+                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Expression">Expression</MudSelectItem>
+                </MudSelect>
+                @if (b.Kind == ParameterBindingKind.Expression)
+                {
+                    <div style="flex:1 1 auto">
+                        <CScriptField @key="b" Value="@(b.Source ?? string.Empty)"
+                                      ValueChanged="@(v => b.Source = string.IsNullOrEmpty(v) ? null : v)" Height="60" />
+                    </div>
+                }
+                else if (b.Kind == ParameterBindingKind.Variable)
+                {
+                    <MudTextField T="string" Value="@(b.Source ?? string.Empty)"
+                                  ValueChanged="@(v => b.Source = string.IsNullOrEmpty(v) ? null : v)"
+                                  Placeholder="variable name" Margin="Margin.Dense" />
+                }
+                else
+                {
+                    <MudTextField T="string" Value="@ToStr(b.Literal)"
+                                  ValueChanged="@(v => b.Literal = string.IsNullOrEmpty(v) ? null : v)"
+                                  Placeholder="value" Margin="Margin.Dense" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => Node.Inputs.Remove(b))" />
+            </MudStack>
+        }
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+            <MudTextField T="string" @bind-Value="newInputName" Placeholder="new input name"
+                          Margin="Margin.Dense" Style="max-width:150px" />
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddInput" />
+        </MudStack>
+
+        <MudText Typo="Typo.caption" Class="mt-4">Outputs (data flow)</MudText>
+        @foreach (var b in Node.Outputs)
+        {
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1" @key="b">
+                <MudTextField T="string" Value="@b.Parameter" ValueChanged="@(v => b.Parameter = v)"
+                              Placeholder="name" Margin="Margin.Dense" Style="max-width:130px" />
+                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+                <MudTextField T="string" Value="@b.Variable" ValueChanged="@(v => b.Variable = v)"
+                              Placeholder="variable" Margin="Margin.Dense" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => Node.Outputs.Remove(b))" />
+            </MudStack>
+        }
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+            <MudTextField T="string" @bind-Value="newOutputName" Placeholder="new output name"
+                          Margin="Margin.Dense" Style="max-width:150px" />
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddOutput" />
+        </MudStack>
     }
 }
 
@@ -151,6 +214,8 @@
 
     private string? newKey;
     private string? newValue;
+    private string? newInputName;
+    private string? newOutputName;
     private string? loadedForRef;
 
     protected override void OnParametersSet()
@@ -349,6 +414,55 @@
     private void RemoveKey(string key)
     {
         Node?.Configuration.Remove(key);
+    }
+
+    // --- Freier Datenfluss-Editor (generische Aktivitaeten, keine deklarierten Parameter) --------
+
+    private static void SetFreeKind(ActivityInputBinding b, ParameterBindingKind kind)
+    {
+        if (b.Kind == kind)
+        {
+            return;
+        }
+
+        // Quelle gewechselt: alte Werte passen nicht mehr. Hier NICHT prunen - im generischen Modus
+        // ist die Zeile die bewusste Deklaration des Nutzers, auch ohne Wert.
+        b.Kind = kind;
+        b.Literal = null;
+        b.Source = null;
+    }
+
+    private void AddInput()
+    {
+        if (Node is null || string.IsNullOrWhiteSpace(newInputName))
+        {
+            return;
+        }
+
+        if (!Node.Inputs.Any(x => x.Parameter == newInputName))
+        {
+            Node.Inputs.Add(new ActivityInputBinding
+            {
+                Parameter = newInputName, Kind = ParameterBindingKind.Literal
+            });
+        }
+
+        newInputName = null;
+    }
+
+    private void AddOutput()
+    {
+        if (Node is null || string.IsNullOrWhiteSpace(newOutputName))
+        {
+            return;
+        }
+
+        if (!Node.Outputs.Any(x => x.Parameter == newOutputName))
+        {
+            Node.Outputs.Add(new ActivityOutputBinding { Parameter = newOutputName });
+        }
+
+        newOutputName = null;
     }
 
     private static string ValueString(ActivityParameterValue v)
