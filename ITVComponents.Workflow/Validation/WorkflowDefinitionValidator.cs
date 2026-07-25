@@ -162,8 +162,125 @@ namespace ITVComponents.Workflow.Validation
                 }
             }
 
+            // Zwei parallele Zweige, die dieselbe Variable schreiben, kollidieren zur Laufzeit (Fault, kein
+            // stiller last-writer). Statisch erkennbar an den deklarierten Output-Bindungen: schreibt innerhalb
+            // einer parallelen Region dieselbe Variable aus zwei verschiedenen Split-Zweigen, wird gewarnt.
+            issues.AddRange(ParallelWriteConflicts(nodes, flows, byId, inCount, outCount));
+
             // Fehler zuerst, dann Warnungen - stabile Reihenfolge fuer die Anzeige.
             return issues.OrderBy(x => x.Severity).ToList();
+        }
+
+        /// <summary>
+        /// Findet Variablen, die aus zwei oder mehr Zweigen DESSELBEN AND-Splits geschrieben werden (ueber
+        /// die deklarierten Output-Bindungen) - solche parallelen Schreibzugriffe faulten zur Laufzeit. Je
+        /// betroffener Variable ein Befund. Nur deklarierte Ausgaben sind statisch sichtbar; generische
+        /// Aktivitaeten, die frei in <c>Variables</c> schreiben, kann die Pruefung nicht erfassen. Zwei
+        /// Schreibzugriffe auf demselben Zweig (sequenziell) sind zulaessig und loesen keine Warnung aus.
+        /// </summary>
+        private static IEnumerable<ValidationIssue> ParallelWriteConflicts(List<WorkflowNode> nodes,
+            List<SequenceFlow> flows, Dictionary<string, WorkflowNode> byId,
+            Dictionary<string, int> inCount, Dictionary<string, int> outCount)
+        {
+            var outgoing = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (SequenceFlow f in flows)
+            {
+                if (f.SourceId == null || f.TargetId == null)
+                {
+                    continue;
+                }
+
+                if (!outgoing.TryGetValue(f.SourceId, out List<string> list))
+                {
+                    outgoing[f.SourceId] = list = new List<string>();
+                }
+
+                list.Add(f.TargetId);
+            }
+
+            bool IsJoin(string id) => byId.TryGetValue(id, out WorkflowNode nn)
+                                      && nn.Kind == NodeKind.ParallelGateway
+                                      && (inCount.TryGetValue(id, out int c) ? c : 0) > 1;
+            bool IsSplit(string id) => byId.TryGetValue(id, out WorkflowNode nn)
+                                       && nn.Kind == NodeKind.ParallelGateway
+                                       && (outCount.TryGetValue(id, out int c) ? c : 0) > 1;
+
+            var result = new List<ValidationIssue>();
+            var reported = new HashSet<string>(StringComparer.Ordinal); // je Variable nur ein Befund
+
+            foreach (WorkflowNode split in nodes)
+            {
+                if (string.IsNullOrWhiteSpace(split?.Id) || !IsSplit(split.Id)
+                    || !outgoing.TryGetValue(split.Id, out List<string> branches))
+                {
+                    continue;
+                }
+
+                // Je Variable: aus welchen (direkten) Split-Zweigen wird sie geschrieben, und von welchen Knoten?
+                var branchesByVar = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
+                var nodesByVar = new Dictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+
+                for (int bi = 0; bi < branches.Count; bi++)
+                {
+                    var visited = new HashSet<string>(StringComparer.Ordinal);
+                    var queue = new Queue<string>();
+                    queue.Enqueue(branches[bi]);
+                    while (queue.Count > 0)
+                    {
+                        string cur = queue.Dequeue();
+                        if (!visited.Add(cur) || IsJoin(cur))
+                        {
+                            continue; // Grenze: der Join gehoert nicht mehr zur Region.
+                        }
+
+                        if (byId.TryGetValue(cur, out WorkflowNode cn) && cn is AutomatedActivityNode act
+                            && act.Outputs != null)
+                        {
+                            foreach (ActivityOutputBinding ob in act.Outputs)
+                            {
+                                if (ob == null || string.IsNullOrWhiteSpace(ob.Variable))
+                                {
+                                    continue;
+                                }
+
+                                if (!branchesByVar.TryGetValue(ob.Variable, out HashSet<int> set))
+                                {
+                                    branchesByVar[ob.Variable] = set = new HashSet<int>();
+                                }
+
+                                set.Add(bi);
+                                if (!nodesByVar.TryGetValue(ob.Variable, out SortedSet<string> ns))
+                                {
+                                    nodesByVar[ob.Variable] = ns = new SortedSet<string>(StringComparer.Ordinal);
+                                }
+
+                                ns.Add(cur);
+                            }
+                        }
+
+                        if (outgoing.TryGetValue(cur, out List<string> nexts))
+                        {
+                            foreach (string nx in nexts)
+                            {
+                                queue.Enqueue(nx);
+                            }
+                        }
+                    }
+                }
+
+                foreach (KeyValuePair<string, HashSet<int>> kv in branchesByVar)
+                {
+                    if (kv.Value.Count >= 2 && reported.Add(kv.Key))
+                    {
+                        result.Add(Warn(null,
+                            $"Variable '{kv.Key}' is written by parallel branches (nodes {string.Join(", ", nodesByVar[kv.Key])}) - " +
+                            "concurrent writes to the same variable fault at runtime. Let only one branch write it, " +
+                            "or consolidate after the join."));
+                    }
+                }
+            }
+
+            return result;
         }
 
         /// <summary>

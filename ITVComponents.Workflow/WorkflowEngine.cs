@@ -369,20 +369,46 @@ namespace ITVComponents.Workflow
                 }
 
                 int baseVersion = fresh.Version;
-                delta.ApplyTo(fresh);
-                if (fresh.Status != WorkflowStatus.Faulted)
-                {
-                    // Fertige Joins gegen den frischen Stand aufloesen (kann eine Fortsetzung spawnen).
-                    ResolveJoins(fresh, definition);
-                }
 
-                if (fresh.Status != WorkflowStatus.Faulted && fresh.Status != WorkflowStatus.Cancelled)
+                // Nebenlaeufiger Schreibkonflikt: hat ein Geschwister-Zweig seit unserem Fork dieselbe Variable
+                // auf einen ANDEREN Wert gesetzt, ist das kein stiller last-writer, sondern ein Fehler (Entscheid:
+                // parallele Same-Variable-Writes -> Fault). Gleicher Zielwert = harmlos. Wird gegen JEDEN frischen
+                // Stand neu geprueft (ein konfliktierender Zweig kann zwischen den Retries committen).
+                string conflictVar = delta.Faulted ? null : FindWriteConflict(snapshot, delta, fresh);
+                bool faultedByConflict = conflictVar != null;
+                if (faultedByConflict)
                 {
-                    UpdateTerminalStatus(fresh);
+                    // Delta NICHT anwenden - stattdessen faulten (die konfliktierende Variable bleibt auf dem
+                    // Wert des Geschwister-Zweigs; wir ueberschreiben ihn nicht still).
+                    Fault(fresh,
+                        $"Variable '{conflictVar}' was written concurrently by parallel branches with conflicting " +
+                        "values. Let only one branch write it, or consolidate after the join.");
+                }
+                else
+                {
+                    delta.ApplyTo(fresh);
+                    if (fresh.Status != WorkflowStatus.Faulted)
+                    {
+                        // Fertige Joins gegen den frischen Stand aufloesen (kann eine Fortsetzung spawnen).
+                        ResolveJoins(fresh, definition);
+                    }
+
+                    if (fresh.Status != WorkflowStatus.Faulted && fresh.Status != WorkflowStatus.Cancelled)
+                    {
+                        UpdateTerminalStatus(fresh);
+                    }
                 }
 
                 if (store.TryCommitInstance(fresh, baseVersion))
                 {
+                    if (faultedByConflict)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"RunBranch: parallel write conflict on variable '{conflictVar}' in instance " +
+                            $"'{instanceId}' (token '{tokenId}') - instance faulted.", LogSeverity.Error);
+                        return Array.Empty<string>();
+                    }
+
                     // Neu entstandene aktive Tokens (Ids, die es beim Laden noch nicht gab) = neue Zweige.
                     return fresh.ActiveTokens
                         .Where(t => !snapshot.HasToken(t.Id))
@@ -1186,6 +1212,33 @@ namespace ITVComponents.Workflow
             }
         }
 
+        /// <summary>
+        /// Sucht einen nebenlaeufigen Schreibkonflikt: eine Variable, die DIESER Zweig schreibt und die seit
+        /// seinem Fork bereits ein Geschwister-Zweig auf einen ANDEREN Wert gesetzt hat. Liefert den
+        /// Variablennamen, oder null (kein Konflikt). Gleicher Zielwert gilt bewusst NICHT als Konflikt (das
+        /// Ergebnis ist ordnungs-unabhaengig und deterministisch) - der Fault greift nur bei divergierenden
+        /// Werten ("kein stiller last-writer"). Basiert nur auf den geschriebenen Werten (kein Read-Tracking);
+        /// den strukturellen Fall deckt zusaetzlich die Design-Zeit-Warnung des Validators ab.
+        /// </summary>
+        private static string FindWriteConflict(BranchSnapshot snapshot, BranchDelta delta, WorkflowInstance fresh)
+        {
+            foreach (KeyValuePair<string, object> write in delta.VariableWrites)
+            {
+                bool baseHas = snapshot.TryGetBaseVariable(write.Key, out object baseValue);
+                bool freshHas = fresh.Variables.TryGetValue(write.Key, out object freshValue);
+
+                // Hat seit unserem Fork jemand anders diese Variable veraendert (Wert weicht vom Fork-Stand ab,
+                // oder sie wurde entfernt bzw. neu angelegt)?
+                bool changedByOther = baseHas ? (!freshHas || !Equals(freshValue, baseValue)) : freshHas;
+                if (changedByOther && !(freshHas && Equals(freshValue, write.Value)))
+                {
+                    return write.Key;
+                }
+            }
+
+            return null;
+        }
+
         private static void Fault(WorkflowInstance instance, string message, string nodeId = null)
         {
             instance.Status = WorkflowStatus.Faulted;
@@ -1218,6 +1271,9 @@ namespace ITVComponents.Workflow
             }
 
             public bool HasToken(string id) => tokens.ContainsKey(id);
+
+            /// <summary>Liefert den Wert einer Variablen zum Fork-Zeitpunkt dieses Zweigs (fuer die Konfliktpruefung).</summary>
+            public bool TryGetBaseVariable(string key, out object value) => variables.TryGetValue(key, out value);
 
             public BranchDelta DiffTo(WorkflowInstance instance)
             {

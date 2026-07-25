@@ -113,6 +113,74 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual(1, final.Variables["after"], "despite the retry the continuation ran exactly once.");
         }
 
+        [TestMethod]
+        public void RunBranch_ConcurrentWriteToSameVariable_DifferentValue_Faults()
+        {
+            EfWorkflowStore inner = NewStore();
+            inner.SaveDefinition(WriteXDefinition());
+            WorkflowInstance instance = ActiveAtWriteX(inner);
+
+            // Zwischen Fork und Commit schreibt ein Geschwister-Zweig x=1; unser Zweig will x=2 schreiben.
+            var store = new SiblingWriteInjectingStore(inner, instance.Id, "x", 1);
+            var engine = new WorkflowEngine(store,
+                new ActivityRegistry().Register("setX", ctx => ctx.Variables["x"] = 2));
+
+            engine.RunBranch(instance.Id, "t");
+
+            WorkflowInstance final = inner.GetInstance(instance.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, final.Status, "a conflicting concurrent write must fault.");
+            StringAssert.Contains(final.FaultMessage, "x");
+            Assert.AreEqual(1, final.Variables["x"], "the sibling's value is kept - our write did NOT silently overwrite it.");
+        }
+
+        [TestMethod]
+        public void RunBranch_ConcurrentWriteToSameVariable_SameValue_IsNotAConflict()
+        {
+            EfWorkflowStore inner = NewStore();
+            inner.SaveDefinition(WriteXDefinition());
+            WorkflowInstance instance = ActiveAtWriteX(inner);
+
+            // Geschwister und wir schreiben denselben Wert (1) - ordnungs-unabhaengig, kein Fault.
+            var store = new SiblingWriteInjectingStore(inner, instance.Id, "x", 1);
+            var engine = new WorkflowEngine(store,
+                new ActivityRegistry().Register("setX", ctx => ctx.Variables["x"] = 1));
+
+            engine.RunBranch(instance.Id, "t");
+
+            WorkflowInstance final = inner.GetInstance(instance.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, final.Status, "identical values are not a conflict.");
+            Assert.AreEqual(1, final.Variables["x"]);
+        }
+
+        private static WorkflowInstance ActiveAtWriteX(IWorkflowStore store)
+        {
+            var instance = new WorkflowInstance
+            {
+                DefinitionId = "wx",
+                DefinitionVersion = 1,
+                Status = WorkflowStatus.Running,
+                Tokens = new List<Token> { new Token { Id = "t", NodeId = "w", Status = TokenStatus.Active } }
+            };
+            store.SaveInstance(instance);
+            return instance;
+        }
+
+        private static WorkflowDefinition WriteXDefinition()
+        {
+            return new WorkflowDefinition
+            {
+                Id = "wx",
+                Version = 1,
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new AutomatedActivityNode { Id = "w", ActivityRef = "setX" },
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow> { Flow("s", "w"), Flow("w", "e") }
+            };
+        }
+
         private static WorkflowDefinition ParallelDefinition()
         {
             return new WorkflowDefinition
@@ -167,6 +235,60 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public WorkflowInstance GetInstance(string instanceId) => inner.GetInstance(instanceId);
+            public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
+            public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
+            public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets) => inner.FindBranchesWaitingForTarget(targets);
+            public IEnumerable<WorkflowInstance> FindRunnable() => inner.FindRunnable();
+            public IWorkflowBranchLock TryAcquireBranchLock(string i, string t, string o) => inner.TryAcquireBranchLock(i, t, o);
+            public void ReleaseLocksOfOwner(string owner) => inner.ReleaseLocksOfOwner(owner);
+        }
+
+        /// <summary>
+        /// Ein Store-Decorator, der einen nebenlaeufigen Geschwister-Schreibzugriff simuliert: beim ZWEITEN
+        /// GetInstance derselben Instanz (= das Neuladen von RunBranch fuers Commit, nachdem der Zweig
+        /// gegen den Fork-Stand OHNE die Variable ausgefuehrt hat) committet er zuvor eine Variable - so als
+        /// haette ein paralleler Zweig zwischen Fork und Commit geschrieben.
+        /// </summary>
+        private sealed class SiblingWriteInjectingStore : IWorkflowStore
+        {
+            private readonly IWorkflowStore inner;
+            private readonly string instanceId;
+            private readonly string variable;
+            private readonly object siblingValue;
+            private int getCount;
+            private bool injected;
+
+            public SiblingWriteInjectingStore(IWorkflowStore inner, string instanceId, string variable, object siblingValue)
+            {
+                this.inner = inner;
+                this.instanceId = instanceId;
+                this.variable = variable;
+                this.siblingValue = siblingValue;
+            }
+
+            public WorkflowInstance GetInstance(string id)
+            {
+                WorkflowInstance instance = inner.GetInstance(id);
+                if (id == instanceId)
+                {
+                    getCount++;
+                    if (getCount == 2 && !injected)
+                    {
+                        injected = true;
+                        WorkflowInstance sibling = inner.GetInstance(id);
+                        sibling.Variables[variable] = siblingValue;
+                        inner.SaveInstance(sibling); // committet den Geschwister-Schreibzugriff (Version steigt).
+                        instance = inner.GetInstance(id);
+                    }
+                }
+
+                return instance;
+            }
+
+            public bool TryCommitInstance(WorkflowInstance instance, int baseVersion) => inner.TryCommitInstance(instance, baseVersion);
+            public void SaveDefinition(WorkflowDefinition definition) => inner.SaveDefinition(definition);
+            public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);
+            public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
             public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets) => inner.FindBranchesWaitingForTarget(targets);

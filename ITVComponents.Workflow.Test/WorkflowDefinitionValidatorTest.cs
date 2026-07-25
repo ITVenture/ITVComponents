@@ -145,6 +145,90 @@ namespace ITVComponents.Workflow.Test
                 "a consolidation node after the join must not be flagged.");
         }
 
+        /// <summary>
+        /// Start -&gt; AND-Split -&gt; (Zweig A: Aktivitaet "a" | Zweig B: Aktivitaet "b") -&gt; Join -&gt; End.
+        /// Die Output-Bindungen der beiden Aktivitaeten werden per Callback gesetzt.
+        /// </summary>
+        private static WorkflowDefinition ParallelWithOutputs(
+            System.Action<AutomatedActivityNode> a, System.Action<AutomatedActivityNode> b)
+        {
+            var na = new AutomatedActivityNode { Id = "a", ActivityRef = "x" };
+            var nb = new AutomatedActivityNode { Id = "b", ActivityRef = "y" };
+            a(na);
+            b(nb);
+            var def = new WorkflowDefinition { Id = "wf" };
+            def.Nodes.Add(new StartNode { Id = "s" });
+            def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
+            def.Nodes.Add(na);
+            def.Nodes.Add(nb);
+            def.Nodes.Add(new ParallelGatewayNode { Id = "join" });
+            def.Nodes.Add(new EndNode { Id = "e" });
+            def.Flows.Add(new SequenceFlow { Id = "f0", SourceId = "s", TargetId = "split" });
+            def.Flows.Add(new SequenceFlow { Id = "f1", SourceId = "split", TargetId = "a" });
+            def.Flows.Add(new SequenceFlow { Id = "f2", SourceId = "split", TargetId = "b" });
+            def.Flows.Add(new SequenceFlow { Id = "f3", SourceId = "a", TargetId = "join" });
+            def.Flows.Add(new SequenceFlow { Id = "f4", SourceId = "b", TargetId = "join" });
+            def.Flows.Add(new SequenceFlow { Id = "f5", SourceId = "join", TargetId = "e" });
+            return def;
+        }
+
+        [TestMethod]
+        public void ParallelBranchesWritingSameVariable_IsWarning()
+        {
+            WorkflowDefinition def = ParallelWithOutputs(
+                a => a.Outputs.Add(new ActivityOutputBinding { Parameter = "r", Variable = "shared" }),
+                b => b.Outputs.Add(new ActivityOutputBinding { Parameter = "r", Variable = "shared" }));
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+            Assert.IsFalse(HasError(issues), "the structure is valid - only a warning is expected.");
+            Assert.IsTrue(issues.Any(i => i.Severity == ValidationSeverity.Warning
+                                          && i.Message.Contains("shared") && i.Message.Contains("parallel branches")),
+                "two parallel branches writing 'shared' must be flagged.");
+        }
+
+        [TestMethod]
+        public void ParallelBranchesWritingDifferentVariables_NoWarning()
+        {
+            WorkflowDefinition def = ParallelWithOutputs(
+                a => a.Outputs.Add(new ActivityOutputBinding { Parameter = "r", Variable = "va" }),
+                b => b.Outputs.Add(new ActivityOutputBinding { Parameter = "r", Variable = "vb" }));
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+            Assert.IsFalse(issues.Any(i => i.Message.Contains("parallel branches")),
+                "different target variables must not be flagged.");
+        }
+
+        [TestMethod]
+        public void SameVariableTwiceOnSameBranch_NoWarning()
+        {
+            // Beide Schreibzugriffe liegen sequenziell auf DEMSELBEN Zweig -> kein paralleler Konflikt.
+            var a1 = new AutomatedActivityNode { Id = "a1", ActivityRef = "x" };
+            a1.Outputs.Add(new ActivityOutputBinding { Parameter = "r", Variable = "v" });
+            var a2 = new AutomatedActivityNode { Id = "a2", ActivityRef = "x" };
+            a2.Outputs.Add(new ActivityOutputBinding { Parameter = "r", Variable = "v" });
+            var b = new AutomatedActivityNode { Id = "b", ActivityRef = "y" };
+
+            var def = new WorkflowDefinition { Id = "wf" };
+            def.Nodes.Add(new StartNode { Id = "s" });
+            def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
+            def.Nodes.Add(a1);
+            def.Nodes.Add(a2);
+            def.Nodes.Add(b);
+            def.Nodes.Add(new ParallelGatewayNode { Id = "join" });
+            def.Nodes.Add(new EndNode { Id = "e" });
+            def.Flows.Add(new SequenceFlow { Id = "f0", SourceId = "s", TargetId = "split" });
+            def.Flows.Add(new SequenceFlow { Id = "f1", SourceId = "split", TargetId = "a1" });
+            def.Flows.Add(new SequenceFlow { Id = "f1b", SourceId = "a1", TargetId = "a2" });
+            def.Flows.Add(new SequenceFlow { Id = "f2", SourceId = "split", TargetId = "b" });
+            def.Flows.Add(new SequenceFlow { Id = "f3", SourceId = "a2", TargetId = "join" });
+            def.Flows.Add(new SequenceFlow { Id = "f4", SourceId = "b", TargetId = "join" });
+            def.Flows.Add(new SequenceFlow { Id = "f5", SourceId = "join", TargetId = "e" });
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+            Assert.IsFalse(issues.Any(i => i.Message.Contains("parallel branches")),
+                "two sequential writes on the same branch are legitimate - no warning.");
+        }
+
         [TestMethod]
         public void MissingEnd_IsWarning()
         {
