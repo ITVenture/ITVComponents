@@ -120,22 +120,33 @@ namespace ITVComponents.Workflow.EntityFramework
             row.CreatedUtc = instance.CreatedUtc;
             row.UpdatedUtc = instance.UpdatedUtc;
             row.VariablesJson = WorkflowJson.Serialize(instance.Variables);
-            row.TokensJson = WorkflowJson.Serialize(instance.Tokens);
             row.HistoryJson = WorkflowJson.Serialize(instance.History);
 
-            // Der Warte-Token-Index wird bei jedem Speichern neu aufgebaut - so bildet er immer den
-            // aktuellen Wartestand ab, ohne dass verwaiste Zeilen die Abfragen verfaelschen.
-            var stale = ctx.WaitingTokens.Where(w => w.InstanceId == instance.Id).ToList();
-            ctx.WaitingTokens.RemoveRange(stale);
-            foreach (Token token in instance.Tokens.Where(t => t.Status == TokenStatus.Waiting))
+            // Token-Zeilen als In-Place-Upsert abgleichen (vorhandene aktualisieren, neue anlegen,
+            // verschwundene loeschen) - ein einzelnes SaveChanges, ohne Loeschen+Neuanlegen desselben
+            // Schluessels (das wuerde den Change-Tracker in Konflikt bringen). Dies ist der
+            // sequenzielle Whole-Sync; der granulare, nebenlaeufigkeits-sichere CommitBranch folgt separat.
+            List<TokenRow> existing = ctx.Tokens.Where(t => t.InstanceId == instance.Id).ToList();
+            Dictionary<string, TokenRow> byTokenId = existing.ToDictionary(t => t.TokenId);
+            var wanted = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Token token in instance.Tokens)
             {
-                ctx.WaitingTokens.Add(new WaitingTokenRow
+                wanted.Add(token.Id);
+                if (!byTokenId.TryGetValue(token.Id, out TokenRow tr))
                 {
-                    InstanceId = instance.Id,
-                    CorrelationKey = instance.CorrelationKey,
-                    WaitingSignal = token.WaitingSignal,
-                    DueUtc = token.DueUtc
-                });
+                    tr = new TokenRow { InstanceId = instance.Id, TokenId = token.Id };
+                    ctx.Tokens.Add(tr);
+                }
+
+                tr.NodeId = token.NodeId;
+                tr.Status = (int)token.Status;
+                tr.WaitingSignal = token.WaitingSignal;
+                tr.DueUtc = token.DueUtc;
+            }
+
+            foreach (TokenRow tr in existing.Where(t => !wanted.Contains(t.TokenId)))
+            {
+                ctx.Tokens.Remove(tr);
             }
 
             ctx.SaveChanges();
@@ -147,30 +158,45 @@ namespace ITVComponents.Workflow.EntityFramework
             using WorkflowContext ctx = contextFactory();
             // .Where statt .Find, damit der strikte Instanz-Tenant-Filter greift (Find umgeht ihn).
             WorkflowInstanceRow row = ctx.WorkflowInstances.FirstOrDefault(r => r.Id == instanceId);
-            return row == null ? null : ToInstance(row);
+            if (row == null)
+            {
+                return null;
+            }
+
+            List<TokenRow> tokens = ctx.Tokens.Where(t => t.InstanceId == instanceId).ToList();
+            return ToInstance(row, tokens);
         }
 
         /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindWaitingForSignal(string signalName, string correlationKey = null)
         {
             using WorkflowContext ctx = contextFactory();
-            IQueryable<WaitingTokenRow> query = ctx.WaitingTokens.Where(w => w.WaitingSignal == signalName);
+            int waiting = (int)TokenStatus.Waiting;
+            List<string> ids = ctx.Tokens
+                .Where(t => t.Status == waiting && t.WaitingSignal == signalName)
+                .Select(t => t.InstanceId)
+                .Distinct()
+                .ToList();
+
+            List<WorkflowInstance> found = LoadInstances(ctx, ids);
+            // Korrelation an der Instanz (nicht mehr an der Token-Zeile denormalisiert) - die
+            // Kandidatenmenge ist klein, daher in-memory.
             if (correlationKey != null)
             {
-                query = query.Where(w => w.CorrelationKey == correlationKey || w.InstanceId == correlationKey);
+                found = found.Where(i => i.CorrelationKey == correlationKey || i.Id == correlationKey).ToList();
             }
 
-            List<string> ids = query.Select(w => w.InstanceId).Distinct().ToList();
-            return LoadInstances(ctx, ids);
+            return found;
         }
 
         /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindDueTimers(DateTime nowUtc)
         {
             using WorkflowContext ctx = contextFactory();
-            List<string> ids = ctx.WaitingTokens
-                .Where(w => w.DueUtc != null && w.DueUtc <= nowUtc)
-                .Select(w => w.InstanceId)
+            int waiting = (int)TokenStatus.Waiting;
+            List<string> ids = ctx.Tokens
+                .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc)
+                .Select(t => t.InstanceId)
                 .Distinct()
                 .ToList();
             return LoadInstances(ctx, ids);
@@ -181,11 +207,11 @@ namespace ITVComponents.Workflow.EntityFramework
         {
             using WorkflowContext ctx = contextFactory();
             int running = (int)WorkflowStatus.Running;
-            return ctx.WorkflowInstances
+            List<string> ids = ctx.WorkflowInstances
                 .Where(r => r.Status == running)
-                .ToList()
-                .Select(ToInstance)
+                .Select(r => r.Id)
                 .ToList();
+            return LoadInstances(ctx, ids);
         }
 
         /// <inheritdoc/>
@@ -255,14 +281,23 @@ namespace ITVComponents.Workflow.EntityFramework
                 return new List<WorkflowInstance>();
             }
 
-            return ctx.WorkflowInstances
-                .Where(r => ids.Contains(r.Id))
+            // Erst die (tenant-gefilterten) Instanz-Zeilen, dann fuer genau diese in EINER Abfrage die
+            // Token-Zeilen laden und gruppieren.
+            List<WorkflowInstanceRow> rows = ctx.WorkflowInstances.Where(r => ids.Contains(r.Id)).ToList();
+            List<string> foundIds = rows.Select(r => r.Id).ToList();
+            Dictionary<string, List<TokenRow>> tokensByInstance = ctx.Tokens
+                .Where(t => foundIds.Contains(t.InstanceId))
                 .ToList()
-                .Select(ToInstance)
+                .GroupBy(t => t.InstanceId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            return rows
+                .Select(r => ToInstance(r,
+                    tokensByInstance.TryGetValue(r.Id, out List<TokenRow> tl) ? tl : new List<TokenRow>()))
                 .ToList();
         }
 
-        private static WorkflowInstance ToInstance(WorkflowInstanceRow row)
+        private static WorkflowInstance ToInstance(WorkflowInstanceRow row, List<TokenRow> tokenRows)
         {
             return new WorkflowInstance
             {
@@ -277,7 +312,14 @@ namespace ITVComponents.Workflow.EntityFramework
                 UpdatedUtc = row.UpdatedUtc,
                 Variables = WorkflowJson.Deserialize<Dictionary<string, object>>(row.VariablesJson)
                             ?? new Dictionary<string, object>(),
-                Tokens = WorkflowJson.Deserialize<List<Token>>(row.TokensJson) ?? new List<Token>(),
+                Tokens = tokenRows.Select(t => new Token
+                {
+                    Id = t.TokenId,
+                    NodeId = t.NodeId,
+                    Status = (TokenStatus)t.Status,
+                    WaitingSignal = t.WaitingSignal,
+                    DueUtc = t.DueUtc
+                }).ToList(),
                 History = WorkflowJson.Deserialize<List<HistoryEntry>>(row.HistoryJson) ?? new List<HistoryEntry>()
             };
         }

@@ -41,9 +41,6 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die Variablen als JSON (typerhaltend).</summary>
         public string VariablesJson { get; set; }
 
-        /// <summary>Die Tokens als JSON.</summary>
-        public string TokensJson { get; set; }
-
         /// <summary>Das Protokoll als JSON.</summary>
         public string HistoryJson { get; set; }
 
@@ -58,19 +55,25 @@ namespace ITVComponents.Workflow.EntityFramework
     }
 
     /// <summary>
-    /// Ein wartendes Token als eigene, abfragbare Zeile - der Index fuer die Signal- und
-    /// Timer-Abfragen. Wird bei jedem Speichern der Instanz neu aufgebaut.
+    /// Ein Token (Zweig) einer Instanz als eigene, unabhaengig schreibbare Zeile - die Grundlage der
+    /// nebenlaeufigen Zweig-Ausfuehrung: ein Zweig patcht nur seine eigene Zeile, ohne die Geschwister
+    /// zu beruehren. Ersetzt zugleich den frueheren Warte-Token-Index: eine wartende Zeile
+    /// (<see cref="Status"/> = Waiting) mit <see cref="WaitingSignal"/>/<see cref="DueUtc"/> IST der
+    /// Index fuer die Signal- und Timer-Abfragen.
     /// </summary>
-    public class WaitingTokenRow
+    public class TokenRow
     {
-        /// <summary>Technischer Primaerschluessel.</summary>
-        public long WaitingTokenRowId { get; set; }
-
-        /// <summary>Id der zugehoerigen Instanz.</summary>
+        /// <summary>Id der zugehoerigen Instanz (Teil des Schluessels).</summary>
         public string InstanceId { get; set; }
 
-        /// <summary>Korrelationsschluessel der Instanz (denormalisiert fuer die Abfrage).</summary>
-        public string CorrelationKey { get; set; }
+        /// <summary>Instanz-eindeutige Token-Id (Teil des Schluessels).</summary>
+        public string TokenId { get; set; }
+
+        /// <summary>Knoten, auf dem das Token steht.</summary>
+        public string NodeId { get; set; }
+
+        /// <summary>Token-Status als Zahl (indizierbar).</summary>
+        public int Status { get; set; }
 
         /// <summary>Signalname bei einem Signal-Wartepunkt, oder null.</summary>
         public string WaitingSignal { get; set; }
@@ -195,8 +198,8 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die Workflow-Instanzen.</summary>
         public DbSet<WorkflowInstanceRow> WorkflowInstances { get; set; }
 
-        /// <summary>Der Warte-Token-Index.</summary>
-        public DbSet<WaitingTokenRow> WaitingTokens { get; set; }
+        /// <summary>Die Tokens aller Instanzen (je Token eine Zeile).</summary>
+        public DbSet<TokenRow> Tokens { get; set; }
 
         /// <summary>Die Workflow-Definitionen.</summary>
         public DbSet<WorkflowDefinitionRow> WorkflowDefinitions { get; set; }
@@ -217,10 +220,11 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.TenantId);
             });
 
-            modelBuilder.Entity<WaitingTokenRow>(e =>
+            modelBuilder.Entity<TokenRow>(e =>
             {
-                e.HasKey(n => n.WaitingTokenRowId);
+                e.HasKey(n => new { n.InstanceId, n.TokenId });
                 e.HasIndex(n => n.InstanceId);
+                e.HasIndex(n => n.Status);
                 e.HasIndex(n => n.WaitingSignal);
                 e.HasIndex(n => n.DueUtc);
             });

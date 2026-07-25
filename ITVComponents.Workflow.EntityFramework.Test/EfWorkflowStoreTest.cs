@@ -241,6 +241,39 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         }
 
         [TestMethod]
+        public void MultipleTokens_RoundTripAsRows_AndInPlaceMerge()
+        {
+            var store = NewStore();
+            var instance = new WorkflowInstance
+            {
+                DefinitionId = "d",
+                DefinitionVersion = 1,
+                Status = WorkflowStatus.Waiting,
+                Tokens = new List<Token>
+                {
+                    new Token { Id = "t1", NodeId = "w1", Status = TokenStatus.Waiting, WaitingSignal = "go" },
+                    new Token { Id = "t2", NodeId = "n2", Status = TokenStatus.Active },
+                    new Token { Id = "t3", NodeId = "e", Status = TokenStatus.Consumed }
+                }
+            };
+            store.SaveInstance(instance);
+
+            WorkflowInstance reloaded = store.GetInstance(instance.Id);
+            Assert.AreEqual(3, reloaded.Tokens.Count, "each token must round-trip as its own row.");
+            Assert.AreEqual("go", reloaded.Tokens.Single(t => t.Id == "t1").WaitingSignal);
+            Assert.AreEqual(TokenStatus.Active, reloaded.Tokens.Single(t => t.Id == "t2").Status);
+
+            // In-Place-Merge: ein Token verschwindet, eines wechselt den Status.
+            instance.Tokens.RemoveAll(t => t.Id == "t3");
+            instance.Tokens.Single(t => t.Id == "t2").Status = TokenStatus.Consumed;
+            store.SaveInstance(instance);
+
+            WorkflowInstance again = store.GetInstance(instance.Id);
+            Assert.AreEqual(2, again.Tokens.Count, "the removed token must be gone from the rows.");
+            Assert.AreEqual(TokenStatus.Consumed, again.Tokens.Single(t => t.Id == "t2").Status);
+        }
+
+        [TestMethod]
         public void BranchLock_ContendedAcrossStores_ReleasesAndReAcquires()
         {
             // Zwei getrennte Stores ueber DIESELBE DB = zwei Prozesse. Der Lock muss prozessuebergreifend
