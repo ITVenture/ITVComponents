@@ -420,6 +420,27 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         }
 
         /// <summary>
+        /// Prepares the current (background) scope like <see cref="PrepareEmptyContext(IServiceProvider, out HttpContext)"/>,
+        /// but additionally pins the permission/tenant scope to the given value. This lets a background
+        /// service (no HTTP request) run deliberately under a specific tenant: tenant-aware contexts that
+        /// read their tenant from the <see cref="IPermissionScope"/> then filter to exactly this tenant.
+        /// </summary>
+        /// <param name="provider">the service-provider of the current scope</param>
+        /// <param name="fixedScope">the tenant/scope to pin (null or empty = no fixed scope)</param>
+        /// <param name="executionHttpContext">the created, empty execution HttpContext</param>
+        public static void PrepareEmptyContext(this IServiceProvider provider, string fixedScope,
+            out HttpContext executionHttpContext)
+        {
+            PrepareEmptyContext(provider, out executionHttpContext);
+            if (provider.GetService<IPermissionScope>() is PermissionScopeBase psb)
+            {
+                // SetFixedScope ist der interne Seam, den auch PrepareContext(conserved) nutzt: er fixiert
+                // den Scope unabhaengig von einem HTTP-Kontext.
+                psb.SetFixedScope(fixedScope);
+            }
+        }
+
+        /// <summary>
         /// Prepares the current scope to values that were conserved before from a different context
         /// </summary>
         /// <param name="provider">the service-provider that holds all dependencies</param>
