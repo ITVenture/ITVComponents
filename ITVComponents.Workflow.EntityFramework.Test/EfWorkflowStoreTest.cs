@@ -240,6 +240,41 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual(15, store.GetInstance(instance.Id).Variables["total"]);
         }
 
+        [TestMethod]
+        public void BranchLock_ContendedAcrossStores_ReleasesAndReAcquires()
+        {
+            // Zwei getrennte Stores ueber DIESELBE DB = zwei Prozesse. Der Lock muss prozessuebergreifend
+            // greifen.
+            var storeA = NewStore();
+            var storeB = NewStore();
+
+            Stores.IWorkflowBranchLock a = storeA.TryAcquireBranchLock("inst", "tok", "runner-A");
+            Assert.IsNotNull(a);
+
+            Assert.IsNull(storeB.TryAcquireBranchLock("inst", "tok", "runner-B"),
+                "another process must not lock the same held branch.");
+
+            a.Dispose();
+
+            using Stores.IWorkflowBranchLock b = storeB.TryAcquireBranchLock("inst", "tok", "runner-B");
+            Assert.IsNotNull(b, "after release the branch is free for the other process.");
+        }
+
+        [TestMethod]
+        public void BranchLock_ReleaseLocksOfOwner_ResetsOnlyThatOwner()
+        {
+            var store = NewStore();
+            Assert.IsNotNull(store.TryAcquireBranchLock("i1", "t", "runner-A"));
+            Assert.IsNotNull(store.TryAcquireBranchLock("i2", "t", "runner-A"));
+            Assert.IsNotNull(store.TryAcquireBranchLock("i3", "t", "runner-B"));
+
+            store.ReleaseLocksOfOwner("runner-A");
+
+            Assert.IsNotNull(store.TryAcquireBranchLock("i1", "t", "runner-C"), "A's lock was reset.");
+            Assert.IsNotNull(store.TryAcquireBranchLock("i2", "t", "runner-C"), "A's lock was reset.");
+            Assert.IsNull(store.TryAcquireBranchLock("i3", "t", "runner-C"), "B's lock must be untouched.");
+        }
+
         private static WorkflowDefinition WaitDefinition()
         {
             return new WorkflowDefinition

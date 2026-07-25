@@ -48,5 +48,22 @@ namespace ITVComponents.Workflow.Stores
         /// mitten im Lauf - liegengeblieben ist.
         /// </summary>
         IEnumerable<WorkflowInstance> FindRunnable();
+
+        /// <summary>
+        /// Versucht, den Zweig <c>(instanceId, tokenId)</c> fuer den angegebenen Owner (stabiler
+        /// Runner-Name) zu sperren - der prozessuebergreifende Ausschluss, damit nicht zwei Runner
+        /// denselben Zweig gleichzeitig vorantreiben. Liefert ein Handle bei Erfolg, <c>null</c>, wenn
+        /// der Zweig bereits gesperrt ist. Die Sperre hat KEINE TTL (siehe
+        /// <see cref="IWorkflowBranchLock"/>).
+        /// </summary>
+        IWorkflowBranchLock TryAcquireBranchLock(string instanceId, string tokenId, string owner);
+
+        /// <summary>
+        /// Gibt alle Sperren des angegebenen Owners frei. Ein Runner ruft das beim Neustart mit seinem
+        /// eigenen Namen auf (ein noch gehaltener Lock nach Neustart bedeutet: er ist mittendrin
+        /// abgestuerzt) - so werden die betroffenen Zweige sofort wieder frei, ohne Wartefrist.
+        /// Dient zugleich als Admin-/Uebernahme-Operation fuer einen endgueltig toten Runner.
+        /// </summary>
+        void ReleaseLocksOfOwner(string owner);
     }
 }

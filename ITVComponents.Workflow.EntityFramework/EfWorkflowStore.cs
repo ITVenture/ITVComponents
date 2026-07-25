@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.Helpers;
+using ITVComponents.Logging;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Stores;
@@ -186,6 +188,66 @@ namespace ITVComponents.Workflow.EntityFramework
                 .ToList();
         }
 
+        /// <inheritdoc/>
+        public IWorkflowBranchLock TryAcquireBranchLock(string instanceId, string tokenId, string owner)
+        {
+            if (instanceId == null) throw new ArgumentNullException(nameof(instanceId));
+            if (tokenId == null) throw new ArgumentNullException(nameof(tokenId));
+            if (string.IsNullOrEmpty(owner)) throw new ArgumentNullException(nameof(owner));
+
+            try
+            {
+                using WorkflowContext ctx = contextFactory();
+                // Atomarer Erwerb: der INSERT des (InstanceId, TokenId)-Schluessels ist der CAS-Punkt -
+                // ist der Zweig bereits gesperrt, verletzt er den Primaerschluessel.
+                ctx.BranchLocks.Add(new WorkflowBranchLockRow
+                {
+                    InstanceId = instanceId,
+                    TokenId = tokenId,
+                    Owner = owner,
+                    AcquiredUtc = DateTime.UtcNow
+                });
+                ctx.SaveChanges();
+                return new BranchLock(this, instanceId, tokenId, owner);
+            }
+            catch (DbUpdateException ex)
+            {
+                // Entweder Contention (Schluessel existiert bereits) oder ein echter DB-Fehler - das
+                // muss unterschieden werden, damit ein realer Fehler nicht als "gesperrt" verschluckt wird.
+                using WorkflowContext check = contextFactory();
+                if (check.BranchLocks.Any(l => l.InstanceId == instanceId && l.TokenId == tokenId))
+                {
+                    return null; // bereits gesperrt - regulaeres Ergebnis
+                }
+
+                LogEnvironment.LogEvent(
+                    $"Unexpected error acquiring branch lock for instance '{instanceId}' token '{tokenId}': " +
+                    $"{ex.OutlineException()}", LogSeverity.Error);
+                throw;
+            }
+        }
+
+        /// <inheritdoc/>
+        public void ReleaseLocksOfOwner(string owner)
+        {
+            if (string.IsNullOrEmpty(owner))
+            {
+                return;
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            ctx.BranchLocks.Where(l => l.Owner == owner).ExecuteDelete();
+        }
+
+        private void ReleaseBranch(string instanceId, string tokenId, string owner)
+        {
+            using WorkflowContext ctx = contextFactory();
+            // Nur der Besitzer gibt frei.
+            ctx.BranchLocks
+                .Where(l => l.InstanceId == instanceId && l.TokenId == tokenId && l.Owner == owner)
+                .ExecuteDelete();
+        }
+
         private static List<WorkflowInstance> LoadInstances(WorkflowContext ctx, List<string> ids)
         {
             if (ids.Count == 0)
@@ -218,6 +280,48 @@ namespace ITVComponents.Workflow.EntityFramework
                 Tokens = WorkflowJson.Deserialize<List<Token>>(row.TokensJson) ?? new List<Token>(),
                 History = WorkflowJson.Deserialize<List<HistoryEntry>>(row.HistoryJson) ?? new List<HistoryEntry>()
             };
+        }
+
+        private sealed class BranchLock : IWorkflowBranchLock
+        {
+            private readonly EfWorkflowStore store;
+            private bool released;
+
+            public BranchLock(EfWorkflowStore store, string instanceId, string tokenId, string owner)
+            {
+                this.store = store;
+                InstanceId = instanceId;
+                TokenId = tokenId;
+                Owner = owner;
+            }
+
+            public string InstanceId { get; }
+
+            public string TokenId { get; }
+
+            public string Owner { get; }
+
+            public void Dispose()
+            {
+                if (released)
+                {
+                    return;
+                }
+
+                released = true;
+                try
+                {
+                    store.ReleaseBranch(InstanceId, TokenId, Owner);
+                }
+                catch (Exception ex)
+                {
+                    // Freigabe darf nicht mitreissen; ein nicht freigegebener Lock wird spaetestens beim
+                    // Runner-Neustart (ReleaseLocksOfOwner) abgeraeumt. Der Fehler wird protokolliert.
+                    LogEnvironment.LogEvent(
+                        $"Could not release branch lock for instance '{InstanceId}' token '{TokenId}': " +
+                        $"{ex.OutlineException()}", LogSeverity.Error);
+                }
+            }
         }
     }
 }

@@ -24,6 +24,9 @@ namespace ITVComponents.Workflow.Stores
         private readonly ConcurrentDictionary<string, WorkflowInstance> instances =
             new ConcurrentDictionary<string, WorkflowInstance>();
 
+        private readonly ConcurrentDictionary<(string InstanceId, string TokenId), string> branchLocks =
+            new ConcurrentDictionary<(string, string), string>();
+
         /// <inheritdoc/>
         public void SaveDefinition(WorkflowDefinition definition)
         {
@@ -96,9 +99,71 @@ namespace ITVComponents.Workflow.Stores
             return instances.Values.Where(i => i.Status == WorkflowStatus.Running).ToList();
         }
 
+        /// <inheritdoc/>
+        public IWorkflowBranchLock TryAcquireBranchLock(string instanceId, string tokenId, string owner)
+        {
+            if (instanceId == null) throw new ArgumentNullException(nameof(instanceId));
+            if (tokenId == null) throw new ArgumentNullException(nameof(tokenId));
+            if (string.IsNullOrEmpty(owner)) throw new ArgumentNullException(nameof(owner));
+
+            return branchLocks.TryAdd((instanceId, tokenId), owner)
+                ? new BranchLock(this, instanceId, tokenId, owner)
+                : null;
+        }
+
+        /// <inheritdoc/>
+        public void ReleaseLocksOfOwner(string owner)
+        {
+            if (string.IsNullOrEmpty(owner))
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<(string, string), string> pair in branchLocks.Where(k => k.Value == owner).ToList())
+            {
+                branchLocks.TryRemove(pair);
+            }
+        }
+
+        private void ReleaseBranch(string instanceId, string tokenId, string owner)
+        {
+            // Nur der Besitzer gibt frei (atomar ueber den Wert-gebundenen TryRemove).
+            branchLocks.TryRemove(
+                new KeyValuePair<(string, string), string>((instanceId, tokenId), owner));
+        }
+
         private static string Key(string id, int version)
         {
             return $"{id}#{version}";
+        }
+
+        private sealed class BranchLock : IWorkflowBranchLock
+        {
+            private readonly InMemoryWorkflowStore store;
+            private bool released;
+
+            public BranchLock(InMemoryWorkflowStore store, string instanceId, string tokenId, string owner)
+            {
+                this.store = store;
+                InstanceId = instanceId;
+                TokenId = tokenId;
+                Owner = owner;
+            }
+
+            public string InstanceId { get; }
+
+            public string TokenId { get; }
+
+            public string Owner { get; }
+
+            public void Dispose()
+            {
+                if (!released)
+                {
+                    released = true;
+                    store.ReleaseBranch(InstanceId, TokenId, Owner);
+                }
+            }
         }
     }
 }

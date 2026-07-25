@@ -102,6 +102,26 @@ namespace ITVComponents.Workflow.EntityFramework
     }
 
     /// <summary>
+    /// Eine gehaltene Zweig-Sperre (prozessuebergreifender Ausschluss beim Vortrieb eines Zweigs).
+    /// Reine Koordinations-Zeile ohne TTL: gilt, bis sie freigegeben oder ueber den Owner-Namen
+    /// zurueckgesetzt wird. Bewusst OHNE Tenant-Filter - ein Runner sperrt tenant-uebergreifend.
+    /// </summary>
+    public class WorkflowBranchLockRow
+    {
+        /// <summary>Die gesperrte Instanz (Teil des Schluessels).</summary>
+        public string InstanceId { get; set; }
+
+        /// <summary>Das gesperrte Token/der Zweig (Teil des Schluessels).</summary>
+        public string TokenId { get; set; }
+
+        /// <summary>Der Besitzer der Sperre (stabiler Runner-Name).</summary>
+        public string Owner { get; set; }
+
+        /// <summary>Zeitpunkt des Erwerbs (UTC) - nur informativ; die Sperre hat keine TTL.</summary>
+        public DateTime AcquiredUtc { get; set; }
+    }
+
+    /// <summary>
     /// Der EF-Core-Kontext des Workflow-Stores. Provider-agnostisch: SqlServer, PostgreSql oder
     /// SQLite werden erst beim Bauen der <see cref="DbContextOptions"/> gewaehlt.
     /// </summary>
@@ -181,6 +201,9 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die Workflow-Definitionen.</summary>
         public DbSet<WorkflowDefinitionRow> WorkflowDefinitions { get; set; }
 
+        /// <summary>Die gehaltenen Zweig-Sperren (Koordination, ohne Tenant-Filter).</summary>
+        public DbSet<WorkflowBranchLockRow> BranchLocks { get; set; }
+
         /// <inheritdoc/>
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -206,6 +229,15 @@ namespace ITVComponents.Workflow.EntityFramework
             {
                 e.HasKey(n => new { n.Id, n.Version });
                 e.HasIndex(n => n.TenantId);
+            });
+
+            modelBuilder.Entity<WorkflowBranchLockRow>(e =>
+            {
+                // Zusammengesetzter Schluessel (Instanz, Token) = der atomare Erwerbs-Punkt: ein
+                // zweiter INSERT desselben Zweigs verletzt den PK -> Contention. Index auf Owner fuer
+                // das Zuruecksetzen beim Runner-Neustart.
+                e.HasKey(n => new { n.InstanceId, n.TokenId });
+                e.HasIndex(n => n.Owner);
             });
 
             // Nur wenn der Plugin-Ctor Model-Optionen gesetzt hat, werden die tenant-abhaengigen
