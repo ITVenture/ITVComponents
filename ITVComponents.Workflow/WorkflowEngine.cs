@@ -289,24 +289,31 @@ namespace ITVComponents.Workflow
             // wenn dieser Lauf keine Aktivitaet aufloest.
             using IActivityScope activityScope = activities.OpenScope(instance);
 
-            // Zweig fuer Zweig vorantreiben: einen aktiven Token bis zu seiner naechsten Barriere
-            // (Wait/Timer/Ende, oder er teilt sich an einem Split in Kinder auf), dann den naechsten.
-            // Die Kinder eines Splits bleiben als aktive Tokens stehen und werden in einer weiteren
-            // Runde aufgegriffen. Das ist die Einheit, die die nebenlaeufige Ausfuehrung (Phase 3a)
-            // pro Zweig-Task ausfuehrt; sequenziell hier nur nacheinander.
-            while (true)
+            // Zweig fuer Zweig vorantreiben: einen aktiven Token bis zu seiner naechsten Barriere, dann
+            // den naechsten. Sind keine aktiven Tokens mehr da, fertige Joins aufloesen (das kann neue
+            // aktive Zweige spawnen). Checkpoint je Zweig bzw. je Join-Fire. Das ist die Einheit, die die
+            // nebenlaeufige Ausfuehrung (Phase 3a) pro Zweig-Task ausfuehrt; sequenziell hier nacheinander.
+            while (instance.Status != WorkflowStatus.Faulted)
             {
                 Token token = instance.ActiveTokens.FirstOrDefault();
-                if (token == null)
+                if (token != null)
+                {
+                    if (!AdvanceBranch(instance, definition, token, activityScope))
+                    {
+                        break; // AdvanceBranch hat auf Faulted gesetzt.
+                    }
+
+                    store.SaveInstance(instance);
+                    continue;
+                }
+
+                // Keine aktiven Tokens: fertige Joins feuern. Feuert nichts, ist der Vortrieb zu Ende.
+                if (!ResolveJoins(instance, definition))
                 {
                     break;
                 }
 
-                if (!AdvanceBranch(instance, definition, token, activityScope))
-                {
-                    // AdvanceBranch hat die Instanz auf Faulted gesetzt.
-                    break;
-                }
+                store.SaveInstance(instance);
             }
 
             if (instance.Status == WorkflowStatus.Running)
@@ -321,8 +328,9 @@ namespace ITVComponents.Workflow
         /// Treibt EINEN Zweig (Token) bis zu seiner naechsten Barriere voran: ein Wartepunkt
         /// (Signal/Timer), das Ende, oder ein Gateway, an dem der Token verbraucht wird und Kinder
         /// entstehen (Split) bzw. auf Geschwister wartet (Join). Kinder-Tokens bleiben aktiv fuer eine
-        /// eigene Zweig-Runde. Checkpoint nach jedem Knoten (ein Absturz kostet hoechstens den laufenden
-        /// Schritt). Liefert false, wenn die Instanz dabei auf Faulted gelaufen ist.
+        /// eigene Zweig-Runde. Reiner In-Memory-Vortrieb ohne Persistenz - das Festhalten (Checkpoint bzw.
+        /// nebenlaeufiger Commit) liegt beim Aufrufer, je Zweig-Barriere. Liefert false, wenn die Instanz
+        /// dabei auf Faulted gelaufen ist.
         /// </summary>
         private bool AdvanceBranch(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             IActivityScope activityScope)
@@ -343,10 +351,6 @@ namespace ITVComponents.Workflow
                     // ProcessActiveToken hat die Instanz auf Faulted gesetzt.
                     return false;
                 }
-
-                // Checkpoint nach jedem Knoten: ein Absturz darf hoechstens den gerade laufenden
-                // Schritt kosten, nicht den ganzen bisherigen Fortschritt.
-                store.SaveInstance(instance);
             }
 
             return true;
@@ -696,25 +700,67 @@ namespace ITVComponents.Workflow
                 return SpawnOutgoing(instance, outgoing);
             }
 
-            // Join: dieses Token kommt an und parkt, bis auf jeder eingehenden Kante eines liegt.
+            // Join: dieses Token kommt an und parkt als Joining. Die Fire-Entscheidung faellt bewusst
+            // NICHT hier, sondern zentral in ResolveJoins - im sequenziellen Fall, nachdem alle Zweige
+            // geparkt sind; im nebenlaeufigen Fall im serialisierten Commit gegen frischen Stand (atomar).
             token.Status = TokenStatus.Joining;
             instance.Log("Joining", node.Id, node.Name);
+            return true;
+        }
 
-            var parked = instance.Tokens
-                .Where(t => t.NodeId == node.Id && t.Status == TokenStatus.Joining)
-                .ToList();
-            if (parked.Count < incoming.Count)
+        /// <summary>
+        /// Loest fertige AND-Joins auf: fuer jedes parallele Gateway mit mehreren Eingaengen, an dem
+        /// genug Tokens geparkt sind (Zahl geparkter Joining-Tokens &gt;= Zahl eingehender Kanten), werden
+        /// diese verbraucht und die Ausgaenge gespawnt (ein neuer aktiver Zweig je Ausgang). Liefert true,
+        /// wenn mindestens ein Join gefeuert hat. Bewusst getrennt von der Ankunft (ProcessParallelGateway),
+        /// damit die Entscheidung an EINER Stelle gegen den aktuellen Token-Stand faellt - Voraussetzung
+        /// fuer den atomaren Join unter Nebenlaeufigkeit (Auswertung im serialisierten Commit).
+        /// </summary>
+        private bool ResolveJoins(WorkflowInstance instance, WorkflowDefinition definition)
+        {
+            bool firedAny = false;
+            bool progress = true;
+            while (progress && instance.Status != WorkflowStatus.Faulted)
             {
-                return true;
+                progress = false;
+                foreach (WorkflowNode node in definition.Nodes)
+                {
+                    if (node.Kind != NodeKind.ParallelGateway)
+                    {
+                        continue;
+                    }
+
+                    IReadOnlyList<SequenceFlow> incoming = definition.IncomingFlows(node.Id);
+                    if (incoming.Count <= 1)
+                    {
+                        continue; // Split, kein Join.
+                    }
+
+                    var parked = instance.Tokens
+                        .Where(t => t.NodeId == node.Id && t.Status == TokenStatus.Joining)
+                        .ToList();
+                    if (parked.Count < incoming.Count)
+                    {
+                        continue;
+                    }
+
+                    foreach (Token p in parked.Take(incoming.Count))
+                    {
+                        p.Status = TokenStatus.Consumed;
+                    }
+
+                    instance.Log("ParallelJoin", node.Id, node.Name);
+                    if (!SpawnOutgoing(instance, definition.OutgoingFlows(node.Id)))
+                    {
+                        return firedAny; // SpawnOutgoing hat auf Faulted gesetzt.
+                    }
+
+                    firedAny = true;
+                    progress = true;
+                }
             }
 
-            foreach (Token p in parked.Take(incoming.Count))
-            {
-                p.Status = TokenStatus.Consumed;
-            }
-
-            instance.Log("ParallelJoin", node.Id, node.Name);
-            return SpawnOutgoing(instance, outgoing);
+            return firedAny;
         }
 
         private bool SpawnOutgoing(WorkflowInstance instance, IReadOnlyList<SequenceFlow> outgoing)
