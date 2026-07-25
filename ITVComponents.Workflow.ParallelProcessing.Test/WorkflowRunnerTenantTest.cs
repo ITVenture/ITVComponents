@@ -1,147 +1,107 @@
 using System.Collections.Generic;
-using System.IO;
+using ITVComponents.Workflow;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Runtime;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.Workflow.ParallelProcessing.Test
 {
     /// <summary>
-    /// Prueft den tenant-uebergreifenden Betrieb: EIN Worker/Store treibt Instanzen verschiedener
-    /// Tenants voran, jede aber unter IHREM Tenant (der Store selbst bleibt filterfrei, damit er die
-    /// Instanzen aller Tenants findet). Nachweis ueber eine Aktivitaet, die den ambienten Tenant liest.
+    /// Prueft, dass der nebenlaeufige Zweig-Vortrieb jede Instanz unter IHREM Tenant ausfuehrt:
+    /// <see cref="WorkflowEngine.RunBranch"/> setzt den ambienten Tenant-Kontext aus der Instanz, sodass
+    /// tenant-abhaengige Aktivitaeten die richtigen Daten sehen.
     /// </summary>
     [TestClass]
     public class WorkflowRunnerTenantTest
     {
-        private string dbFile;
+        private SqliteConnection connection;
         private DbContextOptions<WorkflowContext> options;
         private EfWorkflowStore store;
         private WorkflowEngine engine;
-        private WorkflowTaskWorker worker;
 
         [TestInitialize]
         public void Setup()
         {
-            dbFile = Path.GetTempFileName();
-            options = new DbContextOptionsBuilder<WorkflowContext>().UseSqlite($"DataSource={dbFile}").Options;
+            connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+            options = new DbContextOptionsBuilder<WorkflowContext>().UseSqlite(connection).Options;
             using (var ctx = new WorkflowContext(options))
             {
                 ctx.Database.EnsureCreated();
             }
 
-            // Store filterfrei (options-only-Kontext) - findet Instanzen aller Tenants.
             store = new EfWorkflowStore(() => new WorkflowContext(options));
-            // Die Aktivitaet haelt fest, welchen Tenant der ambiente Scope beim Ausfuehren traegt.
-            var activities = new ActivityRegistry()
-                .Register("record", ctx => ctx.Variables["seenTenant"] = WorkflowExecutionScope.CurrentTenant);
-            engine = new WorkflowEngine(store, activities);
-            worker = new WorkflowTaskWorker(engine, store) { Runtime = engine.Runtime };
+            engine = new WorkflowEngine(store, new ActivityRegistry()
+                .Register("record", ctx => ctx.Variables["seenTenant"] = WorkflowExecutionScope.CurrentTenant));
+            store.SaveDefinition(RecordDef());
         }
 
         [TestCleanup]
-        public void Cleanup()
+        public void Cleanup() => connection?.Dispose();
+
+        private WorkflowInstance ActiveAtRecord(string tenant)
         {
-            TryDelete(dbFile);
-            TryDelete(dbFile + "-wal");
-            TryDelete(dbFile + "-shm");
+            var inst = new WorkflowInstance
+            {
+                DefinitionId = "rec",
+                DefinitionVersion = 1,
+                TenantId = tenant,
+                Status = WorkflowStatus.Running,
+                Tokens = new List<Token> { new Token { Id = "t", NodeId = "r", Status = TokenStatus.Active } }
+            };
+            store.SaveInstance(inst);
+            return inst;
         }
 
         [TestMethod]
-        public void EachInstanceIsAdvancedUnderItsOwnTenant()
+        public void RunBranch_ExecutesActivityUnderInstanceTenant()
         {
-            store.SaveDefinition(WaitThenRecord());
+            WorkflowInstance a = ActiveAtRecord("tenantA");
+            WorkflowInstance b = ActiveAtRecord("tenantB");
 
-            // Start je unter dem eigenen Tenant -> die Instanz wird mit diesem Tenant gestempelt und
-            // haelt am Wartepunkt (die record-Aktivitaet liegt HINTER dem Wait, laeuft also noch nicht).
-            WorkflowInstance a;
-            using (WorkflowExecutionScope.UseTenant("tenantA"))
-            {
-                a = engine.StartWorkflow("rec");
-            }
+            engine.RunBranch(a.Id, "t");
+            engine.RunBranch(b.Id, "t");
 
-            WorkflowInstance b;
-            using (WorkflowExecutionScope.UseTenant("tenantB"))
-            {
-                b = engine.StartWorkflow("rec");
-            }
-
-            Assert.AreEqual(WorkflowStatus.Waiting, a.Status);
-            Assert.AreEqual("tenantA", store.GetInstance(a.Id).TenantId, "the instance must be stamped with its tenant.");
-            Assert.AreEqual("tenantB", store.GetInstance(b.Id).TenantId);
-
-            // Wichtig: HIER ist KEIN Scope aktiv. Der Worker muss den Tenant selbst aus der Instanz
-            // ableiten und setzen, bevor er sie vorantreibt.
-            Assert.IsFalse(WorkflowExecutionScope.HasTenant);
-
-            worker.Process(new WorkflowTask(a.Id, WorkflowTrigger.Signal, "go"));
-            worker.Process(new WorkflowTask(b.Id, WorkflowTrigger.Signal, "go"));
-
-            WorkflowInstance doneA = store.GetInstance(a.Id);
-            WorkflowInstance doneB = store.GetInstance(b.Id);
-            Assert.AreEqual(WorkflowStatus.Completed, doneA.Status);
-            Assert.AreEqual(WorkflowStatus.Completed, doneB.Status);
-            Assert.AreEqual("tenantA", doneA.Variables["seenTenant"], "activity of instance A must run under tenantA.");
-            Assert.AreEqual("tenantB", doneB.Variables["seenTenant"], "activity of instance B must run under tenantB.");
+            Assert.AreEqual("tenantA", store.GetInstance(a.Id).Variables["seenTenant"],
+                "instance A's activity must run under tenantA.");
+            Assert.AreEqual("tenantB", store.GetInstance(b.Id).Variables["seenTenant"],
+                "instance B's activity must run under tenantB.");
+            Assert.IsFalse(WorkflowExecutionScope.HasTenant, "the tenant scope must not leak after RunBranch.");
         }
 
         [TestMethod]
-        public void WithoutTheWorker_NoTenantIsInScope()
+        public void RunBranch_TenantFreeInstance_ActivitySeesNoTenant()
         {
-            // Gegenprobe: treibt man dieselbe Instanz OHNE den Worker voran (kein Scope), sieht die
-            // Aktivitaet keinen Tenant - der per-Instanz-Tenant kommt tatsaechlich vom Worker.
-            store.SaveDefinition(WaitThenRecord());
-            WorkflowInstance c;
-            using (WorkflowExecutionScope.UseTenant("tenantC"))
-            {
-                c = engine.StartWorkflow("rec");
-            }
+            WorkflowInstance c = ActiveAtRecord(null);
 
-            Assert.IsFalse(WorkflowExecutionScope.HasTenant);
-            engine.SignalWorkflow(c.Id, "go");
+            engine.RunBranch(c.Id, "t");
 
-            Assert.IsNull(store.GetInstance(c.Id).Variables["seenTenant"],
-                "without the worker's per-instance scope there is no ambient tenant.");
+            Assert.IsNull(store.GetInstance(c.Id).Variables["seenTenant"]);
         }
 
-        private static WorkflowDefinition WaitThenRecord()
+        private static WorkflowDefinition RecordDef()
         {
             return new WorkflowDefinition
             {
                 Id = "rec",
+                Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
-                    new WaitNode { Id = "w", SignalName = "go" },
                     new AutomatedActivityNode { Id = "r", ActivityRef = "record" },
                     new EndNode { Id = "e" }
                 },
                 Flows = new List<SequenceFlow>
                 {
-                    new SequenceFlow { Id = "s->w", SourceId = "s", TargetId = "w" },
-                    new SequenceFlow { Id = "w->r", SourceId = "w", TargetId = "r" },
+                    new SequenceFlow { Id = "s->r", SourceId = "s", TargetId = "r" },
                     new SequenceFlow { Id = "r->e", SourceId = "r", TargetId = "e" }
                 }
             };
-        }
-
-        private static void TryDelete(string path)
-        {
-            try
-            {
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-            }
-            catch (System.Exception ex)
-            {
-                System.Console.WriteLine($"Could not delete '{path}': {ex.Message}");
-            }
         }
     }
 }

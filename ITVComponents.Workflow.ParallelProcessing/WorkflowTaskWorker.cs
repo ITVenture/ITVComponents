@@ -1,104 +1,106 @@
 using System;
+using System.Collections.Generic;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.ParallelProcessing;
-using ITVComponents.Workflow.Instances;
-using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Stores;
 
 namespace ITVComponents.Workflow.ParallelProcessing
 {
     /// <summary>
-    /// Arbeitet <see cref="WorkflowTask"/>s ab: laedt die Instanz aus dem Store und treibt sie ueber
-    /// die Engine voran, jeweils unter der Pro-Instanz-Sperre.
+    /// Arbeitet <see cref="WorkflowTask"/>s <b>zweig-granular</b> ab: ein Advance-Task treibt EINEN Zweig
+    /// (Token) unter seiner Zweig-Sperre ueber <see cref="WorkflowEngine.RunBranch"/> voran; ein Signal-/
+    /// Timer-Task reaktiviert die passenden wartenden Tokens. Die durch einen Vortrieb neu entstandenen
+    /// aktiven Tokens (Split-Kinder / Join-Fortsetzungen) werden als eigene Advance-Tasks eingereiht.
     /// </summary>
     /// <remarks>
-    /// Das <see cref="InstanceGate"/> kommt NICHT ueber den Konstruktor, sondern als garantiert
-    /// gesetztes Property (<see cref="IWorkflowRuntimeAware"/>) aus der geteilten Laufzeit-Umgebung der
-    /// Engine - so laesst sich der Worker auch als Plugin laden, wo ein zur Kompositionszeit erzeugtes,
-    /// geteiltes Gate nicht als Konstruktor-Argument aufloesbar waere.
+    /// Der prozessuebergreifende Ausschluss laeuft ueber die Zweig-Sperre des Stores (Owner = stabiler
+    /// Runner-Name), nicht mehr ueber ein prozesslokales Gate - Zweige derselben Instanz duerfen darum
+    /// echt nebenlaeufig (same-host und verteilt) laufen. Der Tenant-Kontext wird von RunBranch selbst
+    /// gesetzt (aus der Instanz).
     /// </remarks>
-    public sealed class WorkflowTaskWorker : TaskWorkerBase<WorkflowTask>, IWorkflowRuntimeAware
+    public sealed class WorkflowTaskWorker : TaskWorkerBase<WorkflowTask>
     {
         private readonly WorkflowEngine engine;
         private readonly IWorkflowStore store;
-        private WorkflowRuntimeContext runtime;
+        private readonly string owner;
+        private readonly Action<WorkflowTask> enqueue;
 
         /// <summary>Initialisiert einen Worker.</summary>
-        public WorkflowTaskWorker(WorkflowEngine engine, IWorkflowStore store)
+        /// <param name="engine">die Engine</param>
+        /// <param name="store">der Store</param>
+        /// <param name="owner">der stabile Runner-Name (Besitzer der Zweig-Sperren)</param>
+        /// <param name="enqueue">Callback, um Folge-Zweige (neue aktive Tokens) einzureihen</param>
+        public WorkflowTaskWorker(WorkflowEngine engine, IWorkflowStore store, string owner,
+            Action<WorkflowTask> enqueue)
         {
             this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
             this.store = store ?? throw new ArgumentNullException(nameof(store));
-        }
-
-        /// <inheritdoc/>
-        public WorkflowRuntimeContext Runtime
-        {
-            set => runtime = value;
+            this.owner = string.IsNullOrEmpty(owner) ? throw new ArgumentNullException(nameof(owner)) : owner;
+            this.enqueue = enqueue ?? throw new ArgumentNullException(nameof(enqueue));
         }
 
         /// <inheritdoc/>
         public override void Process(WorkflowTask task)
         {
-            InstanceGate gate = runtime?.Gate;
-            if (gate == null)
-            {
-                // Verdrahtungsfehler: die Laufzeit-Umgebung wurde nie gesetzt. Nicht still ueberspringen.
-                LogEnvironment.LogEvent(
-                    $"Workflow-Worker ohne Laufzeit-Umgebung (InstanceGate nicht gesetzt). Auftrag " +
-                    $"'{task.Trigger}' fuer Instanz '{task.InstanceId}' wird uebersprungen.",
-                    LogSeverity.Error);
-                return;
-            }
-
             try
             {
-                // Pro Instanz nur ein Worker gleichzeitig. Auftraege fuer verschiedene Instanzen
-                // laufen parallel; Doppel-Auftraege fuer dieselbe Instanz werden serialisiert und
-                // sind harmlos (ein zweiter Vortrieb/Signal findet nichts mehr zu tun).
-                lock (gate.For(task.InstanceId))
+                switch (task.Trigger)
                 {
-                    // Einmal laden - fuer Existenzpruefung UND um den Tenant der Instanz zu kennen.
-                    WorkflowInstance instance = store.GetInstance(task.InstanceId);
-                    if (instance == null)
-                    {
-                        // Kein stilles Verschlucken: die Instanz ist weg (geloescht) oder fuer diesen
-                        // Store nicht sichtbar. Der Auftrag laeuft ins Leere - das wird protokolliert.
-                        LogEnvironment.LogEvent(
-                            $"Workflow task '{task.Trigger}' for instance '{task.InstanceId}': instance not " +
-                            "found (already gone or not visible) - skipped.", LogSeverity.Warning);
-                        return;
-                    }
-
-                    // Der Runner arbeitet tenant-uebergreifend, aber jede Instanz wird unter IHREM Tenant
-                    // vorangetrieben: so sehen tenant-abhaengige Aktivitaeten/DB-Kontexte die richtigen
-                    // Daten (siehe WorkflowExecutionScope). Ausserhalb des Scopes bleibt der Store
-                    // filterfrei, damit der Poll die Instanzen aller Tenants findet.
-                    using (WorkflowExecutionScope.UseTenant(instance.TenantId))
-                    {
-                        switch (task.Trigger)
-                        {
-                            case WorkflowTrigger.Advance:
-                                engine.Advance(instance);
-                                break;
-                            case WorkflowTrigger.Timer:
-                                engine.TriggerTimers(instance, DateTime.UtcNow);
-                                break;
-                            case WorkflowTrigger.Signal:
-                                engine.SignalWorkflow(task.InstanceId, task.SignalName, task.Payload);
-                                break;
-                        }
-                    }
+                    case WorkflowTrigger.Advance:
+                        ProcessBranch(task);
+                        break;
+                    case WorkflowTrigger.Signal:
+                        EnqueueBranches(task.InstanceId,
+                            engine.ReactivateSignal(task.InstanceId, task.SignalName, task.Payload));
+                        break;
+                    case WorkflowTrigger.Timer:
+                        EnqueueBranches(task.InstanceId,
+                            engine.ReactivateTimers(task.InstanceId, DateTime.UtcNow));
+                        break;
                 }
             }
             catch (Exception ex)
             {
                 // Ein fehlgeschlagener Auftrag darf den Worker nicht mitreissen. Der Fehler wird
-                // protokolliert (mit Stacktrace); die Engine hat instanz-interne Fehler ohnehin
-                // bereits auf Faulted abgebildet.
+                // protokolliert (mit Stacktrace); die Engine hat instanz-interne Fehler ohnehin bereits
+                // auf Faulted abgebildet.
                 LogEnvironment.LogEvent(
-                    $"Workflow task '{task.Trigger}' for instance '{task.InstanceId}' failed: {ex.OutlineException()}",
-                    LogSeverity.Error);
+                    $"Workflow task '{task.Trigger}' for instance '{task.InstanceId}' token '{task.TokenId}' " +
+                    $"failed: {ex.OutlineException()}", LogSeverity.Error);
+            }
+        }
+
+        private void ProcessBranch(WorkflowTask task)
+        {
+            if (string.IsNullOrEmpty(task.TokenId))
+            {
+                LogEnvironment.LogEvent(
+                    $"Advance task for instance '{task.InstanceId}' has no token id - skipped.", LogSeverity.Warning);
+                return;
+            }
+
+            // Prozessuebergreifender Ausschluss pro Zweig. Bekommt ein anderer Worker/Prozess die Sperre
+            // nicht, treibt er den Zweig gerade schon voran - dann ueberspringen (kein Fehler).
+            using IWorkflowBranchLock branchLock = store.TryAcquireBranchLock(task.InstanceId, task.TokenId, owner);
+            if (branchLock == null)
+            {
+                return;
+            }
+
+            EnqueueBranches(task.InstanceId, engine.RunBranch(task.InstanceId, task.TokenId));
+        }
+
+        private void EnqueueBranches(string instanceId, IReadOnlyList<string> newTokenIds)
+        {
+            if (newTokenIds == null)
+            {
+                return;
+            }
+
+            foreach (string tokenId in newTokenIds)
+            {
+                enqueue(new WorkflowTask(instanceId, WorkflowTrigger.Advance, tokenId));
             }
         }
     }

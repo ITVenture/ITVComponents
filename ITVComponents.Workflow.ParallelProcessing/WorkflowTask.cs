@@ -28,11 +28,12 @@ namespace ITVComponents.Workflow.ParallelProcessing
     public sealed class WorkflowTask : TaskBase
     {
         /// <summary>Initialisiert einen Auftrag.</summary>
-        public WorkflowTask(string instanceId, WorkflowTrigger trigger, string signalName = null,
-            IDictionary<string, object> payload = null)
+        public WorkflowTask(string instanceId, WorkflowTrigger trigger, string tokenId = null,
+            string signalName = null, IDictionary<string, object> payload = null)
         {
             InstanceId = instanceId ?? throw new ArgumentNullException(nameof(instanceId));
             Trigger = trigger;
+            TokenId = tokenId;
             SignalName = signalName;
             Payload = payload;
             // Wichtig: Schedules darf nicht null sein - ParallelTaskProcessor.EnqueueTask iteriert
@@ -40,7 +41,7 @@ namespace ITVComponents.Workflow.ParallelProcessing
             Schedules = new List<SchedulerPolicy>();
             // Ebenso wichtig: nur aktive Tasks werden eingereiht - inaktive verwirft TaskScheduled.
             Active = true;
-            Description = $"{trigger} {instanceId}";
+            Description = tokenId != null ? $"{trigger} {instanceId}/{tokenId}" : $"{trigger} {instanceId}";
         }
 
         /// <summary>Die betroffene Instanz.</summary>
@@ -48,6 +49,9 @@ namespace ITVComponents.Workflow.ParallelProcessing
 
         /// <summary>Die Art des Auftrags.</summary>
         public WorkflowTrigger Trigger { get; }
+
+        /// <summary>Bei <see cref="WorkflowTrigger.Advance"/>: der vorzutreibende Zweig (Token); sonst null.</summary>
+        public string TokenId { get; }
 
         /// <summary>Bei <see cref="WorkflowTrigger.Signal"/>: der Signalname.</summary>
         public string SignalName { get; }
@@ -69,6 +73,7 @@ namespace ITVComponents.Workflow.ParallelProcessing
             return other is WorkflowTask task
                    && task.InstanceId == InstanceId
                    && task.Trigger == Trigger
+                   && task.TokenId == TokenId
                    && task.SignalName == SignalName;
         }
 
@@ -78,6 +83,7 @@ namespace ITVComponents.Workflow.ParallelProcessing
             return new Dictionary<string, object>
             {
                 { "InstanceId", InstanceId },
+                { "TokenId", TokenId },
                 { "Trigger", Trigger.ToString() },
                 { "SignalName", SignalName }
             };

@@ -9,63 +9,104 @@ using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Stores;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.Workflow.ParallelProcessing.Test
 {
     /// <summary>
-    /// Prueft den <see cref="WorkflowTaskWorker"/> deterministisch (ohne Threads): ein Auftrag wird
-    /// direkt verarbeitet.
+    /// Prueft den zweig-granularen <see cref="WorkflowTaskWorker"/> deterministisch (ohne Threads): ein
+    /// Auftrag wird verarbeitet, die daraus entstehenden Folge-Zweige werden bis zur Ruhe abgearbeitet
+    /// (Drain). Nutzt den EF-Store (Kopien - Voraussetzung fuer RunBranch).
     /// </summary>
     [TestClass]
     public class WorkflowTaskWorkerTest
     {
-        private InMemoryWorkflowStore store;
+        private SqliteConnection connection;
+        private DbContextOptions<WorkflowContext> options;
+        private EfWorkflowStore store;
         private WorkflowEngine engine;
+        private Queue<WorkflowTask> queue;
         private WorkflowTaskWorker worker;
 
         [TestInitialize]
         public void Setup()
         {
-            store = new InMemoryWorkflowStore();
-            var activities = new ActivityRegistry().Register("finish", ctx => ctx.Variables["done"] = true);
-            engine = new WorkflowEngine(store, activities);
-            // Das Gate kommt jetzt aus der Laufzeit-Umgebung der Engine und wird per Property gesetzt.
-            worker = new WorkflowTaskWorker(engine, store) { Runtime = engine.Runtime };
+            connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+            options = new DbContextOptionsBuilder<WorkflowContext>().UseSqlite(connection).Options;
+            using (var ctx = new WorkflowContext(options))
+            {
+                ctx.Database.EnsureCreated();
+            }
+
+            store = new EfWorkflowStore(() => new WorkflowContext(options));
+            engine = new WorkflowEngine(store,
+                new ActivityRegistry().Register("finish", ctx => ctx.Variables["done"] = true));
+            queue = new Queue<WorkflowTask>();
+            worker = new WorkflowTaskWorker(engine, store, "runner-test", t => queue.Enqueue(t));
+        }
+
+        [TestCleanup]
+        public void Cleanup() => connection?.Dispose();
+
+        /// <summary>Verarbeitet den Task und alle daraus entstehenden Folge-Zweige (deterministisch, ohne Threads).</summary>
+        private void ProcessAll(WorkflowTask task)
+        {
+            queue.Enqueue(task);
+            int guard = 0;
+            while (queue.Count > 0)
+            {
+                if (++guard > 1000)
+                {
+                    Assert.Fail("task drain did not terminate.");
+                }
+
+                worker.Process(queue.Dequeue());
+            }
+        }
+
+        /// <summary>Legt die Instanz an und treibt ihren Start-Zweig bis zur ersten Barriere voran.</summary>
+        private WorkflowInstance StartAndAdvance(string definitionId)
+        {
+            WorkflowInstance instance = engine.CreateInstance(definitionId);
+            ProcessAll(new WorkflowTask(instance.Id, WorkflowTrigger.Advance, instance.Tokens[0].Id));
+            return instance;
         }
 
         [TestMethod]
-        public void SignalTaskCompletesInstance()
+        public void SignalTask_ReactivatesAndBranchCompletesInstance()
         {
             store.SaveDefinition(WorkflowDefinitions.Wait("approve"));
-            WorkflowInstance instance = engine.StartWorkflow("wait");
-            Assert.AreEqual(WorkflowStatus.Waiting, instance.Status);
+            WorkflowInstance instance = StartAndAdvance("wait");
+            Assert.AreEqual(WorkflowStatus.Waiting, store.GetInstance(instance.Id).Status);
 
-            worker.Process(new WorkflowTask(instance.Id, WorkflowTrigger.Signal, "approve"));
+            ProcessAll(new WorkflowTask(instance.Id, WorkflowTrigger.Signal, null, "approve"));
 
             Assert.AreEqual(WorkflowStatus.Completed, store.GetInstance(instance.Id).Status);
         }
 
         [TestMethod]
-        public void TimerTaskCompletesDueInstance()
+        public void TimerTask_ReactivatesAndBranchCompletesInstance()
         {
             store.SaveDefinition(WorkflowDefinitions.Timer("'System.DateTime'.UtcNow"));
-            WorkflowInstance instance = engine.StartWorkflow("timer");
-            Assert.AreEqual(WorkflowStatus.Waiting, instance.Status);
+            WorkflowInstance instance = StartAndAdvance("timer");
+            Assert.AreEqual(WorkflowStatus.Waiting, store.GetInstance(instance.Id).Status);
 
-            worker.Process(new WorkflowTask(instance.Id, WorkflowTrigger.Timer));
+            ProcessAll(new WorkflowTask(instance.Id, WorkflowTrigger.Timer));
 
             Assert.AreEqual(WorkflowStatus.Completed, store.GetInstance(instance.Id).Status);
         }
 
         [TestMethod]
-        public void AdvanceTaskLeavesWaitingInstanceUntouched()
+        public void AdvanceTask_OnWaitingBranch_IsNoOp()
         {
             store.SaveDefinition(WorkflowDefinitions.Wait("approve"));
-            WorkflowInstance instance = engine.StartWorkflow("wait");
+            WorkflowInstance instance = StartAndAdvance("wait");
 
-            worker.Process(new WorkflowTask(instance.Id, WorkflowTrigger.Advance));
+            // Der Start-Token wartet jetzt am Wait-Knoten; ein Advance-Task dafuer ist ein Leerlauf.
+            worker.Process(new WorkflowTask(instance.Id, WorkflowTrigger.Advance, instance.Tokens[0].Id));
 
             Assert.AreEqual(WorkflowStatus.Waiting, store.GetInstance(instance.Id).Status);
         }
@@ -98,7 +139,12 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
             }
 
             store = new EfWorkflowStore(() => new WorkflowContext(options));
-            var activities = new ActivityRegistry().Register("finish", ctx => ctx.Variables["done"] = true);
+            var activities = new ActivityRegistry()
+                .Register("finish", ctx => ctx.Variables["done"] = true)
+                .Register("setA", ctx => ctx.Variables["a"] = 1)
+                .Register("setB", ctx => ctx.Variables["b"] = 2)
+                .Register("after", ctx =>
+                    ctx.Variables["after"] = (ctx.Variables.TryGetValue("after", out object r) ? (int)r : 0) + 1);
             engine = new WorkflowEngine(store, activities);
             runner = new WorkflowRunner(engine, store,
                 new WorkflowRunnerOptions { WorkerCount = 2, PollTimeMs = 100 });
@@ -118,8 +164,10 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         public void RunnerDeliversSignalAndCompletes()
         {
             store.SaveDefinition(WorkflowDefinitions.Wait("approve"));
-            WorkflowInstance instance = engine.StartWorkflow("wait");
-            Assert.AreEqual(WorkflowStatus.Waiting, instance.Status);
+            // Ueber den Runner starten (nebenlaeufig): der Runner treibt den Start-Zweig bis zum Wait.
+            WorkflowInstance instance = runner.StartWorkflow("wait");
+            Assert.IsTrue(WaitUntil(() => store.GetInstance(instance.Id)?.Status == WorkflowStatus.Waiting),
+                "the runner should advance the start branch to the wait point.");
 
             runner.Signal(instance.Id, "approve");
 
@@ -132,12 +180,26 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         public void RunnerDispatchesDueTimer()
         {
             store.SaveDefinition(WorkflowDefinitions.Timer("'System.DateTime'.UtcNow"));
-            WorkflowInstance instance = engine.StartWorkflow("timer");
-            Assert.AreEqual(WorkflowStatus.Waiting, instance.Status);
+            WorkflowInstance instance = runner.StartWorkflow("timer");
 
-            // Kein Signal, kein Enqueue - allein der periodische Poll nimmt den faelligen Timer auf.
+            // Der Runner treibt zum Timer, der Poll nimmt ihn (faellig) auf und schliesst ab.
             Assert.IsTrue(WaitUntil(() => store.GetInstance(instance.Id).Status == WorkflowStatus.Completed),
                 "The runner's poll should have picked up the due timer and completed the instance.");
+        }
+
+        [TestMethod]
+        public void RunnerRunsParallelBranchesToCompletion()
+        {
+            store.SaveDefinition(WorkflowDefinitions.Parallel());
+            WorkflowInstance instance = runner.StartWorkflow("par");
+
+            Assert.IsTrue(WaitUntil(() => store.GetInstance(instance.Id).Status == WorkflowStatus.Completed),
+                "the runner should advance the parallel branches (concurrently) and complete via the join.");
+
+            WorkflowInstance final = store.GetInstance(instance.Id);
+            Assert.AreEqual(1, final.Variables["a"], "branch A ran.");
+            Assert.AreEqual(2, final.Variables["b"], "branch B ran.");
+            Assert.AreEqual(1, final.Variables["after"], "the join continuation ran exactly once.");
         }
 
         private static bool WaitUntil(Func<bool> condition, int timeoutMs = 15000)
@@ -212,6 +274,35 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
                 {
                     new SequenceFlow { Id = "s->t", SourceId = "s", TargetId = "t" },
                     new SequenceFlow { Id = "t->e", SourceId = "t", TargetId = "e" }
+                }
+            };
+        }
+
+        /// <summary>Start -&gt; AND-Split -&gt; (setA | setB) -&gt; AND-Join -&gt; after -&gt; End.</summary>
+        public static WorkflowDefinition Parallel()
+        {
+            return new WorkflowDefinition
+            {
+                Id = "par",
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new ParallelGatewayNode { Id = "p" },
+                    new AutomatedActivityNode { Id = "a", ActivityRef = "setA" },
+                    new AutomatedActivityNode { Id = "b", ActivityRef = "setB" },
+                    new ParallelGatewayNode { Id = "j" },
+                    new AutomatedActivityNode { Id = "af", ActivityRef = "after" },
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->p", SourceId = "s", TargetId = "p" },
+                    new SequenceFlow { Id = "p->a", SourceId = "p", TargetId = "a" },
+                    new SequenceFlow { Id = "p->b", SourceId = "p", TargetId = "b" },
+                    new SequenceFlow { Id = "a->j", SourceId = "a", TargetId = "j" },
+                    new SequenceFlow { Id = "b->j", SourceId = "b", TargetId = "j" },
+                    new SequenceFlow { Id = "j->af", SourceId = "j", TargetId = "af" },
+                    new SequenceFlow { Id = "af->e", SourceId = "af", TargetId = "e" }
                 }
             };
         }

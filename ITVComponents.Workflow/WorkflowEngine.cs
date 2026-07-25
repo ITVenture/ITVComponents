@@ -328,7 +328,10 @@ namespace ITVComponents.Workflow
             var snapshot = new BranchSnapshot(instance);
 
             // Ausfuehrung EINMAL, rein in-memory (kein Save). AdvanceBranch parkt am Join als Joining und
-            // feuert NICHT - der Fire faellt gleich im serialisierten Commit gegen frischen Stand.
+            // feuert NICHT - der Fire faellt gleich im serialisierten Commit gegen frischen Stand. Die
+            // Ausfuehrung laeuft unter dem Tenant der Instanz (tenant-uebergreifender Runner), damit die
+            // Aktivitaeten die richtigen Daten sehen.
+            using (WorkflowExecutionScope.UseTenant(instance.TenantId))
             using (IActivityScope scope = activities.OpenScope(instance))
             {
                 AdvanceBranch(instance, definition, token, scope);
