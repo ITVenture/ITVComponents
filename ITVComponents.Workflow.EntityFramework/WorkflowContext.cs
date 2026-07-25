@@ -4,6 +4,7 @@ using ITVComponents.EFRepo.Options;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
+using ITVComponents.Workflow.Runtime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -152,10 +153,18 @@ namespace ITVComponents.Workflow.EntityFramework
         public bool UseTenantFilter { get; set; }
 
         /// <summary>
-        /// Der aktuell aktive Tenant (nur bei aktivem Filter), gelesen aus dem injizierten
-        /// <see cref="IUserAwareContext"/>. Speist die globalen Query-Filter und das Stempeln neuer Zeilen.
+        /// Der aktuell aktive Tenant. Speist die globalen Query-Filter und das Stempeln neuer Zeilen.
         /// </summary>
-        public string CurrentTenant => UseTenantFilter ? userContext?.CurrentTenant : null;
+        /// <remarks>
+        /// Vorrang hat der ambiente <see cref="WorkflowExecutionScope"/>: setzt der tenant-uebergreifende
+        /// Runner beim Vortrieb einer Instanz deren Tenant, gilt dieser (auch „bewusst tenant-frei" =
+        /// null) - unabhaengig vom injizierten Benutzer-Kontext, den es im Dienst gar nicht gibt. Ist
+        /// kein Scope aktiv (Web-Betrieb), gilt wie bisher der injizierte <see cref="IUserAwareContext"/>,
+        /// und nur wenn der Filter eingeschaltet ist.
+        /// </remarks>
+        public string CurrentTenant => WorkflowExecutionScope.HasTenant
+            ? WorkflowExecutionScope.CurrentTenant
+            : (UseTenantFilter ? userContext?.CurrentTenant : null);
 
         /// <inheritdoc/>
         public string UniqueName { get; set; }

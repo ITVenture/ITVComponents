@@ -58,17 +58,36 @@ namespace ITVComponents.Workflow.ParallelProcessing
                 // sind harmlos (ein zweiter Vortrieb/Signal findet nichts mehr zu tun).
                 lock (gate.For(task.InstanceId))
                 {
-                    switch (task.Trigger)
+                    // Einmal laden - fuer Existenzpruefung UND um den Tenant der Instanz zu kennen.
+                    WorkflowInstance instance = store.GetInstance(task.InstanceId);
+                    if (instance == null)
                     {
-                        case WorkflowTrigger.Advance:
-                            AdvanceLoaded(task.InstanceId);
-                            break;
-                        case WorkflowTrigger.Timer:
-                            TriggerTimers(task.InstanceId);
-                            break;
-                        case WorkflowTrigger.Signal:
-                            engine.SignalWorkflow(task.InstanceId, task.SignalName, task.Payload);
-                            break;
+                        // Kein stilles Verschlucken: die Instanz ist weg (geloescht) oder fuer diesen
+                        // Store nicht sichtbar. Der Auftrag laeuft ins Leere - das wird protokolliert.
+                        LogEnvironment.LogEvent(
+                            $"Workflow task '{task.Trigger}' for instance '{task.InstanceId}': instance not " +
+                            "found (already gone or not visible) - skipped.", LogSeverity.Warning);
+                        return;
+                    }
+
+                    // Der Runner arbeitet tenant-uebergreifend, aber jede Instanz wird unter IHREM Tenant
+                    // vorangetrieben: so sehen tenant-abhaengige Aktivitaeten/DB-Kontexte die richtigen
+                    // Daten (siehe WorkflowExecutionScope). Ausserhalb des Scopes bleibt der Store
+                    // filterfrei, damit der Poll die Instanzen aller Tenants findet.
+                    using (WorkflowExecutionScope.UseTenant(instance.TenantId))
+                    {
+                        switch (task.Trigger)
+                        {
+                            case WorkflowTrigger.Advance:
+                                engine.Advance(instance);
+                                break;
+                            case WorkflowTrigger.Timer:
+                                engine.TriggerTimers(instance, DateTime.UtcNow);
+                                break;
+                            case WorkflowTrigger.Signal:
+                                engine.SignalWorkflow(task.InstanceId, task.SignalName, task.Payload);
+                                break;
+                        }
                     }
                 }
             }
@@ -80,24 +99,6 @@ namespace ITVComponents.Workflow.ParallelProcessing
                 LogEnvironment.LogEvent(
                     $"Workflow task '{task.Trigger}' for instance '{task.InstanceId}' failed: {ex.OutlineException()}",
                     LogSeverity.Error);
-            }
-        }
-
-        private void AdvanceLoaded(string instanceId)
-        {
-            WorkflowInstance instance = store.GetInstance(instanceId);
-            if (instance != null)
-            {
-                engine.Advance(instance);
-            }
-        }
-
-        private void TriggerTimers(string instanceId)
-        {
-            WorkflowInstance instance = store.GetInstance(instanceId);
-            if (instance != null)
-            {
-                engine.TriggerTimers(instance, DateTime.UtcNow);
             }
         }
     }
