@@ -32,10 +32,11 @@ wird — anhand von drei Deployment-Szenarien:
 2. **Nebenläufiger Runner** — `WorkflowRunner`. Zweig-granular, mit Zweig-Sperren + optimistischem
    Commit + atomarem Join; **prozessübergreifend** und Voraussetzung für verteilte Ausführung/Handoff.
 
-> **Wichtig für getrennte Deployments:** Der mitgelieferte Monitor-Handler ruft bei „Signal"
-> `engine.SignalWorkflow(...)` — das ist der **inline**-Pfad und **advanced im Web-Prozess**
-> (Cancel dagegen ist reine Store-Operation). Für Szenario **b/c** siehe die Hinweise dort:
-> Ausführung soll dort **nicht** im Web passieren (b) bzw. nur für die web-eigenen Schritte (c).
+> **Signal-Zustellung ist konfigurierbar.** Der Monitor-Handler stellt ein Operator-Signal je nach
+> `WorkflowViewsOptions.SignalDelivery` zu: **`Inline`** (Standard) advanced im Web-Prozess
+> (`SignalWorkflow`) — ideal für Web-Only; **`Runner`** reaktiviert nur store-only
+> (`ReactivateSignal`) und überlässt das Vorantreiben einem (Backend-)Runner — für getrennte
+> Deployments (b/c). `Cancel` ist in allen Fällen eine reine Store-Operation. Siehe die Szenarien.
 
 ### Schlüsselbegriffe für den verteilten Betrieb
 
@@ -229,7 +230,11 @@ services.AddSingleton<IActivityHost>(_ => new ActivityRegistry());
 services.AddSingleton(sp => new WorkflowEngine(
     sp.GetRequiredService<IWorkflowStore>(), sp.GetRequiredService<IActivityHost>()));
 
-services.AddWorkflowViews(partTypeLoadBehavior: null);
+// Signal store-only zustellen (kein inline-Advance im Web): der SplitWorkflowMonitorHandler wird
+// registriert; das Signal reaktiviert nur, der Backend-Runner treibt voran.
+services.AddWorkflowViews(partTypeLoadBehavior: null,
+    options: new WorkflowViewsOptions { SignalDelivery = WorkflowSignalDelivery.Runner });
+// (Per WebPart-Konfiguration äquivalent: in der Modul-Sektion "SignalDelivery": "Runner" setzen.)
 ```
 
 **Kommando-Oberfläche im Web (starten / signalisieren / abbrechen) — nur Store-Operationen:**
@@ -241,12 +246,13 @@ services.AddWorkflowViews(partTypeLoadBehavior: null);
 | Timer | `engine.ReactivateTimers(id, now)` | Wie Signal, für fällige Timer. |
 | Abbrechen | `engine.CancelWorkflow(id)` | Reine Store-Operation (Tokens verbraucht, Status `Cancelled`). |
 
-> **Achtung:** Der **Standard**-Monitor-Handler ruft bei „Signal" `engine.SignalWorkflow(...)` — das
-> würde im Web **inline advancen** und die (hier fehlenden) Aktivitäten ausführen. Für Szenario b
-> daher entweder einen eigenen `IWorkflowMonitorHandler` registrieren, der `ReactivateSignal`
-> (statt `SignalWorkflow`) nutzt, **oder** die Start-/Signal-Aktionen über einen IPC-Aufruf an den
-> Backend-Dienst routen (analog zum Katalog-IPC). Das Auflisten/Detail/Design bleibt unverändert
-> (reine Lese-/Schreib-Store-Operationen).
+> **Signal-Zustellung:** Mit `SignalDelivery = Runner` (oben) registriert das Modul den
+> `SplitWorkflowMonitorHandler` — „Signal" im Monitoring reaktiviert dann nur store-only
+> (`ReactivateSignal`), advanced also **nicht** im Web; der Backend-Runner treibt voran. Beim
+> **Starten** aus eigenem App-Code entsprechend `engine.CreateInstance(...)` nutzen (store-only, der
+> Runner nimmt es auf) statt `engine.StartWorkflow(...)`. Auflisten/Detail/Design/`Cancel` bleiben
+> unverändert (reine Store-Operationen). Alternativ die Start-/Signal-Aktionen per IPC an den
+> Backend-Dienst routen (analog zum Katalog-IPC).
 
 `ExecutionTarget`/`HostTargets` sind in Szenario b nicht nötig — es gibt nur einen ausführenden
 Runner, der alles übernimmt.
@@ -316,9 +322,10 @@ runner.Start();
   Der Web-Runner führt die web-Schritte aus und **parkt** die Verbuchung; der Backend-Runner nimmt sie
   auf, führt sie aus und der Zweig läuft (auf dem Web-Runner) mit der Bestätigung weiter.
 - **Konsistenz:** In c) beide Hosts über den **Runner** betreiben (nicht über den inline
-  `SignalWorkflow`), damit durchgehend das nebenläufige, sperren-basierte Modell gilt. Start/Signal
-  daher store-only (`CreateInstance` / `ReactivateSignal`) auslösen und die Runner voranbringen
-  lassen (siehe Kommando-Tabelle in Szenario b). Ein Zielname ohne bedienenden Runner lässt den Zweig
+  `SignalWorkflow`), damit durchgehend das nebenläufige, sperren-basierte Modell gilt — also auch hier
+  `SignalDelivery = Runner` setzen. Start/Signal store-only (`CreateInstance` / `ReactivateSignal`)
+  auslösen und die Runner voranbringen lassen (siehe Kommando-Tabelle in Szenario b). Ein Zielname
+  ohne bedienenden Runner lässt den Zweig
   **unbegrenzt** parken (Betriebs-/Konfig-Sache, kein Fehler; beim Parken auf Report-Ebene geloggt).
 
 ---
@@ -350,4 +357,5 @@ runner.Start();
 | `WorkflowEngine.hostTargets` | — | — | Web `"web"`, Backend `"backend"` |
 | `ExecutionTarget` an Knoten | — | — (optional) | ja (`"web"`/`"backend"`) |
 | Start / Signal aus dem Web | inline (`StartWorkflow`/`SignalWorkflow`) | store-only (`CreateInstance`/`ReactivateSignal`) → Backend-Runner | store-only → Runner |
+| `WorkflowViewsOptions.SignalDelivery` | `Inline` (Standard) | `Runner` | `Runner` |
 | IPC | nein | ja (Katalog) | ja (Katalog) |

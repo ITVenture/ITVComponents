@@ -36,7 +36,7 @@ public static class WebPartInit
 
         if (options is { ConfigureViews: true })
         {
-            services.AddWorkflowViews(partTypeLoadBehavior);
+            services.AddWorkflowViews(partTypeLoadBehavior, options);
         }
     }
 }
