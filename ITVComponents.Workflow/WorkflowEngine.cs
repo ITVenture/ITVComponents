@@ -57,14 +57,12 @@ namespace ITVComponents.Workflow
         public WorkflowRuntimeContext Runtime { get; }
 
         /// <summary>
-        /// Startet eine neue Instanz der angegebenen Definition und treibt sie bis zum ersten
-        /// Wartepunkt (oder bis zum Ende) voran.
+        /// Legt eine neue Instanz an (mit aktiven Start-Tokens) und persistiert sie, treibt sie aber
+        /// NICHT voran. Fuer den nebenlaeufigen Betrieb: der Runner nimmt die aktiven Start-Tokens auf und
+        /// treibt sie ueber <see cref="RunBranch"/> voran. Fuer den sequenziellen/einfachen Betrieb siehe
+        /// <see cref="StartWorkflow"/>.
         /// </summary>
-        /// <param name="definitionId">die Id der Definition</param>
-        /// <param name="initialVariables">Startvariablen, oder null</param>
-        /// <param name="correlationKey">optionaler Korrelationsschluessel fuer Signale</param>
-        /// <returns>die gestartete Instanz</returns>
-        public WorkflowInstance StartWorkflow(string definitionId,
+        public WorkflowInstance CreateInstance(string definitionId,
             IDictionary<string, object> initialVariables = null, string correlationKey = null)
         {
             WorkflowDefinition definition = store.GetDefinition(definitionId)
@@ -103,8 +101,23 @@ namespace ITVComponents.Workflow
 
             instance.Log("Started");
             store.SaveInstance(instance);
+            return instance;
+        }
 
-            Advance(instance, definition);
+        /// <summary>
+        /// Startet eine neue Instanz der angegebenen Definition und treibt sie <b>sequenziell</b> bis zum
+        /// ersten Wartepunkt (oder bis zum Ende) voran. Fuer den nebenlaeufigen Betrieb ueber den Runner
+        /// stattdessen <see cref="CreateInstance"/> + Zweig-Tasks nutzen.
+        /// </summary>
+        /// <param name="definitionId">die Id der Definition</param>
+        /// <param name="initialVariables">Startvariablen, oder null</param>
+        /// <param name="correlationKey">optionaler Korrelationsschluessel fuer Signale</param>
+        /// <returns>die gestartete Instanz</returns>
+        public WorkflowInstance StartWorkflow(string definitionId,
+            IDictionary<string, object> initialVariables = null, string correlationKey = null)
+        {
+            WorkflowInstance instance = CreateInstance(definitionId, initialVariables, correlationKey);
+            Advance(instance, LoadDefinition(instance));
             return instance;
         }
 
@@ -361,6 +374,148 @@ namespace ITVComponents.Workflow
                     LogEnvironment.LogEvent(
                         $"RunBranch: giving up after {maxRetries} version conflicts for instance '{instanceId}' " +
                         $"token '{tokenId}'.", LogSeverity.Error);
+                    return Array.Empty<string>();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reaktiviert nebenlaeufigkeits-sicher alle Tokens, die auf das angegebene Signal warten
+        /// (schiebt sie ueber den Wartepunkt hinaus, setzt optionale Payload-Variablen), OHNE die Zweige
+        /// selbst voranzutreiben. Liefert die Ids der nun aktiven Tokens - der Runner reiht sie als
+        /// Zweig-Tasks ein. Retry bei Versionskonflikt.
+        /// </summary>
+        public IReadOnlyList<string> ReactivateSignal(string instanceId, string signalName,
+            IDictionary<string, object> payloadVariables = null)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            return ReactivateAndCommit(instanceId, "ReactivateSignal", (fresh, definition) =>
+            {
+                var waiting = fresh.Tokens
+                    .Where(t => t.Status == TokenStatus.Waiting && t.WaitingSignal == signalName)
+                    .ToList();
+                if (waiting.Count == 0)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Signal '{signalName}' delivered to instance '{instanceId}', but no token was waiting for it.",
+                        LogSeverity.Warning);
+                    return new List<string>();
+                }
+
+                if (payloadVariables != null)
+                {
+                    foreach (KeyValuePair<string, object> pair in payloadVariables)
+                    {
+                        fresh.Variables[pair.Key] = pair.Value;
+                    }
+                }
+
+                var ids = new List<string>();
+                foreach (Token token in waiting)
+                {
+                    fresh.Log("SignalReceived", token.NodeId, signalName);
+                    token.WaitingSignal = null;
+                    token.DueUtc = null;
+                    token.Status = TokenStatus.Active;
+                    if (!MoveAlongSingleOutgoing(fresh, definition, token))
+                    {
+                        return ids; // gefaulted - der Commit persistiert den Fault.
+                    }
+
+                    ids.Add(token.Id);
+                }
+
+                fresh.Status = WorkflowStatus.Running;
+                return ids;
+            });
+        }
+
+        /// <summary>
+        /// Reaktiviert nebenlaeufigkeits-sicher alle faelligen Timer-Tokens der Instanz (DueUtc &lt;=
+        /// <paramref name="nowUtc"/>), OHNE die Zweige selbst voranzutreiben. Liefert die Ids der nun
+        /// aktiven Tokens. Retry bei Versionskonflikt.
+        /// </summary>
+        public IReadOnlyList<string> ReactivateTimers(string instanceId, DateTime nowUtc)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            return ReactivateAndCommit(instanceId, "ReactivateTimers", (fresh, definition) =>
+            {
+                var due = fresh.Tokens
+                    .Where(t => t.Status == TokenStatus.Waiting && t.DueUtc.HasValue && t.DueUtc.Value <= nowUtc)
+                    .ToList();
+                if (due.Count == 0)
+                {
+                    return new List<string>();
+                }
+
+                var ids = new List<string>();
+                foreach (Token token in due)
+                {
+                    fresh.Log("TimerElapsed", token.NodeId);
+                    token.DueUtc = null;
+                    token.WaitingSignal = null;
+                    token.Status = TokenStatus.Active;
+                    if (!MoveAlongSingleOutgoing(fresh, definition, token))
+                    {
+                        return ids;
+                    }
+
+                    ids.Add(token.Id);
+                }
+
+                fresh.Status = WorkflowStatus.Running;
+                return ids;
+            });
+        }
+
+        /// <summary>
+        /// Faehrt die Reaktivierungs-Logik (Signal/Timer) unter optimistischer Nebenlaeufigkeit: laedt
+        /// frisch, wendet die Mutation an, committet mit Versionspruefung; bei Konflikt neu laden und
+        /// erneut anwenden. Reaktivierung fuehrt keine Aktivitaet aus und ist daher voll wiederholbar.
+        /// </summary>
+        private IReadOnlyList<string> ReactivateAndCommit(string instanceId, string opName,
+            Func<WorkflowInstance, WorkflowDefinition, List<string>> reactivate)
+        {
+            const int maxRetries = 100;
+            for (int attempt = 0; ; attempt++)
+            {
+                WorkflowInstance fresh = store.GetInstance(instanceId);
+                if (fresh == null)
+                {
+                    LogEnvironment.LogEvent($"{opName}: instance '{instanceId}' not found - skipped.",
+                        LogSeverity.Warning);
+                    return Array.Empty<string>();
+                }
+
+                int baseVersion = fresh.Version;
+                WorkflowDefinition definition = LoadDefinition(fresh);
+                List<string> reactivated = reactivate(fresh, definition);
+
+                bool nothingToDo = (reactivated == null || reactivated.Count == 0)
+                                   && fresh.Status != WorkflowStatus.Faulted;
+                if (nothingToDo)
+                {
+                    return Array.Empty<string>(); // kein Commit noetig.
+                }
+
+                if (store.TryCommitInstance(fresh, baseVersion))
+                {
+                    return reactivated ?? (IReadOnlyList<string>)Array.Empty<string>();
+                }
+
+                if (attempt >= maxRetries)
+                {
+                    LogEnvironment.LogEvent(
+                        $"{opName}: giving up after {maxRetries} version conflicts for instance '{instanceId}'.",
+                        LogSeverity.Error);
                     return Array.Empty<string>();
                 }
             }
