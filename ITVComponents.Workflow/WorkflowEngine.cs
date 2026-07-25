@@ -274,6 +274,98 @@ namespace ITVComponents.Workflow
             return true;
         }
 
+        /// <summary>
+        /// Treibt EINEN Zweig (Token) einer Instanz <b>nebenlaeufigkeits-sicher</b> voran: laedt die
+        /// Instanz, fuehrt die Aktivitaet EINMAL aus und committet das Zweig-Delta optimistisch (Retry bei
+        /// Versionskonflikt, OHNE die Aktivitaet erneut auszufuehren). Fertige Joins werden im
+        /// (serialisierten) Commit gegen frischen Stand aufgeloest - so entscheiden zwei gleichzeitig
+        /// ankommende Zweige konfliktfrei, wer die Fortsetzung spawnt. Liefert die Ids der durch diesen
+        /// Vortrieb NEU entstandenen aktiven Tokens (Split-Kinder / Join-Fortsetzungen), die der Runner als
+        /// eigene Zweig-Tasks einreiht. Der Aufrufer haelt waehrenddessen die Zweig-Sperre.
+        /// </summary>
+        public IReadOnlyList<string> RunBranch(string instanceId, string tokenId)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            if (tokenId == null)
+            {
+                throw new ArgumentNullException(nameof(tokenId));
+            }
+
+            WorkflowInstance instance = store.GetInstance(instanceId);
+            if (instance == null)
+            {
+                LogEnvironment.LogEvent($"RunBranch: instance '{instanceId}' not found - skipped.",
+                    LogSeverity.Warning);
+                return Array.Empty<string>();
+            }
+
+            Token token = instance.Tokens.FirstOrDefault(t => t.Id == tokenId && t.Status == TokenStatus.Active);
+            if (token == null)
+            {
+                // Der Zweig ist schon verarbeitet (nicht mehr aktiv) - idempotenter Leerlauf; ein
+                // doppelter Zweig-Task ist damit harmlos.
+                return Array.Empty<string>();
+            }
+
+            WorkflowDefinition definition = LoadDefinition(instance);
+            var snapshot = new BranchSnapshot(instance);
+
+            // Ausfuehrung EINMAL, rein in-memory (kein Save). AdvanceBranch parkt am Join als Joining und
+            // feuert NICHT - der Fire faellt gleich im serialisierten Commit gegen frischen Stand.
+            using (IActivityScope scope = activities.OpenScope(instance))
+            {
+                AdvanceBranch(instance, definition, token, scope);
+            }
+
+            BranchDelta delta = snapshot.DiffTo(instance);
+
+            const int maxRetries = 100;
+            for (int attempt = 0; ; attempt++)
+            {
+                WorkflowInstance fresh = store.GetInstance(instanceId);
+                if (fresh == null)
+                {
+                    LogEnvironment.LogEvent(
+                        $"RunBranch: instance '{instanceId}' vanished during commit - skipped.", LogSeverity.Warning);
+                    return Array.Empty<string>();
+                }
+
+                int baseVersion = fresh.Version;
+                delta.ApplyTo(fresh);
+                if (fresh.Status != WorkflowStatus.Faulted)
+                {
+                    // Fertige Joins gegen den frischen Stand aufloesen (kann eine Fortsetzung spawnen).
+                    ResolveJoins(fresh, definition);
+                }
+
+                if (fresh.Status != WorkflowStatus.Faulted && fresh.Status != WorkflowStatus.Cancelled)
+                {
+                    UpdateTerminalStatus(fresh);
+                }
+
+                if (store.TryCommitInstance(fresh, baseVersion))
+                {
+                    // Neu entstandene aktive Tokens (Ids, die es beim Laden noch nicht gab) = neue Zweige.
+                    return fresh.ActiveTokens
+                        .Where(t => !snapshot.HasToken(t.Id))
+                        .Select(t => t.Id)
+                        .ToList();
+                }
+
+                if (attempt >= maxRetries)
+                {
+                    LogEnvironment.LogEvent(
+                        $"RunBranch: giving up after {maxRetries} version conflicts for instance '{instanceId}' " +
+                        $"token '{tokenId}'.", LogSeverity.Error);
+                    return Array.Empty<string>();
+                }
+            }
+        }
+
         private void Advance(WorkflowInstance instance, WorkflowDefinition definition)
         {
             if (instance.Status == WorkflowStatus.Completed
@@ -846,6 +938,156 @@ namespace ITVComponents.Workflow
             return store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion)
                 ?? throw new InvalidOperationException(
                     $"No definition '{instance.DefinitionId}' v{instance.DefinitionVersion} for instance '{instance.Id}'.");
+        }
+
+        /// <summary>
+        /// Ein Schnappschuss des Instanzzustands bei Zweig-Start. Diff dagegen liefert das kleine
+        /// Zweig-Delta (nur was DIESER Zweig geaendert hat), das auf einen frischen Stand gemergt wird.
+        /// </summary>
+        private sealed class BranchSnapshot
+        {
+            private readonly Dictionary<string, object> variables;
+            private readonly Dictionary<string, Token> tokens;
+            private readonly int historyCount;
+
+            public BranchSnapshot(WorkflowInstance instance)
+            {
+                variables = new Dictionary<string, object>(instance.Variables);
+                tokens = instance.Tokens.ToDictionary(t => t.Id, CopyToken);
+                historyCount = instance.History.Count;
+            }
+
+            public bool HasToken(string id) => tokens.ContainsKey(id);
+
+            public BranchDelta DiffTo(WorkflowInstance instance)
+            {
+                var delta = new BranchDelta();
+
+                foreach (KeyValuePair<string, object> kv in instance.Variables)
+                {
+                    if (!variables.TryGetValue(kv.Key, out object old) || !Equals(old, kv.Value))
+                    {
+                        delta.VariableWrites[kv.Key] = kv.Value;
+                    }
+                }
+
+                foreach (string key in variables.Keys)
+                {
+                    if (!instance.Variables.ContainsKey(key))
+                    {
+                        delta.RemovedVariableKeys.Add(key);
+                    }
+                }
+
+                var currentIds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (Token t in instance.Tokens)
+                {
+                    currentIds.Add(t.Id);
+                    if (!tokens.TryGetValue(t.Id, out Token old) || !SameState(old, t))
+                    {
+                        delta.TokenUpserts.Add(CopyToken(t));
+                    }
+                }
+
+                foreach (string id in tokens.Keys)
+                {
+                    if (!currentIds.Contains(id))
+                    {
+                        delta.RemovedTokenIds.Add(id);
+                    }
+                }
+
+                for (int i = historyCount; i < instance.History.Count; i++)
+                {
+                    delta.HistoryAppends.Add(instance.History[i]);
+                }
+
+                if (instance.Status == WorkflowStatus.Faulted)
+                {
+                    delta.Faulted = true;
+                    delta.FaultMessage = instance.FaultMessage;
+                }
+
+                return delta;
+            }
+
+            private static Token CopyToken(Token t) => new Token
+            {
+                Id = t.Id, NodeId = t.NodeId, Status = t.Status, WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc
+            };
+
+            private static bool SameState(Token a, Token b)
+                => a.NodeId == b.NodeId && a.Status == b.Status && a.WaitingSignal == b.WaitingSignal
+                   && Nullable.Equals(a.DueUtc, b.DueUtc);
+        }
+
+        /// <summary>
+        /// Das Delta eines Zweig-Vortriebs (nur die Aenderungen dieses Zweigs). Wird beim Commit auf einen
+        /// frisch geladenen Stand angewandt - so ueberschreibt ein Zweig nicht die Aenderungen seiner
+        /// Geschwister, sondern mergt nur seinen kleinen Beitrag.
+        /// </summary>
+        private sealed class BranchDelta
+        {
+            public Dictionary<string, object> VariableWrites { get; } =
+                new Dictionary<string, object>(StringComparer.Ordinal);
+
+            public HashSet<string> RemovedVariableKeys { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+            public List<Token> TokenUpserts { get; } = new List<Token>();
+
+            public HashSet<string> RemovedTokenIds { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+            public List<HistoryEntry> HistoryAppends { get; } = new List<HistoryEntry>();
+
+            public bool Faulted { get; set; }
+
+            public string FaultMessage { get; set; }
+
+            public void ApplyTo(WorkflowInstance fresh)
+            {
+                foreach (KeyValuePair<string, object> kv in VariableWrites)
+                {
+                    fresh.Variables[kv.Key] = kv.Value;
+                }
+
+                foreach (string key in RemovedVariableKeys)
+                {
+                    fresh.Variables.Remove(key);
+                }
+
+                foreach (Token t in TokenUpserts)
+                {
+                    Token existing = fresh.Tokens.FirstOrDefault(x => x.Id == t.Id);
+                    if (existing == null)
+                    {
+                        fresh.Tokens.Add(new Token
+                        {
+                            Id = t.Id, NodeId = t.NodeId, Status = t.Status,
+                            WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc
+                        });
+                    }
+                    else
+                    {
+                        existing.NodeId = t.NodeId;
+                        existing.Status = t.Status;
+                        existing.WaitingSignal = t.WaitingSignal;
+                        existing.DueUtc = t.DueUtc;
+                    }
+                }
+
+                foreach (string id in RemovedTokenIds)
+                {
+                    fresh.Tokens.RemoveAll(x => x.Id == id);
+                }
+
+                fresh.History.AddRange(HistoryAppends);
+
+                if (Faulted)
+                {
+                    fresh.Status = WorkflowStatus.Faulted;
+                    fresh.FaultMessage = FaultMessage;
+                }
+            }
         }
     }
 }
