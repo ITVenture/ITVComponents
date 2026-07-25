@@ -159,6 +159,17 @@ namespace ITVComponents.Workflow.ParallelProcessing
             {
                 processor.EnqueueTask(new WorkflowTask(instance.Id, WorkflowTrigger.Timer));
             }
+
+            // Verteilter Handoff: Zweige aufnehmen, die auf ein von DIESEM Runner bedientes Ausfuehrungs-Ziel
+            // warten (nur wenn dieser Host ueberhaupt Ziele bedient - sonst kein Handoff-Empfang).
+            if (engine.HostTargets.Count > 0)
+            {
+                foreach (WorkflowInstance instance in
+                         store.FindBranchesWaitingForTarget(engine.HostTargets).ToList())
+                {
+                    processor.EnqueueTask(new WorkflowTask(instance.Id, WorkflowTrigger.TargetResume));
+                }
+            }
         }
 
         /// <inheritdoc/>

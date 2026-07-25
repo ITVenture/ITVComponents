@@ -17,7 +17,13 @@ namespace ITVComponents.Workflow.ParallelProcessing
         Timer,
 
         /// <summary>Ein Signal an die Instanz liefern.</summary>
-        Signal
+        Signal,
+
+        /// <summary>
+        /// Zweige der Instanz aufnehmen, die auf ein Ausfuehrungs-Ziel dieses Runners warten (verteilter
+        /// Handoff): die geparkten Tokens werden aktiv und anschliessend HIER ausgefuehrt.
+        /// </summary>
+        TargetResume
     }
 
     /// <summary>

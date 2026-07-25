@@ -58,6 +58,12 @@ namespace ITVComponents.Workflow.ParallelProcessing
                         EnqueueBranches(task.InstanceId,
                             engine.ReactivateTimers(task.InstanceId, DateTime.UtcNow));
                         break;
+                    case WorkflowTrigger.TargetResume:
+                        // Verteilter Handoff: die auf ein Ziel DIESES Hosts wartenden Zweige aktivieren und
+                        // als Zweig-Tasks einreihen (dann fuehrt RunBranch die Aktivitaet hier aus).
+                        EnqueueBranches(task.InstanceId,
+                            engine.ReactivateForTargets(task.InstanceId, engine.HostTargets));
+                        break;
                 }
             }
             catch (Exception ex)

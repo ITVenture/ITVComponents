@@ -194,6 +194,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.Status = (int)token.Status;
                 tr.WaitingSignal = token.WaitingSignal;
                 tr.DueUtc = token.DueUtc;
+                tr.WaitingTarget = token.WaitingTarget;
             }
 
             foreach (TokenRow tr in existing.Where(t => !wanted.Contains(t.TokenId)))
@@ -246,6 +247,26 @@ namespace ITVComponents.Workflow.EntityFramework
             int waiting = (int)TokenStatus.Waiting;
             List<string> ids = ctx.Tokens
                 .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc)
+                .Select(t => t.InstanceId)
+                .Distinct()
+                .ToList();
+            return LoadInstances(ctx, ids);
+        }
+
+        /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets)
+        {
+            List<string> targetList = (targets ?? Enumerable.Empty<string>()).Distinct().ToList();
+            if (targetList.Count == 0)
+            {
+                return new List<WorkflowInstance>();
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            int waitingForTarget = (int)TokenStatus.WaitingForTarget;
+            List<string> ids = ctx.Tokens
+                .Where(t => t.Status == waitingForTarget
+                            && t.WaitingTarget != null && targetList.Contains(t.WaitingTarget))
                 .Select(t => t.InstanceId)
                 .Distinct()
                 .ToList();
@@ -369,7 +390,8 @@ namespace ITVComponents.Workflow.EntityFramework
                     NodeId = t.NodeId,
                     Status = (TokenStatus)t.Status,
                     WaitingSignal = t.WaitingSignal,
-                    DueUtc = t.DueUtc
+                    DueUtc = t.DueUtc,
+                    WaitingTarget = t.WaitingTarget
                 }).ToList(),
                 History = WorkflowJson.Deserialize<List<HistoryEntry>>(row.HistoryJson) ?? new List<HistoryEntry>()
             };

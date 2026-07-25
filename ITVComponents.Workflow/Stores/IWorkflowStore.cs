@@ -53,6 +53,14 @@ namespace ITVComponents.Workflow.Stores
         IEnumerable<WorkflowInstance> FindDueTimers(DateTime nowUtc);
 
         /// <summary>
+        /// Findet Instanzen mit einem Zweig, der auf eines der angegebenen Ausfuehrungs-Ziele wartet
+        /// (Token-Status <see cref="TokenStatus.WaitingForTarget"/> mit passendem
+        /// <see cref="Token.WaitingTarget"/>). Damit nimmt ein Runner die Zweige auf, die auf genau die von
+        /// ihm bedienten Ziele warten (verteilter Handoff). Eine leere Zielmenge liefert nichts.
+        /// </summary>
+        IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets);
+
+        /// <summary>
         /// Findet lauffaehige Instanzen (Status <see cref="WorkflowStatus.Running"/>). Damit nimmt
         /// ein startender Dienst Instanzen wieder auf, deren Vortrieb - etwa durch einen Absturz
         /// mitten im Lauf - liegengeblieben ist.

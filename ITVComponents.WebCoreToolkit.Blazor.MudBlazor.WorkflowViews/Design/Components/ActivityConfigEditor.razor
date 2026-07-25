@@ -224,6 +224,15 @@
             <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddRetain" />
         </MudStack>
     }
+
+    @* Ausfuehrungs-Ziel (verteilter Handoff): gilt fuer JEDEN Activity-Knoten. *@
+    <MudDivider Class="my-3" />
+    <MudTextField T="string" Value="@Node.ExecutionTarget" ValueChanged="SetExecutionTarget"
+                  Label="Execution target" Placeholder="(any host)" Margin="Margin.Dense" Style="max-width:220px" />
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Name of the host this activity must run on (e.g. "backend"). Empty = runs on any runner. If the running
+        runner does not serve this target, the branch parks until one that does picks it up.
+    </MudText>
 }
 
 @code {
@@ -467,6 +476,17 @@
         }
 
         newRetain = null;
+    }
+
+    // --- Ausfuehrungs-Ziel (verteilter Handoff) ------------------------------------------------
+
+    private void SetExecutionTarget(string? value)
+    {
+        if (Node is not null)
+        {
+            // Leerstring auf null normalisieren = "beliebiger Host" (der Standard).
+            Node.ExecutionTarget = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
     }
 
     // --- Freier Datenfluss-Editor (generische Aktivitaeten, keine deklarierten Parameter) --------

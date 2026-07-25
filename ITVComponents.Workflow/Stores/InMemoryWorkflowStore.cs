@@ -118,6 +118,23 @@ namespace ITVComponents.Workflow.Stores
         }
 
         /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets)
+        {
+            var targetSet = new HashSet<string>(targets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            if (targetSet.Count == 0)
+            {
+                return new List<WorkflowInstance>();
+            }
+
+            // Rein am Token-Zustand orientiert (nicht am Instanz-Status): ein ziel-wartender Zweig kann neben
+            // aktiven Geschwister-Zweigen bestehen, dann laeuft die Instanz noch.
+            return instances.Values
+                .Where(i => i.Tokens.Any(t => t.Status == TokenStatus.WaitingForTarget
+                                              && t.WaitingTarget != null && targetSet.Contains(t.WaitingTarget)))
+                .ToList();
+        }
+
+        /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindRunnable()
         {
             return instances.Values.Where(i => i.Status == WorkflowStatus.Running).ToList();

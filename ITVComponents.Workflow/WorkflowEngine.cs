@@ -33,6 +33,7 @@ namespace ITVComponents.Workflow
         private readonly IWorkflowStore store;
         private readonly IActivityHost activities;
         private readonly IExpressionEvaluator evaluator;
+        private readonly HashSet<string> hostTargets;
 
         /// <summary>
         /// Initialisiert die Engine.
@@ -40,14 +41,31 @@ namespace ITVComponents.Workflow
         /// <param name="store">der Persistenz-Store</param>
         /// <param name="activities">der Host, der je Vortrieb einen Aktivitaets-Scope vergibt</param>
         /// <param name="evaluator">der Ausdrucks-Auswerter, oder null fuer den CScript-Standard</param>
+        /// <param name="hostTargets">
+        /// Die Ausfuehrungs-Ziele, die DIESER Host/diese Engine bedienen kann (freie Namen, siehe
+        /// <see cref="Model.AutomatedActivityNode.ExecutionTarget"/>). Trifft ein Zweig auf einen
+        /// Aktivitaets-Knoten mit einem Ziel, das hier nicht enthalten ist, parkt der Zweig
+        /// (<see cref="Instances.TokenStatus.WaitingForTarget"/>) und wird von einem Runner mit passendem
+        /// Ziel aufgenommen. Null/leer = die Engine fuehrt nur ziel-lose Aktivitaeten aus (der
+        /// nicht-verteilte Standard).
+        /// </param>
         public WorkflowEngine(IWorkflowStore store, IActivityHost activities,
-            IExpressionEvaluator evaluator = null)
+            IExpressionEvaluator evaluator = null, IEnumerable<string> hostTargets = null)
         {
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             this.activities = activities ?? throw new ArgumentNullException(nameof(activities));
             this.evaluator = evaluator ?? new CScriptExpressionEvaluator();
+            this.hostTargets = new HashSet<string>(
+                hostTargets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
             Runtime = new WorkflowRuntimeContext();
         }
+
+        /// <summary>
+        /// Die Ausfuehrungs-Ziele, die diese Engine/dieser Host bedient (siehe Konstruktor). Der Runner
+        /// liest sie, um Zweige aufzunehmen, die auf genau diese Ziele warten
+        /// (<c>IWorkflowStore.FindBranchesWaitingForTarget</c>).
+        /// </summary>
+        public IReadOnlyCollection<string> HostTargets => hostTargets;
 
         /// <summary>
         /// Die geteilte Laufzeit-Umgebung dieser Engine (u.a. das <see cref="InstanceGate"/>). Wird an
@@ -480,6 +498,53 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
+        /// Nimmt nebenlaeufigkeits-sicher alle Zweige der Instanz auf, die auf eines der angegebenen
+        /// Ausfuehrungs-Ziele warten (<see cref="TokenStatus.WaitingForTarget"/> mit passendem
+        /// <see cref="Token.WaitingTarget"/>): sie werden wieder aktiv - der Token bleibt aber auf seinem
+        /// Aktivitaets-Knoten stehen, damit der anschliessende Zweig-Vortrieb GENAU diese Aktivitaet auf
+        /// DIESEM Host ausfuehrt. Der Gegenpart zum Parken (<c>ParkForTarget</c>). Liefert die Ids der nun
+        /// aktiven Tokens (fuer Zweig-Tasks). Retry bei Versionskonflikt.
+        /// </summary>
+        public IReadOnlyList<string> ReactivateForTargets(string instanceId, IEnumerable<string> targets)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            var targetSet = new HashSet<string>(targets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            if (targetSet.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            return ReactivateAndCommit(instanceId, "ReactivateForTargets", (fresh, _) =>
+            {
+                var parked = fresh.Tokens
+                    .Where(t => t.Status == TokenStatus.WaitingForTarget
+                                && t.WaitingTarget != null && targetSet.Contains(t.WaitingTarget))
+                    .ToList();
+                if (parked.Count == 0)
+                {
+                    return new List<string>();
+                }
+
+                var ids = new List<string>();
+                foreach (Token token in parked)
+                {
+                    fresh.Log("TargetResumed", token.NodeId, token.WaitingTarget);
+                    token.WaitingTarget = null;
+                    // NICHT bewegen: der Token steht auf dem Ziel-Aktivitaets-Knoten und wird dort ausgefuehrt.
+                    token.Status = TokenStatus.Active;
+                    ids.Add(token.Id);
+                }
+
+                fresh.Status = WorkflowStatus.Running;
+                return ids;
+            });
+        }
+
+        /// <summary>
         /// Faehrt die Reaktivierungs-Logik (Signal/Timer) unter optimistischer Nebenlaeufigkeit: laedt
         /// frisch, wendet die Mutation an, committet mit Versionspruefung; bei Konflikt neu laden und
         /// erneut anwenden. Reaktivierung fuehrt keine Aktivitaet aus und ist daher voll wiederholbar.
@@ -632,6 +697,13 @@ namespace ITVComponents.Workflow
                     return true;
 
                 case AutomatedActivityNode activity:
+                    // Verteilter Handoff: kann dieser Host das Ziel der Aktivitaet nicht bedienen, parkt der
+                    // Zweig hier und wird von einem Runner mit passendem Ziel aufgenommen (nicht ausgefuehrt).
+                    if (!CanExecuteHere(activity))
+                    {
+                        return ParkForTarget(instance, token, activity);
+                    }
+
                     return RunActivity(instance, definition, token, activity, activityScope);
 
                 case ExclusiveGatewayNode gateway:
@@ -653,6 +725,34 @@ namespace ITVComponents.Workflow
                     Fault(instance, $"Unsupported node type '{node.GetType().Name}' (node '{node.Id}').");
                     return false;
             }
+        }
+
+        /// <summary>
+        /// Kann dieser Host die Aktivitaet ausfuehren? Ja, wenn sie kein Ziel deklariert (laeuft ueberall)
+        /// oder ihr Ziel zu den Zielen dieser Engine gehoert. Deckt den nicht-verteilten Standard ohne
+        /// Konfiguration ab (kein Ziel gesetzt -> immer true).
+        /// </summary>
+        private bool CanExecuteHere(AutomatedActivityNode node)
+            => string.IsNullOrEmpty(node.ExecutionTarget) || hostTargets.Contains(node.ExecutionTarget);
+
+        /// <summary>
+        /// Parkt einen Zweig an einem Aktivitaets-Knoten, dessen Ziel dieser Host nicht bedient: der Token
+        /// bleibt auf dem Knoten stehen (damit der Ziel-Runner GENAU diese Aktivitaet ausfuehrt) und geht in
+        /// <see cref="TokenStatus.WaitingForTarget"/> mit dem gesuchten Zielnamen. Kein Fehler - ein
+        /// definierter Wartezustand des verteilten Ablaufs; er wird ins Protokoll geschrieben und (auf
+        /// Report-Ebene) protokolliert, damit ein nie bedientes Ziel diagnostizierbar bleibt.
+        /// </summary>
+        private static bool ParkForTarget(WorkflowInstance instance, Token token, AutomatedActivityNode node)
+        {
+            token.Status = TokenStatus.WaitingForTarget;
+            token.WaitingTarget = node.ExecutionTarget;
+            token.WaitingSignal = null;
+            token.DueUtc = null;
+            instance.Log("WaitingForTarget", node.Id, node.ExecutionTarget);
+            LogEnvironment.LogEvent(
+                $"Branch of instance '{instance.Id}' parked at node '{node.Id}' for execution target " +
+                $"'{node.ExecutionTarget}' - waiting for a runner that serves this target.", LogSeverity.Report);
+            return true;
         }
 
         private bool RunActivity(WorkflowInstance instance, WorkflowDefinition definition, Token token,
@@ -1065,9 +1165,11 @@ namespace ITVComponents.Workflow
             {
                 instance.Status = WorkflowStatus.Running;
             }
-            else if (instance.Tokens.Any(t => t.Status == TokenStatus.Waiting))
+            else if (instance.Tokens.Any(t => t.Status == TokenStatus.Waiting
+                                              || t.Status == TokenStatus.WaitingForTarget))
             {
-                // Ein wartender Zweig kann noch an einen offenen Join liefern - die Instanz ruht.
+                // Ein wartender Zweig (aeusseres Ereignis ODER anderer Host) kann noch aktiv werden und an
+                // einen offenen Join liefern - die Instanz ruht, bis Signal/Timer/Ziel-Runner sie aufnimmt.
                 instance.Status = WorkflowStatus.Waiting;
             }
             else if (instance.Tokens.Any(t => t.Status == TokenStatus.Joining))
@@ -1171,12 +1273,13 @@ namespace ITVComponents.Workflow
 
             private static Token CopyToken(Token t) => new Token
             {
-                Id = t.Id, NodeId = t.NodeId, Status = t.Status, WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc
+                Id = t.Id, NodeId = t.NodeId, Status = t.Status, WaitingSignal = t.WaitingSignal,
+                DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget
             };
 
             private static bool SameState(Token a, Token b)
                 => a.NodeId == b.NodeId && a.Status == b.Status && a.WaitingSignal == b.WaitingSignal
-                   && Nullable.Equals(a.DueUtc, b.DueUtc);
+                   && Nullable.Equals(a.DueUtc, b.DueUtc) && a.WaitingTarget == b.WaitingTarget;
         }
 
         /// <summary>
@@ -1221,7 +1324,7 @@ namespace ITVComponents.Workflow
                         fresh.Tokens.Add(new Token
                         {
                             Id = t.Id, NodeId = t.NodeId, Status = t.Status,
-                            WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc
+                            WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget
                         });
                     }
                     else
@@ -1230,6 +1333,7 @@ namespace ITVComponents.Workflow
                         existing.Status = t.Status;
                         existing.WaitingSignal = t.WaitingSignal;
                         existing.DueUtc = t.DueUtc;
+                        existing.WaitingTarget = t.WaitingTarget;
                     }
                 }
 

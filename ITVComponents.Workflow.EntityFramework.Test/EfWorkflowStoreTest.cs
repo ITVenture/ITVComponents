@@ -335,6 +335,85 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.IsNull(store.TryAcquireBranchLock("i3", "t", "runner-C"), "B's lock must be untouched.");
         }
 
+        [TestMethod]
+        public void WaitingForTarget_RoundTripsAndIsDiscoverable()
+        {
+            var store = NewStore();
+            var instance = new WorkflowInstance
+            {
+                DefinitionId = "d",
+                DefinitionVersion = 1,
+                Status = WorkflowStatus.Waiting,
+                Tokens = new List<Token>
+                {
+                    new Token { Id = "t", NodeId = "r", Status = TokenStatus.WaitingForTarget, WaitingTarget = "backend" }
+                }
+            };
+            store.SaveInstance(instance);
+
+            // Round-Trip: Status und Zielname ueberleben die Token-Zeile.
+            Token reloaded = store.GetInstance(instance.Id).Tokens.Single();
+            Assert.AreEqual(TokenStatus.WaitingForTarget, reloaded.Status);
+            Assert.AreEqual("backend", reloaded.WaitingTarget);
+
+            // Discovery: nur die passende Zielmenge findet den Zweig.
+            Assert.AreEqual(1, store.FindBranchesWaitingForTarget(new[] { "backend" }).Count());
+            Assert.AreEqual(1, store.FindBranchesWaitingForTarget(new[] { "web", "backend" }).Count());
+            Assert.AreEqual(0, store.FindBranchesWaitingForTarget(new[] { "web" }).Count());
+            Assert.AreEqual(0, store.FindBranchesWaitingForTarget(new string[0]).Count(), "an empty target set finds nothing.");
+        }
+
+        [TestMethod]
+        public void Handoff_ParkedOnOneHost_ResumedAndExecutedOnTargetHost_ThroughStore()
+        {
+            store_SaveHandoffDefinition(NewStore());
+
+            // Host A (web) treibt den Start-Zweig voran und parkt den Backend-Schritt.
+            var web = new WorkflowEngine(NewStore(),
+                new ActivityRegistry().Register("mark", ctx => ctx.Variables["marked"] = true),
+                hostTargets: new[] { "web" });
+            WorkflowInstance inst = web.StartWorkflow("ho");
+            Assert.AreEqual(WorkflowStatus.Waiting, NewStore().GetInstance(inst.Id).Status);
+            Assert.AreEqual(TokenStatus.WaitingForTarget, NewStore().GetInstance(inst.Id).Tokens.Single().Status);
+
+            // Host B (backend) - frischer Store + Engine (anderer Prozess) - nimmt den Zweig auf und fuehrt ihn aus.
+            var backendStore = NewStore();
+            var backend = new WorkflowEngine(backendStore,
+                new ActivityRegistry().Register("mark", ctx => ctx.Variables["marked"] = true),
+                hostTargets: new[] { "backend" });
+
+            List<WorkflowInstance> found = backendStore.FindBranchesWaitingForTarget(backend.HostTargets).ToList();
+            CollectionAssert.Contains(found.Select(i => i.Id).ToList(), inst.Id);
+
+            IReadOnlyList<string> ids = backend.ReactivateForTargets(inst.Id, backend.HostTargets);
+            Assert.AreEqual(1, ids.Count);
+            backend.Advance(backendStore.GetInstance(inst.Id));
+
+            WorkflowInstance final = NewStore().GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, final.Status);
+            Assert.AreEqual(true, final.Variables["marked"], "the backend host executed the handed-off activity.");
+        }
+
+        private static void store_SaveHandoffDefinition(EfWorkflowStore store)
+        {
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "ho",
+                Version = 1,
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new AutomatedActivityNode { Id = "r", ActivityRef = "mark", ExecutionTarget = "backend" },
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->r", SourceId = "s", TargetId = "r" },
+                    new SequenceFlow { Id = "r->e", SourceId = "r", TargetId = "e" }
+                }
+            });
+        }
+
         private static WorkflowDefinition WaitDefinition()
         {
             return new WorkflowDefinition

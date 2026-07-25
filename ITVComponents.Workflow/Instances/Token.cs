@@ -20,6 +20,15 @@ namespace ITVComponents.Workflow.Instances
         /// </summary>
         Joining,
 
+        /// <summary>
+        /// Auf ein Ausfuehrungs-Ziel wartend: das Token steht auf einem Aktivitaets-Knoten, dessen
+        /// <see cref="Model.AutomatedActivityNode.ExecutionTarget"/> der aktuelle Runner nicht bedienen
+        /// kann. Es ruht (wie <see cref="Waiting"/>), bis ein Runner mit passendem Ziel den Zweig aufnimmt
+        /// und dort ausfuehrt (verteilter Handoff). Der Zielname steht in
+        /// <see cref="Token.WaitingTarget"/>.
+        /// </summary>
+        WaitingForTarget,
+
         /// <summary>Verbraucht: das Token hat einen Endpunkt erreicht oder ist in einem Join aufgegangen.</summary>
         Consumed
     }
@@ -54,5 +63,13 @@ namespace ITVComponents.Workflow.Instances
         /// sonst null.
         /// </summary>
         public DateTime? DueUtc { get; set; }
+
+        /// <summary>
+        /// Bei <see cref="TokenStatus.WaitingForTarget"/>: der Name des Ausfuehrungs-Ziels, auf das der
+        /// Zweig wartet (der <see cref="Model.AutomatedActivityNode.ExecutionTarget"/> des Knotens, auf dem
+        /// das Token steht). Ein Runner, dessen Ziele diesen Namen enthalten, nimmt den Zweig auf. Sonst
+        /// null.
+        /// </summary>
+        public string WaitingTarget { get; set; }
     }
 }

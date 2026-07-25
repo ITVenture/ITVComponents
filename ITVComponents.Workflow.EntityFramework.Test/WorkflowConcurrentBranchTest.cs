@@ -169,6 +169,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public WorkflowInstance GetInstance(string instanceId) => inner.GetInstance(instanceId);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
+            public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets) => inner.FindBranchesWaitingForTarget(targets);
             public IEnumerable<WorkflowInstance> FindRunnable() => inner.FindRunnable();
             public IWorkflowBranchLock TryAcquireBranchLock(string i, string t, string o) => inner.TryAcquireBranchLock(i, t, o);
             public void ReleaseLocksOfOwner(string owner) => inner.ReleaseLocksOfOwner(owner);

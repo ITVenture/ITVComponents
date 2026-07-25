@@ -86,6 +86,13 @@ namespace ITVComponents.Workflow.EntityFramework
 
         /// <summary>Faelligkeitszeitpunkt bei einem Timer, oder null.</summary>
         public DateTime? DueUtc { get; set; }
+
+        /// <summary>
+        /// Ausfuehrungs-Ziel bei einem auf einen fremden Host wartenden Zweig (Status
+        /// <see cref="Instances.TokenStatus.WaitingForTarget"/>), oder null. Indiziert - IST der
+        /// Abfrage-Index fuer den verteilten Handoff (<c>FindBranchesWaitingForTarget</c>).
+        /// </summary>
+        public string WaitingTarget { get; set; }
     }
 
     /// <summary>
@@ -236,6 +243,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.Status);
                 e.HasIndex(n => n.WaitingSignal);
                 e.HasIndex(n => n.DueUtc);
+                e.HasIndex(n => n.WaitingTarget);
             });
 
             modelBuilder.Entity<WorkflowDefinitionRow>(e =>

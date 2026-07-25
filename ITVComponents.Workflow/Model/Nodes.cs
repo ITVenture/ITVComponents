@@ -73,6 +73,16 @@ namespace ITVComponents.Workflow.Model
         /// <see cref="ActivityScopeMode.Extend"/> ohne Wirkung.
         /// </summary>
         public List<string> RetainVariables { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Optionales Ausfuehrungs-Ziel fuer den verteilten Betrieb: der (freie) Name eines Host-Ziels,
+        /// auf dem diese Aktivitaet laufen MUSS (z.B. "backend", "web"). Ist der Wert gesetzt und der
+        /// aktuelle Runner bedient dieses Ziel nicht, parkt der Zweig hier
+        /// (<see cref="Instances.TokenStatus.WaitingForTarget"/>) und wird von einem Runner mit passendem
+        /// Ziel aufgenommen und dort ausgefuehrt. Null oder leer bedeutet: die Aktivitaet laeuft auf einem
+        /// beliebigen Runner (der Standard - deckt den nicht-verteilten Betrieb ab).
+        /// </summary>
+        public string ExecutionTarget { get; set; }
     }
 
     /// <summary>
