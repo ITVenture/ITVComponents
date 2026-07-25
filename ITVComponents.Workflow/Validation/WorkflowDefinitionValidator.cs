@@ -146,8 +146,102 @@ namespace ITVComponents.Workflow.Validation
                 }
             }
 
+            // Konsolidierung (ScopeMode.Replace) raeumt den ganzen Scope ab - das ist nur auf einem
+            // Ein-Zweig-Segment sicher. Liegt sie innerhalb einer parallelen Region (zwischen AND-Split
+            // und zugehoerigem Join), koennte sie Variablen verwerfen, die ein Geschwister-Zweig noch
+            // braucht (oder mit dessen Merge kollidieren).
+            HashSet<string> parallelRegion = NodesInsideParallelRegion(nodes, flows, byId, inCount, outCount);
+            foreach (WorkflowNode n in nodes)
+            {
+                if (n is AutomatedActivityNode act && act.ScopeMode == ActivityScopeMode.Replace
+                    && !string.IsNullOrWhiteSpace(act.Id) && parallelRegion.Contains(act.Id))
+                {
+                    issues.Add(Warn(act.Id,
+                        $"Consolidation node '{Label(n)}' (scope replace) is inside a parallel region - it may " +
+                        "discard variables a sibling branch still needs. Place it after the join."));
+                }
+            }
+
             // Fehler zuerst, dann Warnungen - stabile Reihenfolge fuer die Anzeige.
             return issues.OrderBy(x => x.Severity).ToList();
+        }
+
+        /// <summary>
+        /// Ermittelt die Knoten, die innerhalb einer parallelen Region liegen: erreichbar von einem
+        /// AND-Split (paralleles Gateway mit &gt;1 Ausgang), ohne den zugehoerigen Join (paralleles
+        /// Gateway mit &gt;1 Eingang) zu ueberschreiten. Der Join ist die Grenze - er selbst und alles
+        /// dahinter zaehlen nicht als "in der Region".
+        /// </summary>
+        private static HashSet<string> NodesInsideParallelRegion(List<WorkflowNode> nodes,
+            List<SequenceFlow> flows, Dictionary<string, WorkflowNode> byId,
+            Dictionary<string, int> inCount, Dictionary<string, int> outCount)
+        {
+            var outgoing = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (SequenceFlow f in flows)
+            {
+                if (f.SourceId == null || f.TargetId == null)
+                {
+                    continue;
+                }
+
+                if (!outgoing.TryGetValue(f.SourceId, out List<string> list))
+                {
+                    outgoing[f.SourceId] = list = new List<string>();
+                }
+
+                list.Add(f.TargetId);
+            }
+
+            bool IsJoin(string id) => byId.TryGetValue(id, out WorkflowNode nn)
+                                      && nn.Kind == NodeKind.ParallelGateway
+                                      && (inCount.TryGetValue(id, out int c) ? c : 0) > 1;
+            bool IsSplit(string id) => byId.TryGetValue(id, out WorkflowNode nn)
+                                       && nn.Kind == NodeKind.ParallelGateway
+                                       && (outCount.TryGetValue(id, out int c) ? c : 0) > 1;
+
+            var region = new HashSet<string>(StringComparer.Ordinal);
+            foreach (WorkflowNode n in nodes)
+            {
+                if (string.IsNullOrWhiteSpace(n?.Id) || !IsSplit(n.Id))
+                {
+                    continue;
+                }
+
+                var queue = new Queue<string>();
+                var visited = new HashSet<string>(StringComparer.Ordinal);
+                if (outgoing.TryGetValue(n.Id, out List<string> starts))
+                {
+                    foreach (string s in starts)
+                    {
+                        queue.Enqueue(s);
+                    }
+                }
+
+                while (queue.Count > 0)
+                {
+                    string cur = queue.Dequeue();
+                    if (!visited.Add(cur))
+                    {
+                        continue;
+                    }
+
+                    if (IsJoin(cur))
+                    {
+                        continue; // Grenze: bis zum Join, nicht darueber hinaus.
+                    }
+
+                    region.Add(cur);
+                    if (outgoing.TryGetValue(cur, out List<string> nexts))
+                    {
+                        foreach (string nx in nexts)
+                        {
+                            queue.Enqueue(nx);
+                        }
+                    }
+                }
+            }
+
+            return region;
         }
 
         private static string Label(WorkflowNode n) => string.IsNullOrEmpty(n.Name) ? n.Id : n.Name;

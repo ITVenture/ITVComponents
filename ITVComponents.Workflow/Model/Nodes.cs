@@ -58,6 +58,21 @@ namespace ITVComponents.Workflow.Model
         /// <see cref="Activities.WorkflowActivityContext.Outputs"/> abgelegten Werte in diese Variablen.
         /// </summary>
         public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+
+        /// <summary>
+        /// Wie die Ausgaben in den Scope einfliessen. Standard <see cref="ActivityScopeMode.Extend"/>
+        /// (additiv). <see cref="ActivityScopeMode.Replace"/> macht den Knoten zu einer
+        /// <b>Konsolidierung</b>: danach besteht der Scope nur noch aus den Ausgaben (plus
+        /// <see cref="RetainVariables"/>).
+        /// </summary>
+        public ActivityScopeMode ScopeMode { get; set; } = ActivityScopeMode.Extend;
+
+        /// <summary>
+        /// Bei <see cref="ActivityScopeMode.Replace"/>: Namen von Variablen, die ueber die
+        /// Konsolidierung hinaus erhalten bleiben (z.B. langlebige Korrelations-/Konfig-Werte). Bei
+        /// <see cref="ActivityScopeMode.Extend"/> ohne Wirkung.
+        /// </summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
     }
 
     /// <summary>

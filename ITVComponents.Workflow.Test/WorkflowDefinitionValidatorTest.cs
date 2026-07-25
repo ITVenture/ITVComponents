@@ -95,6 +95,57 @@ namespace ITVComponents.Workflow.Test
         }
 
         [TestMethod]
+        public void ConsolidationInsideParallelRegion_IsWarning()
+        {
+            // Replace-Knoten liegt auf einem Zweig zwischen AND-Split und Join -> Warnung.
+            var def = new WorkflowDefinition { Id = "wf" };
+            def.Nodes.Add(new StartNode { Id = "s" });
+            def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
+            def.Nodes.Add(new AutomatedActivityNode
+                { Id = "cons", ActivityRef = "x", ScopeMode = ActivityScopeMode.Replace });
+            def.Nodes.Add(new AutomatedActivityNode { Id = "b", ActivityRef = "y" });
+            def.Nodes.Add(new ParallelGatewayNode { Id = "join" });
+            def.Nodes.Add(new EndNode { Id = "e" });
+            def.Flows.Add(new SequenceFlow { Id = "f0", SourceId = "s", TargetId = "split" });
+            def.Flows.Add(new SequenceFlow { Id = "f1", SourceId = "split", TargetId = "cons" });
+            def.Flows.Add(new SequenceFlow { Id = "f2", SourceId = "split", TargetId = "b" });
+            def.Flows.Add(new SequenceFlow { Id = "f3", SourceId = "cons", TargetId = "join" });
+            def.Flows.Add(new SequenceFlow { Id = "f4", SourceId = "b", TargetId = "join" });
+            def.Flows.Add(new SequenceFlow { Id = "f5", SourceId = "join", TargetId = "e" });
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+            Assert.IsFalse(HasError(issues), "the structure itself is valid - only a warning is expected.");
+            Assert.IsTrue(issues.Any(i => i.Severity == ValidationSeverity.Warning && i.NodeId == "cons"
+                                          && i.Message.Contains("parallel region")));
+        }
+
+        [TestMethod]
+        public void ConsolidationAfterJoin_NoWarning()
+        {
+            // Replace-Knoten liegt NACH dem Join -> Ein-Zweig-Segment, keine Warnung.
+            var def = new WorkflowDefinition { Id = "wf" };
+            def.Nodes.Add(new StartNode { Id = "s" });
+            def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
+            def.Nodes.Add(new AutomatedActivityNode { Id = "a", ActivityRef = "x" });
+            def.Nodes.Add(new AutomatedActivityNode { Id = "b", ActivityRef = "y" });
+            def.Nodes.Add(new ParallelGatewayNode { Id = "join" });
+            def.Nodes.Add(new AutomatedActivityNode
+                { Id = "cons", ActivityRef = "z", ScopeMode = ActivityScopeMode.Replace });
+            def.Nodes.Add(new EndNode { Id = "e" });
+            def.Flows.Add(new SequenceFlow { Id = "f0", SourceId = "s", TargetId = "split" });
+            def.Flows.Add(new SequenceFlow { Id = "f1", SourceId = "split", TargetId = "a" });
+            def.Flows.Add(new SequenceFlow { Id = "f2", SourceId = "split", TargetId = "b" });
+            def.Flows.Add(new SequenceFlow { Id = "f3", SourceId = "a", TargetId = "join" });
+            def.Flows.Add(new SequenceFlow { Id = "f4", SourceId = "b", TargetId = "join" });
+            def.Flows.Add(new SequenceFlow { Id = "f5", SourceId = "join", TargetId = "cons" });
+            def.Flows.Add(new SequenceFlow { Id = "f6", SourceId = "cons", TargetId = "e" });
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+            Assert.IsFalse(issues.Any(i => i.NodeId == "cons" && i.Message.Contains("parallel region")),
+                "a consolidation node after the join must not be flagged.");
+        }
+
+        [TestMethod]
         public void MissingEnd_IsWarning()
         {
             var def = new WorkflowDefinition { Id = "wf" };

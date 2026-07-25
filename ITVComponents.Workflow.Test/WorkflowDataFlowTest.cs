@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
@@ -208,6 +209,67 @@ namespace ITVComponents.Workflow.Test
             Assert.AreEqual(WorkflowStatus.Completed, instance.Status);
             Assert.AreEqual(21, instance.Variables["foo"]);
             Assert.AreEqual(21, barSeen);
+        }
+
+        [TestMethod]
+        public void Consolidate_ReplacesScopeWithOutputsOnly()
+        {
+            // Konsolidierung: liest n Variablen, gibt m aus - danach besteht der Scope NUR aus den m.
+            activities.Register("consolidate", ctx => ctx.Outputs["summary"] = 42);
+
+            store.SaveDefinition(OneActivity("cons", "consolidate", node =>
+            {
+                node.ScopeMode = ActivityScopeMode.Replace;
+                node.Outputs.Add(new ActivityOutputBinding { Parameter = "summary", Variable = "summary" });
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("cons",
+                new Dictionary<string, object> { { "a", 1 }, { "b", 2 }, { "junk", "x" } });
+
+            Assert.AreEqual(WorkflowStatus.Completed, instance.Status);
+            Assert.AreEqual(1, instance.Variables.Count, "the scope must contain only the declared output.");
+            Assert.AreEqual(42, instance.Variables["summary"]);
+        }
+
+        [TestMethod]
+        public void Consolidate_RetainsWhitelistedVariables()
+        {
+            activities.Register("consolidate", ctx => ctx.Outputs["summary"] = 42);
+
+            store.SaveDefinition(OneActivity("cons2", "consolidate", node =>
+            {
+                node.ScopeMode = ActivityScopeMode.Replace;
+                node.Outputs.Add(new ActivityOutputBinding { Parameter = "summary", Variable = "summary" });
+                node.RetainVariables.Add("tenant");
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("cons2",
+                new Dictionary<string, object> { { "tenant", "acme" }, { "junk", "x" } });
+
+            Assert.AreEqual(WorkflowStatus.Completed, instance.Status);
+            CollectionAssert.AreEquivalent(new[] { "tenant", "summary" }, instance.Variables.Keys.ToList());
+            Assert.AreEqual("acme", instance.Variables["tenant"], "the retained variable must survive.");
+            Assert.AreEqual(42, instance.Variables["summary"]);
+        }
+
+        [TestMethod]
+        public void ExtendMode_KeepsExistingVariables()
+        {
+            // Gegenprobe: Standard (Extend) laesst den bestehenden Scope unangetastet.
+            activities.Register("add", ctx => ctx.Outputs["summary"] = 42);
+
+            store.SaveDefinition(OneActivity("ext", "add", node =>
+            {
+                node.ScopeMode = ActivityScopeMode.Extend;
+                node.Outputs.Add(new ActivityOutputBinding { Parameter = "summary", Variable = "summary" });
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("ext",
+                new Dictionary<string, object> { { "a", 1 } });
+
+            Assert.AreEqual(WorkflowStatus.Completed, instance.Status);
+            Assert.AreEqual(1, instance.Variables["a"], "existing variables stay in Extend mode.");
+            Assert.AreEqual(42, instance.Variables["summary"]);
         }
 
         private static WorkflowDefinition OneActivity(string id, string activityRef,

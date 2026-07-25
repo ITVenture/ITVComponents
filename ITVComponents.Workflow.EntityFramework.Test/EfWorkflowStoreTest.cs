@@ -174,6 +174,8 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 Parameter = "sum", Kind = ParameterBindingKind.Expression, Source = "a + b"
             });
             activity.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "answer" });
+            activity.ScopeMode = ActivityScopeMode.Replace;
+            activity.RetainVariables.Add("tenant");
 
             store.SaveDefinition(new WorkflowDefinition
             {
@@ -198,6 +200,9 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             Assert.AreEqual(1, reloaded.Outputs.Count);
             Assert.AreEqual("answer", reloaded.Outputs[0].Variable);
+
+            Assert.AreEqual(ActivityScopeMode.Replace, reloaded.ScopeMode, "the scope mode must round-trip.");
+            CollectionAssert.AreEquivalent(new[] { "tenant" }, reloaded.RetainVariables);
         }
 
         [TestMethod]

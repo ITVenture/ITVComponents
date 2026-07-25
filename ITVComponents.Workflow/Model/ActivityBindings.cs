@@ -1,6 +1,28 @@
 namespace ITVComponents.Workflow.Model
 {
     /// <summary>
+    /// Wie eine Aktivitaet ihre deklarierten Ausgaben in den Variablen-Scope der Instanz einbringt.
+    /// </summary>
+    public enum ActivityScopeMode
+    {
+        /// <summary>
+        /// Standard: die Ausgaben werden in den bestehenden Scope gemergt (additiv) - vorhandene
+        /// Variablen bleiben erhalten.
+        /// </summary>
+        Extend,
+
+        /// <summary>
+        /// Konsolidierung: nach der Aktivitaet besteht der Scope <b>genau</b> aus den deklarierten
+        /// Ausgaben (plus einer optionalen Erhaltungs-Whitelist, siehe
+        /// <see cref="AutomatedActivityNode.RetainVariables"/>) - alle uebrigen Variablen werden
+        /// abgeraeumt. So schleppt ein Workflow nach grossen (auch parallelen) Zwischenschritten keine
+        /// nicht mehr benoetigten Daten mit. Nur auf einem Ein-Zweig-Segment sinnvoll (typisch nach
+        /// einem Join); der Validator warnt bei Platzierung innerhalb einer parallelen Region.
+        /// </summary>
+        Replace
+    }
+
+    /// <summary>
     /// Woher der Wert eines Eingabeparameters stammt.
     /// </summary>
     public enum ParameterBindingKind

@@ -199,6 +199,31 @@
             <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddOutput" />
         </MudStack>
     }
+
+    @* Konsolidierung (Scope-Modus): gilt fuer JEDEN Activity-Knoten, unabhaengig von Parametern. *@
+    <MudDivider Class="my-3" />
+    <MudSwitch T="bool" Value="@IsReplace" ValueChanged="SetReplace" Color="Color.Primary"
+               Label="Consolidate scope (replace)" />
+    @if (IsReplace)
+    {
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            After this activity the scope contains only its outputs plus the variables kept here. Place on a
+            single branch (after a join), not inside a parallel region.
+        </MudText>
+        @foreach (var v in Node.RetainVariables.ToList())
+        {
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+                <MudTextField T="string" Value="@v" ReadOnly="true" Label="keep" Margin="Margin.Dense" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => Node.RetainVariables.Remove(v))" />
+            </MudStack>
+        }
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+            <MudTextField T="string" @bind-Value="newRetain" Placeholder="keep variable"
+                          Margin="Margin.Dense" Style="max-width:150px" />
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddRetain" />
+        </MudStack>
+    }
 }
 
 @code {
@@ -216,6 +241,7 @@
     private string? newValue;
     private string? newInputName;
     private string? newOutputName;
+    private string? newRetain;
     private string? loadedForRef;
 
     protected override void OnParametersSet()
@@ -414,6 +440,33 @@
     private void RemoveKey(string key)
     {
         Node?.Configuration.Remove(key);
+    }
+
+    // --- Konsolidierung (ScopeMode.Replace + Retain) -------------------------------------------
+
+    private bool IsReplace => Node?.ScopeMode == ActivityScopeMode.Replace;
+
+    private void SetReplace(bool on)
+    {
+        if (Node is not null)
+        {
+            Node.ScopeMode = on ? ActivityScopeMode.Replace : ActivityScopeMode.Extend;
+        }
+    }
+
+    private void AddRetain()
+    {
+        if (Node is null || string.IsNullOrWhiteSpace(newRetain))
+        {
+            return;
+        }
+
+        if (!Node.RetainVariables.Contains(newRetain))
+        {
+            Node.RetainVariables.Add(newRetain);
+        }
+
+        newRetain = null;
     }
 
     // --- Freier Datenfluss-Editor (generische Aktivitaeten, keine deklarierten Parameter) --------

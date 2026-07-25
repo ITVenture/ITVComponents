@@ -486,24 +486,65 @@ namespace ITVComponents.Workflow
         /// Wert wird auch dann geschrieben, wenn die Aktivitaet den Ausgabeparameter nicht gesetzt hat
         /// (dann null) - das ist ein bewusstes, beobachtbares Ergebnis.
         /// </summary>
+        /// <remarks>
+        /// Bei <see cref="ActivityScopeMode.Replace"/> (Konsolidierung) wird der Scope frisch aufgebaut:
+        /// er besteht danach genau aus der Erhaltungs-Whitelist (<see cref="AutomatedActivityNode.RetainVariables"/>,
+        /// soweit vorhanden) und den Ausgaben - alle uebrigen Variablen werden abgeraeumt.
+        /// </remarks>
         private static void ApplyOutputs(WorkflowInstance instance, AutomatedActivityNode node,
             IDictionary<string, object> outputs)
         {
-            if (node.Outputs == null)
+            // Zuerst die Ziel-Variablen aus den Output-Bindungen bestimmen (unabhaengig vom Scope-Modus).
+            var mapped = new Dictionary<string, object>(StringComparer.Ordinal);
+            if (node.Outputs != null)
             {
-                return;
+                foreach (ActivityOutputBinding binding in node.Outputs)
+                {
+                    if (binding == null || string.IsNullOrEmpty(binding.Parameter)
+                        || string.IsNullOrEmpty(binding.Variable))
+                    {
+                        continue;
+                    }
+
+                    outputs.TryGetValue(binding.Parameter, out object value);
+                    mapped[binding.Variable] = value;
+                }
             }
 
-            foreach (ActivityOutputBinding binding in node.Outputs)
+            if (node.ScopeMode == ActivityScopeMode.Replace)
             {
-                if (binding == null || string.IsNullOrEmpty(binding.Parameter)
-                    || string.IsNullOrEmpty(binding.Variable))
+                // Konsolidierung: neuen Scope aus Retain-Whitelist + Ausgaben bauen, Rest verwerfen.
+                var fresh = new Dictionary<string, object>();
+                if (node.RetainVariables != null)
                 {
-                    continue;
+                    foreach (string keep in node.RetainVariables)
+                    {
+                        if (!string.IsNullOrEmpty(keep) && instance.Variables.TryGetValue(keep, out object v))
+                        {
+                            fresh[keep] = v;
+                        }
+                    }
                 }
 
-                outputs.TryGetValue(binding.Parameter, out object value);
-                instance.Variables[binding.Variable] = value;
+                foreach (KeyValuePair<string, object> pair in mapped)
+                {
+                    fresh[pair.Key] = pair.Value; // Ausgaben gewinnen bei Kollision mit der Whitelist.
+                }
+
+                instance.Variables.Clear();
+                foreach (KeyValuePair<string, object> pair in fresh)
+                {
+                    instance.Variables[pair.Key] = pair.Value;
+                }
+
+                instance.Log("Consolidated", node.Id, $"scope reduced to {fresh.Count} variable(s)");
+            }
+            else
+            {
+                foreach (KeyValuePair<string, object> pair in mapped)
+                {
+                    instance.Variables[pair.Key] = pair.Value;
+                }
             }
         }
 
