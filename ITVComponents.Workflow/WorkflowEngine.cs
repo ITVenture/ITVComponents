@@ -289,7 +289,11 @@ namespace ITVComponents.Workflow
             // wenn dieser Lauf keine Aktivitaet aufloest.
             using IActivityScope activityScope = activities.OpenScope(instance);
 
-            int steps = 0;
+            // Zweig fuer Zweig vorantreiben: einen aktiven Token bis zu seiner naechsten Barriere
+            // (Wait/Timer/Ende, oder er teilt sich an einem Split in Kinder auf), dann den naechsten.
+            // Die Kinder eines Splits bleiben als aktive Tokens stehen und werden in einer weiteren
+            // Runde aufgegriffen. Das ist die Einheit, die die nebenlaeufige Ausfuehrung (Phase 3a)
+            // pro Zweig-Task ausfuehrt; sequenziell hier nur nacheinander.
             while (true)
             {
                 Token token = instance.ActiveTokens.FirstOrDefault();
@@ -298,22 +302,11 @@ namespace ITVComponents.Workflow
                     break;
                 }
 
-                if (++steps > MaxStepsPerAdvance)
+                if (!AdvanceBranch(instance, definition, token, activityScope))
                 {
-                    Fault(instance,
-                        $"Aborted after {MaxStepsPerAdvance} steps - the workflow may contain an endless loop.");
+                    // AdvanceBranch hat die Instanz auf Faulted gesetzt.
                     break;
                 }
-
-                if (!ProcessActiveToken(instance, definition, token, activityScope))
-                {
-                    // ProcessActiveToken hat die Instanz auf Faulted gesetzt.
-                    break;
-                }
-
-                // Checkpoint nach jedem Knoten: ein Absturz darf hoechstens den gerade laufenden
-                // Schritt kosten, nicht den ganzen bisherigen Fortschritt.
-                store.SaveInstance(instance);
             }
 
             if (instance.Status == WorkflowStatus.Running)
@@ -322,6 +315,41 @@ namespace ITVComponents.Workflow
             }
 
             store.SaveInstance(instance);
+        }
+
+        /// <summary>
+        /// Treibt EINEN Zweig (Token) bis zu seiner naechsten Barriere voran: ein Wartepunkt
+        /// (Signal/Timer), das Ende, oder ein Gateway, an dem der Token verbraucht wird und Kinder
+        /// entstehen (Split) bzw. auf Geschwister wartet (Join). Kinder-Tokens bleiben aktiv fuer eine
+        /// eigene Zweig-Runde. Checkpoint nach jedem Knoten (ein Absturz kostet hoechstens den laufenden
+        /// Schritt). Liefert false, wenn die Instanz dabei auf Faulted gelaufen ist.
+        /// </summary>
+        private bool AdvanceBranch(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            IActivityScope activityScope)
+        {
+            int steps = 0;
+            while (token.Status == TokenStatus.Active)
+            {
+                if (++steps > MaxStepsPerAdvance)
+                {
+                    Fault(instance,
+                        $"Aborted after {MaxStepsPerAdvance} steps - the workflow may contain an endless loop.",
+                        token.NodeId);
+                    return false;
+                }
+
+                if (!ProcessActiveToken(instance, definition, token, activityScope))
+                {
+                    // ProcessActiveToken hat die Instanz auf Faulted gesetzt.
+                    return false;
+                }
+
+                // Checkpoint nach jedem Knoten: ein Absturz darf hoechstens den gerade laufenden
+                // Schritt kosten, nicht den ganzen bisherigen Fortschritt.
+                store.SaveInstance(instance);
+            }
+
+            return true;
         }
 
         /// <summary>
