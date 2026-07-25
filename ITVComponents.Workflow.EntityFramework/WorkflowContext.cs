@@ -47,6 +47,12 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Fehlermeldung bei Faulted, oder null.</summary>
         public string FaultMessage { get; set; }
 
+        /// <summary>
+        /// Optimistischer Nebenlaeufigkeits-Zaehler (Concurrency-Token). Jeder Commit erhoeht ihn; ein
+        /// nebenlaeufiger Commit gelingt nur, wenn der erwartete Wert noch passt.
+        /// </summary>
+        public int Version { get; set; }
+
         /// <summary>Erstellzeitpunkt (UTC).</summary>
         public DateTime CreatedUtc { get; set; }
 
@@ -218,6 +224,9 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.Status);
                 e.HasIndex(n => n.CorrelationKey);
                 e.HasIndex(n => n.TenantId);
+                // Optimistische Nebenlaeufigkeit: die UPDATE-Klausel enthaelt Version=@original;
+                // ein zwischenzeitlicher Commit laesst 0 Zeilen zu -> DbUpdateConcurrencyException.
+                e.Property(n => n.Version).IsConcurrencyToken();
             });
 
             modelBuilder.Entity<TokenRow>(e =>

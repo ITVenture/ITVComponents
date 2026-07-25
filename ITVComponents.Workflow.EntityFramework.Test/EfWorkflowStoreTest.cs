@@ -241,6 +241,33 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         }
 
         [TestMethod]
+        public void TryCommit_OptimisticConcurrency_FirstWinsSecondConflicts()
+        {
+            var store = NewStore();
+            var inst = new WorkflowInstance
+            {
+                DefinitionId = "d", DefinitionVersion = 1, Status = WorkflowStatus.Running
+            };
+            store.SaveInstance(inst);
+
+            // Zwei unabhaengige Ladevorgaenge (EF liefert Kopien) beim selben Stand.
+            WorkflowInstance a = store.GetInstance(inst.Id);
+            WorkflowInstance b = store.GetInstance(inst.Id);
+            Assert.AreEqual(a.Version, b.Version);
+
+            a.Variables["x"] = 1;
+            Assert.IsTrue(store.TryCommitInstance(a, a.Version), "the first commit at the shared version wins.");
+
+            b.Variables["y"] = 2;
+            Assert.IsFalse(store.TryCommitInstance(b, b.Version),
+                "the second commit at the now-stale version must conflict.");
+
+            WorkflowInstance final = store.GetInstance(inst.Id);
+            Assert.IsTrue(final.Variables.ContainsKey("x"), "the winning commit persisted.");
+            Assert.IsFalse(final.Variables.ContainsKey("y"), "the conflicting commit was rejected.");
+        }
+
+        [TestMethod]
         public void MultipleTokens_RoundTripAsRows_AndInPlaceMerge()
         {
             var store = NewStore();

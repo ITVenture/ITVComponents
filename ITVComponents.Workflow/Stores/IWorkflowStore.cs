@@ -29,6 +29,16 @@ namespace ITVComponents.Workflow.Stores
         /// <summary>Legt eine Instanz ab (Upsert nach Id). Setzt den Aenderungszeitpunkt.</summary>
         void SaveInstance(WorkflowInstance instance);
 
+        /// <summary>
+        /// Speichert die Instanz nur, wenn ihr Stand in der Datenbank noch <paramref name="baseVersion"/>
+        /// entspricht (optimistische Nebenlaeufigkeit). Liefert true bei Erfolg (und erhoeht die Version),
+        /// false bei einem Versionskonflikt (ein anderer Zweig hat inzwischen committed). Bei false laedt
+        /// der Aufrufer neu und wendet sein Delta erneut an - die Aktivitaet selbst wird dabei NICHT erneut
+        /// ausgefuehrt. So serialisieren sich gleichzeitige Zweig-Merges derselben Instanz kurz, waehrend
+        /// die eigentliche (lange) Ausfuehrung parallel bleibt.
+        /// </summary>
+        bool TryCommitInstance(WorkflowInstance instance, int baseVersion);
+
         /// <summary>Laedt eine Instanz, oder null.</summary>
         WorkflowInstance GetInstance(string instanceId);
 

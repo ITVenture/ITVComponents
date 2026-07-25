@@ -27,6 +27,8 @@ namespace ITVComponents.Workflow.Stores
         private readonly ConcurrentDictionary<(string InstanceId, string TokenId), string> branchLocks =
             new ConcurrentDictionary<(string, string), string>();
 
+        private readonly ConcurrentDictionary<string, int> versions = new ConcurrentDictionary<string, int>();
+
         /// <inheritdoc/>
         public void SaveDefinition(WorkflowDefinition definition)
         {
@@ -63,7 +65,29 @@ namespace ITVComponents.Workflow.Stores
             }
 
             instance.UpdatedUtc = DateTime.UtcNow;
+            // Force-Write: Version fortschreiben (neu = 0, bestehend = +1).
+            instance.Version = versions.AddOrUpdate(instance.Id, 0, (_, old) => old + 1);
             instances[instance.Id] = instance;
+        }
+
+        /// <inheritdoc/>
+        public bool TryCommitInstance(WorkflowInstance instance, int baseVersion)
+        {
+            if (instance == null)
+            {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            // Atomarer Compare-and-Swap auf der Version: nur wenn der Stand noch baseVersion ist.
+            if (!versions.TryUpdate(instance.Id, baseVersion + 1, baseVersion))
+            {
+                return false;
+            }
+
+            instance.UpdatedUtc = DateTime.UtcNow;
+            instance.Version = baseVersion + 1;
+            instances[instance.Id] = instance;
+            return true;
         }
 
         /// <inheritdoc/>

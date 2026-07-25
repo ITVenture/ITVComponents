@@ -94,6 +94,15 @@ namespace ITVComponents.Workflow.Instances
         /// <summary>Bei <see cref="WorkflowStatus.Faulted"/>: die Fehlermeldung; sonst null.</summary>
         public string FaultMessage { get; set; }
 
+        /// <summary>
+        /// Optimistischer Nebenlaeufigkeits-Zaehler. Beim Laden aus dem Store gesetzt; ein
+        /// nebenlaeufiger Commit (<c>IWorkflowStore.TryCommitInstance</c>) gelingt nur, wenn dieser Wert
+        /// noch dem Stand in der Datenbank entspricht - so serialisieren sich gleichzeitige Zweig-Merges
+        /// derselben Instanz, ohne einander zu ueberschreiben. Der Kern wertet den Wert nicht aus; er
+        /// wird von der Persistenzschicht gefuehrt.
+        /// </summary>
+        public int Version { get; set; }
+
         /// <summary>Erstellzeitpunkt (UTC).</summary>
         public DateTime CreatedUtc { get; set; }
 

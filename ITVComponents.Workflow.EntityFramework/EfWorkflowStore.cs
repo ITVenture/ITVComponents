@@ -102,16 +102,72 @@ namespace ITVComponents.Workflow.EntityFramework
             WorkflowInstanceRow row = ctx.WorkflowInstances
                 .IgnoreQueryFilters()
                 .FirstOrDefault(r => r.Id == instance.Id);
-            if (row == null)
+            bool isNew = row == null;
+            if (isNew)
             {
                 // Neue Instanz: Tenant festschreiben (aus der Instanz oder dem aktiven Kontext) und
                 // zurueckspiegeln. Bei bestehenden Zeilen bleibt der Tenant unveraendert.
                 string tenant = instance.TenantId ?? ctx.CurrentTenant;
-                row = new WorkflowInstanceRow { Id = instance.Id, TenantId = tenant };
+                row = new WorkflowInstanceRow { Id = instance.Id, TenantId = tenant, Version = 0 };
                 instance.TenantId = tenant;
                 ctx.WorkflowInstances.Add(row);
             }
+            else
+            {
+                // Force-Write (sequenzieller Pfad): Version fortschreiben. Das EF-Concurrency-Token wuerde
+                // bei einer zwischenzeitlichen Aenderung werfen - im sequenziellen Betrieb passiert das nicht.
+                row.Version++;
+            }
 
+            ApplyInstanceToRow(ctx, instance, row);
+            ctx.SaveChanges();
+            instance.Version = row.Version;
+        }
+
+        /// <inheritdoc/>
+        public bool TryCommitInstance(WorkflowInstance instance, int baseVersion)
+        {
+            if (instance == null)
+            {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            instance.UpdatedUtc = DateTime.UtcNow;
+
+            using WorkflowContext ctx = contextFactory();
+            WorkflowInstanceRow row = ctx.WorkflowInstances
+                .IgnoreQueryFilters()
+                .FirstOrDefault(r => r.Id == instance.Id);
+            if (row == null || row.Version != baseVersion)
+            {
+                // Entweder verschwunden oder ein anderer Zweig hat inzwischen committed -> Konflikt.
+                return false;
+            }
+
+            row.Version = baseVersion + 1;
+            ApplyInstanceToRow(ctx, instance, row);
+            try
+            {
+                ctx.SaveChanges();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Zwischen Laden und Speichern hat ein anderer committed (das Token deckt das Rennen ab).
+                return false;
+            }
+
+            instance.Version = row.Version;
+            return true;
+        }
+
+        /// <summary>
+        /// Uebertraegt Felder und Token-Zeilen der Instanz auf die Zeile (ohne Version/Tenant - die werden
+        /// vom Aufrufer gesetzt). Token-Zeilen als In-Place-Upsert (vorhandene aktualisieren, neue anlegen,
+        /// verschwundene loeschen) in EINEM SaveChanges - ohne Loeschen+Neuanlegen desselben Schluessels
+        /// (das wuerde den Change-Tracker in Konflikt bringen).
+        /// </summary>
+        private static void ApplyInstanceToRow(WorkflowContext ctx, WorkflowInstance instance, WorkflowInstanceRow row)
+        {
             row.DefinitionId = instance.DefinitionId;
             row.DefinitionVersion = instance.DefinitionVersion;
             row.Status = (int)instance.Status;
@@ -122,10 +178,6 @@ namespace ITVComponents.Workflow.EntityFramework
             row.VariablesJson = WorkflowJson.Serialize(instance.Variables);
             row.HistoryJson = WorkflowJson.Serialize(instance.History);
 
-            // Token-Zeilen als In-Place-Upsert abgleichen (vorhandene aktualisieren, neue anlegen,
-            // verschwundene loeschen) - ein einzelnes SaveChanges, ohne Loeschen+Neuanlegen desselben
-            // Schluessels (das wuerde den Change-Tracker in Konflikt bringen). Dies ist der
-            // sequenzielle Whole-Sync; der granulare, nebenlaeufigkeits-sichere CommitBranch folgt separat.
             List<TokenRow> existing = ctx.Tokens.Where(t => t.InstanceId == instance.Id).ToList();
             Dictionary<string, TokenRow> byTokenId = existing.ToDictionary(t => t.TokenId);
             var wanted = new HashSet<string>(StringComparer.Ordinal);
@@ -148,8 +200,6 @@ namespace ITVComponents.Workflow.EntityFramework
             {
                 ctx.Tokens.Remove(tr);
             }
-
-            ctx.SaveChanges();
         }
 
         /// <inheritdoc/>
@@ -308,6 +358,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 Status = (WorkflowStatus)row.Status,
                 CorrelationKey = row.CorrelationKey,
                 FaultMessage = row.FaultMessage,
+                Version = row.Version,
                 CreatedUtc = row.CreatedUtc,
                 UpdatedUtc = row.UpdatedUtc,
                 Variables = WorkflowJson.Deserialize<Dictionary<string, object>>(row.VariablesJson)
