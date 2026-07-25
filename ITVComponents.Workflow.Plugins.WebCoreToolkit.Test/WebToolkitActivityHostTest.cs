@@ -158,6 +158,7 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit.Test
             services.AddSingleton<TenantSink>();
             services.AddScoped<IHttpContextAccessor, TestHttpContextAccessor>();
             services.AddScoped<IPermissionScope, TestPermissionScope>();
+            services.AddScoped<IContextUserProvider, DefaultContextUserProvider>();
             services.AddScoped<IWebPluginHelper>(sp => new FakeWebPluginHelper(
                 sp.GetRequiredService<IPermissionScope>(), activityFactory, sp.GetRequiredService<TenantSink>()));
             return services.BuildServiceProvider();
@@ -171,6 +172,22 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit.Test
 
             scope.ServiceProvider.PrepareEmptyContext("tenantX", out _);
 
+            Assert.AreEqual("tenantX", scope.ServiceProvider.GetRequiredService<IPermissionScope>().PermissionPrefix);
+        }
+
+        [TestMethod]
+        public void PrepareBackgroundContext_SetsAuthenticatedNamedUserAndTenant()
+        {
+            using ServiceProvider provider = BuildProvider();
+            using IServiceScope scope = provider.CreateScope();
+
+            scope.ServiceProvider.PrepareBackgroundContext("#Toolkit#Process", "tenantX", out _);
+
+            var user = scope.ServiceProvider.GetRequiredService<IContextUserProvider>().User;
+            // Das ist exakt, was FilterAvailable prueft -> aktiviert die tenant-abhaengigen Filter.
+            Assert.IsTrue(user.Identities.Any(i => i.IsAuthenticated),
+                "the background user must be authenticated (that is what activates the filters).");
+            Assert.AreEqual("#Toolkit#Process", user.Identity.Name);
             Assert.AreEqual("tenantX", scope.ServiceProvider.GetRequiredService<IPermissionScope>().PermissionPrefix);
         }
 

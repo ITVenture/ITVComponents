@@ -27,15 +27,30 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
     /// </remarks>
     public sealed class WebToolkitActivityHost : IActivityHost
     {
+        /// <summary>
+        /// Standard-Benutzername des Hintergrundprozesses. Aktiviert die tenant-abhaengige Filterung
+        /// (der Benutzer muss nicht existieren); ein spaeter angelegter Benutzer dieses Namens laesst
+        /// sich ueber die normalen TenantUser-/Rollen-Zuordnungen mit Rechten ausstatten.
+        /// </summary>
+        public const string DefaultBackgroundUserName = "#Toolkit#Process";
+
         private readonly IServiceProvider rootServices;
+        private readonly string backgroundUserName;
 
         /// <summary>
         /// Initialisiert den Host mit dem (globalen) Service-Provider, aus dem je Vortrieb ein Scope
         /// erzeugt wird.
         /// </summary>
-        public WebToolkitActivityHost(IServiceProvider rootServices)
+        /// <param name="rootServices">der globale Service-Provider</param>
+        /// <param name="backgroundUserName">
+        /// der Benutzername, unter dem der Hintergrundprozess laeuft (aktiviert die Tenant-Filter); der
+        /// Standard ist <see cref="DefaultBackgroundUserName"/>
+        /// </param>
+        public WebToolkitActivityHost(IServiceProvider rootServices,
+            string backgroundUserName = DefaultBackgroundUserName)
         {
             this.rootServices = rootServices ?? throw new ArgumentNullException(nameof(rootServices));
+            this.backgroundUserName = backgroundUserName;
         }
 
         /// <inheritdoc/>
@@ -46,7 +61,7 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
                 throw new ArgumentNullException(nameof(instance));
             }
 
-            return new WebToolkitActivityScope(rootServices, instance.TenantId);
+            return new WebToolkitActivityScope(rootServices, backgroundUserName, instance.TenantId);
         }
 
         private sealed class WebToolkitActivityScope : IActivityScope
@@ -55,13 +70,15 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
             private readonly string tenant;
             private IPluginFactory pluginScope;
 
-            public WebToolkitActivityScope(IServiceProvider root, string tenant)
+            public WebToolkitActivityScope(IServiceProvider root, string userName, string tenant)
             {
                 this.tenant = tenant;
                 diScope = root.CreateScope();
-                // Hintergrund-Scope unter dem Tenant der Instanz: fixiert den IPermissionScope, damit
-                // tenant-abhaengige Kontexte auf diesen Tenant filtern (auch ohne HTTP-Benutzer).
-                diScope.ServiceProvider.PrepareEmptyContext(tenant, out _);
+                // Hintergrund-Scope unter dem Tenant der Instanz: authentifizierter (synthetischer) Benutzer
+                // -> FilterAvailable == true -> die tenant-abhaengigen Filter greifen und scopen ueber den
+                // fixierten IPermissionScope auf den Tenant der Instanz (im benutzerfreien Zustand waeren die
+                // Filter komplett aus).
+                diScope.ServiceProvider.PrepareBackgroundContext(userName, tenant, out _);
             }
 
             public IWorkflowActivity Resolve(string activityRef)
