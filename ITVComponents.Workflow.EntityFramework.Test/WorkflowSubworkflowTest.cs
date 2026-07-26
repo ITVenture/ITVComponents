@@ -40,7 +40,19 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             store = new EfWorkflowStore(() => new WorkflowContext(options));
             engine = new WorkflowEngine(store, new ActivityRegistry()
                 .Register("compute", ctx => ctx.Variables["result"] = (int)ctx.Variables["n"] * 10)
-                .Register("boom", _ => throw new InvalidOperationException("child failed")));
+                .Register("boom", _ => throw new InvalidOperationException("child failed"))
+                .Register("check", ctx =>
+                {
+                    if (ctx.Variables.TryGetValue("fixed", out object f) && f is bool b && b)
+                    {
+                        ctx.Variables["result"] = "ok";
+                    }
+                    else
+                    {
+                        ctx.Fail("not fixed yet");
+                    }
+                })
+                .Register("fix", ctx => ctx.Variables["fixed"] = true));
         }
 
         [TestCleanup]
@@ -250,6 +262,84 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             CollectionAssert.Contains(treeInstances, top.Id);
             CollectionAssert.Contains(treeInstances, mid.Id);
             CollectionAssert.Contains(treeInstances, leaf.Id);
+        }
+
+        [TestMethod]
+        public void SubworkflowFault_WithErrorFlow_RoutesInsteadOfFaultingParent()
+        {
+            store.SaveDefinition(SubDef("boom")); // Kind faultet
+            var call = new CallWorkflowNode { Id = "call", SubDefinitionId = "sub", ErrorFlowId = "call->handled", ErrorVariable = "err" };
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "main",
+                Version = 1,
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" }, call, new EndNode { Id = "done" }, new EndNode { Id = "handled" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->call", SourceId = "s", TargetId = "call" },
+                    new SequenceFlow { Id = "call->done", SourceId = "call", TargetId = "done" },
+                    new SequenceFlow { Id = "call->handled", SourceId = "call", TargetId = "handled" }
+                }
+            });
+
+            WorkflowInstance parent = engine.CreateInstance("main", new Dictionary<string, object> { { "value", 1 } });
+            DriveTree(parent.Id);
+
+            WorkflowInstance finalParent = store.GetInstance(parent.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, finalParent.Status, "the error flow handles the failed sub-workflow - no parent fault.");
+            Assert.IsTrue(finalParent.Variables.ContainsKey("err"), "the sub-workflow error message is captured.");
+        }
+
+        [TestMethod]
+        public void SubworkflowRetry_ViaErrorFlowLoop_FreshChildPerAttempt_ThenSucceeds()
+        {
+            // Kind "sub" prueft die Variable "fixed" (Eingabe); ohne sie -> ctx.Fail -> Kind faultet.
+            store.SaveDefinition(SubDef("check"));
+
+            // Eltern: call(sub, fixed<-fixed, result->answer) mit Fehler-Ausgang -> gw.
+            var call = new CallWorkflowNode { Id = "call", SubDefinitionId = "sub", ErrorFlowId = "call->gw", AttemptVariable = "tries" };
+            call.Inputs.Add(new ActivityInputBinding { Parameter = "fixed", Kind = ParameterBindingKind.Variable, Source = "fixed" });
+            call.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "answer" });
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "main",
+                Version = 1,
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    call,
+                    new ExclusiveGatewayNode { Id = "gw", DefaultFlowId = "gw->giveup" },
+                    new AutomatedActivityNode { Id = "fix", ActivityRef = "fix" },
+                    new EndNode { Id = "done" },
+                    new EndNode { Id = "giveup" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->call", SourceId = "s", TargetId = "call" },
+                    new SequenceFlow { Id = "call->done", SourceId = "call", TargetId = "done" },
+                    new SequenceFlow { Id = "call->gw", SourceId = "call", TargetId = "gw" },
+                    new SequenceFlow { Id = "gw->fix", SourceId = "gw", TargetId = "fix", Condition = "tries <= 1" },
+                    new SequenceFlow { Id = "gw->giveup", SourceId = "gw", TargetId = "giveup" },
+                    new SequenceFlow { Id = "fix->call", SourceId = "fix", TargetId = "call" }
+                }
+            });
+
+            WorkflowInstance parent = engine.CreateInstance("main");
+            DriveTree(parent.Id);
+
+            WorkflowInstance finalParent = store.GetInstance(parent.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, finalParent.Status, "the sub-workflow retry loop completes the parent.");
+            Assert.AreEqual("ok", finalParent.Variables["answer"], "the second (fixed) sub-workflow attempt succeeded.");
+            Assert.AreEqual(0, finalParent.Variables["tries"], "the attempt counter reset on success.");
+
+            // Jeder Versuch war eine EIGENE Kind-Instanz: der erste faultete, der zweite ist fertig.
+            List<WorkflowInstance> children = store.FindChildInstances(parent.Id).ToList();
+            Assert.AreEqual(2, children.Count, "each attempt created its own child instance.");
+            Assert.AreEqual(1, children.Count(c => c.Status == WorkflowStatus.Faulted));
+            Assert.AreEqual(1, children.Count(c => c.Status == WorkflowStatus.Completed));
         }
 
         [TestMethod]

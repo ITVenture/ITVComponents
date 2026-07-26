@@ -145,20 +145,26 @@ namespace ITVComponents.Workflow.Validation
                         break;
                 }
 
-                // Fehler-Ausgang einer Aktivitaet: die Fehler-Kante muss eine ihrer ausgehenden Kanten sein,
-                // und es muss GENAU eine weitere (Erfolgs-)Kante geben.
-                if (n is AutomatedActivityNode act2 && !string.IsNullOrWhiteSpace(act2.ErrorFlowId))
+                // Fehler-Ausgang (Aktivitaet ODER Subworkflow-Aufruf): die Fehler-Kante muss eine der
+                // ausgehenden Kanten sein, und es muss GENAU eine weitere (Erfolgs-)Kante geben.
+                string errorFlowId = n switch
+                {
+                    AutomatedActivityNode a => a.ErrorFlowId,
+                    CallWorkflowNode c => c.ErrorFlowId,
+                    _ => null
+                };
+                if (!string.IsNullOrWhiteSpace(errorFlowId))
                 {
                     List<SequenceFlow> outFlows = flows.Where(f => f.SourceId == n.Id).ToList();
-                    if (outFlows.All(f => f.Id != act2.ErrorFlowId))
+                    if (outFlows.All(f => f.Id != errorFlowId))
                     {
                         issues.Add(Error(n.Id,
-                            $"Activity '{Label(n)}' error flow '{act2.ErrorFlowId}' is not one of its outgoing connections."));
+                            $"Node '{Label(n)}' error flow '{errorFlowId}' is not one of its outgoing connections."));
                     }
-                    else if (outFlows.Count(f => f.Id != act2.ErrorFlowId) != 1)
+                    else if (outFlows.Count(f => f.Id != errorFlowId) != 1)
                     {
                         issues.Add(Error(n.Id,
-                            $"Activity '{Label(n)}' with an error flow must have exactly one success connection."));
+                            $"Node '{Label(n)}' with an error flow must have exactly one success connection."));
                     }
                 }
             }

@@ -265,6 +265,21 @@ namespace ITVComponents.Workflow.Test
         }
 
         [TestMethod]
+        public void CallWorkflowErrorFlow_WithoutASeparateSuccessEdge_IsError()
+        {
+            // Der Fehler-Ausgang gilt generalisiert auch fuer CallWorkflowNode.
+            var def = new WorkflowDefinition { Id = "wf" };
+            def.Nodes.Add(new StartNode { Id = "s" });
+            def.Nodes.Add(new CallWorkflowNode { Id = "c", SubDefinitionId = "sub", ErrorFlowId = "c->h" });
+            def.Nodes.Add(new EndNode { Id = "h" });
+            def.Flows.Add(new SequenceFlow { Id = "s->c", SourceId = "s", TargetId = "c" });
+            def.Flows.Add(new SequenceFlow { Id = "c->h", SourceId = "c", TargetId = "h" });
+
+            Assert.IsTrue(HasError(WorkflowDefinitionValidator.Validate(def)),
+                "a call node with an error flow must also have exactly one success flow.");
+        }
+
+        [TestMethod]
         public void MissingEnd_IsWarning()
         {
             var def = new WorkflowDefinition { Id = "wf" };

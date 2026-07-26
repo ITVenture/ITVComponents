@@ -152,6 +152,26 @@
                                 break;
                             case CallWorkflowNode call:
                                 <CallWorkflowConfigEditor Node="call" Definitions="subDefinitionIds" />
+                                <MudDivider Class="my-2" />
+                                <MudSelect T="string" @bind-Value="call.ErrorFlowId" Label="Error flow (on failure)"
+                                           Clearable="true" Margin="Margin.Dense">
+                                    @foreach (var f in def.Flows.Where(f => f.SourceId == call.Id))
+                                    {
+                                        <MudSelectItem T="string" Value="@f.Id">@FlowLabel(f)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                                @if (!string.IsNullOrEmpty(call.ErrorFlowId))
+                                {
+                                    <MudTextField @bind-Value="call.ErrorVariable" Label="Error message → variable"
+                                                  Margin="Margin.Dense" />
+                                    <MudTextField @bind-Value="call.AttemptVariable" Label="Attempt count → variable"
+                                                  Margin="Margin.Dense" />
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        On sub-workflow failure the token takes this flow instead of faulting; the single
+                                        other outgoing flow is the success path. With an attempt variable, an error flow
+                                        that loops back retries the sub-workflow (a fresh child instance per attempt).
+                                    </MudText>
+                                }
                                 break;
                             case WaitNode wait:
                                 <MudTextField @bind-Value="wait.SignalName" Label="Signal name" Margin="Margin.Dense" />

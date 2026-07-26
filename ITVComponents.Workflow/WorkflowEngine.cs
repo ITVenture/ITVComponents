@@ -852,9 +852,9 @@ namespace ITVComponents.Workflow
 
             // Erfolg: Datenfluss heraus, Fehlversuchs-Zaehler zuruecksetzen, ueber den Erfolgs-Ausgang weiter.
             ApplyOutputs(instance, node, outputs);
-            ResetAttempts(instance, node);
+            ResetAttempts(instance, node.AttemptVariable);
             instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
-            return MoveAlongSuccessFlow(instance, definition, token, node);
+            return MoveAlongSuccessFlow(instance, definition, token, node.Id, node.ErrorFlowId);
         }
 
         /// <summary>
@@ -903,35 +903,36 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
-        /// Bewegt einen Token nach erfolgreicher Aktivitaet weiter: ohne Fehler-Ausgang ueber die einzige
-        /// ausgehende Kante; mit Fehler-Ausgang ueber die einzige NICHT-Fehler-Kante (die Erfolgs-Kante).
+        /// Bewegt einen Token nach Erfolg weiter: ohne Fehler-Ausgang ueber die einzige ausgehende Kante;
+        /// mit Fehler-Ausgang ueber die einzige NICHT-Fehler-Kante (die Erfolgs-Kante). Fuer Aktivitaets- und
+        /// Subworkflow-Knoten gleichermassen.
         /// </summary>
         private bool MoveAlongSuccessFlow(WorkflowInstance instance, WorkflowDefinition definition, Token token,
-            AutomatedActivityNode node)
+            string nodeId, string errorFlowId)
         {
-            if (string.IsNullOrEmpty(node.ErrorFlowId))
+            if (string.IsNullOrEmpty(errorFlowId))
             {
                 return MoveAlongSingleOutgoing(instance, definition, token);
             }
 
-            var success = definition.OutgoingFlows(node.Id).Where(f => f.Id != node.ErrorFlowId).ToList();
+            var success = definition.OutgoingFlows(nodeId).Where(f => f.Id != errorFlowId).ToList();
             if (success.Count != 1)
             {
                 Fault(instance,
-                    $"Activity '{node.Id}' with an error flow must have exactly one success flow, but has {success.Count}.",
-                    node.Id);
+                    $"Node '{nodeId}' with an error flow must have exactly one success flow, but has {success.Count}.",
+                    nodeId);
                 return false;
             }
 
             return MoveToken(instance, token, success[0]);
         }
 
-        /// <summary>Setzt den Fehlversuchs-Zaehler des Knotens bei Erfolg zurueck (falls konfiguriert).</summary>
-        private static void ResetAttempts(WorkflowInstance instance, AutomatedActivityNode node)
+        /// <summary>Setzt den Fehlversuchs-Zaehler bei Erfolg zurueck (falls die Variable konfiguriert ist).</summary>
+        private static void ResetAttempts(WorkflowInstance instance, string attemptVariable)
         {
-            if (!string.IsNullOrEmpty(node.AttemptVariable))
+            if (!string.IsNullOrEmpty(attemptVariable))
             {
-                instance.Variables[node.AttemptVariable] = 0;
+                instance.Variables[attemptVariable] = 0;
             }
         }
 
@@ -1078,7 +1079,11 @@ namespace ITVComponents.Workflow
                 return false;
             }
 
-            string childId = ChildInstanceId(instance.Id, token.Id);
+            // Der Versuchs-Zaehler geht in die (deterministische) Kind-Id ein: so bekommt jeder Wiederholungs-
+            // Lauf eine EIGENE Kind-Instanz (echte Retry-Schleife ueber die Fehlerkante), waehrend innerhalb
+            // EINES Versuchs die Id stabil bleibt (idempotent bei Wiederanlauf).
+            int attempt = CurrentAttempt(instance, node.AttemptVariable);
+            string childId = ChildInstanceId(instance.Id, token.Id, attempt);
             WorkflowInstance child = store.GetInstance(childId);
 
             if (child != null && child.Status == WorkflowStatus.Completed)
@@ -1088,10 +1093,7 @@ namespace ITVComponents.Workflow
 
             if (child != null && (child.Status == WorkflowStatus.Faulted || child.Status == WorkflowStatus.Cancelled))
             {
-                Fault(instance,
-                    $"Sub-workflow '{child.DefinitionId}' ({childId}) {child.Status.ToString().ToLowerInvariant()}: " +
-                    $"{child.FaultMessage}", node.Id);
-                return false;
+                return HandleSubworkflowFailure(instance, definition, token, node, child);
             }
 
             if (child == null)
@@ -1179,10 +1181,65 @@ namespace ITVComponents.Workflow
             CallWorkflowNode node, WorkflowInstance child)
         {
             ApplyCallOutputs(instance, node, child.Variables);
+            ResetAttempts(instance, node.AttemptVariable);
             token.WaitingForChildInstanceId = null;
             token.Status = TokenStatus.Active;
             instance.Log("SubworkflowCompleted", node.Id, child.DefinitionId);
-            return MoveAlongSingleOutgoing(instance, definition, token);
+            return MoveAlongSuccessFlow(instance, definition, token, node.Id, node.ErrorFlowId);
+        }
+
+        /// <summary>
+        /// Behandelt einen gescheiterten Subworkflow (Faulted/Cancelled): ohne Fehler-Ausgang faultet der
+        /// aufrufende Knoten (Standard-Propagation). Mit Fehler-Ausgang wird der Fehlerkontext bereitgestellt
+        /// (<see cref="CallWorkflowNode.ErrorVariable"/> = Meldung, <see cref="CallWorkflowNode.AttemptVariable"/>
+        /// += 1) und der Token ueber die Fehler-Kante bewegt - fuehrt sie zum selben Knoten zurueck, wird der
+        /// Subworkflow (mit erhoehtem Zaehler = neuer Kind-Id) erneut versucht.
+        /// </summary>
+        private bool HandleSubworkflowFailure(WorkflowInstance parent, WorkflowDefinition definition, Token token,
+            CallWorkflowNode node, WorkflowInstance child)
+        {
+            string message = $"Sub-workflow '{child.DefinitionId}' ({child.Id}) " +
+                             $"{child.Status.ToString().ToLowerInvariant()}: {child.FaultMessage}";
+            if (string.IsNullOrEmpty(node.ErrorFlowId))
+            {
+                Fault(parent, message, node.Id);
+                return false;
+            }
+
+            SequenceFlow errorFlow = definition.OutgoingFlows(node.Id).FirstOrDefault(f => f.Id == node.ErrorFlowId);
+            if (errorFlow == null)
+            {
+                Fault(parent, $"Error flow '{node.ErrorFlowId}' of node '{node.Id}' does not exist.", node.Id);
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(node.ErrorVariable))
+            {
+                parent.Variables[node.ErrorVariable] = child.FaultMessage ?? message;
+            }
+
+            if (!string.IsNullOrEmpty(node.AttemptVariable))
+            {
+                parent.Variables.TryGetValue(node.AttemptVariable, out object current);
+                parent.Variables[node.AttemptVariable] = (current is int i ? i : 0) + 1;
+            }
+
+            token.WaitingForChildInstanceId = null;
+            token.Status = TokenStatus.Active;
+            parent.Log("SubworkflowError", node.Id, message, HistorySeverity.Warning);
+            return MoveToken(parent, token, errorFlow);
+        }
+
+        /// <summary>Liest den aktuellen Fehlversuchs-Zaehler (0, wenn nicht gesetzt oder nicht konfiguriert).</summary>
+        private static int CurrentAttempt(WorkflowInstance instance, string attemptVariable)
+        {
+            if (!string.IsNullOrEmpty(attemptVariable)
+                && instance.Variables.TryGetValue(attemptVariable, out object v) && v is int i)
+            {
+                return i;
+            }
+
+            return 0;
         }
 
         /// <summary>Bildet die End-Variablen des Subworkflows ueber die Output-Bindungen auf Eltern-Variablen ab.</summary>
@@ -1247,22 +1304,20 @@ namespace ITVComponents.Workflow
                 }
 
                 WorkflowDefinition parentDef = LoadDefinition(parent);
-                if (child.Status == WorkflowStatus.Completed
-                    && parentDef.GetNode(token.NodeId) is CallWorkflowNode node)
+                if (parentDef.GetNode(token.NodeId) is not CallWorkflowNode node)
                 {
-                    CompleteCall(parent, parentDef, token, node, child);
+                    Fault(parent,
+                        $"Waiting call node '{token.NodeId}' for sub-workflow '{childInstanceId}' is missing " +
+                        "or is no longer a call node.", token.NodeId);
                 }
                 else if (child.Status == WorkflowStatus.Completed)
                 {
-                    Fault(parent,
-                        $"Waiting call node '{token.NodeId}' no longer exists for completed sub-workflow " +
-                        $"'{childInstanceId}'.", token.NodeId);
+                    CompleteCall(parent, parentDef, token, node, child);
                 }
                 else
                 {
-                    Fault(parent,
-                        $"Sub-workflow '{child.DefinitionId}' ({childInstanceId}) " +
-                        $"{child.Status.ToString().ToLowerInvariant()}: {child.FaultMessage}", token.NodeId);
+                    // Faulted/Cancelled: Fehler-Ausgang nehmen (oder faulten, wenn keiner konfiguriert ist).
+                    HandleSubworkflowFailure(parent, parentDef, token, node, child);
                 }
 
                 if (parent.Status != WorkflowStatus.Faulted && parent.Status != WorkflowStatus.Cancelled)
@@ -1298,9 +1353,13 @@ namespace ITVComponents.Workflow
             }
         }
 
-        /// <summary>Deterministische Id der Kind-Instanz je aufrufendem (Eltern-)Token - macht das Anlegen idempotent.</summary>
-        private static string ChildInstanceId(string parentInstanceId, string tokenId)
-            => $"{parentInstanceId}:{tokenId}";
+        /// <summary>
+        /// Deterministische Id der Kind-Instanz je aufrufendem (Eltern-)Token und Versuch - macht das
+        /// Anlegen idempotent (stabile Id je Versuch) und ermoeglicht zugleich echte Wiederholung (neuer
+        /// Versuch = neue Id).
+        /// </summary>
+        private static string ChildInstanceId(string parentInstanceId, string tokenId, int attempt)
+            => $"{parentInstanceId}:{tokenId}:{attempt}";
 
         private bool RouteExclusive(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             ExclusiveGatewayNode gateway)

@@ -148,6 +148,30 @@ namespace ITVComponents.Workflow.Model
         /// <see cref="ActivityOutputBinding.Variable"/> die Ziel-Variable im Elternprozess.
         /// </summary>
         public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+
+        /// <summary>
+        /// Optionaler <b>Fehler-Ausgang</b>: die Id der ausgehenden Kante, die genommen wird, wenn der
+        /// Subworkflow scheitert (faultet oder abgebrochen wird). Der Erfolgs-Ausgang ist dann die einzige
+        /// andere ausgehende Kante. Ist der Wert null/leer, faultet ein gescheiterter Subworkflow wie bisher
+        /// den aufrufenden Knoten (Standard, rueckwaerts-kompatibel). Erlaubt Fehlerbehandlung im Graphen
+        /// (Alternativpfad, Kompensation, oder - mit <see cref="AttemptVariable"/> - Wiederholung des
+        /// Subworkflows).
+        /// </summary>
+        public string ErrorFlowId { get; set; }
+
+        /// <summary>
+        /// Beim Fehler-Ausgang: Name der Eltern-Variable, die die Fehlermeldung des Subworkflows erhaelt.
+        /// Null/leer = nicht setzen.
+        /// </summary>
+        public string ErrorVariable { get; set; }
+
+        /// <summary>
+        /// Beim Fehler-Ausgang: Name der Eltern-Variable, die den <b>Fehlversuchs-Zaehler</b> erhaelt -
+        /// +1 bei jedem gescheiterten Subworkflow-Lauf, 0 bei Erfolg. Ist er gesetzt, bekommt jeder Versuch
+        /// eine EIGENE Kind-Instanz (die Fehlerkante kann also zum selben Knoten zurueckfuehren = echte
+        /// Wiederholung); ohne ihn wird der Subworkflow nicht neu angelegt. Null/leer = nicht mitzaehlen.
+        /// </summary>
+        public string AttemptVariable { get; set; }
     }
 
     /// <summary>
