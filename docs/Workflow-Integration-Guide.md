@@ -18,7 +18,7 @@ wird — anhand von drei Deployment-Szenarien:
 | Baustein | Typ | Aufgabe |
 |---|---|---|
 | **Store** | `IWorkflowStore` — `EfWorkflowStore` (DB) / `InMemoryWorkflowStore` | Persistenz von Definitionen und Instanzen; Abfragen für Wiederaufnahme (Signal, Timer, Handoff). |
-| **DbContext** | `WorkflowContext` (EF Core) | Tabellen (Instanzen, Token-Zeilen, Definitionen, Zweig-Sperren); tenant-fähig. |
+| **DbContext** | `WorkflowContext` (EF Core) | Tabellen (Instanzen, Token-Zeilen, Protokoll-Zeilen, Definitionen, Zweig-Sperren); tenant-fähig. |
 | **Engine** | `WorkflowEngine` | Treibt Instanzen voran (Knoten ausführen, Gateways, Wartepunkte). |
 | **Activity-Host** | `IActivityHost` — `ActivityRegistry` / `PluginActivityHost` / `WebToolkitActivityHost` | Löst je Vortrieb die auszuführenden Aktivitäten auf. |
 | **Runner** | `WorkflowRunner` (auf `ITVComponents.ParallelProcessing`) | Laufender Dienst: treibt Workflows **zweig-granular, nebenläufig, prozessübergreifend** voran. |
@@ -343,8 +343,13 @@ runner.Start();
 - **Konflikt-Policy.** Schreiben zwei **parallele** Zweige dieselbe Variable auf **verschiedene**
   Werte, faultet die Instanz (kein stiller last-writer); gleicher Wert ist harmlos. Der Validator
   warnt dafür bereits zur Design-Zeit (parallele Zweige mit gleicher Output-Variable).
-- **Migrationen.** `WorkflowContext`-Schemaänderungen (u.a. `TokenRow`, `WorkflowBranchLockRow`,
-  `Version`, `WaitingTarget`) in den provider-spezifischen Migrations-Projekten nachziehen.
+- **Migrationen.** `WorkflowContext`-Schemaänderungen in den provider-spezifischen Migrations-Projekten
+  nachziehen. Betroffen: `TokenRow` (inkl. `WaitingTarget`, `WaitingForChildInstanceId`),
+  `WorkflowBranchLockRow`, `WorkflowInstanceRow.Version`, die eigene **`HistoryEntryRow`**-Tabelle
+  (Protokoll append-only mit Severity, löst den früheren `HistoryJson`-Blob ab) und die
+  Subworkflow-Spalten (`ParentInstanceId`, `ParentTokenId`, `RootInstanceId`, `CallDepth`).
+  **Kein** Schema-Bedarf für Fehler-Ausgänge und JSON-Export/Import (rein im Definition-JSON / normale
+  Variablen).
 
 ## 7. Kurzreferenz: Wer macht was?
 
@@ -359,3 +364,37 @@ runner.Start();
 | Start / Signal aus dem Web | inline (`StartWorkflow`/`SignalWorkflow`) | store-only (`CreateInstance`/`ReactivateSignal`) → Backend-Runner | store-only → Runner |
 | `WorkflowViewsOptions.SignalDelivery` | `Inline` (Standard) | `Runner` | `Runner` |
 | IPC | nein | ja (Katalog) | ja (Katalog) |
+
+---
+
+## 8. Modellier-Features (Kurzüberblick)
+
+Diese Bausteine betreffen das **Autoren** von Workflows (Editor + Definition), nicht das Deployment —
+hier nur der Überblick mit den deployment-relevanten Hinweisen:
+
+- **Fehler-Ausgänge (Error-Routing).** Ein `AutomatedActivityNode` kann eine Fehler-Kante
+  (`ErrorFlowId`) haben: scheitert die Aktivität (Exception ODER kontrolliert via `ctx.Fail(msg)`),
+  nimmt der Token diese Kante statt zu faulten — mit Fehlermeldung (`ErrorVariable`), erhaltenem
+  Zwischenstand (die Outputs bei `ctx.Fail`) und Fehlversuchs-Zähler (`AttemptVariable`: +1 je Fehler,
+  0 bei Erfolg). Damit lassen sich Retry-Schleifen, Verzweigung nach Fehleranzahl (XOR auf den Zähler)
+  und Benutzer-Korrektur (Wait-Knoten im Fehlerpfad) modellieren. Editor: Felder im Aktivitäts-Panel.
+  **Keine Schema-Änderung.**
+
+- **Subworkflows (`CallWorkflowNode`).** Ein Workflow ruft einen anderen mit Ein-/Ausgabewerten auf;
+  der Aufrufer parkt, bis der Subworkflow endet, und übernimmt dessen Ergebnis (Fault propagiert
+  standardmäßig; Abbruch kaskadiert auf laufende Kinder). Der Subworkflow ist eine **eigene Instanz**
+  (eigenes Monitoring), erbt den Tenant, ist beliebig verschachtelbar. **Getrieben vom Runner** — reines
+  inline `StartWorkflow` ohne Runner treibt Kinder NICHT (Web-Only hostet den Runner in-proc, wie
+  empfohlen). Aggregierte History: Kind-Einträge tragen die `RootInstanceId` des Elternbaums → das
+  Protokoll des ganzen Baums ist über die eine Wurzel lesbar. Editor: Palette „Subworkflow" +
+  Config-Panel (Definition/Version + Bindungen).
+
+- **JSON Export/Import.** `ITVComponents.Workflow.Serialization.WorkflowJson` (öffentlich) ist das
+  kanonische, portable Format (stabile `"kind"`-Diskriminatoren, **typnamen-unabhängig**) — dasselbe,
+  das der Store persistiert. `ExportDefinition` / `ImportDefinition`; im Editor Export-/Import-Buttons
+  (Import ersetzt die Zeichenfläche und validiert, speichert aber nicht automatisch). Ermöglicht Teilen
+  als Datei, Versionierung (Git), Transport zwischen Umgebungen und Tooling.
+
+- **Protokoll mit Schweregrad.** Das Ausführungsprotokoll liegt als eigene Tabelle (`HistoryEntryRow`,
+  append-only) mit `Severity` (Verbose/Info/Warning/Error) — filter-/abfragbar; das Monitoring-Detail
+  zeigt eine farbige Severity-Spalte. Bei Subworkflows über die `RootInstanceId` baumweit aggregierbar.
