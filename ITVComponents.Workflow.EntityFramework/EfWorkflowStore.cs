@@ -5,6 +5,7 @@ using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Serialization;
 using ITVComponents.Workflow.Stores;
 using Microsoft.EntityFrameworkCore;
 

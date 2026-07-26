@@ -195,6 +195,19 @@ window.itvWfEditor = window.itvWfEditor || (function () {
             instances.set(hostEl, { svgEl: svgEl, onDown: onDown, onMove: onMove, onUp: onUp });
         },
 
+        // Loest einen Datei-Download eines Text-Strings aus (Export der Workflow-Definition als JSON).
+        downloadText(filename, text) {
+            const blob = new Blob([text], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'workflow.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
+
         detach(hostEl) {
             const it = instances.get(hostEl);
             if (!it) return;

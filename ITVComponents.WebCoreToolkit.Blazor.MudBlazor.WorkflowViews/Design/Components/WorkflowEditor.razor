@@ -3,12 +3,14 @@
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using System.Globalization
+@using System.IO
 @using System.Text
 @using System.Net
 @using ITVComponents.Helpers
 @using ITVComponents.Logging
 @using ITVComponents.Workflow.Activities
 @using ITVComponents.Workflow.Model
+@using ITVComponents.Workflow.Serialization
 @using ITVComponents.Workflow.Validation
 @using Microsoft.Extensions.DependencyInjection
 
@@ -47,6 +49,13 @@
                 <MudTextField @bind-Value="def.Name" Label="Name" Margin="Margin.Dense" Style="max-width:240px" Class="mr-2" />
                 <MudNumericField @bind-Value="def.Version" Label="Version" Min="1" Margin="Margin.Dense" Style="max-width:100px" />
                 <MudSpacer />
+                <MudButton StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Text"
+                           Class="mr-1" OnClick="ExportToFile">Export</MudButton>
+                <label class="mr-2">
+                    <InputFile OnChange="ImportFromFile" accept=".json" style="display:none" />
+                    <MudButton StartIcon="@Icons.Material.Filled.Upload" Variant="Variant.Text"
+                               Class="mr-1" HtmlTag="span">Import</MudButton>
+                </label>
                 <MudButton StartIcon="@Icons.Material.Filled.Checklist" Variant="Variant.Outlined"
                            Class="mr-2" OnClick="ValidateOnly">Validate</MudButton>
                 @if (isNew)
@@ -424,6 +433,65 @@
 
         def.Flows.Remove(selectedFlow);
         selectedFlow = null;
+    }
+
+    /// <summary>Exportiert die aktuelle Definition als (portable) JSON-Datei (Browser-Download).</summary>
+    private async Task ExportToFile()
+    {
+        if (def is null)
+        {
+            return;
+        }
+
+        try
+        {
+            string json = WorkflowJson.ExportDefinition(def);
+            await JS.InvokeVoidAsync("itvWfEditor.downloadText", $"{def.Id}-v{def.Version}.json", json);
+        }
+        catch (Exception ex)
+        {
+            LogEnvironment.LogEvent($"Workflow-Editor: Export fehlgeschlagen: {ex.OutlineException()}",
+                LogSeverity.Warning);
+            Snackbar.Add("Export failed.", Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Importiert eine Definition aus einer JSON-Datei in den Editor (ersetzt die Zeichenflaeche). Es wird
+    /// NICHT automatisch gespeichert - der Autor prueft und speichert selbst (Id/Version aus der Toolbar).
+    /// </summary>
+    private async Task ImportFromFile(InputFileChangeEventArgs e)
+    {
+        if (e.File is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var reader = new StreamReader(e.File.OpenReadStream(maxAllowedSize: 8 * 1024 * 1024));
+            string json = await reader.ReadToEndAsync();
+            WorkflowDefinition imported = WorkflowJson.ImportDefinition(json);
+            if (imported?.Nodes is null)
+            {
+                Snackbar.Add("This file is not a valid workflow definition.", Severity.Error);
+                return;
+            }
+
+            def = imported;
+            EnsureDiagram(def);
+            selectedNode = null;
+            selectedFlow = null;
+            issues = WorkflowDefinitionValidator.Validate(def).ToList();
+            RecomputeCanvasSize();
+            Snackbar.Add("Imported. Review, set id/version, and Save to persist.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            LogEnvironment.LogEvent($"Workflow-Editor: Import fehlgeschlagen: {ex.OutlineException()}",
+                LogSeverity.Warning);
+            Snackbar.Add("Import failed: not a valid workflow JSON.", Severity.Error);
+        }
     }
 
     /// <summary>Prueft die Definition ohne zu speichern und zeigt die Befunde an.</summary>
