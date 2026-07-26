@@ -30,6 +30,9 @@ namespace ITVComponents.Workflow
         /// <summary>Obergrenze der Knotenausfuehrungen pro Vortrieb - Schutz vor Endlosschleifen.</summary>
         private const int MaxStepsPerAdvance = 100000;
 
+        /// <summary>Maximale Subworkflow-Verschachtelungstiefe - Schutz vor Selbst-/Wechselrekursion.</summary>
+        private const int MaxCallDepth = 50;
+
         private readonly IWorkflowStore store;
         private readonly IActivityHost activities;
         private readonly IExpressionEvaluator evaluator;
@@ -302,6 +305,14 @@ namespace ITVComponents.Workflow
             instance.Status = WorkflowStatus.Cancelled;
             instance.Log("Cancelled", severity: HistorySeverity.Warning);
             store.SaveInstance(instance);
+
+            // Abbruch-Kaskade: laufende Subworkflows dieser Instanz mit abbrechen (ihr Ergebnis wuerde
+            // ohnehin von einem nicht mehr wartenden Elternprozess verworfen).
+            foreach (WorkflowInstance child in store.FindChildInstances(instanceId).ToList())
+            {
+                CancelWorkflow(child.Id);
+            }
+
             return true;
         }
 
@@ -406,14 +417,19 @@ namespace ITVComponents.Workflow
                         LogEnvironment.LogEvent(
                             $"RunBranch: parallel write conflict on variable '{conflictVar}' in instance " +
                             $"'{instanceId}' (token '{tokenId}') - instance faulted.", LogSeverity.Error);
+                        NotifyParentIfFinished(fresh);
                         return Array.Empty<string>();
                     }
 
                     // Neu entstandene aktive Tokens (Ids, die es beim Laden noch nicht gab) = neue Zweige.
-                    return fresh.ActiveTokens
+                    List<string> newTokenIds = fresh.ActiveTokens
                         .Where(t => !snapshot.HasToken(t.Id))
                         .Select(t => t.Id)
                         .ToList();
+                    // Ist DIESE Instanz gerade ein beendeter Subworkflow, liefert sie ihr Ergebnis an den
+                    // wartenden Elternprozess (der dadurch wieder lauffaehig wird).
+                    NotifyParentIfFinished(fresh);
+                    return newTokenIds;
                 }
 
                 if (attempt >= maxRetries)
@@ -744,6 +760,9 @@ namespace ITVComponents.Workflow
                 case TimerNode timer:
                     return ArmTimer(instance, token, timer);
 
+                case CallWorkflowNode call:
+                    return ProcessCallWorkflow(instance, definition, token, call);
+
                 case ParallelGatewayNode parallel:
                     return ProcessParallelGateway(instance, definition, token, parallel);
 
@@ -792,7 +811,7 @@ namespace ITVComponents.Workflow
             IDictionary<string, object> inputs;
             try
             {
-                inputs = ResolveInputs(instance, node);
+                inputs = ResolveInputs(instance, node.Inputs, node.Id);
             }
             catch (Exception ex)
             {
@@ -835,15 +854,16 @@ namespace ITVComponents.Workflow
         /// definierter Normalfall (der Wert ist dann null) - kein Fehler, aber protokolliert, damit er
         /// nachvollziehbar bleibt. Ein Ausdrucksfehler wird an den Aufrufer geworfen (der faultet).
         /// </summary>
-        private IDictionary<string, object> ResolveInputs(WorkflowInstance instance, AutomatedActivityNode node)
+        private IDictionary<string, object> ResolveInputs(WorkflowInstance instance,
+            List<ActivityInputBinding> inputs, string nodeId)
         {
             var result = new Dictionary<string, object>(StringComparer.Ordinal);
-            if (node.Inputs == null)
+            if (inputs == null)
             {
                 return result;
             }
 
-            foreach (ActivityInputBinding binding in node.Inputs)
+            foreach (ActivityInputBinding binding in inputs)
             {
                 if (binding == null || string.IsNullOrEmpty(binding.Parameter))
                 {
@@ -866,7 +886,7 @@ namespace ITVComponents.Workflow
                         {
                             result[binding.Parameter] = null;
                             LogEnvironment.LogEvent(
-                                $"Input '{binding.Parameter}' of node '{node.Id}' in instance '{instance.Id}' " +
+                                $"Input '{binding.Parameter}' of node '{nodeId}' in instance '{instance.Id}' " +
                                 $"is bound to variable '{binding.Source}', which is not set - resolved to null.",
                                 LogSeverity.Report);
                         }
@@ -879,7 +899,7 @@ namespace ITVComponents.Workflow
 
                     default:
                         LogEnvironment.LogEvent(
-                            $"Input '{binding.Parameter}' of node '{node.Id}' uses an unsupported binding " +
+                            $"Input '{binding.Parameter}' of node '{nodeId}' uses an unsupported binding " +
                             $"kind '{binding.Kind}' - resolved to null.", LogSeverity.Warning);
                         result[binding.Parameter] = null;
                         break;
@@ -955,6 +975,245 @@ namespace ITVComponents.Workflow
                 }
             }
         }
+
+        /// <summary>
+        /// Verarbeitet einen <see cref="CallWorkflowNode"/>: startet den Subworkflow als eigene Instanz
+        /// (idempotent - deterministische Id je aufrufendem Token) und parkt den Eltern-Zweig, bis der
+        /// Subworkflow endet. Ist der Subworkflow bereits fertig (z.B. nach einem Wiederanlauf), wird sein
+        /// Ergebnis sofort uebernommen, ohne zu parken (Selbstheilung).
+        /// </summary>
+        private bool ProcessCallWorkflow(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            CallWorkflowNode node)
+        {
+            if (string.IsNullOrEmpty(node.SubDefinitionId))
+            {
+                Fault(instance, $"Call node '{node.Id}' has no sub-workflow definition id.", node.Id);
+                return false;
+            }
+
+            string childId = ChildInstanceId(instance.Id, token.Id);
+            WorkflowInstance child = store.GetInstance(childId);
+
+            if (child != null && child.Status == WorkflowStatus.Completed)
+            {
+                return CompleteCall(instance, definition, token, node, child);
+            }
+
+            if (child != null && (child.Status == WorkflowStatus.Faulted || child.Status == WorkflowStatus.Cancelled))
+            {
+                Fault(instance,
+                    $"Sub-workflow '{child.DefinitionId}' ({childId}) {child.Status.ToString().ToLowerInvariant()}: " +
+                    $"{child.FaultMessage}", node.Id);
+                return false;
+            }
+
+            if (child == null)
+            {
+                IDictionary<string, object> childVars;
+                try
+                {
+                    childVars = ResolveInputs(instance, node.Inputs, node.Id);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Input binding of call node '{node.Id}' in instance '{instance.Id}' could not be " +
+                        $"resolved: {ex.OutlineException()}", LogSeverity.Error);
+                    Fault(instance, $"Input binding of call node '{node.Id}' failed: {ex.Message}", node.Id);
+                    return false;
+                }
+
+                if (instance.CallDepth + 1 > MaxCallDepth)
+                {
+                    Fault(instance,
+                        $"Sub-workflow nesting exceeded {MaxCallDepth} levels at node '{node.Id}' - possible recursion.",
+                        node.Id);
+                    return false;
+                }
+
+                WorkflowDefinition subDef = store.GetDefinition(node.SubDefinitionId, node.SubDefinitionVersion);
+                if (subDef == null)
+                {
+                    Fault(instance,
+                        $"Call node '{node.Id}' references unknown sub-workflow '{node.SubDefinitionId}'.", node.Id);
+                    return false;
+                }
+
+                var startNodes = subDef.StartNodes().ToList();
+                if (startNodes.Count == 0)
+                {
+                    Fault(instance, $"Sub-workflow '{subDef.Id}' has no start node.", node.Id);
+                    return false;
+                }
+
+                var now = DateTime.UtcNow;
+                child = new WorkflowInstance
+                {
+                    Id = childId,
+                    DefinitionId = subDef.Id,
+                    DefinitionVersion = subDef.Version,
+                    TenantId = instance.TenantId,
+                    ParentInstanceId = instance.Id,
+                    ParentTokenId = token.Id,
+                    RootInstanceId = instance.EffectiveRootInstanceId,
+                    CallDepth = instance.CallDepth + 1,
+                    Status = WorkflowStatus.Running,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                foreach (KeyValuePair<string, object> pair in childVars)
+                {
+                    child.Variables[pair.Key] = pair.Value;
+                }
+
+                foreach (StartNode start in startNodes)
+                {
+                    child.Tokens.Add(new Token { NodeId = start.Id, Status = TokenStatus.Active });
+                }
+
+                child.Log("Started", detail: $"sub-workflow of {instance.Id}");
+                // Bewusster (idempotenter) Seiteneffekt waehrend des In-Memory-Vortriebs: die Kind-Instanz
+                // wird sofort persistiert, damit der Runner sie aufnimmt. Bei einem Wiederanlauf verhindert
+                // der GetInstance-Guard oben ein zweites Anlegen.
+                store.SaveInstance(child);
+            }
+
+            token.Status = TokenStatus.Waiting;
+            token.WaitingForChildInstanceId = childId;
+            instance.Log("CallWorkflow", node.Id, node.SubDefinitionId);
+            return true;
+        }
+
+        /// <summary>
+        /// Uebernimmt das Ergebnis eines fertigen Subworkflows in den Elternprozess: Ausgaben abbilden,
+        /// Eltern-Token reaktivieren und ueber die einzige ausgehende Kante weiterbewegen.
+        /// </summary>
+        private bool CompleteCall(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            CallWorkflowNode node, WorkflowInstance child)
+        {
+            ApplyCallOutputs(instance, node, child.Variables);
+            token.WaitingForChildInstanceId = null;
+            token.Status = TokenStatus.Active;
+            instance.Log("SubworkflowCompleted", node.Id, child.DefinitionId);
+            return MoveAlongSingleOutgoing(instance, definition, token);
+        }
+
+        /// <summary>Bildet die End-Variablen des Subworkflows ueber die Output-Bindungen auf Eltern-Variablen ab.</summary>
+        private static void ApplyCallOutputs(WorkflowInstance parent, CallWorkflowNode node,
+            IDictionary<string, object> childVariables)
+        {
+            if (node.Outputs == null)
+            {
+                return;
+            }
+
+            foreach (ActivityOutputBinding binding in node.Outputs)
+            {
+                if (binding == null || string.IsNullOrEmpty(binding.Parameter)
+                    || string.IsNullOrEmpty(binding.Variable))
+                {
+                    continue;
+                }
+
+                childVariables.TryGetValue(binding.Parameter, out object value);
+                parent.Variables[binding.Variable] = value;
+            }
+        }
+
+        /// <summary>
+        /// Liefert das Ergebnis eines beendeten Subworkflows an den wartenden Eltern-Zweig: bei Erfolg
+        /// werden die Ausgaben uebernommen und der Zweig laeuft weiter; bei Fault/Abbruch faultet der
+        /// aufrufende Knoten (Standard-Fehlerpropagation). Optimistischer Commit auf der Eltern-Instanz mit
+        /// Retry. No-op, wenn der Eltern-Zweig nicht (mehr) auf dieses Kind wartet (schon geliefert/entfallen).
+        /// </summary>
+        public void DeliverChildCompletion(string childInstanceId)
+        {
+            if (childInstanceId == null)
+            {
+                throw new ArgumentNullException(nameof(childInstanceId));
+            }
+
+            WorkflowInstance child = store.GetInstance(childInstanceId);
+            if (child == null || string.IsNullOrEmpty(child.ParentInstanceId))
+            {
+                return;
+            }
+
+            const int maxRetries = 100;
+            for (int attempt = 0; ; attempt++)
+            {
+                WorkflowInstance parent = store.GetInstance(child.ParentInstanceId);
+                if (parent == null)
+                {
+                    LogEnvironment.LogEvent(
+                        $"DeliverChildCompletion: parent '{child.ParentInstanceId}' of sub-workflow " +
+                        $"'{childInstanceId}' not found - skipped.", LogSeverity.Warning);
+                    return;
+                }
+
+                int baseVersion = parent.Version;
+                Token token = parent.Tokens.FirstOrDefault(t =>
+                    t.Status == TokenStatus.Waiting && t.WaitingForChildInstanceId == childInstanceId);
+                if (token == null)
+                {
+                    return; // schon geliefert oder Eltern-Zweig entfallen - nichts zu tun.
+                }
+
+                WorkflowDefinition parentDef = LoadDefinition(parent);
+                if (child.Status == WorkflowStatus.Completed
+                    && parentDef.GetNode(token.NodeId) is CallWorkflowNode node)
+                {
+                    CompleteCall(parent, parentDef, token, node, child);
+                }
+                else if (child.Status == WorkflowStatus.Completed)
+                {
+                    Fault(parent,
+                        $"Waiting call node '{token.NodeId}' no longer exists for completed sub-workflow " +
+                        $"'{childInstanceId}'.", token.NodeId);
+                }
+                else
+                {
+                    Fault(parent,
+                        $"Sub-workflow '{child.DefinitionId}' ({childInstanceId}) " +
+                        $"{child.Status.ToString().ToLowerInvariant()}: {child.FaultMessage}", token.NodeId);
+                }
+
+                if (parent.Status != WorkflowStatus.Faulted && parent.Status != WorkflowStatus.Cancelled)
+                {
+                    UpdateTerminalStatus(parent);
+                }
+
+                if (store.TryCommitInstance(parent, baseVersion))
+                {
+                    return;
+                }
+
+                if (attempt >= maxRetries)
+                {
+                    LogEnvironment.LogEvent(
+                        $"DeliverChildCompletion: giving up after {maxRetries} version conflicts on parent " +
+                        $"'{child.ParentInstanceId}' of sub-workflow '{childInstanceId}'.", LogSeverity.Error);
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ist die Instanz gerade fertig geworden (Completed/Faulted) UND ein Subworkflow, liefert sie ihr
+        /// Ergebnis an den wartenden Elternprozess. Sonst ohne Wirkung.
+        /// </summary>
+        private void NotifyParentIfFinished(WorkflowInstance instance)
+        {
+            if ((instance.Status == WorkflowStatus.Completed || instance.Status == WorkflowStatus.Faulted)
+                && !string.IsNullOrEmpty(instance.ParentInstanceId))
+            {
+                DeliverChildCompletion(instance.Id);
+            }
+        }
+
+        /// <summary>Deterministische Id der Kind-Instanz je aufrufendem (Eltern-)Token - macht das Anlegen idempotent.</summary>
+        private static string ChildInstanceId(string parentInstanceId, string tokenId)
+            => $"{parentInstanceId}:{tokenId}";
 
         private bool RouteExclusive(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             ExclusiveGatewayNode gateway)
@@ -1331,12 +1590,14 @@ namespace ITVComponents.Workflow
             private static Token CopyToken(Token t) => new Token
             {
                 Id = t.Id, NodeId = t.NodeId, Status = t.Status, WaitingSignal = t.WaitingSignal,
-                DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget
+                DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget,
+                WaitingForChildInstanceId = t.WaitingForChildInstanceId
             };
 
             private static bool SameState(Token a, Token b)
                 => a.NodeId == b.NodeId && a.Status == b.Status && a.WaitingSignal == b.WaitingSignal
-                   && Nullable.Equals(a.DueUtc, b.DueUtc) && a.WaitingTarget == b.WaitingTarget;
+                   && Nullable.Equals(a.DueUtc, b.DueUtc) && a.WaitingTarget == b.WaitingTarget
+                   && a.WaitingForChildInstanceId == b.WaitingForChildInstanceId;
         }
 
         /// <summary>
@@ -1381,7 +1642,8 @@ namespace ITVComponents.Workflow
                         fresh.Tokens.Add(new Token
                         {
                             Id = t.Id, NodeId = t.NodeId, Status = t.Status,
-                            WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget
+                            WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget,
+                            WaitingForChildInstanceId = t.WaitingForChildInstanceId
                         });
                     }
                     else
@@ -1391,6 +1653,7 @@ namespace ITVComponents.Workflow
                         existing.WaitingSignal = t.WaitingSignal;
                         existing.DueUtc = t.DueUtc;
                         existing.WaitingTarget = t.WaitingTarget;
+                        existing.WaitingForChildInstanceId = t.WaitingForChildInstanceId;
                     }
                 }
 

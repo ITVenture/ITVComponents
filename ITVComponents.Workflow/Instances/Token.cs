@@ -71,5 +71,12 @@ namespace ITVComponents.Workflow.Instances
         /// null.
         /// </summary>
         public string WaitingTarget { get; set; }
+
+        /// <summary>
+        /// Bei <see cref="TokenStatus.Waiting"/> an einem <see cref="Model.CallWorkflowNode"/>: die Id der
+        /// Subworkflow-Instanz, auf deren Ende dieser Zweig wartet; sonst null. Endet der Subworkflow,
+        /// liefert er ueber diesen Link sein Ergebnis und der Zweig laeuft weiter.
+        /// </summary>
+        public string WaitingForChildInstanceId { get; set; }
     }
 }

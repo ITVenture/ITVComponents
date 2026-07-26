@@ -27,7 +27,10 @@ namespace ITVComponents.Workflow.Model
         ExclusiveGateway,
 
         /// <summary>Paralleles Gateway (AND): Split auf alle Ausgaenge / Join aller Eingaenge.</summary>
-        ParallelGateway
+        ParallelGateway,
+
+        /// <summary>Ruft einen anderen Workflow als Subworkflow auf (mit Ein-/Ausgabewerten).</summary>
+        CallWorkflow
     }
 
     /// <summary>
@@ -50,6 +53,7 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(TimerNode), "timer")]
     [JsonDerivedType(typeof(ExclusiveGatewayNode), "xor")]
     [JsonDerivedType(typeof(ParallelGatewayNode), "and")]
+    [JsonDerivedType(typeof(CallWorkflowNode), "call")]
     public abstract class WorkflowNode
     {
         /// <summary>Innerhalb der Definition eindeutige Kennung des Knotens.</summary>

@@ -64,6 +64,12 @@ namespace ITVComponents.Workflow.ParallelProcessing
                         EnqueueBranches(task.InstanceId,
                             engine.ReactivateForTargets(task.InstanceId, engine.HostTargets));
                         break;
+                    case WorkflowTrigger.DeliverChild:
+                        // Recovery: ein beendeter Subworkflow liefert sein Ergebnis an den wartenden
+                        // Elternprozess nach (idempotent). Der Eltern-Zweig wird dadurch wieder lauffaehig
+                        // und beim naechsten Poll aufgenommen.
+                        engine.DeliverChildCompletion(task.InstanceId);
+                        break;
                 }
             }
             catch (Exception ex)

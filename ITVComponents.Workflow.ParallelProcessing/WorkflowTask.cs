@@ -23,7 +23,13 @@ namespace ITVComponents.Workflow.ParallelProcessing
         /// Zweige der Instanz aufnehmen, die auf ein Ausfuehrungs-Ziel dieses Runners warten (verteilter
         /// Handoff): die geparkten Tokens werden aktiv und anschliessend HIER ausgefuehrt.
         /// </summary>
-        TargetResume
+        TargetResume,
+
+        /// <summary>
+        /// Das Ergebnis eines beendeten Subworkflows an den wartenden Elternprozess liefern
+        /// (<c>InstanceId</c> = die Subworkflow-Instanz). Recovery-Pfad fuer den Absturz-Fall.
+        /// </summary>
+        DeliverChild
     }
 
     /// <summary>

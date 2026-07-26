@@ -86,6 +86,47 @@ namespace ITVComponents.Workflow.Model
     }
 
     /// <summary>
+    /// Ruft einen anderen Workflow als <b>Subworkflow</b> auf. Der aufrufende Zweig parkt, bis der
+    /// Subworkflow endet; danach laeuft er ueber die einzige ausgehende Kante weiter. So laesst sich ein
+    /// parametrierter Workflow wie eine Aktivitaet in einen anderen einbauen (mit Ein- und Ausgabewerten).
+    /// </summary>
+    /// <remarks>
+    /// Der Subworkflow laeuft als eigene, vollwertige Instanz (eigene Tokens/History/Monitoring), erbt den
+    /// Tenant des Elternprozesses und ist ueber einen Rueck-Link mit dem wartenden Eltern-Token verbunden.
+    /// Endet er, werden seine End-Variablen ueber <see cref="Outputs"/> auf die Eltern-Variablen abgebildet;
+    /// faultet er, faultet standardmaessig der aufrufende Knoten. Das Vorantreiben von Subworkflows
+    /// uebernimmt der <c>WorkflowRunner</c> (der nebenlaeufige Ausfuehrungspfad).
+    /// </remarks>
+    public class CallWorkflowNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.CallWorkflow;
+
+        /// <summary>Fachliche Id der aufzurufenden (Sub-)Workflow-Definition.</summary>
+        public string SubDefinitionId { get; set; }
+
+        /// <summary>
+        /// Optionale feste Version der Subworkflow-Definition. Null = jeweils die hoechste Version (wie beim
+        /// Start eines Workflows).
+        /// </summary>
+        public int? SubDefinitionVersion { get; set; }
+
+        /// <summary>
+        /// Datenfluss <b>hinein</b>: bindet Startvariablen des Subworkflows an Wertquellen des
+        /// Elternprozesses (Konstante, Variable oder Ausdruck). <see cref="ActivityInputBinding.Parameter"/>
+        /// ist der Name der zu setzenden Kind-Variable.
+        /// </summary>
+        public List<ActivityInputBinding> Inputs { get; set; } = new List<ActivityInputBinding>();
+
+        /// <summary>
+        /// Datenfluss <b>heraus</b>: bildet End-Variablen des Subworkflows auf Eltern-Variablen ab.
+        /// <see cref="ActivityOutputBinding.Parameter"/> ist der Name der Kind-Endvariable,
+        /// <see cref="ActivityOutputBinding.Variable"/> die Ziel-Variable im Elternprozess.
+        /// </summary>
+        public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+    }
+
+    /// <summary>
     /// Ein Wartepunkt, der den Workflow anhaelt, bis ein benanntes Signal eintrifft (z.B. eine
     /// Benutzereingabe oder ein externes Ereignis). Das Token wird waehrenddessen als wartend
     /// persistiert.

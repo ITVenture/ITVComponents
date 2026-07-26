@@ -141,6 +141,36 @@ namespace ITVComponents.Workflow.Stores
         }
 
         /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId)
+        {
+            if (string.IsNullOrEmpty(parentInstanceId))
+            {
+                return new List<WorkflowInstance>();
+            }
+
+            return instances.Values.Where(i => i.ParentInstanceId == parentInstanceId).ToList();
+        }
+
+        /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindFinishedChildrenWithWaitingParent()
+        {
+            var awaited = instances.Values
+                .SelectMany(i => i.Tokens)
+                .Where(t => t.Status == TokenStatus.Waiting && t.WaitingForChildInstanceId != null)
+                .Select(t => t.WaitingForChildInstanceId)
+                .ToHashSet(StringComparer.Ordinal);
+            if (awaited.Count == 0)
+            {
+                return new List<WorkflowInstance>();
+            }
+
+            return instances.Values
+                .Where(i => awaited.Contains(i.Id)
+                            && (i.Status == WorkflowStatus.Completed || i.Status == WorkflowStatus.Faulted))
+                .ToList();
+        }
+
+        /// <inheritdoc/>
         public IWorkflowBranchLock TryAcquireBranchLock(string instanceId, string tokenId, string owner)
         {
             if (instanceId == null) throw new ArgumentNullException(nameof(instanceId));

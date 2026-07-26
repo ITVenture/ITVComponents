@@ -260,6 +260,8 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
             public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets) => inner.FindBranchesWaitingForTarget(targets);
             public IEnumerable<WorkflowInstance> FindRunnable() => inner.FindRunnable();
+            public IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId) => inner.FindChildInstances(parentInstanceId);
+            public IEnumerable<WorkflowInstance> FindFinishedChildrenWithWaitingParent() => inner.FindFinishedChildrenWithWaitingParent();
             public IWorkflowBranchLock TryAcquireBranchLock(string i, string t, string o) => inner.TryAcquireBranchLock(i, t, o);
             public void ReleaseLocksOfOwner(string owner) => inner.ReleaseLocksOfOwner(owner);
         }
@@ -314,6 +316,8 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
             public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets) => inner.FindBranchesWaitingForTarget(targets);
             public IEnumerable<WorkflowInstance> FindRunnable() => inner.FindRunnable();
+            public IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId) => inner.FindChildInstances(parentInstanceId);
+            public IEnumerable<WorkflowInstance> FindFinishedChildrenWithWaitingParent() => inner.FindFinishedChildrenWithWaitingParent();
             public IWorkflowBranchLock TryAcquireBranchLock(string i, string t, string o) => inner.TryAcquireBranchLock(i, t, o);
             public void ReleaseLocksOfOwner(string owner) => inner.ReleaseLocksOfOwner(owner);
         }

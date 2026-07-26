@@ -44,6 +44,21 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Fehlermeldung bei Faulted, oder null.</summary>
         public string FaultMessage { get; set; }
 
+        /// <summary>Bei einem Subworkflow: die aufrufende (Eltern-)Instanz; sonst null (indiziert).</summary>
+        public string ParentInstanceId { get; set; }
+
+        /// <summary>Bei einem Subworkflow: das wartende Eltern-Token; sonst null.</summary>
+        public string ParentTokenId { get; set; }
+
+        /// <summary>
+        /// Oberste Instanz des Prozessbaums (fuer die aggregierte Ansicht ueber Subworkflows hinweg);
+        /// bei Top-Level = die eigene Id (indiziert).
+        /// </summary>
+        public string RootInstanceId { get; set; }
+
+        /// <summary>Verschachtelungstiefe im Prozessbaum (0 = Top-Level).</summary>
+        public int CallDepth { get; set; }
+
         /// <summary>
         /// Optimistischer Nebenlaeufigkeits-Zaehler (Concurrency-Token). Jeder Commit erhoeht ihn; ein
         /// nebenlaeufiger Commit gelingt nur, wenn der erwartete Wert noch passt.
@@ -90,6 +105,12 @@ namespace ITVComponents.Workflow.EntityFramework
         /// Abfrage-Index fuer den verteilten Handoff (<c>FindBranchesWaitingForTarget</c>).
         /// </summary>
         public string WaitingTarget { get; set; }
+
+        /// <summary>
+        /// Bei einem an einem <c>CallWorkflowNode</c> wartenden Token: die Id der Subworkflow-Instanz, auf
+        /// deren Ende gewartet wird; sonst null.
+        /// </summary>
+        public string WaitingForChildInstanceId { get; set; }
     }
 
     /// <summary>
@@ -271,6 +292,8 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.Status);
                 e.HasIndex(n => n.CorrelationKey);
                 e.HasIndex(n => n.TenantId);
+                e.HasIndex(n => n.ParentInstanceId);   // Kinder einer Instanz (Abbruch-Kaskade, Baum-Treiber)
+                e.HasIndex(n => n.RootInstanceId);      // aggregierte Prozessbaum-Ansicht
                 // Optimistische Nebenlaeufigkeit: die UPDATE-Klausel enthaelt Version=@original;
                 // ein zwischenzeitlicher Commit laesst 0 Zeilen zu -> DbUpdateConcurrencyException.
                 e.Property(n => n.Version).IsConcurrencyToken();

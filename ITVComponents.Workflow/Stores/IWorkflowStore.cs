@@ -68,6 +68,19 @@ namespace ITVComponents.Workflow.Stores
         IEnumerable<WorkflowInstance> FindRunnable();
 
         /// <summary>
+        /// Findet die direkten Kind-Instanzen (Subworkflows) der angegebenen Eltern-Instanz. Dient dem
+        /// Abbruch einer ganzen Prozess-Kaskade und dem Vortrieb eines Prozessbaums im einfachen Betrieb.
+        /// </summary>
+        IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId);
+
+        /// <summary>
+        /// Findet beendete (Completed/Faulted) Subworkflow-Instanzen, auf die noch ein Eltern-Token wartet.
+        /// Damit holt ein Runner eine Ergebnis-Zustellung nach, die im schmalen Fenster zwischen
+        /// Kind-Abschluss und Eltern-Benachrichtigung (z.B. durch einen Absturz) liegen geblieben ist.
+        /// </summary>
+        IEnumerable<WorkflowInstance> FindFinishedChildrenWithWaitingParent();
+
+        /// <summary>
         /// Versucht, den Zweig <c>(instanceId, tokenId)</c> fuer den angegebenen Owner (stabiler
         /// Runner-Name) zu sperren - der prozessuebergreifende Ausschluss, damit nicht zwei Runner
         /// denselben Zweig gleichzeitig vorantreiben. Liefert ein Handle bei Erfolg, <c>null</c>, wenn

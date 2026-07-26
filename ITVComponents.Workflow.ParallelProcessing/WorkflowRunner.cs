@@ -170,6 +170,14 @@ namespace ITVComponents.Workflow.ParallelProcessing
                     processor.EnqueueTask(new WorkflowTask(instance.Id, WorkflowTrigger.TargetResume));
                 }
             }
+
+            // Subworkflows: beendete Kinder, deren Ergebnis-Zustellung an den wartenden Elternprozess (etwa
+            // durch einen Absturz) liegen geblieben ist, nachliefern. Im Normalfall liefert schon RunBranch
+            // direkt - diese Abfrage liefert dann nichts.
+            foreach (WorkflowInstance child in store.FindFinishedChildrenWithWaitingParent().ToList())
+            {
+                processor.EnqueueTask(new WorkflowTask(child.Id, WorkflowTrigger.DeliverChild));
+            }
         }
 
         /// <inheritdoc/>

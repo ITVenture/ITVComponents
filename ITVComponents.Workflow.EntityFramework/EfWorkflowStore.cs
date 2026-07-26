@@ -173,6 +173,10 @@ namespace ITVComponents.Workflow.EntityFramework
             row.Status = (int)instance.Status;
             row.CorrelationKey = instance.CorrelationKey;
             row.FaultMessage = instance.FaultMessage;
+            row.ParentInstanceId = instance.ParentInstanceId;
+            row.ParentTokenId = instance.ParentTokenId;
+            row.RootInstanceId = instance.EffectiveRootInstanceId;
+            row.CallDepth = instance.CallDepth;
             row.CreatedUtc = instance.CreatedUtc;
             row.UpdatedUtc = instance.UpdatedUtc;
             row.VariablesJson = WorkflowJson.Serialize(instance.Variables);
@@ -189,7 +193,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 ctx.HistoryEntries.Add(new HistoryEntryRow
                 {
                     InstanceId = instance.Id,
-                    RootInstanceId = instance.Id,
+                    RootInstanceId = instance.EffectiveRootInstanceId,
                     Seq = i,
                     TimestampUtc = h.TimestampUtc,
                     NodeId = h.NodeId,
@@ -216,6 +220,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.WaitingSignal = token.WaitingSignal;
                 tr.DueUtc = token.DueUtc;
                 tr.WaitingTarget = token.WaitingTarget;
+                tr.WaitingForChildInstanceId = token.WaitingForChildInstanceId;
             }
 
             foreach (TokenRow tr in existing.Where(t => !wanted.Contains(t.TokenId)))
@@ -306,6 +311,48 @@ namespace ITVComponents.Workflow.EntityFramework
                 .Select(r => r.Id)
                 .ToList();
             return LoadInstances(ctx, ids);
+        }
+
+        /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId)
+        {
+            if (string.IsNullOrEmpty(parentInstanceId))
+            {
+                return new List<WorkflowInstance>();
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            List<string> ids = ctx.WorkflowInstances
+                .Where(r => r.ParentInstanceId == parentInstanceId)
+                .Select(r => r.Id)
+                .ToList();
+            return LoadInstances(ctx, ids);
+        }
+
+        /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindFinishedChildrenWithWaitingParent()
+        {
+            using WorkflowContext ctx = contextFactory();
+            int waiting = (int)TokenStatus.Waiting;
+            // Von den (wenigen) aktuell wartenden Aufrufer-Tokens ausgehen - nicht von allen je beendeten
+            // Kindern (die waechsen unbegrenzt).
+            List<string> awaited = ctx.Tokens
+                .Where(t => t.Status == waiting && t.WaitingForChildInstanceId != null)
+                .Select(t => t.WaitingForChildInstanceId)
+                .Distinct()
+                .ToList();
+            if (awaited.Count == 0)
+            {
+                return new List<WorkflowInstance>();
+            }
+
+            int completed = (int)WorkflowStatus.Completed;
+            int faulted = (int)WorkflowStatus.Faulted;
+            List<string> finished = ctx.WorkflowInstances
+                .Where(r => awaited.Contains(r.Id) && (r.Status == completed || r.Status == faulted))
+                .Select(r => r.Id)
+                .ToList();
+            return LoadInstances(ctx, finished);
         }
 
         /// <inheritdoc/>
@@ -409,6 +456,10 @@ namespace ITVComponents.Workflow.EntityFramework
                 Status = (WorkflowStatus)row.Status,
                 CorrelationKey = row.CorrelationKey,
                 FaultMessage = row.FaultMessage,
+                ParentInstanceId = row.ParentInstanceId,
+                ParentTokenId = row.ParentTokenId,
+                RootInstanceId = row.RootInstanceId,
+                CallDepth = row.CallDepth,
                 Version = row.Version,
                 CreatedUtc = row.CreatedUtc,
                 UpdatedUtc = row.UpdatedUtc,
@@ -421,7 +472,8 @@ namespace ITVComponents.Workflow.EntityFramework
                     Status = (TokenStatus)t.Status,
                     WaitingSignal = t.WaitingSignal,
                     DueUtc = t.DueUtc,
-                    WaitingTarget = t.WaitingTarget
+                    WaitingTarget = t.WaitingTarget,
+                    WaitingForChildInstanceId = t.WaitingForChildInstanceId
                 }).ToList(),
                 History = historyRows
                     .OrderBy(h => h.Seq)

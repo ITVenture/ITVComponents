@@ -116,6 +116,35 @@ namespace ITVComponents.Workflow.Instances
         public string FaultMessage { get; set; }
 
         /// <summary>
+        /// Bei einem Subworkflow: die Id der aufrufenden (Eltern-)Instanz; sonst null. Ueber diesen
+        /// Rueck-Link liefert der Subworkflow bei seinem Ende sein Ergebnis an den wartenden Eltern-Zweig.
+        /// </summary>
+        public string ParentInstanceId { get; set; }
+
+        /// <summary>
+        /// Bei einem Subworkflow: die Id des wartenden Eltern-Tokens (des aufrufenden
+        /// <see cref="Model.CallWorkflowNode"/>); sonst null.
+        /// </summary>
+        public string ParentTokenId { get; set; }
+
+        /// <summary>
+        /// Die Id der obersten Instanz des Prozessbaums. Fuer eine Top-Level-Instanz null (dann gilt die
+        /// eigene <see cref="Id"/>); ein Subworkflow erbt die Root seines Elternprozesses. Ermoeglicht die
+        /// aggregierte Protokoll-/Monitoring-Ansicht ueber Subworkflows hinweg.
+        /// </summary>
+        public string RootInstanceId { get; set; }
+
+        /// <summary>
+        /// Verschachtelungstiefe im Prozessbaum (0 = Top-Level). Ein Subworkflow hat die Tiefe seines
+        /// Elternprozesses + 1. Dient dem Schutz vor unbegrenzter Selbst-/Wechselrekursion.
+        /// </summary>
+        public int CallDepth { get; set; }
+
+        /// <summary>Die effektive Root des Prozessbaums (<see cref="RootInstanceId"/>, ersatzweise die eigene Id).</summary>
+        [JsonIgnore]
+        public string EffectiveRootInstanceId => RootInstanceId ?? Id;
+
+        /// <summary>
         /// Optimistischer Nebenlaeufigkeits-Zaehler. Beim Laden aus dem Store gesetzt; ein
         /// nebenlaeufiger Commit (<c>IWorkflowStore.TryCommitInstance</c>) gelingt nur, wenn dieser Wert
         /// noch dem Stand in der Datenbank entspricht - so serialisieren sich gleichzeitige Zweig-Merges
