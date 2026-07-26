@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
+using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl;
 
 namespace ITVComponents.WebCoreToolkit.Extensions
 {
@@ -23,5 +24,19 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             options.AddInjector(item);
             return options;
         }
+
+        /// <summary>
+        /// Bindet <see cref="IInjectablePlugin{T}"/> fuer <typeparamref name="T"/> an die im DI-Container
+        /// registrierte Instanz (statt an die Plugin-Factory). Kurzform fuer den Ein-Kontext-Fall: der
+        /// Konsument haengt an <c>IInjectablePlugin&lt;T&gt;</c>, bekommt aber den regulaeren DI-Service.
+        /// Im Per-Tenant-Fall diese Zeile weglassen - dann laedt der Standard-Injector das Plugin
+        /// tenant-spezifisch.
+        /// </summary>
+        /// <typeparam name="T">der (Plugin-)Typ, der aus der DI bezogen wird</typeparam>
+        /// <param name="options">die Plugin-Injection-Optionen</param>
+        /// <returns>die uebergebenen Optionen (Method-Chaining)</returns>
+        public static InjectablePluginOptions UseServiceInstance<T>(this InjectablePluginOptions options)
+            where T : class, IPlugin
+            => options.ConfigureInjectablePlugin<T>(() => new ServiceProviderPluginInjector<T>());
     }
 }
