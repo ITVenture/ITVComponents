@@ -343,13 +343,15 @@ runner.Start();
 - **Konflikt-Policy.** Schreiben zwei **parallele** Zweige dieselbe Variable auf **verschiedene**
   Werte, faultet die Instanz (kein stiller last-writer); gleicher Wert ist harmlos. Der Validator
   warnt dafür bereits zur Design-Zeit (parallele Zweige mit gleicher Output-Variable).
-- **Migrationen.** `WorkflowContext`-Schemaänderungen in den provider-spezifischen Migrations-Projekten
-  nachziehen. Betroffen: `TokenRow` (inkl. `WaitingTarget`, `WaitingForChildInstanceId`),
-  `WorkflowBranchLockRow`, `WorkflowInstanceRow.Version`, die eigene **`HistoryEntryRow`**-Tabelle
-  (Protokoll append-only mit Severity, löst den früheren `HistoryJson`-Blob ab) und die
-  Subworkflow-Spalten (`ParentInstanceId`, `ParentTokenId`, `RootInstanceId`, `CallDepth`).
-  **Kein** Schema-Bedarf für Fehler-Ausgänge und JSON-Export/Import (rein im Definition-JSON / normale
-  Variablen).
+- **Migrationen.** Das komplette Schema liegt als **`InitialWorkflow`-Migration** in zwei
+  provider-spezifischen Projekten: **`ITVComponents.Workflow.EntityFramework.SqlServer`** und
+  **`…PostgreSql`** (je mit `IDesignTimeDbContextFactory<WorkflowContext>`). Der Host wählt beim Aufsetzen
+  des `WorkflowContext` den Provider und setzt die **`MigrationsAssembly`** auf das passende Projekt, z.B.
+  `UseSqlServer(cs, o => o.MigrationsAssembly("ITVComponents.Workflow.EntityFramework.SqlServer"))`, und
+  wendet die Migrationen an (`ctx.Database.Migrate()` bzw. das Deployment-Verfahren des Hosts). Künftige
+  Schemaänderungen als weitere Migration **je Provider** generieren (`dotnet ef migrations add … --project
+  <Provider-Projekt>`). Tests nutzen weiterhin `EnsureCreated` (kein Migrationsbedarf). Fehler-Ausgänge und
+  JSON-Export/Import brauchen **kein** Schema (rein im Definition-JSON / normale Variablen).
 
 ## 7. Kurzreferenz: Wer macht was?
 
