@@ -121,6 +121,9 @@
                             case AutomatedActivityNode act:
                                 <ActivityConfigEditor Node="act" Catalog="catalog" />
                                 break;
+                            case CallWorkflowNode call:
+                                <CallWorkflowConfigEditor Node="call" Definitions="subDefinitionIds" />
+                                break;
                             case WaitNode wait:
                                 <MudTextField @bind-Value="wait.SignalName" Label="Signal name" Margin="Margin.Dense" />
                                 <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
@@ -200,10 +203,14 @@
     // sonst faellt ActivityConfigEditor auf den generischen Key/Value-Editor zurueck.
     private IWorkflowActivityCatalog? catalog;
 
+    // Verfuegbare Definition-Ids fuer das Subworkflow-Dropdown (leer -> Freitext im Editor).
+    private IReadOnlyList<string>? subDefinitionIds;
+
     private static readonly (NodeKind Kind, string Label)[] Palette = new[]
     {
         (NodeKind.Start, "Start"),
         (NodeKind.AutomatedActivity, "Activity"),
+        (NodeKind.CallWorkflow, "Subworkflow"),
         (NodeKind.Wait, "Wait"),
         (NodeKind.Timer, "Timer"),
         (NodeKind.ExclusiveGateway, "XOR"),
@@ -229,6 +236,21 @@
             {
                 EnsureDiagram(def);
             }
+        }
+
+        // Aufrufbare Definitionen fuer das Subworkflow-Dropdown laden (Best-Effort - ohne Liste Freitext).
+        try
+        {
+            var list = await Handler.ListDefinitionsAsync(auth.User,
+                new ListQuery { Page = 0, PageSize = 500 });
+            subDefinitionIds = list.Items.Select(i => i.Id).Distinct().OrderBy(x => x).ToList();
+        }
+        catch (Exception ex)
+        {
+            subDefinitionIds = null;
+            LogEnvironment.LogEvent(
+                $"Workflow-Editor: Subworkflow-Definitionsliste nicht ladbar: {ex.OutlineException()}",
+                LogSeverity.Warning);
         }
 
         selectedNode = null;
@@ -338,6 +360,7 @@
             NodeKind.Start => new StartNode(),
             NodeKind.End => new EndNode(),
             NodeKind.AutomatedActivity => new AutomatedActivityNode(),
+            NodeKind.CallWorkflow => new CallWorkflowNode(),
             NodeKind.Wait => new WaitNode(),
             NodeKind.Timer => new TimerNode(),
             NodeKind.ExclusiveGateway => new ExclusiveGatewayNode(),

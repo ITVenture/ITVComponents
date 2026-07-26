@@ -193,6 +193,66 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         }
 
         [TestMethod]
+        public void Subworkflow_NestedTwoLevels_RootIsPassedThrough_AndResultBubblesUp()
+        {
+            // leaf: result = n * 10 (Eingabe n, Ausgabe result)
+            store.SaveDefinition(SubDef("compute")); // Id "sub", ActivityRef "compute" -> result = n*10
+
+            // mid: ruft "sub" (n<-x, result->y) -> y = x*10
+            var midCall = new CallWorkflowNode { Id = "call", SubDefinitionId = "sub" };
+            midCall.Inputs.Add(new ActivityInputBinding { Parameter = "n", Kind = ParameterBindingKind.Variable, Source = "x" });
+            midCall.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "y" });
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "mid",
+                Version = 1,
+                Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, midCall, new EndNode { Id = "e" } },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->call", SourceId = "s", TargetId = "call" },
+                    new SequenceFlow { Id = "call->e", SourceId = "call", TargetId = "e" }
+                }
+            });
+
+            // top: ruft "mid" (x<-seed, y->outcome) -> outcome = seed*10
+            var topCall = new CallWorkflowNode { Id = "call", SubDefinitionId = "mid" };
+            topCall.Inputs.Add(new ActivityInputBinding { Parameter = "x", Kind = ParameterBindingKind.Variable, Source = "seed" });
+            topCall.Outputs.Add(new ActivityOutputBinding { Parameter = "y", Variable = "outcome" });
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "top",
+                Version = 1,
+                Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, topCall, new EndNode { Id = "e" } },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->call", SourceId = "s", TargetId = "call" },
+                    new SequenceFlow { Id = "call->e", SourceId = "call", TargetId = "e" }
+                }
+            });
+
+            WorkflowInstance top = engine.CreateInstance("top", new Dictionary<string, object> { { "seed", 4 } });
+            DriveTree(top.Id);
+
+            WorkflowInstance finalTop = store.GetInstance(top.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, finalTop.Status);
+            Assert.AreEqual(40, finalTop.Variables["outcome"], "the grandchild's result bubbled up through two levels.");
+
+            WorkflowInstance mid = store.FindChildInstances(top.Id).Single();
+            WorkflowInstance leaf = store.FindChildInstances(mid.Id).Single();
+            Assert.AreEqual(2, leaf.CallDepth, "the grandchild sits two levels deep.");
+            Assert.AreEqual(top.Id, mid.RootInstanceId);
+            Assert.AreEqual(top.Id, leaf.RootInstanceId, "the tree root is passed through to the grandchild.");
+
+            // Aggregierte History des GESAMTEN Baums (Top + Mid + Leaf) ueber die eine Root.
+            using WorkflowContext ctx = new WorkflowContext(options);
+            List<string> treeInstances = ctx.HistoryEntries
+                .Where(h => h.RootInstanceId == top.Id).Select(h => h.InstanceId).Distinct().ToList();
+            CollectionAssert.Contains(treeInstances, top.Id);
+            CollectionAssert.Contains(treeInstances, mid.Id);
+            CollectionAssert.Contains(treeInstances, leaf.Id);
+        }
+
+        [TestMethod]
         public void CancelParent_CascadesToRunningChild()
         {
             // Kind, das an einem Wartepunkt haengt (laeuft nicht von selbst zu Ende).

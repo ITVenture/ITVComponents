@@ -1,0 +1,153 @@
+@using System.Globalization
+@using ITVComponents.Workflow.Model
+@using ITVComponents.Workflow.Activities
+
+@*
+    Konfiguriert einen CallWorkflowNode (Subworkflow-Aufruf): die aufzurufende Definition, optional
+    deren Version, sowie den Datenfluss - Inputs setzen Startvariablen des Kindes (Konstante/Variable/
+    Ausdruck des Elternprozesses), Outputs bilden Endvariablen des Kindes auf Eltern-Variablen ab.
+*@
+
+@if (Node is not null)
+{
+    <MudText Typo="Typo.caption" Class="mt-2">Sub-workflow</MudText>
+    @if (Definitions is { Count: > 0 })
+    {
+        <MudSelect T="string" Value="@Node.SubDefinitionId" ValueChanged="@(v => Node.SubDefinitionId = v)"
+                   Label="Definition" Margin="Margin.Dense" Clearable="true">
+            @foreach (var id in Definitions)
+            {
+                <MudSelectItem T="string" Value="@id">@id</MudSelectItem>
+            }
+        </MudSelect>
+    }
+    else
+    {
+        <MudTextField T="string" @bind-Value="Node.SubDefinitionId" Label="Definition id" Margin="Margin.Dense" />
+    }
+    <MudNumericField T="int?" Value="@Node.SubDefinitionVersion" ValueChanged="@(v => Node.SubDefinitionVersion = v)"
+                     Label="Version (empty = latest)" Margin="Margin.Dense" Clearable="true" Min="1" />
+
+    @* Inputs: Startvariablen des Kindes aus dem Elternprozess speisen. *@
+    <MudText Typo="Typo.caption" Class="mt-4">Inputs → child start variables</MudText>
+    @foreach (var b in Node.Inputs)
+    {
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1" @key="b">
+            <MudTextField T="string" Value="@b.Parameter" ValueChanged="@(v => b.Parameter = v)"
+                          Placeholder="child variable" Margin="Margin.Dense" Style="max-width:120px" />
+            <MudSelect T="ParameterBindingKind" Value="@b.Kind" ValueChanged="@(k => SetKind(b, k))"
+                       Dense="true" Margin="Margin.Dense" Style="max-width:120px">
+                <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Literal">Constant</MudSelectItem>
+                <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Variable">Variable</MudSelectItem>
+                <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Expression">Expression</MudSelectItem>
+            </MudSelect>
+            @if (b.Kind == ParameterBindingKind.Expression)
+            {
+                <div style="flex:1 1 auto">
+                    <CScriptField @key="b" Value="@(b.Source ?? string.Empty)"
+                                  ValueChanged="@(v => b.Source = string.IsNullOrEmpty(v) ? null : v)" Height="60" />
+                </div>
+            }
+            else if (b.Kind == ParameterBindingKind.Variable)
+            {
+                <MudTextField T="string" Value="@(b.Source ?? string.Empty)"
+                              ValueChanged="@(v => b.Source = string.IsNullOrEmpty(v) ? null : v)"
+                              Placeholder="parent variable" Margin="Margin.Dense" />
+            }
+            else
+            {
+                <MudTextField T="string" Value="@ToStr(b.Literal)"
+                              ValueChanged="@(v => b.Literal = string.IsNullOrEmpty(v) ? null : v)"
+                              Placeholder="value" Margin="Margin.Dense" />
+            }
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           OnClick="@(() => Node.Inputs.Remove(b))" />
+        </MudStack>
+    }
+    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+        <MudTextField T="string" @bind-Value="newInputName" Placeholder="new child variable"
+                      Margin="Margin.Dense" Style="max-width:150px" />
+        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddInput" />
+    </MudStack>
+
+    @* Outputs: Endvariablen des Kindes auf Eltern-Variablen abbilden. *@
+    <MudText Typo="Typo.caption" Class="mt-4">Outputs → parent variables</MudText>
+    @foreach (var b in Node.Outputs)
+    {
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1" @key="b">
+            <MudTextField T="string" Value="@b.Parameter" ValueChanged="@(v => b.Parameter = v)"
+                          Placeholder="child variable" Margin="Margin.Dense" Style="max-width:130px" />
+            <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+            <MudTextField T="string" Value="@b.Variable" ValueChanged="@(v => b.Variable = v)"
+                          Placeholder="parent variable" Margin="Margin.Dense" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           OnClick="@(() => Node.Outputs.Remove(b))" />
+        </MudStack>
+    }
+    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+        <MudTextField T="string" @bind-Value="newOutputName" Placeholder="new child variable"
+                      Margin="Margin.Dense" Style="max-width:150px" />
+        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddOutput" />
+    </MudStack>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Subworkflow-Aufruf-Knoten.</summary>
+    [Parameter] public CallWorkflowNode? Node { get; set; }
+
+    /// <summary>Die verfuegbaren (aufrufbaren) Definition-Ids fuer das Dropdown, oder null (dann Freitext).</summary>
+    [Parameter] public IReadOnlyList<string>? Definitions { get; set; }
+
+    private string? newInputName;
+    private string? newOutputName;
+
+    private static void SetKind(ActivityInputBinding b, ParameterBindingKind kind)
+    {
+        if (b.Kind == kind)
+        {
+            return;
+        }
+
+        b.Kind = kind;
+        b.Literal = null;
+        b.Source = null;
+    }
+
+    private void AddInput()
+    {
+        if (Node is null || string.IsNullOrWhiteSpace(newInputName))
+        {
+            return;
+        }
+
+        if (!Node.Inputs.Any(x => x.Parameter == newInputName))
+        {
+            Node.Inputs.Add(new ActivityInputBinding { Parameter = newInputName, Kind = ParameterBindingKind.Literal });
+        }
+
+        newInputName = null;
+    }
+
+    private void AddOutput()
+    {
+        if (Node is null || string.IsNullOrWhiteSpace(newOutputName))
+        {
+            return;
+        }
+
+        if (!Node.Outputs.Any(x => x.Parameter == newOutputName))
+        {
+            Node.Outputs.Add(new ActivityOutputBinding { Parameter = newOutputName });
+        }
+
+        newOutputName = null;
+    }
+
+    private static string ToStr(object? value)
+        => value switch
+        {
+            null => string.Empty,
+            IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString() ?? string.Empty
+        };
+}
