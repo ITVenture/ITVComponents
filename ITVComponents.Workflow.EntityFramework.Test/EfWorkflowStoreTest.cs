@@ -336,6 +336,74 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         }
 
         [TestMethod]
+        public void History_PersistsAsRows_WithSeverity_AndRootInstanceId()
+        {
+            var store = NewStore();
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "boom",
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new AutomatedActivityNode { Id = "a", ActivityRef = "explode" },
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->a", SourceId = "s", TargetId = "a" },
+                    new SequenceFlow { Id = "a->e", SourceId = "a", TargetId = "e" }
+                }
+            });
+            var engine = new WorkflowEngine(store, new ActivityRegistry()
+                .Register("explode", _ => throw new InvalidOperationException("kaboom")));
+
+            WorkflowInstance inst = engine.StartWorkflow("boom");
+            Assert.AreEqual(WorkflowStatus.Faulted, inst.Status);
+
+            WorkflowInstance reloaded = store.GetInstance(inst.Id);
+            Assert.IsTrue(reloaded.History.Count > 0, "history must round-trip from its own rows.");
+
+            HistoryEntry faulted = reloaded.History.Single(h => h.Event == "Faulted");
+            Assert.AreEqual(HistorySeverity.Error, faulted.Severity, "a fault must be logged as Error.");
+            Assert.IsTrue(reloaded.History.Any(h => h.Event == "Entered" && h.Severity == HistorySeverity.Verbose),
+                "node-level 'Entered' must be Verbose (the step chatter).");
+
+            // RootInstanceId ist (mangels Eltern-Workflow) die eigene Id - Grundlage der spaeteren Aggregation.
+            using WorkflowContext ctx = new WorkflowContext(options);
+            Assert.IsTrue(ctx.HistoryEntries.Where(h => h.InstanceId == inst.Id).All(h => h.RootInstanceId == inst.Id));
+        }
+
+        [TestMethod]
+        public void History_IsAppendOnly_ExistingRowsAreNotRewritten()
+        {
+            var store = NewStore();
+            var instance = new WorkflowInstance { DefinitionId = "d", DefinitionVersion = 1, Status = WorkflowStatus.Running };
+            instance.Log("first");
+            store.SaveInstance(instance);
+
+            long firstRowId;
+            using (WorkflowContext ctx = new WorkflowContext(options))
+            {
+                HistoryEntryRow r0 = ctx.HistoryEntries.Single(h => h.InstanceId == instance.Id && h.Seq == 0);
+                firstRowId = r0.Id;
+            }
+
+            // Zweiter Save mit einem zusaetzlichen Eintrag: NUR der neue darf eingefuegt werden.
+            instance.Log("second");
+            store.SaveInstance(instance);
+
+            using (WorkflowContext ctx = new WorkflowContext(options))
+            {
+                List<HistoryEntryRow> rows = ctx.HistoryEntries
+                    .Where(h => h.InstanceId == instance.Id).OrderBy(h => h.Seq).ToList();
+                Assert.AreEqual(2, rows.Count, "only the new entry was appended - no full rewrite.");
+                Assert.AreEqual(firstRowId, rows[0].Id, "the existing row must keep its identity (append-only).");
+                CollectionAssert.AreEqual(new[] { 0, 1 }, rows.Select(r => r.Seq).ToArray());
+                CollectionAssert.AreEqual(new[] { "first", "second" }, rows.Select(r => r.Event).ToArray());
+            }
+        }
+
+        [TestMethod]
         public void WaitingForTarget_RoundTripsAndIsDiscoverable()
         {
             var store = NewStore();

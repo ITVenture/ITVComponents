@@ -300,7 +300,7 @@ namespace ITVComponents.Workflow
             }
 
             instance.Status = WorkflowStatus.Cancelled;
-            instance.Log("Cancelled");
+            instance.Log("Cancelled", severity: HistorySeverity.Warning);
             store.SaveInstance(instance);
             return true;
         }
@@ -714,7 +714,7 @@ namespace ITVComponents.Workflow
             switch (node)
             {
                 case StartNode:
-                    instance.Log("Entered", node.Id, node.Name);
+                    instance.Log("Entered", node.Id, node.Name, HistorySeverity.Verbose);
                     return MoveAlongSingleOutgoing(instance, definition, token);
 
                 case EndNode:
@@ -784,7 +784,7 @@ namespace ITVComponents.Workflow
         private bool RunActivity(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             AutomatedActivityNode node, IActivityScope activityScope)
         {
-            instance.Log("Entered", node.Id, node.Name);
+            instance.Log("Entered", node.Id, node.Name, HistorySeverity.Verbose);
 
             // Datenfluss hinein: die Eingabe-Bindungen des Knotens aufloesen. Ein Fehler hier (z.B. ein
             // ungueltiger Ausdruck) hat eine andere Ursache als ein Fehler in der Aktivitaet selbst -
@@ -825,7 +825,7 @@ namespace ITVComponents.Workflow
             // Datenfluss heraus: die deklarierten Ausgaben auf die konfigurierten Variablen abbilden.
             ApplyOutputs(instance, node, outputs);
 
-            instance.Log("Completed", node.Id, node.Name);
+            instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
             return MoveAlongSingleOutgoing(instance, definition, token);
         }
 
@@ -959,7 +959,7 @@ namespace ITVComponents.Workflow
         private bool RouteExclusive(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             ExclusiveGatewayNode gateway)
         {
-            instance.Log("Entered", gateway.Id, gateway.Name);
+            instance.Log("Entered", gateway.Id, gateway.Name, HistorySeverity.Verbose);
             IReadOnlyList<SequenceFlow> outgoing = definition.OutgoingFlows(gateway.Id);
 
             foreach (SequenceFlow flow in outgoing)
@@ -1072,7 +1072,8 @@ namespace ITVComponents.Workflow
             if (incoming.Count <= 1)
             {
                 token.Status = TokenStatus.Consumed;
-                instance.Log(outgoing.Count > 1 ? "ParallelSplit" : "Entered", node.Id, node.Name);
+                instance.Log(outgoing.Count > 1 ? "ParallelSplit" : "Entered", node.Id, node.Name,
+                    outgoing.Count > 1 ? HistorySeverity.Info : HistorySeverity.Verbose);
                 return SpawnOutgoing(instance, outgoing);
             }
 
@@ -1080,7 +1081,7 @@ namespace ITVComponents.Workflow
             // NICHT hier, sondern zentral in ResolveJoins - im sequenziellen Fall, nachdem alle Zweige
             // geparkt sind; im nebenlaeufigen Fall im serialisierten Commit gegen frischen Stand (atomar).
             token.Status = TokenStatus.Joining;
-            instance.Log("Joining", node.Id, node.Name);
+            instance.Log("Joining", node.Id, node.Name, HistorySeverity.Verbose);
             return true;
         }
 
@@ -1243,7 +1244,7 @@ namespace ITVComponents.Workflow
         {
             instance.Status = WorkflowStatus.Faulted;
             instance.FaultMessage = message;
-            instance.Log("Faulted", nodeId, message);
+            instance.Log("Faulted", nodeId, message, HistorySeverity.Error);
         }
 
         private WorkflowDefinition LoadDefinition(WorkflowInstance instance)

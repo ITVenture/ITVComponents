@@ -176,7 +176,28 @@ namespace ITVComponents.Workflow.EntityFramework
             row.CreatedUtc = instance.CreatedUtc;
             row.UpdatedUtc = instance.UpdatedUtc;
             row.VariablesJson = WorkflowJson.Serialize(instance.Variables);
-            row.HistoryJson = WorkflowJson.Serialize(instance.History);
+
+            // Protokoll append-only: nur die noch nicht persistierten Eintraege einfuegen - NICHT das ganze
+            // (wachsende) Protokoll neu schreiben. Die Inserts laufen im selben (versions-gepruefen)
+            // SaveChanges wie das Instanz-Update; bei einem Konflikt rollt alles zusammen zurueck, ein Retry
+            // fuegt daher nichts doppelt ein. Seq setzt die instanz-interne Reihenfolge fort; RootInstanceId
+            // ist (mangels Eltern-Workflow) die eigene Id und traegt spaeter den aggregierten Prozessbaum.
+            int persisted = ctx.HistoryEntries.Count(h => h.InstanceId == instance.Id);
+            for (int i = persisted; i < instance.History.Count; i++)
+            {
+                HistoryEntry h = instance.History[i];
+                ctx.HistoryEntries.Add(new HistoryEntryRow
+                {
+                    InstanceId = instance.Id,
+                    RootInstanceId = instance.Id,
+                    Seq = i,
+                    TimestampUtc = h.TimestampUtc,
+                    NodeId = h.NodeId,
+                    Event = h.Event,
+                    Detail = h.Detail,
+                    Severity = (int)h.Severity
+                });
+            }
 
             List<TokenRow> existing = ctx.Tokens.Where(t => t.InstanceId == instance.Id).ToList();
             Dictionary<string, TokenRow> byTokenId = existing.ToDictionary(t => t.TokenId);
@@ -215,7 +236,9 @@ namespace ITVComponents.Workflow.EntityFramework
             }
 
             List<TokenRow> tokens = ctx.Tokens.Where(t => t.InstanceId == instanceId).ToList();
-            return ToInstance(row, tokens);
+            List<HistoryEntryRow> history = ctx.HistoryEntries
+                .Where(h => h.InstanceId == instanceId).OrderBy(h => h.Seq).ToList();
+            return ToInstance(row, tokens, history);
         }
 
         /// <inheritdoc/>
@@ -361,14 +384,21 @@ namespace ITVComponents.Workflow.EntityFramework
                 .ToList()
                 .GroupBy(t => t.InstanceId)
                 .ToDictionary(g => g.Key, g => g.ToList());
+            Dictionary<string, List<HistoryEntryRow>> historyByInstance = ctx.HistoryEntries
+                .Where(h => foundIds.Contains(h.InstanceId))
+                .ToList()
+                .GroupBy(h => h.InstanceId)
+                .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Seq).ToList());
 
             return rows
                 .Select(r => ToInstance(r,
-                    tokensByInstance.TryGetValue(r.Id, out List<TokenRow> tl) ? tl : new List<TokenRow>()))
+                    tokensByInstance.TryGetValue(r.Id, out List<TokenRow> tl) ? tl : new List<TokenRow>(),
+                    historyByInstance.TryGetValue(r.Id, out List<HistoryEntryRow> hl) ? hl : new List<HistoryEntryRow>()))
                 .ToList();
         }
 
-        private static WorkflowInstance ToInstance(WorkflowInstanceRow row, List<TokenRow> tokenRows)
+        private static WorkflowInstance ToInstance(WorkflowInstanceRow row, List<TokenRow> tokenRows,
+            List<HistoryEntryRow> historyRows)
         {
             return new WorkflowInstance
             {
@@ -393,7 +423,16 @@ namespace ITVComponents.Workflow.EntityFramework
                     DueUtc = t.DueUtc,
                     WaitingTarget = t.WaitingTarget
                 }).ToList(),
-                History = WorkflowJson.Deserialize<List<HistoryEntry>>(row.HistoryJson) ?? new List<HistoryEntry>()
+                History = historyRows
+                    .OrderBy(h => h.Seq)
+                    .Select(h => new HistoryEntry
+                    {
+                        TimestampUtc = h.TimestampUtc,
+                        NodeId = h.NodeId,
+                        Event = h.Event,
+                        Detail = h.Detail,
+                        Severity = (HistorySeverity)h.Severity
+                    }).ToList()
             };
         }
 

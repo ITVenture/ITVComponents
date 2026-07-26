@@ -65,11 +65,17 @@
                 </MudTabPanel>
                 <MudTabPanel Text="@($"History ({instance.History.Count})")">
                     <MudSimpleTable Dense="true" Hover="true">
-                        <thead><tr><th>Time (UTC)</th><th>Event</th><th>Node</th><th>Detail</th></tr></thead>
+                        <thead><tr><th>Severity</th><th>Time (UTC)</th><th>Event</th><th>Node</th><th>Detail</th></tr></thead>
                         <tbody>
                             @foreach (var entry in instance.History)
                             {
-                                <tr><td>@entry.TimestampUtc</td><td>@entry.Event</td><td>@entry.NodeId</td><td>@entry.Detail</td></tr>
+                                <tr>
+                                    <td>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                                 Color="@SeverityColor(entry.Severity)">@entry.Severity</MudChip>
+                                    </td>
+                                    <td>@entry.TimestampUtc</td><td>@entry.Event</td><td>@entry.NodeId</td><td>@entry.Detail</td>
+                                </tr>
                             }
                         </tbody>
                     </MudSimpleTable>
@@ -113,6 +119,14 @@
     private string[] activeNodeIds = Array.Empty<string>();
     private ClaimsPrincipal? currentUser;
     private string? signalName;
+
+    private static Color SeverityColor(HistorySeverity severity) => severity switch
+    {
+        HistorySeverity.Error => Color.Error,
+        HistorySeverity.Warning => Color.Warning,
+        HistorySeverity.Info => Color.Info,
+        _ => Color.Default
+    };
 
     protected override async Task OnInitializedAsync()
     {

@@ -41,9 +41,6 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die Variablen als JSON (typerhaltend).</summary>
         public string VariablesJson { get; set; }
 
-        /// <summary>Das Protokoll als JSON.</summary>
-        public string HistoryJson { get; set; }
-
         /// <summary>Fehlermeldung bei Faulted, oder null.</summary>
         public string FaultMessage { get; set; }
 
@@ -93,6 +90,46 @@ namespace ITVComponents.Workflow.EntityFramework
         /// Abfrage-Index fuer den verteilten Handoff (<c>FindBranchesWaitingForTarget</c>).
         /// </summary>
         public string WaitingTarget { get; set; }
+    }
+
+    /// <summary>
+    /// Ein Protokolleintrag einer Instanz als eigene Zeile (append-only) - loest den frueheren
+    /// HistoryJson-Blob ab: ein Zweig-Commit fuegt nur SEINE neuen Eintraege ein, statt das ganze
+    /// (wachsende) Protokoll bei jedem Commit neu zu serialisieren. So bleibt der Schreibaufwand pro
+    /// Commit konstant und das Protokoll wird filter-/abfragbar (Severity, Knoten, Zeit).
+    /// </summary>
+    public class HistoryEntryRow
+    {
+        /// <summary>Fortlaufender Schluessel (identitaets-vergeben) - zugleich globale Einfuege-Reihenfolge.</summary>
+        public long Id { get; set; }
+
+        /// <summary>Id der Instanz, zu der der Eintrag gehoert.</summary>
+        public string InstanceId { get; set; }
+
+        /// <summary>
+        /// Id der obersten Instanz des Prozessbaums. Solange es keinen Eltern-Workflow gibt, ist das die
+        /// eigene <see cref="InstanceId"/>. Denormalisiert, damit sich das Protokoll eines GESAMTEN
+        /// Prozessbaums (Eltern + Subworkflows) mit EINER indizierten Abfrage lesen laesst.
+        /// </summary>
+        public string RootInstanceId { get; set; }
+
+        /// <summary>Instanz-interne, fortlaufende Reihenfolge (0-basiert) - fuer das Anhaengen nur neuer Eintraege.</summary>
+        public int Seq { get; set; }
+
+        /// <summary>Zeitpunkt des Ereignisses (UTC).</summary>
+        public DateTime TimestampUtc { get; set; }
+
+        /// <summary>Betroffener Knoten, oder null bei instanzweiten Ereignissen.</summary>
+        public string NodeId { get; set; }
+
+        /// <summary>Kurzbezeichnung des Ereignisses.</summary>
+        public string Event { get; set; }
+
+        /// <summary>Freitext-Detail, oder null.</summary>
+        public string Detail { get; set; }
+
+        /// <summary>Schweregrad als Zahl (indizierbar) - siehe <see cref="Instances.HistorySeverity"/>.</summary>
+        public int Severity { get; set; }
     }
 
     /// <summary>
@@ -214,6 +251,9 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die Tokens aller Instanzen (je Token eine Zeile).</summary>
         public DbSet<TokenRow> Tokens { get; set; }
 
+        /// <summary>Die Protokolleintraege aller Instanzen (je Eintrag eine Zeile, append-only).</summary>
+        public DbSet<HistoryEntryRow> HistoryEntries { get; set; }
+
         /// <summary>Die Workflow-Definitionen.</summary>
         public DbSet<WorkflowDefinitionRow> WorkflowDefinitions { get; set; }
 
@@ -244,6 +284,15 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.WaitingSignal);
                 e.HasIndex(n => n.DueUtc);
                 e.HasIndex(n => n.WaitingTarget);
+            });
+
+            modelBuilder.Entity<HistoryEntryRow>(e =>
+            {
+                e.HasKey(n => n.Id);
+                e.HasIndex(n => n.InstanceId);
+                e.HasIndex(n => n.RootInstanceId);   // aggregierte Prozessbaum-Ansicht (Eltern + Subworkflows)
+                e.HasIndex(n => new { n.InstanceId, n.Seq });
+                e.HasIndex(n => n.Severity);
             });
 
             modelBuilder.Entity<WorkflowDefinitionRow>(e =>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ITVComponents.Workflow;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
@@ -111,6 +112,26 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual(1, final.Variables["a"]);
             Assert.AreEqual(2, final.Variables["b"]);
             Assert.AreEqual(1, final.Variables["after"], "despite the retry the continuation ran exactly once.");
+        }
+
+        [TestMethod]
+        public void RunBranch_ParallelBranches_HistoryFromBothBranchesMergesAsRows()
+        {
+            EfWorkflowStore store = NewStore();
+            WorkflowEngine engine = EngineOver(store);
+            WorkflowInstance instance = TwoActiveBranches(store);
+
+            engine.RunBranch(instance.Id, "t1");
+            IReadOnlyList<string> new2 = engine.RunBranch(instance.Id, "t2");
+            engine.RunBranch(instance.Id, new2[0]);
+
+            WorkflowInstance final = store.GetInstance(instance.Id);
+            // Beide Zweig-Deltas haben ihre Protokoll-Eintraege beigesteuert (append-only gemergt) …
+            Assert.IsTrue(final.History.Any(h => h.NodeId == "a"), "branch A's history merged.");
+            Assert.IsTrue(final.History.Any(h => h.NodeId == "b"), "branch B's history merged.");
+            // … und der Join hat genau einmal gefeuert (kein doppelter Eintrag durch die Nebenlaeufigkeit).
+            Assert.AreEqual(1, final.History.Count(h => h.Event == "ParallelJoin"),
+                "the join must be logged exactly once.");
         }
 
         [TestMethod]

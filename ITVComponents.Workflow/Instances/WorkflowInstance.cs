@@ -27,6 +27,24 @@ namespace ITVComponents.Workflow.Instances
     }
 
     /// <summary>
+    /// Der Schweregrad eines Protokolleintrags - fuer Filterung/Nachvollzug im Monitoring.
+    /// </summary>
+    public enum HistorySeverity
+    {
+        /// <summary>Schritt-fuer-Schritt-Details (z.B. Betreten eines Knotens) - normalerweise ausgeblendet.</summary>
+        Verbose,
+
+        /// <summary>Meilenstein im normalen Ablauf (Start, Join, Warten, Signal, Abschluss).</summary>
+        Info,
+
+        /// <summary>Auffaellig, aber kein Fehler (z.B. Abbruch von aussen).</summary>
+        Warning,
+
+        /// <summary>Die Ausfuehrung ist auf einen Fehler gelaufen.</summary>
+        Error
+    }
+
+    /// <summary>
     /// Ein Eintrag im Ausfuehrungsprotokoll einer Instanz.
     /// </summary>
     public class HistoryEntry
@@ -42,6 +60,9 @@ namespace ITVComponents.Workflow.Instances
 
         /// <summary>Freitext-Detail, oder null.</summary>
         public string Detail { get; set; }
+
+        /// <summary>Der Schweregrad des Eintrags. Standard <see cref="HistorySeverity.Info"/>.</summary>
+        public HistorySeverity Severity { get; set; } = HistorySeverity.Info;
     }
 
     /// <summary>
@@ -118,14 +139,16 @@ namespace ITVComponents.Workflow.Instances
         public IEnumerable<Token> WaitingTokens => Tokens.Where(t => t.Status == TokenStatus.Waiting);
 
         /// <summary>Haengt einen Protokolleintrag an (Zeitstempel wird gesetzt).</summary>
-        public void Log(string @event, string nodeId = null, string detail = null)
+        public void Log(string @event, string nodeId = null, string detail = null,
+            HistorySeverity severity = HistorySeverity.Info)
         {
             History.Add(new HistoryEntry
             {
                 TimestampUtc = DateTime.UtcNow,
                 Event = @event,
                 NodeId = nodeId,
-                Detail = detail
+                Detail = detail,
+                Severity = severity
             });
         }
     }
