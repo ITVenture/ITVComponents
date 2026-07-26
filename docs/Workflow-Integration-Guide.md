@@ -381,8 +381,11 @@ hier nur der Überblick mit den deployment-relevanten Hinweisen:
   **Keine Schema-Änderung.**
 
 - **Subworkflows (`CallWorkflowNode`).** Ein Workflow ruft einen anderen mit Ein-/Ausgabewerten auf;
-  der Aufrufer parkt, bis der Subworkflow endet, und übernimmt dessen Ergebnis (Fault propagiert
-  standardmäßig; Abbruch kaskadiert auf laufende Kinder). Der Subworkflow ist eine **eigene Instanz**
+  der Aufrufer parkt, bis der Subworkflow endet, und übernimmt dessen Ergebnis. Ein gescheiterter
+  Subworkflow faultet standardmäßig den Aufrufer — oder nimmt (wie bei Aktivitäten) einen **Fehler-Ausgang**
+  (`ErrorFlowId`/`ErrorVariable`/`AttemptVariable`); mit Zähler führt eine Fehlerkante zurück zum Knoten den
+  Subworkflow erneut aus (frische Kind-Instanz je Versuch). Abbruch kaskadiert auf laufende Kinder. Der
+  Subworkflow ist eine **eigene Instanz**
   (eigenes Monitoring), erbt den Tenant, ist beliebig verschachtelbar. **Getrieben vom Runner** — reines
   inline `StartWorkflow` ohne Runner treibt Kinder NICHT (Web-Only hostet den Runner in-proc, wie
   empfohlen). Aggregierte History: Kind-Einträge tragen die `RootInstanceId` des Elternbaums → das
