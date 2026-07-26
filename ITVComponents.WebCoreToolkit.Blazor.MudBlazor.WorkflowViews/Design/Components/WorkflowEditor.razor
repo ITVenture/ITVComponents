@@ -120,6 +120,26 @@
                         {
                             case AutomatedActivityNode act:
                                 <ActivityConfigEditor Node="act" Catalog="catalog" />
+                                <MudDivider Class="my-2" />
+                                <MudSelect T="string" @bind-Value="act.ErrorFlowId" Label="Error flow (on failure)"
+                                           Clearable="true" Margin="Margin.Dense">
+                                    @foreach (var f in def.Flows.Where(f => f.SourceId == act.Id))
+                                    {
+                                        <MudSelectItem T="string" Value="@f.Id">@FlowLabel(f)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                                @if (!string.IsNullOrEmpty(act.ErrorFlowId))
+                                {
+                                    <MudTextField @bind-Value="act.ErrorVariable" Label="Error message → variable"
+                                                  Margin="Margin.Dense" />
+                                    <MudTextField @bind-Value="act.AttemptVariable" Label="Attempt count → variable"
+                                                  Margin="Margin.Dense" />
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        On failure (exception or ctx.Fail) the token takes this flow instead of faulting; the
+                                        single other outgoing flow is the success path. The attempt counter increments per
+                                        failure and resets on success — branch on it for retries.
+                                    </MudText>
+                                }
                                 break;
                             case CallWorkflowNode call:
                                 <CallWorkflowConfigEditor Node="call" Definitions="subDefinitionIds" />

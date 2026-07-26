@@ -144,6 +144,23 @@ namespace ITVComponents.Workflow.Validation
                             $"Exclusive gateway '{Label(n)}' has no default flow - the instance faults if no condition matches."));
                         break;
                 }
+
+                // Fehler-Ausgang einer Aktivitaet: die Fehler-Kante muss eine ihrer ausgehenden Kanten sein,
+                // und es muss GENAU eine weitere (Erfolgs-)Kante geben.
+                if (n is AutomatedActivityNode act2 && !string.IsNullOrWhiteSpace(act2.ErrorFlowId))
+                {
+                    List<SequenceFlow> outFlows = flows.Where(f => f.SourceId == n.Id).ToList();
+                    if (outFlows.All(f => f.Id != act2.ErrorFlowId))
+                    {
+                        issues.Add(Error(n.Id,
+                            $"Activity '{Label(n)}' error flow '{act2.ErrorFlowId}' is not one of its outgoing connections."));
+                    }
+                    else if (outFlows.Count(f => f.Id != act2.ErrorFlowId) != 1)
+                    {
+                        issues.Add(Error(n.Id,
+                            $"Activity '{Label(n)}' with an error flow must have exactly one success connection."));
+                    }
+                }
             }
 
             // Konsolidierung (ScopeMode.Replace) raeumt den ganzen Scope ab - das ist nur auf einem

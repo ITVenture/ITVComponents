@@ -230,6 +230,41 @@ namespace ITVComponents.Workflow.Test
         }
 
         [TestMethod]
+        public void ErrorFlow_ValidWithOneSuccessAndOneErrorEdge_NoError()
+        {
+            var def = Linear(); // s -> a -> e
+            def.Nodes.Add(new EndNode { Id = "handled" });
+            def.Flows.Add(new SequenceFlow { Id = "a->handled", SourceId = "a", TargetId = "handled" });
+            ((AutomatedActivityNode)def.Nodes.Single(n => n.Id == "a")).ErrorFlowId = "a->handled";
+
+            Assert.IsFalse(HasError(WorkflowDefinitionValidator.Validate(def)),
+                "one success + one error outgoing is a valid error-flow setup.");
+        }
+
+        [TestMethod]
+        public void ErrorFlow_NotAnOutgoingEdge_IsError()
+        {
+            var def = Linear();
+            ((AutomatedActivityNode)def.Nodes.Single(n => n.Id == "a")).ErrorFlowId = "does-not-exist";
+            Assert.IsTrue(HasError(WorkflowDefinitionValidator.Validate(def)));
+        }
+
+        [TestMethod]
+        public void ErrorFlow_WithoutASeparateSuccessEdge_IsError()
+        {
+            // Nur die Fehler-Kante ausgehend -> es fehlt der Erfolgs-Ausgang.
+            var def = new WorkflowDefinition { Id = "wf" };
+            def.Nodes.Add(new StartNode { Id = "s" });
+            def.Nodes.Add(new AutomatedActivityNode { Id = "a", ActivityRef = "x", ErrorFlowId = "a->h" });
+            def.Nodes.Add(new EndNode { Id = "h" });
+            def.Flows.Add(new SequenceFlow { Id = "s->a", SourceId = "s", TargetId = "a" });
+            def.Flows.Add(new SequenceFlow { Id = "a->h", SourceId = "a", TargetId = "h" });
+
+            Assert.IsTrue(HasError(WorkflowDefinitionValidator.Validate(def)),
+                "an activity with an error flow must also have exactly one success flow.");
+        }
+
+        [TestMethod]
         public void MissingEnd_IsWarning()
         {
             var def = new WorkflowDefinition { Id = "wf" };

@@ -83,6 +83,30 @@ namespace ITVComponents.Workflow.Model
         /// beliebigen Runner (der Standard - deckt den nicht-verteilten Betrieb ab).
         /// </summary>
         public string ExecutionTarget { get; set; }
+
+        /// <summary>
+        /// Optionaler <b>Fehler-Ausgang</b>: die Id der ausgehenden Kante, die genommen wird, wenn die
+        /// Aktivitaet scheitert - durch eine Exception ODER kontrolliert ueber
+        /// <see cref="Activities.WorkflowActivityContext.Fail"/>. Der Erfolgs-Ausgang ist dann die einzige
+        /// andere ausgehende Kante. Ist der Wert null/leer, faultet ein Fehler wie bisher die ganze Instanz
+        /// (Standard, rueckwaerts-kompatibel). Erlaubt Fehlerbehandlung im Graphen (Retry-Schleifen,
+        /// Verzweigung nach Fehlerart/-anzahl, Benutzer-Korrektur).
+        /// </summary>
+        public string ErrorFlowId { get; set; }
+
+        /// <summary>
+        /// Beim Fehler-Ausgang: Name der Instanz-Variable, die die Fehlermeldung erhaelt (fuer Anzeige/
+        /// Verzweigung). Null/leer = nicht setzen.
+        /// </summary>
+        public string ErrorVariable { get; set; }
+
+        /// <summary>
+        /// Beim Fehler-Ausgang: Name der Instanz-Variable, die den <b>Fehlversuchs-Zaehler</b> erhaelt - um
+        /// +1 erhoeht bei jedem Fehlerlauf dieses Knotens, auf 0 zurueckgesetzt bei Erfolg. Damit laesst
+        /// sich im Graphen nach Anzahl der Versuche verzweigen (z.B. 1x Auto-Korrektur, dann Benutzer-UI,
+        /// dann Aufgeben). Null/leer = nicht mitzaehlen.
+        /// </summary>
+        public string AttemptVariable { get; set; }
     }
 
     /// <summary>

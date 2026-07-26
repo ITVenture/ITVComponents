@@ -823,29 +823,116 @@ namespace ITVComponents.Workflow
             }
 
             var outputs = new Dictionary<string, object>(StringComparer.Ordinal);
+            var context = new WorkflowActivityContext(instance, node, inputs, outputs);
             try
             {
                 // On-demand aufgeloest; die Lebensdauer der Aktivitaet (bei Plugins: der geladenen
                 // Instanz) gehoert dem Scope und endet mit dem Vortrieb.
                 IWorkflowActivity activity = activityScope.Resolve(node.ActivityRef);
-                activity.Execute(new WorkflowActivityContext(instance, node, inputs, outputs));
+                activity.Execute(context);
             }
             catch (Exception ex)
             {
-                // Die Aktivitaet ist gescheitert. Das darf die Instanz nicht stumm verschlucken:
-                // der Fehler wird protokolliert (mit Stacktrace) und die Instanz faellt auf Faulted.
+                // Absturz der Aktivitaet: protokollieren (mit Stacktrace). Hat der Knoten einen
+                // Fehler-Ausgang, wird dieser genommen; sonst faultet die Instanz. Die (unzuverlaessigen)
+                // Ausgaben eines Absturzes werden NICHT uebernommen.
                 LogEnvironment.LogEvent(
                     $"Activity '{node.ActivityRef}' of node '{node.Id}' in workflow instance '{instance.Id}' failed: " +
                     $"{ex.OutlineException()}", LogSeverity.Error);
-                Fault(instance, $"Activity '{node.ActivityRef}' failed: {ex.Message}", node.Id);
+                return HandleActivityFailure(instance, definition, token, node, ex.Message, applyOutputs: false, null);
+            }
+
+            // Kontrollierter Fehler (ctx.Fail): Fehler-Ausgang nehmen; die bewusst gesetzten Ausgaben
+            // (Zwischenstand) bleiben erhalten.
+            if (context.Failed)
+            {
+                return HandleActivityFailure(instance, definition, token, node, context.FailureMessage,
+                    applyOutputs: true, outputs);
+            }
+
+            // Erfolg: Datenfluss heraus, Fehlversuchs-Zaehler zuruecksetzen, ueber den Erfolgs-Ausgang weiter.
+            ApplyOutputs(instance, node, outputs);
+            ResetAttempts(instance, node);
+            instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
+            return MoveAlongSuccessFlow(instance, definition, token, node);
+        }
+
+        /// <summary>
+        /// Behandelt einen Aktivitaets-Fehler: ohne Fehler-Ausgang faultet die Instanz (wie bisher). Mit
+        /// Fehler-Ausgang wird - optional der Zwischenstand uebernommen, dann - der Fehlerkontext
+        /// bereitgestellt (<see cref="AutomatedActivityNode.ErrorVariable"/> = Meldung,
+        /// <see cref="AutomatedActivityNode.AttemptVariable"/> += 1) und der Token ueber die Fehler-Kante
+        /// bewegt.
+        /// </summary>
+        private bool HandleActivityFailure(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            AutomatedActivityNode node, string message, bool applyOutputs, IDictionary<string, object> outputs)
+        {
+            if (string.IsNullOrEmpty(node.ErrorFlowId))
+            {
+                Fault(instance, $"Activity '{node.ActivityRef}' failed: {message}", node.Id);
                 return false;
             }
 
-            // Datenfluss heraus: die deklarierten Ausgaben auf die konfigurierten Variablen abbilden.
-            ApplyOutputs(instance, node, outputs);
+            SequenceFlow errorFlow = definition.OutgoingFlows(node.Id).FirstOrDefault(f => f.Id == node.ErrorFlowId);
+            if (errorFlow == null)
+            {
+                Fault(instance, $"Error flow '{node.ErrorFlowId}' of node '{node.Id}' does not exist.", node.Id);
+                return false;
+            }
 
-            instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
-            return MoveAlongSingleOutgoing(instance, definition, token);
+            if (applyOutputs && outputs != null)
+            {
+                ApplyOutputs(instance, node, outputs);
+            }
+
+            if (!string.IsNullOrEmpty(node.ErrorVariable))
+            {
+                instance.Variables[node.ErrorVariable] = message;
+            }
+
+            int attempts = 0;
+            if (!string.IsNullOrEmpty(node.AttemptVariable))
+            {
+                instance.Variables.TryGetValue(node.AttemptVariable, out object current);
+                attempts = (current is int i ? i : 0) + 1;
+                instance.Variables[node.AttemptVariable] = attempts;
+            }
+
+            instance.Log("ActivityError", node.Id, message, HistorySeverity.Warning);
+            return MoveToken(instance, token, errorFlow);
+        }
+
+        /// <summary>
+        /// Bewegt einen Token nach erfolgreicher Aktivitaet weiter: ohne Fehler-Ausgang ueber die einzige
+        /// ausgehende Kante; mit Fehler-Ausgang ueber die einzige NICHT-Fehler-Kante (die Erfolgs-Kante).
+        /// </summary>
+        private bool MoveAlongSuccessFlow(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            AutomatedActivityNode node)
+        {
+            if (string.IsNullOrEmpty(node.ErrorFlowId))
+            {
+                return MoveAlongSingleOutgoing(instance, definition, token);
+            }
+
+            var success = definition.OutgoingFlows(node.Id).Where(f => f.Id != node.ErrorFlowId).ToList();
+            if (success.Count != 1)
+            {
+                Fault(instance,
+                    $"Activity '{node.Id}' with an error flow must have exactly one success flow, but has {success.Count}.",
+                    node.Id);
+                return false;
+            }
+
+            return MoveToken(instance, token, success[0]);
+        }
+
+        /// <summary>Setzt den Fehlversuchs-Zaehler des Knotens bei Erfolg zurueck (falls konfiguriert).</summary>
+        private static void ResetAttempts(WorkflowInstance instance, AutomatedActivityNode node)
+        {
+            if (!string.IsNullOrEmpty(node.AttemptVariable))
+            {
+                instance.Variables[node.AttemptVariable] = 0;
+            }
         }
 
         /// <summary>

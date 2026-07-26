@@ -56,6 +56,30 @@ namespace ITVComponents.Workflow.Activities
         /// <see cref="AutomatedActivityNode.Outputs"/>-Bindungen auf Instanz-Variablen ab.
         /// </summary>
         public IDictionary<string, object> Outputs { get; }
+
+        /// <summary>
+        /// Hat die Aktivitaet ueber <see cref="Fail"/> einen kontrollierten Fehler gemeldet? Die Engine
+        /// nimmt dann - falls der Knoten einen <see cref="AutomatedActivityNode.ErrorFlowId"/> hat - den
+        /// Fehler-Ausgang (die bereits gesetzten <see cref="Outputs"/> bleiben als Zwischenstand erhalten).
+        /// </summary>
+        public bool Failed { get; private set; }
+
+        /// <summary>Bei <see cref="Failed"/>: die von der Aktivitaet gemeldete Fehlermeldung, oder null.</summary>
+        public string FailureMessage { get; private set; }
+
+        /// <summary>
+        /// Meldet einen <b>kontrollierten</b> Fehler (fachliches Scheitern, kein Absturz), ohne eine
+        /// Exception zu werfen: der aktuelle Knoten nimmt anschliessend seinen
+        /// <see cref="AutomatedActivityNode.ErrorFlowId"/> (sofern gesetzt), und die zuvor in
+        /// <see cref="Outputs"/> abgelegten Zwischenergebnisse (z.B. die Liste der fehlgeschlagenen
+        /// Elemente) bleiben erhalten. Ohne Fehler-Ausgang faultet die Instanz.
+        /// </summary>
+        /// <param name="message">die Fehlermeldung (fuer Anzeige/Verzweigung), oder null</param>
+        public void Fail(string message = null)
+        {
+            Failed = true;
+            FailureMessage = message;
+        }
     }
 
     /// <summary>
