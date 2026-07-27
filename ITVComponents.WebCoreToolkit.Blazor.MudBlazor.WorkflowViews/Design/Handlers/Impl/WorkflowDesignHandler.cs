@@ -7,31 +7,36 @@ using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Model;
-using ITVComponents.Workflow.Stores;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers.Impl
 {
     /// <summary>
-    /// Standard-Implementierung von <see cref="IWorkflowDesignHandler"/>. Listet ueber den
-    /// EF-Kontext (Schluesselspalten Id+Version) und laedt einzelne Definitionen ueber den Store.
+    /// Standard-Implementierung von <see cref="IWorkflowDesignHandler"/>. Jede Operation laeuft ueber
+    /// eine <see cref="WorkflowOperation"/>, die je Zugriff einen FRISCHEN <c>WorkflowContext</c> zieht
+    /// (DI/global oder Plugin/per-Tenant) - Blazor-/tenant-sicher, ohne circuit-lang geteilten Store.
+    /// Listet ueber den EF-Kontext (Schluesselspalten Id+Version) und laedt/speichert einzelne
+    /// Definitionen ueber den Store. Eine Engine wird hier nicht gebraucht.
     /// </summary>
     internal sealed class WorkflowDesignHandler : IWorkflowDesignHandler
     {
         private readonly IServiceProvider services;
-        private readonly IDbContextFactory<WorkflowContext> dbFactory;
-        private readonly IWorkflowStore store;
+        private readonly IFreshInjectablePlugin<WorkflowContext> freshContext;
 
-        public WorkflowDesignHandler(IServiceProvider services, IDbContextFactory<WorkflowContext> dbFactory,
-            IWorkflowStore store)
+        public WorkflowDesignHandler(IServiceProvider services,
+            IFreshInjectablePlugin<WorkflowContext> freshContext)
         {
             this.services = services;
-            this.dbFactory = dbFactory;
-            this.store = store;
+            this.freshContext = freshContext;
         }
+
+        // Design-Operationen brauchen keine Engine -> keine Engine-Factory.
+        private WorkflowOperation BeginOperation() => new WorkflowOperation(freshContext);
 
         /// <inheritdoc/>
         public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -42,7 +47,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         /// <inheritdoc/>
         public async Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, ListQuery query)
         {
-            await using WorkflowContext ctx = await dbFactory.CreateDbContextAsync();
+            using WorkflowOperation op = BeginOperation();
+            WorkflowContext ctx = op.LeaseContext();
             IQueryable<WorkflowDefinitionRow> q = ctx.WorkflowDefinitions.AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(query.Search))
@@ -63,7 +69,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         /// <inheritdoc/>
         public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int? version)
         {
-            return Task.FromResult<WorkflowDefinition?>(store.GetDefinition(definitionId, version));
+            using WorkflowOperation op = BeginOperation();
+            return Task.FromResult<WorkflowDefinition?>(op.Store.GetDefinition(definitionId, version));
         }
 
         /// <inheritdoc/>
@@ -86,7 +93,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
 
             try
             {
-                store.SaveDefinition(definition);
+                using WorkflowOperation op = BeginOperation();
+                op.Store.SaveDefinition(definition);
                 return Task.FromResult(true);
             }
             catch (Exception ex)

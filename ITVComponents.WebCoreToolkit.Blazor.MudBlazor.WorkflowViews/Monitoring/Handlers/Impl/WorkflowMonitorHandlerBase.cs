@@ -4,44 +4,49 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.Workflow;
+using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
-using ITVComponents.Workflow.Stores;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers.Impl
 {
     /// <summary>
-    /// Gemeinsame Basis der Monitoring-Handler: listet ueber den EF-Kontext (indizierte Spalten), laedt
-    /// Detail-Instanzen ueber den Store und bricht ueber die Engine ab. Der EINZIGE Unterschied zwischen
-    /// den Varianten ist die <b>Signal-Zustellung</b> (<see cref="DeliverSignalAsync"/>) - deshalb ist sie
-    /// hier als Naht ausgelagert:
+    /// Gemeinsame Basis der Monitoring-Handler. Jede Operation laeuft ueber eine
+    /// <see cref="WorkflowOperation"/>, die je Store-/Abfrage-Zugriff einen FRISCHEN
+    /// <c>WorkflowContext</c> zieht (DI/global oder Plugin/per-Tenant) - so ist der Handler
+    /// Blazor-/tenant-sicher, statt einen circuit-lang geteilten Store/Engine/DbContext zu halten.
+    /// Der EINZIGE Unterschied zwischen den Varianten ist die <b>Signal-Zustellung</b>
+    /// (<see cref="DeliverSignalAsync"/>):
     /// <list type="bullet">
-    ///   <item><see cref="WorkflowMonitorHandler"/> - inline (advanced im Web-Prozess; Web-Only).</item>
+    ///   <item><see cref="WorkflowMonitorHandler"/> - inline (advanced im Web-Prozess; setzt den
+    ///   globalen Ein-Kontext-Betrieb voraus).</item>
     ///   <item><see cref="SplitWorkflowMonitorHandler"/> - store-only reaktivieren; die Ausfuehrung
-    ///   uebernimmt ein (Backend-)Runner (getrennte Deployments).</item>
+    ///   uebernimmt ein (tenant-uebergreifender) Runner (getrennte Deployments / Multi-Tenant).</item>
     /// </list>
     /// </summary>
     internal abstract class WorkflowMonitorHandlerBase : IWorkflowMonitorHandler
     {
         private readonly IServiceProvider services;
-        private readonly IDbContextFactory<WorkflowContext> dbFactory;
-        private readonly IWorkflowStore store;
+        private readonly IFreshInjectablePlugin<WorkflowContext> freshContext;
 
         protected WorkflowMonitorHandlerBase(IServiceProvider services,
-            IDbContextFactory<WorkflowContext> dbFactory, IWorkflowStore store, WorkflowEngine engine)
+            IFreshInjectablePlugin<WorkflowContext> freshContext)
         {
             this.services = services;
-            this.dbFactory = dbFactory;
-            this.store = store;
-            Engine = engine;
+            this.freshContext = freshContext;
         }
 
-        /// <summary>Die Engine (fuer Signal-Zustellung und Abbruch).</summary>
-        protected WorkflowEngine Engine { get; }
+        /// <summary>
+        /// Oeffnet eine neue Operation. Die Engine-Factory wird optional aufgeloest - fehlt sie, wirft
+        /// erst ein tatsaechlicher Engine-Zugriff (Signal/Abbruch) mit erklaerender Meldung.
+        /// </summary>
+        protected WorkflowOperation BeginOperation()
+            => new WorkflowOperation(freshContext, services.GetService<WorkflowEngineFactory>());
 
         /// <inheritdoc/>
         public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -52,7 +57,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// <inheritdoc/>
         public async Task<PagedResult<WorkflowInstanceListItem>> ListInstancesAsync(ClaimsPrincipal user, ListQuery query)
         {
-            await using WorkflowContext ctx = await dbFactory.CreateDbContextAsync();
+            using WorkflowOperation op = BeginOperation();
+            WorkflowContext ctx = op.LeaseContext();
             IQueryable<WorkflowInstanceRow> q = ctx.WorkflowInstances.AsNoTracking();
 
             if (query.Status.HasValue)
@@ -81,25 +87,32 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// <inheritdoc/>
         public Task<WorkflowInstance?> GetInstanceAsync(ClaimsPrincipal user, string instanceId)
         {
-            return Task.FromResult<WorkflowInstance?>(store.GetInstance(instanceId));
+            using WorkflowOperation op = BeginOperation();
+            return Task.FromResult<WorkflowInstance?>(op.Store.GetInstance(instanceId));
         }
 
         /// <inheritdoc/>
         public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int version)
         {
-            return Task.FromResult<WorkflowDefinition?>(store.GetDefinition(definitionId, version));
+            using WorkflowOperation op = BeginOperation();
+            return Task.FromResult<WorkflowDefinition?>(op.Store.GetDefinition(definitionId, version));
         }
 
         /// <inheritdoc/>
-        public Task<bool> SignalAsync(ClaimsPrincipal user, string instanceId, string signalName)
+        public async Task<bool> SignalAsync(ClaimsPrincipal user, string instanceId, string signalName)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate })
-                || store.GetInstance(instanceId) == null)
+            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
-                return Task.FromResult(false);
+                return false;
             }
 
-            return DeliverSignalAsync(instanceId, signalName);
+            using WorkflowOperation op = BeginOperation();
+            if (op.Store.GetInstance(instanceId) == null)
+            {
+                return false;
+            }
+
+            return await DeliverSignalAsync(op, instanceId, signalName);
         }
 
         /// <inheritdoc/>
@@ -112,14 +125,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
             // Abbruch ist in JEDEM Deployment eine reine Store-Operation (keine Aktivitaet laeuft) - daher
             // hier gemeinsam, unabhaengig von der Signal-Variante.
-            return Task.FromResult(Engine.CancelWorkflow(instanceId));
+            using WorkflowOperation op = BeginOperation();
+            return Task.FromResult(op.Engine.CancelWorkflow(instanceId));
         }
 
         /// <summary>
         /// Stellt ein Signal an die (existierende, berechtigte) Instanz zu. Die Variante bestimmt, OB dabei
         /// im Web-Prozess advanced wird (inline) oder nur store-only reaktiviert wird (Runner treibt voran).
+        /// Die <paramref name="op"/> bleibt bis zum Abschluss dieses Aufrufs gueltig.
         /// </summary>
-        protected abstract Task<bool> DeliverSignalAsync(string instanceId, string signalName);
+        protected abstract Task<bool> DeliverSignalAsync(WorkflowOperation op, string instanceId, string signalName);
 
         private static WorkflowInstanceListItem ToListItem(WorkflowInstanceRow row)
         {

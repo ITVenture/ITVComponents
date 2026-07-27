@@ -96,6 +96,53 @@ wird — anhand von drei Deployment-Szenarien:
    die drei BlazorMonaco-Skripte (`jsInterop.js`, `loader.js`, `editor.main.js`) **nach** dem
    Blazor-Skript in der Host-Seite. Ohne sie rendern die CScript-Felder nicht.
 
+5. **View-Handler: frischer Kontext pro Op + Engine-Factory (Blazor-/Tenant-sicher).** Die View-Handler
+   halten **keinen** langlebigen Store/Engine/DbContext mehr (unter Blazor ist der DI-Scope der ganze
+   Circuit → geteilt über nebenläufige Renders). Stattdessen zieht **jede Operation** über **einen** Seam —
+   `IFreshInjectablePlugin<WorkflowContext>` — einen **frischen** `WorkflowContext` (eigener
+   Operations-Scope, am Op-Ende disposed). Der Host stellt dafür bereit:
+
+   1. **`UseInjectablePlugins(...)`** (registriert `IFreshInjectablePlugin<>`).
+   2. **`WorkflowContext` als scope-owned Dependency** über `FactoryOptions.AddDependency(name, delegate,
+      disposeWithScope: true)`. Das `disposeWithScope: true` ist Pflicht — nur so hängt
+      `CreateOperationScope()` den Kontext frisch je Op ein und disposed ihn mit dem Scope. **WOHER** der
+      Kontext kommt, ist reine Host-Registrierung — DI-vs-Plugin-Dualität in **einem** Delegate:
+
+      ```csharp
+      // global (Ein-Kontext, filterfrei): das Delegate zieht aus dem DbContext-Factory
+      factoryOptions.AddDependency("WorkflowContext",
+          sp => sp.GetRequiredService<IDbContextFactory<WorkflowContext>>().CreateDbContext(),
+          disposeWithScope: true);
+
+      // ODER per-Tenant: das Delegate baut den tenant-fähigen Kontext (Toolkit-Konvention)
+      ```
+
+   Die Views kennen nur den einen Seam; sie sehen den Unterschied global/tenant nicht.
+
+   Für **Signal/Abbruch** registriert der Host zusätzlich eine `WorkflowEngineFactory` — sie baut eine
+   Engine über den *pro Op frisch gebauten* Store und kapselt die Engine-Konfiguration des Hosts:
+
+   ```csharp
+   services.AddSingleton<WorkflowEngineFactory>(sp => store =>
+       new WorkflowEngine(store, sp.GetRequiredService<IActivityHost>(),
+           evaluator: null, hostTargets: /* wie im Szenario */));
+   ```
+
+   > **Wichtig:** Die `store`-Variable des Delegaten verwenden (nicht einen Singleton-Store einfangen) —
+   > nur so läuft jede Operation gegen einen frischen, tenant-korrekten Kontext.
+
+   Die in Abschnitt 2.2 registrierten **Singleton**-`IWorkflowStore`/`WorkflowEngine` bleiben für den
+   **Runner** und die **Inline-Ausführung** (`StartWorkflow`/`TriggerDueTimers`) sinnvoll — die *Views*
+   nutzen sie nicht mehr.
+
+   **Inline-Ausführung im Web = globales Szenario.** Advanced der Web-Prozess ein Signal inline
+   (`SignalDelivery.Inline` → `SignalWorkflow`), führt er die folgenden Aktivitäten lokal aus — das
+   funktioniert nur sinnvoll gegen **einen** Kontext. Multi-Tenant klappt nur mit einem
+   **tenant-übergreifenden Runner**, der alle offenen Instanzen lädt und jede unter ihrem Tenant
+   voran treibt. Deshalb im Multi-Tenant-Fall den `WorkflowContext`-Delegaten tenant-fähig registrieren
+   **und** `SignalDelivery = Runner` setzen: das Web reaktiviert/bricht nur store-only auf dem Tenant der
+   Instanz ab (korrekt pro Op), die Ausführung übernimmt der Runner.
+
 ---
 
 ## 3. Szenario a) Web-Only

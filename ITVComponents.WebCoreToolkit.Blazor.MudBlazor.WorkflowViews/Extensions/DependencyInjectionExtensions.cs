@@ -16,12 +16,31 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Extensions
     public static class DependencyInjectionExtensions
     {
         /// <summary>
-        /// Registriert die Routing-Assembly und die Monitoring-Handler. Der Host muss
-        /// <c>WorkflowContext</c> (als <c>IDbContextFactory</c>), einen <c>IWorkflowStore</c> und
-        /// eine <c>WorkflowEngine</c> bereitstellen. Ueber <paramref name="options"/> laesst sich die
-        /// Signal-Zustellung waehlen (inline vs. store-only/Runner - siehe
-        /// <see cref="WorkflowViewsOptions.SignalDelivery"/>).
+        /// Registriert die Routing-Assembly und die Handler.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Die Handler ziehen ihren <c>WorkflowContext</c> pro Operation frisch ueber
+        /// <c>IFreshInjectablePlugin&lt;WorkflowContext&gt;</c> (Blazor-/tenant-sicher). Der Host muss daher:
+        /// </para>
+        /// <list type="number">
+        ///   <item><c>UseInjectablePlugins(...)</c> aufrufen (registriert
+        ///   <c>IFreshInjectablePlugin&lt;&gt;</c>).</item>
+        ///   <item><c>WorkflowContext</c> als scope-owned Dependency registrieren
+        ///   (<c>FactoryOptions.AddDependency(name, delegate, disposeWithScope: true)</c>) - global (Delegate
+        ///   liefert <c>IDbContextFactory&lt;WorkflowContext&gt;.CreateDbContext()</c>) ODER tenant-faehig
+        ///   (Toolkit-Konvention). WOHER der Kontext kommt, ist reine Host-Registrierung; die Views kennen
+        ///   nur den einen Seam.</item>
+        ///   <item>Fuer Signal-/Abbruch-Operationen zusaetzlich eine <c>WorkflowEngineFactory</c>
+        ///   registrieren (baut eine Engine ueber den frischen Store; kapselt die Engine-Konfiguration).</item>
+        /// </list>
+        /// <para>
+        /// Ueber <paramref name="options"/> laesst sich die Signal-Zustellung waehlen (inline vs.
+        /// store-only/Runner - siehe <see cref="WorkflowViewsOptions.SignalDelivery"/>). Inline-Ausfuehrung
+        /// setzt den globalen Ein-Kontext-Betrieb voraus; fuer Multi-Tenant
+        /// <see cref="WorkflowSignalDelivery.Runner"/> + einen tenant-uebergreifenden Runner nutzen.
+        /// </para>
+        /// </remarks>
         public static IServiceCollection AddWorkflowViews(this IServiceCollection services,
             AssemblyPartTypeLoadBehaviorOptions? partTypeLoadBehavior, WorkflowViewsOptions? options = null)
         {
@@ -35,7 +54,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Extensions
             if (partTypeLoadBehavior.ShouldLoadType(typeof(WorkflowMonitorHandler)))
             {
                 // Signal-Zustellung nach Konfiguration: inline (Web-Only, Standard) vs. store-only, dann
-                // treibt ein (Backend-)Runner voran (getrennte Deployments).
+                // treibt ein (Backend-)Runner voran (getrennte Deployments / Multi-Tenant).
                 if (options?.SignalDelivery == WorkflowSignalDelivery.Runner)
                 {
                     services.AddScoped<IWorkflowMonitorHandler, SplitWorkflowMonitorHandler>();
