@@ -69,5 +69,19 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         {
             return (T)((ICustomPluginInjector)this).GetPlugin(services, prefixWithArea);
         }
+
+        /// <summary>
+        /// Loest das Plugin aus einem BEREITS GEOEFFNETEN Scope auf (statt aus dem CurrentScope der Factory) -
+        /// fuer den frischen, aufrufer-besessenen Ladeweg (<see cref="IFreshInjectablePlugin{T}"/>). Nutzt
+        /// dieselbe Namens-/Scope-Logik (<see cref="GetPluginUniqueName"/>) wie der regulaere Pfad.
+        /// </summary>
+        /// <param name="services">die DI-Services der aktuellen Anfrage</param>
+        /// <param name="scope">der frische Lade-Scope, aus dem geladen wird</param>
+        /// <param name="prefixWithArea">ob mit Area-Prefix gesucht werden soll</param>
+        /// <returns>die aufgeloeste Plugin-Instanz</returns>
+        public virtual T GetPluginInstance(IServiceProvider services, IPluginFactory scope, bool prefixWithArea)
+        {
+            return (T)scope[GetPluginUniqueName(services, prefixWithArea), true];
+        }
     }
 }

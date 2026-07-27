@@ -26,6 +26,7 @@ using ITVComponents.WebCoreToolkit.Security.UserScopes;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using ITVComponents.WebCoreToolkit.WebPlugins.Initialization;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
+using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -124,7 +125,9 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         public static IServiceCollection UseInjectablePlugins(this IServiceCollection services, Action<InjectablePluginOptions> options)
         {
             return services.Configure(options)
-                .AddScoped(typeof(IInjectablePlugin<>), typeof(InjectablePluginImpl<>));
+                .AddScoped(typeof(IInjectablePlugin<>), typeof(InjectablePluginImpl<>))
+                // Blazor-taugliche Variante: jede Lease oeffnet einen frischen, aufrufer-besessenen Lade-Scope.
+                .AddScoped(typeof(IFreshInjectablePlugin<>), typeof(FreshInjectablePluginImpl<>));
         }
 
         /// <summary>
