@@ -227,7 +227,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
         [ExpressionPropertyRedirect("CurrentUserName")]
         public string CurrentUserName => userProvider.User?.Identity?.Name;
 
-        private string CurrentTenant
+        public string CurrentTenant
         {
             get
             {

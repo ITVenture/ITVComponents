@@ -1,0 +1,59 @@
+@using BlazorMonaco
+@using BlazorMonaco.Editor
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+@*
+    Monaco-Editor fuer einen CScript-Ausdruck (Kantenbedingung, Timer-/Korrelations-Ausdruck).
+    Der Wert wird einmal als Startwert gesetzt und beim Verlassen des Editors (Blur) zurueckgelesen -
+    kein Zwei-Wege-@bind, das unter Blazor Server je Tastendruck einen Server-Roundtrip ausloesen wuerde.
+    Der Aufrufer kann den aktuellen Text jederzeit ueber GetValueAsync() abholen (z.B. beim Speichern).
+
+    Host-Voraussetzung (einmalig, nach dem Blazor-Skript in der Host-Seite):
+        <script src="_content/BlazorMonaco/jsInterop.js"></script>
+        <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
+        <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
+*@
+
+<div style="border:1px solid var(--mud-palette-lines-inputs); border-radius:var(--mud-default-borderradius); overflow:hidden; height:@(Height)px;">
+    <StandaloneCodeEditor @ref="editor" ConstructionOptions="BuildOptions" OnDidBlurEditorText="OnBlur" />
+</div>
+
+@code {
+    /// <summary>Startwert des Ausdrucks. Rueckgabe ueber <see cref="GetValueAsync"/> oder <see cref="ValueChanged"/>.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    /// <summary>Wird beim Verlassen des Editors mit dem aktuellen Text aufgerufen.</summary>
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>Editorhoehe in px.</summary>
+    [Parameter] public int Height { get; set; } = 90;
+
+    private StandaloneCodeEditor? editor;
+
+    // "javascript" kommt CScript syntaktisch am naechsten (Punkt-Zugriffe, Operatoren) - es gibt keine
+    // eigene Monaco-Sprache fuer CScript.
+    private StandaloneEditorConstructionOptions BuildOptions(StandaloneCodeEditor _)
+        => new StandaloneEditorConstructionOptions
+        {
+            Language = "javascript",
+            Value = Value ?? string.Empty,
+            AutomaticLayout = true,
+            Minimap = new EditorMinimapOptions { Enabled = false },
+            LineNumbers = "off",
+            ScrollBeyondLastLine = false,
+            FontSize = 13,
+            WordWrap = "on"
+        };
+
+    /// <summary>Liefert den aktuellen Editortext (faellt auf den Startwert zurueck, wenn nicht initialisiert).</summary>
+    public async Task<string> GetValueAsync()
+        => editor is null ? (Value ?? string.Empty) : await editor.GetValue();
+
+    private async Task OnBlur()
+    {
+        if (ValueChanged.HasDelegate)
+        {
+            await ValueChanged.InvokeAsync(await GetValueAsync());
+        }
+    }
+}

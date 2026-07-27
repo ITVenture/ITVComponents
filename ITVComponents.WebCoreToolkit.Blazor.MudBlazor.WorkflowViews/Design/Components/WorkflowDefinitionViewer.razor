@@ -1,0 +1,59 @@
+@page "/Workflow/Definitions/{DefinitionId}/{Version:int}"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ITVComponents.Workflow.Model
+
+@inject IWorkflowDesignHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Workflow definition</PageTitle>
+
+<SecureView RequiredPermissions="Workflow.Design" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/Workflow/Definitions" Title="Back" />
+            <MudText Typo="Typo.h5">
+                @(string.IsNullOrEmpty(definition?.Name) ? DefinitionId : definition!.Name)
+                <MudText Typo="Typo.caption" Class="ml-2" Inline="true">@DefinitionId (v@Version)</MudText>
+            </MudText>
+            <MudSpacer />
+            <MudButton StartIcon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="Color.Primary"
+                       Href="@($"/Workflow/Definitions/{Uri.EscapeDataString(DefinitionId)}/{Version}/edit")">Edit</MudButton>
+        </MudStack>
+
+        @if (!loaded)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (definition is null)
+        {
+            <MudAlert Severity="Severity.Warning">Definition not found.</MudAlert>
+        }
+        else
+        {
+            <MudPaper Class="pa-2">
+                <WorkflowGraph Definition="definition" />
+            </MudPaper>
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view workflow definitions.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    [Parameter] public string DefinitionId { get; set; } = "";
+
+    [Parameter] public int Version { get; set; }
+
+    private WorkflowDefinition? definition;
+    private bool loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loaded = false;
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        definition = await Handler.GetDefinitionAsync(auth.User, DefinitionId, Version);
+        loaded = true;
+    }
+}

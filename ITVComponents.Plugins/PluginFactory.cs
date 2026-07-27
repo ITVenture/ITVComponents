@@ -85,14 +85,18 @@ namespace ITVComponents.Plugins
         private bool disposed = false;
 
         /// <summary>
-        /// A List of Registered Direcories that is browsed on AssemblyLoad event
+        /// A List of Registered Direcories that is browsed on AssemblyLoad event. A concurrent set (the
+        /// value is unused) so it can be updated lock-free alongside <see cref="registeredAssemblies"/>.
         /// </summary>
-        private List<string> registeredDirectories;
+        private ConcurrentDictionary<string, byte> registeredDirectories;
 
         /// <summary>
-        /// A list of registered assemblies used for loading plugins from dynamic assemblies
+        /// A list of registered assemblies used for loading plugins from dynamic assemblies. Concurrent
+        /// because the new async-context scoping lets multiple threads register/resolve assemblies at the
+        /// same time; the <see cref="Lazy{T}"/> value guarantees each assembly is resolved exactly once
+        /// per key even under a race on <see cref="ConcurrentDictionary{TKey,TValue}.GetOrAdd(TKey,Func{TKey,TValue})"/>.
         /// </summary>
-        private Dictionary<string, Assembly> registeredAssemblies;
+        private ConcurrentDictionary<string, Lazy<Assembly>> registeredAssemblies;
 
         /// <summary>
         /// indicates whether to buffer generated objects for later use
@@ -227,8 +231,15 @@ namespace ITVComponents.Plugins
         /// <param name="reflectionFactory">indicates whether to use this factory as pluginstring verifyer only</param>
         /// <param name="deferredInitialization">indicates whether to use deferred initialization for the loaded plugins</param>
         /// <param name="configurationOnly">indicates whether the configurable plugins should not be initialized in order to perform configuration tasks on these components</param>
-        public PluginFactory(bool buffer, bool reflectionFactory, bool deferredInitialization, bool configurationOnly) : this(buffer, false,
-            reflectionFactory, deferredInitialization, configurationOnly)
+        /// <param name="scopeMode">controls whether the active scope is thread- or async-context-bound</param>
+        /// <remarks>
+        /// Exposes every parameter that is safe to set from outside; <c>singletonFactory</c> stays out of the
+        /// public surface (it would let a caller create a second "singleton" factory and bypass the
+        /// SingletonEnvironment bookkeeping). Adding <paramref name="scopeMode"/> here — instead of a separate
+        /// overload — keeps the former 4-argument callers source-compatible and avoids an overload ambiguity.
+        /// </remarks>
+        public PluginFactory(bool buffer, bool reflectionFactory, bool deferredInitialization, bool configurationOnly, ScopeMode scopeMode = ScopeMode.PerThread) : this(buffer, false,
+            reflectionFactory, deferredInitialization, configurationOnly, scopeMode)
         {
         }
 
@@ -254,9 +265,14 @@ namespace ITVComponents.Plugins
                 SingletonEnvironment.FactoryInitializing();
             }
 
-            registeredDirectories = new List<string>();
-            registeredDirectories.Add(Path.GetDirectoryName(Assembly.GetCallingAssembly().Location));
-            registeredAssemblies = new Dictionary<string, Assembly>();
+            registeredDirectories = new ConcurrentDictionary<string, byte>();
+            string callingDir = Path.GetDirectoryName(Assembly.GetCallingAssembly().Location);
+            if (callingDir != null)
+            {
+                registeredDirectories.TryAdd(callingDir, 0);
+            }
+
+            registeredAssemblies = new ConcurrentDictionary<string, Lazy<Assembly>>();
             this.pluginInstances = new PluginCollector(false);
             this.roTypeList = new ConcurrentDictionary<string, Type>();
             disposer = new Thread(Dispose);
@@ -557,13 +573,51 @@ namespace ITVComponents.Plugins
         /// <param name="targetAssembly">the object representation of the assembly</param>
         public void RegisterAssembly(string assemblyName, Assembly targetAssembly)
         {
-            if (!registeredAssemblies.ContainsKey(assemblyName))
-            {
-                registeredAssemblies.Add(assemblyName, targetAssembly);
-            }
-            else
+            // Already-known value, so the Lazy just hands it back - no resolution runs.
+            if (!registeredAssemblies.TryAdd(assemblyName, new Lazy<Assembly>(() => targetAssembly)))
             {
                 throw new Exception(Messages.AssemblyNameAlreadyRegisteredError);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the CLR-Type a construction-string refers to, reflection-only - WITHOUT creating an
+        /// instance. Useful for introspecting a plugin (e.g. reading class-level attributes) without
+        /// loading it. Returns false (and logs) if the type cannot be resolved.
+        /// </summary>
+        /// <param name="constructionString">a plugin construction-string ([Assembly]&lt;FullType&gt;params)</param>
+        /// <param name="pluginType">the resolved type, or null</param>
+        public bool TryGetPluginType(string constructionString, out Type pluginType)
+        {
+            pluginType = null;
+            if (string.IsNullOrWhiteSpace(constructionString))
+            {
+                return false;
+            }
+
+            try
+            {
+                PluginConstructionElement parsed =
+                    PluginConstructorParser.ParsePluginString(constructionString, null, ScopeFormatter);
+                Assembly a;
+                if (registeredAssemblies.TryGetValue(parsed.AssemblyName, out var known))
+                {
+                    a = known.Value;
+                }
+                else
+                {
+                    a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext);
+                }
+
+                pluginType = a?.GetType(parsed.TypeName);
+                return pluginType != null;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Could not resolve the plugin type for '{constructionString}': {ex.OutlineException()}",
+                    LogSeverity.Warning);
+                return false;
             }
         }
 
@@ -1207,28 +1261,31 @@ namespace ITVComponents.Plugins
                 Assembly a;
                 PluginConstructionElement parsed =
                     PluginConstructorParser.ParsePluginString(loggerString, customVariables, ScopeFormatter);
-                lock (registeredAssemblies)
+                // Lock-free: the ConcurrentDictionary handles the races the former lock guarded, and the
+                // Lazy value makes sure a given assembly is resolved (loaded) exactly once even if two
+                // threads request the same key simultaneously.
+                if (registeredAssemblies.TryGetValue(parsed.AssemblyName, out var known))
                 {
-                    if (!registeredAssemblies.ContainsKey(parsed.AssemblyName))
+                    a = known.Value;
+                }
+                else
+                {
+                    string pth = Path.GetDirectoryName(parsed.AssemblyName);
+                    if (!string.IsNullOrEmpty(pth))
                     {
-                        string pth = Path.GetDirectoryName(parsed.AssemblyName);
-                        if (pth != string.Empty)
-                        {
-                            if (!registeredDirectories.Contains(pth))
-                            {
-                                registeredDirectories.Add(pth);
-                            }
-                        }
+                        registeredDirectories.TryAdd(pth, 0);
+                    }
 
+                    if (reflectOnly)
+                    {
+                        // Reflect-only: resolve transiently, do NOT cache (mirrors the former behaviour).
                         a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext);
-                        if (!reflectOnly)
-                        {
-                            registeredAssemblies.Add(parsed.AssemblyName, a);
-                        }
                     }
                     else
                     {
-                        a = registeredAssemblies[parsed.AssemblyName];
+                        a = registeredAssemblies.GetOrAdd(parsed.AssemblyName,
+                            name => new Lazy<Assembly>(
+                                () => AssemblyResolver.FindAssemblyByFileName(name, reflectionContext))).Value;
                     }
                 }
 
@@ -1508,14 +1565,18 @@ namespace ITVComponents.Plugins
             {
 
                 var plugs = plugins(pluginScope);
+                var loaders = plugs.DynamicLoaders;
                 IDynamicLoader loader;
-                if (plugs.DynamicLoaders.Length > 1)
+                if (loaders.Length > 1)
                 {
-                    loader = plugs.DynamicLoaders.First(n => n.HasScopedPlugin(pluginName.UniqueNameRaw));
+                    // FirstOrDefault, not First: with several loaders present (now that scopes also see the
+                    // main factory's loaders) it is normal that none of them knows this particular name -
+                    // that must yield null, not throw.
+                    loader = loaders.FirstOrDefault(n => n.HasScopedPlugin(pluginName.UniqueNameRaw));
                 }
-                else if (plugs.DynamicLoaders.Length == 1)
+                else if (loaders.Length == 1)
                 {
-                    loader = plugs.DynamicLoaders[0];
+                    loader = loaders[0];
                 }
                 else
                 {
