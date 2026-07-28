@@ -89,13 +89,13 @@ namespace ITVComponents.Workflow
         public string Description { get; set; }
 
         /// <summary>
-        /// Das aufgeloeste Datenobjekt fuer die Formatierung der <see cref="Description"/> (aus
-        /// <see cref="UserActivityNode.DescriptionData"/>, ausgewertet beim OEFFNEN ueber den aktuellen
-        /// Variablen-Stack), oder null. Die Anzeige wendet damit die Prototyp-Formatierung auf die
-        /// uebersetzte Beschreibung an. Bleibt bewusst ein <c>object</c> - der Descriptor wird in-process an
+        /// Das aufgeloeste Datenobjekt fuer die Formatierung von <see cref="Title"/> und
+        /// <see cref="Description"/> (aus <see cref="UserActivityNode.FormatData"/>, ausgewertet beim OEFFNEN
+        /// ueber den aktuellen Variablen-Stack), oder null. Die Anzeige wendet damit die Prototyp-Formatierung
+        /// auf die uebersetzten Texte an. Bleibt bewusst ein <c>object</c> - der Descriptor wird in-process an
         /// die Maske gereicht, nicht serialisiert.
         /// </summary>
-        public object DescriptionData { get; set; }
+        public object FormatData { get; set; }
 
         /// <summary>Wann die Aufgabe entstanden ist (UTC).</summary>
         public DateTime? CreatedUtc { get; set; }

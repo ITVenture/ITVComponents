@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
+using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Workflow.Activities;
@@ -893,9 +895,17 @@ namespace ITVComponents.Workflow
         /// <summary>
         /// Der Titel, unter dem die Aufgabe in der Arbeitsliste steht. Ein
         /// <see cref="UserActivityNode.TitleExpression"/> gewinnt (dann ist der Titel Klartext), sonst
-        /// bleibt <see cref="UserActivityNode.Title"/> unaufgeloest stehen - Kultur-JSON wird erst beim
-        /// Anzeigen uebersetzt.
+        /// bleibt <see cref="UserActivityNode.Title"/> stehen - Kultur-JSON wird erst beim Anzeigen
+        /// uebersetzt.
         /// </summary>
+        /// <remarks>
+        /// Der statische Titel wird - falls ein <see cref="UserActivityNode.FormatData"/>-Objekt vorliegt -
+        /// hier schon mit den Werten des aktuellen Scopes formatiert (siehe <see cref="ApplyTitleFormat"/>).
+        /// Das geschieht bewusst BEIM PARKEN und nicht erst beim Anzeigen: nur so steht der fertige Titel
+        /// auch in der Arbeitsliste (eine reine Datenbankabfrage, die kein Skript auswertet), und der Titel
+        /// bleibt dabei mehrsprachig - je Kultur-Property wird der Prototyp formatiert, statt den Titel auf
+        /// die zufaellige Server-Kultur zu reduzieren.
+        /// </remarks>
         private string ResolveTaskTitle(WorkflowInstance instance, Dictionary<string, object> scope,
             UserActivityNode node)
         {
@@ -923,7 +933,89 @@ namespace ITVComponents.Workflow
                 }
             }
 
-            return string.IsNullOrWhiteSpace(node.Title) ? node.Name : node.Title;
+            string title = string.IsNullOrWhiteSpace(node.Title) ? node.Name : node.Title;
+            return ApplyTitleFormat(instance, scope, node, title);
+        }
+
+        /// <summary>
+        /// Formatiert den (statischen) Titel mit dem <see cref="UserActivityNode.FormatData"/>-Objekt, sofern
+        /// eines deklariert ist. Ist <paramref name="title"/> ein Kultur-JSON-Objekt, wird JEDE Sprach-Property
+        /// als Prototyp formatiert und das Objekt neu zusammengesetzt (bleibt mehrsprachig); sonst wird der
+        /// Literal-Text formatiert. Ein Fehler laesst den Titel unformatiert (kosmetisch), wird aber
+        /// protokolliert.
+        /// </summary>
+        private string ApplyTitleFormat(WorkflowInstance instance, Dictionary<string, object> scope,
+            UserActivityNode node, string title)
+        {
+            if (string.IsNullOrWhiteSpace(node.FormatData) || string.IsNullOrEmpty(title))
+            {
+                return title;
+            }
+
+            object data;
+            try
+            {
+                data = evaluator.Evaluate(node.FormatData, scope);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Format data of user task '{node.Id}' in instance '{instance.Id}' could not be evaluated " +
+                    $"for the title: {ex.OutlineException()}", LogSeverity.Warning);
+                return title;
+            }
+
+            if (data == null)
+            {
+                return title;
+            }
+
+            try
+            {
+                return FormatMaybeCultureJson(title, data);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Title formatting of user task '{node.Id}' in instance '{instance.Id}' failed: " +
+                    $"{ex.OutlineException()}", LogSeverity.Warning);
+                return title;
+            }
+        }
+
+        /// <summary>
+        /// Wendet das Format-Datenobjekt auf einen Text an. Ist der Text ein Kultur-JSON-Objekt
+        /// (<c>{"de":"...","fr":"..."}</c>), wird JEDE (String-)Property als Prototyp formatiert und das Objekt
+        /// neu serialisiert - so bleibt der Text mehrsprachig. Sonst wird der Literal-Text formatiert.
+        /// </summary>
+        private static string FormatMaybeCultureJson(string text, object data)
+        {
+            string trimmed = text.Trim();
+            if (trimmed.StartsWith("{") && trimmed.EndsWith("}"))
+            {
+                try
+                {
+                    using JsonDocument doc = JsonDocument.Parse(trimmed);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+                        foreach (JsonProperty prop in doc.RootElement.EnumerateObject())
+                        {
+                            map[prop.Name] = prop.Value.ValueKind == JsonValueKind.String
+                                ? data.FormatText(prop.Value.GetString(), TextFormat.DefaultFormatPolicyWithPrimitives)
+                                : prop.Value.ToString();
+                        }
+
+                        return JsonSerializer.Serialize(map);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Sieht aus wie JSON, ist aber keins - als Literal-Text formatieren (unten).
+                }
+            }
+
+            return data.FormatText(text, TextFormat.DefaultFormatPolicyWithPrimitives);
         }
 
         /// <summary>
@@ -1062,20 +1154,20 @@ namespace ITVComponents.Workflow
             Dictionary<string, object> taskScope = Scope(instance, token);
             IDictionary<string, object> payload = ResolveInputs(instance, taskScope, node.Inputs, node.Id);
 
-            // Datenobjekt fuer die Formatierung der Beschreibung (optional). Ein Fehler hier darf die
-            // Aufgabe NICHT unanzeigbar machen - die Beschreibung wird dann eben unformatiert gezeigt -,
+            // Datenobjekt fuer die Formatierung von Titel/Beschreibung (optional). Ein Fehler hier darf die
+            // Aufgabe NICHT unanzeigbar machen - Titel/Beschreibung werden dann eben unformatiert gezeigt -,
             // muss aber ins Log, sonst sucht man den fehlenden Wert an der falschen Stelle.
-            object descriptionData = null;
-            if (!string.IsNullOrWhiteSpace(node.DescriptionData))
+            object formatData = null;
+            if (!string.IsNullOrWhiteSpace(node.FormatData))
             {
                 try
                 {
-                    descriptionData = evaluator.Evaluate(node.DescriptionData, taskScope);
+                    formatData = evaluator.Evaluate(node.FormatData, taskScope);
                 }
                 catch (Exception ex)
                 {
                     LogEnvironment.LogEvent(
-                        $"DescribeUserTask: description data of node '{node.Id}' in instance '{instance.Id}' " +
+                        $"DescribeUserTask: format data of node '{node.Id}' in instance '{instance.Id}' " +
                         $"could not be evaluated: {ex.OutlineException()}", LogSeverity.Warning);
                 }
             }
@@ -1092,7 +1184,7 @@ namespace ITVComponents.Workflow
                 AssignedTo = token.AssignedTo,
                 Title = token.TaskTitle,
                 Description = node.Description,
-                DescriptionData = descriptionData,
+                FormatData = formatData,
                 CreatedUtc = token.TaskCreatedUtc,
                 DueUtc = token.TaskDueUtc,
                 Payload = new Dictionary<string, object>(payload, StringComparer.Ordinal),

@@ -338,16 +338,16 @@ namespace ITVComponents.Workflow.Model
         public string Description { get; set; }
 
         /// <summary>
-        /// Optionaler CScript-Ausdruck, der ein <b>Datenobjekt</b> fuer die Formatierung der
-        /// <see cref="Description"/> liefert (z.B. <c>{ InvoiceNo: rechnungsNr }</c>). Ist er gesetzt, wird
-        /// die (bereits uebersetzte) Beschreibung als Formatierungs-Prototyp behandelt: Platzhalter wie
-        /// <c>[InvoiceNo:0000000000]</c> werden aus den Membern dieses Objekts gefuellt (siehe
-        /// <c>ITVComponents.Formatting</c>). So bleibt die Beschreibung mehrsprachig (je Kultur ein Prototyp),
-        /// waehrend die konkreten Werte aus dem aktuellen Variablen-Stack kommen. Ausgewertet beim OEFFNEN der
-        /// Aufgabe (nicht beim Parken), damit der aktuelle Stand einfliesst. Leer/null = die Beschreibung wird
-        /// unveraendert angezeigt (keine Formatierung).
+        /// Optionaler CScript-Ausdruck, der ein <b>Datenobjekt</b> fuer die Formatierung von
+        /// <see cref="Title"/> UND <see cref="Description"/> liefert (z.B. <c>{ InvoiceNo: rechnungsNr }</c>).
+        /// Ist er gesetzt, werden Titel und Beschreibung (nach der Kultur-Aufloesung) als Formatierungs-
+        /// Prototyp behandelt: Platzhalter wie <c>[InvoiceNo:0000000000]</c> werden aus den Membern dieses
+        /// Objekts gefuellt (siehe <c>ITVComponents.Formatting</c>). So bleiben Titel/Beschreibung
+        /// mehrsprachig (je Kultur ein Prototyp), waehrend die konkreten Werte aus dem aktuellen
+        /// Variablen-Stack kommen. Ausgewertet beim OEFFNEN der Aufgabe (nicht beim Parken), damit der
+        /// aktuelle Stand einfliesst. Leer/null = Titel und Beschreibung werden unveraendert angezeigt.
         /// </summary>
-        public string DescriptionData { get; set; }
+        public string FormatData { get; set; }
 
         /// <summary>
         /// Datenfluss <b>hinein</b>: was die Maske zu sehen bekommt. Die Bindungen werden aufgeloest, wenn

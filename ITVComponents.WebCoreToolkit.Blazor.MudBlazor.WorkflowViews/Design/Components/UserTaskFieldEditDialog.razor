@@ -36,7 +36,8 @@
                       ValueChanged="@(v => Field.Label = string.IsNullOrEmpty(v) ? null : v)" />
 
         <MudText Typo="Typo.caption" Class="mt-3">Help text (plain text or culture JSON)</MudText>
-        <MudTextField @bind-Value="Field.HelpText" Margin="Margin.Dense" Lines="2" />
+        <CScriptField @ref="helpField" Language="json" Height="100" Value="@(Field.HelpText ?? string.Empty)"
+                      ValueChanged="@(v => Field.HelpText = string.IsNullOrEmpty(v) ? null : v)" />
 
         @if (Field.Kind == UserTaskFieldKind.Choice)
         {
@@ -72,6 +73,7 @@
     [Parameter] public bool IsNew { get; set; }
 
     private CScriptField? labelField;
+    private CScriptField? helpField;
 
     private string ChoiceText
         => string.Join(Environment.NewLine,
@@ -101,11 +103,17 @@
             return;
         }
 
-        // Monaco (Label) meldet seinen Text erst beim Verlassen - vor dem Schliessen einmal abholen.
+        // Monaco (Label/Help) meldet seinen Text erst beim Verlassen - vor dem Schliessen einmal abholen.
         if (labelField is not null)
         {
             string v = await labelField.GetValueAsync();
             Field.Label = string.IsNullOrEmpty(v) ? null : v;
+        }
+
+        if (helpField is not null)
+        {
+            string v = await helpField.GetValueAsync();
+            Field.HelpText = string.IsNullOrEmpty(v) ? null : v;
         }
 
         MudDialog.Close(DialogResult.Ok(new Result(Field, false)));

@@ -152,14 +152,17 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
     Aufgaben-Permission genügt.
   - **View key** — optional: Schlüssel einer vom Host registrierten Komponente. Leer = erst Task-Key, dann
     generisches Formular.
-  - **Title / Description** — Anzeige (reiner Text oder Kultur-JSON).
-  - **Description data (CScript-Objekt)** — optional. Ist es gesetzt, wird die (übersetzte) **Beschreibung** als
-    Formatierungs-**Prototyp** behandelt: der Ausdruck liefert ein Objekt, dessen Member die Platzhalter füllen.
-    Beispiel: Beschreibung `{"de":"Rechnung [InvoiceNo:0000000000]"}`, Description-Data
-    `{ InvoiceNo: rechnungsNr }` → angezeigt „Rechnung 0000012345". So bleibt die Beschreibung mehrsprachig,
-    während die konkreten Werte aus dem **aktuellen Variablen-Stack** kommen (ausgewertet beim Öffnen der
-    Aufgabe). Leer = die Beschreibung wird unverändert gezeigt. (Formatierungs-Syntax: siehe
-    `ITVComponents.Formatting`.)
+  - **Title / Description** — Anzeige, mehrsprachig als **Kultur-JSON** (`{"de":"…","fr":"…"}`) oder reiner Text;
+    im Editor als JSON-Editor dargestellt.
+  - **Format data (CScript-Objekt)** — optional. Ist es gesetzt, werden **Titel UND Beschreibung** (nach der
+    Kultur-Auflösung) als Formatierungs-**Prototyp** behandelt: der Ausdruck liefert ein Objekt, dessen Member
+    die Platzhalter füllen. Beispiel: Beschreibung `{"de":"Rechnung [InvoiceNo:0000000000]"}`, Format-Data
+    `{ InvoiceNo: rechnungsNr }` → angezeigt „Rechnung 0000012345". Die Werte kommen aus dem **Variablen-Stack**.
+    Ist der Text **Kultur-JSON**, wird **jede Sprach-Property** formatiert — der Text bleibt also mehrsprachig.
+    Leer = Titel und Beschreibung werden unverändert gezeigt. (Formatierungs-Syntax: siehe `ITVComponents.Formatting`.)
+    - **Timing:** Der **Titel** wird schon **beim Entstehen der Aufgabe** formatiert und so eingefroren — damit er
+      auch in der **Arbeitsliste** fertig (und mit dem damaligen Stand) steht. Die **Beschreibung** wird erst
+      **beim Öffnen** formatiert, zeigt also den **aktuellen** Stand.
   - **Title from the data (CScript)** — optionaler Ausdruck, der den Titel aus den Daten bildet (Ergebnis ist
     reiner Text, daher nicht mehrsprachig). Gewinnt über den statischen Titel.
   - **Assignment (CScript → user name)** — wird **einmal** ausgewertet, wenn die Aufgabe erscheint. Leer =

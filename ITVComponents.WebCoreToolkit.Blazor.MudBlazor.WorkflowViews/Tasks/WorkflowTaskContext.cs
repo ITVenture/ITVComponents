@@ -57,16 +57,20 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks
         /// <summary>Die Deklaration der generischen Maske (leer, wenn die Aufgabe nur bestaetigt wird).</summary>
         public IReadOnlyList<UserTaskField> FormFields => Descriptor.FormFields;
 
-        /// <summary>Der uebersetzte Titel (Kultur-JSON ist hier bereits aufgeloest).</summary>
+        /// <summary>
+        /// Der uebersetzte Titel (Kultur-JSON ist hier bereits aufgeloest). Die Prototyp-Formatierung mit dem
+        /// Format-Datenobjekt ist beim Titel schon BEIM PARKEN passiert (damit er auch in der Arbeitsliste
+        /// fertig steht und mit dem damaligen Stand eingefroren ist) - hier wird er nur noch uebersetzt.
+        /// </summary>
         public string? Title => translate(Descriptor.Title ?? string.Empty);
 
         /// <summary>
         /// Die uebersetzte Beschreibung. Ist am Knoten ein Formatierungs-Datenobjekt hinterlegt
-        /// (<see cref="UserTaskDescriptor.DescriptionData"/>, aus <see cref="UserActivityNode.DescriptionData"/>),
-        /// wird die uebersetzte Beschreibung als <b>Prototyp</b> behandelt und mit den Werten des Objekts
-        /// formatiert (Platzhalter wie <c>[InvoiceNo:0000000000]</c>). Ohne Datenobjekt bleibt sie unveraendert.
+        /// (<see cref="UserTaskDescriptor.FormatData"/>, aus <see cref="UserActivityNode.FormatData"/>), wird
+        /// die uebersetzte Beschreibung als <b>Prototyp</b> behandelt und mit den Werten des Objekts formatiert
+        /// (Platzhalter wie <c>[InvoiceNo:0000000000]</c>). Ohne Datenobjekt bleibt sie unveraendert.
         /// </summary>
-        public string? Description => FormatDescription(translate(Descriptor.Description ?? string.Empty));
+        public string? Description => Format(translate(Descriptor.Description ?? string.Empty));
 
         /// <summary>
         /// Uebersetzt einen Wert aus der Definition (Klartext oder Kultur-JSON) in die Kultur des
@@ -83,28 +87,27 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks
             => complete(result);
 
         /// <summary>
-        /// Wendet die Prototyp-Formatierung auf die (bereits uebersetzte) Beschreibung an, wenn ein
-        /// Datenobjekt vorliegt. Ohne Datenobjekt - der Normalfall - bleibt der Text unveraendert; so kann
-        /// eine bestehende Beschreibung mit eckigen Klammern nicht versehentlich als Format gedeutet werden.
-        /// Ein Formatierungsfehler darf die Aufgabe nicht unanzeigbar machen (dann eben unformatiert), muss
-        /// aber ins Log.
+        /// Wendet die Prototyp-Formatierung auf einen (bereits uebersetzten) Text an - Titel oder
+        /// Beschreibung -, wenn ein Datenobjekt vorliegt. Ohne Datenobjekt - der Normalfall - bleibt der Text
+        /// unveraendert; so kann ein bestehender Text mit eckigen Klammern nicht versehentlich als Format
+        /// gedeutet werden. Ein Formatierungsfehler darf die Aufgabe nicht unanzeigbar machen (dann eben
+        /// unformatiert), muss aber ins Log.
         /// </summary>
-        private string? FormatDescription(string? translated)
+        private string? Format(string? translated)
         {
-            if (string.IsNullOrEmpty(translated) || Descriptor.DescriptionData is null)
+            if (string.IsNullOrEmpty(translated) || Descriptor.FormatData is null)
             {
                 return translated;
             }
 
             try
             {
-                return Descriptor.DescriptionData.FormatText(translated,
-                    TextFormat.DefaultFormatPolicyWithPrimitives);
+                return Descriptor.FormatData.FormatText(translated, TextFormat.DefaultFormatPolicyWithPrimitives);
             }
             catch (Exception ex)
             {
                 LogEnvironment.LogEvent(
-                    $"WorkflowTaskContext: description formatting failed for instance '{InstanceId}' token " +
+                    $"WorkflowTaskContext: text formatting failed for instance '{InstanceId}' token " +
                     $"'{TokenId}': {ex.OutlineException()}", LogSeverity.Warning);
                 return translated;
             }

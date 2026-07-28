@@ -59,27 +59,35 @@
         <MudTabPanel Text="View settings" Icon="@Icons.Material.Filled.Visibility">
             <MudTextField @bind-Value="Node.ViewKey" Label="View key" Margin="Margin.Dense"
                           HelperText="Optional: the key of a component the host registered. Empty = the task key is tried, then the generic form." />
-            <MudTextField @bind-Value="Node.Title" Label="Title" Margin="Margin.Dense" Class="mt-2"
-                          HelperText="@CultureHint" />
+
+            @* Titel und Beschreibung sind mehrsprachig (Kultur-JSON) - deshalb als JSON-Editor. *@
+            <MudText Typo="Typo.caption" Class="mt-3">Title (plain text or culture JSON)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@CultureHint</MudText>
+            <CScriptField @ref="titleJsonField" Language="json" Height="90" Value="@Node.Title"
+                          ValueChanged="@(v => Node.Title = v)" />
+
             <MudText Typo="Typo.caption" Class="mt-3">Title from the data (CScript)</MudText>
             <MudText Typo="Typo.caption" Class="mud-text-secondary">
                 Optional. Wins over the static title — but the result is plain text and therefore not multilingual.
             </MudText>
-            <CScriptField @ref="titleField" Height="120" Value="@Node.TitleExpression"
+            <CScriptField @ref="titleField" Height="90" Value="@Node.TitleExpression"
                           ValueChanged="@(v => Node.TitleExpression = v)" />
-            <MudTextField @bind-Value="Node.Description" Label="Description" Margin="Margin.Dense" Lines="2"
-                          Class="mt-2" HelperText="@CultureHint" />
 
-            <MudText Typo="Typo.caption" Class="mt-3">Description data (CScript object for formatting)</MudText>
+            <MudText Typo="Typo.caption" Class="mt-3">Description (plain text or culture JSON)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@CultureHint</MudText>
+            <CScriptField @ref="descField" Language="json" Height="90" Value="@Node.Description"
+                          ValueChanged="@(v => Node.Description = v)" />
+
+            @* Format data: EIN Datenobjekt fuer die Formatierung von Titel UND Beschreibung. *@
+            <MudText Typo="Typo.caption" Class="mt-3">Format data (CScript object for title &amp; description)</MudText>
             <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                Optional. Returns an object whose members fill placeholders in the description — e.g.
-                <code>{ InvoiceNo: invoiceNumber }</code> for a description like
-                <code>Invoice [InvoiceNo:0000000000]</code>. Evaluated over the current variables when the task
-                is opened; the description stays multilingual (one prototype per culture). Empty = the
-                description is shown as-is.
+                Optional. Returns an object whose members fill placeholders in <b>title and description</b> — e.g.
+                <code>{ InvoiceNo: invoiceNumber }</code> for a text like <code>Invoice [InvoiceNo:0000000000]</code>.
+                Evaluated over the current variables when the task is opened; the texts stay multilingual (one
+                prototype per culture). Empty = title and description are shown as-is.
             </MudText>
-            <CScriptField @ref="descDataField" Height="120" Value="@Node.DescriptionData"
-                          ValueChanged="@(v => Node.DescriptionData = v)" />
+            <CScriptField @ref="formatDataField" Height="120" Value="@Node.FormatData"
+                          ValueChanged="@(v => Node.FormatData = v)" />
         </MudTabPanel>
 
         @* --- Input settings (generische Maske) --- *@
@@ -125,11 +133,14 @@
 
     private CScriptField? assignField;
     private CScriptField? titleField;
-    private CScriptField? descDataField;
+    private CScriptField? titleJsonField;
+    private CScriptField? descField;
+    private CScriptField? formatDataField;
 
     /// <summary>
-    /// Holt den aktuellen Text der Monaco-Felder (Assignment/TitleExpression/DescriptionData) ins Modell.
-    /// Monaco meldet seinen Wert erst beim Verlassen - der Editor ruft dies vor jedem Speichern/Schliessen.
+    /// Holt den aktuellen Text der Monaco-Felder (Assignment, Title, TitleExpression, Description, FormatData)
+    /// ins Modell. Monaco meldet seinen Wert erst beim Verlassen - der Editor ruft dies vor jedem
+    /// Speichern/Schliessen.
     /// </summary>
     public async Task FlushAsync()
     {
@@ -143,14 +154,24 @@
             Node.Assignment = await assignField.GetValueAsync();
         }
 
+        if (titleJsonField is not null)
+        {
+            Node.Title = await titleJsonField.GetValueAsync();
+        }
+
         if (titleField is not null)
         {
             Node.TitleExpression = await titleField.GetValueAsync();
         }
 
-        if (descDataField is not null)
+        if (descField is not null)
         {
-            Node.DescriptionData = await descDataField.GetValueAsync();
+            Node.Description = await descField.GetValueAsync();
+        }
+
+        if (formatDataField is not null)
+        {
+            Node.FormatData = await formatDataField.GetValueAsync();
         }
     }
 
