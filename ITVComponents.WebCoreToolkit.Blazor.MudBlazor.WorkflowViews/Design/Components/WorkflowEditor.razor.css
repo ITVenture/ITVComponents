@@ -1,0 +1,117 @@
+/* Layout des Workflow-Designers. Ziel: das Canvas fuellt genau die verfuegbare Breite, die Seite muss
+   nie horizontal scrollen. Links eine schmale Symbol-Toolbox, rechts KEIN Dauer-Panel mehr (die
+   Eigenschaften kommen als Popup). Grosse Graphen erreicht man ueber Zoom/Pan im Canvas.
+
+   Hinweis zu ::deep: Blazor-Scoped-CSS setzt sein b-<hash>-Attribut nur auf die HIER geschriebenen
+   HTML-Elemente, nicht auf die inneren Elemente von MudBlazor-Komponenten. Alles, was eine
+   Mud-Komponente (MudPaper/MudButton/...) trifft, muss deshalb ueber ".wf-designer ::deep ..." laufen -
+   der aeussere <div class="wf-designer"> traegt das Scope-Attribut und oeffnet ::deep. */
+
+.wf-designer {
+    width: 100%;
+}
+
+.wf-designer-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    width: 100%;
+}
+
+/* Canvas + Bedienleiste nehmen den ganzen Rest ein; min-width:0 verhindert, dass das breite SVG die
+   Flex-Zeile aufblaeht und die Seite doch horizontal scrollt. */
+.wf-canvas-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.wf-canvas-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px 6px 4px;
+    min-height: 40px;
+    flex-wrap: wrap;
+}
+
+.wf-sel-label {
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wf-hint {
+    white-space: nowrap;
+}
+
+.wf-canvas-host {
+    position: relative;
+    height: 72vh;
+    overflow: hidden;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 6px;
+}
+
+/* Zoom-/Fit-Bedienung, ueber dem Canvas rechts unten schwebend. */
+.wf-zoom {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 8px;
+    padding: 2px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .2);
+}
+
+/* Legenden-Punkte (normaler / Fehler-Pfad) in der Bedienleiste. */
+.wf-legend {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 2px;
+}
+
+.wf-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.wf-dot-ok {
+    background: var(--mud-palette-success);
+}
+
+.wf-dot-err {
+    background: var(--mud-palette-error);
+}
+
+/* --- MudBlazor-Kinder: nur ueber ::deep erreichbar ---------------------------------------- */
+
+/* Schmale Symbol-Toolbox: eine Spalte quadratischer Icon-Buttons, oben ausgerichtet. */
+.wf-designer ::deep .wf-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    align-self: flex-start;
+    width: 52px;
+}
+
+.wf-designer ::deep .wf-rail-btn {
+    min-width: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+}
+
+.wf-designer ::deep .wf-rail-btn i {
+    font-size: 18px;
+    line-height: 1;
+}

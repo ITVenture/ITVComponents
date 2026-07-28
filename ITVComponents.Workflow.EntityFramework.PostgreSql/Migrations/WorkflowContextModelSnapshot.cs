@@ -75,14 +75,47 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<string>("TokenId")
                         .HasColumnType("text");
 
+                    b.Property<string>("AssignedTo")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ClaimedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ClaimedUntil")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("DueUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("NodeId")
                         .HasColumnType("text");
 
+                    b.Property<string>("SplitTokenId")
+                        .HasColumnType("text");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("TaskCreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("TaskDueUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TaskKey")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TaskPermission")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TaskTitle")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("VariablesJson")
+                        .HasColumnType("text");
 
                     b.Property<string>("WaitingForChildInstanceId")
                         .HasColumnType("text");
@@ -95,6 +128,8 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 
                     b.HasKey("InstanceId", "TokenId");
 
+                    b.HasIndex("AssignedTo");
+
                     b.HasIndex("DueUtc");
 
                     b.HasIndex("InstanceId");
@@ -104,6 +139,8 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.HasIndex("WaitingSignal");
 
                     b.HasIndex("WaitingTarget");
+
+                    b.HasIndex("TenantId", "TaskKey", "Status");
 
                     b.ToTable("Tokens");
                 });

@@ -1,0 +1,30 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Konfiguriert den End-Knoten: das ERGEBNIS des Workflows. Ist etwas deklariert, besteht der
+    Variablen-Stack beim Abschluss genau daraus - und damit sieht ein Aufrufer (CallWorkflow) genau
+    dieses Ergebnis. Leer = wie bisher, der komplette Stack ist das Ergebnis.
+*@
+
+@if (Node is not null)
+{
+    <MudText Typo="Typo.caption" Class="mt-4">Result</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Map instance variables to result names. Declared here, the scope is reduced to exactly this result when
+        the workflow completes - that result is what a calling workflow receives. Leave empty to return the
+        whole variable stack.
+    </MudText>
+    <OutputBindingList Bindings="Node.Outputs" SourcePlaceholder="variable" TargetPlaceholder="result name"
+                       AddPlaceholder="new result" />
+
+    @if (Node.Outputs.Count > 0)
+    {
+        <ScopeModeSection ShowSwitch="false" Mode="ActivityScopeMode.Replace" RetainVariables="Node.RetainVariables"
+                          HelperText="@("Variables kept here survive besides the result.")" />
+    }
+}
+
+@code {
+    /// <summary>Der zu konfigurierende End-Knoten.</summary>
+    [Parameter] public EndNode? Node { get; set; }
+}

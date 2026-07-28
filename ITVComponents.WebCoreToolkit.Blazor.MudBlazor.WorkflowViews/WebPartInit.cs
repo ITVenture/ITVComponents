@@ -34,6 +34,15 @@ public static class WebPartInit
         // Ohne diese Zeile werden die @page-Seiten des Moduls vom Host-Router nicht gefunden.
         services.AddBlazorRoutingAssembly(typeof(WebPartInit).Assembly, partTypeLoadBehavior);
 
+        // BlazorMonaco treibt die CScript-Felder im Editor (CScriptField.razor). Der Host emittiert
+        // die Skripte mit seinem einen <ITVentureReferences />; damit muss er sie NICHT von Hand als
+        // <script>-Tags setzen. Reihenfolge zaehlt (loader.js definiert das AMD-require, das
+        // editor.main.js braucht) - AddToolkitClientScript behaelt sie bei und ignoriert Duplikate,
+        // die AdminViews mit denselben drei Zeilen anmeldet.
+        services.AddToolkitClientScript("_content/BlazorMonaco/jsInterop.js");
+        services.AddToolkitClientScript("_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js");
+        services.AddToolkitClientScript("_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js");
+
         if (options is { ConfigureViews: true })
         {
             services.AddWorkflowViews(partTypeLoadBehavior, options);

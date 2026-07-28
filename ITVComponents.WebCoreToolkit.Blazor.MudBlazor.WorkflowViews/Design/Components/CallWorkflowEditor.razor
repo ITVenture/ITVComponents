@@ -1,0 +1,102 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Tab-basierter Editor für einen CallWorkflowNode (Subworkflow-Aufruf). Reiter: General (aufzurufende
+    Definition + Version), Variables (Datenfluss hinein/heraus + Scope), Error handling (nur relevant,
+    wenn eine Fehler-Verbindung existiert).
+*@
+
+@if (Node is not null)
+{
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4" MinimumTabWidth="70px">
+        @* --- General --- *@
+        <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Info">
+            <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+            @if (SubDefinitionIds is { Count: > 0 })
+            {
+                <MudSelect T="string" Value="@Node.SubDefinitionId" ValueChanged="@(v => Node.SubDefinitionId = v)"
+                           Label="Definition" Margin="Margin.Dense" Clearable="true">
+                    @foreach (var id in SubDefinitionIds)
+                    {
+                        <MudSelectItem T="string" Value="@id">@id</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else
+            {
+                <MudTextField T="string" @bind-Value="Node.SubDefinitionId" Label="Definition id" Margin="Margin.Dense" />
+            }
+            <MudNumericField T="int?" Value="@Node.SubDefinitionVersion" ValueChanged="@(v => Node.SubDefinitionVersion = v)"
+                             Label="Version (empty = latest)" Margin="Margin.Dense" Clearable="true" Min="1" />
+        </MudTabPanel>
+
+        @* --- Variables --- *@
+        <MudTabPanel Text="Variables" Icon="@Icons.Material.Filled.SwapHoriz">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mb-1">
+                Inputs feed the child's start variables (constant/variable/expression of the parent); outputs map
+                the child's end variables back onto parent variables.
+            </MudText>
+            <BindingMappingTables Inputs="Node.Inputs" Outputs="Node.Outputs"
+                                  InputsTitle="Inputs → child start variables" OutputsTitle="Outputs → parent variables"
+                                  AddInputLabel="Add child variable" AddOutputLabel="Add output"
+                                  InputNameHeader="Child variable" InputNameLabel="Child variable"
+                                  OutputSourceLabel="Child variable" OutputTargetLabel="Parent variable" />
+            <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
+                              RetainVariables="Node.RetainVariables"
+                              HelperText="@("After this call the parent scope contains only the outputs mapped above plus the variables kept here. Place on a single branch (after a join), not inside a parallel region.")" />
+        </MudTabPanel>
+
+        @* --- Error handling --- *@
+        <MudTabPanel Text="Error handling" Icon="@Icons.Material.Filled.ErrorOutline">
+            @if (string.IsNullOrEmpty(Node.ErrorFlowId))
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    No error output. Drag from the red port in the graph to add one — a failed sub-workflow then
+                    takes that flow instead of faulting the caller.
+                </MudText>
+            }
+            else
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <MudIcon Icon="@Icons.Material.Filled.CallSplit" Color="Color.Error" Size="Size.Small" />
+                    <MudText Typo="Typo.body2">Error output → <b>@ErrorTargetName(Node.ErrorFlowId)</b></MudText>
+                    <MudSpacer />
+                    <MudTooltip Text="Make it a normal connection again">
+                        <MudIconButton Icon="@Icons.Material.Filled.LinkOff" Size="Size.Small"
+                                       OnClick="@(() => Node.ErrorFlowId = null)" />
+                    </MudTooltip>
+                </MudStack>
+                <MudTextField @bind-Value="Node.ErrorVariable" Label="Error message → variable" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="Node.AttemptVariable" Label="Attempt count → variable" Margin="Margin.Dense" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    The single other outgoing flow is the success path. With an attempt variable, an error flow that
+                    loops back retries the sub-workflow (a fresh child per attempt).
+                </MudText>
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Subworkflow-Aufruf-Knoten.</summary>
+    [Parameter] public CallWorkflowNode? Node { get; set; }
+
+    /// <summary>Die verfügbaren (aufrufbaren) Definition-Ids für das Dropdown, oder null (dann Freitext).</summary>
+    [Parameter] public IReadOnlyList<string>? SubDefinitionIds { get; set; }
+
+    /// <summary>Die Definition - für die Anzeige des Fehler-Zielknotens.</summary>
+    [Parameter] public WorkflowDefinition? Def { get; set; }
+
+    private string ErrorTargetName(string flowId)
+    {
+        SequenceFlow? f = Def?.Flows.FirstOrDefault(x => x.Id == flowId);
+        if (f is null)
+        {
+            return "(missing)";
+        }
+
+        WorkflowNode? n = Def?.GetNode(f.TargetId);
+        return n is null ? (f.TargetId ?? "?") : (string.IsNullOrEmpty(n.Name) ? n.Id : n.Name);
+    }
+}

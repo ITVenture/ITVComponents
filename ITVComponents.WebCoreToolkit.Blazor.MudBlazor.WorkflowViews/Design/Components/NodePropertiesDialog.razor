@@ -1,0 +1,212 @@
+@using ITVComponents.Workflow.Activities
+@using ITVComponents.Workflow.Model
+
+@*
+    Eigenschaften-Popup fuer einen Knoten ODER eine Verbindung. Loest das fruehere Dauer-Panel an der
+    rechten Seite ab: es kam nur auf Verlangen hoch (Doppelklick / Toolbar) und ist maximierbar, damit
+    Ausdruecke (Monaco) genug Platz haben. Die Editoren mutieren die uebergebenen Modell-Objekte direkt
+    per Referenz - der Editor rendert nach dem Schliessen neu. Nur die Monaco-Felder melden ihren Text
+    erst beim Verlassen; deshalb wird beim Schliessen einmal geflusht.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            @if (Node is not null)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Tune" Class="mr-2" />
+                <span>@NodeTitle</span>
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Timeline" Class="mr-2" />
+                <span>Connection</span>
+            }
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @* Tab-basierte Editoren bringen Id/Name in ihrem General-Reiter selbst mit - daher eigene Zweige
+           statt des generischen Id/Name-Kopfes. *@
+        @if (Node is AutomatedActivityNode act)
+        {
+            <AutomatedActivityEditor Node="act" Catalog="Catalog" Def="Def" />
+        }
+        else if (Node is UserActivityNode userTask)
+        {
+            <UserActivityEditor Node="userTask" @ref="userTaskEditor" />
+        }
+        else if (Node is CallWorkflowNode call)
+        {
+            <CallWorkflowEditor Node="call" SubDefinitionIds="SubDefinitionIds" Def="Def" />
+        }
+        else if (Node is not null)
+        {
+            <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+            <MudText Typo="Typo.caption" Class="mt-1">Kind: @Node.Kind</MudText>
+
+            @switch (Node)
+            {
+                case StartNode start:
+                    <StartConfigEditor Node="start" />
+                    break;
+                case EndNode end:
+                    <EndConfigEditor Node="end" />
+                    break;
+                case WaitNode wait:
+                    <MudTextField @bind-Value="wait.SignalName" Label="Signal name" Margin="Margin.Dense" />
+                    <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
+                    <CScriptField @key="@("corr-" + Node.Id)" @ref="exprField" Height="240"
+                                  Value="@wait.CorrelationExpression"
+                                  ValueChanged="@(v => wait.CorrelationExpression = v)" />
+                    break;
+                case TimerNode timer:
+                    <MudText Typo="Typo.caption" Class="mt-2">Due (CScript: DateTime or TimeSpan)</MudText>
+                    <CScriptField @key="@("due-" + Node.Id)" @ref="exprField" Height="240"
+                                  Value="@timer.DueExpression"
+                                  ValueChanged="@(v => timer.DueExpression = v)" />
+                    break;
+                case ParallelGatewayNode par:
+                    <ParallelGatewayConfigEditor Node="par" IsJoin="@(IncomingCount(par.Id) > 1)" />
+                    break;
+                case ExclusiveGatewayNode xor:
+                    <MudSelect T="string" @bind-Value="xor.DefaultFlowId" Label="Default flow" Clearable="true"
+                               Margin="Margin.Dense">
+                        @foreach (var f in Def.Flows.Where(f => f.SourceId == xor.Id))
+                        {
+                            <MudSelectItem T="string" Value="@f.Id">@FlowLabel(f)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    break;
+            }
+        }
+        else if (Flow is not null)
+        {
+            <MudText Typo="Typo.caption">@NodeName(Flow.SourceId) → @NodeName(Flow.TargetId)</MudText>
+            <MudTextField @bind-Value="Flow.Name" Label="Label" Margin="Margin.Dense" />
+            <MudText Typo="Typo.caption" Class="mt-2">Condition (CScript, for XOR gateways)</MudText>
+            <CScriptField @key="@("cond-" + Flow.Id)" @ref="exprField" Height="240"
+                          Value="@Flow.Condition"
+                          ValueChanged="@(v => Flow.Condition = v)" />
+
+            @* Mapping der Kante: was der Stack ist, wenn ein Token hier ankommt. Ergaenzt das
+               Mapping am Zielknoten - typisch, um mehrere Pfade auf gleiche Namen zu bringen. *@
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.caption">Mapping on arrival (optional)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Runs when a token takes this connection — after the condition decided it. Use it to
+                normalise the variables the target node sees.
+            </MudText>
+            <InputBindingList Bindings="Flow.Inputs" NamePlaceholder="variable"
+                              AddPlaceholder="new variable" />
+            <ScopeModeSection Mode="Flow.ScopeMode"
+                              ModeChanged="@(m => Flow.ScopeMode = m)"
+                              RetainVariables="Flow.RetainVariables"
+                              SwitchLabel="Consolidate scope (replace)"
+                              HelperText="After this connection the scope consists of the mapping above plus the variables kept here." />
+        }
+    </DialogContent>
+    <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.Medium" />
+        <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
+                   OnClick="RequestDelete">@(Node is not null ? "Delete node" : "Delete connection")</MudButton>
+        <MudSpacer />
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ApplyAndClose">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    /// <summary>Was der Editor nach dem Schliessen tun soll.</summary>
+    public enum PropAction
+    {
+        /// <summary>Aenderungen uebernehmen (die Modelle wurden bereits per Referenz mutiert).</summary>
+        Apply,
+
+        /// <summary>Das bearbeitete Element loeschen.</summary>
+        Delete
+    }
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die Definition - fuer Nachschlage-Helfer (Default-Flow, Ziel-Namen, Join-Erkennung).</summary>
+    [Parameter] public WorkflowDefinition Def { get; set; } = default!;
+
+    /// <summary>Der bearbeitete Knoten, oder null wenn eine Verbindung bearbeitet wird.</summary>
+    [Parameter] public WorkflowNode? Node { get; set; }
+
+    /// <summary>Die bearbeitete Verbindung, oder null wenn ein Knoten bearbeitet wird.</summary>
+    [Parameter] public SequenceFlow? Flow { get; set; }
+
+    /// <summary>Optionaler Activity-Katalog (getypte Formulare statt Key/Value).</summary>
+    [Parameter] public IWorkflowActivityCatalog? Catalog { get; set; }
+
+    /// <summary>Aufrufbare Definition-Ids fuer das Subworkflow-Dropdown (null -> Freitext).</summary>
+    [Parameter] public IReadOnlyList<string>? SubDefinitionIds { get; set; }
+
+    private CScriptField? exprField;
+    private UserActivityEditor? userTaskEditor;
+
+    private string NodeTitle => Node is null
+        ? "Node"
+        : string.IsNullOrEmpty(Node.Name) ? Node.Kind.ToString() : Node.Name!;
+
+    private async Task ApplyAndClose()
+    {
+        await FlushExprAsync();
+        MudDialog.Close(DialogResult.Ok(PropAction.Apply));
+    }
+
+    private async Task RequestDelete()
+    {
+        // Vor dem Loeschen NICHT flushen - das Element verschwindet ohnehin.
+        MudDialog.Close(DialogResult.Ok(PropAction.Delete));
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Holt den aktuellen Text des sichtbaren Ausdrucks-Editors ins Modell. Der Monaco-Editor meldet
+    /// seinen Wert erst beim Verlassen (Blur) - ohne diesen Aufruf ginge das zuletzt Getippte beim
+    /// Schliessen verloren.
+    /// </summary>
+    private async Task FlushExprAsync()
+    {
+        if (Node is UserActivityNode && userTaskEditor is not null)
+        {
+            await userTaskEditor.FlushAsync();
+            return;
+        }
+
+        if (exprField is null)
+        {
+            return;
+        }
+
+        string v = await exprField.GetValueAsync();
+        switch ((object?)Flow ?? Node)
+        {
+            case SequenceFlow f:
+                f.Condition = v;
+                break;
+            case TimerNode t:
+                t.DueExpression = v;
+                break;
+            case WaitNode w:
+                w.CorrelationExpression = v;
+                break;
+        }
+    }
+
+    // --- Nachschlage-Helfer (aus der Definition, ohne eigenen Zustand) -----------------------
+
+    private int IncomingCount(string? nodeId)
+        => nodeId is null ? 0 : Def.Flows.Count(f => f.TargetId == nodeId);
+
+    private string NodeName(string? id)
+    {
+        WorkflowNode? n = id is null ? null : Def.GetNode(id);
+        return n is null ? (id ?? "?") : (string.IsNullOrEmpty(n.Name) ? n.Id : n.Name);
+    }
+
+    private static string FlowLabel(SequenceFlow f)
+        => string.IsNullOrWhiteSpace(f.Name) ? (f.Id ?? "?") : f.Name!;
+}

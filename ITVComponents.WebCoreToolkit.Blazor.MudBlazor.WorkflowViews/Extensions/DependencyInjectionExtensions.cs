@@ -1,4 +1,6 @@
+using System;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Configuration;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers;
@@ -6,6 +8,8 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handler
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers.Impl;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Handlers;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Handlers.Impl;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Extensions
@@ -70,7 +74,40 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Extensions
                 services.AddScoped<IWorkflowDesignHandler, WorkflowDesignHandler>();
             }
 
+            if (partTypeLoadBehavior.ShouldLoadType(typeof(WorkflowTaskHandler)))
+            {
+                // Dieselbe Unterscheidung wie bei der Signal-Zustellung: der Abschluss einer Aufgabe ist
+                // immer store-only, nur das Weiterlaufen des Zweigs passiert inline oder im Runner.
+                if (options?.SignalDelivery == WorkflowSignalDelivery.Runner)
+                {
+                    services.AddScoped<IWorkflowTaskHandler, SplitWorkflowTaskHandler>();
+                }
+                else
+                {
+                    services.AddScoped<IWorkflowTaskHandler, WorkflowTaskHandler>();
+                }
+            }
+
             return services;
+        }
+
+        /// <summary>
+        /// Registriert die Masken eigener Aufgaben-Arten: <c>ViewKey</c> bzw. <c>TaskKey</c> aus der
+        /// Definition auf eine Blazor-Komponente. Ohne Registrierung baut die Oberflaeche die generische
+        /// Maske aus der Feld-Deklaration des Knotens - der einfache Fall braucht also gar nichts.
+        /// </summary>
+        /// <example>
+        /// <code>
+        /// services.ConfigureWorkflowTaskViews(cfg => cfg.RegisterTaskView&lt;ApproveInvoice&gt;("ApproveInvoice"));
+        /// </code>
+        /// Die Komponente liest ihren Zustand ueber
+        /// <c>[CascadingParameter] WorkflowTaskContext TaskContext</c> und schliesst mit
+        /// <c>TaskContext.CompleteAsync(...)</c> ab.
+        /// </example>
+        public static IServiceCollection ConfigureWorkflowTaskViews(this IServiceCollection services,
+            Action<WorkflowTaskViewConfiguration> configure)
+        {
+            return services.Configure(configure);
         }
     }
 }

@@ -1,0 +1,233 @@
+@using System.Globalization
+@using ITVComponents.Helpers
+@using ITVComponents.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Configuration
+@using ITVComponents.WebCoreToolkit.Extensions
+@using Microsoft.Extensions.Options
+@implements IAsyncDisposable
+
+@inject IWorkflowTaskHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<WorkflowTaskMessages> L
+@inject IOptions<WorkflowTaskViewConfiguration> ViewRegistry
+
+@* Der MANTEL der Aufgabe. Er gehoert genau einmal hierher, weil der teure Teil nicht das Anzeigen ist,
+   sondern der Abschluss: Ergebnis-Mapping, weiche Sperre, Doppel-Klick, Versionskonflikt und "war schon
+   erledigt". Was darin gerendert wird - eigene Komponente oder generische Maske - ist der austauschbare
+   Teil. *@
+
+<MudDialog>
+    <DialogContent>
+        @if (loading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+            <MudText Typo="Typo.body2" Class="ml-2">@L["Loading"]</MudText>
+        }
+        else if (taskContext is null)
+        {
+            <MudAlert Severity="Severity.Warning">@L["TaskGone"]</MudAlert>
+        }
+        else
+        {
+            @if (!string.IsNullOrEmpty(claimWarning))
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">@claimWarning</MudAlert>
+            }
+
+            <CascadingValue Value="taskContext" IsFixed="true">
+                @if (customView is not null)
+                {
+                    @* Eigene Maske: sie bringt ihre eigenen Aktionen mit (freigeben/ablehnen/…) und ruft
+                       CompleteAsync des Kontexts - deshalb blendet der Mantel seinen Erledigen-Knopf aus. *@
+                    <DynamicComponent Type="customView" />
+                }
+                else
+                {
+                    <GenericTaskForm @ref="form" />
+                }
+            </CascadingValue>
+        }
+    </DialogContent>
+    <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.ExtraLarge" />
+        <MudSpacer />
+        @if (taskContext is not null && customView is null)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@busy"
+                       OnClick="CompleteGenericAsync">@L["Complete"]</MudButton>
+        }
+        <MudButton OnClick="CloseAsync">@L["Close"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die Instanz, zu der die Aufgabe gehoert.</summary>
+    [Parameter] public string InstanceId { get; set; } = "";
+
+    /// <summary>Das wartende Token - die Aufgabe selbst.</summary>
+    [Parameter] public string TokenId { get; set; } = "";
+
+    /// <summary>Wie lange die weiche Sperre gilt, wenn niemand sie erneuert.</summary>
+    private static readonly TimeSpan ClaimDuration = TimeSpan.FromMinutes(15);
+
+    private WorkflowTaskContext? taskContext;
+    private GenericTaskForm? form;
+    private Type? customView;
+    private ClaimsPrincipal? currentUser;
+    private string? claimWarning;
+    private bool loading = true;
+    private bool busy;
+    private bool claimed;
+    private bool completed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+
+        UserTaskDescriptor? descriptor = await Handler.GetTaskAsync(currentUser, InstanceId, TokenId);
+        if (descriptor is not null)
+        {
+            customView = ResolveView(descriptor);
+            taskContext = new WorkflowTaskContext(descriptor, CompleteAsync, Translate);
+
+            string? foreignOwner = await Handler.ClaimAsync(currentUser, InstanceId, TokenId, ClaimDuration);
+            claimed = true;
+            if (!string.IsNullOrEmpty(foreignOwner))
+            {
+                claimWarning = string.Format(L["ClaimedByOther"], foreignOwner,
+                    DateTime.Now.ToString("t", CultureInfo.CurrentCulture));
+            }
+        }
+
+        loading = false;
+    }
+
+    /// <summary>
+    /// Findet die Maske: ausdruecklicher <c>ViewKey</c>, sonst die Aufgabenart, sonst die generische
+    /// Maske. Ein Schluessel, den niemand registriert hat, faellt ebenfalls auf die generische Maske
+    /// zurueck - aber mit Log-Zeile: sonst sieht der Modellierer nur ein unerwartetes Formular und
+    /// niemand erfaehrt, dass seine Registrierung fehlt.
+    /// </summary>
+    private Type? ResolveView(UserTaskDescriptor descriptor)
+    {
+        WorkflowTaskViewConfiguration registry = ViewRegistry.Value;
+        Type? byViewKey = registry.GetTaskViewType(descriptor.ViewKey);
+        if (byViewKey is not null)
+        {
+            return byViewKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(descriptor.ViewKey))
+        {
+            LogEnvironment.LogEvent(
+                $"Workflow task '{descriptor.TaskKey}' (node '{descriptor.NodeId}') requests the view key " +
+                $"'{descriptor.ViewKey}', but no component is registered for it - falling back to the generic " +
+                "form. Register it via ConfigureWorkflowTaskViews.", LogSeverity.Warning);
+        }
+
+        return registry.GetTaskViewType(descriptor.TaskKey);
+    }
+
+    private string? Translate(string value)
+        => value.Translate(CultureInfo.CurrentUICulture?.Name);
+
+    private async Task CompleteGenericAsync()
+    {
+        if (form is null || !form.TryGetResult(out Dictionary<string, object> result))
+        {
+            // Die Maske hat die fehlenden Pflichtfelder selbst markiert.
+            return;
+        }
+
+        await CompleteAsync(result);
+    }
+
+    /// <summary>
+    /// Der EINE Abschlussweg - auch fuer eigene Masken. Er kapselt Doppel-Klick-Schutz, die Meldung je
+    /// Ausgang und das Schliessen des Dialogs.
+    /// </summary>
+    private async Task<UserTaskCompletionStatus> CompleteAsync(IDictionary<string, object>? result)
+    {
+        if (busy || completed)
+        {
+            return UserTaskCompletionStatus.AlreadyCompleted;
+        }
+
+        busy = true;
+        try
+        {
+            UserTaskCompletionResult completion =
+                await Handler.CompleteAsync(currentUser!, InstanceId, TokenId, result);
+            switch (completion.Status)
+            {
+                case UserTaskCompletionStatus.Completed:
+                    completed = true;
+                    Snackbar.Add(L["Completed"], Severity.Success);
+                    break;
+                case UserTaskCompletionStatus.AlreadyCompleted:
+                    completed = true;
+                    Snackbar.Add(L["AlreadyCompleted"], Severity.Warning);
+                    break;
+                case UserTaskCompletionStatus.Faulted:
+                    completed = true;
+                    Snackbar.Add(L["CompletionFaulted"], Severity.Error);
+                    break;
+                default:
+                    Snackbar.Add(L["TaskGone"], Severity.Warning);
+                    break;
+            }
+
+            if (completed)
+            {
+                claimed = false; // Mit dem Abschluss ist die Sperre gegenstandslos (der Store raeumt sie ab).
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+
+            return completion.Status;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        await ReleaseClaimAsync();
+        MudDialog.Close(DialogResult.Ok(false));
+    }
+
+    /// <summary>
+    /// Gibt die weiche Sperre frei, wenn der Dialog verschwindet - auch, wenn der Benutzer ihn mit Escape
+    /// oder einem Klick daneben schliesst. Ohne das blieben Aufgaben bis zum Ablauf der Frist als
+    /// "wird bearbeitet" markiert.
+    /// </summary>
+    public async ValueTask DisposeAsync() => await ReleaseClaimAsync();
+
+    private async Task ReleaseClaimAsync()
+    {
+        if (!claimed || currentUser is null)
+        {
+            return;
+        }
+
+        claimed = false;
+        try
+        {
+            await Handler.ReleaseClaimAsync(currentUser, InstanceId, TokenId);
+        }
+        catch (Exception ex)
+        {
+            // Die Freigabe ist Aufraeumarbeit und darf das Schliessen nicht verhindern (der Circuit kann
+            // beim Dispose auch schon weg sein) - stillschweigen darf sie aber nicht: sonst bliebe die
+            // Aufgabe ohne erkennbaren Grund gesperrt.
+            LogEnvironment.LogEvent(
+                $"Konnte die Bearbeitungs-Markierung der Aufgabe '{InstanceId}/{TokenId}' nicht freigeben: " +
+                $"{ex.OutlineException()}", LogSeverity.Warning);
+        }
+    }
+}

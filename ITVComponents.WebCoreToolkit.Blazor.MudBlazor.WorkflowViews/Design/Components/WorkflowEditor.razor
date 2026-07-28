@@ -20,6 +20,7 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject IServiceProvider Services
+@inject IDialogService DialogService
 @implements IAsyncDisposable
 
 <PageTitle>Workflow editor</PageTitle>
@@ -48,6 +49,13 @@
                 }
                 <MudTextField @bind-Value="def.Name" Label="Name" Margin="Margin.Dense" Style="max-width:240px" Class="mr-2" />
                 <MudNumericField @bind-Value="def.Version" Label="Version" Min="1" Margin="Margin.Dense" Style="max-width:100px" />
+                @if (def.DisabledForStart)
+                {
+                    <MudTooltip Text="This definition has validation errors and cannot be started until they are fixed. It is still saved.">
+                        <MudChip T="string" Color="Color.Error" Variant="Variant.Filled" Size="Size.Small"
+                                 Icon="@Icons.Material.Filled.Block" Class="ml-2">Not startable</MudChip>
+                    </MudTooltip>
+                }
                 <MudSpacer />
                 <MudButton StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Text"
                            Class="mr-1" OnClick="ExportToFile">Export</MudButton>
@@ -84,139 +92,73 @@
                 </MudPaper>
             }
 
-            <div style="display:flex; gap:8px; align-items:flex-start;">
-                @* Palette *@
-                <MudPaper Class="pa-2" Style="min-width:150px;">
-                    <MudText Typo="Typo.overline">Palette</MudText>
-                    <MudStack Spacing="1">
+            <div class="wf-designer">
+                <div class="wf-designer-row">
+                    @* Toolbox: nur Symbole + Tooltip. Die Icons sind FontAwesome (in den Hosts ohnehin
+                       geladen) - Text braucht es nicht, der Tooltip erklaert jedes Element. *@
+                    <MudPaper Class="wf-rail pa-1" Elevation="1">
                         @foreach (var p in Palette)
                         {
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" FullWidth="true"
-                                       StartIcon="@Icons.Material.Filled.Add"
-                                       OnClick="@(() => AddNode(p.Kind))">@p.Label</MudButton>
+                            @* Start und Ende gibt es genau einmal je Definition - der zweite waere ein
+                               Validierungsfehler, also gar nicht erst anbieten. *@
+                            <MudTooltip Placement="Placement.Right" Delay="200"
+                                        Text="@(AlreadyPresent(p.Kind) ? $"A workflow has exactly one {p.Label.ToLowerInvariant()} node." : p.Tooltip)">
+                                <MudButton Variant="Variant.Text" Class="wf-rail-btn"
+                                           Disabled="@AlreadyPresent(p.Kind)"
+                                           OnClick="@(() => AddNode(p.Kind))" aria-label="@p.Label">
+                                    <i class="@p.Icon"></i>
+                                </MudButton>
+                            </MudTooltip>
                         }
-                    </MudStack>
-                    <MudDivider Class="my-2" />
-                    <MudText Typo="Typo.caption">
-                        Drag nodes to move. Drag from the right port onto another node to connect.
-                    </MudText>
-                </MudPaper>
+                    </MudPaper>
 
-                @* Canvas *@
-                <div @ref="hostEl" style="flex:1; overflow:auto; max-height:72vh; border:1px solid var(--mud-palette-lines-default); border-radius:6px;">
-                    <svg @ref="svgEl" width="@N(canvasW)" height="@N(canvasH)"
-                         viewBox="0 0 @N(canvasW) @N(canvasH)"
-                         style="display:block; background:var(--mud-palette-background); touch-action:none; font-family:var(--mud-typography-body1-family, sans-serif);">
-                        <defs>
-                            <marker id="wf-arrow-ed" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
-                                <path d="M0,0 L8,4 L0,8 z" fill="var(--mud-palette-lines-default)" />
-                            </marker>
-                        </defs>
-                        @CanvasBody()
-                    </svg>
+                    @* Canvas mit Bedienleiste. Das Canvas fuellt genau die verfuegbare Breite - es wird
+                       nie horizontal gescrollt, grosse Graphen erreicht man ueber Zoom/Pan. *@
+                    <div class="wf-canvas-wrap">
+                        <div class="wf-canvas-bar">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Tune"
+                                       Disabled="@(!HasSelection)" OnClick="OpenProperties">Properties</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                       StartIcon="@Icons.Material.Filled.Delete"
+                                       Disabled="@(!HasSelection)" OnClick="DeleteSelected">Delete</MudButton>
+                            <MudText Typo="Typo.body2" Class="ml-2 wf-sel-label">@SelectionLabel()</MudText>
+                            <MudSpacer />
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary wf-hint mr-3">
+                                Drag to move · double-click to edit · drag from a port to connect
+                            </MudText>
+                            <MudTooltip Text="Normal path"><span class="wf-legend"><span class="wf-dot wf-dot-ok"></span></span></MudTooltip>
+                            <MudTooltip Text="Error path"><span class="wf-legend"><span class="wf-dot wf-dot-err"></span></span></MudTooltip>
+                        </div>
+
+                        <div class="wf-canvas-host" @ref="hostEl">
+                            <svg @ref="svgEl" width="100%" height="100%"
+                                 viewBox="@N(viewX) @N(viewY) @N(viewW) @N(viewH)"
+                                 style="display:block; background:var(--mud-palette-background); touch-action:none; font-family:var(--mud-typography-body1-family, sans-serif);">
+                                <defs>
+                                    <marker id="wf-arrow-ed" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+                                        <path d="M0,0 L8,4 L0,8 z" fill="var(--mud-palette-lines-default)" />
+                                    </marker>
+                                    @* Eigene Spitze fuer den Fehlerpfad - eine Kante faerbt ihren Marker nicht mit. *@
+                                    <marker id="wf-arrow-err" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+                                        <path d="M0,0 L8,4 L0,8 z" fill="var(--mud-palette-error)" />
+                                    </marker>
+                                </defs>
+                                @CanvasBody()
+                            </svg>
+
+                            @* Zoom-/Pan-Bedienung. Zoom auch per Mausrad, Pan durch Ziehen auf leerer Flaeche. *@
+                            <div class="wf-zoom">
+                                <MudIconButton Icon="@Icons.Material.Filled.ZoomIn" Size="Size.Small"
+                                               OnClick="@(() => ZoomBy(0.8))" Title="Zoom in" />
+                                <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" Size="Size.Small"
+                                               OnClick="@(() => ZoomBy(1.25))" Title="Zoom out" />
+                                <MudIconButton Icon="@Icons.Material.Filled.FitScreen" Size="Size.Small"
+                                               OnClick="@(() => Fit())" Title="Fit to window" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-
-                @* Property panel *@
-                <MudPaper Class="pa-3" Style="min-width:280px; max-width:320px;">
-                    @if (selectedNode is not null)
-                    {
-                        <MudText Typo="Typo.subtitle2" GutterBottom="true">Node</MudText>
-                        <MudTextField Value="@selectedNode.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
-                        <MudTextField @bind-Value="selectedNode.Name" Label="Name" Margin="Margin.Dense" />
-                        <MudText Typo="Typo.caption" Class="mt-1">Kind: @selectedNode.Kind</MudText>
-
-                        @switch (selectedNode)
-                        {
-                            case AutomatedActivityNode act:
-                                <ActivityConfigEditor Node="act" Catalog="catalog" />
-                                <MudDivider Class="my-2" />
-                                <MudSelect T="string" @bind-Value="act.ErrorFlowId" Label="Error flow (on failure)"
-                                           Clearable="true" Margin="Margin.Dense">
-                                    @foreach (var f in def.Flows.Where(f => f.SourceId == act.Id))
-                                    {
-                                        <MudSelectItem T="string" Value="@f.Id">@FlowLabel(f)</MudSelectItem>
-                                    }
-                                </MudSelect>
-                                @if (!string.IsNullOrEmpty(act.ErrorFlowId))
-                                {
-                                    <MudTextField @bind-Value="act.ErrorVariable" Label="Error message → variable"
-                                                  Margin="Margin.Dense" />
-                                    <MudTextField @bind-Value="act.AttemptVariable" Label="Attempt count → variable"
-                                                  Margin="Margin.Dense" />
-                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                        On failure (exception or ctx.Fail) the token takes this flow instead of faulting; the
-                                        single other outgoing flow is the success path. The attempt counter increments per
-                                        failure and resets on success — branch on it for retries.
-                                    </MudText>
-                                }
-                                break;
-                            case CallWorkflowNode call:
-                                <CallWorkflowConfigEditor Node="call" Definitions="subDefinitionIds" />
-                                <MudDivider Class="my-2" />
-                                <MudSelect T="string" @bind-Value="call.ErrorFlowId" Label="Error flow (on failure)"
-                                           Clearable="true" Margin="Margin.Dense">
-                                    @foreach (var f in def.Flows.Where(f => f.SourceId == call.Id))
-                                    {
-                                        <MudSelectItem T="string" Value="@f.Id">@FlowLabel(f)</MudSelectItem>
-                                    }
-                                </MudSelect>
-                                @if (!string.IsNullOrEmpty(call.ErrorFlowId))
-                                {
-                                    <MudTextField @bind-Value="call.ErrorVariable" Label="Error message → variable"
-                                                  Margin="Margin.Dense" />
-                                    <MudTextField @bind-Value="call.AttemptVariable" Label="Attempt count → variable"
-                                                  Margin="Margin.Dense" />
-                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                        On sub-workflow failure the token takes this flow instead of faulting; the single
-                                        other outgoing flow is the success path. With an attempt variable, an error flow
-                                        that loops back retries the sub-workflow (a fresh child instance per attempt).
-                                    </MudText>
-                                }
-                                break;
-                            case WaitNode wait:
-                                <MudTextField @bind-Value="wait.SignalName" Label="Signal name" Margin="Margin.Dense" />
-                                <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
-                                <CScriptField @key="@("corr-" + selectedNode.Id)" @ref="exprField"
-                                              Value="@wait.CorrelationExpression"
-                                              ValueChanged="@(v => wait.CorrelationExpression = v)" />
-                                break;
-                            case TimerNode timer:
-                                <MudText Typo="Typo.caption" Class="mt-2">Due (CScript: DateTime or TimeSpan)</MudText>
-                                <CScriptField @key="@("due-" + selectedNode.Id)" @ref="exprField"
-                                              Value="@timer.DueExpression"
-                                              ValueChanged="@(v => timer.DueExpression = v)" />
-                                break;
-                            case ExclusiveGatewayNode xor:
-                                <MudSelect T="string" @bind-Value="xor.DefaultFlowId" Label="Default flow" Clearable="true"
-                                           Margin="Margin.Dense">
-                                    @foreach (var f in def.Flows.Where(f => f.SourceId == xor.Id))
-                                    {
-                                        <MudSelectItem T="string" Value="@f.Id">@FlowLabel(f)</MudSelectItem>
-                                    }
-                                </MudSelect>
-                                break;
-                        }
-
-                        <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
-                                   Class="mt-3" OnClick="DeleteSelectedNode">Delete node</MudButton>
-                    }
-                    else if (selectedFlow is not null)
-                    {
-                        <MudText Typo="Typo.subtitle2" GutterBottom="true">Connection</MudText>
-                        <MudText Typo="Typo.caption">@NodeName(selectedFlow.SourceId) → @NodeName(selectedFlow.TargetId)</MudText>
-                        <MudTextField @bind-Value="selectedFlow.Name" Label="Label" Margin="Margin.Dense" />
-                        <MudText Typo="Typo.caption" Class="mt-2">Condition (CScript, for XOR gateways)</MudText>
-                        <CScriptField @key="@("cond-" + selectedFlow.Id)" @ref="exprField"
-                                      Value="@selectedFlow.Condition"
-                                      ValueChanged="@(v => selectedFlow.Condition = v)" />
-                        <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
-                                   Class="mt-3" OnClick="DeleteSelectedFlow">Delete connection</MudButton>
-                    }
-                    else
-                    {
-                        <MudText Typo="Typo.body2">Select a node or connection to edit its properties.</MudText>
-                    }
-                </MudPaper>
             </div>
         }
     </Permitted>
@@ -236,10 +178,15 @@
 
     private WorkflowNode? selectedNode;
     private SequenceFlow? selectedFlow;
-    private CScriptField? exprField;
 
-    private double canvasW = 1400;
-    private double canvasH = 800;
+    // Sichtfenster (SVG-viewBox). Das Canvas fuellt das Host-Element; welcher Weltausschnitt sichtbar
+    // ist, steuert allein die viewBox - so passt der Graph immer ins Fenster und Zoom/Pan aendern nur
+    // diese vier Werte. Die JS-Seite manipuliert die viewBox waehrend Geste live und meldet sie danach
+    // ueber OnViewChanged zurueck, damit der naechste Server-Render denselben Ausschnitt behaelt.
+    private double viewX;
+    private double viewY;
+    private double viewW = 1200;
+    private double viewH = 800;
 
     private ElementReference hostEl;
     private ElementReference svgEl;
@@ -255,17 +202,29 @@
     // Verfuegbare Definition-Ids fuer das Subworkflow-Dropdown (leer -> Freitext im Editor).
     private IReadOnlyList<string>? subDefinitionIds;
 
-    private static readonly (NodeKind Kind, string Label)[] Palette = new[]
+    private bool HasSelection => selectedNode is not null || selectedFlow is not null;
+
+    private static readonly (NodeKind Kind, string Label, string Icon, string Tooltip)[] Palette = new[]
     {
-        (NodeKind.Start, "Start"),
-        (NodeKind.AutomatedActivity, "Activity"),
-        (NodeKind.CallWorkflow, "Subworkflow"),
-        (NodeKind.Wait, "Wait"),
-        (NodeKind.Timer, "Timer"),
-        (NodeKind.ExclusiveGateway, "XOR"),
-        (NodeKind.ParallelGateway, "AND"),
-        (NodeKind.End, "End")
+        (NodeKind.Start, "Start", "fa-solid fa-play", "Start — where every instance begins. Exactly one per definition; defines the input signature."),
+        (NodeKind.AutomatedActivity, "Activity", "fa-solid fa-gears", "Activity — runs an automated step (a registered activity). Can have a red error output."),
+        (NodeKind.UserActivity, "User task", "fa-solid fa-user-check", "User task — waits for a person to complete a form from their work list."),
+        (NodeKind.CallWorkflow, "Subworkflow", "fa-solid fa-diagram-project", "Subworkflow — runs another definition as a child and waits for it. Can have a red error output."),
+        (NodeKind.Wait, "Wait", "fa-solid fa-hourglass-half", "Wait — parks the token until a matching signal arrives (by name and correlation)."),
+        (NodeKind.Timer, "Timer", "fa-solid fa-clock", "Timer — parks the token until a due date/time (or after a delay) is reached."),
+        (NodeKind.ExclusiveGateway, "XOR", "fa-solid fa-code-branch", "Exclusive gateway (XOR) — takes exactly one outgoing path based on conditions."),
+        (NodeKind.ParallelGateway, "AND", "fa-solid fa-arrows-split-up-and-left", "Parallel gateway (AND) — splits into all branches, or joins them back together."),
+        (NodeKind.End, "End", "fa-solid fa-flag-checkered", "End — completes the instance. Exactly one per definition; defines the result.")
     };
+
+    /// <summary>
+    /// Ob von dieser Sorte bereits ein Knoten existiert und deshalb kein weiterer angeboten wird. Gilt nur
+    /// fuer Start und Ende: sie gibt es genau einmal je Definition (eindeutige Signatur, eindeutiges
+    /// Ergebnis) - der Validator meldet einen zweiten als Fehler.
+    /// </summary>
+    private bool AlreadyPresent(NodeKind kind)
+        => (kind == NodeKind.Start || kind == NodeKind.End)
+           && def is not null && def.Nodes.Any(n => n.Kind == kind);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -284,6 +243,12 @@
             if (def is not null)
             {
                 EnsureDiagram(def);
+                // Ist die Definition als „nicht startbar" gespeichert, die Befunde gleich zeigen - der
+                // Autor soll sofort sehen, WAS den Start blockiert, nicht erst nach erneutem „Validate".
+                if (def.DisabledForStart)
+                {
+                    issues = WorkflowDefinitionValidator.Validate(def).ToList();
+                }
             }
         }
 
@@ -304,31 +269,45 @@
 
         selectedNode = null;
         selectedFlow = null;
-        RecomputeCanvasSize();
+        Fit();
         loaded = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Erst anhaengen, wenn das SVG wirklich gerendert ist (Definition geladen, sonst kein svgEl).
-        if (!jsAttached && loaded && def is not null)
+        if (jsAttached || !loaded || def is null)
         {
-            selfRef ??= DotNetObjectReference.Create(this);
-            try
-            {
-                await JS.InvokeAsync<IJSObjectReference>("import",
-                    "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews/graph-editor.js");
-                await JS.InvokeVoidAsync("itvWfEditor.attach", hostEl, svgEl, selfRef);
-                jsAttached = true;
-            }
-            catch (Microsoft.JSInterop.JSDisconnectedException) { /* circuit gone */ }
-            catch (Exception ex)
-            {
-                // Ohne JS bleibt der Editor statisch nutzbar (Palette/Panel); der Grund muss ins Log.
-                LogEnvironment.LogEvent(
-                    $"Workflow-Editor: JS-Interop nicht initialisiert: {ex.OutlineException()}",
-                    LogSeverity.Warning);
-            }
+            return;
+        }
+
+        // Das Flag MUSS vor dem ersten await gesetzt werden: waehrend die beiden Interop-Aufrufe
+        // offen sind, laeuft OnAfterRenderAsync erneut und wuerde ein zweites Mal anhaengen. Jede
+        // attach-Closure hat ihr eigenes drag-Objekt -> ein Zug erzeugte zwei OnEdgeCreated und damit
+        // zwei Verbindungen (sichtbar an zwei gestrichelten Temp-Linien beim Ziehen).
+        jsAttached = true;
+        selfRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeAsync<IJSObjectReference>("import",
+                "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews/graph-editor.js");
+            await JS.InvokeVoidAsync("itvWfEditor.attach", hostEl, svgEl, selfRef);
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException ex)
+        {
+            // Erwarteter Normalfall (Tab geschlossen, Circuit weg) - nur als Spur, nicht als Fehler.
+            jsAttached = false;
+            LogEnvironment.LogEvent(
+                $"Workflow-Editor: Circuit vor dem Anhaengen des JS-Interop beendet: {ex.Message}",
+                LogSeverity.Report);
+        }
+        catch (Exception ex)
+        {
+            // Ohne JS bleibt der Editor statisch nutzbar (Palette/Panel); der Grund muss ins Log.
+            jsAttached = false;
+            LogEnvironment.LogEvent(
+                $"Workflow-Editor: JS-Interop nicht initialisiert: {ex.OutlineException()}",
+                LogSeverity.Warning);
         }
     }
 
@@ -347,28 +326,39 @@
         node.Diagram ??= new DiagramShape();
         node.Diagram.X = Math.Round(x, 1);
         node.Diagram.Y = Math.Round(y, 1);
-        RecomputeCanvasSize();
         StateHasChanged();
     }
 
-    /// <summary>Der Nutzer hat vom Port des Quellknotens auf einen Zielknoten gezogen.</summary>
+    /// <summary>
+    /// Der Nutzer hat vom Port des Quellknotens auf einen Zielknoten gezogen.
+    /// <paramref name="portKind"/> ist <c>"err"</c>, wenn am roten Fehler-Port gezogen wurde - dann
+    /// wird die neue Kante gleich zum Fehler-Ausgang des Knotens.
+    /// </summary>
     [JSInvokable]
-    public void OnEdgeCreated(string sourceId, string targetId)
+    public void OnEdgeCreated(string sourceId, string targetId, string? portKind)
     {
-        if (def is null || sourceId == targetId
-            || def.GetNode(sourceId) is null || def.GetNode(targetId) is null)
+        WorkflowNode? source = def?.GetNode(sourceId);
+        if (def is null || source is null || sourceId == targetId || def.GetNode(targetId) is null)
         {
             return;
         }
 
         var flow = new SequenceFlow { Id = NewId("f"), SourceId = sourceId, TargetId = targetId };
         def.Flows.Add(flow);
+
+        if (string.Equals(portKind, "err", StringComparison.Ordinal))
+        {
+            // Ein zweiter Zug am roten Port ersetzt den bisherigen Fehler-Ausgang; die alte Kante
+            // bleibt als normale Verbindung bestehen (loeschen waere ueberraschend).
+            SetErrorFlowOf(source, flow.Id);
+        }
+
         selectedNode = null;
         selectedFlow = flow;
         StateHasChanged();
     }
 
-    /// <summary>Ein Knoten wurde ausgewaehlt.</summary>
+    /// <summary>Ein Knoten wurde ausgewaehlt (einfacher Klick).</summary>
     [JSInvokable]
     public void OnSelectNode(string nodeId)
     {
@@ -377,7 +367,7 @@
         StateHasChanged();
     }
 
-    /// <summary>Eine Kante wurde ausgewaehlt.</summary>
+    /// <summary>Eine Kante wurde ausgewaehlt (einfacher Klick).</summary>
     [JSInvokable]
     public void OnSelectEdge(string edgeId)
     {
@@ -395,6 +385,92 @@
         StateHasChanged();
     }
 
+    /// <summary>Doppelklick auf einen Knoten - Auswahl setzen und das Eigenschaften-Popup oeffnen.</summary>
+    [JSInvokable]
+    public async Task OnEditNode(string nodeId)
+    {
+        selectedFlow = null;
+        selectedNode = def?.GetNode(nodeId);
+        if (selectedNode is not null)
+        {
+            await OpenProperties();
+        }
+    }
+
+    /// <summary>Doppelklick auf eine Kante - Auswahl setzen und das Eigenschaften-Popup oeffnen.</summary>
+    [JSInvokable]
+    public async Task OnEditEdge(string edgeId)
+    {
+        selectedNode = null;
+        selectedFlow = def?.Flows.FirstOrDefault(f => f.Id == edgeId);
+        if (selectedFlow is not null)
+        {
+            await OpenProperties();
+        }
+    }
+
+    /// <summary>
+    /// Neuer Sichtausschnitt nach Zoom/Pan auf der JS-Seite. Wird NUR am Ende einer Geste gemeldet, damit
+    /// der naechste Server-Render (Auswahl, Verschieben) denselben Ausschnitt behaelt statt zurueckzuspringen.
+    /// Bewusst ohne StateHasChanged - die DOM-viewBox steht bereits, ein Render wuerde nur flackern.
+    /// </summary>
+    [JSInvokable]
+    public void OnViewChanged(double x, double y, double w, double h)
+    {
+        viewX = x;
+        viewY = y;
+        viewW = w;
+        viewH = h;
+    }
+
+    /// <summary>Die Entf-Taste im Canvas - das gerade gewaehlte Element loeschen.</summary>
+    [JSInvokable]
+    public void OnDeleteKey()
+    {
+        DeleteSelected();
+        StateHasChanged();
+    }
+
+    // --- Properties popup --------------------------------------------------------------------
+
+    /// <summary>
+    /// Oeffnet das Eigenschaften-Popup fuer die aktuelle Auswahl (Knoten ODER Kante). Die Editoren darin
+    /// mutieren dieselben Modell-Objekte per Referenz; hier wird nur eine Loesch-Anforderung ausgefuehrt
+    /// und danach neu gerendert.
+    /// </summary>
+    private async Task OpenProperties()
+    {
+        if (def is null || !HasSelection)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(NodePropertiesDialog.Def), def },
+            { nameof(NodePropertiesDialog.Node), selectedNode },
+            { nameof(NodePropertiesDialog.Flow), selectedFlow },
+            { nameof(NodePropertiesDialog.Catalog), catalog },
+            { nameof(NodePropertiesDialog.SubDefinitionIds), subDefinitionIds }
+        };
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseOnEscapeKey = true
+        };
+
+        IDialogReference dialog = await DialogService.ShowAsync<NodePropertiesDialog>(string.Empty, parameters, options);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false, Data: NodePropertiesDialog.PropAction action }
+            && action == NodePropertiesDialog.PropAction.Delete)
+        {
+            DeleteSelected();
+        }
+
+        StateHasChanged();
+    }
+
     // --- Editing -----------------------------------------------------------------------------
 
     private void AddNode(NodeKind kind)
@@ -409,6 +485,7 @@
             NodeKind.Start => new StartNode(),
             NodeKind.End => new EndNode(),
             NodeKind.AutomatedActivity => new AutomatedActivityNode(),
+            NodeKind.UserActivity => new UserActivityNode(),
             NodeKind.CallWorkflow => new CallWorkflowNode(),
             NodeKind.Wait => new WaitNode(),
             NodeKind.Timer => new TimerNode(),
@@ -419,14 +496,32 @@
 
         node.Id = NewId("n");
         node.Name = kind.ToString();
+        // Neue Knoten in die Mitte des aktuellen Sichtfensters setzen (leicht kaskadiert), damit sie
+        // auch bei gezoomtem/verschobenem Canvas sichtbar landen und nicht ausserhalb entstehen.
         int cascade = def.Nodes.Count % 6;
-        node.Diagram = new DiagramShape { X = 60 + (cascade * 26), Y = 60 + (cascade * 26) };
+        node.Diagram = new DiagramShape
+        {
+            X = Math.Round(viewX + viewW / 2 - 60 + (cascade * 24), 1),
+            Y = Math.Round(viewY + viewH / 2 - 30 + (cascade * 24), 1)
+        };
         def.Nodes.Add(node);
         def.RebuildIndex();
 
         selectedFlow = null;
         selectedNode = node;
-        RecomputeCanvasSize();
+    }
+
+    /// <summary>Loescht das aktuell gewaehlte Element (Knoten oder Kante).</summary>
+    private void DeleteSelected()
+    {
+        if (selectedNode is not null)
+        {
+            DeleteSelectedNode();
+        }
+        else if (selectedFlow is not null)
+        {
+            DeleteSelectedFlow();
+        }
     }
 
     private void DeleteSelectedNode()
@@ -438,10 +533,14 @@
 
         string id = selectedNode.Id;
         def.Nodes.Remove(selectedNode);
+        // Ids merken, BEVOR die Kanten weg sind: die Kanten, die AUF diesen Knoten zeigen, koennen
+        // Fehler-/Default-Ausgang eines Knotens sein, der stehen bleibt.
+        List<string> removedFlowIds = def.Flows.Where(f => f.SourceId == id || f.TargetId == id)
+            .Select(f => f.Id).ToList();
         def.Flows.RemoveAll(f => f.SourceId == id || f.TargetId == id);
+        ForgetFlows(removedFlowIds);
         def.RebuildIndex();
         selectedNode = null;
-        RecomputeCanvasSize();
     }
 
     private void DeleteSelectedFlow()
@@ -452,7 +551,80 @@
         }
 
         def.Flows.Remove(selectedFlow);
+        ForgetFlows(new[] { selectedFlow.Id });
         selectedFlow = null;
+    }
+
+    /// <summary>
+    /// Loescht Verweise auf nicht mehr existierende Kanten (<c>ErrorFlowId</c> / <c>DefaultFlowId</c>).
+    /// Ohne das bleibt eine verwaiste Id am Knoten stehen: der Graph sieht sauber aus, die Instanz
+    /// faultet aber zur Laufzeit, weil der Ausgang ins Leere zeigt.
+    /// </summary>
+    private void ForgetFlows(IEnumerable<string> flowIds)
+    {
+        if (def is null)
+        {
+            return;
+        }
+
+        var gone = new HashSet<string>(flowIds.Where(x => !string.IsNullOrEmpty(x)), StringComparer.Ordinal);
+        if (gone.Count == 0)
+        {
+            return;
+        }
+
+        foreach (WorkflowNode n in def.Nodes)
+        {
+            switch (n)
+            {
+                case AutomatedActivityNode a when a.ErrorFlowId is not null && gone.Contains(a.ErrorFlowId):
+                    a.ErrorFlowId = null;
+                    break;
+                case CallWorkflowNode c when c.ErrorFlowId is not null && gone.Contains(c.ErrorFlowId):
+                    c.ErrorFlowId = null;
+                    break;
+                case ExclusiveGatewayNode x when x.DefaultFlowId is not null && gone.Contains(x.DefaultFlowId):
+                    x.DefaultFlowId = null;
+                    break;
+            }
+        }
+    }
+
+    /// <summary>Der Fehler-Ausgang eines Knotens, oder null (auch bei Arten, die keinen kennen).</summary>
+    private static string? ErrorFlowOf(WorkflowNode node) => node switch
+    {
+        AutomatedActivityNode a => a.ErrorFlowId,
+        CallWorkflowNode c => c.ErrorFlowId,
+        _ => null
+    };
+
+    private static void SetErrorFlowOf(WorkflowNode node, string? flowId)
+    {
+        switch (node)
+        {
+            case AutomatedActivityNode a:
+                a.ErrorFlowId = flowId;
+                break;
+            case CallWorkflowNode c:
+                c.ErrorFlowId = flowId;
+                break;
+        }
+    }
+
+    /// <summary>Beschreibt die aktuelle Auswahl fuer die Bedienleiste.</summary>
+    private string SelectionLabel()
+    {
+        if (selectedNode is not null)
+        {
+            return $"Node: {(string.IsNullOrEmpty(selectedNode.Name) ? selectedNode.Id : selectedNode.Name)}";
+        }
+
+        if (selectedFlow is not null)
+        {
+            return $"Connection: {NodeName(selectedFlow.SourceId)} → {NodeName(selectedFlow.TargetId)}";
+        }
+
+        return string.Empty;
     }
 
     /// <summary>Exportiert die aktuelle Definition als (portable) JSON-Datei (Browser-Download).</summary>
@@ -503,7 +675,7 @@
             selectedNode = null;
             selectedFlow = null;
             issues = WorkflowDefinitionValidator.Validate(def).ToList();
-            RecomputeCanvasSize();
+            Fit();
             Snackbar.Add("Imported. Review, set id/version, and Save to persist.", Severity.Success);
         }
         catch (Exception ex)
@@ -541,35 +713,48 @@
             return;
         }
 
-        await FlushExprAsync();
-
         if (string.IsNullOrWhiteSpace(def.Id))
         {
             Snackbar.Add("An id is required.", Severity.Warning);
             return;
         }
 
+        // Fehlerhafte Definitionen sind speicherbar (Zwischenstand), werden aber als „nicht startbar"
+        // markiert - die Engine verweigert dann den Start. Nur Fehler setzen das Flag, Warnungen nicht.
         issues = WorkflowDefinitionValidator.Validate(def).ToList();
-        if (issues.Any(i => i.Severity == ValidationSeverity.Error))
-        {
-            Snackbar.Add("Please fix the errors before saving.", Severity.Error);
-            return;
-        }
+        bool hasErrors = issues.Any(i => i.Severity == ValidationSeverity.Error);
+        def.DisabledForStart = hasErrors;
 
         var auth = await AuthState.GetAuthenticationStateAsync();
         if (asNewVersion)
         {
-            WorkflowDefinition latest = await Handler.GetDefinitionAsync(auth.User, def.Id, null);
+            WorkflowDefinition? latest = await Handler.GetDefinitionAsync(auth.User, def.Id, null);
             def.Version = (latest?.Version ?? def.Version) + 1;
         }
 
         bool ok = await Handler.SaveDefinitionAsync(auth.User, def);
         if (ok)
         {
-            Snackbar.Add($"Definition '{def.Id}' v{def.Version} saved", Severity.Success);
+            if (hasErrors)
+            {
+                Snackbar.Add($"Saved '{def.Id}' v{def.Version} WITH ERRORS — it is disabled for start until "
+                             + "the errors are fixed.", Severity.Warning);
+            }
+            else
+            {
+                Snackbar.Add($"Definition '{def.Id}' v{def.Version} saved", Severity.Success);
+            }
+
             isNew = false;
-            issues = new List<ValidationIssue>();
-            Nav.NavigateTo($"/Workflow/Definitions/{Uri.EscapeDataString(def.Id)}/{def.Version}/edit");
+            // Die Fehlerliste bleibt sichtbar, wenn gespeichert-mit-Fehlern; sonst leeren.
+            if (!hasErrors)
+            {
+                issues = new List<ValidationIssue>();
+            }
+
+            // Relativ (ohne fuehrenden Slash) - loest gegen <base href="/{tenant}/"> auf; ein
+            // fuehrender Slash verliesse den Tenant und ergaebe 404.
+            Nav.NavigateTo($"Workflow/Definitions/{Uri.EscapeDataString(def.Id)}/{def.Version}/edit");
         }
         else
         {
@@ -579,33 +764,68 @@
 
     private void Back()
     {
-        Nav.NavigateTo("/Workflow/Definitions");
+        Nav.NavigateTo("Workflow/Definitions");
     }
 
-    /// <summary>Holt den aktuellen Text des gerade sichtbaren Ausdrucks-Editors ins Modell.</summary>
-    private async Task FlushExprAsync()
+    // --- View (zoom / pan / fit) -------------------------------------------------------------
+
+    private const double MinViewW = 200;
+    private const double MaxViewW = 20000;
+
+    /// <summary>Zoomt um die Mitte des Sichtfensters. factor &lt; 1 = hineinzoomen.</summary>
+    private void ZoomBy(double factor)
     {
-        // Nur lesen, wenn die aktuelle Auswahl auch tatsaechlich ein Ausdrucksfeld gemountet hat -
-        // sonst zeigt exprField evtl. noch auf einen bereits entfernten Editor.
-        object? target = (object?)selectedFlow ?? selectedNode;
-        if (exprField is null || target is not (SequenceFlow or TimerNode or WaitNode))
+        double cx = viewX + viewW / 2;
+        double cy = viewY + viewH / 2;
+        double newW = Math.Clamp(viewW * factor, MinViewW, MaxViewW);
+        double ratio = viewW == 0 ? 1 : newW / viewW;
+        double newH = viewH * ratio;
+        viewW = newW;
+        viewH = newH;
+        viewX = cx - viewW / 2;
+        viewY = cy - viewH / 2;
+    }
+
+    /// <summary>
+    /// Setzt das Sichtfenster so, dass der ganze Graph (mit Rand) hineinpasst. preserveAspectRatio des
+    /// SVG haelt dabei das Seitenverhaeltnis - der Ausschnitt wird also ins Host-Element eingepasst.
+    /// </summary>
+    private void Fit()
+    {
+        if (def is null || def.Nodes.Count == 0)
         {
+            viewX = 0;
+            viewY = 0;
+            viewW = 1200;
+            viewH = 800;
             return;
         }
 
-        string v = await exprField.GetValueAsync();
-        switch (target)
+        GraphLayout layout = GraphLayout.Compute(def);
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        foreach (LaidOutNode n in layout.Nodes)
         {
-            case SequenceFlow f:
-                f.Condition = v;
-                break;
-            case TimerNode t:
-                t.DueExpression = v;
-                break;
-            case WaitNode w:
-                w.CorrelationExpression = v;
-                break;
+            minX = Math.Min(minX, n.X);
+            minY = Math.Min(minY, n.Y);
+            maxX = Math.Max(maxX, n.X + n.Width);
+            // Etwas Luft nach unten fuer die Beschriftung unter Ellipse/Diamant.
+            maxY = Math.Max(maxY, n.Y + n.Height + 18);
         }
+
+        if (minX > maxX || minY > maxY)
+        {
+            viewX = 0;
+            viewY = 0;
+            viewW = 1200;
+            viewH = 800;
+            return;
+        }
+
+        const double pad = 50;
+        viewX = minX - pad;
+        viewY = minY - pad;
+        viewW = Math.Max(MinViewW, (maxX - minX) + 2 * pad);
+        viewH = Math.Max(150, (maxY - minY) + 2 * pad);
     }
 
     // --- Helpers -----------------------------------------------------------------------------
@@ -617,9 +837,6 @@
         WorkflowNode? n = id is null ? null : def?.GetNode(id);
         return n is null ? (id ?? "?") : (string.IsNullOrEmpty(n.Name) ? n.Id : n.Name);
     }
-
-    private static string FlowLabel(SequenceFlow f)
-        => string.IsNullOrWhiteSpace(f.Name) ? (f.Id ?? "?") : f.Name!;
 
     private static void EnsureDiagram(WorkflowDefinition definition)
     {
@@ -641,20 +858,6 @@
         }
     }
 
-    private void RecomputeCanvasSize()
-    {
-        if (def is null || def.Nodes.Count == 0)
-        {
-            canvasW = 1400;
-            canvasH = 800;
-            return;
-        }
-
-        GraphLayout layout = GraphLayout.Compute(def);
-        canvasW = Math.Max(1400, layout.Width + 60);
-        canvasH = Math.Max(800, layout.Height + 60);
-    }
-
     private static string N(double value) => value.ToString(CultureInfo.InvariantCulture);
 
     private MarkupString CanvasBody()
@@ -667,15 +870,42 @@
 
         GraphLayout layout = GraphLayout.Compute(def);
 
+        // Fehler-Kanten einmal einsammeln: sie werden rot gezeichnet, damit der Graph den Fehlerpfad
+        // selbst zeigt, statt ihn nur im Eigenschaften-Panel zu behaupten.
+        var errorFlowIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (WorkflowNode n in def.Nodes)
+        {
+            string? errorFlowId = ErrorFlowOf(n);
+            if (!string.IsNullOrEmpty(errorFlowId))
+            {
+                errorFlowIds.Add(errorFlowId);
+            }
+        }
+
         // Kanten zuerst (liegen unter den Knoten).
         foreach (LaidOutEdge edge in layout.Edges)
         {
             bool sel = selectedFlow != null && edge.Id == selectedFlow.Id;
-            string stroke = sel ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
+            bool err = errorFlowIds.Contains(edge.Id);
+            // Rot schlaegt die Auswahlfarbe - die Fehler-Eigenschaft ist dauerhaft, die Auswahl nicht;
+            // ausgewaehlt wird deshalb ueber die Strichstaerke gezeigt.
+            string stroke = err ? "var(--mud-palette-error)"
+                : sel ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
             string width = sel ? "2.5" : "1.5";
-            sb.Append($"<line data-wf-edge data-edge-id=\"{Enc(edge.Id)}\" data-source=\"{Enc(edge.SourceId)}\" data-target=\"{Enc(edge.TargetId)}\" ")
-              .Append($"x1=\"{N(edge.X1)}\" y1=\"{N(edge.Y1)}\" x2=\"{N(edge.X2)}\" y2=\"{N(edge.Y2)}\" ")
-              .Append($"stroke=\"{stroke}\" stroke-width=\"{width}\" marker-end=\"url(#wf-arrow-ed)\" style=\"cursor:pointer\" />");
+            string marker = err ? "wf-arrow-err" : "wf-arrow-ed";
+            // Unsichtbarer, breiter Zwilling: eine 1.5px-Linie mit vielen Ecken ist sonst kaum zu
+            // treffen. Er traegt dieselben data-Attribute und wird deshalb mitgezeichnet und mit-getroffen.
+            sb.Append($"<path data-wf-edge data-edge-id=\"{Enc(edge.Id)}\" data-source=\"{Enc(edge.SourceId)}\" data-target=\"{Enc(edge.TargetId)}\" ")
+              .Append($"data-err=\"{(err ? "1" : "0")}\" data-src-off=\"{N(edge.SourceOffset)}\" data-tgt-off=\"{N(edge.TargetOffset)}\" ")
+              .Append($"d=\"{edge.PathData}\" fill=\"none\" stroke=\"transparent\" stroke-width=\"12\" ")
+              .Append("pointer-events=\"stroke\" style=\"cursor:pointer\" />");
+
+            // Der Pfad wird waehrend des Ziehens client-seitig neu berechnet; data-err sagt der
+            // JS-Seite, dass diese Kante am festen Fehler-Port haengt, data-src-off/-tgt-off die Spur.
+            sb.Append($"<path data-wf-edge data-edge-id=\"{Enc(edge.Id)}\" data-source=\"{Enc(edge.SourceId)}\" data-target=\"{Enc(edge.TargetId)}\" ")
+              .Append($"data-err=\"{(err ? "1" : "0")}\" data-src-off=\"{N(edge.SourceOffset)}\" data-tgt-off=\"{N(edge.TargetOffset)}\" ")
+              .Append($"d=\"{edge.PathData}\" fill=\"none\" stroke-linejoin=\"round\" ")
+              .Append($"stroke=\"{stroke}\" stroke-width=\"{width}\" marker-end=\"url(#{marker})\" style=\"cursor:pointer\" />");
             if (!string.IsNullOrEmpty(edge.Label))
             {
                 AppendText(sb, edge.LabelX, edge.LabelY - 4, "middle", "var(--mud-palette-text-secondary)", 11, edge.Label!, null);
@@ -725,14 +955,36 @@
                 AppendText(sb, w / 2, h / 2, "middle", "var(--mud-palette-text-primary)", 12, Clip(node.Label), "central");
             }
 
-            // Ausgangs-Port (rechte Mitte), an dem Verbindungen gezogen werden.
-            sb.Append($"<circle data-wf-port cx=\"{N(w)}\" cy=\"{N(h / 2)}\" r=\"5\" fill=\"var(--mud-palette-primary)\" stroke=\"var(--mud-palette-surface)\" stroke-width=\"1\" />");
+            // Ausgangs-Port(s), an denen Verbindungen gezogen werden. Knoten mit Fehlerbehandlung
+            // bekommen zwei: gruen = Erfolgspfad (rechte Mitte), rot = Fehlerpfad (rechts unten).
+            // So entsteht der Fehler-Ausgang beim Ziehen und muss nicht hinterher zugeordnet werden.
+            if (SupportsErrorFlow(node.Kind))
+            {
+                AppendPort(sb, w, h / 2, "out", "var(--mud-palette-success)", "Success output");
+                AppendPort(sb, w, h * 0.85, "err", "var(--mud-palette-error)", "Error output");
+            }
+            else
+            {
+                AppendPort(sb, w, h / 2, "out", "var(--mud-palette-primary)", "Output");
+            }
 
             sb.Append("</g>");
         }
 
         return new MarkupString(sb.ToString());
     }
+
+    /// <summary>Zeichnet einen Ausgangs-Port. <paramref name="kind"/> landet als Port-Art im Drag.</summary>
+    private static void AppendPort(StringBuilder sb, double cx, double cy, string kind, string fill, string title)
+    {
+        sb.Append($"<circle data-wf-port=\"{kind}\" cx=\"{N(cx)}\" cy=\"{N(cy)}\" r=\"5\" fill=\"{fill}\" ")
+          .Append("stroke=\"var(--mud-palette-surface)\" stroke-width=\"1\">")
+          .Append($"<title>{Enc(title)}</title></circle>");
+    }
+
+    /// <summary>Knotenarten mit Fehler-Ausgang - nur sie bekommen den zweiten (roten) Port.</summary>
+    private static bool SupportsErrorFlow(NodeKind kind)
+        => kind is NodeKind.AutomatedActivity or NodeKind.CallWorkflow;
 
     private static void AppendText(StringBuilder sb, double x, double y, string anchor, string fill, int fontSize,
         string content, string? baseline)
@@ -761,9 +1013,21 @@
     {
         if (jsAttached)
         {
+            jsAttached = false;
             try { await JS.InvokeVoidAsync("itvWfEditor.detach", hostEl); }
-            catch (Microsoft.JSInterop.JSDisconnectedException) { }
-            catch { /* element gone */ }
+            catch (Microsoft.JSInterop.JSDisconnectedException ex)
+            {
+                // Erwarteter Normalfall: Circuit schon weg, damit auch die Listener.
+                LogEnvironment.LogEvent(
+                    $"Workflow-Editor: detach uebersprungen, Circuit bereits beendet: {ex.Message}",
+                    LogSeverity.Report);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Workflow-Editor: JS-Interop nicht sauber geloest: {ex.OutlineException()}",
+                    LogSeverity.Warning);
+            }
         }
 
         selfRef?.Dispose();

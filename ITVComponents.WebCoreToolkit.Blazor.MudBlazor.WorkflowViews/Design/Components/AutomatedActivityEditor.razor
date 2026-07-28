@@ -1,0 +1,270 @@
+@using System.Globalization
+@using ITVComponents.Workflow.Activities
+@using ITVComponents.Workflow.Model
+@inject IDialogService DialogService
+
+@*
+    Tab-basierter Editor für einen AutomatedActivityNode. Löst den früheren, überladenen Flach-Editor
+    ab: die Belange sind auf Reiter verteilt, Listen sind seitenweise Tabellen, Details (Config-Werte,
+    Ein-/Ausgabe-Bindungen) werden in eigenen Popups bearbeitet - dort ist Platz für Ausdrücke.
+    Reiter: General, Configuration, Variable mapping, Scope, Error handling.
+*@
+
+@if (Node is not null)
+{
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4" MinimumTabWidth="70px">
+        @* --- General --- *@
+        <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Info">
+            <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+            @if (activityTypes.Count > 0)
+            {
+                <MudSelect T="string" Value="@Node.ActivityRef" ValueChanged="OnActivitySelected"
+                           Label="Activity" Margin="Margin.Dense" Dense="true">
+                    @foreach (var at in activityTypes)
+                    {
+                        <MudSelectItem T="string" Value="@at.ActivityRef">@at.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else
+            {
+                <MudTextField @bind-Value="Node.ActivityRef" Label="Activity reference" Margin="Margin.Dense" />
+            }
+            <MudTextField T="string" Value="@Node.ExecutionTarget" ValueChanged="SetExecutionTarget"
+                          Label="Execution target" Placeholder="(any host)" Margin="Margin.Dense" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Name of the host this activity must run on (e.g. "backend"). Empty = runs on any runner.
+            </MudText>
+        </MudTabPanel>
+
+        @* --- Basic configuration (rohe Key/Value-Dictionary generischer Aktivitäten) --- *@
+        <MudTabPanel Text="Configuration" Icon="@Icons.Material.Filled.Settings">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">
+                Static configuration for generic activities that read their own settings. Typed activities
+                usually use the variable mapping instead.
+            </MudText>
+            <MudTable Items="@ConfigRows" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+                      RowsPerPageOptions="@(new[] { 5, 10, 25 })">
+                <ToolBarContent>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                               Color="Color.Primary" OnClick="AddConfig">Add value</MudButton>
+                    <MudSpacer />
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Key</MudTh>
+                    <MudTh>Value</MudTh>
+                    <MudTh Style="width:1%"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Key">@context.Key</MudTd>
+                    <MudTd DataLabel="Value">@Clip(ToStr(context.Value))</MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => EditConfig(context.Key))" />
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        </MudTabPanel>
+
+        @* --- Variable mapping (Ein-/Ausgabe-Bindungen) --- *@
+        <MudTabPanel Text="Variable mapping" Icon="@Icons.Material.Filled.SwapHoriz">
+            <BindingMappingTables Inputs="Node.Inputs" Outputs="Node.Outputs"
+                                  InputParameterOptions="InputParameterNames()"
+                                  OutputParameterOptions="OutputParameterNames()" />
+        </MudTabPanel>
+
+        @* --- Scope consolidation --- *@
+        <MudTabPanel Text="Scope" Icon="@Icons.Material.Filled.FilterAlt">
+            <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
+                              RetainVariables="Node.RetainVariables"
+                              HelperText="@("After this activity the scope contains only its outputs plus the variables kept here. Place on a single branch (after a join), not inside a parallel region.")" />
+        </MudTabPanel>
+
+        @* --- Error handling --- *@
+        <MudTabPanel Text="Error handling" Icon="@Icons.Material.Filled.ErrorOutline">
+            @if (string.IsNullOrEmpty(Node.ErrorFlowId))
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    No error output. Drag from the red port in the graph to add one — on failure (exception or
+                    ctx.Fail) the token then takes that flow instead of faulting the instance.
+                </MudText>
+            }
+            else
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <MudIcon Icon="@Icons.Material.Filled.CallSplit" Color="Color.Error" Size="Size.Small" />
+                    <MudText Typo="Typo.body2">Error output → <b>@ErrorTargetName(Node.ErrorFlowId)</b></MudText>
+                    <MudSpacer />
+                    <MudTooltip Text="Make it a normal connection again">
+                        <MudIconButton Icon="@Icons.Material.Filled.LinkOff" Size="Size.Small"
+                                       OnClick="@(() => Node.ErrorFlowId = null)" />
+                    </MudTooltip>
+                </MudStack>
+                <MudTextField @bind-Value="Node.ErrorVariable" Label="Error message → variable" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="Node.AttemptVariable" Label="Attempt count → variable" Margin="Margin.Dense" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    The single other outgoing flow is the success path. The attempt counter increments per failure
+                    and resets on success — branch on it for retries.
+                </MudText>
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Aktivitäts-Knoten.</summary>
+    [Parameter] public AutomatedActivityNode? Node { get; set; }
+
+    /// <summary>Der Activity-Katalog, oder null (dann nur Freitext/generisch).</summary>
+    [Parameter] public IWorkflowActivityCatalog? Catalog { get; set; }
+
+    /// <summary>Die Definition - für die Anzeige des Fehler-Zielknotens.</summary>
+    [Parameter] public WorkflowDefinition? Def { get; set; }
+
+    private IReadOnlyList<ActivityTypeInfo> activityTypes = new List<ActivityTypeInfo>();
+
+    protected override void OnParametersSet()
+    {
+        activityTypes = Catalog?.GetActivityTypes() ?? new List<ActivityTypeInfo>();
+    }
+
+    // Die Configuration-Einträge als stabile Liste je Render (MudTable braucht IEnumerable<T>).
+    private List<KeyValuePair<string, object>> ConfigRows
+        => Node?.Configuration?.ToList() ?? new List<KeyValuePair<string, object>>();
+
+    private void OnActivitySelected(string activityRef)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        // Anderer Typ = anderer Parametersatz: alte Bindungen/Konfiguration würden verwaisen.
+        if (!string.Equals(activityRef, Node.ActivityRef, StringComparison.Ordinal))
+        {
+            Node.Inputs.Clear();
+            Node.Outputs.Clear();
+            Node.Configuration.Clear();
+        }
+
+        Node.ActivityRef = activityRef;
+    }
+
+    private void SetExecutionTarget(string? value)
+    {
+        if (Node is not null)
+        {
+            Node.ExecutionTarget = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+    }
+
+    // --- Deklarierte Parameternamen aus dem Katalog (für die Auswahl in den Popups) ------------
+
+    private IReadOnlyList<string>? InputParameterNames()
+    {
+        if (Catalog is null || Node is null || string.IsNullOrWhiteSpace(Node.ActivityRef))
+        {
+            return null;
+        }
+
+        return Catalog.GetParameters(Node.ActivityRef)
+            .Where(p => p.Direction != ActivityParameterDirection.Output)
+            .Select(p => p.Name).ToList();
+    }
+
+    private IReadOnlyList<string>? OutputParameterNames()
+    {
+        if (Catalog is null || Node is null || string.IsNullOrWhiteSpace(Node.ActivityRef))
+        {
+            return null;
+        }
+
+        return Catalog.GetParameters(Node.ActivityRef)
+            .Where(p => p.Direction == ActivityParameterDirection.Output)
+            .Select(p => p.Name).ToList();
+    }
+
+    // --- Configuration ------------------------------------------------------------------------
+
+    private async Task AddConfig()
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(KeyValueEditDialog.IsNew), true }
+        };
+        var result = await ShowDialog<KeyValueEditDialog>(parameters);
+        if (result?.Data is KeyValueEditDialog.Result r && !r.Delete && Node is not null)
+        {
+            Node.Configuration[r.Key] = r.Value;
+        }
+    }
+
+    private async Task EditConfig(string key)
+    {
+        if (Node is null || !Node.Configuration.TryGetValue(key, out object? current))
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(KeyValueEditDialog.Key), key },
+            { nameof(KeyValueEditDialog.Value), ToStr(current) },
+            { nameof(KeyValueEditDialog.IsNew), false }
+        };
+        var result = await ShowDialog<KeyValueEditDialog>(parameters);
+        if (result?.Data is not KeyValueEditDialog.Result r)
+        {
+            return;
+        }
+
+        if (r.Delete)
+        {
+            Node.Configuration.Remove(r.OriginalKey ?? key);
+            return;
+        }
+
+        // Umbenennung: den alten Eintrag entfernen, bevor der neue gesetzt wird.
+        if (!string.IsNullOrEmpty(r.OriginalKey) && !string.Equals(r.OriginalKey, r.Key, StringComparison.Ordinal))
+        {
+            Node.Configuration.Remove(r.OriginalKey);
+        }
+
+        Node.Configuration[r.Key] = r.Value;
+    }
+
+    // --- Helpers ------------------------------------------------------------------------------
+
+    private async Task<DialogResult?> ShowDialog<TDialog>(DialogParameters parameters)
+        where TDialog : ComponentBase
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<TDialog>(string.Empty, parameters, options);
+        return await dialog.Result;
+    }
+
+    private string ErrorTargetName(string flowId)
+    {
+        SequenceFlow? f = Def?.Flows.FirstOrDefault(x => x.Id == flowId);
+        if (f is null)
+        {
+            return "(missing)";
+        }
+
+        WorkflowNode? n = Def?.GetNode(f.TargetId);
+        return n is null ? (f.TargetId ?? "?") : (string.IsNullOrEmpty(n.Name) ? n.Id : n.Name);
+    }
+
+    private static string ToStr(object? value) => value switch
+    {
+        null => string.Empty,
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        _ => value.ToString() ?? string.Empty
+    };
+
+    private static string Clip(string s) => s.Length <= 60 ? s : s.Substring(0, 58) + "…";
+}

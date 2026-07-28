@@ -1,0 +1,223 @@
+@using System.Globalization
+@using ITVComponents.Workflow.Model
+@inject IDialogService DialogService
+
+@*
+    Die zwei seitenweisen Tabellen für den Datenfluss eines Knotens: Eingaben (Konstante/Variable/
+    Ausdruck) und Ausgaben (Ergebnis → Variable). Add/Edit laufen über eigene Popups (dort ist Platz für
+    Ausdrücke). EINE Komponente für Automated-/User-/CallWorkflow-Editor - die Zeilen sahen überall gleich
+    aus. Die Listen werden in-place verändert (per Referenz).
+*@
+
+<MudText Typo="Typo.subtitle2">@InputsTitle</MudText>
+<MudTable Items="@Inputs" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+          RowsPerPageOptions="@(new[] { 5, 10, 25 })">
+    <ToolBarContent>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                   Color="Color.Primary" OnClick="AddInput">@AddInputLabel</MudButton>
+        <MudSpacer />
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>@InputNameHeader</MudTh>
+        <MudTh>Source</MudTh>
+        <MudTh>Value</MudTh>
+        <MudTh Style="width:1%"></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="@InputNameHeader">@context.Parameter</MudTd>
+        <MudTd DataLabel="Source">@context.Kind</MudTd>
+        <MudTd DataLabel="Value">@Clip(InputValueSummary(context))</MudTd>
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => EditInput(context))" />
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+</MudTable>
+
+<MudText Typo="Typo.subtitle2" Class="mt-4">@OutputsTitle</MudText>
+<MudTable Items="@Outputs" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+          RowsPerPageOptions="@(new[] { 5, 10, 25 })">
+    <ToolBarContent>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                   Color="Color.Primary" OnClick="AddOutput">@AddOutputLabel</MudButton>
+        <MudSpacer />
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>@OutputSourceLabel</MudTh>
+        <MudTh>→ @OutputTargetLabel</MudTh>
+        <MudTh Style="width:1%"></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="@OutputSourceLabel">@context.Parameter</MudTd>
+        <MudTd DataLabel="@OutputTargetLabel">@context.Variable</MudTd>
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => EditOutput(context))" />
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+</MudTable>
+
+@code {
+    /// <summary>Die Eingabe-Bindungen (in-place verändert).</summary>
+    [Parameter, EditorRequired] public List<ActivityInputBinding> Inputs { get; set; } = default!;
+
+    /// <summary>Die Ausgabe-Bindungen (in-place verändert).</summary>
+    [Parameter, EditorRequired] public List<ActivityOutputBinding> Outputs { get; set; } = default!;
+
+    /// <summary>Optionale Auswahlliste deklarierter Eingabe-Parameternamen (Katalog).</summary>
+    [Parameter] public IReadOnlyList<string>? InputParameterOptions { get; set; }
+
+    /// <summary>Optionale Auswahlliste deklarierter Ausgabe-Parameternamen (Katalog).</summary>
+    [Parameter] public IReadOnlyList<string>? OutputParameterOptions { get; set; }
+
+    [Parameter] public string InputsTitle { get; set; } = "Inputs";
+    [Parameter] public string OutputsTitle { get; set; } = "Outputs";
+    [Parameter] public string AddInputLabel { get; set; } = "Add input";
+    [Parameter] public string AddOutputLabel { get; set; } = "Add output";
+    [Parameter] public string InputNameHeader { get; set; } = "Parameter";
+    [Parameter] public string InputNameLabel { get; set; } = "Parameter / name";
+    [Parameter] public string OutputSourceLabel { get; set; } = "Result / parameter";
+    [Parameter] public string OutputTargetLabel { get; set; } = "Variable";
+
+    // --- Inputs -------------------------------------------------------------------------------
+
+    private async Task AddInput()
+    {
+        var fresh = new ActivityInputBinding { Kind = ParameterBindingKind.Literal };
+        var parameters = new DialogParameters
+        {
+            { nameof(BindingEditDialog.Binding), fresh },
+            { nameof(BindingEditDialog.IsNew), true },
+            { nameof(BindingEditDialog.NameLabel), InputNameLabel },
+            { nameof(BindingEditDialog.ParameterOptions), InputParameterOptions }
+        };
+        var result = await ShowDialog<BindingEditDialog>(parameters);
+        if (result?.Data is BindingEditDialog.Result r && !r.Delete
+            && !string.IsNullOrWhiteSpace(r.Binding.Parameter))
+        {
+            Inputs.Add(r.Binding);
+        }
+    }
+
+    private async Task EditInput(ActivityInputBinding binding)
+    {
+        int idx = Inputs.IndexOf(binding);
+        if (idx < 0)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(BindingEditDialog.Binding), Clone(binding) },
+            { nameof(BindingEditDialog.IsNew), false },
+            { nameof(BindingEditDialog.NameLabel), InputNameLabel },
+            { nameof(BindingEditDialog.ParameterOptions), InputParameterOptions }
+        };
+        var result = await ShowDialog<BindingEditDialog>(parameters);
+        if (result?.Data is not BindingEditDialog.Result r)
+        {
+            return;
+        }
+
+        if (r.Delete)
+        {
+            Inputs.RemoveAt(idx);
+        }
+        else if (!string.IsNullOrWhiteSpace(r.Binding.Parameter))
+        {
+            Inputs[idx] = r.Binding;
+        }
+    }
+
+    // --- Outputs ------------------------------------------------------------------------------
+
+    private async Task AddOutput()
+    {
+        var fresh = new ActivityOutputBinding();
+        var parameters = new DialogParameters
+        {
+            { nameof(OutputBindingEditDialog.Binding), fresh },
+            { nameof(OutputBindingEditDialog.IsNew), true },
+            { nameof(OutputBindingEditDialog.SourceLabel), OutputSourceLabel },
+            { nameof(OutputBindingEditDialog.TargetLabel), OutputTargetLabel },
+            { nameof(OutputBindingEditDialog.ParameterOptions), OutputParameterOptions }
+        };
+        var result = await ShowDialog<OutputBindingEditDialog>(parameters);
+        if (result?.Data is OutputBindingEditDialog.Result r && !r.Delete
+            && !string.IsNullOrWhiteSpace(r.Binding.Parameter) && !string.IsNullOrWhiteSpace(r.Binding.Variable))
+        {
+            Outputs.Add(r.Binding);
+        }
+    }
+
+    private async Task EditOutput(ActivityOutputBinding binding)
+    {
+        int idx = Outputs.IndexOf(binding);
+        if (idx < 0)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(OutputBindingEditDialog.Binding), Clone(binding) },
+            { nameof(OutputBindingEditDialog.IsNew), false },
+            { nameof(OutputBindingEditDialog.SourceLabel), OutputSourceLabel },
+            { nameof(OutputBindingEditDialog.TargetLabel), OutputTargetLabel },
+            { nameof(OutputBindingEditDialog.ParameterOptions), OutputParameterOptions }
+        };
+        var result = await ShowDialog<OutputBindingEditDialog>(parameters);
+        if (result?.Data is not OutputBindingEditDialog.Result r)
+        {
+            return;
+        }
+
+        if (r.Delete)
+        {
+            Outputs.RemoveAt(idx);
+        }
+        else if (!string.IsNullOrWhiteSpace(r.Binding.Parameter) && !string.IsNullOrWhiteSpace(r.Binding.Variable))
+        {
+            Outputs[idx] = r.Binding;
+        }
+    }
+
+    // --- Helpers ------------------------------------------------------------------------------
+
+    private async Task<DialogResult?> ShowDialog<TDialog>(DialogParameters parameters)
+        where TDialog : ComponentBase
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<TDialog>(string.Empty, parameters, options);
+        return await dialog.Result;
+    }
+
+    private static ActivityInputBinding Clone(ActivityInputBinding b)
+        => new() { Parameter = b.Parameter, Kind = b.Kind, Literal = b.Literal, Source = b.Source };
+
+    private static ActivityOutputBinding Clone(ActivityOutputBinding b)
+        => new() { Parameter = b.Parameter, Variable = b.Variable };
+
+    private static string InputValueSummary(ActivityInputBinding b) => b.Kind switch
+    {
+        ParameterBindingKind.Variable => "$" + (b.Source ?? string.Empty),
+        ParameterBindingKind.Expression => "ƒ " + (b.Source ?? string.Empty),
+        _ => ToStr(b.Literal)
+    };
+
+    private static string ToStr(object? value) => value switch
+    {
+        null => string.Empty,
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        _ => value.ToString() ?? string.Empty
+    };
+
+    private static string Clip(string s) => s.Length <= 60 ? s : s.Substring(0, 58) + "…";
+}

@@ -275,11 +275,19 @@ namespace ITVComponents.Workflow.Test
 
             // Ein Zweig ist am Join geparkt, der andere wartet auf das Signal -> Instanz ruht.
             Assert.AreEqual(WorkflowStatus.Waiting, instance.Status);
-            Assert.AreEqual(1, instance.Variables["x"]);
+
+            // Solange die parallele Region offen ist, steht das Ergebnis des fertigen Zweigs in DESSEN
+            // Zweig-Scope - der Instanz-Scope bleibt auf dem Stand des Splits.
+            Assert.IsFalse(instance.Variables.ContainsKey("x"),
+                "a branch writes into its own scope, not into the instance scope.");
+            Token parked = instance.Tokens.Single(t => t.Status == TokenStatus.Joining);
+            Assert.AreEqual(1, parked.Variables["x"]);
 
             engine.SignalWorkflow(instance.Id, "go");
 
-            Assert.AreEqual(WorkflowStatus.Completed, store.GetInstance(instance.Id).Status);
+            WorkflowInstance done = store.GetInstance(instance.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, done.Status);
+            Assert.AreEqual(1, done.Variables["x"], "the join merges the branch results into the scope.");
         }
 
         [TestMethod]

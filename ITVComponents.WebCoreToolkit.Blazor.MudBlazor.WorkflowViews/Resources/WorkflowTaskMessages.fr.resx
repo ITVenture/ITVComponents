@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="PageTitle" xml:space="preserve">
+    <value>Mes tÃ¢ches</value>
+  </data>
+  <data name="GridTitle" xml:space="preserve">
+    <value>TÃ¢ches ouvertes</value>
+  </data>
+  <data name="ScopeLabel" xml:space="preserve">
+    <value>Vue</value>
+  </data>
+  <data name="ScopeMine" xml:space="preserve">
+    <value>Les miennes</value>
+  </data>
+  <data name="ScopePool" xml:space="preserve">
+    <value>Non assignÃ©es</value>
+  </data>
+  <data name="ScopeAll" xml:space="preserve">
+    <value>Toutes les visibles</value>
+  </data>
+  <data name="TypeLabel" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="TypeAll" xml:space="preserve">
+    <value>Tous les types</value>
+  </data>
+  <data name="ColumnTitle" xml:space="preserve">
+    <value>TÃ¢che</value>
+  </data>
+  <data name="ColumnAssignedTo" xml:space="preserve">
+    <value>AssignÃ©e Ã </value>
+  </data>
+  <data name="ColumnCreated" xml:space="preserve">
+    <value>CrÃ©Ã©e</value>
+  </data>
+  <data name="ColumnDue" xml:space="preserve">
+    <value>Ã‰chÃ©ance</value>
+  </data>
+  <data name="ColumnReference" xml:space="preserve">
+    <value>RÃ©fÃ©rence</value>
+  </data>
+  <data name="SearchPlaceholder" xml:space="preserve">
+    <value>Rechercher tÃ¢che, type ou instanceâ€¦</value>
+  </data>
+  <data name="OverdueOnly" xml:space="preserve">
+    <value>En retard seulement</value>
+  </data>
+  <data name="Overdue" xml:space="preserve">
+    <value>En retard</value>
+  </data>
+  <data name="Unassigned" xml:space="preserve">
+    <value>Non assignÃ©e</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Actualiser</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Ouvrir</value>
+  </data>
+  <data name="NoTasks" xml:space="preserve">
+    <value>Aucune tÃ¢che ouverte.</value>
+  </data>
+  <data name="NoPermission" xml:space="preserve">
+    <value>Vous n&apos;avez pas l&apos;autorisation de traiter des tÃ¢ches.</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>Chargementâ€¦</value>
+  </data>
+  <data name="Complete" xml:space="preserve">
+    <value>Terminer</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Fermer</value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>TÃ¢che terminÃ©e.</value>
+  </data>
+  <data name="AlreadyCompleted" xml:space="preserve">
+    <value>Quelqu&apos;un d&apos;autre a terminÃ© cette tÃ¢che avant vous - vos saisies n&apos;ont pas Ã©tÃ© enregistrÃ©es.</value>
+  </data>
+  <data name="CompletionFaulted" xml:space="preserve">
+    <value>Le workflow a rencontrÃ© une erreur en continuant. La tÃ¢che est terminÃ©e, mais le processus nÃ©cessite une attention.</value>
+  </data>
+  <data name="TaskGone" xml:space="preserve">
+    <value>Cette tÃ¢che n&apos;existe plus.</value>
+  </data>
+  <data name="ClaimedByOther" xml:space="preserve">
+    <value>{0} a cette tÃ¢che ouverte depuis {1}. Vous pouvez continuer - le premier Ã  enregistrer l&apos;emporte.</value>
+  </data>
+  <data name="RequiredField" xml:space="preserve">
+    <value>Champ obligatoire.</value>
+  </data>
+  <data name="NoFormConfigured" xml:space="preserve">
+    <value>Cette tÃ¢che doit seulement Ãªtre confirmÃ©e.</value>
+  </data>
+  <data name="DetailsSection" xml:space="preserve">
+    <value>DÃ©tails</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Oui</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>Non</value>
+  </data>
+</root>

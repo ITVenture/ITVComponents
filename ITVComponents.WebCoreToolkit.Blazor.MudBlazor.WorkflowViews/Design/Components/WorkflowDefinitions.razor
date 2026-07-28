@@ -29,7 +29,7 @@
                     <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="Refresh" OnClick="ReloadGrid" />
                     <MudText Typo="Typo.h6">Definitions</MudText>
                     <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary"
-                               Class="ml-2" Href="/Workflow/Editor/new">New</MudButton>
+                               Class="ml-2" Href="Workflow/Editor/new">New</MudButton>
                     <MudSpacer />
                     <MudTextField @bind-Value="search"
                                   Placeholder="Search id…"
@@ -108,13 +108,16 @@
         }
     }
 
+    // Ziele bewusst RELATIV (ohne fuehrenden Slash): NavigateTo loest sie gegen die Basis-URI
+    // (<base href="/{tenant}/">) auf und bleibt damit im Tenant. Ein fuehrender Slash zielt auf den
+    // Root und laeuft in einen 404, weil die Toolkit-Routen tenant-gebunden sind.
     private void OpenGraph(WorkflowDefinitionListItem item)
     {
-        Nav.NavigateTo($"/Workflow/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}");
+        Nav.NavigateTo($"Workflow/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}");
     }
 
     private void OpenEditor(WorkflowDefinitionListItem item)
     {
-        Nav.NavigateTo($"/Workflow/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}/edit");
+        Nav.NavigateTo($"Workflow/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}/edit");
     }
 }

@@ -1,0 +1,227 @@
+@using ITVComponents.Workflow.Model
+@inject IDialogService DialogService
+
+@*
+    Tab-basierter Editor für einen UserActivityNode (Benutzer-Aufgabe). Reiter: General (Identität +
+    Zuständigkeit), Variable mapping (Datenfluss + Scope), View settings (Darstellung/Übersetzung),
+    Input settings (Felder der generischen Maske). KeepPanelsAlive, damit die Monaco-Felder (Assignment/
+    TitleExpression) auch dann für FlushAsync erreichbar sind, wenn ihr Reiter gerade nicht aktiv ist.
+    Der Aufrufer (NodePropertiesDialog) ruft FlushAsync() vor dem Schliessen.
+*@
+
+@if (Node is not null)
+{
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4"
+             KeepPanelsAlive="true" MinimumTabWidth="70px">
+        @* --- General --- *@
+        <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Info">
+            <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="Node.TaskKey" Label="Task key" Margin="Margin.Dense"
+                          HelperText="The business key of this kind of task (e.g. ApproveInvoice). Filters the work list and resolves the form." />
+            <ForeignKeyNameAutocomplete TKey="int" Table="Permissions" @bind-Value="Node.RequiredPermission"
+                                        Label="Required permission" Clearable="true" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Who may see and complete tasks of this node. Empty = the general task permission is enough.
+            </MudText>
+
+            <MudText Typo="Typo.caption" Class="mt-3">Assignment (CScript → user name)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Optional. Evaluated ONCE when the task appears. Empty = the task goes to the pool. An expression
+                that fails faults the instance on purpose — an unassigned task would be visible to everyone.
+            </MudText>
+            <CScriptField @ref="assignField" Height="120" Value="@Node.Assignment"
+                          ValueChanged="@(v => Node.Assignment = v)" />
+
+            <MudNumericField T="double?" @bind-Value="Node.DueInHours" Label="Due in hours" Margin="Margin.Dense"
+                             Class="mt-3" Min="0"
+                             HelperText="Display and sorting only — an overdue task does NOT continue by itself (use a timer in a parallel branch)." />
+        </MudTabPanel>
+
+        @* --- Variable mapping --- *@
+        <MudTabPanel Text="Variable mapping" Icon="@Icons.Material.Filled.SwapHoriz">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mb-1">
+                Inputs are resolved when the task is opened (so the form shows the current state); outputs map the
+                form result (for the generic form: the field names) onto variables.
+            </MudText>
+            <BindingMappingTables Inputs="Node.Inputs" Outputs="Node.Outputs"
+                                  InputsTitle="Form inputs (payload)" OutputsTitle="Form outputs"
+                                  AddInputLabel="Add payload value" AddOutputLabel="Add output"
+                                  InputNameHeader="Payload name" InputNameLabel="Payload name"
+                                  OutputSourceLabel="Field / result" OutputTargetLabel="Variable" />
+            <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
+                              RetainVariables="Node.RetainVariables"
+                              SwitchLabel="Consolidate scope (replace)"
+                              HelperText="@("After the task the scope consists of exactly the mapped results plus the variables kept here.")" />
+        </MudTabPanel>
+
+        @* --- View settings --- *@
+        <MudTabPanel Text="View settings" Icon="@Icons.Material.Filled.Visibility">
+            <MudTextField @bind-Value="Node.ViewKey" Label="View key" Margin="Margin.Dense"
+                          HelperText="Optional: the key of a component the host registered. Empty = the task key is tried, then the generic form." />
+            <MudTextField @bind-Value="Node.Title" Label="Title" Margin="Margin.Dense" Class="mt-2"
+                          HelperText="@CultureHint" />
+            <MudText Typo="Typo.caption" Class="mt-3">Title from the data (CScript)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Optional. Wins over the static title — but the result is plain text and therefore not multilingual.
+            </MudText>
+            <CScriptField @ref="titleField" Height="120" Value="@Node.TitleExpression"
+                          ValueChanged="@(v => Node.TitleExpression = v)" />
+            <MudTextField @bind-Value="Node.Description" Label="Description" Margin="Margin.Dense" Lines="2"
+                          Class="mt-2" HelperText="@CultureHint" />
+
+            <MudText Typo="Typo.caption" Class="mt-3">Description data (CScript object for formatting)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Optional. Returns an object whose members fill placeholders in the description — e.g.
+                <code>{ InvoiceNo: invoiceNumber }</code> for a description like
+                <code>Invoice [InvoiceNo:0000000000]</code>. Evaluated over the current variables when the task
+                is opened; the description stays multilingual (one prototype per culture). Empty = the
+                description is shown as-is.
+            </MudText>
+            <CScriptField @ref="descDataField" Height="120" Value="@Node.DescriptionData"
+                          ValueChanged="@(v => Node.DescriptionData = v)" />
+        </MudTabPanel>
+
+        @* --- Input settings (generische Maske) --- *@
+        <MudTabPanel Text="Input settings" Icon="@Icons.Material.Filled.ListAlt">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">
+                The generic form — only used when no component is registered for this task. No fields = the task
+                is just confirmed.
+            </MudText>
+            <MudTable Items="@Node.FormFields" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+                      RowsPerPageOptions="@(new[] { 5, 10, 25 })">
+                <ToolBarContent>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                               Color="Color.Primary" OnClick="AddField">Add field</MudButton>
+                    <MudSpacer />
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Field name</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh Style="width:1%"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Field name">@context.Name</MudTd>
+                    <MudTd DataLabel="Type">@context.Kind</MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => EditField(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Aufgaben-Knoten.</summary>
+    [Parameter] public UserActivityNode? Node { get; set; }
+
+    private const string CultureHint =
+        "Plain text, or a per-culture record like {\"de\":\"Freigabe\",\"fr\":\"Approbation\"} — the same convention as navigation entries.";
+
+    private CScriptField? assignField;
+    private CScriptField? titleField;
+    private CScriptField? descDataField;
+
+    /// <summary>
+    /// Holt den aktuellen Text der Monaco-Felder (Assignment/TitleExpression/DescriptionData) ins Modell.
+    /// Monaco meldet seinen Wert erst beim Verlassen - der Editor ruft dies vor jedem Speichern/Schliessen.
+    /// </summary>
+    public async Task FlushAsync()
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        if (assignField is not null)
+        {
+            Node.Assignment = await assignField.GetValueAsync();
+        }
+
+        if (titleField is not null)
+        {
+            Node.TitleExpression = await titleField.GetValueAsync();
+        }
+
+        if (descDataField is not null)
+        {
+            Node.DescriptionData = await descDataField.GetValueAsync();
+        }
+    }
+
+    private async Task AddField()
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        var fresh = new UserTaskField();
+        var result = await ShowFieldDialog(fresh, isNew: true);
+        if (result is { Delete: false } && !string.IsNullOrWhiteSpace(result.Field.Name)
+            && !Node.FormFields.Any(f => string.Equals(f.Name, result.Field.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            Node.FormFields.Add(result.Field);
+        }
+    }
+
+    private async Task EditField(UserTaskField field)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        int idx = Node.FormFields.IndexOf(field);
+        if (idx < 0)
+        {
+            return;
+        }
+
+        var result = await ShowFieldDialog(Clone(field), isNew: false);
+        if (result is null)
+        {
+            return;
+        }
+
+        if (result.Delete)
+        {
+            Node.FormFields.RemoveAt(idx);
+        }
+        else if (!string.IsNullOrWhiteSpace(result.Field.Name))
+        {
+            Node.FormFields[idx] = result.Field;
+        }
+    }
+
+    private async Task<UserTaskFieldEditDialog.Result?> ShowFieldDialog(UserTaskField field, bool isNew)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(UserTaskFieldEditDialog.Field), field },
+            { nameof(UserTaskFieldEditDialog.IsNew), isNew }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<UserTaskFieldEditDialog>(string.Empty, parameters, options);
+        DialogResult? result = await dialog.Result;
+        return result?.Data as UserTaskFieldEditDialog.Result;
+    }
+
+    private static UserTaskField Clone(UserTaskField f) => new()
+    {
+        Name = f.Name,
+        Label = f.Label,
+        Kind = f.Kind,
+        Required = f.Required,
+        ReadOnly = f.ReadOnly,
+        PayloadName = f.PayloadName,
+        HelpText = f.HelpText,
+        Choices = f.Choices?.Select(c => new UserTaskChoice { Value = c.Value, Label = c.Label }).ToList()
+                  ?? new List<UserTaskChoice>()
+    };
+}

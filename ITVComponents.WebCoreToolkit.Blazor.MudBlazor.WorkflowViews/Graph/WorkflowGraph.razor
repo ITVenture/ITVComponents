@@ -24,6 +24,10 @@ else
                 <marker id="wf-arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
                     <path d="M0,0 L8,4 L0,8 z" fill="var(--mud-palette-lines-default)" />
                 </marker>
+                @* Fehlerpfad, gleiche Lesart wie im Editor. *@
+                <marker id="wf-arrow-error" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+                    <path d="M0,0 L8,4 L0,8 z" fill="var(--mud-palette-error)" />
+                </marker>
             </defs>
             @Body()
         </svg>
@@ -51,10 +55,15 @@ else
     {
         var sb = new StringBuilder();
 
+        HashSet<string> errorFlowIds = ErrorFlowIds();
+
         foreach (var edge in layout.Edges)
         {
-            sb.Append($"<line x1=\"{N(edge.X1)}\" y1=\"{N(edge.Y1)}\" x2=\"{N(edge.X2)}\" y2=\"{N(edge.Y2)}\" ")
-              .Append("stroke=\"var(--mud-palette-lines-default)\" stroke-width=\"1.5\" marker-end=\"url(#wf-arrow)\" />");
+            bool err = errorFlowIds.Contains(edge.Id);
+            string stroke = err ? "var(--mud-palette-error)" : "var(--mud-palette-lines-default)";
+            string marker = err ? "wf-arrow-error" : "wf-arrow";
+            sb.Append($"<path d=\"{edge.PathData}\" fill=\"none\" stroke-linejoin=\"round\" ")
+              .Append($"stroke=\"{stroke}\" stroke-width=\"1.5\" marker-end=\"url(#{marker})\" />");
             if (!string.IsNullOrEmpty(edge.Label))
             {
                 Text(sb, edge.LabelX, edge.LabelY - 4, "middle", "var(--mud-palette-text-secondary)", 11, edge.Label!, null);
@@ -102,6 +111,36 @@ else
         }
 
         return new MarkupString(sb.ToString());
+    }
+
+    /// <summary>
+    /// Die Kanten, die Fehler-Ausgang eines Knotens sind - sie werden rot gezeichnet. Ohne das sieht
+    /// ein Fehlerpfad im Bild aus wie der normale Weiterlauf.
+    /// </summary>
+    private HashSet<string> ErrorFlowIds()
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        if (Definition?.Nodes is null)
+        {
+            return result;
+        }
+
+        foreach (WorkflowNode n in Definition.Nodes)
+        {
+            string? id = n switch
+            {
+                AutomatedActivityNode a => a.ErrorFlowId,
+                CallWorkflowNode c => c.ErrorFlowId,
+                _ => null
+            };
+
+            if (!string.IsNullOrEmpty(id))
+            {
+                result.Add(id);
+            }
+        }
+
+        return result;
     }
 
     private static void Text(StringBuilder sb, double x, double y, string anchor, string fill, int fontSize,

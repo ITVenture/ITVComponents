@@ -38,6 +38,15 @@
                     }
                 </MudTabPanel>
                 <MudTabPanel Text="@($"Variables ({instance.Variables.Count})")">
+                    @if (instance.Tokens.Any(t => t.Variables is not null))
+                    {
+                        @* Waehrend einer parallelen Region steht der Instanz-Stack auf dem Stand des Splits;
+                           was die Zweige gerade rechnen, steht in deren Kopien (Reiter „Tokens"). *@
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                            A parallel region is open: these are the variables as of the split. What the branches
+                            computed so far is in their branch scopes (tab "Tokens") until the join merges them.
+                        </MudAlert>
+                    }
                     <MudSimpleTable Dense="true" Hover="true">
                         <thead><tr><th>Name</th><th>Value</th></tr></thead>
                         <tbody>
@@ -50,7 +59,7 @@
                 </MudTabPanel>
                 <MudTabPanel Text="@($"Tokens ({instance.Tokens.Count})")">
                     <MudSimpleTable Dense="true" Hover="true">
-                        <thead><tr><th>Node</th><th>Status</th><th>Waiting for</th></tr></thead>
+                        <thead><tr><th>Node</th><th>Status</th><th>Waiting for</th><th>Branch scope</th></tr></thead>
                         <tbody>
                             @foreach (var token in instance.Tokens)
                             {
@@ -58,6 +67,7 @@
                                     <td>@token.NodeId</td>
                                     <td>@token.Status</td>
                                     <td>@(token.WaitingSignal ?? (token.DueUtc.HasValue ? $"timer {token.DueUtc:o}" : ""))</td>
+                                    <td>@BranchScope(token)</td>
                                 </tr>
                             }
                         </tbody>
@@ -119,6 +129,16 @@
     private string[] activeNodeIds = Array.Empty<string>();
     private ClaimsPrincipal? currentUser;
     private string? signalName;
+
+    /// <summary>
+    /// Der Zweig-Scope eines Tokens fuer die Anzeige: die eigene Variablen-Kopie eines parallelen Zweigs,
+    /// oder leer, wenn das Token auf dem Instanz-Stack arbeitet. Ohne diese Spalte waere waehrend einer
+    /// parallelen Region nicht zu sehen, was ein Zweig gerade gerechnet hat.
+    /// </summary>
+    private static string BranchScope(Token token)
+        => token.Variables is null
+            ? string.Empty
+            : string.Join(", ", token.Variables.Select(kv => $"{kv.Key}={kv.Value}"));
 
     private static Color SeverityColor(HistorySeverity severity) => severity switch
     {

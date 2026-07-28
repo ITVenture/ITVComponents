@@ -135,6 +135,47 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         }
 
         [TestMethod]
+        public void RunBranch_BranchScopes_SurviveThePersistedRoundTrip()
+        {
+            // Der verteilte Weg: jeder Zweig wird EINZELN geladen, ausgefuehrt und committed. Der
+            // Zweig-Scope muss diesen Weg mitmachen (eigene Spalte je Token-Zeile), sonst waere die
+            // Isolation nur im In-Memory-Vortrieb wirksam.
+            EfWorkflowStore store = NewStore();
+            WorkflowEngine engine = EngineOver(store);
+            store.SaveDefinition(ParallelDefinition());
+
+            WorkflowInstance instance = engine.CreateInstance("par");
+            string startToken = instance.Tokens.Single().Id;
+
+            IReadOnlyList<string> branches = engine.RunBranch(instance.Id, startToken);
+            Assert.AreEqual(2, branches.Count, "the split spawned both branches.");
+
+            WorkflowInstance forked = store.GetInstance(instance.Id);
+            Assert.IsTrue(forked.Tokens.Where(t => branches.Contains(t.Id))
+                    .All(t => t.Variables != null && t.SplitTokenId == startToken),
+                "every branch carries its own (persisted) scope and knows which split it came from.");
+
+            engine.RunBranch(instance.Id, branches[0]);
+
+            WorkflowInstance midway = store.GetInstance(instance.Id);
+            Assert.IsFalse(midway.Variables.ContainsKey("a"),
+                "while the region is open the branch result stays in the branch.");
+            Assert.AreEqual(1, midway.Tokens.Single(t => t.Id == branches[0]).Variables["a"],
+                "the branch write came back out of the database.");
+
+            IReadOnlyList<string> continuation = engine.RunBranch(instance.Id, branches[1]);
+            Assert.AreEqual(1, continuation.Count, "the last arriver fires the join.");
+            engine.RunBranch(instance.Id, continuation[0]);
+
+            WorkflowInstance final = store.GetInstance(instance.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, final.Status);
+            Assert.AreEqual(1, final.Variables["a"], "branch A's write merged at the join.");
+            Assert.AreEqual(2, final.Variables["b"], "branch B's write merged at the join.");
+            Assert.IsTrue(final.Tokens.All(t => t.Variables == null),
+                "after the join no branch scope is left behind.");
+        }
+
+        [TestMethod]
         public void RunBranch_ConcurrentWriteToSameVariable_DifferentValue_Faults()
         {
             EfWorkflowStore inner = NewStore();

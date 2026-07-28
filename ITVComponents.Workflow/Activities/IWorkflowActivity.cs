@@ -23,13 +23,19 @@ namespace ITVComponents.Workflow.Activities
         /// das Ziel-Dictionary fuer die deklarierten Ausgaben (die Engine bildet es nach der
         /// Ausfuehrung auf die Variablen ab), oder null fuer einen frischen Satz
         /// </param>
+        /// <param name="variables">
+        /// der Variablen-Scope, in dem dieser Zweig arbeitet (innerhalb einer parallelen Region der
+        /// Zweig-Scope des Tokens), oder null fuer den Instanz-Scope
+        /// </param>
         public WorkflowActivityContext(WorkflowInstance instance, AutomatedActivityNode node,
-            IDictionary<string, object> inputs = null, IDictionary<string, object> outputs = null)
+            IDictionary<string, object> inputs = null, IDictionary<string, object> outputs = null,
+            IDictionary<string, object> variables = null)
         {
             Instance = instance;
             Node = node;
             Inputs = inputs ?? new Dictionary<string, object>();
             Outputs = outputs ?? new Dictionary<string, object>();
+            Variables = variables ?? instance?.Variables;
         }
 
         /// <summary>Die laufende Instanz.</summary>
@@ -38,8 +44,13 @@ namespace ITVComponents.Workflow.Activities
         /// <summary>Der Knoten, der diese Aktivitaet ausloest.</summary>
         public AutomatedActivityNode Node { get; }
 
-        /// <summary>Die Variablen der Instanz; Aktivitaeten schreiben hier ihre Ergebnisse hin.</summary>
-        public IDictionary<string, object> Variables => Instance.Variables;
+        /// <summary>
+        /// Der Variablen-Stack, in dem dieser Zweig arbeitet; Aktivitaeten schreiben hier ihre Ergebnisse
+        /// hin. Ausserhalb paralleler Zweige sind das die Variablen der Instanz; innerhalb einer parallelen
+        /// Region der <b>Zweig-Scope</b> (<see cref="Token.Variables"/>) - eine Kopie, die der zugehoerige
+        /// Join wieder zusammenfuehrt. Aktivitaeten merken davon nichts: sie lesen und schreiben wie bisher.
+        /// </summary>
+        public IDictionary<string, object> Variables { get; }
 
         /// <summary>Die statische Konfiguration des Knotens (generische Aktivitaeten).</summary>
         public IDictionary<string, object> Configuration => Node.Configuration;

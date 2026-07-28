@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ITVComponents.Workflow.Instances
 {
@@ -78,5 +79,83 @@ namespace ITVComponents.Workflow.Instances
         /// liefert er ueber diesen Link sein Ergebnis und der Zweig laeuft weiter.
         /// </summary>
         public string WaitingForChildInstanceId { get; set; }
+
+        /// <summary>
+        /// Der <b>Zweig-Scope</b>: die eigene Variablen-Kopie dieses Zweigs, oder null, wenn das Token
+        /// direkt auf dem Instanz-Scope (<see cref="WorkflowInstance.Variables"/>) arbeitet.
+        /// </summary>
+        /// <remarks>
+        /// Ein AND-Split legt je Strang eine Kopie des Scopes an, den er vorfindet; alles, was der Zweig
+        /// danach liest und schreibt, laeuft in dieser Kopie. Damit koennen sich parallele Zweige nicht
+        /// mehr gegenseitig ueberschreiben - der Instanz-Scope bleibt waehrend der parallelen Region auf
+        /// dem Stand des Splits. Der zugehoerige Join fuehrt die Kopien wieder zusammen
+        /// (<see cref="Model.ParallelGatewayNode.Outputs"/>). Null = kein Zweig-Scope: so laufen alle
+        /// Tokens ausserhalb paralleler Regionen und alle Instanzen aus der Zeit vor diesem Feld
+        /// (unveraendertes Verhalten).
+        /// </remarks>
+        public Dictionary<string, object> Variables { get; set; }
+
+        /// <summary>
+        /// Bei einer wartenden <b>Benutzer-Aufgabe</b> (<see cref="Model.UserActivityNode"/>): der fachliche
+        /// Schluessel der Aufgabenart; sonst null. Zugleich das Kennzeichen, dass dieses wartende Token eine
+        /// Aufgabe IST - die Aufgabenliste filtert darauf.
+        /// </summary>
+        /// <remarks>
+        /// Die folgenden Aufgaben-Felder sind bewusst am Token <b>festgeschrieben</b> und nicht bei Bedarf
+        /// aus der Definition abgeleitet: die Arbeitsliste ist eine Datenbankabfrage ueber viele Instanzen -
+        /// sie kann weder Definitions-JSON auspacken noch einen Zuweisungs-Ausdruck auswerten. Alle Felder
+        /// werden beim Parken gesetzt und beim Abschluss wieder geleert.
+        /// </remarks>
+        public string TaskKey { get; set; }
+
+        /// <summary>
+        /// Bei einer wartenden Benutzer-Aufgabe: die Permission, die man braucht, um sie zu sehen und zu
+        /// erledigen (<see cref="Model.UserActivityNode.RequiredPermission"/>); sonst null.
+        /// </summary>
+        public string TaskPermission { get; set; }
+
+        /// <summary>
+        /// Bei einer wartenden Benutzer-Aufgabe: der Benutzername des Zustaendigen, wie ihn
+        /// <see cref="Model.UserActivityNode.Assignment"/> beim Parken geliefert hat. Null = die Aufgabe
+        /// gehoert dem Pool.
+        /// </summary>
+        public string AssignedTo { get; set; }
+
+        /// <summary>
+        /// Bei einer wartenden Benutzer-Aufgabe: der Titel fuer die Arbeitsliste - <b>unaufgeloest</b>
+        /// (Klartext oder Kultur-JSON). Uebersetzt wird beim Anzeigen, nicht beim Parken: sonst bestimmte
+        /// die Kultur des ausfuehrenden Runners die Sprache des Lesers.
+        /// </summary>
+        public string TaskTitle { get; set; }
+
+        /// <summary>
+        /// Bei einer wartenden Benutzer-Aufgabe: wann sie entstanden ist (UTC) - das Sortierkriterium der
+        /// Arbeitsliste ("aelteste zuerst").
+        /// </summary>
+        public DateTime? TaskCreatedUtc { get; set; }
+
+        /// <summary>
+        /// Bei einer wartenden Benutzer-Aufgabe: die Frist (UTC), falls
+        /// <see cref="Model.UserActivityNode.DueInHours"/> gesetzt ist; sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst NICHT <see cref="DueUtc"/>: das ist die Timer-Faelligkeit, und der Timer-Aufgriff
+        /// (<c>FindDueTimers</c>/<c>ReactivateTimers</c>) wuerde eine ueberfaellige Aufgabe kurzerhand
+        /// selbst weiterlaufen lassen. Die Frist ist hier reine Anzeige- und Sortierinformation.
+        /// </remarks>
+        public DateTime? TaskDueUtc { get; set; }
+
+        /// <summary>
+        /// Die Herkunft dieses Zweigs: die Id des (verbrauchten) Tokens, das den AND-Split ausgefuehrt hat,
+        /// aus dem dieses Token hervorgegangen ist; null ausserhalb einer parallelen Region.
+        /// </summary>
+        /// <remarks>
+        /// Das ist die gesamte Zweig-Provenienz: ueber diese Kette findet der Join den Scope, aus dem
+        /// gesplittet wurde (der Split-Token wird verbraucht, bleibt aber in der Token-Liste stehen und
+        /// traegt seinen Scope weiter) - und damit auch die naechst-aeussere Ebene bei verschachtelten
+        /// Splits. Jede Aktivierung eines Splits erzeugt eine neue Token-Id, sodass Wiederholungs-Schleifen
+        /// ueber denselben Split nicht miteinander vermischt werden.
+        /// </remarks>
+        public string SplitTokenId { get; set; }
     }
 }

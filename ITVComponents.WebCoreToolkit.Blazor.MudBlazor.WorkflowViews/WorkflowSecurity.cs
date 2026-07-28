@@ -17,5 +17,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews
 
         /// <summary>Aspekt: Definitionen anlegen/bearbeiten (Editor).</summary>
         public const string Design = "Workflow.Design";
+
+        /// <summary>
+        /// Aspekt: die eigenen Aufgaben sehen und erledigen. Bewusst getrennt von
+        /// <see cref="Monitor"/>/<see cref="Operate"/>: die Arbeitsliste ist eine <b>Benutzer</b>-Ansicht -
+        /// wer Rechnungen freigibt, braucht deswegen keinen Blick in fremde Instanzen. Die feine
+        /// Zustaendigkeit macht die Permission am Knoten
+        /// (<see cref="ITVComponents.Workflow.Model.UserActivityNode.RequiredPermission"/>).
+        /// </summary>
+        public const string Tasks = "Workflow.Tasks";
     }
 }

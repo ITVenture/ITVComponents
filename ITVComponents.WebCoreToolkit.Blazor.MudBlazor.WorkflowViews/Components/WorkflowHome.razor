@@ -7,15 +7,27 @@
 <MudText Typo="Typo.h5" GutterBottom="true">Workflow</MudText>
 
 @* Das Feature schaltet den Bereich frei; die Kacheln erscheinen je nach Aspekt-Berechtigung. *@
-<SecureView RequiredPermissions="Workflow.Monitor,Workflow.Design" RequiredFeatures="ITVWorkflow">
+<SecureView RequiredPermissions="Workflow.Monitor,Workflow.Design,Workflow.Tasks" RequiredFeatures="ITVWorkflow">
     <Permitted>
         <MudStack Spacing="3">
+            <SecureView RequiredPermissions="Workflow.Tasks">
+                <Permitted>
+                    <MudPaper Class="pa-4">
+                        <MudText Typo="Typo.h6">Meine Aufgaben</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">Offene Aufgaben ansehen und erledigen.</MudText>
+                        <MudButton Href="Workflow/Tasks" Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.AssignmentInd">Aufgaben</MudButton>
+                    </MudPaper>
+                </Permitted>
+            </SecureView>
             <SecureView RequiredPermissions="Workflow.Monitor">
                 <Permitted>
                     <MudPaper Class="pa-4">
                         <MudText Typo="Typo.h6">Monitoring</MudText>
                         <MudText Typo="Typo.body2" Class="mb-2">Laufende und beendete Instanzen ansehen.</MudText>
-                        <MudButton Href="/Workflow/Instances" Variant="Variant.Filled" Color="Color.Primary"
+                        @* Relativ (ohne fuehrenden Slash): loest gegen <base href="/{tenant}/"> auf und
+                           bleibt damit im Tenant. Ein fuehrender Slash zielt auf den Root und ergibt 404. *@
+                        <MudButton Href="Workflow/Instances" Variant="Variant.Filled" Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.Monitor">Instanzen</MudButton>
                     </MudPaper>
                 </Permitted>
@@ -25,7 +37,7 @@
                     <MudPaper Class="pa-4">
                         <MudText Typo="Typo.h6">Design</MudText>
                         <MudText Typo="Typo.body2" Class="mb-2">Workflow-Definitionen ansehen (Editor folgt).</MudText>
-                        <MudButton Href="/Workflow/Definitions" Variant="Variant.Filled" Color="Color.Primary"
+                        <MudButton Href="Workflow/Definitions" Variant="Variant.Filled" Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.AccountTree">Definitionen</MudButton>
                     </MudPaper>
                 </Permitted>

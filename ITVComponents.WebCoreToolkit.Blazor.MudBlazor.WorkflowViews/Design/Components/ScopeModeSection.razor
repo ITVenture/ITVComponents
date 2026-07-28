@@ -1,0 +1,80 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Der Scope-Block: Schalter "Replace" plus die Liste der trotzdem erhalten bleibenden Variablen.
+    Gemeinsam fuer Aktivitaet, Subworkflow-Aufruf und Start-Signatur; der End-Knoten nutzt ihn ohne
+    Schalter (dort ist der Re-Base die Bedeutung des deklarierten Ergebnisses und nicht waehlbar).
+*@
+
+<MudDivider Class="my-3" />
+@if (ShowSwitch)
+{
+    <MudSwitch T="bool" Value="@(Mode == ActivityScopeMode.Replace)" ValueChanged="OnSwitch"
+               Color="Color.Primary" Label="@SwitchLabel" />
+}
+
+@if (ShowRetain)
+{
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">@HelperText</MudText>
+    @if (RetainVariables is not null)
+    {
+        @foreach (var v in RetainVariables.ToList())
+        {
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+                <MudTextField T="string" Value="@v" ReadOnly="true" Label="keep" Margin="Margin.Dense" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => RetainVariables.Remove(v))" />
+            </MudStack>
+        }
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
+            <MudTextField T="string" @bind-Value="newRetain" Placeholder="keep variable"
+                          Margin="Margin.Dense" Style="max-width:150px" />
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddRetain" />
+        </MudStack>
+    }
+}
+
+@code {
+    /// <summary>Der aktuelle Modus des Knotens.</summary>
+    [Parameter] public ActivityScopeMode Mode { get; set; }
+
+    /// <summary>Wird beim Umschalten gerufen.</summary>
+    [Parameter] public EventCallback<ActivityScopeMode> ModeChanged { get; set; }
+
+    /// <summary>Die Erhaltungs-Whitelist (wird in-place veraendert).</summary>
+    [Parameter] public List<string>? RetainVariables { get; set; }
+
+    /// <summary>Beschriftung des Schalters.</summary>
+    [Parameter] public string SwitchLabel { get; set; } = "Consolidate scope (replace)";
+
+    /// <summary>Erklaerung, die im Replace-Fall unter dem Schalter steht.</summary>
+    [Parameter] public string HelperText { get; set; } = "";
+
+    /// <summary>
+    /// Ob der Umschalter angezeigt wird. False = der Knoten ersetzt den Scope per Definition (End-Knoten);
+    /// dann bleibt nur die Erhaltungs-Liste.
+    /// </summary>
+    [Parameter] public bool ShowSwitch { get; set; } = true;
+
+    private string? newRetain;
+
+    private bool ShowRetain => !ShowSwitch || Mode == ActivityScopeMode.Replace;
+
+    private Task OnSwitch(bool on)
+        => ModeChanged.InvokeAsync(on ? ActivityScopeMode.Replace : ActivityScopeMode.Extend);
+
+    private void AddRetain()
+    {
+        if (RetainVariables is null || string.IsNullOrWhiteSpace(newRetain))
+        {
+            return;
+        }
+
+        if (!RetainVariables.Contains(newRetain))
+        {
+            RetainVariables.Add(newRetain);
+        }
+
+        newRetain = null;
+    }
+}

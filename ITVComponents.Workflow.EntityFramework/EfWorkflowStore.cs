@@ -222,6 +222,29 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.DueUtc = token.DueUtc;
                 tr.WaitingTarget = token.WaitingTarget;
                 tr.WaitingForChildInstanceId = token.WaitingForChildInstanceId;
+                // Zweig-Scope: nur gesetzt, solange das Token in einer parallelen Region laeuft - sonst
+                // bleibt die Spalte null (und die Zeile so klein wie bisher).
+                tr.VariablesJson = token.Variables == null ? null : WorkflowJson.Serialize(token.Variables);
+                tr.SplitTokenId = token.SplitTokenId;
+                // Denormalisiert, damit die Arbeitsliste eine Abfrage ist und kein Auspacken von JSON:
+                // der Tenant kommt von der Instanz (die Token-Zeile hat keinen eigenen Filter), der Rest
+                // ist der Aufgaben-Stempel, den die Engine beim Parken setzt und beim Abschluss leert.
+                tr.TenantId = row.TenantId;
+                tr.TaskKey = token.TaskKey;
+                tr.TaskPermission = token.TaskPermission;
+                tr.AssignedTo = token.AssignedTo;
+                tr.TaskTitle = token.TaskTitle;
+                tr.TaskCreatedUtc = token.TaskCreatedUtc;
+                tr.TaskDueUtc = token.TaskDueUtc;
+                if (token.TaskKey == null)
+                {
+                    // Die Aufgabe ist weg (erledigt oder es war nie eine) - die weiche Sperre haette sonst
+                    // keinen Bezug mehr und wuerde die Zeile in der "wird gerade bearbeitet"-Anzeige halten.
+                    // ClaimedBy/ClaimedUntil sind bewusst NICHT Teil des Token-Modells: sie gehoeren der
+                    // Oberflaeche, nicht dem Ablauf - ein Zweig-Commit darf sie nicht ueberschreiben.
+                    tr.ClaimedBy = null;
+                    tr.ClaimedUntil = null;
+                }
             }
 
             foreach (TokenRow tr in existing.Where(t => !wanted.Contains(t.TokenId)))
@@ -474,7 +497,17 @@ namespace ITVComponents.Workflow.EntityFramework
                     WaitingSignal = t.WaitingSignal,
                     DueUtc = t.DueUtc,
                     WaitingTarget = t.WaitingTarget,
-                    WaitingForChildInstanceId = t.WaitingForChildInstanceId
+                    WaitingForChildInstanceId = t.WaitingForChildInstanceId,
+                    Variables = string.IsNullOrEmpty(t.VariablesJson)
+                        ? null
+                        : WorkflowJson.Deserialize<Dictionary<string, object>>(t.VariablesJson),
+                    SplitTokenId = t.SplitTokenId,
+                    TaskKey = t.TaskKey,
+                    TaskPermission = t.TaskPermission,
+                    AssignedTo = t.AssignedTo,
+                    TaskTitle = t.TaskTitle,
+                    TaskCreatedUtc = t.TaskCreatedUtc,
+                    TaskDueUtc = t.TaskDueUtc
                 }).ToList(),
                 History = historyRows
                     .OrderBy(h => h.Seq)

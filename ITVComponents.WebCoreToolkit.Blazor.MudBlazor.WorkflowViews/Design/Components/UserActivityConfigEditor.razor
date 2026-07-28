@@ -1,0 +1,186 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Konfiguriert eine Benutzer-Aufgabe. Zwei Ebenen, die man nicht verwechseln darf:
+    - WER sie sieht = Permission (Sorte) + optionaler Zuweisungs-Ausdruck (der konkrete Fall);
+    - WAS er sieht = Payload aus den Eingaben und entweder eine registrierte Komponente (ViewKey/TaskKey)
+      oder die generische Maske aus den Feldern hier drunter.
+*@
+
+@if (Node is not null)
+{
+    <MudTextField @bind-Value="Node.TaskKey" Label="Task key" Margin="Margin.Dense"
+                  HelperText="The business key of this kind of task (e.g. ApproveInvoice). Filters the work list and resolves the form." />
+    <MudTextField @bind-Value="Node.RequiredPermission" Label="Required permission" Margin="Margin.Dense"
+                  HelperText="Who may see and complete tasks of this node. Empty = the general task permission is enough." />
+    <MudTextField @bind-Value="Node.ViewKey" Label="View key" Margin="Margin.Dense"
+                  HelperText="Optional: the key of a component the host registered. Empty = the task key is tried, then the generic form." />
+
+    <MudTextField @bind-Value="Node.Title" Label="Title" Margin="Margin.Dense" Class="mt-3"
+                  HelperText="@CultureHint" />
+    <MudTextField @bind-Value="Node.Description" Label="Description" Margin="Margin.Dense" Lines="2"
+                  HelperText="@CultureHint" />
+
+    <MudText Typo="Typo.caption" Class="mt-3">Title from the data (CScript)</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Optional. Wins over the static title - but the result is plain text and therefore not multilingual.
+    </MudText>
+    <CScriptField @key="@("title-" + Node.Id)" @ref="titleField" Value="@Node.TitleExpression"
+                  ValueChanged="@(v => Node.TitleExpression = v)" />
+
+    <MudText Typo="Typo.caption" Class="mt-3">Assignment (CScript → user name)</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Optional. Evaluated ONCE when the task appears. Empty = the task goes to the pool. An expression that
+        fails faults the instance on purpose - an unassigned task would be visible to everyone.
+    </MudText>
+    <CScriptField @key="@("assign-" + Node.Id)" @ref="assignField" Value="@Node.Assignment"
+                  ValueChanged="@(v => Node.Assignment = v)" />
+
+    <MudNumericField T="double?" @bind-Value="Node.DueInHours" Label="Due in hours" Margin="Margin.Dense"
+                     Class="mt-3" Min="0"
+                     HelperText="Display and sorting only - an overdue task does NOT continue by itself (use a timer in a parallel branch for that)." />
+
+    <MudDivider Class="my-3" />
+    <MudText Typo="Typo.caption">What the form sees</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Resolved when the task is opened, so the form always shows the current state.
+    </MudText>
+    <InputBindingList Bindings="Node.Inputs" NamePlaceholder="payload name" SourcePlaceholder="variable"
+                      AddPlaceholder="new payload value" NameWidth="130px" />
+
+    <MudText Typo="Typo.caption" Class="mt-4">What the form returns</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Maps the result of the form (for the generic form: the field names below) onto variables.
+    </MudText>
+    <OutputBindingList Bindings="Node.Outputs" SourcePlaceholder="field" TargetPlaceholder="variable"
+                       AddPlaceholder="new field name" />
+
+    <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
+                      RetainVariables="Node.RetainVariables"
+                      SwitchLabel="Consolidate scope (replace)"
+                      HelperText="@("After the task the scope consists of exactly the mapped results plus the variables kept here.")" />
+
+    <MudDivider Class="my-3" />
+    <MudText Typo="Typo.caption">Generic form</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Only used when no component is registered for this task. No fields = the task is just confirmed.
+    </MudText>
+
+    @foreach (UserTaskField field in Node.FormFields.ToList())
+    {
+        <MudPaper Class="pa-2 mt-2" Outlined="true" @key="field">
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                <MudTextField T="string" Value="@field.Name" ValueChanged="@(v => field.Name = v)"
+                              Placeholder="field name" Margin="Margin.Dense" Style="max-width:140px" />
+                <MudSelect T="UserTaskFieldKind" Value="@field.Kind" ValueChanged="@(k => field.Kind = k)"
+                           Margin="Margin.Dense" Style="max-width:150px">
+                    @foreach (UserTaskFieldKind kind in Enum.GetValues<UserTaskFieldKind>())
+                    {
+                        <MudSelectItem T="UserTaskFieldKind" Value="@kind">@kind</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSpacer />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => Node.FormFields.Remove(field))" />
+            </MudStack>
+            <MudTextField T="string" Value="@field.Label" ValueChanged="@(v => field.Label = v)"
+                          Label="Label" Margin="Margin.Dense" HelperText="@CultureHint" />
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mt-1">
+                <MudSwitch T="bool" Value="@field.Required" ValueChanged="@(v => field.Required = v)"
+                           Color="Color.Primary" Label="Required" />
+                <MudSwitch T="bool" Value="@field.ReadOnly" ValueChanged="@(v => field.ReadOnly = v)"
+                           Color="Color.Default" Label="Display only" />
+                <MudTextField T="string" Value="@field.PayloadName" ValueChanged="@(v => field.PayloadName = v)"
+                              Placeholder="payload name" Margin="Margin.Dense" Style="max-width:140px" />
+            </MudStack>
+            @if (field.Kind == UserTaskFieldKind.Choice)
+            {
+                <MudTextField T="string" Value="@ChoiceText(field)" ValueChanged="@(v => SetChoices(field, v))"
+                              Label="Options" Lines="3" Margin="Margin.Dense"
+                              HelperText="One per line: value=label. The label may be a per-culture record as well." />
+            }
+        </MudPaper>
+    }
+
+    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-2">
+        <MudTextField T="string" @bind-Value="newField" Placeholder="new field name" Margin="Margin.Dense"
+                      Style="max-width:150px" />
+        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddField" />
+    </MudStack>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Aufgaben-Knoten.</summary>
+    [Parameter] public UserActivityNode? Node { get; set; }
+
+    private const string CultureHint =
+        "Plain text, or a per-culture record like {\"de\":\"Freigabe\",\"fr\":\"Approbation\"} - the same convention as navigation entries.";
+
+    private string? newField;
+    private CScriptField? titleField;
+    private CScriptField? assignField;
+
+    /// <summary>
+    /// Holt den aktuellen Text beider Ausdrucks-Editoren ins Modell. Der Monaco-Editor meldet seinen Wert
+    /// erst beim Verlassen (Blur) - ohne diesen Aufruf ginge das zuletzt Getippte beim Speichern verloren.
+    /// Der Editor ruft es vor jedem Speichern/Validieren.
+    /// </summary>
+    public async Task FlushAsync()
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        if (titleField is not null)
+        {
+            Node.TitleExpression = await titleField.GetValueAsync();
+        }
+
+        if (assignField is not null)
+        {
+            Node.Assignment = await assignField.GetValueAsync();
+        }
+    }
+
+    private void AddField()
+    {
+        if (Node is null || string.IsNullOrWhiteSpace(newField))
+        {
+            return;
+        }
+
+        if (!Node.FormFields.Any(f => string.Equals(f.Name, newField, StringComparison.OrdinalIgnoreCase)))
+        {
+            Node.FormFields.Add(new UserTaskField { Name = newField });
+        }
+
+        newField = null;
+    }
+
+    /// <summary>
+    /// Die Auswahlmoeglichkeiten als Text ("wert=beschriftung" je Zeile). Bewusst ein Textfeld statt einer
+    /// zweiten verschachtelten Liste: eine Auswahl hat typisch drei Eintraege, und tippen ist hier
+    /// schneller als klicken.
+    /// </summary>
+    private static string ChoiceText(UserTaskField field)
+        => string.Join(Environment.NewLine,
+            (field.Choices ?? new List<UserTaskChoice>())
+            .Select(c => string.IsNullOrEmpty(c.Label) ? c.Value : $"{c.Value}={c.Label}"));
+
+    private static void SetChoices(UserTaskField field, string? text)
+    {
+        field.Choices = (text ?? string.Empty)
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .Select(line =>
+            {
+                int sep = line.IndexOf('=');
+                return sep < 0
+                    ? new UserTaskChoice { Value = line }
+                    : new UserTaskChoice { Value = line.Substring(0, sep).Trim(), Label = line.Substring(sep + 1).Trim() };
+            })
+            .ToList();
+    }
+}

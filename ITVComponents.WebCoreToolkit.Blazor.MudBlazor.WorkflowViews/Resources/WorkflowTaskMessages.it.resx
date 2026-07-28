@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="PageTitle" xml:space="preserve">
+    <value>Le mie attivitÃ </value>
+  </data>
+  <data name="GridTitle" xml:space="preserve">
+    <value>AttivitÃ  aperte</value>
+  </data>
+  <data name="ScopeLabel" xml:space="preserve">
+    <value>Vista</value>
+  </data>
+  <data name="ScopeMine" xml:space="preserve">
+    <value>Le mie</value>
+  </data>
+  <data name="ScopePool" xml:space="preserve">
+    <value>Non assegnate</value>
+  </data>
+  <data name="ScopeAll" xml:space="preserve">
+    <value>Tutte le visibili</value>
+  </data>
+  <data name="TypeLabel" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="TypeAll" xml:space="preserve">
+    <value>Tutti i tipi</value>
+  </data>
+  <data name="ColumnTitle" xml:space="preserve">
+    <value>AttivitÃ </value>
+  </data>
+  <data name="ColumnAssignedTo" xml:space="preserve">
+    <value>Assegnata a</value>
+  </data>
+  <data name="ColumnCreated" xml:space="preserve">
+    <value>Creata</value>
+  </data>
+  <data name="ColumnDue" xml:space="preserve">
+    <value>Scadenza</value>
+  </data>
+  <data name="ColumnReference" xml:space="preserve">
+    <value>Riferimento</value>
+  </data>
+  <data name="SearchPlaceholder" xml:space="preserve">
+    <value>Cerca attivitÃ , tipo o istanzaâ€¦</value>
+  </data>
+  <data name="OverdueOnly" xml:space="preserve">
+    <value>Solo scadute</value>
+  </data>
+  <data name="Overdue" xml:space="preserve">
+    <value>Scaduta</value>
+  </data>
+  <data name="Unassigned" xml:space="preserve">
+    <value>Non assegnata</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Aggiorna</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Apri</value>
+  </data>
+  <data name="NoTasks" xml:space="preserve">
+    <value>Nessuna attivitÃ  aperta.</value>
+  </data>
+  <data name="NoPermission" xml:space="preserve">
+    <value>Non hai l&apos;autorizzazione per le attivitÃ .</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>Caricamentoâ€¦</value>
+  </data>
+  <data name="Complete" xml:space="preserve">
+    <value>Completa</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Chiudi</value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>AttivitÃ  completata.</value>
+  </data>
+  <data name="AlreadyCompleted" xml:space="preserve">
+    <value>Qualcun altro ha completato prima questa attivitÃ  - le tue voci non sono state salvate.</value>
+  </data>
+  <data name="CompletionFaulted" xml:space="preserve">
+    <value>Il workflow ha riscontrato un errore nel proseguire. L&apos;attivitÃ  Ã¨ completata, ma il processo richiede attenzione.</value>
+  </data>
+  <data name="TaskGone" xml:space="preserve">
+    <value>Questa attivitÃ  non esiste piÃ¹.</value>
+  </data>
+  <data name="ClaimedByOther" xml:space="preserve">
+    <value>{0} ha questa attivitÃ  aperta da {1}. Puoi comunque continuare - vince chi salva per primo.</value>
+  </data>
+  <data name="RequiredField" xml:space="preserve">
+    <value>Campo obbligatorio.</value>
+  </data>
+  <data name="NoFormConfigured" xml:space="preserve">
+    <value>Questa attivitÃ  deve solo essere confermata.</value>
+  </data>
+  <data name="DetailsSection" xml:space="preserve">
+    <value>Dettagli</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>SÃ¬</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+</root>

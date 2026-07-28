@@ -1,0 +1,270 @@
+@page "/Workflow/Tasks"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using System.Globalization
+@using ITVComponents.WebCoreToolkit.Extensions
+
+@inject IWorkflowTaskHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+@inject IStringLocalizer<WorkflowTaskMessages> L
+
+@* Die zentrale Arbeitsliste. Sie ist die einzige Ansicht dieses Moduls, die ein normaler Benutzer
+   taeglich sieht - deshalb lokalisiert (Rahmen ueber resx, Inhalte ueber Kultur-JSON) und responsiv. *@
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["PageTitle"]</MudText>
+
+<SecureView RequiredPermissions="Workflow.Tasks" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        @if (currentUser is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudDataGrid T="UserTaskListItem"
+                         @ref="grid"
+                         ServerData="LoadData"
+                         SortMode="SortMode.Single"
+                         RowsPerPage="25"
+                         Hover="true"
+                         Dense="true">
+                <ToolBarContent>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="@L["Refresh"]" OnClick="ReloadGrid" />
+                    <MudText Typo="Typo.h6">@L["GridTitle"]</MudText>
+                    <MudSpacer />
+                    <MudSelect T="UserTaskScope" Value="scope" Label="@L["ScopeLabel"]" Dense="true"
+                               Margin="Margin.Dense" Style="max-width:190px"
+                               ValueChanged="OnScopeChanged">
+                        <MudSelectItem T="UserTaskScope" Value="UserTaskScope.Mine">@L["ScopeMine"]</MudSelectItem>
+                        <MudSelectItem T="UserTaskScope" Value="UserTaskScope.Pool">@L["ScopePool"]</MudSelectItem>
+                        <MudSelectItem T="UserTaskScope" Value="UserTaskScope.All">@L["ScopeAll"]</MudSelectItem>
+                    </MudSelect>
+                    <MudSelect T="string" Value="taskKey" Label="@L["TypeLabel"]" Dense="true" Clearable="true"
+                               Margin="Margin.Dense" Class="ml-2" Style="max-width:190px"
+                               ValueChanged="OnTaskKeyChanged">
+                        <MudSelectItem T="string" Value="@((string?)null)">@L["TypeAll"]</MudSelectItem>
+                        @foreach (string key in taskKeys)
+                        {
+                            <MudSelectItem T="string" Value="@key">@key</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSwitch T="bool" Value="overdueOnly" ValueChanged="OnOverdueChanged" Color="Color.Warning"
+                               Label="@L["OverdueOnly"]" Class="ml-2" />
+                    <MudTextField @bind-Value="search"
+                                  Placeholder="@L["SearchPlaceholder"]"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="mt-0 ml-2"
+                                  DebounceInterval="300"
+                                  OnDebounceIntervalElapsed="ReloadGrid" />
+                </ToolBarContent>
+                <Columns>
+                    <TemplateColumn T="UserTaskListItem" Title="@L["ColumnTitle"]"
+                                    SortBy="@(x => x.Title ?? string.Empty)">
+                        <CellTemplate>
+                            <MudText Typo="Typo.body2">@Translate(context.Item.Title)</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Item.TaskKey</MudText>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="UserTaskListItem" Title="@L["ColumnAssignedTo"]"
+                                    SortBy="@(x => x.AssignedTo ?? string.Empty)">
+                        <CellTemplate>
+                            @if (string.IsNullOrEmpty(context.Item.AssignedTo))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default">@L["Unassigned"]</MudChip>
+                            }
+                            else
+                            {
+                                @context.Item.AssignedTo
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.CreatedUtc" Title="@L["ColumnCreated"]" />
+                    <TemplateColumn T="UserTaskListItem" Title="@L["ColumnDue"]" SortBy="@(x => x.DueUtc)">
+                        <CellTemplate>
+                            @if (context.Item.DueUtc is null)
+                            {
+                                <span>&mdash;</span>
+                            }
+                            else if (context.Item.DueUtc < DateTime.UtcNow)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning">@L["Overdue"]</MudChip>
+                            }
+                            else
+                            {
+                                @context.Item.DueUtc
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.CorrelationKey" Title="@L["ColumnReference"]" />
+                    <TemplateColumn T="UserTaskListItem" Title="" Sortable="false">
+                        <CellTemplate>
+                            @if (IsClaimedByOther(context.Item))
+                            {
+                                <MudTooltip Text="@context.Item.ClaimedBy">
+                                    <MudIcon Icon="@Icons.Material.Filled.EditNote" Size="Size.Small"
+                                             Color="Color.Info" />
+                                </MudTooltip>
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small"
+                                           Title="@L["Edit"]" OnClick="@(() => OpenTask(context.Item))" />
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2">@L["NoTasks"]</MudText>
+                </NoRecordsContent>
+                <PagerContent>
+                    <MudDataGridPager T="UserTaskListItem" />
+                </PagerContent>
+            </MudDataGrid>
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">@L["NoPermission"]</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private MudDataGrid<UserTaskListItem>? grid;
+    private ClaimsPrincipal? currentUser;
+    private IReadOnlyList<string> taskKeys = Array.Empty<string>();
+    private string? search;
+    private string? taskKey;
+    private UserTaskScope scope = UserTaskScope.Mine;
+    private bool overdueOnly;
+    private bool deepLinkHandled;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        taskKeys = await Handler.ListTaskKeysAsync(currentUser);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Deep-Link aus einer Benachrichtigungs-Mail: ?task={instanceId}:{tokenId}. Erst nach dem ersten
+        // Render, weil der Dialog einen interaktiven Circuit braucht.
+        if (!firstRender || deepLinkHandled || currentUser is null)
+        {
+            return;
+        }
+
+        deepLinkHandled = true;
+        var uri = new Uri(Nav.Uri);
+        string? task = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
+            .TryGetValue("task", out var values) ? values.ToString() : null;
+        if (string.IsNullOrWhiteSpace(task))
+        {
+            return;
+        }
+
+        string[] parts = task!.Split(':', 2);
+        if (parts.Length == 2)
+        {
+            await OpenTask(parts[0], parts[1]);
+        }
+    }
+
+    private async Task<GridData<UserTaskListItem>> LoadData(GridState<UserTaskListItem> state,
+        CancellationToken ct)
+    {
+        if (currentUser is null)
+        {
+            return new GridData<UserTaskListItem> { Items = Array.Empty<UserTaskListItem>(), TotalItems = 0 };
+        }
+
+        SortDefinition<UserTaskListItem>? sort = state.SortDefinitions.FirstOrDefault();
+        var query = new UserTaskListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = SortColumnName(sort?.SortBy),
+            SortDescending = sort?.Descending ?? false,
+            Search = search,
+            TaskKey = taskKey,
+            Scope = scope,
+            OverdueOnly = overdueOnly
+        };
+
+        PagedResult<UserTaskListItem> result = await Handler.ListTasksAsync(currentUser, query);
+        return new GridData<UserTaskListItem> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    /// <summary>
+    /// Uebersetzt den Spaltenschluessel des Grids in den Namen, den der Handler kennt. Die
+    /// Template-Spalten sortieren ueber einen Ausdruck, dessen Schluessel MudBlazor selbst vergibt -
+    /// darum die Zuordnung hier statt einer stillen Standard-Sortierung.
+    /// </summary>
+    private static string? SortColumnName(string? sortBy)
+        => sortBy switch
+        {
+            null => null,
+            _ when sortBy.Contains(nameof(UserTaskListItem.Title)) => nameof(UserTaskListItem.Title),
+            _ when sortBy.Contains(nameof(UserTaskListItem.AssignedTo)) => nameof(UserTaskListItem.AssignedTo),
+            _ when sortBy.Contains(nameof(UserTaskListItem.DueUtc)) => nameof(UserTaskListItem.DueUtc),
+            _ when sortBy.Contains(nameof(UserTaskListItem.CreatedUtc)) => nameof(UserTaskListItem.CreatedUtc),
+            _ when sortBy.Contains(nameof(UserTaskListItem.TaskKey)) => nameof(UserTaskListItem.TaskKey),
+            _ => null
+        };
+
+    private string? Translate(string? title)
+        => string.IsNullOrEmpty(title) ? title : title.Translate(CultureInfo.CurrentUICulture?.Name);
+
+    private bool IsClaimedByOther(UserTaskListItem item)
+        => !string.IsNullOrEmpty(item.ClaimedBy)
+           && item.ClaimedBy != currentUser?.Identity?.Name
+           && item.ClaimedUntil is not null && item.ClaimedUntil > DateTime.UtcNow;
+
+    private Task OpenTask(UserTaskListItem item) => OpenTask(item.InstanceId, item.TokenId);
+
+    private async Task OpenTask(string instanceId, string tokenId)
+    {
+        var parameters = new DialogParameters<UserTaskDialog>
+        {
+            { d => d.InstanceId, instanceId },
+            { d => d.TokenId, tokenId }
+        };
+
+        IDialogReference dlg = await DialogService.ShowAsync<UserTaskDialog>(L["PageTitle"], parameters,
+            EditDialogDefaults.Detail);
+        DialogResult? result = await dlg.Result;
+        if (result is { Canceled: false })
+        {
+            // Auch nach "abgebrochen" neu laden: die weiche Sperre hat sich geaendert.
+            await ReloadGrid();
+        }
+    }
+
+    private async Task OnScopeChanged(UserTaskScope value)
+    {
+        scope = value;
+        await ReloadGrid();
+    }
+
+    private async Task OnTaskKeyChanged(string? value)
+    {
+        taskKey = value;
+        await ReloadGrid();
+    }
+
+    private async Task OnOverdueChanged(bool value)
+    {
+        overdueOnly = value;
+        await ReloadGrid();
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null)
+        {
+            await grid.ReloadServerData();
+        }
+    }
+}

@@ -75,14 +75,47 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.Property<string>("TokenId")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("AssignedTo")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("ClaimedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ClaimedUntil")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("DueUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("NodeId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("SplitTokenId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("TaskCreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("TaskDueUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TaskKey")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("TaskPermission")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TaskTitle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("VariablesJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("WaitingForChildInstanceId")
                         .HasColumnType("nvarchar(max)");
@@ -95,6 +128,8 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
 
                     b.HasKey("InstanceId", "TokenId");
 
+                    b.HasIndex("AssignedTo");
+
                     b.HasIndex("DueUtc");
 
                     b.HasIndex("InstanceId");
@@ -104,6 +139,8 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.HasIndex("WaitingSignal");
 
                     b.HasIndex("WaitingTarget");
+
+                    b.HasIndex("TenantId", "TaskKey", "Status");
 
                     b.ToTable("Tokens");
                 });

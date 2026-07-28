@@ -20,6 +20,9 @@ namespace ITVComponents.Workflow.Model
         /// <summary>Wartepunkt, der auf ein benanntes Signal (Benutzer/Ereignis) wartet.</summary>
         Wait,
 
+        /// <summary>Eine Aufgabe fuer einen Menschen: wartet, bis sie in der Oberflaeche erledigt wird.</summary>
+        UserActivity,
+
         /// <summary>Wartepunkt, der bis zu einem Zeitpunkt wartet.</summary>
         Timer,
 
@@ -50,6 +53,7 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(EndNode), "end")]
     [JsonDerivedType(typeof(AutomatedActivityNode), "activity")]
     [JsonDerivedType(typeof(WaitNode), "wait")]
+    [JsonDerivedType(typeof(UserActivityNode), "usertask")]
     [JsonDerivedType(typeof(TimerNode), "timer")]
     [JsonDerivedType(typeof(ExclusiveGatewayNode), "xor")]
     [JsonDerivedType(typeof(ParallelGatewayNode), "and")]

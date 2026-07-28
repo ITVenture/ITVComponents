@@ -1,0 +1,45 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Konfiguriert das parallele Gateway. Als SPLIT gibt es jedem Strang eine eigene Kopie des
+    Variablen-Stacks (nichts einzustellen) - als JOIN fuehrt es die Kopien wieder zusammen, und
+    genau dort laesst sich deklarieren, was aus der parallelen Region herauskommt.
+*@
+
+@if (Node is not null)
+{
+    @if (!IsJoin)
+    {
+        <MudText Typo="Typo.caption" Class="mt-3 mud-text-secondary">
+            This gateway splits: every branch gets its own copy of the variables, so parallel branches cannot
+            overwrite each other. The matching join (a parallel gateway with several incoming connections)
+            merges them back.
+        </MudText>
+    }
+    else
+    {
+        <MudText Typo="Typo.caption" Class="mt-4">Result of the parallel region</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            Map variables from the merged branches to the names the flow continues with. Leave empty and
+            everything the branches wrote flows on. Declaring it here is also how you decide a name two
+            branches both wrote — give each branch its own result name.
+        </MudText>
+        <OutputBindingList Bindings="Node.Outputs" SourcePlaceholder="branch variable"
+                           TargetPlaceholder="result name" AddPlaceholder="new result" />
+        <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
+                          RetainVariables="Node.RetainVariables"
+                          SwitchLabel="Consolidate scope (replace)"
+                          HelperText="@("After the join the scope is exactly the result above; variables listed here are kept as well.")" />
+    }
+}
+
+@code {
+    /// <summary>Das zu konfigurierende parallele Gateway.</summary>
+    [Parameter] public ParallelGatewayNode? Node { get; set; }
+
+    /// <summary>
+    /// Ob der Knoten als Join wirkt (mehr als eine eingehende Kante) - nur dann ist ein Ergebnis-Mapping
+    /// sinnvoll.
+    /// </summary>
+    [Parameter] public bool IsJoin { get; set; }
+}

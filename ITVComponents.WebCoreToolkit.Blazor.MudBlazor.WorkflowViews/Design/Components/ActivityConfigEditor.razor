@@ -116,8 +116,12 @@
             </div>
         }
     }
-    else if (!string.IsNullOrWhiteSpace(Node.ActivityRef))
+    else
     {
+        @* Kein deklarierter Parametersatz (generische/Script-Aktivitaet, unbekannter Typ oder gar kein
+           Katalog). Bewusst NICHT an einen gesetzten ActivityRef gekoppelt: der Datenfluss ist eine
+           Eigenschaft des Knotens, nicht des Aktivitaets-Typs - haengte er am Verweis, waere der ganze
+           Mapping-Editor auf einem frischen Knoten unsichtbar und wirkte wie nicht vorhanden. *@
         @* Generische Aktivitaet: rohes Key/Value-Editieren des Dictionaries. *@
         <MudText Typo="Typo.caption" Class="mt-3">Configuration</MudText>
         @foreach (var key in Node.Configuration.Keys.ToList())
@@ -140,90 +144,16 @@
            Eingaben (Konstante/Variable/Ausdruck) und Ausgaben (-> Variable) verdrahten. Namen sind
            frei, da es keinen Katalog gibt; die Engine liest/schreibt sie ueber ctx.Inputs/Outputs. *@
         <MudText Typo="Typo.caption" Class="mt-4">Inputs (data flow)</MudText>
-        @foreach (var b in Node.Inputs)
-        {
-            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1" @key="b">
-                <MudTextField T="string" Value="@b.Parameter" ValueChanged="@(v => b.Parameter = v)"
-                              Placeholder="name" Margin="Margin.Dense" Style="max-width:110px" />
-                <MudSelect T="ParameterBindingKind" Value="@b.Kind" ValueChanged="@(k => SetFreeKind(b, k))"
-                           Dense="true" Margin="Margin.Dense" Style="max-width:120px">
-                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Literal">Constant</MudSelectItem>
-                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Variable">Variable</MudSelectItem>
-                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Expression">Expression</MudSelectItem>
-                </MudSelect>
-                @if (b.Kind == ParameterBindingKind.Expression)
-                {
-                    <div style="flex:1 1 auto">
-                        <CScriptField @key="b" Value="@(b.Source ?? string.Empty)"
-                                      ValueChanged="@(v => b.Source = string.IsNullOrEmpty(v) ? null : v)" Height="60" />
-                    </div>
-                }
-                else if (b.Kind == ParameterBindingKind.Variable)
-                {
-                    <MudTextField T="string" Value="@(b.Source ?? string.Empty)"
-                                  ValueChanged="@(v => b.Source = string.IsNullOrEmpty(v) ? null : v)"
-                                  Placeholder="variable name" Margin="Margin.Dense" />
-                }
-                else
-                {
-                    <MudTextField T="string" Value="@ToStr(b.Literal)"
-                                  ValueChanged="@(v => b.Literal = string.IsNullOrEmpty(v) ? null : v)"
-                                  Placeholder="value" Margin="Margin.Dense" />
-                }
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                               OnClick="@(() => Node.Inputs.Remove(b))" />
-            </MudStack>
-        }
-        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
-            <MudTextField T="string" @bind-Value="newInputName" Placeholder="new input name"
-                          Margin="Margin.Dense" Style="max-width:150px" />
-            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddInput" />
-        </MudStack>
+        <InputBindingList Bindings="Node.Inputs" />
 
         <MudText Typo="Typo.caption" Class="mt-4">Outputs (data flow)</MudText>
-        @foreach (var b in Node.Outputs)
-        {
-            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1" @key="b">
-                <MudTextField T="string" Value="@b.Parameter" ValueChanged="@(v => b.Parameter = v)"
-                              Placeholder="name" Margin="Margin.Dense" Style="max-width:130px" />
-                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
-                <MudTextField T="string" Value="@b.Variable" ValueChanged="@(v => b.Variable = v)"
-                              Placeholder="variable" Margin="Margin.Dense" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                               OnClick="@(() => Node.Outputs.Remove(b))" />
-            </MudStack>
-        }
-        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
-            <MudTextField T="string" @bind-Value="newOutputName" Placeholder="new output name"
-                          Margin="Margin.Dense" Style="max-width:150px" />
-            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddOutput" />
-        </MudStack>
+        <OutputBindingList Bindings="Node.Outputs" />
     }
 
     @* Konsolidierung (Scope-Modus): gilt fuer JEDEN Activity-Knoten, unabhaengig von Parametern. *@
-    <MudDivider Class="my-3" />
-    <MudSwitch T="bool" Value="@IsReplace" ValueChanged="SetReplace" Color="Color.Primary"
-               Label="Consolidate scope (replace)" />
-    @if (IsReplace)
-    {
-        <MudText Typo="Typo.caption" Class="mud-text-secondary">
-            After this activity the scope contains only its outputs plus the variables kept here. Place on a
-            single branch (after a join), not inside a parallel region.
-        </MudText>
-        @foreach (var v in Node.RetainVariables.ToList())
-        {
-            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
-                <MudTextField T="string" Value="@v" ReadOnly="true" Label="keep" Margin="Margin.Dense" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                               OnClick="@(() => Node.RetainVariables.Remove(v))" />
-            </MudStack>
-        }
-        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="mt-1">
-            <MudTextField T="string" @bind-Value="newRetain" Placeholder="keep variable"
-                          Margin="Margin.Dense" Style="max-width:150px" />
-            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="AddRetain" />
-        </MudStack>
-    }
+    <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
+                      RetainVariables="Node.RetainVariables"
+                      HelperText="@("After this activity the scope contains only its outputs plus the variables kept here. Place on a single branch (after a join), not inside a parallel region.")" />
 
     @* Ausfuehrungs-Ziel (verteilter Handoff): gilt fuer JEDEN Activity-Knoten. *@
     <MudDivider Class="my-3" />
@@ -248,9 +178,6 @@
 
     private string? newKey;
     private string? newValue;
-    private string? newInputName;
-    private string? newOutputName;
-    private string? newRetain;
     private string? loadedForRef;
 
     protected override void OnParametersSet()
@@ -451,33 +378,6 @@
         Node?.Configuration.Remove(key);
     }
 
-    // --- Konsolidierung (ScopeMode.Replace + Retain) -------------------------------------------
-
-    private bool IsReplace => Node?.ScopeMode == ActivityScopeMode.Replace;
-
-    private void SetReplace(bool on)
-    {
-        if (Node is not null)
-        {
-            Node.ScopeMode = on ? ActivityScopeMode.Replace : ActivityScopeMode.Extend;
-        }
-    }
-
-    private void AddRetain()
-    {
-        if (Node is null || string.IsNullOrWhiteSpace(newRetain))
-        {
-            return;
-        }
-
-        if (!Node.RetainVariables.Contains(newRetain))
-        {
-            Node.RetainVariables.Add(newRetain);
-        }
-
-        newRetain = null;
-    }
-
     // --- Ausfuehrungs-Ziel (verteilter Handoff) ------------------------------------------------
 
     private void SetExecutionTarget(string? value)
@@ -487,55 +387,6 @@
             // Leerstring auf null normalisieren = "beliebiger Host" (der Standard).
             Node.ExecutionTarget = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
-    }
-
-    // --- Freier Datenfluss-Editor (generische Aktivitaeten, keine deklarierten Parameter) --------
-
-    private static void SetFreeKind(ActivityInputBinding b, ParameterBindingKind kind)
-    {
-        if (b.Kind == kind)
-        {
-            return;
-        }
-
-        // Quelle gewechselt: alte Werte passen nicht mehr. Hier NICHT prunen - im generischen Modus
-        // ist die Zeile die bewusste Deklaration des Nutzers, auch ohne Wert.
-        b.Kind = kind;
-        b.Literal = null;
-        b.Source = null;
-    }
-
-    private void AddInput()
-    {
-        if (Node is null || string.IsNullOrWhiteSpace(newInputName))
-        {
-            return;
-        }
-
-        if (!Node.Inputs.Any(x => x.Parameter == newInputName))
-        {
-            Node.Inputs.Add(new ActivityInputBinding
-            {
-                Parameter = newInputName, Kind = ParameterBindingKind.Literal
-            });
-        }
-
-        newInputName = null;
-    }
-
-    private void AddOutput()
-    {
-        if (Node is null || string.IsNullOrWhiteSpace(newOutputName))
-        {
-            return;
-        }
-
-        if (!Node.Outputs.Any(x => x.Parameter == newOutputName))
-        {
-            Node.Outputs.Add(new ActivityOutputBinding { Parameter = newOutputName });
-        }
-
-        newOutputName = null;
     }
 
     private static string ValueString(ActivityParameterValue v)

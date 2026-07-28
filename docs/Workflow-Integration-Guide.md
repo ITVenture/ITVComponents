@@ -89,12 +89,23 @@ wird — anhand von drei Deployment-Szenarien:
    ```
 
    Feature `ITVWorkflow` und die Permissions `Workflow.Monitor` / `Workflow.Operate` /
-   `Workflow.Design` (Konstanten in `WorkflowSecurity`) sind **DB-getrieben** zu aktivieren
-   (Navigation + Feature-Freischaltung sind Host-Sache).
+   `Workflow.Design` / `Workflow.Tasks` (Konstanten in `WorkflowSecurity`) sind **DB-getrieben** zu
+   aktivieren (Navigation + Feature-Freischaltung sind Host-Sache). `Workflow.Tasks` ist die
+   **Benutzer**-Berechtigung für die Arbeitsliste (Abschnitt 9) und gehört an andere Rollen als die drei
+   Betreiber-Rechte.
 
-4. **BlazorMonaco-Skripte im Host.** Der CScript-/Ausdrucks-Editor braucht — wie die AdminViews —
-   die drei BlazorMonaco-Skripte (`jsInterop.js`, `loader.js`, `editor.main.js`) **nach** dem
-   Blazor-Skript in der Host-Seite. Ohne sie rendern die CScript-Felder nicht.
+4. **BlazorMonaco-Skripte — nichts mehr zu tun ausser `<ITVentureReferences />`.** Der
+   CScript-/Ausdrucks-Editor braucht die drei BlazorMonaco-Skripte (`jsInterop.js`, `loader.js`,
+   `editor.main.js`) in dieser Reihenfolge. Das **Modul meldet sie selbst an**
+   (`WebPartInit.RegisterServices` → `AddToolkitClientScript`, Fix zu `BUG-PRE141` §5); der Host muss
+   nur die eine Zeile `<ITVentureReferences />` in seiner **statisch gerenderten** Host-Seite (`App.razor` /
+   `_Host.cshtml`) haben — dort emittiert das Toolkit die Vereinigung aller Modul-Skripte.
+   Handgesetzte `<script>`-Tags sind nicht mehr nötig und können entfernt werden; Duplikate werden
+   ohnehin ignoriert, die Registrierungsreihenfolge bleibt erhalten.
+
+   > Fehlt `<ITVentureReferences />` in der Host-Seite, rendern die CScript-Felder still nicht — das
+   > ist dann die erste Stelle, an der man nachsieht. Ein Skript-Tag **innerhalb** einer interaktiven
+   > Komponente wird nicht ausgeführt; es muss im initialen Dokument stehen.
 
 5. **View-Handler: frischer Kontext pro Op + Engine-Factory (Blazor-/Tenant-sicher).** Die View-Handler
    halten **keinen** langlebigen Store/Engine/DbContext mehr (unter Blazor ist der DI-Scope der ganze
@@ -387,9 +398,12 @@ runner.Start();
   freigegeben oder über den Owner zurückgesetzt werden.
 - **Optimistische Nebenläufigkeit.** Kurze Merge-Sektion pro Instanz über `WorkflowInstance.Version`
   (EF-Concurrency-Token). Die eigentliche Ausführung bleibt parallel.
-- **Konflikt-Policy.** Schreiben zwei **parallele** Zweige dieselbe Variable auf **verschiedene**
-  Werte, faultet die Instanz (kein stiller last-writer); gleicher Wert ist harmlos. Der Validator
-  warnt dafür bereits zur Design-Zeit (parallele Zweige mit gleicher Output-Variable).
+- **Konflikt-Policy.** Seit den **Zweig-Scopes** (§8) arbeitet jeder parallele Zweig in seiner eigenen
+  Kopie — gleichnamige Schreibzugriffe kollidieren also nicht mehr, sondern werden am Join
+  zusammengeführt (bei verschiedenen Werten gewinnt der später gespawnte Zweig, mit Warnung im Protokoll;
+  entschieden gehört das per Join-Mapping). Der Validator warnt dafür weiterhin schon zur Design-Zeit.
+  Der Laufzeit-Fault auf konkurrierende Schreibzugriffe bleibt als Sicherungsnetz für Tokens **ohne**
+  Zweig-Scope (Instanzen aus der Zeit davor) bestehen.
 - **Migrationen.** Das komplette Schema liegt als **`InitialWorkflow`-Migration** in zwei
   provider-spezifischen Projekten: **`ITVComponents.Workflow.EntityFramework.SqlServer`** und
   **`…PostgreSql`** (je mit `IDesignTimeDbContextFactory<WorkflowContext>`). Der Host wählt beim Aufsetzen
@@ -397,8 +411,10 @@ runner.Start();
   `UseSqlServer(cs, o => o.MigrationsAssembly("ITVComponents.Workflow.EntityFramework.SqlServer"))`, und
   wendet die Migrationen an (`ctx.Database.Migrate()` bzw. das Deployment-Verfahren des Hosts). Künftige
   Schemaänderungen als weitere Migration **je Provider** generieren (`dotnet ef migrations add … --project
-  <Provider-Projekt>`). Tests nutzen weiterhin `EnsureCreated` (kein Migrationsbedarf). Fehler-Ausgänge und
-  JSON-Export/Import brauchen **kein** Schema (rein im Definition-JSON / normale Variablen).
+  <Provider-Projekt>`). Bisher gibt es genau eine Folge-Migration: **`BranchScopes`** (die zwei nullable
+  Token-Spalten der Zweig-Scopes, §8) — ebenfalls in beiden Provider-Projekten. Tests nutzen weiterhin
+  `EnsureCreated` (kein Migrationsbedarf). Fehler-Ausgänge und JSON-Export/Import brauchen **kein** Schema
+  (rein im Definition-JSON / normale Variablen).
 
 ## 7. Kurzreferenz: Wer macht was?
 
@@ -441,6 +457,70 @@ hier nur der Überblick mit den deployment-relevanten Hinweisen:
   Protokoll des ganzen Baums ist über die eine Wurzel lesbar. Editor: Palette „Subworkflow" +
   Config-Panel (Definition/Version + Bindungen).
 
+- **Signatur und Ergebnis eines Workflows (`StartNode.Inputs` / `EndNode.Outputs`).** Der Start-Knoten
+  deklariert die **Parameter** des Workflows: jede Bindung (Konstante = Vorgabewert, Variable =
+  durchreichen/umbenennen, CScript = berechnen) wird beim Anlegen der Instanz gegen die *übergebenen*
+  Startwerte aufgelöst und ergibt eine Instanz-Variable. Mit `ScopeMode = Replace` wird die Signatur
+  **strikt**: die Instanz startet mit genau den deklarierten Parametern plus `RetainVariables`, alles
+  andere Übergebene fällt weg. Der End-Knoten deklariert spiegelbildlich das **Ergebnis**: ist
+  `Outputs` gesetzt, besteht der Variablenstack beim Übergang auf `Completed` genau daraus (plus
+  `RetainVariables`) — der Re-Base passiert beim Statuswechsel, nicht beim Verbrauch des Tokens, damit
+  bei parallelen Zweigen nicht der erste ankommende den Stack der anderen abräumt.
+  Beides gilt für **jeden** Einstieg: ein als Subworkflow aufgerufener Workflow wendet seine eigene
+  Signatur auf die Werte an, die die `Inputs` des `CallWorkflowNode` liefern, und was der Aufrufer als
+  Ergebnis sieht, ist genau das deklarierte Result — die Aufruferseite bleibt dadurch unverändert
+  (keine zweite Ablage, **keine Schema-Änderung**). Leer gelassen verhält sich alles wie bisher
+  (übergebene Werte = Stack, kompletter Stack = Ergebnis), bestehende Definitionen sind also
+  unberührt. Signatur und Ergebnis gehören der Definition, nicht dem Knoten: sie dürfen nur an *einem*
+  Start- bzw. End-Knoten stehen — der Validator meldet Mehrfach-Deklaration als Fehler. Editor:
+  Panels „Start parameters" und „Result".
+
+- **Genau ein Start- und ein End-Knoten.** Damit Signatur und Ergebnis überhaupt eindeutig sein können,
+  hat eine Definition genau **einen** Start- und **einen** End-Knoten; der Validator meldet mehrere als
+  Fehler, und die Palette bietet Start/End nur an, solange keiner existiert. Mehrere Start-Knoten waren
+  bisher ein *impliziter* Parallelstart (jeder bekam ein Token) — das leistet ein AND-Split hinter dem
+  einen Start, und zwar sichtbar. Die Engine startet Altdefinitionen weiterhin (mit allen Start-Tokens),
+  schreibt dabei aber eine Warnung ins Log. **Keine Schema-Änderung**; betrifft nur Definitionen, die
+  bisher schon mehrdeutig waren.
+
+- **Mapping auf der Verbindung (`SequenceFlow.Inputs`).** Auch eine *Kante* kann Bindungen tragen: sie
+  beantworten „wie sieht der Variablen-Stack aus, wenn ein Token **hier ankommt**". Damit sind es zwei
+  Ebenen — die **Kante** normalisiert (typisch, wenn mehrere Pfade denselben Knoten mit unterschiedlich
+  benannten Werten erreichen), die **Aktivität** zieht aus dem Stack ihre Parameter. Reihenfolge an einem
+  XOR: erst wählt die `Condition` die Kante, dann greift *deren* Mapping — das Mapping der nicht
+  genommenen Kante läuft nicht. `ScopeMode = Replace` (+ `RetainVariables`) konsolidiert wie am Knoten —
+  innerhalb einer parallelen Region wirkt das nur auf die Kopie des eigenen Zweigs (siehe Zweig-Scopes).
+  Gilt auf allen Wegen gleich, auch auf den Zweig-Kanten eines AND-Splits (dort schreibt jede Kante in
+  ihre eigene Zweig-Kopie). Leer gelassen = bisheriges
+  Verhalten, **keine Schema-Änderung** (Kanten stecken im Definitions-JSON). Editor: Panel „Connection" →
+  „Mapping on arrival"; im Diagramm trägt eine Kante mit Mapping ein `{…}` vor ihrer Beschriftung.
+
+- **Zweig-Scopes (paralleler Datenfluss).** Ein **AND-Split** gibt jedem Strang eine eigene **Kopie** des
+  Variablen-Stacks (`Token.Variables`); alles, was der Zweig danach liest und schreibt, läuft in dieser
+  Kopie. Der Instanz-Stack bleibt während der Region auf dem Stand des Splits. Der zugehörige **Join**
+  führt die Kopien wieder zusammen: ohne Deklaration fließt alles nach oben, was die Zweige geschrieben
+  haben (bisheriges Verhalten); mit `ParallelGatewayNode.Outputs` (+ `ScopeMode`/`RetainVariables`) kommt
+  **genau das Deklarierte** aus der Region heraus — dieselbe Extend/Replace-Semantik wie an Aktivität,
+  Subworkflow, Start und Kante. Aktivitäten merken davon nichts: `ctx.Variables` zeigt auf den Scope des
+  eigenen Zweigs. Verschachtelte Splits fallen Ebene für Ebene zurück (jedes Token merkt sich in
+  `SplitTokenId`, aus welchem Split es stammt).
+  *Verhaltensänderung:* Ein Zweig sieht **nicht mehr**, was ein Nachbarzweig schreibt, sondern den Stand
+  vom Split — schreibend war das ohnehin verboten (es faultete), lesend war es bisher ein Wettlauf.
+  Dafür entfällt die Fehlerklasse „paralleler Schreibkonflikt": schreiben zwei Zweige denselben Namen,
+  gewinnt beim Merge deterministisch der später gespawnte Zweig, und der Fall landet als
+  `BranchMergeConflict` (Warnung) im Protokoll und im Log — entschieden gehört er per Join-Mapping (je
+  Zweig ein eigener Ergebnisname). Ein Zweig, der ins **Ende** statt in seinen Join läuft, verliert seine
+  Variablen (Warnung zur Laufzeit *und* im Validator). **Schema-Änderung:** zwei nullable Spalten auf
+  `Tokens` (`VariablesJson`, `SplitTokenId`) → Migration `BranchScopes` je Provider-Projekt; laufende
+  Instanzen bleiben gültig (beide Spalten null = Verhalten wie bisher). Editor: Panel am parallelen
+  Gateway („Result of the parallel region", nur wenn es als Join wirkt); im Diagramm trägt ein Join mit
+  deklariertem Ergebnis ein `{…}`, und das Monitoring zeigt den Zweig-Scope je Token.
+
+- **Benutzer-Aufgaben (`UserActivityNode`).** Ein Schritt, den ein **Mensch** erledigt: der Zweig parkt,
+  bis die Aufgabe in der Oberfläche abgeschlossen wird. Technisch wartet das Token wie an einem
+  Wartepunkt, fachlich ist es etwas anderes (Zuständigkeit, Maske, definierter Abschluss) — deshalb ein
+  eigener Knoten und ein eigener Abschlussweg. Details, Rechte und Host-Verdrahtung: **Abschnitt 9**.
+
 - **JSON Export/Import.** `ITVComponents.Workflow.Serialization.WorkflowJson` (öffentlich) ist das
   kanonische, portable Format (stabile `"kind"`-Diskriminatoren, **typnamen-unabhängig**) — dasselbe,
   das der Store persistiert. `ExportDefinition` / `ImportDefinition`; im Editor Export-/Import-Buttons
@@ -450,3 +530,104 @@ hier nur der Überblick mit den deployment-relevanten Hinweisen:
 - **Protokoll mit Schweregrad.** Das Ausführungsprotokoll liegt als eigene Tabelle (`HistoryEntryRow`,
   append-only) mit `Severity` (Verbose/Info/Warning/Error) — filter-/abfragbar; das Monitoring-Detail
   zeigt eine farbige Severity-Spalte. Bei Subworkflows über die `RootInstanceId` baumweit aggregierbar.
+
+## 9. Benutzer-Aufgaben und Arbeitsliste
+
+Ein `UserActivityNode` hält den Prozess an, bis ein **Mensch** handelt. Er ist bewusst kein erweiterter
+`WaitNode`: eine Aufgabe hat eine Zuständigkeit, eine Maske und einen definierten Abschluss — und der
+Abschluss darf **nicht** über ein Signal laufen (`SignalWorkflow` weckt *alle* gleichnamig wartenden
+Tokens und schreibt ohne Versionsvergleich; bei zwei parallelen Aufgaben derselben Art wäre beides
+falsch). Der Weg ist `WorkflowEngine.CompleteUserTask(instanceId, tokenId, result, completedBy)` —
+nebenläufigkeits-sicher über `TryCommitInstance`, mit einem eigenen Ausgang für „war schon erledigt".
+
+### Was am Knoten steht
+
+| Feld | Bedeutung |
+| --- | --- |
+| `TaskKey` | Die Aufgabenart (Pflicht). Filter der Arbeitsliste und Ausweich-Schlüssel für die Maske. |
+| `RequiredPermission` | Wer diese **Sorte** Aufgabe sehen und erledigen darf. Leer = das allgemeine Aufgaben-Recht genügt. |
+| `Assignment` | CScript → Benutzername. **Einmal** beim Parken ausgewertet und am Token festgeschrieben (eine Arbeitsliste ist eine Datenbankabfrage und kann kein Skript auswerten). Leer = Pool-Aufgabe. |
+| `ViewKey` | Optionaler Schlüssel der Oberflächen-Komponente. **Nie ein Typname** — Definitionen sind DB-Daten, ein Typname darin wäre Code-Ausführung per Datenpflege. |
+| `Title` / `Description` | Klartext **oder** Kultur-JSON (`{"de":"Freigabe","fr":"Approbation"}`) — dieselbe Konvention wie bei Navigations-Einträgen. |
+| `TitleExpression` | CScript für einen Titel aus den Daten („Rechnung 4711"). Gewinnt gegen `Title`, ist dann aber Klartext und **nicht** mehrsprachig. |
+| `Inputs` / `Outputs` | Was die Maske sieht bzw. zurückgibt (dieselbe Bindungs-Maschinerie wie an der Aktivität, inkl. `ScopeMode`/`RetainVariables`). |
+| `FormFields` | Deklaration der **generischen Maske**. Leer = die Aufgabe wird nur bestätigt. |
+| `DueInHours` | Frist ab dem Parken — reine Anzeige-/Sortierinformation. |
+
+Zwei Dinge, die man nicht verwechseln darf: **Permission** = siehst du diese Sorte Aufgabe,
+**Assignment** = ist dieser konkrete Fall deiner.
+
+Ein Zuweisungs-Ausdruck, der scheitert, **faultet die Instanz** — bewusst: die Aufgabe läge sonst im Pool
+und wäre für jeden mit der Permission sichtbar, also eine stille Sichtbarkeits-Ausweitung. Ein
+scheiternder `TitleExpression` ist dagegen nur eine Log-Zeile (der Titel fällt auf `Title` zurück) — eine
+unerledigbare Aufgabe wäre die teurere Folge.
+
+Die Frist landet in `Token.TaskDueUtc`, **nicht** in `DueUtc`: letzteres ist die Timer-Fälligkeit, und der
+Timer-Aufgriff würde eine überfällige Aufgabe kurzerhand selbst weiterlaufen lassen. Soll eine Frist
+etwas *auslösen*, gehört ein `TimerNode` in einen parallelen Zweig.
+
+### Die Maske
+
+Aufgelöst wird in dieser Reihenfolge: `ViewKey` → `TaskKey` → generische Maske aus `FormFields`. Ein
+Schlüssel, den niemand registriert hat, fällt ebenfalls auf die generische Maske zurück — aber mit
+Log-Zeile, nicht still. Registriert wird im Host:
+
+```csharp
+services.ConfigureWorkflowTaskViews(cfg => cfg.RegisterTaskView<ApproveInvoice>("ApproveInvoice"));
+```
+
+Die Komponente liest ihren Zustand über `[CascadingParameter] WorkflowTaskContext TaskContext`
+(Payload, Feld-Deklaration, übersetzte Texte) und schließt mit `TaskContext.CompleteAsync(result)` ab.
+Bewusst per Cascading und nicht über ein Parameter-Dictionary einer `DynamicComponent`: dessen
+Parameternamen werden erst zur Laufzeit geprüft, und dieselbe Komponente läuft so unverändert im
+Registry-Weg **und** direkt auf einer eigenen Seite.
+
+Der Mantel (`UserTaskDialog`) gehört bewusst *einmal* der Bibliothek: der teure Teil ist nicht das
+Anzeigen, sondern der Abschluss — Ergebnis-Mapping, weiche Sperre, Doppel-Klick, Versionskonflikt und
+„war schon erledigt". Der Erledigen-Knopf des Mantels erscheint nur bei der generischen Maske; eine
+eigene Komponente bringt ihre eigenen Aktionen mit (freigeben/ablehnen/…).
+
+### Arbeitsliste, Rechte und Sperre
+
+Die Seite ist `Workflow/Tasks` („Meine Aufgaben"), gegated durch die neue Permission **`Workflow.Tasks`**
+neben `Workflow.Monitor`/`Operate`/`Design`. Sie ist absichtlich getrennt: wer Rechnungen freigibt,
+braucht deswegen keinen Blick in fremde Instanzen.
+
+**Serverseitig geprüft, nicht nur im Razor-Wrapper.** `IWorkflowTaskHandler` prüft in *jeder* Methode
+(`services.VerifyUserPermissions`), und `GetTaskAsync`/`ClaimAsync`/`CompleteAsync` prüfen zusätzlich,
+dass der Token zu einer für **diesen** Benutzer sichtbaren, offenen Aufgabe des eigenen Tenants gehört —
+sonst genügte das Erraten einer Token-Id.
+
+Der **Tenant wird explizit gefiltert** (`IPermissionScope.PermissionPrefix`), nicht dem globalen
+Query-Filter überlassen: `TokenRow` hat keinen, und ob der Instanz-Filter greift, entscheidet die
+Registrierung des Kontexts im Host (der Weg über die DbContext-Factory ist bewusst filterfrei). Eine
+Arbeitsliste darf davon nicht abhängen.
+
+**Weiche Sperre.** Beim Öffnen wird die Aufgabe für 15 Minuten als „wird bearbeitet" markiert
+(`ClaimedBy`/`ClaimedUntil`). Sie blockiert **nicht** — die harte Entscheidung fällt weiterhin am
+Versionsvergleich des Abschlusses — sondern warnt den zweiten Bearbeiter, bevor er die Arbeit doppelt
+macht. Bewusst eigene Spalten und **nicht** `WorkflowBranchLockRow`: dessen `ReleaseLocksOfOwner` räumt
+die Sperren eines Runners auf und würde einen Oberflächen-Claim mitreißen.
+
+**Deep-Link** für Benachrichtigungs-Mails: `Workflow/Tasks?task={instanceId}:{tokenId}` — **relativ**
+(ohne führenden Slash), sonst 404 außerhalb des Tenants.
+
+**Schema-Änderung:** neun nullable Spalten auf `Tokens` (`TenantId`, `TaskKey`, `TaskPermission`,
+`AssignedTo`, `TaskTitle`, `TaskCreatedUtc`, `TaskDueUtc`, `ClaimedBy`, `ClaimedUntil`) plus die Indizes
+`(TenantId, TaskKey, Status)` und `(AssignedTo)` → Migration **`UserTasks`** je Provider-Projekt.
+Denormalisiert, weil `TaskKey`/Zuständigkeit/Titel sonst im Definitions-JSON steckten und es ohne die
+Spalten kein serverseitiges Filtern, Sortieren oder Paginieren gäbe. Laufende Instanzen bleiben gültig
+(alle Spalten null = kein Aufgaben-Token).
+
+### Lokalisierung
+
+Zwei Ebenen, die getrennt bleiben:
+
+- **Rahmen** (Spaltenköpfe, Knöpfe, Meldungen) = `IStringLocalizer<WorkflowTaskMessages>` gegen
+  `Resources/WorkflowTaskMessages.{de|fr|it}.resx` (neutral = Englisch). Nur die Aufgaben-Seite ist
+  lokalisiert; Monitoring und Editor sind Betreiber-Werkzeuge und bleiben englisch.
+- **Inhalte** (Aufgabentitel, Feldbeschriftungen) = Kultur-JSON in der Definition, aufgelöst mit
+  `StringExtensions.Translate` beim **Anzeigen**. Am Token steht der Titel **unaufgelöst** — sonst
+  bestimmte die Kultur des ausführenden Runners die Sprache des Lesers. Der Kultur-Fallback ist
+  `de-CH` → `de` → Schlüssel `Default` → Rohwert; ein kaputter Datensatz wird angezeigt *und* geloggt,
+  und der Validator meldet ihn schon beim Speichern.

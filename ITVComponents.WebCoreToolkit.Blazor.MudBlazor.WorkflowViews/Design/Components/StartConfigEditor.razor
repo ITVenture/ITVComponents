@@ -1,0 +1,29 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Konfiguriert den Start-Knoten: die SIGNATUR des Workflows. Die Bindungen werden beim Anlegen der
+    Instanz gegen die uebergebenen Startwerte aufgeloest - Konstante = Vorgabewert, Variable =
+    durchreichen/umbenennen, Ausdruck = berechnen. Das gilt fuer jeden Einstieg, auch wenn die Definition
+    als Subworkflow aufgerufen wird.
+*@
+
+@if (Node is not null)
+{
+    <MudText Typo="Typo.caption" Class="mt-4">Start parameters</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        The declared signature of this workflow. Each row becomes an instance variable, resolved against the
+        values the caller passed in.
+    </MudText>
+    <InputBindingList Bindings="Node.Inputs" NamePlaceholder="variable" SourcePlaceholder="passed variable"
+                      AddPlaceholder="new parameter" NameWidth="120px" />
+
+    <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
+                      RetainVariables="Node.RetainVariables"
+                      SwitchLabel="Strict signature (replace)"
+                      HelperText="@("The instance starts with exactly the parameters above plus the variables kept here - anything else the caller passed is dropped.")" />
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Start-Knoten.</summary>
+    [Parameter] public StartNode? Node { get; set; }
+}

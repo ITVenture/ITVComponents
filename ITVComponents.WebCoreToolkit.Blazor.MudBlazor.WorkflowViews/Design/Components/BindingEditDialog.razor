@@ -1,0 +1,129 @@
+@using System.Globalization
+@using ITVComponents.Workflow.Model
+
+@*
+    Bearbeitet EINE Eingabe-Bindung (Konstante / Variable / CScript-Ausdruck) in einem eigenen Popup.
+    Löst die enge Inline-Zeile ab: gerade ein Ausdruck braucht Platz, deshalb ist der Dialog
+    maximierbar und der Monaco-Editor gross. Der Dialog arbeitet auf der übergebenen Bindung (der
+    Aufrufer reicht für „Add" eine frische, für „Edit" eine Kopie herein) und gibt sie über das
+    Result zurück; bei <see cref="Result.Delete"/> soll der Aufrufer die Bindung entfernen.
+    Von Automated-/User-/CallWorkflow-Editor gemeinsam genutzt.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsNew ? "Add input" : "Edit input")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (ParameterOptions is { Count: > 0 })
+        {
+            <MudSelect T="string" Value="@Binding.Parameter" ValueChanged="@(v => Binding.Parameter = v)"
+                       Label="Parameter" Dense="true" Margin="Margin.Dense">
+                @foreach (var p in ParameterOptions)
+                {
+                    <MudSelectItem T="string" Value="@p">@p</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        else
+        {
+            <MudTextField @bind-Value="Binding.Parameter" Label="@NameLabel" Margin="Margin.Dense" />
+        }
+
+        <MudSelect T="ParameterBindingKind" Value="@Binding.Kind" ValueChanged="OnKindChanged"
+                   Label="Source" Dense="true" Margin="Margin.Dense" Class="mt-2">
+            <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Literal">Constant</MudSelectItem>
+            <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Variable">Variable</MudSelectItem>
+            <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Expression">Expression</MudSelectItem>
+        </MudSelect>
+
+        @switch (Binding.Kind)
+        {
+            case ParameterBindingKind.Expression:
+                <MudText Typo="Typo.caption" Class="mt-3">Expression (CScript over the instance variables)</MudText>
+                <CScriptField @ref="exprField" Height="300" Value="@(Binding.Source ?? string.Empty)"
+                              ValueChanged="@(v => Binding.Source = string.IsNullOrEmpty(v) ? null : v)" />
+                break;
+            case ParameterBindingKind.Variable:
+                <MudTextField T="string" Value="@(Binding.Source ?? string.Empty)"
+                              ValueChanged="@(v => Binding.Source = string.IsNullOrEmpty(v) ? null : v)"
+                              Label="Variable name" Margin="Margin.Dense" Class="mt-2" />
+                break;
+            default:
+                <MudTextField T="string" Value="@LiteralString"
+                              ValueChanged="SetLiteral" Label="Value" Lines="4" Margin="Margin.Dense" Class="mt-2" />
+                break;
+        }
+    </DialogContent>
+    <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.Medium" />
+        @if (!IsNew)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
+                       OnClick="Delete">Delete</MudButton>
+        }
+        <MudSpacer />
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Done">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    /// <summary>Ergebnis des Dialogs: die (bearbeitete) Bindung und ob sie gelöscht werden soll.</summary>
+    public record Result(ActivityInputBinding Binding, bool Delete);
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die zu bearbeitende Bindung (Add: frisch, Edit: Kopie des Originals).</summary>
+    [Parameter] public ActivityInputBinding Binding { get; set; } = new();
+
+    /// <summary>true = neu anlegen (kein Löschen-Knopf, anderer Titel).</summary>
+    [Parameter] public bool IsNew { get; set; }
+
+    /// <summary>Beschriftung des Namensfeldes, wenn keine Parameterliste vorgegeben ist.</summary>
+    [Parameter] public string NameLabel { get; set; } = "Parameter / name";
+
+    /// <summary>Optionale Auswahlliste deklarierter Parameternamen (aus dem Activity-Katalog).</summary>
+    [Parameter] public IReadOnlyList<string>? ParameterOptions { get; set; }
+
+    private CScriptField? exprField;
+
+    private string LiteralString => Binding.Literal switch
+    {
+        null => string.Empty,
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        var v => v.ToString() ?? string.Empty
+    };
+
+    private void SetLiteral(string? value)
+        => Binding.Literal = string.IsNullOrEmpty(value) ? null : value;
+
+    private void OnKindChanged(ParameterBindingKind kind)
+    {
+        if (Binding.Kind == kind)
+        {
+            return;
+        }
+
+        // Quelle gewechselt: die alten Werte passen nicht mehr zur neuen Art.
+        Binding.Kind = kind;
+        Binding.Literal = null;
+        Binding.Source = null;
+    }
+
+    private async Task Done()
+    {
+        // Monaco meldet seinen Text erst beim Verlassen - vor dem Schliessen einmal abholen.
+        if (Binding.Kind == ParameterBindingKind.Expression && exprField is not null)
+        {
+            string v = await exprField.GetValueAsync();
+            Binding.Source = string.IsNullOrEmpty(v) ? null : v;
+        }
+
+        MudDialog.Close(DialogResult.Ok(new Result(Binding, false)));
+    }
+
+    private void Delete() => MudDialog.Close(DialogResult.Ok(new Result(Binding, true)));
+
+    private void Cancel() => MudDialog.Cancel();
+}

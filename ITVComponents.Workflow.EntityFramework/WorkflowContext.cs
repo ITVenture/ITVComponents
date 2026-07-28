@@ -111,6 +111,61 @@ namespace ITVComponents.Workflow.EntityFramework
         /// deren Ende gewartet wird; sonst null.
         /// </summary>
         public string WaitingForChildInstanceId { get; set; }
+
+        /// <summary>
+        /// Der <b>Zweig-Scope</b> als JSON (die eigene Variablen-Kopie eines parallelen Zweigs), oder null,
+        /// wenn das Token auf dem Instanz-Scope arbeitet - dem Normalfall ausserhalb paralleler Regionen.
+        /// </summary>
+        public string VariablesJson { get; set; }
+
+        /// <summary>
+        /// Die Zweig-Herkunft: die Token-Id des AND-Splits, aus dem dieses Token hervorgegangen ist; sonst
+        /// null. Der Join findet darueber den Scope, in den er zusammenfuehrt.
+        /// </summary>
+        public string SplitTokenId { get; set; }
+
+        /// <summary>
+        /// Der Tenant der zugehoerigen Instanz - <b>denormalisiert</b>. Die Token-Zeile selbst hat keinen
+        /// Query-Filter; ohne diese Spalte gaebe es kein serverseitiges Filtern/Sortieren/Paginieren einer
+        /// Arbeitsliste ueber alle Instanzen hinweg (nur einen Join, den kein Index traegt).
+        /// </summary>
+        public string TenantId { get; set; }
+
+        /// <summary>
+        /// Bei einer wartenden Benutzer-Aufgabe: die Aufgabenart; sonst null. Zugleich das Kennzeichen,
+        /// dass diese Zeile eine offene Aufgabe IST.
+        /// </summary>
+        public string TaskKey { get; set; }
+
+        /// <summary>Die Permission, die diese Aufgabe verlangt; null = nur das allgemeine Aufgaben-Recht.</summary>
+        public string TaskPermission { get; set; }
+
+        /// <summary>Der Zustaendige (Ergebnis des Zuweisungs-Ausdrucks), oder null fuer eine Pool-Aufgabe.</summary>
+        public string AssignedTo { get; set; }
+
+        /// <summary>Der Titel fuer die Arbeitsliste - unaufgeloest (Klartext oder Kultur-JSON).</summary>
+        public string TaskTitle { get; set; }
+
+        /// <summary>Wann die Aufgabe entstanden ist (UTC) - das Sortierkriterium der Arbeitsliste.</summary>
+        public DateTime? TaskCreatedUtc { get; set; }
+
+        /// <summary>Die Frist der Aufgabe (UTC), oder null. Reine Anzeige-/Sortierinformation.</summary>
+        public DateTime? TaskDueUtc { get; set; }
+
+        /// <summary>
+        /// Die <b>weiche Sperre</b>: wer die Aufgabe gerade offen hat. Sie blockiert nicht - die harte
+        /// Entscheidung faellt weiterhin am Versionsvergleich des Abschlusses - sondern warnt den zweiten
+        /// Bearbeiter, bevor er die Arbeit doppelt macht.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst hier und nicht in <see cref="WorkflowBranchLockRow"/>: dessen
+        /// <c>ReleaseLocksOfOwner</c> raeumt die Sperren eines Runners auf und wuerde einen
+        /// Oberflaechen-Claim mitreissen.
+        /// </remarks>
+        public string ClaimedBy { get; set; }
+
+        /// <summary>Bis wann die weiche Sperre gilt (UTC). Danach gilt die Aufgabe als frei.</summary>
+        public DateTime? ClaimedUntil { get; set; }
     }
 
     /// <summary>
@@ -307,6 +362,11 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.WaitingSignal);
                 e.HasIndex(n => n.DueUtc);
                 e.HasIndex(n => n.WaitingTarget);
+                // DER Abfrage-Index der Arbeitsliste: "offene Aufgaben dieses Tenants, ggf. einer Art".
+                // Status steht hinten, weil er die geringste Trennschaerfe hat (jede Liste sucht Waiting).
+                e.HasIndex(n => new { n.TenantId, n.TaskKey, n.Status });
+                // "meine Aufgaben" - der haeufigste Filter der Liste.
+                e.HasIndex(n => n.AssignedTo);
             });
 
             modelBuilder.Entity<HistoryEntryRow>(e =>

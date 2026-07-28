@@ -1,0 +1,117 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Bearbeitet EIN Feld der generischen Aufgaben-Maske in einem eigenen Popup. Löst die enge Inline-Karte
+    ab: die Beschriftung ist mehrsprachig (Kultur-JSON) und braucht Platz, deshalb ein JSON-Editor
+    (Monaco) und ein maximierbarer Dialog. Arbeitet auf dem übergebenen Feld (der Aufrufer reicht für
+    „Add" ein frisches, für „Edit" eine Kopie herein) und gibt es über das Result zurück.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsNew ? "Add form field" : "Edit form field")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="Field.Name" Label="Field name" Margin="Margin.Dense"
+                      HelperText="Key in the result — the output binding maps it to a variable." />
+        <MudSelect T="UserTaskFieldKind" @bind-Value="Field.Kind" Label="Type" Margin="Margin.Dense" Dense="true">
+            @foreach (UserTaskFieldKind kind in Enum.GetValues<UserTaskFieldKind>())
+            {
+                <MudSelectItem T="UserTaskFieldKind" Value="@kind">@kind</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Class="mt-2">
+            <MudSwitch T="bool" @bind-Value="Field.Required" Color="Color.Primary" Label="Required" />
+            <MudSwitch T="bool" @bind-Value="Field.ReadOnly" Color="Color.Default" Label="Display only" />
+        </MudStack>
+        <MudTextField @bind-Value="Field.PayloadName" Label="Payload name (prefill / display source)"
+                      Margin="Margin.Dense" Placeholder="(field name)" />
+
+        <MudText Typo="Typo.caption" Class="mt-3">Label (plain text or culture JSON)</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            e.g. <code>{"de":"Betrag","fr":"Montant"}</code> — same convention as navigation entries. Empty = the field name is shown.
+        </MudText>
+        <CScriptField @ref="labelField" Language="json" Height="140" Value="@(Field.Label ?? string.Empty)"
+                      ValueChanged="@(v => Field.Label = string.IsNullOrEmpty(v) ? null : v)" />
+
+        <MudText Typo="Typo.caption" Class="mt-3">Help text (plain text or culture JSON)</MudText>
+        <MudTextField @bind-Value="Field.HelpText" Margin="Margin.Dense" Lines="2" />
+
+        @if (Field.Kind == UserTaskFieldKind.Choice)
+        {
+            <MudText Typo="Typo.caption" Class="mt-3">Options</MudText>
+            <MudTextField T="string" Value="@ChoiceText" ValueChanged="SetChoices" Lines="4" Margin="Margin.Dense"
+                          HelperText="One per line: value=label. The label may be a per-culture record as well." />
+        }
+    </DialogContent>
+    <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.Medium" />
+        @if (!IsNew)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
+                       OnClick="Delete">Delete</MudButton>
+        }
+        <MudSpacer />
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Done"
+                   Disabled="@string.IsNullOrWhiteSpace(Field.Name)">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    /// <summary>Ergebnis: das (bearbeitete) Feld und ob es gelöscht werden soll.</summary>
+    public record Result(UserTaskField Field, bool Delete);
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Das zu bearbeitende Feld (Add: frisch, Edit: Kopie des Originals).</summary>
+    [Parameter] public UserTaskField Field { get; set; } = new();
+
+    /// <summary>true = neu anlegen (kein Löschen-Knopf, anderer Titel).</summary>
+    [Parameter] public bool IsNew { get; set; }
+
+    private CScriptField? labelField;
+
+    private string ChoiceText
+        => string.Join(Environment.NewLine,
+            (Field.Choices ?? new List<UserTaskChoice>())
+            .Select(c => string.IsNullOrEmpty(c.Label) ? c.Value : $"{c.Value}={c.Label}"));
+
+    private void SetChoices(string? text)
+    {
+        Field.Choices = (text ?? string.Empty)
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .Select(line =>
+            {
+                int sep = line.IndexOf('=');
+                return sep < 0
+                    ? new UserTaskChoice { Value = line }
+                    : new UserTaskChoice { Value = line.Substring(0, sep).Trim(), Label = line.Substring(sep + 1).Trim() };
+            })
+            .ToList();
+    }
+
+    private async Task Done()
+    {
+        if (string.IsNullOrWhiteSpace(Field.Name))
+        {
+            return;
+        }
+
+        // Monaco (Label) meldet seinen Text erst beim Verlassen - vor dem Schliessen einmal abholen.
+        if (labelField is not null)
+        {
+            string v = await labelField.GetValueAsync();
+            Field.Label = string.IsNullOrEmpty(v) ? null : v;
+        }
+
+        MudDialog.Close(DialogResult.Ok(new Result(Field, false)));
+    }
+
+    private void Delete() => MudDialog.Close(DialogResult.Ok(new Result(Field, true)));
+
+    private void Cancel() => MudDialog.Cancel();
+}

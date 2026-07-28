@@ -89,12 +89,24 @@ namespace ITVComponents.Workflow
             WorkflowDefinition definition = store.GetDefinition(definitionId)
                 ?? throw new InvalidOperationException($"No definition found for '{definitionId}'.");
 
+            // Eine als fehlerhaft markierte Definition wird gar nicht erst instanziiert - sonst entstuende
+            // eine Instanz, die sofort (oder am ersten fehlerhaften Knoten) faultet. Das Flag setzt der
+            // Editor beim Speichern anhand der Validierung; bereits laufende Instanzen sind nicht betroffen.
+            if (definition.DisabledForStart)
+            {
+                throw new InvalidOperationException(
+                    $"Definition '{definitionId}' (v{definition.Version}) is disabled for start because it has " +
+                    "validation errors. Fix the errors in the designer and save again.");
+            }
+
             var startNodes = definition.StartNodes().ToList();
             if (startNodes.Count == 0)
             {
                 throw new InvalidOperationException(
                     $"Definition '{definitionId}' has no start node.");
             }
+
+            WarnOnMultipleStarts(definition, startNodes);
 
             var now = DateTime.UtcNow;
             var instance = new WorkflowInstance
@@ -113,6 +125,22 @@ namespace ITVComponents.Workflow
                 {
                     instance.Variables[pair.Key] = pair.Value;
                 }
+            }
+
+            // Die deklarierte Signatur der Definition auf die uebergebenen Werte anwenden (Vorgaben,
+            // Umbenennungen, berechnete Parameter). Scheitert sie, entsteht bewusst KEINE Instanz - ein
+            // Workflow, dessen Parameter nicht aufloesbar sind, soll gar nicht erst starten.
+            try
+            {
+                ApplyStartInputs(instance, definition, startNodes);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Start parameters of definition '{definition.Id}' v{definition.Version} could not be " +
+                    $"resolved: {ex.OutlineException()}", LogSeverity.Error);
+                throw new InvalidOperationException(
+                    $"Start parameters of definition '{definition.Id}' could not be resolved: {ex.Message}", ex);
             }
 
             foreach (StartNode start in startNodes)
@@ -184,16 +212,12 @@ namespace ITVComponents.Workflow
 
             WorkflowDefinition definition = LoadDefinition(instance);
 
-            if (payloadVariables != null)
-            {
-                foreach (KeyValuePair<string, object> pair in payloadVariables)
-                {
-                    instance.Variables[pair.Key] = pair.Value;
-                }
-            }
-
             foreach (Token token in waiting)
             {
+                // Die Payload landet im Scope des EMPFANGENDEN Zweigs - wartet das Token innerhalb einer
+                // parallelen Region, gehoert sie in dessen Zweig-Scope, nicht in den (eingefrorenen)
+                // Instanz-Scope. Ausserhalb einer Region ist das genau wie bisher.
+                ApplyPayload(Scope(instance, token), payloadVariables);
                 instance.Log("SignalReceived", token.NodeId, signalName);
                 token.WaitingSignal = null;
                 token.DueUtc = null;
@@ -406,7 +430,7 @@ namespace ITVComponents.Workflow
 
                     if (fresh.Status != WorkflowStatus.Faulted && fresh.Status != WorkflowStatus.Cancelled)
                     {
-                        UpdateTerminalStatus(fresh);
+                        UpdateTerminalStatus(fresh, definition);
                     }
                 }
 
@@ -469,17 +493,11 @@ namespace ITVComponents.Workflow
                     return new List<string>();
                 }
 
-                if (payloadVariables != null)
-                {
-                    foreach (KeyValuePair<string, object> pair in payloadVariables)
-                    {
-                        fresh.Variables[pair.Key] = pair.Value;
-                    }
-                }
-
                 var ids = new List<string>();
                 foreach (Token token in waiting)
                 {
+                    // Payload in den Scope des empfangenden Zweigs (siehe SignalWorkflow).
+                    ApplyPayload(Scope(fresh, token), payloadVariables);
                     fresh.Log("SignalReceived", token.NodeId, signalName);
                     token.WaitingSignal = null;
                     token.DueUtc = null;
@@ -675,7 +693,7 @@ namespace ITVComponents.Workflow
 
             if (instance.Status == WorkflowStatus.Running)
             {
-                UpdateTerminalStatus(instance);
+                UpdateTerminalStatus(instance, definition);
             }
 
             store.SaveInstance(instance);
@@ -736,6 +754,21 @@ namespace ITVComponents.Workflow
                 case EndNode:
                     token.Status = TokenStatus.Consumed;
                     instance.Log("Ended", node.Id, node.Name);
+                    if (token.Variables != null)
+                    {
+                        // Der Zweig endet, ohne durch seinen Join gegangen zu sein - sein Scope wird damit
+                        // nie zusammengefuehrt und geht verloren. Das ist ein Modellierungsfehler (der
+                        // Validator meldet ihn), aber zur Laufzeit kein Grund, die Instanz zu faulten -
+                        // still darf es trotzdem nicht bleiben.
+                        instance.Log("BranchScopeDiscarded", node.Id,
+                            $"branch ended without its join - {token.Variables.Count} branch variable(s) dropped",
+                            HistorySeverity.Warning);
+                        LogEnvironment.LogEvent(
+                            $"Instance '{instance.Id}': a parallel branch reached end node '{node.Id}' without " +
+                            "passing its join - its branch variables are dropped. Route every branch through " +
+                            "the join.", LogSeverity.Warning);
+                    }
+
                     return true;
 
                 case AutomatedActivityNode activity:
@@ -756,6 +789,9 @@ namespace ITVComponents.Workflow
                     token.WaitingSignal = wait.SignalName;
                     instance.Log("Waiting", node.Id, wait.SignalName);
                     return true;
+
+                case UserActivityNode userTask:
+                    return ParkUserTask(instance, token, userTask);
 
                 case TimerNode timer:
                     return ArmTimer(instance, token, timer);
@@ -800,10 +836,275 @@ namespace ITVComponents.Workflow
             return true;
         }
 
+        /// <summary>
+        /// Parkt einen Zweig an einer <b>Benutzer-Aufgabe</b>: das Token wartet (wie an einem Wartepunkt),
+        /// traegt aber alles, was die Arbeitsliste zum Finden, Filtern und Anzeigen braucht - Aufgabenart,
+        /// Permission, Zustaendigkeit, Titel, Entstehungszeit. Der Gegenpart ist
+        /// <see cref="CompleteUserTask"/>.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="Token.WaitingSignal"/> bleibt bewusst leer: eine Aufgabe wird nicht per Signal
+        /// erledigt (das weckt alle gleichnamig wartenden Tokens und schreibt ohne Versionsvergleich).
+        /// Auch <see cref="Token.DueUtc"/> bleibt leer - eine Frist ist Anzeigeinformation
+        /// (<see cref="Token.TaskDueUtc"/>) und darf die Aufgabe nicht vom Timer-Aufgriff weiterschieben
+        /// lassen.
+        /// </remarks>
+        private bool ParkUserTask(WorkflowInstance instance, Token token, UserActivityNode node)
+        {
+            Dictionary<string, object> scope = Scope(instance, token);
+
+            string assignedTo = null;
+            if (!string.IsNullOrWhiteSpace(node.Assignment))
+            {
+                try
+                {
+                    assignedTo = evaluator.Evaluate(node.Assignment, scope)?.ToString();
+                }
+                catch (Exception ex)
+                {
+                    // Bewusst ein Fault: waere die Auswertung nur eine Warnung, laege die Aufgabe im Pool -
+                    // sichtbar fuer JEDEN mit der Permission. Ein Zuweisungsfehler ist damit kein
+                    // kosmetisches Problem, sondern eine Sichtbarkeits-Ausweitung.
+                    Fault(instance,
+                        $"Assignment expression of user task '{node.Id}' failed: {ex.OutlineException()}",
+                        node.Id);
+                    return false;
+                }
+            }
+
+            token.Status = TokenStatus.Waiting;
+            token.WaitingSignal = null;
+            token.WaitingTarget = null;
+            token.DueUtc = null;
+            token.TaskKey = node.TaskKey;
+            token.TaskPermission = node.RequiredPermission;
+            token.AssignedTo = string.IsNullOrWhiteSpace(assignedTo) ? null : assignedTo;
+            token.TaskTitle = ResolveTaskTitle(instance, scope, node);
+            token.TaskCreatedUtc = DateTime.UtcNow;
+            token.TaskDueUtc = node.DueInHours is > 0
+                ? DateTime.UtcNow.AddHours(node.DueInHours.Value)
+                : null;
+
+            instance.Log("UserTaskCreated", node.Id,
+                token.AssignedTo == null ? node.TaskKey : $"{node.TaskKey} -> {token.AssignedTo}");
+            return true;
+        }
+
+        /// <summary>
+        /// Der Titel, unter dem die Aufgabe in der Arbeitsliste steht. Ein
+        /// <see cref="UserActivityNode.TitleExpression"/> gewinnt (dann ist der Titel Klartext), sonst
+        /// bleibt <see cref="UserActivityNode.Title"/> unaufgeloest stehen - Kultur-JSON wird erst beim
+        /// Anzeigen uebersetzt.
+        /// </summary>
+        private string ResolveTaskTitle(WorkflowInstance instance, Dictionary<string, object> scope,
+            UserActivityNode node)
+        {
+            if (!string.IsNullOrWhiteSpace(node.TitleExpression))
+            {
+                try
+                {
+                    string computed = evaluator.Evaluate(node.TitleExpression, scope)?.ToString();
+                    if (!string.IsNullOrWhiteSpace(computed))
+                    {
+                        return computed;
+                    }
+
+                    LogEnvironment.LogEvent(
+                        $"Title expression of user task '{node.Id}' in instance '{instance.Id}' produced no " +
+                        "text - falling back to the static title.", LogSeverity.Warning);
+                }
+                catch (Exception ex)
+                {
+                    // Anders als bei der Zuweisung nur eine Meldung: ein fehlender Titel ist kosmetisch,
+                    // und eine unerledigbare Aufgabe waere die teurere Folge.
+                    LogEnvironment.LogEvent(
+                        $"Title expression of user task '{node.Id}' in instance '{instance.Id}' failed - " +
+                        $"falling back to the static title: {ex.OutlineException()}", LogSeverity.Error);
+                }
+            }
+
+            return string.IsNullOrWhiteSpace(node.Title) ? node.Name : node.Title;
+        }
+
+        /// <summary>
+        /// Loescht die Aufgaben-Kennzeichen eines Tokens - danach taucht es in keiner Arbeitsliste mehr auf.
+        /// </summary>
+        private static void ClearUserTask(Token token)
+        {
+            token.TaskKey = null;
+            token.TaskPermission = null;
+            token.AssignedTo = null;
+            token.TaskTitle = null;
+            token.TaskCreatedUtc = null;
+            token.TaskDueUtc = null;
+        }
+
+        /// <summary>
+        /// Schliesst eine <b>Benutzer-Aufgabe</b> ab: uebernimmt das Ergebnis der Maske ueber die
+        /// Ausgabe-Bindungen des Knotens in den Scope des Zweigs und laesst den Zweig weiterlaufen. Das
+        /// Vorantreiben selbst uebernimmt - wie bei Signal und Timer - der Aufrufer bzw. der Runner ueber
+        /// die zurueckgelieferten Token-Ids.
+        /// </summary>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="tokenId">das wartende Token (GENAU diese Aufgabe - nicht alle gleichartigen)</param>
+        /// <param name="result">die Ergebniswerte der Maske (Schluessel = deklarierte Ausgabeparameter)</param>
+        /// <param name="completedBy">wer die Aufgabe erledigt hat (fuer das Protokoll)</param>
+        /// <returns>
+        /// das Ergebnis inklusive Unterscheidung "erledigt" / "war schon erledigt" - der zweite Klick auf
+        /// eine bereits abgeschlossene Aufgabe darf nicht wie ein Erfolg aussehen.
+        /// </returns>
+        public UserTaskCompletionResult CompleteUserTask(string instanceId, string tokenId,
+            IDictionary<string, object> result = null, string completedBy = null)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            if (tokenId == null)
+            {
+                throw new ArgumentNullException(nameof(tokenId));
+            }
+
+            UserTaskCompletionStatus outcome = UserTaskCompletionStatus.NotFound;
+            IReadOnlyList<string> activated = ReactivateAndCommit(instanceId, "CompleteUserTask",
+                (fresh, definition) =>
+                {
+                    // Der Delegat kann bei einem Versionskonflikt erneut laufen - der Ausgang wird deshalb
+                    // je Versuch neu bestimmt, nicht akkumuliert.
+                    outcome = UserTaskCompletionStatus.NotFound;
+                    Token token = fresh.Tokens.FirstOrDefault(t => t.Id == tokenId);
+                    if (token == null)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"CompleteUserTask: token '{tokenId}' does not exist in instance '{instanceId}'.",
+                            LogSeverity.Warning);
+                        return new List<string>();
+                    }
+
+                    if (token.Status != TokenStatus.Waiting || token.TaskKey == null)
+                    {
+                        // Der Normalfall des Rennens: ein anderer war schneller. Kein Fehler, aber der
+                        // Aufrufer muss es unterscheiden koennen.
+                        outcome = UserTaskCompletionStatus.AlreadyCompleted;
+                        return new List<string>();
+                    }
+
+                    if (definition.GetNode(token.NodeId) is not UserActivityNode node)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"CompleteUserTask: token '{tokenId}' of instance '{instanceId}' stands on node " +
+                            $"'{token.NodeId}', which is not a user task.", LogSeverity.Error);
+                        return new List<string>();
+                    }
+
+                    ApplyMappedOutputs(fresh, Scope(fresh, token), node.Id, node.Outputs, node.ScopeMode,
+                        node.RetainVariables,
+                        result ?? new Dictionary<string, object>(StringComparer.Ordinal));
+                    fresh.Log("UserTaskCompleted", node.Id,
+                        completedBy == null ? node.TaskKey : $"{node.TaskKey} by {completedBy}");
+                    ClearUserTask(token);
+                    token.Status = TokenStatus.Active;
+                    if (!MoveAlongSingleOutgoing(fresh, definition, token))
+                    {
+                        outcome = UserTaskCompletionStatus.Faulted;
+                        return new List<string>(); // gefaulted - der Commit persistiert den Fault.
+                    }
+
+                    outcome = UserTaskCompletionStatus.Completed;
+                    fresh.Status = WorkflowStatus.Running;
+                    return new List<string> { token.Id };
+                });
+
+            return new UserTaskCompletionResult(outcome, activated);
+        }
+
+        /// <summary>
+        /// Beschreibt EINE wartende Benutzer-Aufgabe fuer die Oberflaeche: loest die Eingabe-Bindungen
+        /// gegen den aktuellen Stand des Zweigs auf und liefert sie zusammen mit Titel, Beschreibung und
+        /// der Deklaration der generischen Maske.
+        /// </summary>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="tokenId">das wartende Token</param>
+        /// <returns>die Beschreibung, oder null, wenn es diese Aufgabe (nicht mehr) gibt</returns>
+        public UserTaskDescriptor DescribeUserTask(string instanceId, string tokenId)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            WorkflowInstance instance = store.GetInstance(instanceId);
+            if (instance == null)
+            {
+                LogEnvironment.LogEvent($"DescribeUserTask: instance '{instanceId}' not found.",
+                    LogSeverity.Warning);
+                return null;
+            }
+
+            Token token = instance.Tokens.FirstOrDefault(t => t.Id == tokenId);
+            if (token == null || token.Status != TokenStatus.Waiting || token.TaskKey == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"DescribeUserTask: token '{tokenId}' of instance '{instanceId}' is not a waiting user task " +
+                    "(gone, already completed or never one).", LogSeverity.Report);
+                return null;
+            }
+
+            if (LoadDefinition(instance).GetNode(token.NodeId) is not UserActivityNode node)
+            {
+                LogEnvironment.LogEvent(
+                    $"DescribeUserTask: node '{token.NodeId}' of instance '{instanceId}' is not a user task - " +
+                    "the definition was changed under a waiting task.", LogSeverity.Error);
+                return null;
+            }
+
+            Dictionary<string, object> taskScope = Scope(instance, token);
+            IDictionary<string, object> payload = ResolveInputs(instance, taskScope, node.Inputs, node.Id);
+
+            // Datenobjekt fuer die Formatierung der Beschreibung (optional). Ein Fehler hier darf die
+            // Aufgabe NICHT unanzeigbar machen - die Beschreibung wird dann eben unformatiert gezeigt -,
+            // muss aber ins Log, sonst sucht man den fehlenden Wert an der falschen Stelle.
+            object descriptionData = null;
+            if (!string.IsNullOrWhiteSpace(node.DescriptionData))
+            {
+                try
+                {
+                    descriptionData = evaluator.Evaluate(node.DescriptionData, taskScope);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"DescribeUserTask: description data of node '{node.Id}' in instance '{instance.Id}' " +
+                        $"could not be evaluated: {ex.OutlineException()}", LogSeverity.Warning);
+                }
+            }
+
+            return new UserTaskDescriptor
+            {
+                InstanceId = instance.Id,
+                TokenId = token.Id,
+                DefinitionId = instance.DefinitionId,
+                NodeId = node.Id,
+                TaskKey = token.TaskKey,
+                ViewKey = node.ViewKey,
+                RequiredPermission = token.TaskPermission,
+                AssignedTo = token.AssignedTo,
+                Title = token.TaskTitle,
+                Description = node.Description,
+                DescriptionData = descriptionData,
+                CreatedUtc = token.TaskCreatedUtc,
+                DueUtc = token.TaskDueUtc,
+                Payload = new Dictionary<string, object>(payload, StringComparer.Ordinal),
+                FormFields = node.FormFields ?? new List<UserTaskField>()
+            };
+        }
+
         private bool RunActivity(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             AutomatedActivityNode node, IActivityScope activityScope)
         {
             instance.Log("Entered", node.Id, node.Name, HistorySeverity.Verbose);
+            Dictionary<string, object> scope = Scope(instance, token);
 
             // Datenfluss hinein: die Eingabe-Bindungen des Knotens aufloesen. Ein Fehler hier (z.B. ein
             // ungueltiger Ausdruck) hat eine andere Ursache als ein Fehler in der Aktivitaet selbst -
@@ -811,7 +1112,7 @@ namespace ITVComponents.Workflow
             IDictionary<string, object> inputs;
             try
             {
-                inputs = ResolveInputs(instance, node.Inputs, node.Id);
+                inputs = ResolveInputs(instance, scope, node.Inputs, node.Id);
             }
             catch (Exception ex)
             {
@@ -823,7 +1124,7 @@ namespace ITVComponents.Workflow
             }
 
             var outputs = new Dictionary<string, object>(StringComparer.Ordinal);
-            var context = new WorkflowActivityContext(instance, node, inputs, outputs);
+            var context = new WorkflowActivityContext(instance, node, inputs, outputs, scope);
             try
             {
                 // On-demand aufgeloest; die Lebensdauer der Aktivitaet (bei Plugins: der geladenen
@@ -851,8 +1152,8 @@ namespace ITVComponents.Workflow
             }
 
             // Erfolg: Datenfluss heraus, Fehlversuchs-Zaehler zuruecksetzen, ueber den Erfolgs-Ausgang weiter.
-            ApplyOutputs(instance, node, outputs);
-            ResetAttempts(instance, node.AttemptVariable);
+            ApplyOutputs(instance, scope, node, outputs);
+            ResetAttempts(scope, node.AttemptVariable);
             instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
             return MoveAlongSuccessFlow(instance, definition, token, node.Id, node.ErrorFlowId);
         }
@@ -880,22 +1181,23 @@ namespace ITVComponents.Workflow
                 return false;
             }
 
+            Dictionary<string, object> scope = Scope(instance, token);
             if (applyOutputs && outputs != null)
             {
-                ApplyOutputs(instance, node, outputs);
+                ApplyOutputs(instance, scope, node, outputs);
             }
 
             if (!string.IsNullOrEmpty(node.ErrorVariable))
             {
-                instance.Variables[node.ErrorVariable] = message;
+                scope[node.ErrorVariable] = message;
             }
 
             int attempts = 0;
             if (!string.IsNullOrEmpty(node.AttemptVariable))
             {
-                instance.Variables.TryGetValue(node.AttemptVariable, out object current);
+                scope.TryGetValue(node.AttemptVariable, out object current);
                 attempts = (current is int i ? i : 0) + 1;
-                instance.Variables[node.AttemptVariable] = attempts;
+                scope[node.AttemptVariable] = attempts;
             }
 
             instance.Log("ActivityError", node.Id, message, HistorySeverity.Warning);
@@ -928,11 +1230,39 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>Setzt den Fehlversuchs-Zaehler bei Erfolg zurueck (falls die Variable konfiguriert ist).</summary>
-        private static void ResetAttempts(WorkflowInstance instance, string attemptVariable)
+        private static void ResetAttempts(Dictionary<string, object> scope, string attemptVariable)
         {
             if (!string.IsNullOrEmpty(attemptVariable))
             {
-                instance.Variables[attemptVariable] = 0;
+                scope[attemptVariable] = 0;
+            }
+        }
+
+        /// <summary>
+        /// Der Variablen-Scope, in dem ein Token arbeitet: sein <b>Zweig-Scope</b>
+        /// (<see cref="Token.Variables"/>), wenn es innerhalb einer parallelen Region laeuft, sonst der
+        /// Instanz-Scope. EINE Stelle - Lesen, Schreiben, Bedingungen und Ausdruecke sehen damit
+        /// zwangslaeufig denselben Stack.
+        /// </summary>
+        private static Dictionary<string, object> Scope(WorkflowInstance instance, Token token)
+            => token?.Variables ?? instance.Variables;
+
+        /// <summary>Eine flache Kopie eines Scopes (der Zweig-Scope eines neuen Strangs), oder null.</summary>
+        private static Dictionary<string, object> CopyScope(Dictionary<string, object> scope)
+            => scope == null ? null : new Dictionary<string, object>(scope, StringComparer.Ordinal);
+
+        /// <summary>Uebernimmt die (optionalen) Payload-Variablen eines Signals in den angegebenen Scope.</summary>
+        private static void ApplyPayload(Dictionary<string, object> scope,
+            IDictionary<string, object> payloadVariables)
+        {
+            if (payloadVariables == null)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<string, object> pair in payloadVariables)
+            {
+                scope[pair.Key] = pair.Value;
             }
         }
 
@@ -943,7 +1273,7 @@ namespace ITVComponents.Workflow
         /// nachvollziehbar bleibt. Ein Ausdrucksfehler wird an den Aufrufer geworfen (der faultet).
         /// </summary>
         private IDictionary<string, object> ResolveInputs(WorkflowInstance instance,
-            List<ActivityInputBinding> inputs, string nodeId)
+            Dictionary<string, object> scope, List<ActivityInputBinding> inputs, string nodeId)
         {
             var result = new Dictionary<string, object>(StringComparer.Ordinal);
             if (inputs == null)
@@ -966,7 +1296,7 @@ namespace ITVComponents.Workflow
 
                     case ParameterBindingKind.Variable:
                         if (!string.IsNullOrEmpty(binding.Source)
-                            && instance.Variables.TryGetValue(binding.Source, out object value))
+                            && scope.TryGetValue(binding.Source, out object value))
                         {
                             result[binding.Parameter] = value;
                         }
@@ -982,7 +1312,7 @@ namespace ITVComponents.Workflow
                         break;
 
                     case ParameterBindingKind.Expression:
-                        result[binding.Parameter] = evaluator.Evaluate(binding.Source, instance.Variables);
+                        result[binding.Parameter] = evaluator.Evaluate(binding.Source, scope);
                         break;
 
                     default:
@@ -1007,14 +1337,35 @@ namespace ITVComponents.Workflow
         /// er besteht danach genau aus der Erhaltungs-Whitelist (<see cref="AutomatedActivityNode.RetainVariables"/>,
         /// soweit vorhanden) und den Ausgaben - alle uebrigen Variablen werden abgeraeumt.
         /// </remarks>
-        private static void ApplyOutputs(WorkflowInstance instance, AutomatedActivityNode node,
-            IDictionary<string, object> outputs)
+        private static void ApplyOutputs(WorkflowInstance instance, Dictionary<string, object> scope,
+            AutomatedActivityNode node, IDictionary<string, object> outputs)
+        {
+            ApplyMappedOutputs(instance, scope, node.Id, node.Outputs, node.ScopeMode, node.RetainVariables,
+                outputs);
+        }
+
+        /// <summary>
+        /// Der gemeinsame Kern von <see cref="ApplyOutputs"/> (Aktivitaet) und
+        /// <see cref="ApplyCallOutputs"/> (Subworkflow): bildet <paramref name="source"/> ueber die
+        /// Bindungen auf Ziel-Variablen ab und bringt sie je nach <paramref name="mode"/> additiv oder
+        /// konsolidierend in den Scope ein. Bewusst EINE Implementierung - die beiden Wege duerfen
+        /// nicht auseinanderlaufen.
+        /// </summary>
+        /// <remarks>
+        /// <paramref name="scope"/> ist der Scope, in dem der Zweig arbeitet: der Instanz-Scope oder -
+        /// innerhalb einer parallelen Region - der Zweig-Scope des Tokens (<see cref="Token.Variables"/>).
+        /// Auch die Konsolidierung (<see cref="ActivityScopeMode.Replace"/>) wirkt genau dort und damit
+        /// zweig-lokal.
+        /// </remarks>
+        private static void ApplyMappedOutputs(WorkflowInstance instance, Dictionary<string, object> scope,
+            string nodeId, IEnumerable<ActivityOutputBinding> bindings, ActivityScopeMode mode,
+            IEnumerable<string> retainVariables, IDictionary<string, object> source)
         {
             // Zuerst die Ziel-Variablen aus den Output-Bindungen bestimmen (unabhaengig vom Scope-Modus).
             var mapped = new Dictionary<string, object>(StringComparer.Ordinal);
-            if (node.Outputs != null)
+            if (bindings != null)
             {
-                foreach (ActivityOutputBinding binding in node.Outputs)
+                foreach (ActivityOutputBinding binding in bindings)
                 {
                     if (binding == null || string.IsNullOrEmpty(binding.Parameter)
                         || string.IsNullOrEmpty(binding.Variable))
@@ -1022,20 +1373,20 @@ namespace ITVComponents.Workflow
                         continue;
                     }
 
-                    outputs.TryGetValue(binding.Parameter, out object value);
+                    source.TryGetValue(binding.Parameter, out object value);
                     mapped[binding.Variable] = value;
                 }
             }
 
-            if (node.ScopeMode == ActivityScopeMode.Replace)
+            if (mode == ActivityScopeMode.Replace)
             {
                 // Konsolidierung: neuen Scope aus Retain-Whitelist + Ausgaben bauen, Rest verwerfen.
                 var fresh = new Dictionary<string, object>();
-                if (node.RetainVariables != null)
+                if (retainVariables != null)
                 {
-                    foreach (string keep in node.RetainVariables)
+                    foreach (string keep in retainVariables)
                     {
-                        if (!string.IsNullOrEmpty(keep) && instance.Variables.TryGetValue(keep, out object v))
+                        if (!string.IsNullOrEmpty(keep) && scope.TryGetValue(keep, out object v))
                         {
                             fresh[keep] = v;
                         }
@@ -1047,21 +1398,145 @@ namespace ITVComponents.Workflow
                     fresh[pair.Key] = pair.Value; // Ausgaben gewinnen bei Kollision mit der Whitelist.
                 }
 
-                instance.Variables.Clear();
+                scope.Clear();
                 foreach (KeyValuePair<string, object> pair in fresh)
                 {
-                    instance.Variables[pair.Key] = pair.Value;
+                    scope[pair.Key] = pair.Value;
                 }
 
-                instance.Log("Consolidated", node.Id, $"scope reduced to {fresh.Count} variable(s)");
+                instance.Log("Consolidated", nodeId, $"scope reduced to {fresh.Count} variable(s)");
             }
             else
             {
                 foreach (KeyValuePair<string, object> pair in mapped)
                 {
-                    instance.Variables[pair.Key] = pair.Value;
+                    scope[pair.Key] = pair.Value;
                 }
             }
+        }
+
+        /// <summary>
+        /// Wendet die deklarierte <b>Signatur</b> der Definition (<see cref="StartNode.Inputs"/>) auf den
+        /// frischen Variablen-Stack an: die Bindungen werden gegen die bereits uebergebenen Startwerte
+        /// aufgeloest und danach - je nach <see cref="StartNode.ScopeMode"/> - additiv gemergt oder als
+        /// strikte Signatur eingesetzt (der Stack besteht dann genau aus den deklarierten Parametern plus
+        /// <see cref="StartNode.RetainVariables"/>).
+        /// </summary>
+        /// <remarks>
+        /// Ohne deklarierte Parameter passiert nichts - bestehende Definitionen verhalten sich unveraendert.
+        /// Ein Ausdrucksfehler wird an den Aufrufer geworfen (der entscheidet, ob das ein nicht
+        /// entstehender Start oder ein Fault des Aufrufers ist).
+        /// </remarks>
+        private void ApplyStartInputs(WorkflowInstance instance, WorkflowDefinition definition,
+            List<StartNode> startNodes)
+        {
+            StartNode signature = SelectDeclaring(
+                startNodes?.Where(s => s?.Inputs is { Count: > 0 }).ToList(),
+                "start parameters", $"Definition '{definition.Id}' v{definition.Version}");
+            if (signature == null)
+            {
+                return;
+            }
+
+            // Der Start liegt immer im Instanz-Scope (vor jedem Split).
+            IDictionary<string, object> resolved =
+                ResolveInputs(instance, instance.Variables, signature.Inputs, signature.Id);
+
+            // Die aufgeloesten Parameter tragen bereits ihren Ziel-Namen - deshalb Identitaets-Bindungen.
+            // Das nutzt bewusst denselben Kern wie Aktivitaet und Subworkflow-Aufruf: Extend/Replace duerfen
+            // an drei Stellen nicht dreimal verschieden bedeuten.
+            ApplyMappedOutputs(instance, instance.Variables, signature.Id,
+                resolved.Keys.Select(k => new ActivityOutputBinding { Parameter = k, Variable = k }).ToList(),
+                signature.ScopeMode, signature.RetainVariables, resolved);
+
+            instance.Log("Parameters", signature.Id,
+                $"{resolved.Count} start parameter(s), {signature.ScopeMode.ToString().ToLowerInvariant()}",
+                HistorySeverity.Verbose);
+        }
+
+        /// <summary>
+        /// Setzt den Variablen-Stack beim Abschluss auf das deklarierte <b>Ergebnis</b> des erreichten
+        /// End-Knotens (<see cref="EndNode.Outputs"/>) zurueck. Ohne deklariertes Ergebnis passiert nichts -
+        /// dann bleibt wie bisher der komplette Stack das Ergebnis.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst beim UEBERGANG auf <see cref="WorkflowStatus.Completed"/> und nicht beim Verbrauch des
+        /// Tokens: bei parallelen Zweigen wuerde sonst der erste ankommende Zweig den Stack abraeumen, den
+        /// die uebrigen noch brauchen.
+        /// </remarks>
+        private static void ApplyEndOutputs(WorkflowInstance instance, WorkflowDefinition definition)
+        {
+            if (definition == null)
+            {
+                return;
+            }
+
+            // Nur die tatsaechlich erreichten End-Knoten zaehlen (ein nie durchlaufener Alternativausgang
+            // darf das Ergebnis nicht bestimmen).
+            List<EndNode> reached = instance.Tokens
+                .Where(t => t.Status == TokenStatus.Consumed)
+                .Select(t => definition.GetNode(t.NodeId) as EndNode)
+                .Where(e => e?.Outputs is { Count: > 0 })
+                .GroupBy(e => e.Id, StringComparer.Ordinal)
+                .Select(g => g.First())
+                .ToList();
+
+            EndNode end = SelectDeclaring(reached, "workflow results", $"Instance '{instance.Id}'");
+            if (end == null)
+            {
+                return;
+            }
+
+            // Quelle ist der Stack selbst - erst kopieren, damit das Abraeumen in ApplyMappedOutputs nicht
+            // die Quelle mit abraeumt, aus der es gerade liest.
+            var source = new Dictionary<string, object>(instance.Variables, StringComparer.Ordinal);
+            ApplyMappedOutputs(instance, instance.Variables, end.Id, end.Outputs, ActivityScopeMode.Replace,
+                end.RetainVariables, source);
+        }
+
+        /// <summary>
+        /// Meldet den impliziten Parallelstart einer Definition mit mehreren Start-Knoten. Die Engine startet
+        /// sie weiterhin alle (Altdefinitionen bleiben lauffaehig), aber es ist ein Modellierungsfehler: der
+        /// Validator meldet ihn seit der Ein-Start-Regel als Fehler, und die Signatur der Definition waere
+        /// mehrdeutig. Gewollter Parallelstart gehoert hinter EINEN Start als AND-Split.
+        /// </summary>
+        private static void WarnOnMultipleStarts(WorkflowDefinition definition, List<StartNode> startNodes)
+        {
+            if (startNodes.Count <= 1)
+            {
+                return;
+            }
+
+            LogEnvironment.LogEvent(
+                $"Definition '{definition.Id}' v{definition.Version} has {startNodes.Count} start nodes " +
+                $"({string.Join(", ", startNodes.Select(s => $"'{s.Id}'"))}) - each gets a token (implicit " +
+                "parallel start). Use exactly one start node followed by an AND split instead.",
+                LogSeverity.Warning);
+        }
+
+        /// <summary>
+        /// Waehlt aus den Knoten, die eine Deklaration tragen, den einen gueltigen aus. Genau einer ist der
+        /// Normalfall (der Validator meldet mehrere als Fehler); gibt es doch mehrere, gewinnt deterministisch
+        /// der mit der kleinsten Id - mit Log-Zeile, damit die Mehrdeutigkeit nicht still bleibt.
+        /// </summary>
+        private static T SelectDeclaring<T>(List<T> declaring, string what, string owner) where T : WorkflowNode
+        {
+            if (declaring == null || declaring.Count == 0)
+            {
+                return null;
+            }
+
+            if (declaring.Count == 1)
+            {
+                return declaring[0];
+            }
+
+            T chosen = declaring.OrderBy(n => n.Id, StringComparer.Ordinal).First();
+            LogEnvironment.LogEvent(
+                $"{owner} declares {what} on {declaring.Count} nodes " +
+                $"({string.Join(", ", declaring.Select(n => $"'{n.Id}'"))}) - using '{chosen.Id}'. " +
+                "Declare them on exactly one node.", LogSeverity.Warning);
+            return chosen;
         }
 
         /// <summary>
@@ -1082,7 +1557,8 @@ namespace ITVComponents.Workflow
             // Der Versuchs-Zaehler geht in die (deterministische) Kind-Id ein: so bekommt jeder Wiederholungs-
             // Lauf eine EIGENE Kind-Instanz (echte Retry-Schleife ueber die Fehlerkante), waehrend innerhalb
             // EINES Versuchs die Id stabil bleibt (idempotent bei Wiederanlauf).
-            int attempt = CurrentAttempt(instance, node.AttemptVariable);
+            Dictionary<string, object> scope = Scope(instance, token);
+            int attempt = CurrentAttempt(scope, node.AttemptVariable);
             string childId = ChildInstanceId(instance.Id, token.Id, attempt);
             WorkflowInstance child = store.GetInstance(childId);
 
@@ -1101,7 +1577,7 @@ namespace ITVComponents.Workflow
                 IDictionary<string, object> childVars;
                 try
                 {
-                    childVars = ResolveInputs(instance, node.Inputs, node.Id);
+                    childVars = ResolveInputs(instance, scope, node.Inputs, node.Id);
                 }
                 catch (Exception ex)
                 {
@@ -1135,6 +1611,8 @@ namespace ITVComponents.Workflow
                     return false;
                 }
 
+                WarnOnMultipleStarts(subDef, startNodes);
+
                 var now = DateTime.UtcNow;
                 child = new WorkflowInstance
                 {
@@ -1153,6 +1631,25 @@ namespace ITVComponents.Workflow
                 foreach (KeyValuePair<string, object> pair in childVars)
                 {
                     child.Variables[pair.Key] = pair.Value;
+                }
+
+                // Die Signatur des Subworkflows gilt auch hier: dieser Pfad baut die Kind-Instanz bewusst
+                // inline (eigene Id, Eltern-Verknuepfung, Tiefe) statt ueber CreateInstance - die
+                // Start-Parameter duerfen deshalb NICHT nur dort haengen, sonst gaelte die Signatur je nach
+                // Starter unterschiedlich.
+                try
+                {
+                    ApplyStartInputs(child, subDef, startNodes);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Start parameters of sub-workflow '{subDef.Id}' called from node '{node.Id}' in " +
+                        $"instance '{instance.Id}' could not be resolved: {ex.OutlineException()}",
+                        LogSeverity.Error);
+                    Fault(instance,
+                        $"Start parameters of sub-workflow '{subDef.Id}' failed: {ex.Message}", node.Id);
+                    return false;
                 }
 
                 foreach (StartNode start in startNodes)
@@ -1180,8 +1677,9 @@ namespace ITVComponents.Workflow
         private bool CompleteCall(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             CallWorkflowNode node, WorkflowInstance child)
         {
-            ApplyCallOutputs(instance, node, child.Variables);
-            ResetAttempts(instance, node.AttemptVariable);
+            Dictionary<string, object> scope = Scope(instance, token);
+            ApplyCallOutputs(instance, scope, node, child.Variables);
+            ResetAttempts(scope, node.AttemptVariable);
             token.WaitingForChildInstanceId = null;
             token.Status = TokenStatus.Active;
             instance.Log("SubworkflowCompleted", node.Id, child.DefinitionId);
@@ -1213,15 +1711,16 @@ namespace ITVComponents.Workflow
                 return false;
             }
 
+            Dictionary<string, object> scope = Scope(parent, token);
             if (!string.IsNullOrEmpty(node.ErrorVariable))
             {
-                parent.Variables[node.ErrorVariable] = child.FaultMessage ?? message;
+                scope[node.ErrorVariable] = child.FaultMessage ?? message;
             }
 
             if (!string.IsNullOrEmpty(node.AttemptVariable))
             {
-                parent.Variables.TryGetValue(node.AttemptVariable, out object current);
-                parent.Variables[node.AttemptVariable] = (current is int i ? i : 0) + 1;
+                scope.TryGetValue(node.AttemptVariable, out object current);
+                scope[node.AttemptVariable] = (current is int i ? i : 0) + 1;
             }
 
             token.WaitingForChildInstanceId = null;
@@ -1231,10 +1730,10 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>Liest den aktuellen Fehlversuchs-Zaehler (0, wenn nicht gesetzt oder nicht konfiguriert).</summary>
-        private static int CurrentAttempt(WorkflowInstance instance, string attemptVariable)
+        private static int CurrentAttempt(Dictionary<string, object> scope, string attemptVariable)
         {
             if (!string.IsNullOrEmpty(attemptVariable)
-                && instance.Variables.TryGetValue(attemptVariable, out object v) && v is int i)
+                && scope.TryGetValue(attemptVariable, out object v) && v is int i)
             {
                 return i;
             }
@@ -1242,26 +1741,17 @@ namespace ITVComponents.Workflow
             return 0;
         }
 
-        /// <summary>Bildet die End-Variablen des Subworkflows ueber die Output-Bindungen auf Eltern-Variablen ab.</summary>
-        private static void ApplyCallOutputs(WorkflowInstance parent, CallWorkflowNode node,
-            IDictionary<string, object> childVariables)
+        /// <summary>
+        /// Bildet die End-Variablen des Subworkflows ueber die Output-Bindungen auf Eltern-Variablen ab.
+        /// Bei <see cref="ActivityScopeMode.Replace"/> wirkt der Aufruf als Konsolidierung: der
+        /// Eltern-Scope besteht danach genau aus diesen Ausgaben plus
+        /// <see cref="CallWorkflowNode.RetainVariables"/>.
+        /// </summary>
+        private static void ApplyCallOutputs(WorkflowInstance parent, Dictionary<string, object> scope,
+            CallWorkflowNode node, IDictionary<string, object> childVariables)
         {
-            if (node.Outputs == null)
-            {
-                return;
-            }
-
-            foreach (ActivityOutputBinding binding in node.Outputs)
-            {
-                if (binding == null || string.IsNullOrEmpty(binding.Parameter)
-                    || string.IsNullOrEmpty(binding.Variable))
-                {
-                    continue;
-                }
-
-                childVariables.TryGetValue(binding.Parameter, out object value);
-                parent.Variables[binding.Variable] = value;
-            }
+            ApplyMappedOutputs(parent, scope, node.Id, node.Outputs, node.ScopeMode, node.RetainVariables,
+                childVariables);
         }
 
         /// <summary>
@@ -1322,7 +1812,7 @@ namespace ITVComponents.Workflow
 
                 if (parent.Status != WorkflowStatus.Faulted && parent.Status != WorkflowStatus.Cancelled)
                 {
-                    UpdateTerminalStatus(parent);
+                    UpdateTerminalStatus(parent, parentDef);
                 }
 
                 if (store.TryCommitInstance(parent, baseVersion))
@@ -1377,7 +1867,7 @@ namespace ITVComponents.Workflow
                 bool matched;
                 try
                 {
-                    matched = evaluator.EvaluateCondition(flow.Condition, instance.Variables);
+                    matched = evaluator.EvaluateCondition(flow.Condition, Scope(instance, token));
                 }
                 catch (Exception ex)
                 {
@@ -1417,7 +1907,7 @@ namespace ITVComponents.Workflow
             DateTime dueUtc;
             try
             {
-                object due = evaluator.Evaluate(node.DueExpression, instance.Variables);
+                object due = evaluator.Evaluate(node.DueExpression, Scope(instance, token));
                 switch (due)
                 {
                     case DateTime dt:
@@ -1479,7 +1969,7 @@ namespace ITVComponents.Workflow
                 token.Status = TokenStatus.Consumed;
                 instance.Log(outgoing.Count > 1 ? "ParallelSplit" : "Entered", node.Id, node.Name,
                     outgoing.Count > 1 ? HistorySeverity.Info : HistorySeverity.Verbose);
-                return SpawnOutgoing(instance, outgoing);
+                return SpawnOutgoing(instance, outgoing, token);
             }
 
             // Join: dieses Token kommt an und parkt als Joining. Die Fire-Entscheidung faellt bewusst
@@ -1507,7 +1997,7 @@ namespace ITVComponents.Workflow
                 progress = false;
                 foreach (WorkflowNode node in definition.Nodes)
                 {
-                    if (node.Kind != NodeKind.ParallelGateway)
+                    if (node is not ParallelGatewayNode gateway)
                     {
                         continue;
                     }
@@ -1526,16 +2016,26 @@ namespace ITVComponents.Workflow
                         continue;
                     }
 
-                    foreach (Token p in parked.Take(incoming.Count))
+                    var joined = parked.Take(incoming.Count).ToList();
+                    foreach (Token p in joined)
                     {
                         p.Status = TokenStatus.Consumed;
                     }
 
+                    // Die Zweig-Scopes zusammenfuehren. Das Ergebnis haengt am ersten der verbrauchten
+                    // Tokens: es traegt als "Traeger" den zusammengefuehrten Stand und die Ebene, auf der
+                    // es weitergeht - so bleibt die Zweig-Herkunft auch bei verschachtelten Splits intakt.
+                    Token carrier = MergeBranches(instance, gateway, joined);
+
                     instance.Log("ParallelJoin", node.Id, node.Name);
-                    if (!SpawnOutgoing(instance, definition.OutgoingFlows(node.Id)))
+                    if (!SpawnOutgoing(instance, definition.OutgoingFlows(node.Id), carrier))
                     {
                         return firedAny; // SpawnOutgoing hat auf Faulted gesetzt.
                     }
+
+                    // Die Fortsetzung hat ihre Kopie - der Traeger wird frei, sofern der Join nicht
+                    // zugleich gesplittet hat (dann haengen die frischen Zweige an ihm).
+                    ReleaseBranchScope(instance, carrier);
 
                     firedAny = true;
                     progress = true;
@@ -1545,8 +2045,196 @@ namespace ITVComponents.Workflow
             return firedAny;
         }
 
-        private bool SpawnOutgoing(WorkflowInstance instance, IReadOnlyList<SequenceFlow> outgoing)
+        /// <summary>
+        /// Fuehrt die Zweig-Scopes der an einem Join eingetroffenen Tokens wieder zusammen und liefert den
+        /// <b>Traeger</b> des Ergebnisses: eines der verbrauchten Tokens, das den zusammengefuehrten Stand
+        /// und die Ebene traegt, auf der es weitergeht. Aus ihm spawnt der Join seine Ausgaenge.
+        /// </summary>
+        /// <remarks>
+        /// Grundlage ist der Scope, aus dem gesplittet wurde (ueber <see cref="Token.SplitTokenId"/>
+        /// gefunden) - er ist seit dem Split unveraendert, weil alle Schreibzugriffe der Region in den
+        /// Zweig-Kopien gelandet sind. Was ein Zweig gegenueber diesem Stand geaendert hat, ist damit
+        /// genau sein Beitrag. Ohne deklariertes <see cref="ParallelGatewayNode.Outputs"/> fliessen alle
+        /// Beitraege nach oben (Verhalten wie bisher); mit Deklaration kommt genau das Deklarierte heraus.
+        /// <para>
+        /// Bewusst NICHT uebernommen werden Loeschungen in einem Zweig (eine Konsolidierung mit
+        /// <see cref="ActivityScopeMode.Replace"/> innerhalb eines Zweigs raeumt nur DESSEN Kopie ab) -
+        /// das Abraeumen fuer die Region ist Sache des Joins.
+        /// </para>
+        /// </remarks>
+        private static Token MergeBranches(WorkflowInstance instance, ParallelGatewayNode node, List<Token> joined)
         {
+            Token carrier = joined[0];
+            Token parent = FindSplitParent(instance, node, joined);
+            Dictionary<string, object> baseScope = parent?.Variables ?? instance.Variables;
+
+            // 1. Beitraege der Zweige gegen den Stand vom Split sammeln.
+            var merged = new Dictionary<string, object>(baseScope, StringComparer.Ordinal);
+            var writtenBy = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (Token branch in joined)
+            {
+                if (branch.Variables == null)
+                {
+                    // Zweig ohne eigene Kopie (Ankunft ohne Split / Instanz aus der Zeit vor den
+                    // Zweig-Scopes): er hat direkt im Basis-Scope geschrieben, dort steht sein Beitrag schon.
+                    continue;
+                }
+
+                foreach (KeyValuePair<string, object> kv in branch.Variables)
+                {
+                    if (baseScope.TryGetValue(kv.Key, out object atSplit) && Equals(atSplit, kv.Value))
+                    {
+                        continue; // unveraendert - kein Beitrag dieses Zweigs.
+                    }
+
+                    if (writtenBy.TryGetValue(kv.Key, out string firstBranch)
+                        && merged.TryGetValue(kv.Key, out object previous) && !Equals(previous, kv.Value))
+                    {
+                        // Zwei Zweige haben dieselbe Variable auf VERSCHIEDENE Werte gesetzt. Es gewinnt
+                        // deterministisch der spaeter gespawnte Zweig - aber nicht still: das gehoert per
+                        // Join-Mapping entschieden (je Zweig ein eigener Ergebnisname).
+                        string detail =
+                            $"variable '{kv.Key}' was set by more than one branch (tokens '{firstBranch}' " +
+                            $"and '{branch.Id}') with different values - the later branch wins";
+                        instance.Log("BranchMergeConflict", node.Id, detail, HistorySeverity.Warning);
+                        LogEnvironment.LogEvent(
+                            $"Join '{node.Id}' in instance '{instance.Id}': {detail}. Decide it with a join " +
+                            "mapping (one result name per branch).", LogSeverity.Warning);
+                    }
+
+                    merged[kv.Key] = kv.Value;
+                    writtenBy[kv.Key] = branch.Id;
+                }
+            }
+
+            // 2. Das Ergebnis der Region bestimmen: ohne Deklaration alles, mit Deklaration genau das
+            //    Abgebildete (dieselbe Extend/Replace-Semantik wie ueberall sonst).
+            Dictionary<string, object> target;
+            if (node.Outputs is { Count: > 0 } || node.ScopeMode == ActivityScopeMode.Replace)
+            {
+                target = new Dictionary<string, object>(baseScope, StringComparer.Ordinal);
+                ApplyMappedOutputs(instance, target, node.Id, node.Outputs, node.ScopeMode,
+                    node.RetainVariables, merged);
+            }
+            else
+            {
+                target = merged;
+            }
+
+            // 3. Auf der Ebene veroeffentlichen, auf der es weitergeht: innerhalb einer aeusseren Region im
+            //    Zweig-Scope, sonst im Instanz-Scope.
+            if (parent?.Variables != null)
+            {
+                carrier.Variables = target;
+            }
+            else
+            {
+                carrier.Variables = null;
+                instance.Variables.Clear();
+                foreach (KeyValuePair<string, object> kv in target)
+                {
+                    instance.Variables[kv.Key] = kv.Value;
+                }
+            }
+
+            carrier.SplitTokenId = parent?.SplitTokenId;
+
+            // Die Kopien der uebrigen Zweige sind aufgegangen - ihr Inhalt steht jetzt oben. Sie werden
+            // freigegeben, damit nicht jede Zweig-Aktivierung eine vollstaendige Stack-Kopie behaelt.
+            foreach (Token branch in joined)
+            {
+                if (!ReferenceEquals(branch, carrier))
+                {
+                    branch.Variables = null;
+                }
+            }
+
+            // Der Scope des SPLIT-Tokens war die Basis dieser Ebene und wird jetzt ggf. frei.
+            ReleaseBranchScope(instance, parent);
+
+            instance.Log("BranchesMerged", node.Id,
+                $"{joined.Count} branch(es), {writtenBy.Count} variable(s) from the branches",
+                HistorySeverity.Verbose);
+            return carrier;
+        }
+
+        /// <summary>
+        /// Gibt den Zweig-Scope eines verbrauchten Tokens frei, sobald ihn niemand mehr als Basis braucht -
+        /// also kein lebendes Token mehr aus ihm hervorgegangen ist. Ohne das behielte jede Aktivierung
+        /// einer parallelen Region dauerhaft eine vollstaendige Kopie des Stacks.
+        /// </summary>
+        /// <remarks>
+        /// Die Lebendigkeits-Pruefung ist noetig, weil ein unbalancierter Graph einen weiteren Zweig
+        /// desselben Splits noch unterwegs haben kann - und weil ein Join, der zugleich splittet, seine
+        /// frischen Zweige an genau diesem Token verankert.
+        /// </remarks>
+        private static void ReleaseBranchScope(WorkflowInstance instance, Token token)
+        {
+            if (token?.Variables == null || token.Status != TokenStatus.Consumed)
+            {
+                return;
+            }
+
+            if (!instance.Tokens.Any(t => t.SplitTokenId == token.Id && t.Status != TokenStatus.Consumed))
+            {
+                token.Variables = null;
+            }
+        }
+
+        /// <summary>
+        /// Sucht den Split, aus dem die an einem Join eingetroffenen Tokens hervorgegangen sind. Null =
+        /// kein Zweig-Scope im Spiel (Instanz-Scope ist die Basis) - das ist der Normalfall fuer Instanzen
+        /// aus der Zeit vor den Zweig-Scopes und deshalb kein Fehler, sondern der vertraegliche Rueckfall.
+        /// </summary>
+        private static Token FindSplitParent(WorkflowInstance instance, ParallelGatewayNode node,
+            List<Token> joined)
+        {
+            string splitId = joined[0].SplitTokenId;
+            if (splitId == null)
+            {
+                return null;
+            }
+
+            if (joined.Any(t => t.SplitTokenId != splitId))
+            {
+                LogEnvironment.LogEvent(
+                    $"Join '{node.Id}' in instance '{instance.Id}' merges branches that come from different " +
+                    $"splits ({string.Join(", ", joined.Select(t => $"'{t.SplitTokenId ?? "-"}'").Distinct())}) - " +
+                    $"the merge uses the scope of '{splitId}'. The graph is not properly nested.",
+                    LogSeverity.Warning);
+            }
+
+            Token parent = instance.Tokens.FirstOrDefault(t => t.Id == splitId);
+            if (parent == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Join '{node.Id}' in instance '{instance.Id}': the split token '{splitId}' is no longer " +
+                    "in the instance - the merge falls back to the instance scope.", LogSeverity.Warning);
+            }
+
+            return parent;
+        }
+
+        /// <summary>
+        /// Erzeugt die Folge-Tokens eines Knotens, der seine Ausgaenge alle gleichzeitig nimmt (AND-Split
+        /// bzw. die Fortsetzung hinter einem Join). Der <paramref name="source"/>-Token ist der Strang, aus
+        /// dem gespawnt wird - er liefert Scope und Zweig-Herkunft.
+        /// </summary>
+        /// <remarks>
+        /// Bei mehr als einem Ausgang ist das ein <b>Split</b>: jeder Strang bekommt eine eigene KOPIE des
+        /// Scopes und merkt sich in <see cref="Token.SplitTokenId"/>, woraus er hervorgegangen ist. Damit
+        /// arbeiten parallele Zweige ab hier isoliert; der zugehoerige Join fuehrt die Kopien wieder
+        /// zusammen. Bei genau einem Ausgang ist es eine Durchreiche - der Strang bleibt auf seiner Ebene.
+        /// </remarks>
+        private bool SpawnOutgoing(WorkflowInstance instance, IReadOnlyList<SequenceFlow> outgoing, Token source)
+        {
+            bool split = outgoing.Count > 1;
+            Dictionary<string, object> sourceScope = Scope(instance, source);
+
+            // Erst alle Kanten pruefen und ihr Mapping anwenden, dann die Tokens setzen: scheitert eine
+            // Kante, entsteht so kein halb gespawnter Zweig. (Auch der gespawnte Zweig durchlaeuft das
+            // Mapping seiner Kante - sonst wuerde es je nach Quellknoten verschieden gelten.)
+            var spawned = new List<Token>(outgoing.Count);
             foreach (SequenceFlow flow in outgoing)
             {
                 if (flow.TargetId == null)
@@ -1554,13 +2242,24 @@ namespace ITVComponents.Workflow
                     Fault(instance, $"Flow '{flow.Id}' has no target.");
                     return false;
                 }
+
+                var token = new Token
+                {
+                    NodeId = flow.TargetId,
+                    Status = TokenStatus.Active,
+                    Variables = split ? CopyScope(sourceScope) : CopyScope(source?.Variables),
+                    SplitTokenId = split ? source?.Id : source?.SplitTokenId
+                };
+
+                if (!ApplyFlowInputs(instance, token, flow))
+                {
+                    return false;
+                }
+
+                spawned.Add(token);
             }
 
-            foreach (SequenceFlow flow in outgoing)
-            {
-                instance.Tokens.Add(new Token { NodeId = flow.TargetId, Status = TokenStatus.Active });
-            }
-
+            instance.Tokens.AddRange(spawned);
             return true;
         }
 
@@ -1586,12 +2285,69 @@ namespace ITVComponents.Workflow
                 return false;
             }
 
+            // Erst das Mapping der Kante, dann ankommen: der Zielknoten soll den Stack schon so sehen, wie
+            // ihn die Kante normalisiert hat. Scheitert es, bleibt das Token stehen (die Instanz ist ohnehin
+            // gefaultet) - so zeigt der Monitor, an welcher Stelle der Lauf haengengeblieben ist.
+            if (!ApplyFlowInputs(instance, token, flow))
+            {
+                return false;
+            }
+
             token.NodeId = flow.TargetId;
             token.Status = TokenStatus.Active;
             return true;
         }
 
-        private static void UpdateTerminalStatus(WorkflowInstance instance)
+        /// <summary>
+        /// Wendet das optionale Mapping einer Kante (<see cref="SequenceFlow.Inputs"/>) auf den
+        /// Variablen-Stack an - die Antwort auf "wie sieht der Stack aus, wenn ich hier ankomme".
+        /// Liefert false, wenn eine Bindung nicht aufloesbar war (die Instanz ist dann gefaultet).
+        /// </summary>
+        /// <remarks>
+        /// Nutzt bewusst denselben Kern wie Aktivitaet, Subworkflow-Aufruf und Start-Signatur
+        /// (<see cref="ApplyMappedOutputs"/>): Extend/Replace duerfen an keiner der Stellen etwas anderes
+        /// bedeuten. Ohne Bindungen und ohne Konsolidierung passiert nichts - bestehende Definitionen
+        /// verhalten sich unveraendert.
+        /// </remarks>
+        private bool ApplyFlowInputs(WorkflowInstance instance, Token token, SequenceFlow flow)
+        {
+            bool hasInputs = flow?.Inputs is { Count: > 0 };
+            if (flow == null || (!hasInputs && flow.ScopeMode != ActivityScopeMode.Replace))
+            {
+                return true;
+            }
+
+            // Das Mapping laeuft im Scope des Tokens, das die Kante nimmt: an einem Split hat jeder Strang
+            // dabei schon seine eigene Kopie - die Mappings der Zweig-Kanten koennen einander also nicht
+            // mehr ueberschreiben.
+            Dictionary<string, object> scope = Scope(instance, token);
+            IDictionary<string, object> resolved;
+            try
+            {
+                resolved = ResolveInputs(instance, scope, flow.Inputs, flow.Id);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Mapping of connection '{flow.Id}' in instance '{instance.Id}' could not be resolved: " +
+                    $"{ex.OutlineException()}", LogSeverity.Error);
+                Fault(instance, $"Mapping of connection '{flow.Id}' failed: {ex.Message}", flow.SourceId);
+                return false;
+            }
+
+            // Die aufgeloesten Werte tragen bereits ihren Ziel-Namen - deshalb Identitaets-Bindungen. Die
+            // Historie haengt am ZIEL-Knoten (eine Kante ist im Monitor kein anspringbarer Eintrag).
+            ApplyMappedOutputs(instance, scope, flow.TargetId,
+                resolved.Keys.Select(k => new ActivityOutputBinding { Parameter = k, Variable = k }).ToList(),
+                flow.ScopeMode, flow.RetainVariables, resolved);
+
+            instance.Log("Mapped", flow.TargetId,
+                $"connection '{flow.Id}': {resolved.Count} variable(s), " +
+                $"{flow.ScopeMode.ToString().ToLowerInvariant()}", HistorySeverity.Verbose);
+            return true;
+        }
+
+        private static void UpdateTerminalStatus(WorkflowInstance instance, WorkflowDefinition definition)
         {
             if (instance.Tokens.Any(t => t.Status == TokenStatus.Active))
             {
@@ -1613,6 +2369,8 @@ namespace ITVComponents.Workflow
             }
             else
             {
+                // Genau hier - und nur hier - entsteht das Ergebnis der Instanz.
+                ApplyEndOutputs(instance, definition);
                 instance.Status = WorkflowStatus.Completed;
                 instance.Log("Completed");
             }
@@ -1733,17 +2491,44 @@ namespace ITVComponents.Workflow
                 return delta;
             }
 
+            // Der Zweig-Scope wird MIT kopiert (eigene Dictionary-Instanz) - sonst zeigte der Schnappschuss
+            // auf denselben Stack, den der Zweig gerade veraendert, und das Delta waere leer.
             private static Token CopyToken(Token t) => new Token
             {
                 Id = t.Id, NodeId = t.NodeId, Status = t.Status, WaitingSignal = t.WaitingSignal,
                 DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget,
-                WaitingForChildInstanceId = t.WaitingForChildInstanceId
+                WaitingForChildInstanceId = t.WaitingForChildInstanceId,
+                Variables = CopyScope(t.Variables), SplitTokenId = t.SplitTokenId,
+                // Der Aufgaben-Stempel gehoert in den Vergleich: entsteht eine Aufgabe im Zweig-Vortrieb,
+                // ist sie sonst nicht Teil des Deltas und das Token kaeme ohne Aufgabenart in die
+                // Datenbank - unsichtbar fuer jede Arbeitsliste.
+                TaskKey = t.TaskKey, TaskPermission = t.TaskPermission, AssignedTo = t.AssignedTo,
+                TaskTitle = t.TaskTitle, TaskCreatedUtc = t.TaskCreatedUtc, TaskDueUtc = t.TaskDueUtc
             };
 
             private static bool SameState(Token a, Token b)
                 => a.NodeId == b.NodeId && a.Status == b.Status && a.WaitingSignal == b.WaitingSignal
                    && Nullable.Equals(a.DueUtc, b.DueUtc) && a.WaitingTarget == b.WaitingTarget
-                   && a.WaitingForChildInstanceId == b.WaitingForChildInstanceId;
+                   && a.WaitingForChildInstanceId == b.WaitingForChildInstanceId
+                   && a.SplitTokenId == b.SplitTokenId && a.TaskKey == b.TaskKey
+                   && a.TaskPermission == b.TaskPermission && a.AssignedTo == b.AssignedTo
+                   && a.TaskTitle == b.TaskTitle && Nullable.Equals(a.TaskCreatedUtc, b.TaskCreatedUtc)
+                   && Nullable.Equals(a.TaskDueUtc, b.TaskDueUtc) && SameScope(a.Variables, b.Variables);
+
+            private static bool SameScope(Dictionary<string, object> a, Dictionary<string, object> b)
+            {
+                if (ReferenceEquals(a, b))
+                {
+                    return true;
+                }
+
+                if (a == null || b == null || a.Count != b.Count)
+                {
+                    return false;
+                }
+
+                return a.All(kv => b.TryGetValue(kv.Key, out object other) && Equals(kv.Value, other));
+            }
         }
 
         /// <summary>
@@ -1789,7 +2574,8 @@ namespace ITVComponents.Workflow
                         {
                             Id = t.Id, NodeId = t.NodeId, Status = t.Status,
                             WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget,
-                            WaitingForChildInstanceId = t.WaitingForChildInstanceId
+                            WaitingForChildInstanceId = t.WaitingForChildInstanceId,
+                            Variables = CopyScope(t.Variables), SplitTokenId = t.SplitTokenId
                         });
                     }
                     else
@@ -1800,6 +2586,10 @@ namespace ITVComponents.Workflow
                         existing.DueUtc = t.DueUtc;
                         existing.WaitingTarget = t.WaitingTarget;
                         existing.WaitingForChildInstanceId = t.WaitingForChildInstanceId;
+                        // Der Zweig-Scope gehoert dem Zweig: er wird ganz ersetzt, nicht gemergt - nur
+                        // DIESER Zweig schreibt ihn (parallele Geschwister haben ihre eigene Kopie).
+                        existing.Variables = CopyScope(t.Variables);
+                        existing.SplitTokenId = t.SplitTokenId;
                     }
                 }
 

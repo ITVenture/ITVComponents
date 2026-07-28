@@ -69,14 +69,63 @@ namespace ITVComponents.Workflow.Validation
                 .GroupBy(n => n.Id, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
-            if (!nodes.Any(n => n.Kind == NodeKind.Start))
+            // Genau EIN Start und EIN Ende: nur so hat die Definition eine eindeutige Signatur (Start-
+            // Parameter) und ein eindeutiges Ergebnis (End-Mapping). Mehrere Start-Knoten waren bisher ein
+            // impliziter Parallelstart - das leistet ein AND-Split hinter dem einen Start, und zwar sichtbar.
+            List<WorkflowNode> starts = nodes.Where(n => n?.Kind == NodeKind.Start).ToList();
+            List<WorkflowNode> ends = nodes.Where(n => n?.Kind == NodeKind.End).ToList();
+
+            if (starts.Count == 0)
             {
                 issues.Add(Error(null, "No start node."));
             }
-
-            if (!nodes.Any(n => n.Kind == NodeKind.End))
+            else if (starts.Count > 1)
             {
+                issues.Add(Error(null,
+                    $"A workflow has exactly one start node, but this one has {starts.Count} " +
+                    $"({string.Join(", ", starts.Select(s => $"'{Label(s)}'"))}) - each of them would get a " +
+                    "token (implicit parallel start) and the workflow signature would be ambiguous. Keep one " +
+                    "start node and put an AND split behind it."));
+            }
+
+            if (ends.Count == 0)
+            {
+                // Bewusst nur eine Warnung: eine Definition ohne Ende ist im Bau der Normalfall und soll
+                // sich speichern lassen.
                 issues.Add(Warn(null, "No end node - the workflow can never complete."));
+            }
+            else if (ends.Count > 1)
+            {
+                issues.Add(Error(null,
+                    $"A workflow has exactly one end node, but this one has {ends.Count} " +
+                    $"({string.Join(", ", ends.Select(e => $"'{Label(e)}'"))}) - the result of the workflow " +
+                    "would depend on which end is reached. Merge them into one end node."));
+            }
+
+            // Signatur und Ergebnis sind Eigenschaften der DEFINITION, nicht eines Knotens: sie duerfen
+            // deshalb nur an einer Stelle stehen. Mehrfach deklariert waere zur Laufzeit mehrdeutig (die
+            // Engine waehlt dann deterministisch, aber willkuerlich, die kleinste Id). Seit der
+            // Ein-Start/Ein-End-Regel kann das strukturell nicht mehr entstehen - die Pruefung bleibt als
+            // die praezisere Meldung stehen (und als Netz, falls die Regel je gelockert wird), meldet aber
+            // nur, was oben nicht ohnehin schon gemeldet wurde.
+            List<StartNode> declaringStarts = nodes.OfType<StartNode>()
+                .Where(s => s.Inputs is { Count: > 0 }).ToList();
+            if (declaringStarts.Count > 1 && starts.Count <= 1)
+            {
+                issues.Add(Error(null,
+                    "Start parameters are declared on more than one start node " +
+                    $"({string.Join(", ", declaringStarts.Select(s => $"'{Label(s)}'"))}) - the workflow " +
+                    "signature would be ambiguous. Declare them on exactly one start node."));
+            }
+
+            List<EndNode> declaringEnds = nodes.OfType<EndNode>()
+                .Where(e => e.Outputs is { Count: > 0 }).ToList();
+            if (declaringEnds.Count > 1 && ends.Count <= 1)
+            {
+                issues.Add(Error(null,
+                    $"A workflow result is declared on more than one end node " +
+                    $"({string.Join(", ", declaringEnds.Select(e => $"'{Label(e)}'"))}) - the result would " +
+                    "depend on which end is reached. Declare it on exactly one end node."));
             }
 
             // Kanten muessen existierende Knoten referenzieren.
@@ -143,6 +192,35 @@ namespace ITVComponents.Workflow.Validation
                         issues.Add(Warn(n.Id,
                             $"Exclusive gateway '{Label(n)}' has no default flow - the instance faults if no condition matches."));
                         break;
+
+                    // Namenlose Bindungen ueberspringt die Engine still - hier sichtbar machen, statt den
+                    // Nutzer raten zu lassen, warum sein Parameter nicht ankommt. Kein Fehler: eine halb
+                    // getippte Zeile soll das Speichern nicht blockieren.
+                    case StartNode st when st.Inputs != null
+                                           && st.Inputs.Any(b => b == null || string.IsNullOrWhiteSpace(b.Parameter)):
+                        issues.Add(Warn(n.Id,
+                            $"Start node '{Label(n)}' has a parameter without a name - it is ignored."));
+                        break;
+                    case StartNode st2 when st2.ScopeMode == ActivityScopeMode.Replace
+                                            && (st2.Inputs == null || st2.Inputs.Count == 0):
+                        // Ohne deklarierte Parameter greift die Signatur gar nicht - der Schalter waere
+                        // sonst ein stiller Nicht-Effekt (und NICHT "die Instanz startet leer").
+                        issues.Add(Warn(n.Id,
+                            $"Start node '{Label(n)}' is marked as a strict signature but declares no " +
+                            "parameters - the setting has no effect."));
+                        break;
+                    case EndNode en when en.Outputs != null
+                                         && en.Outputs.Any(b => b == null || string.IsNullOrWhiteSpace(b.Parameter)
+                                                                || string.IsNullOrWhiteSpace(b.Variable)):
+                        issues.Add(Warn(n.Id,
+                            $"End node '{Label(n)}' has a result mapping without a source variable or a result " +
+                            "name - it is ignored."));
+                        break;
+                }
+
+                if (n is UserActivityNode task)
+                {
+                    issues.AddRange(UserTaskIssues(task, outs));
                 }
 
                 // Fehler-Ausgang (Aktivitaet ODER Subworkflow-Aufruf): die Fehler-Kante muss eine der
@@ -169,25 +247,36 @@ namespace ITVComponents.Workflow.Validation
                 }
             }
 
-            // Konsolidierung (ScopeMode.Replace) raeumt den ganzen Scope ab - das ist nur auf einem
-            // Ein-Zweig-Segment sicher. Liegt sie innerhalb einer parallelen Region (zwischen AND-Split
-            // und zugehoerigem Join), koennte sie Variablen verwerfen, die ein Geschwister-Zweig noch
-            // braucht (oder mit dessen Merge kollidieren).
-            HashSet<string> parallelRegion = NodesInsideParallelRegion(nodes, flows, byId, inCount, outCount);
-            foreach (WorkflowNode n in nodes)
+            // Das Mapping der Kante schreibt in denselben Variablen-Stack wie ein Knoten - also dieselben
+            // Pruefungen: eine namenlose Bindung ueberspringt die Engine still.
+            foreach (SequenceFlow f in flows)
             {
-                if (n is AutomatedActivityNode act && act.ScopeMode == ActivityScopeMode.Replace
-                    && !string.IsNullOrWhiteSpace(act.Id) && parallelRegion.Contains(act.Id))
+                if (f?.Inputs != null
+                    && f.Inputs.Any(b => b == null || string.IsNullOrWhiteSpace(b.Parameter)))
                 {
-                    issues.Add(Warn(act.Id,
-                        $"Consolidation node '{Label(n)}' (scope replace) is inside a parallel region - it may " +
-                        "discard variables a sibling branch still needs. Place it after the join."));
+                    issues.Add(Warn(f.Id,
+                        $"Connection {FlowLabel(f, byId)} has a mapping without a variable name - it is ignored."));
                 }
             }
 
-            // Zwei parallele Zweige, die dieselbe Variable schreiben, kollidieren zur Laufzeit (Fault, kein
-            // stiller last-writer). Statisch erkennbar an den deklarierten Output-Bindungen: schreibt innerhalb
-            // einer parallelen Region dieselbe Variable aus zwei verschiedenen Split-Zweigen, wird gewarnt.
+            // Ein Zweig, der ins Ende laeuft statt in seinen Join, geht mit seinem Zweig-Scope verloren
+            // (die Laufzeit meldet das ebenfalls) - und die uebrigen Zweige haengen dann ewig am Join.
+            // Warnung statt Fehler: die Regionen-Analyse ist bei Zyklen/Retry-Schleifen nicht eindeutig.
+            HashSet<string> parallelRegion = NodesInsideParallelRegion(nodes, flows, byId, inCount, outCount);
+            foreach (WorkflowNode n in nodes)
+            {
+                if (n is EndNode && !string.IsNullOrWhiteSpace(n.Id) && parallelRegion.Contains(n.Id))
+                {
+                    issues.Add(Warn(n.Id,
+                        $"End node '{Label(n)}' is inside a parallel region - a branch ending here never passes " +
+                        "its join: its branch variables are dropped and the other branches wait forever. " +
+                        "Route every branch through the join."));
+                }
+            }
+
+            // Seit den Zweig-Scopes ist ein paralleler Schreibzugriff kein Laufzeitfehler mehr (jeder Zweig
+            // arbeitet in seiner Kopie), aber der Join muss sich beim Zusammenfuehren fuer einen Wert
+            // entscheiden - das gehoert modelliert, nicht dem Zufall der Zweig-Reihenfolge ueberlassen.
             issues.AddRange(ParallelWriteConflicts(nodes, flows, byId, inCount, outCount));
 
             // Fehler zuerst, dann Warnungen - stabile Reihenfolge fuer die Anzeige.
@@ -195,17 +284,148 @@ namespace ITVComponents.Workflow.Validation
         }
 
         /// <summary>
+        /// Prueft eine Benutzer-Aufgabe. Der teure Teil ist nicht der Ablauf, sondern das, was der Benutzer
+        /// spaeter zu sehen bekommt: eine Aufgabe ohne Art landet in keiner Liste, ein kaputtes Kultur-JSON
+        /// steht woertlich in der Oberflaeche.
+        /// </summary>
+        private static IEnumerable<ValidationIssue> UserTaskIssues(UserActivityNode node, int outgoing)
+        {
+            var issues = new List<ValidationIssue>();
+            if (string.IsNullOrWhiteSpace(node.TaskKey))
+            {
+                issues.Add(Error(node.Id,
+                    $"User task '{Label(node)}' has no task key - it would never show up in a work list."));
+            }
+
+            if (outgoing > 1)
+            {
+                // Die Engine faultet hier zur Laufzeit ("must have exactly one outgoing flow") - besser
+                // rot im Editor als eine Instanz, die es bis zur Aufgabe schafft und dann stirbt.
+                issues.Add(Error(node.Id,
+                    $"User task '{Label(node)}' has {outgoing} outgoing connections - it must have exactly one " +
+                    "(use a gateway after it to branch)."));
+            }
+
+            // Titel/Beschriftungen sind ENTWEDER Klartext ODER Kultur-JSON. Ist die Absicht erkennbar
+            // (beginnt mit '{'), muss es parsebar sein - sonst zeigt die Oberflaeche das JSON woertlich an.
+            AddIfBrokenCultureJson(issues, node.Id, node.Title, $"User task '{Label(node)}' title");
+            AddIfBrokenCultureJson(issues, node.Id, node.Description, $"User task '{Label(node)}' description");
+
+            if (node.Inputs != null
+                && node.Inputs.Any(b => b == null || string.IsNullOrWhiteSpace(b.Parameter)))
+            {
+                issues.Add(Warn(node.Id,
+                    $"User task '{Label(node)}' has an input without a name - it is ignored."));
+            }
+
+            if (node.Outputs != null
+                && node.Outputs.Any(b => b == null || string.IsNullOrWhiteSpace(b.Parameter)
+                                         || string.IsNullOrWhiteSpace(b.Variable)))
+            {
+                issues.Add(Warn(node.Id,
+                    $"User task '{Label(node)}' has a result mapping without a field name or a target variable - " +
+                    "it is ignored."));
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (UserTaskField field in node.FormFields ?? new List<UserTaskField>())
+            {
+                if (field == null || string.IsNullOrWhiteSpace(field.Name))
+                {
+                    issues.Add(Warn(node.Id,
+                        $"User task '{Label(node)}' has a form field without a name - it is ignored."));
+                    continue;
+                }
+
+                if (!seen.Add(field.Name))
+                {
+                    issues.Add(Error(node.Id,
+                        $"User task '{Label(node)}' declares the form field '{field.Name}' more than once - " +
+                        "only one of them could ever reach the result."));
+                }
+
+                AddIfBrokenCultureJson(issues, node.Id, field.Label,
+                    $"User task '{Label(node)}' label of field '{field.Name}'");
+                AddIfBrokenCultureJson(issues, node.Id, field.HelpText,
+                    $"User task '{Label(node)}' help text of field '{field.Name}'");
+
+                if (field.Kind == UserTaskFieldKind.Choice && (field.Choices == null || field.Choices.Count == 0))
+                {
+                    issues.Add(Warn(node.Id,
+                        $"User task '{Label(node)}' field '{field.Name}' is a choice without any options."));
+                }
+
+                if (field.Required && field.ReadOnly)
+                {
+                    issues.Add(Warn(node.Id,
+                        $"User task '{Label(node)}' field '{field.Name}' is both read-only and required - " +
+                        "read-only fields never reach the result, so the requirement has no effect."));
+                }
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Meldet einen Wert, der nach Kultur-JSON aussieht, es aber nicht ist. Genau diesen Wert wuerde die
+        /// Oberflaeche unveraendert anzeigen.
+        /// </summary>
+        /// <remarks>
+        /// Die Absicht erkennt der Validator am fuehrenden '{'. Die Laufzeit
+        /// (<c>StringExtensions.Translate</c>) verlangt zusaetzlich die schliessende Klammer und laesst
+        /// einen abgeschnittenen Datensatz kommentarlos als Klartext durch - genau deshalb ist die
+        /// fehlende Klammer hier ein eigener Befund und kein uebersehener Fall.
+        /// </remarks>
+        private static void AddIfBrokenCultureJson(List<ValidationIssue> issues, string nodeId, string value,
+            string what)
+        {
+            string trimmed = value?.Trim();
+            if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("{"))
+            {
+                return;
+            }
+
+            if (!trimmed.EndsWith("}"))
+            {
+                issues.Add(Error(nodeId,
+                    $"{what} looks like a per-culture record but does not end with '}}' - it would be shown " +
+                    "verbatim."));
+                return;
+            }
+
+            try
+            {
+                using System.Text.Json.JsonDocument doc = System.Text.Json.JsonDocument.Parse(trimmed);
+                if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
+                {
+                    issues.Add(Error(nodeId,
+                        $"{what} looks like a per-culture record but is not a JSON object - it would be shown " +
+                        "verbatim."));
+                }
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                issues.Add(Error(nodeId,
+                    $"{what} looks like a per-culture record but is not valid JSON ({ex.Message}) - it would be " +
+                    "shown verbatim."));
+            }
+        }
+
+        /// <summary>
         /// Findet Variablen, die aus zwei oder mehr Zweigen DESSELBEN AND-Splits geschrieben werden (ueber
-        /// die deklarierten Output-Bindungen) - solche parallelen Schreibzugriffe faulten zur Laufzeit. Je
-        /// betroffener Variable ein Befund. Nur deklarierte Ausgaben sind statisch sichtbar; generische
-        /// Aktivitaeten, die frei in <c>Variables</c> schreiben, kann die Pruefung nicht erfassen. Zwei
-        /// Schreibzugriffe auf demselben Zweig (sequenziell) sind zulaessig und loesen keine Warnung aus.
+        /// die deklarierten Output-Bindungen der Knoten und die Mappings der Kanten) - beim Zusammenfuehren
+        /// am Join muss sich dann einer der Werte durchsetzen. Je betroffener Variable ein Befund. Nur deklarierte
+        /// Schreibzugriffe sind statisch sichtbar; generische Aktivitaeten, die frei in <c>Variables</c>
+        /// schreiben, kann die Pruefung nicht erfassen. Zwei Schreibzugriffe auf demselben Zweig
+        /// (sequenziell) sind zulaessig und loesen keine Warnung aus.
         /// </summary>
         private static IEnumerable<ValidationIssue> ParallelWriteConflicts(List<WorkflowNode> nodes,
             List<SequenceFlow> flows, Dictionary<string, WorkflowNode> byId,
             Dictionary<string, int> inCount, Dictionary<string, int> outCount)
         {
-            var outgoing = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            // Bewusst die KANTEN merken, nicht nur die Ziel-Ids: seit dem Kanten-Mapping ist die Kante
+            // selbst eine Schreibstelle - der Zweig beginnt also schon an der Kante des Splits.
+            var outgoing = new Dictionary<string, List<SequenceFlow>>(StringComparer.Ordinal);
             foreach (SequenceFlow f in flows)
             {
                 if (f.SourceId == null || f.TargetId == null)
@@ -213,12 +433,12 @@ namespace ITVComponents.Workflow.Validation
                     continue;
                 }
 
-                if (!outgoing.TryGetValue(f.SourceId, out List<string> list))
+                if (!outgoing.TryGetValue(f.SourceId, out List<SequenceFlow> list))
                 {
-                    outgoing[f.SourceId] = list = new List<string>();
+                    outgoing[f.SourceId] = list = new List<SequenceFlow>();
                 }
 
-                list.Add(f.TargetId);
+                list.Add(f);
             }
 
             bool IsJoin(string id) => byId.TryGetValue(id, out WorkflowNode nn)
@@ -234,20 +454,44 @@ namespace ITVComponents.Workflow.Validation
             foreach (WorkflowNode split in nodes)
             {
                 if (string.IsNullOrWhiteSpace(split?.Id) || !IsSplit(split.Id)
-                    || !outgoing.TryGetValue(split.Id, out List<string> branches))
+                    || !outgoing.TryGetValue(split.Id, out List<SequenceFlow> branches))
                 {
                     continue;
                 }
 
-                // Je Variable: aus welchen (direkten) Split-Zweigen wird sie geschrieben, und von welchen Knoten?
+                // Je Variable: aus welchen (direkten) Split-Zweigen wird sie geschrieben, und von wo?
                 var branchesByVar = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
-                var nodesByVar = new Dictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+                var writersByVar = new Dictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+
+                void Record(string variable, int branchIndex, string writer)
+                {
+                    if (string.IsNullOrWhiteSpace(variable))
+                    {
+                        return;
+                    }
+
+                    if (!branchesByVar.TryGetValue(variable, out HashSet<int> set))
+                    {
+                        branchesByVar[variable] = set = new HashSet<int>();
+                    }
+
+                    set.Add(branchIndex);
+                    if (!writersByVar.TryGetValue(variable, out SortedSet<string> ws))
+                    {
+                        writersByVar[variable] = ws = new SortedSet<string>(StringComparer.Ordinal);
+                    }
+
+                    ws.Add(writer);
+                }
 
                 for (int bi = 0; bi < branches.Count; bi++)
                 {
                     var visited = new HashSet<string>(StringComparer.Ordinal);
                     var queue = new Queue<string>();
-                    queue.Enqueue(branches[bi]);
+
+                    // Die Kante des Splits selbst gehoert schon zum Zweig.
+                    RecordFlowWrites(branches[bi], bi, Record);
+                    queue.Enqueue(branches[bi].TargetId);
                     while (queue.Count > 0)
                     {
                         string cur = queue.Dequeue();
@@ -261,31 +505,16 @@ namespace ITVComponents.Workflow.Validation
                         {
                             foreach (ActivityOutputBinding ob in act.Outputs)
                             {
-                                if (ob == null || string.IsNullOrWhiteSpace(ob.Variable))
-                                {
-                                    continue;
-                                }
-
-                                if (!branchesByVar.TryGetValue(ob.Variable, out HashSet<int> set))
-                                {
-                                    branchesByVar[ob.Variable] = set = new HashSet<int>();
-                                }
-
-                                set.Add(bi);
-                                if (!nodesByVar.TryGetValue(ob.Variable, out SortedSet<string> ns))
-                                {
-                                    nodesByVar[ob.Variable] = ns = new SortedSet<string>(StringComparer.Ordinal);
-                                }
-
-                                ns.Add(cur);
+                                Record(ob?.Variable, bi, $"node '{Label(cn)}'");
                             }
                         }
 
-                        if (outgoing.TryGetValue(cur, out List<string> nexts))
+                        if (outgoing.TryGetValue(cur, out List<SequenceFlow> nexts))
                         {
-                            foreach (string nx in nexts)
+                            foreach (SequenceFlow nx in nexts)
                             {
-                                queue.Enqueue(nx);
+                                RecordFlowWrites(nx, bi, Record);
+                                queue.Enqueue(nx.TargetId);
                             }
                         }
                     }
@@ -296,9 +525,9 @@ namespace ITVComponents.Workflow.Validation
                     if (kv.Value.Count >= 2 && reported.Add(kv.Key))
                     {
                         result.Add(Warn(null,
-                            $"Variable '{kv.Key}' is written by parallel branches (nodes {string.Join(", ", nodesByVar[kv.Key])}) - " +
-                            "concurrent writes to the same variable fault at runtime. Let only one branch write it, " +
-                            "or consolidate after the join."));
+                            $"Variable '{kv.Key}' is written by parallel branches ({string.Join(", ", writersByVar[kv.Key])}) - " +
+                            "each branch works on its own copy, so the join has to pick one of the values. Give " +
+                            "each branch its own result name and merge them with a mapping on the join."));
                     }
                 }
             }
@@ -384,7 +613,34 @@ namespace ITVComponents.Workflow.Validation
             return region;
         }
 
+        /// <summary>
+        /// Traegt die Variablen ein, die das Mapping einer Kante schreibt - fuer die Kante gilt dasselbe wie
+        /// fuer einen Knoten: sie schreibt in den gemeinsamen Instanz-Stack.
+        /// </summary>
+        private static void RecordFlowWrites(SequenceFlow flow, int branchIndex,
+            Action<string, int, string> record)
+        {
+            if (flow?.Inputs == null)
+            {
+                return;
+            }
+
+            foreach (ActivityInputBinding b in flow.Inputs)
+            {
+                record(b?.Parameter, branchIndex, $"connection '{FlowName(flow)}'");
+            }
+        }
+
         private static string Label(WorkflowNode n) => string.IsNullOrEmpty(n.Name) ? n.Id : n.Name;
+
+        private static string FlowName(SequenceFlow f) => string.IsNullOrEmpty(f.Name) ? f.Id : f.Name;
+
+        /// <summary>Beschriftet eine Kante fuer eine Meldung: ihr Name plus die verbundenen Knoten.</summary>
+        private static string FlowLabel(SequenceFlow f, Dictionary<string, WorkflowNode> byId)
+        {
+            string Node(string id) => id != null && byId.TryGetValue(id, out WorkflowNode n) ? Label(n) : "?";
+            return $"'{FlowName(f)}' ({Node(f.SourceId)} -> {Node(f.TargetId)})";
+        }
 
         private static ValidationIssue Error(string nodeId, string message)
             => new ValidationIssue { Severity = ValidationSeverity.Error, NodeId = nodeId, Message = message };

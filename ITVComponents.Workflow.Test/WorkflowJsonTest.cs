@@ -35,19 +35,67 @@ namespace ITVComponents.Workflow.Test
             call.Inputs.Add(new ActivityInputBinding { Parameter = "n", Kind = ParameterBindingKind.Variable, Source = "total" });
             call.Outputs.Add(new ActivityOutputBinding { Parameter = "res", Variable = "answer" });
 
+            // Signatur und Ergebnis der Definition (Start-Parameter / End-Result).
+            var start = new StartNode { Id = "s", ScopeMode = ActivityScopeMode.Replace };
+            start.RetainVariables.Add("corr");
+            start.Inputs.Add(new ActivityInputBinding { Parameter = "seed", Kind = ParameterBindingKind.Literal, Literal = 5 });
+            var end = new EndNode { Id = "e" };
+            end.Outputs.Add(new ActivityOutputBinding { Parameter = "total", Variable = "result" });
+            end.RetainVariables.Add("corr");
+
+            // Mapping auf der Verbindung (was der Stack ist, wenn ein Token hier ankommt).
+            var mapped = new SequenceFlow
+            {
+                Id = "c->x", SourceId = "c", TargetId = "x", ScopeMode = ActivityScopeMode.Replace
+            };
+            mapped.Inputs.Add(new ActivityInputBinding
+                { Parameter = "n", Kind = ParameterBindingKind.Variable, Source = "answer" });
+            mapped.RetainVariables.Add("corr");
+
+            // Benutzer-Aufgabe: Zustaendigkeit, Titel (Kultur-JSON) und die Deklaration der generischen Maske.
+            var userTask = new UserActivityNode
+            {
+                Id = "u", TaskKey = "ApproveInvoice", RequiredPermission = "Invoice.Approve",
+                ViewKey = "invoice-approval", Assignment = "owner",
+                Title = "{\"de\":\"Freigabe\",\"fr\":\"Approbation\"}",
+                TitleExpression = "\"Invoice \" + number",
+                Description = "Bitte pruefen", DueInHours = 48,
+                ScopeMode = ActivityScopeMode.Replace
+            };
+            userTask.RetainVariables.Add("corr");
+            userTask.Inputs.Add(new ActivityInputBinding
+                { Parameter = "amount", Kind = ParameterBindingKind.Variable, Source = "total" });
+            userTask.Outputs.Add(new ActivityOutputBinding { Parameter = "decision", Variable = "approved" });
+            var choiceField = new UserTaskField
+            {
+                Name = "decision", Label = "{\"de\":\"Entscheid\"}", Kind = UserTaskFieldKind.Choice,
+                Required = true, HelpText = "hint"
+            };
+            choiceField.Choices.Add(new UserTaskChoice { Value = "yes", Label = "Ja" });
+            choiceField.Choices.Add(new UserTaskChoice { Value = "no" });
+            userTask.FormFields.Add(choiceField);
+            userTask.FormFields.Add(new UserTaskField
+                { Name = "amount", Kind = UserTaskFieldKind.Number, ReadOnly = true, PayloadName = "amount" });
+
+            // Ergebnis einer parallelen Region (Join-Mapping).
+            var join = new ParallelGatewayNode { Id = "p", ScopeMode = ActivityScopeMode.Replace };
+            join.Outputs.Add(new ActivityOutputBinding { Parameter = "a", Variable = "resultA" });
+            join.RetainVariables.Add("corr");
+
             return new WorkflowDefinition
             {
                 Id = "rich", Version = 3, Name = "Rich", TenantId = "t1",
                 Nodes = new List<WorkflowNode>
                 {
-                    new StartNode { Id = "s" },
+                    start,
                     activity,
                     call,
                     new WaitNode { Id = "w", SignalName = "go", CorrelationExpression = "id" },
                     new TimerNode { Id = "ti", DueExpression = "'System.DateTime'.UtcNow" },
                     new ExclusiveGatewayNode { Id = "x", DefaultFlowId = "x->e" },
-                    new ParallelGatewayNode { Id = "p" },
-                    new EndNode { Id = "e" },
+                    userTask,
+                    join,
+                    end,
                     new EndNode { Id = "err" }
                 },
                 Flows = new List<SequenceFlow>
@@ -55,6 +103,7 @@ namespace ITVComponents.Workflow.Test
                     new SequenceFlow { Id = "s->a", SourceId = "s", TargetId = "a" },
                     new SequenceFlow { Id = "a->c", SourceId = "a", TargetId = "c" },
                     new SequenceFlow { Id = "a->err", SourceId = "a", TargetId = "err" },
+                    mapped,
                     new SequenceFlow { Id = "x->e", SourceId = "x", TargetId = "e", Condition = "n > 1" }
                 }
             };
@@ -79,6 +128,29 @@ namespace ITVComponents.Workflow.Test
             Assert.IsInstanceOfType<TimerNode>(copy.GetNode("ti"));
             Assert.IsInstanceOfType<ExclusiveGatewayNode>(copy.GetNode("x"));
             Assert.IsInstanceOfType<ParallelGatewayNode>(copy.GetNode("p"));
+            Assert.IsInstanceOfType<UserActivityNode>(copy.GetNode("u"));
+
+            // Die Benutzer-Aufgabe traegt ihre Zustaendigkeit, ihre Texte (unaufgeloest) und die
+            // Deklaration der generischen Maske durch den Round-Trip.
+            var u = (UserActivityNode)copy.GetNode("u");
+            Assert.AreEqual("ApproveInvoice", u.TaskKey);
+            Assert.AreEqual("Invoice.Approve", u.RequiredPermission);
+            Assert.AreEqual("invoice-approval", u.ViewKey);
+            Assert.AreEqual("owner", u.Assignment);
+            Assert.AreEqual("{\"de\":\"Freigabe\",\"fr\":\"Approbation\"}", u.Title,
+                "the per-culture record stays raw - it is translated when displayed.");
+            Assert.AreEqual(48, u.DueInHours);
+            Assert.AreEqual(ActivityScopeMode.Replace, u.ScopeMode);
+            CollectionAssert.AreEquivalent(new[] { "corr" }, u.RetainVariables);
+            Assert.AreEqual("amount", u.Inputs.Single().Parameter);
+            Assert.AreEqual("approved", u.Outputs.Single().Variable);
+            Assert.AreEqual(2, u.FormFields.Count);
+            UserTaskField decision = u.FormFields.Single(f => f.Name == "decision");
+            Assert.AreEqual(UserTaskFieldKind.Choice, decision.Kind);
+            Assert.IsTrue(decision.Required);
+            Assert.AreEqual(2, decision.Choices.Count);
+            Assert.AreEqual("Ja", decision.Choices.Single(c => c.Value == "yes").Label);
+            Assert.IsTrue(u.FormFields.Single(f => f.Name == "amount").ReadOnly);
 
             var a = (AutomatedActivityNode)copy.GetNode("a");
             Assert.AreEqual("backend", a.ExecutionTarget);
@@ -99,7 +171,31 @@ namespace ITVComponents.Workflow.Test
             Assert.AreEqual("n", c.Inputs.Single().Parameter);
             Assert.AreEqual("answer", c.Outputs.Single().Variable);
 
+            // Signatur und Ergebnis ueberleben den Round-Trip.
+            var s = (StartNode)copy.GetNode("s");
+            Assert.AreEqual(ActivityScopeMode.Replace, s.ScopeMode);
+            CollectionAssert.AreEquivalent(new[] { "corr" }, s.RetainVariables);
+            Assert.IsInstanceOfType<int>(s.Inputs.Single().Literal, "the start parameter literal round-trips as int.");
+
+            var e = (EndNode)copy.GetNode("e");
+            Assert.AreEqual("total", e.Outputs.Single().Parameter);
+            Assert.AreEqual("result", e.Outputs.Single().Variable);
+            CollectionAssert.AreEquivalent(new[] { "corr" }, e.RetainVariables);
+
             Assert.AreEqual("n > 1", copy.Flows.Single(f => f.Id == "x->e").Condition);
+
+            // Das Ergebnis-Mapping eines Joins ueberlebt den Round-Trip.
+            var p = (ParallelGatewayNode)copy.GetNode("p");
+            Assert.AreEqual(ActivityScopeMode.Replace, p.ScopeMode);
+            Assert.AreEqual("resultA", p.Outputs.Single().Variable);
+            CollectionAssert.AreEquivalent(new[] { "corr" }, p.RetainVariables);
+
+            // Das Mapping der Kante ueberlebt den Round-Trip.
+            SequenceFlow mapped = copy.Flows.Single(f => f.Id == "c->x");
+            Assert.AreEqual(ActivityScopeMode.Replace, mapped.ScopeMode);
+            Assert.AreEqual("answer", mapped.Inputs.Single().Source);
+            Assert.AreEqual(ParameterBindingKind.Variable, mapped.Inputs.Single().Kind);
+            CollectionAssert.AreEquivalent(new[] { "corr" }, mapped.RetainVariables);
         }
 
         [TestMethod]

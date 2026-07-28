@@ -1,0 +1,242 @@
+@using System.Globalization
+@inject IStringLocalizer<WorkflowTaskMessages> L
+
+@* Die Maske fuer den einfachen Fall: aus der Feld-Deklaration des Knotens gebaut, ohne eine Zeile
+   Code beim Konsumenten. Sie teilt Mantel, Rechte und Abschluss mit einer eigenen Komponente - der
+   Unterschied ist nur, WER die Felder rendert. *@
+
+@if (TaskContext is null)
+{
+    <MudAlert Severity="Severity.Error">@L["TaskGone"]</MudAlert>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(TaskContext.Description))
+    {
+        <MudText Typo="Typo.body2" Class="mb-4">@TaskContext.Description</MudText>
+    }
+
+    @if (TaskContext.FormFields.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-2">@L["NoFormConfigured"]</MudAlert>
+    }
+
+    <MudGrid Spacing="2">
+        @foreach (UserTaskField field in TaskContext.FormFields.Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Name)))
+        {
+            <MudItem xs="12" sm="@(field.Kind == UserTaskFieldKind.MultilineText ? 12 : 6)">
+                @if (field.ReadOnly)
+                {
+                    <MudField Label="@Label(field)" Variant="Variant.Text" Disabled="true">
+                        @DisplayValue(field)
+                    </MudField>
+                }
+                else if (field.Kind == UserTaskFieldKind.MultilineText)
+                {
+                    <MudTextField T="string" Label="@Label(field)" Lines="4"
+                                  HelperText="@Help(field)"
+                                  Required="@field.Required"
+                                  Value="@AsString(field)"
+                                  ValueChanged="@(v => Set(field, v))" />
+                }
+                else if (field.Kind == UserTaskFieldKind.Number)
+                {
+                    <MudNumericField T="decimal?" Label="@Label(field)"
+                                     HelperText="@Help(field)"
+                                     Required="@field.Required"
+                                     Value="@AsDecimal(field)"
+                                     ValueChanged="@(v => Set(field, v))" />
+                }
+                else if (field.Kind == UserTaskFieldKind.Boolean)
+                {
+                    <MudSwitch T="bool" Label="@Label(field)" Color="Color.Primary"
+                               Value="@AsBool(field)"
+                               ValueChanged="@(v => Set(field, v))" />
+                }
+                else if (field.Kind == UserTaskFieldKind.Date)
+                {
+                    <MudDatePicker Label="@Label(field)"
+                                   HelperText="@Help(field)"
+                                   Required="@field.Required"
+                                   Date="@AsDate(field)"
+                                   DateChanged="@(d => Set(field, d))" />
+                }
+                else if (field.Kind == UserTaskFieldKind.Choice)
+                {
+                    <MudSelect T="string" Label="@Label(field)"
+                               HelperText="@Help(field)"
+                               Required="@field.Required"
+                               Value="@AsString(field)"
+                               ValueChanged="@(v => Set(field, v))">
+                        @foreach (UserTaskChoice choice in field.Choices ?? new List<UserTaskChoice>())
+                        {
+                            <MudSelectItem T="string" Value="@choice.Value">@ChoiceLabel(choice)</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                else
+                {
+                    <MudTextField T="string" Label="@Label(field)"
+                                  HelperText="@Help(field)"
+                                  Required="@field.Required"
+                                  Value="@AsString(field)"
+                                  ValueChanged="@(v => Set(field, v))" />
+                }
+            </MudItem>
+        }
+    </MudGrid>
+
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-3">@error</MudAlert>
+    }
+}
+
+@code {
+    /// <summary>Der Aufgaben-Kontext des Mantels.</summary>
+    [CascadingParameter]
+    public WorkflowTaskContext? TaskContext { get; set; }
+
+    private readonly Dictionary<string, object?> values = new(StringComparer.Ordinal);
+    private string? error;
+    private string? initializedFor;
+
+    protected override void OnParametersSet()
+    {
+        // Vorbelegung genau EINMAL je Aufgabe: sonst wuerde jedes Rendern die Eingaben des Benutzers
+        // wieder mit dem Payload ueberschreiben.
+        if (TaskContext is null || initializedFor == TaskContext.TokenId)
+        {
+            return;
+        }
+
+        initializedFor = TaskContext.TokenId;
+        values.Clear();
+        foreach (UserTaskField field in TaskContext.FormFields.Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Name)))
+        {
+            if (TaskContext.Payload.TryGetValue(PayloadName(field), out object? prefill))
+            {
+                values[field.Name] = prefill;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sammelt das Ergebnis ein und prueft die Pflichtfelder. Liefert false samt Meldung, wenn etwas
+    /// fehlt - der Mantel schliesst dann nicht ab.
+    /// </summary>
+    public bool TryGetResult(out Dictionary<string, object> result)
+    {
+        result = new Dictionary<string, object>(StringComparer.Ordinal);
+        error = null;
+        if (TaskContext is null)
+        {
+            return false;
+        }
+
+        var missing = new List<string>();
+        foreach (UserTaskField field in TaskContext.FormFields.Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Name)))
+        {
+            if (field.ReadOnly)
+            {
+                // Nur-Anzeige-Felder gehen bewusst NICHT ins Ergebnis: sie kommen aus dem Payload und
+                // wuerden sonst als "Eingabe" zurueckgeschrieben.
+                continue;
+            }
+
+            values.TryGetValue(field.Name, out object? value);
+            if (field.Required && IsEmpty(value))
+            {
+                missing.Add(Label(field));
+                continue;
+            }
+
+            result[field.Name] = value!;
+        }
+
+        if (missing.Count > 0)
+        {
+            error = $"{L["RequiredField"]} ({string.Join(", ", missing)})";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsEmpty(object? value)
+        => value is null || (value is string s && string.IsNullOrWhiteSpace(s));
+
+    private static string PayloadName(UserTaskField field)
+        => string.IsNullOrWhiteSpace(field.PayloadName) ? field.Name : field.PayloadName!;
+
+    private string Label(UserTaskField field)
+        => string.IsNullOrWhiteSpace(field.Label)
+            ? field.Name
+            : TaskContext?.Translate(field.Label) ?? field.Label!;
+
+    private string? Help(UserTaskField field)
+        => string.IsNullOrWhiteSpace(field.HelpText) ? null : TaskContext?.Translate(field.HelpText);
+
+    private string ChoiceLabel(UserTaskChoice choice)
+        => string.IsNullOrWhiteSpace(choice.Label)
+            ? choice.Value ?? string.Empty
+            : TaskContext?.Translate(choice.Label) ?? choice.Label!;
+
+    private string DisplayValue(UserTaskField field)
+    {
+        object? value = TaskContext is not null && TaskContext.Payload.TryGetValue(PayloadName(field), out object? v)
+            ? v
+            : null;
+        return value switch
+        {
+            null => string.Empty,
+            bool b => b ? L["Yes"] : L["No"],
+            DateTime d => d.ToString("g", CultureInfo.CurrentCulture),
+            IFormattable f => f.ToString(null, CultureInfo.CurrentCulture),
+            _ => value.ToString() ?? string.Empty
+        };
+    }
+
+    private void Set(UserTaskField field, object? value)
+    {
+        values[field.Name] = value;
+        error = null;
+    }
+
+    private string? AsString(UserTaskField field)
+        => values.TryGetValue(field.Name, out object? v) ? v?.ToString() : null;
+
+    private bool AsBool(UserTaskField field)
+        => values.TryGetValue(field.Name, out object? v)
+           && v is not null
+           && (v is bool b ? b : bool.TryParse(v.ToString(), out bool parsed) && parsed);
+
+    private decimal? AsDecimal(UserTaskField field)
+    {
+        if (!values.TryGetValue(field.Name, out object? v) || v is null)
+        {
+            return null;
+        }
+
+        return v is decimal d
+            ? d
+            : decimal.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.CurrentCulture, out decimal parsed)
+              || decimal.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out parsed)
+                ? parsed
+                : null;
+    }
+
+    private DateTime? AsDate(UserTaskField field)
+    {
+        if (!values.TryGetValue(field.Name, out object? v) || v is null)
+        {
+            return null;
+        }
+
+        return v is DateTime dt
+            ? dt
+            : DateTime.TryParse(v.ToString(), CultureInfo.CurrentCulture, DateTimeStyles.None, out DateTime parsed)
+                ? parsed
+                : null;
+    }
+}

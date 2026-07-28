@@ -9,6 +9,36 @@ namespace ITVComponents.Workflow.Model
     {
         /// <inheritdoc/>
         public override NodeKind Kind => NodeKind.Start;
+
+        /// <summary>
+        /// Die <b>Signatur</b> des Workflows: die deklarierten Start-Parameter. Die Bindungen werden
+        /// beim Anlegen der Instanz gegen die <b>uebergebenen</b> Startvariablen aufgeloest (Konstante =
+        /// Vorgabewert, Variable = umbenennen/durchreichen, Ausdruck = berechnen);
+        /// <see cref="ActivityInputBinding.Parameter"/> ist der Name der zu setzenden Instanz-Variable.
+        /// Leer = bisheriges Verhalten (die uebergebenen Variablen sind der Stack).
+        /// </summary>
+        /// <remarks>
+        /// Gilt fuer JEDEN Einstieg in die Definition - direkter Start ebenso wie der Aufruf als
+        /// Subworkflow (dort sind die "uebergebenen" Werte die Ausgaben der
+        /// <see cref="CallWorkflowNode.Inputs"/> des Aufrufers).
+        /// </remarks>
+        public List<ActivityInputBinding> Inputs { get; set; } = new List<ActivityInputBinding>();
+
+        /// <summary>
+        /// Wie die Start-Parameter in den frischen Scope einfliessen. Standard
+        /// <see cref="ActivityScopeMode.Extend"/> (additiv - uebergebene, nicht deklarierte Werte bleiben
+        /// erhalten). <see cref="ActivityScopeMode.Replace"/> macht die Signatur <b>strikt</b>: der Stack
+        /// besteht danach genau aus den deklarierten Parametern (plus <see cref="RetainVariables"/>),
+        /// alles andere Uebergebene wird verworfen.
+        /// </summary>
+        public ActivityScopeMode ScopeMode { get; set; } = ActivityScopeMode.Extend;
+
+        /// <summary>
+        /// Bei <see cref="ActivityScopeMode.Replace"/>: Namen uebergebener Variablen, die trotz strikter
+        /// Signatur erhalten bleiben (z.B. Korrelations-/Kontextwerte, die der Aufrufer mitgibt). Bei
+        /// <see cref="ActivityScopeMode.Extend"/> ohne Wirkung.
+        /// </summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -19,6 +49,28 @@ namespace ITVComponents.Workflow.Model
     {
         /// <inheritdoc/>
         public override NodeKind Kind => NodeKind.End;
+
+        /// <summary>
+        /// Das <b>Ergebnis</b> des Workflows: bildet Instanz-Variablen auf Ergebnis-Namen ab
+        /// (<see cref="ActivityOutputBinding.Parameter"/> = aktuelle Variable,
+        /// <see cref="ActivityOutputBinding.Variable"/> = Name im Ergebnis). Ist die Liste nicht leer, wird
+        /// der Scope beim Uebergang auf <see cref="Instances.WorkflowStatus.Completed"/> darauf
+        /// <b>zurueckgesetzt</b> - danach besteht er genau aus dem Ergebnis (plus
+        /// <see cref="RetainVariables"/>).
+        /// </summary>
+        /// <remarks>
+        /// Der Re-Base ist der Grund, warum die Aufruferseite unveraendert bleibt: die End-Variablen der
+        /// Kind-Instanz SIND das Ergebnis, das <see cref="CallWorkflowNode.Outputs"/> abbildet - es braucht
+        /// weder eine zweite Ablage noch eine Migration. Leer = bisheriges Verhalten (der komplette
+        /// Variablenstack ist das Ergebnis).
+        /// </remarks>
+        public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+
+        /// <summary>
+        /// Zusaetzlich zum Ergebnis erhalten bleibende Variablen. Nur wirksam, wenn
+        /// <see cref="Outputs"/> gesetzt ist (sonst bleibt ohnehin alles stehen).
+        /// </summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -150,6 +202,22 @@ namespace ITVComponents.Workflow.Model
         public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
 
         /// <summary>
+        /// Wie die Ausgaben des Subworkflows in den Scope des Elternprozesses einfliessen. Standard
+        /// <see cref="ActivityScopeMode.Extend"/> (additiv). <see cref="ActivityScopeMode.Replace"/>
+        /// macht den Aufruf zu einer <b>Konsolidierung</b>: danach besteht der Eltern-Scope genau aus
+        /// den hier abgebildeten Ausgaben (plus <see cref="RetainVariables"/>). Nuetzlich, wenn ein
+        /// Subworkflow einen grossen Zwischenzustand aufbaut, von dem der Aufrufer nur das Ergebnis
+        /// braucht.
+        /// </summary>
+        public ActivityScopeMode ScopeMode { get; set; } = ActivityScopeMode.Extend;
+
+        /// <summary>
+        /// Bei <see cref="ActivityScopeMode.Replace"/>: Namen von <b>Eltern</b>-Variablen, die ueber die
+        /// Konsolidierung hinaus erhalten bleiben. Bei <see cref="ActivityScopeMode.Extend"/> ohne Wirkung.
+        /// </summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
+
+        /// <summary>
         /// Optionaler <b>Fehler-Ausgang</b>: die Id der ausgehenden Kante, die genommen wird, wenn der
         /// Subworkflow scheitert (faultet oder abgebrochen wird). Der Erfolgs-Ausgang ist dann die einzige
         /// andere ausgehende Kante. Ist der Wert null/leer, faultet ein gescheiterter Subworkflow wie bisher
@@ -196,6 +264,133 @@ namespace ITVComponents.Workflow.Model
     }
 
     /// <summary>
+    /// Eine <b>Aufgabe fuer einen Menschen</b>: der Zweig parkt hier, bis die Aufgabe in der Oberflaeche
+    /// erledigt wird. Danach laeuft er ueber die einzige ausgehende Kante weiter.
+    /// </summary>
+    /// <remarks>
+    /// Technisch wartet das Token wie an einem <see cref="WaitNode"/> (<see cref="Instances.TokenStatus.Waiting"/>),
+    /// fachlich ist es etwas anderes: es gibt eine Zustaendigkeit, eine Maske und einen definierten
+    /// Abschluss. Deshalb ein eigener Knoten und ein eigener Abschlussweg
+    /// (<c>WorkflowEngine.CompleteUserTask</c>) - ein Signal wuerde ALLE gleichnamig wartenden Tokens
+    /// wecken und ohne Versionsvergleich schreiben.
+    /// <para>
+    /// Wer die Aufgabe sieht, entscheidet <see cref="RequiredPermission"/> (die Sorte Aufgabe); wessen
+    /// Aufgabe der konkrete Fall ist, optional <see cref="Assignment"/>.
+    /// </para>
+    /// </remarks>
+    public class UserActivityNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.UserActivity;
+
+        /// <summary>
+        /// Der fachliche Schluessel der <b>Aufgabenart</b> (z.B. "ApproveInvoice"). Er ist der Filter der
+        /// Arbeitsliste und der Ausweichschluessel fuer die Oberflaeche, wenn kein <see cref="ViewKey"/>
+        /// gesetzt ist. Pflicht.
+        /// </summary>
+        public string TaskKey { get; set; }
+
+        /// <summary>
+        /// Die Permission, die ein Benutzer braucht, um Aufgaben dieses Knotens zu SEHEN und zu erledigen.
+        /// Null/leer = es genuegt das allgemeine Aufgaben-Recht.
+        /// </summary>
+        public string RequiredPermission { get; set; }
+
+        /// <summary>
+        /// Optionaler CScript-Ausdruck ueber den Variablen des Zweigs, der den Benutzernamen des
+        /// Zustaendigen liefert. Er wird <b>einmal</b> beim Parken ausgewertet und am Token festgeschrieben -
+        /// die Aufgabenliste ist eine Datenbankabfrage und kann kein Skript auswerten. Null/leer = die
+        /// Aufgabe gehoert dem Pool (jeder mit der Permission sieht und erledigt sie).
+        /// </summary>
+        public string Assignment { get; set; }
+
+        /// <summary>
+        /// Optionaler Schluessel der Oberflaechen-Komponente, die diese Aufgabe darstellt. Aufgeloest wird
+        /// er von der konsumenten-seitigen Registry (<c>ViewKey</c>, sonst <see cref="TaskKey"/>, sonst die
+        /// generische Maske aus <see cref="FormFields"/>).
+        /// </summary>
+        /// <remarks>
+        /// Bewusst ein freier Schluessel und <b>nie</b> ein Typname: Definitionen sind Daten aus der
+        /// Datenbank - ein Typname darin waere Code-Ausfuehrung per Datenpflege.
+        /// </remarks>
+        public string ViewKey { get; set; }
+
+        /// <summary>
+        /// Der Titel der Aufgabe fuer die Arbeitsliste. Klartext ODER ein JSON-Objekt nach Kultur
+        /// (<c>{"de":"Rechnung freigeben","fr":"Approuver la facture"}</c>) - dieselbe Konvention wie bei
+        /// den Navigations-Eintraegen. Der Wert wird beim Parken <b>unaufgeloest</b> am Token
+        /// festgeschrieben und erst beim Anzeigen uebersetzt; sonst wuerde die Kultur des Servers die des
+        /// Lesers bestimmen.
+        /// </summary>
+        public string Title { get; set; }
+
+        /// <summary>
+        /// Optionaler CScript-Ausdruck, der den Titel aus den Variablen des Zweigs berechnet (z.B.
+        /// "Rechnung " + rechnungsNr). Ist er gesetzt, gewinnt er gegen <see cref="Title"/> - der so
+        /// entstandene Titel ist dann aber Klartext und damit <b>nicht</b> mehrsprachig.
+        /// </summary>
+        public string TitleExpression { get; set; }
+
+        /// <summary>
+        /// Optionale Beschreibung/Arbeitsanweisung fuer die Maske. Klartext oder Kultur-JSON wie
+        /// <see cref="Title"/>.
+        /// </summary>
+        public string Description { get; set; }
+
+        /// <summary>
+        /// Optionaler CScript-Ausdruck, der ein <b>Datenobjekt</b> fuer die Formatierung der
+        /// <see cref="Description"/> liefert (z.B. <c>{ InvoiceNo: rechnungsNr }</c>). Ist er gesetzt, wird
+        /// die (bereits uebersetzte) Beschreibung als Formatierungs-Prototyp behandelt: Platzhalter wie
+        /// <c>[InvoiceNo:0000000000]</c> werden aus den Membern dieses Objekts gefuellt (siehe
+        /// <c>ITVComponents.Formatting</c>). So bleibt die Beschreibung mehrsprachig (je Kultur ein Prototyp),
+        /// waehrend die konkreten Werte aus dem aktuellen Variablen-Stack kommen. Ausgewertet beim OEFFNEN der
+        /// Aufgabe (nicht beim Parken), damit der aktuelle Stand einfliesst. Leer/null = die Beschreibung wird
+        /// unveraendert angezeigt (keine Formatierung).
+        /// </summary>
+        public string DescriptionData { get; set; }
+
+        /// <summary>
+        /// Datenfluss <b>hinein</b>: was die Maske zu sehen bekommt. Die Bindungen werden aufgeloest, wenn
+        /// die Aufgabe geoeffnet wird (nicht beim Parken) - die Maske sieht damit den aktuellen Stand und es
+        /// braucht keine zweite Ablage. <see cref="ActivityInputBinding.Parameter"/> ist der Name im
+        /// Payload der Maske.
+        /// </summary>
+        public List<ActivityInputBinding> Inputs { get; set; } = new List<ActivityInputBinding>();
+
+        /// <summary>
+        /// Datenfluss <b>heraus</b>: bildet die Ergebniswerte der Maske (bei der generischen Maske die
+        /// <see cref="FormFields"/>) auf Variablen des Zweigs ab.
+        /// </summary>
+        public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+
+        /// <summary>
+        /// Wie das Ergebnis in den Scope einfliesst. Standard <see cref="ActivityScopeMode.Extend"/>
+        /// (additiv), <see cref="ActivityScopeMode.Replace"/> konsolidiert wie bei der Aktivitaet.
+        /// </summary>
+        public ActivityScopeMode ScopeMode { get; set; } = ActivityScopeMode.Extend;
+
+        /// <summary>
+        /// Bei <see cref="ActivityScopeMode.Replace"/>: Variablen, die ueber die Konsolidierung hinaus
+        /// erhalten bleiben. Bei <see cref="ActivityScopeMode.Extend"/> ohne Wirkung.
+        /// </summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Die Deklaration der <b>generischen Maske</b>: ist keine eigene Komponente registriert, baut die
+        /// Oberflaeche daraus ein Formular. Leer = die Aufgabe wird nur bestaetigt (kein Eingabefeld).
+        /// </summary>
+        public List<UserTaskField> FormFields { get; set; } = new List<UserTaskField>();
+
+        /// <summary>
+        /// Optionale Frist in Stunden ab dem Parken. Setzt <see cref="Instances.Token.DueUtc"/> - die
+        /// Aufgabenliste kann danach sortieren und Ueberfaelliges hervorheben. Der Ablauf laesst die
+        /// Aufgabe <b>nicht</b> automatisch weiterlaufen (dafuer gibt es den <see cref="TimerNode"/> in
+        /// einem parallelen Zweig). Null/0 = keine Frist.
+        /// </summary>
+        public double? DueInHours { get; set; }
+    }
+
+    /// <summary>
     /// Ein Wartepunkt, der bis zu einem berechneten Zeitpunkt wartet.
     /// </summary>
     public class TimerNode : WorkflowNode
@@ -233,12 +428,50 @@ namespace ITVComponents.Workflow.Model
     /// mit mehreren Eingaengen als Join (feuert erst, wenn auf jedem Eingang ein Token liegt).
     /// </summary>
     /// <remarks>
-    /// Modelltyp ab Phase 0 vorhanden; die Ausfuehrung (Split/Join-Synchronisierung) folgt in
-    /// Phase 2. Bis dahin lehnt die Engine das Betreten mit einer klaren Meldung ab.
+    /// Split/Join sind ausgefuehrt (<c>WorkflowEngine.ProcessParallelGateway</c> bzw.
+    /// <c>ResolveJoins</c>). Ob der Knoten als Split oder Join wirkt, entscheidet die ZAHL der
+    /// eingehenden Kanten (&lt;= 1 = Split, &gt; 1 = Join); zwei rein und zwei raus ist beides in einem.
+    /// <para>
+    /// <b>Zweig-Scopes:</b> Der Split gibt jedem Strang eine eigene Kopie des Variablen-Stacks
+    /// (<see cref="Instances.Token.Variables"/>) - parallele Zweige koennen einander also nicht mehr
+    /// ueberschreiben. Der Join fuehrt die Kopien wieder zusammen: standardmaessig fliessen alle
+    /// Aenderungen der Zweige nach oben; mit <see cref="Outputs"/> bestimmt der Join, WAS die parallele
+    /// Region als Ergebnis liefert.
+    /// </para>
     /// </remarks>
     public class ParallelGatewayNode : WorkflowNode
     {
         /// <inheritdoc/>
         public override NodeKind Kind => NodeKind.ParallelGateway;
+
+        /// <summary>
+        /// Als Join: das <b>Ergebnis</b> der parallelen Region.
+        /// <see cref="ActivityOutputBinding.Parameter"/> ist der Variablenname im zusammengefuehrten
+        /// Zweig-Stand, <see cref="ActivityOutputBinding.Variable"/> der Zielname im Scope, in dem es
+        /// weitergeht.
+        /// </summary>
+        /// <remarks>
+        /// Leer (Standard) = alles, was die Zweige geschrieben haben, fliesst nach oben - so verhalten
+        /// sich bestehende Definitionen unveraendert. Sind Bindungen deklariert, kommt GENAU das aus der
+        /// Region heraus: der Zwischenzustand der Zweige bleibt drin. Das ist zugleich die saubere Antwort
+        /// auf gleichnamige Schreibzugriffe in mehreren Zweigen - statt "irgendein Zweig gewinnt"
+        /// entscheidet das Mapping (z.B. <c>a_result</c> aus Zweig A und <c>b_result</c> aus Zweig B).
+        /// </remarks>
+        public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+
+        /// <summary>
+        /// Als Join: wie das Ergebnis in den umgebenden Scope einfliesst. Standard
+        /// <see cref="ActivityScopeMode.Extend"/> (additiv). <see cref="ActivityScopeMode.Replace"/>
+        /// macht den Join zur <b>Konsolidierung</b>: danach besteht der Scope genau aus
+        /// <see cref="Outputs"/> plus <see cref="RetainVariables"/>.
+        /// </summary>
+        public ActivityScopeMode ScopeMode { get; set; } = ActivityScopeMode.Extend;
+
+        /// <summary>
+        /// Bei <see cref="ActivityScopeMode.Replace"/>: Namen von Variablen des umgebenden Scopes, die
+        /// ueber die Konsolidierung hinaus erhalten bleiben. Bei <see cref="ActivityScopeMode.Extend"/>
+        /// ohne Wirkung.
+        /// </summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
     }
 }

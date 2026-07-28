@@ -28,6 +28,16 @@ namespace ITVComponents.Workflow.Model
         /// </summary>
         public string TenantId { get; set; }
 
+        /// <summary>
+        /// Gesetzt, wenn die Definition Validierungsfehler hat und deshalb NICHT gestartet werden darf. So
+        /// laesst sich eine fehlerhafte Definition speichern (Zwischenstand), ohne dass daraus versehentlich
+        /// eine Instanz entsteht, die sofort faultet. Der Editor setzt das Flag beim Speichern (Fehler =
+        /// true, sonst false; Warnungen setzen es NICHT); <see cref="Instances"/> bzw.
+        /// <c>WorkflowEngine.CreateInstance</c> verweigert bei true den Start mit einer klaren Meldung.
+        /// Bereits laufende Instanzen laufen weiter - das Flag sperrt nur den START.
+        /// </summary>
+        public bool DisabledForStart { get; set; }
+
         /// <summary>Die Knoten des Graphen.</summary>
         public List<WorkflowNode> Nodes { get; set; } = new List<WorkflowNode>();
 

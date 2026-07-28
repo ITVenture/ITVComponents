@@ -8,13 +8,15 @@
     kein Zwei-Wege-@bind, das unter Blazor Server je Tastendruck einen Server-Roundtrip ausloesen wuerde.
     Der Aufrufer kann den aktuellen Text jederzeit ueber GetValueAsync() abholen (z.B. beim Speichern).
 
-    Host-Voraussetzung (einmalig, nach dem Blazor-Skript in der Host-Seite):
-        <script src="_content/BlazorMonaco/jsInterop.js"></script>
-        <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
-        <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
+    Host-Voraussetzung: nur <ITVentureReferences /> in der statisch gerenderten Host-Seite. Die drei
+    BlazorMonaco-Skripte meldet das WebPart des Moduls selbst an (WebPartInit.RegisterServices) -
+    von Hand gesetzte <script>-Tags sind nicht noetig und koennen entfernt werden.
 *@
 
-<div style="border:1px solid var(--mud-palette-lines-inputs); border-radius:var(--mud-default-borderradius); overflow:hidden; height:@(Height)px;">
+@* Die Hoehe muss ueber die Klasse an das von Monaco erzeugte Kind-div durchgereicht werden
+   (CScriptField.razor.css) - eine Hoehe nur am aeusseren div laesst den Editor auf ~5px kollabieren. *@
+<div class="itv-cscript-host"
+     style="border:1px solid var(--mud-palette-lines-inputs); border-radius:var(--mud-default-borderradius); overflow:hidden; height:@(Height)px;">
     <StandaloneCodeEditor @ref="editor" ConstructionOptions="BuildOptions" OnDidBlurEditorText="OnBlur" />
 </div>
 
@@ -28,14 +30,19 @@
     /// <summary>Editorhoehe in px.</summary>
     [Parameter] public int Height { get; set; } = 90;
 
+    /// <summary>
+    /// Monaco-Sprache. Standard "javascript" (kommt CScript syntaktisch am naechsten). Fuer reine
+    /// Datenfelder, die JSON erwarten (z.B. Kultur-/Formatting-Records), kann "json" gesetzt werden.
+    /// </summary>
+    [Parameter] public string Language { get; set; } = "javascript";
+
     private StandaloneCodeEditor? editor;
 
-    // "javascript" kommt CScript syntaktisch am naechsten (Punkt-Zugriffe, Operatoren) - es gibt keine
-    // eigene Monaco-Sprache fuer CScript.
+    // Sprache siehe Parameter Language: "javascript" fuer CScript-Ausdruecke, "json" fuer Datenfelder.
     private StandaloneEditorConstructionOptions BuildOptions(StandaloneCodeEditor _)
         => new StandaloneEditorConstructionOptions
         {
-            Language = "javascript",
+            Language = Language,
             Value = Value ?? string.Empty,
             AutomaticLayout = true,
             Minimap = new EditorMinimapOptions { Enabled = false },

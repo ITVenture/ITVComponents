@@ -1,0 +1,14 @@
+/* Monaco's StandaloneCodeEditor renders a child div with auto height, which collapses to ~5px -
+   the outer div's height alone never reaches it. The host is a flex column so the editor child
+   fills it. Same rule as AdminViews' CodeEditor.razor.css; kept local because WorkflowViews does
+   not reference the AdminViews library. */
+.itv-cscript-host {
+    display: flex;
+    flex-direction: column;
+}
+
+.itv-cscript-host ::deep > div {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+}

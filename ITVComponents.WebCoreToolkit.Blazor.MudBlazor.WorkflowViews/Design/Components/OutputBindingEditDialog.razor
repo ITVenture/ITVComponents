@@ -1,0 +1,69 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Bearbeitet EINE Ausgabe-Bindung (Ergebnisname/Parameter -> Ziel-Variable) in einem eigenen Popup.
+    Der Dialog arbeitet auf der übergebenen Bindung und gibt sie über das Result zurück; bei
+    <see cref="Result.Delete"/> soll der Aufrufer sie entfernen. Von Automated-/User-/CallWorkflow-Editor
+    gemeinsam genutzt.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsNew ? "Add output" : "Edit output")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (ParameterOptions is { Count: > 0 })
+        {
+            <MudSelect T="string" Value="@Binding.Parameter" ValueChanged="@(v => Binding.Parameter = v)"
+                       Label="@SourceLabel" Dense="true" Margin="Margin.Dense">
+                @foreach (var p in ParameterOptions)
+                {
+                    <MudSelectItem T="string" Value="@p">@p</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        else
+        {
+            <MudTextField @bind-Value="Binding.Parameter" Label="@SourceLabel" Margin="Margin.Dense" />
+        }
+        <MudTextField @bind-Value="Binding.Variable" Label="@TargetLabel" Margin="Margin.Dense" Class="mt-2" />
+    </DialogContent>
+    <DialogActions>
+        @if (!IsNew)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
+                       OnClick="Delete">Delete</MudButton>
+        }
+        <MudSpacer />
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Done">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    /// <summary>Ergebnis des Dialogs: die (bearbeitete) Bindung und ob sie gelöscht werden soll.</summary>
+    public record Result(ActivityOutputBinding Binding, bool Delete);
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die zu bearbeitende Bindung (Add: frisch, Edit: Kopie des Originals).</summary>
+    [Parameter] public ActivityOutputBinding Binding { get; set; } = new();
+
+    /// <summary>true = neu anlegen (kein Löschen-Knopf, anderer Titel).</summary>
+    [Parameter] public bool IsNew { get; set; }
+
+    /// <summary>Beschriftung des Quellfeldes (Ergebnis-/Parametername).</summary>
+    [Parameter] public string SourceLabel { get; set; } = "Result / parameter";
+
+    /// <summary>Beschriftung des Zielfeldes (Variable).</summary>
+    [Parameter] public string TargetLabel { get; set; } = "Target variable";
+
+    /// <summary>Optionale Auswahlliste deklarierter Ausgabenamen (aus dem Activity-Katalog).</summary>
+    [Parameter] public IReadOnlyList<string>? ParameterOptions { get; set; }
+
+    private void Done() => MudDialog.Close(DialogResult.Ok(new Result(Binding, false)));
+
+    private void Delete() => MudDialog.Close(DialogResult.Ok(new Result(Binding, true)));
+
+    private void Cancel() => MudDialog.Cancel();
+}
