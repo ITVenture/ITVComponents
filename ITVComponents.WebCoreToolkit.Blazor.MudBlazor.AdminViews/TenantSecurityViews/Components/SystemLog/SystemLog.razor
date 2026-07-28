@@ -95,7 +95,7 @@ else
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="SystemEventViewModel" ButtonDisabledFunc="@(item => string.IsNullOrEmpty(item.Message))" HeaderStyle="width:48px" />
-            <TemplateColumn T="SystemEventViewModel" Title="Level" Sortable="false" HeaderStyle="width:104px">
+            <TemplateColumn T="SystemEventViewModel" Title="Level" Sortable="false" HeaderStyle="width:140px" CellStyle="white-space:nowrap;">
                 <CellTemplate>
                     <MudChip T="string" Size="Size.Small" Color="@LevelColor(context.Item.LogLevel)">@context.Item.LogLevel</MudChip>
                 </CellTemplate>

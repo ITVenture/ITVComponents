@@ -112,8 +112,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             if (!eligible.Any(s => string.Equals(s.ScopeName, firstSegment, StringComparison.Ordinal)))
             {
                 // Same response whether the tenant doesn't exist or the user just isn't eligible — no
-                // information leak about which tenants exist.
-                logger.LogInformation("TenantPathPrefix: segment '{Segment}' not in user's eligible scopes; responding 404 for {Path}", firstSegment, path);
+                // information leak about which tenants exist. The *log* may say more, though: see below.
+                LogRejectedSegment(context, path, firstSegment, eligible);
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
                 return;
             }
@@ -156,6 +156,37 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 .GroupBy(s => s.ScopeName, StringComparer.Ordinal)
                 .Select(g => g.First())
                 .ToArray();
+        }
+
+        /// <summary>
+        /// Explains the 404 in the log. Two cases have to be told apart, because they cost very different
+        /// amounts of time to diagnose: a genuinely foreign/mistyped tenant segment (expected, Information),
+        /// and a request that came <em>from a page inside one of the user's own tenants</em> — that one is
+        /// almost always a root-absolute link emitted by a component, which the browser resolves outside the
+        /// base-URI space and therefore never routes through the circuit, so <see cref="TenantUrlGuard"/>
+        /// cannot rewrite it. The response is identical in both cases (no information leak); only the log
+        /// entry differs, and it names the probable cause so the next occurrence is a one-line diagnosis
+        /// instead of a hunt through the host wiring.
+        /// </summary>
+        private void LogRejectedSegment(HttpContext context, string path, string firstSegment, ScopeInfo[] eligible)
+        {
+            var referer = context.Request.Headers["Referer"].ToString();
+            if (!string.IsNullOrEmpty(referer)
+                && Uri.TryCreate(referer, UriKind.Absolute, out var refererUri)
+                && string.Equals(refererUri.Host, context.Request.Host.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                var refererSegment = ExtractFirstSegment(refererUri.AbsolutePath);
+                if (!string.IsNullOrEmpty(refererSegment)
+                    && eligible.Any(s => string.Equals(s.ScopeName, refererSegment, StringComparison.Ordinal)))
+                {
+                    logger.LogWarning(
+                        "TenantPathPrefix: responding 404 for {Path} — first segment '{Segment}' is not one of the user's eligible scopes, but the referring page ({Referer}) was inside the eligible tenant '{RefererScope}'. This is almost always a root-absolute link or navigation emitted by a component: it resolves outside the base-URI space, the browser therefore leaves the Blazor circuit and TenantUrlGuard never sees it. Emit view targets relative (without a leading slash).",
+                        path, firstSegment, referer, refererSegment);
+                    return;
+                }
+            }
+
+            logger.LogInformation("TenantPathPrefix: segment '{Segment}' not in user's eligible scopes; responding 404 for {Path}", firstSegment, path);
         }
 
         private static string ExtractFirstSegment(string path)

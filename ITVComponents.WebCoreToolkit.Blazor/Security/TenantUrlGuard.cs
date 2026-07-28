@@ -29,6 +29,26 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
     /// Place a single <c>&lt;TenantUrlGuard /&gt;</c> near the application root (next to
     /// <see cref="ContextUserInitializer"/>).
     /// </para>
+    /// <para>
+    /// <b>Reach — and where it structurally ends.</b> The guard hooks
+    /// <c>RegisterLocationChangingHandler</c>, so it only ever sees navigations that stay <em>inside the
+    /// circuit</em>: every programmatic <c>NavigateTo</c> (including <c>forceLoad</c>, the handlers run
+    /// before the JS interop), and those anchor clicks that Blazor's JS intercepts — which it does only for
+    /// targets <em>within the base-URI space</em>. A root-absolute <c>&lt;a href="/Foo"&gt;</c> under
+    /// <c>&lt;base href="/{tenant}/"&gt;</c> resolves outside that space, so the browser performs an ordinary
+    /// document load: the click never reaches the circuit, the old circuit is already gone when the request
+    /// arrives, and <b>no code in this component can rewrite it</b> — the request reaches
+    /// <see cref="TenantPathPrefixMiddleware"/> with a first segment that is not an eligible scope and yields
+    /// a 404. The same holds for form posts and <c>window.location</c> assignments. Do not read the guard as
+    /// a safety net against those; when such a 404 shows up, the defect is in the emitted link, not in the
+    /// host wiring.
+    /// </para>
+    /// <para>
+    /// <b>Rule for view packages:</b> emit navigation targets <em>relative</em> (no leading slash) so they
+    /// resolve against the base href — that works in both modes and at any URL depth, because the base href
+    /// always ends in a slash. A leading slash is only correct for deliberately tenant-neutral paths, i.e.
+    /// those covered by <see cref="ScopedPermissionScopeOptions.AuthPathExclusions"/>.
+    /// </para>
     /// </summary>
     public sealed class TenantUrlGuard : ComponentBase, IDisposable
     {
