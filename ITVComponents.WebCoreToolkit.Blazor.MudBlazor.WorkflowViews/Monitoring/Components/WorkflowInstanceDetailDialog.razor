@@ -124,6 +124,9 @@
 
     [Parameter] public string InstanceId { get; set; } = "";
 
+    /// <summary>Die Workflow-Umgebung (Store) dieser Instanz; null = Standard.</summary>
+    [Parameter] public string? Environment { get; set; }
+
     private WorkflowInstance? instance;
     private ITVComponents.Workflow.Model.WorkflowDefinition? definition;
     private string[] activeNodeIds = Array.Empty<string>();
@@ -152,7 +155,7 @@
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        instance = await Handler.GetInstanceAsync(currentUser, InstanceId);
+        instance = await Handler.GetInstanceAsync(currentUser, InstanceId, Environment);
         if (instance is not null)
         {
             // Aktuelle Token-Positionen: alles, was nicht bereits verbraucht ist, wird im Graphen
@@ -162,7 +165,7 @@
                 .Select(t => t.NodeId!)
                 .Distinct()
                 .ToArray();
-            definition = await Handler.GetDefinitionAsync(currentUser, instance.DefinitionId, instance.DefinitionVersion);
+            definition = await Handler.GetDefinitionAsync(currentUser, instance.DefinitionId, instance.DefinitionVersion, Environment);
         }
     }
 
@@ -173,7 +176,7 @@
             return;
         }
 
-        var ok = await Handler.SignalAsync(currentUser, InstanceId, signalName!);
+        var ok = await Handler.SignalAsync(currentUser, InstanceId, signalName!, Environment);
         if (ok)
         {
             Snackbar.Add("Signal delivered", Severity.Success);
@@ -192,7 +195,7 @@
             return;
         }
 
-        var ok = await Handler.CancelAsync(currentUser, InstanceId);
+        var ok = await Handler.CancelAsync(currentUser, InstanceId, Environment);
         if (ok)
         {
             Snackbar.Add("Workflow cancelled", Severity.Success);

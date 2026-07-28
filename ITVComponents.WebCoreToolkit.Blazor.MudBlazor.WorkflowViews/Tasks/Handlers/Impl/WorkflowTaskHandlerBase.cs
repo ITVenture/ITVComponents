@@ -42,14 +42,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
         /// <inheritdoc/>
         public async Task<PagedResult<UserTaskListItem>> ListTasksAsync(ClaimsPrincipal user,
-            UserTaskListQuery query)
+            UserTaskListQuery query, string? environment = null)
         {
             if (!HasPermission(user, WorkflowSecurity.Tasks))
             {
                 return new PagedResult<UserTaskListItem>();
             }
 
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
 
             IQueryable<TokenRow> tokens = OpenTasks(ctx);
@@ -115,14 +115,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         }
 
         /// <inheritdoc/>
-        public async Task<IReadOnlyList<string>> ListTaskKeysAsync(ClaimsPrincipal user)
+        public async Task<IReadOnlyList<string>> ListTaskKeysAsync(ClaimsPrincipal user, string? environment = null)
         {
             if (!HasPermission(user, WorkflowSecurity.Tasks))
             {
                 return Array.Empty<string>();
             }
 
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             IQueryable<TokenRow> tokens = OpenTasks(op.LeaseContext());
             IReadOnlyCollection<string> allowed = await AllowedPermissionsAsync(tokens);
             return await RestrictToVisible(tokens, allowed)
@@ -134,28 +134,28 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
         /// <inheritdoc/>
         public async Task<UserTaskDescriptor?> GetTaskAsync(ClaimsPrincipal user, string instanceId,
-            string tokenId)
+            string tokenId, string? environment = null)
         {
-            if (!await MayWorkOnAsync(user, instanceId, tokenId))
+            if (!await MayWorkOnAsync(user, instanceId, tokenId, environment))
             {
                 return null;
             }
 
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             return op.Engine.DescribeUserTask(instanceId, tokenId);
         }
 
         /// <inheritdoc/>
         public async Task<string?> ClaimAsync(ClaimsPrincipal user, string instanceId, string tokenId,
-            TimeSpan duration)
+            TimeSpan duration, string? environment = null)
         {
-            if (!await MayWorkOnAsync(user, instanceId, tokenId))
+            if (!await MayWorkOnAsync(user, instanceId, tokenId, environment))
             {
                 return null;
             }
 
             string? me = UserName(user);
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
             TokenRow? row = await ctx.Tokens
                 .FirstOrDefaultAsync(t => t.InstanceId == instanceId && t.TokenId == tokenId);
@@ -180,7 +180,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         }
 
         /// <inheritdoc/>
-        public async Task ReleaseClaimAsync(ClaimsPrincipal user, string instanceId, string tokenId)
+        public async Task ReleaseClaimAsync(ClaimsPrincipal user, string instanceId, string tokenId,
+            string? environment = null)
         {
             if (!HasPermission(user, WorkflowSecurity.Tasks))
             {
@@ -188,7 +189,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             }
 
             string? me = UserName(user);
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
             TokenRow? row = await ctx.Tokens
                 .FirstOrDefaultAsync(t => t.InstanceId == instanceId && t.TokenId == tokenId);
@@ -209,9 +210,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
         /// <inheritdoc/>
         public async Task<UserTaskCompletionResult> CompleteAsync(ClaimsPrincipal user, string instanceId,
-            string tokenId, IDictionary<string, object>? result)
+            string tokenId, IDictionary<string, object>? result, string? environment = null)
         {
-            if (!await MayWorkOnAsync(user, instanceId, tokenId))
+            if (!await MayWorkOnAsync(user, instanceId, tokenId, environment))
             {
                 // Kein Recht auf GENAU diese Aufgabe - fuer den Aufrufer nicht von "gibt es nicht"
                 // unterscheidbar (und das ist beabsichtigt), im Log aber sehr wohl.
@@ -221,7 +222,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                 return new UserTaskCompletionResult(UserTaskCompletionStatus.NotFound, Array.Empty<string>());
             }
 
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             UserTaskCompletionResult completion = op.Engine.CompleteUserTask(instanceId, tokenId, result,
                 UserName(user));
             if (completion.Success)
@@ -239,9 +240,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         protected abstract Task AdvanceAsync(WorkflowOperation op, string instanceId,
             IReadOnlyList<string> tokenIds);
 
-        /// <summary>Oeffnet eine neue Operation (frischer Kontext, Engine ueber die Host-Factory).</summary>
-        protected WorkflowOperation BeginOperation()
-            => new WorkflowOperation(freshContext, services.GetService<WorkflowEngineFactory>());
+        /// <summary>
+        /// Oeffnet eine neue Operation (frischer Kontext, Engine ueber die Host-Factory). Der Store richtet
+        /// sich nach der (optional) gewaehlten Umgebung; ohne Umgebung/Settings der Standard-Store.
+        /// </summary>
+        protected WorkflowOperation BeginOperation(string? environment = null)
+            => new WorkflowOperation(freshContext, services.GetService<WorkflowEngineFactory>(),
+                WorkflowEnvironmentResolver.StoreDependencyName(services, environment));
 
         /// <summary>
         /// Alle offenen Aufgaben des aktuellen Tenants. Der Tenant wird <b>explizit</b> gefiltert und nicht
@@ -291,14 +296,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         /// Existenz der offenen Aufgabe im eigenen Tenant und die Permission des Knotens. Ohne diese
         /// Pruefung genuegte das Erraten einer Token-Id.
         /// </summary>
-        private async Task<bool> MayWorkOnAsync(ClaimsPrincipal user, string instanceId, string tokenId)
+        private async Task<bool> MayWorkOnAsync(ClaimsPrincipal user, string instanceId, string tokenId,
+            string? environment = null)
         {
             if (!HasPermission(user, WorkflowSecurity.Tasks))
             {
                 return false;
             }
 
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             var found = await OpenTasks(op.LeaseContext())
                 .Where(t => t.InstanceId == instanceId && t.TokenId == tokenId)
                 .Select(t => new { t.TaskPermission })

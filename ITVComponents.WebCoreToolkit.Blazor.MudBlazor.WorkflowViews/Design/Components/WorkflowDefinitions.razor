@@ -1,4 +1,5 @@
 @page "/Workflow/Definitions"
+@page "/Workflow/env/{Environment}/Definitions"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -29,7 +30,19 @@
                     <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="Refresh" OnClick="ReloadGrid" />
                     <MudText Typo="Typo.h6">Definitions</MudText>
                     <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary"
-                               Class="ml-2" Href="Workflow/Editor/new">New</MudButton>
+                               Class="ml-2" Href="@($"{EnvPrefix}/Editor/new")">New</MudButton>
+                    @* Umgebungs-Auswahl - nur, wenn die Umgebung NICHT schon aus dem Nav-Segment feststeht. *@
+                    @if (Environment is null)
+                    {
+                        <div class="ml-3">
+                            <WorkflowEnvironmentPicker Value="@pickedEnvironment" ValueChanged="OnEnvChanged"
+                                                       Required="Designer" />
+                        </div>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Icon="@Icons.Material.Filled.Dns" Size="Size.Small" Class="ml-3">@Environment</MudChip>
+                    }
                     <MudSpacer />
                     <MudTextField @bind-Value="search"
                                   Placeholder="Search id…"
@@ -68,9 +81,21 @@
 </SecureView>
 
 @code {
+    /// <summary>Die (optional) über das Nav-Segment fest vorgegebene Umgebung. Null = Auswahl über den Picker.</summary>
+    [Parameter] public string? Environment { get; set; }
+
     private MudDataGrid<WorkflowDefinitionListItem>? grid;
     private ClaimsPrincipal? currentUser;
     private string? search;
+    private string? pickedEnvironment;
+
+    /// <summary>Die wirksame Umgebung: das Nav-Segment gewinnt, sonst die Picker-Auswahl.</summary>
+    private string? Env => Environment ?? pickedEnvironment;
+
+    /// <summary>URL-Präfix für Navigationsziele - env-scoped, wenn eine Umgebung wirksam ist.</summary>
+    private string EnvPrefix => string.IsNullOrEmpty(Env)
+        ? "Workflow"
+        : $"Workflow/env/{Uri.EscapeDataString(Env!)}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -96,7 +121,7 @@
             Search = search
         };
 
-        var result = await Handler.ListDefinitionsAsync(currentUser, query);
+        var result = await Handler.ListDefinitionsAsync(currentUser, query, Env);
         return new GridData<WorkflowDefinitionListItem> { Items = result.Items, TotalItems = result.TotalCount };
     }
 
@@ -108,16 +133,23 @@
         }
     }
 
+    /// <summary>Umgebung im Picker gewechselt (nur ohne Nav-Segment) - die Liste neu laden.</summary>
+    private async Task OnEnvChanged(string? environment)
+    {
+        pickedEnvironment = environment;
+        await ReloadGrid();
+    }
+
     // Ziele bewusst RELATIV (ohne fuehrenden Slash): NavigateTo loest sie gegen die Basis-URI
     // (<base href="/{tenant}/">) auf und bleibt damit im Tenant. Ein fuehrender Slash zielt auf den
     // Root und laeuft in einen 404, weil die Toolkit-Routen tenant-gebunden sind.
     private void OpenGraph(WorkflowDefinitionListItem item)
     {
-        Nav.NavigateTo($"Workflow/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}");
+        Nav.NavigateTo($"{EnvPrefix}/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}");
     }
 
     private void OpenEditor(WorkflowDefinitionListItem item)
     {
-        Nav.NavigateTo($"Workflow/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}/edit");
+        Nav.NavigateTo($"{EnvPrefix}/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}/edit");
     }
 }

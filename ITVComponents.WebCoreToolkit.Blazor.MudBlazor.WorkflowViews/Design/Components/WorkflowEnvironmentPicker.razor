@@ -1,0 +1,72 @@
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options
+@using ITVComponents.WebCoreToolkit.Configuration
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+
+@*
+    Umgebungs-Auswahl fuer die Top-Views. Liest die konfigurierten Workflow-Umgebungen aus
+    WorkflowEnvironmentSettings (via IHierarchySettings) und laesst - gefiltert nach der jeweiligen View
+    (Filter, z.B. e => e.UseDesigner) - eine waehlen. Sind KEINE Umgebungen konfiguriert, rendert die
+    Komponente nichts (Ein-Umgebungs-Betrieb, bisheriges Verhalten). Ist noch keine gewaehlt, wird die
+    erste vorgewaehlt, damit die View sofort einen konkreten Store bedient.
+*@
+
+@if (environments.Count > 0)
+{
+    <MudSelect T="string" Value="@Value" ValueChanged="OnChanged" Label="Environment" Dense="true"
+               Margin="Margin.Dense" Style="min-width:200px; max-width:280px"
+               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Dns">
+        @foreach (var env in environments)
+        {
+            <MudSelectItem T="string" Value="@env.Name">
+                @(string.IsNullOrWhiteSpace(env.DisplayName) ? env.Name : env.DisplayName)
+            </MudSelectItem>
+        }
+    </MudSelect>
+}
+
+@code {
+    /// <summary>Der aktuell gewaehlte Umgebungs-Name.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    /// <summary>Wird beim Wechsel der Umgebung gerufen (auch bei der Vorauswahl beim ersten Rendern).</summary>
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    /// <summary>
+    /// Optionaler Flag-Filter: nur Umgebungen anzeigen, die diese Ansicht anbieten. Zulaessig:
+    /// <c>"Designer"</c>, <c>"Admin"</c>, <c>"Forms"</c>, <c>"Worker"</c> (bewusst ein String statt eines
+    /// Delegaten - so braucht der Aufrufer keinen Typ und kein Lambda). Leer/unbekannt = alle Umgebungen.
+    /// </summary>
+    [Parameter] public string? Required { get; set; }
+
+    private List<WorkflowEnvironment> environments = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        WorkflowEnvironmentSettings? settings =
+            Services.GetService<IHierarchySettings<WorkflowEnvironmentSettings>>()?.ValueOrDefault;
+
+        environments = (settings?.Environments ?? new List<WorkflowEnvironment>())
+            .Where(e => !string.IsNullOrWhiteSpace(e.Name) && MatchesRequired(e))
+            .ToList();
+
+        // Ohne Vorauswahl gleich die erste Umgebung setzen - so bedient die View sofort einen konkreten
+        // Store statt (mangels Umgebung) leer zu bleiben. Der Nutzer kann danach jederzeit umschalten.
+        if (string.IsNullOrEmpty(Value) && environments.Count > 0)
+        {
+            await ValueChanged.InvokeAsync(environments[0].Name);
+        }
+    }
+
+    private Task OnChanged(string? value) => ValueChanged.InvokeAsync(value);
+
+    /// <summary>Ob die Umgebung das per <see cref="Required"/> verlangte Flag setzt (leer/unbekannt = ja).</summary>
+    private bool MatchesRequired(WorkflowEnvironment e) => Required switch
+    {
+        "Designer" => e.UseDesigner,
+        "Admin" => e.UseAdmin,
+        "Forms" => e.UseForms,
+        "Worker" => e.UseWorker,
+        _ => true
+    };
+}

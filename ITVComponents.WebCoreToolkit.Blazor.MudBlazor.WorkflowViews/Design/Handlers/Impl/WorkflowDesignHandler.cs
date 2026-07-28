@@ -35,8 +35,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
             this.freshContext = freshContext;
         }
 
-        // Design-Operationen brauchen keine Engine -> keine Engine-Factory.
-        private WorkflowOperation BeginOperation() => new WorkflowOperation(freshContext);
+        // Design-Operationen brauchen keine Engine -> keine Engine-Factory. Der Store richtet sich nach der
+        // (optional) gewaehlten Umgebung: deren WorkflowStorePluginName benennt die zu leasende
+        // WorkflowContext-Dependency; ohne Umgebung/Settings bleibt es der Standard-Store.
+        private WorkflowOperation BeginOperation(string? environment)
+            => new WorkflowOperation(freshContext,
+                storeDependencyName: WorkflowEnvironmentResolver.StoreDependencyName(services, environment));
 
         /// <inheritdoc/>
         public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -45,9 +49,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         }
 
         /// <inheritdoc/>
-        public async Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, ListQuery query)
+        public async Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, ListQuery query,
+            string? environment = null)
         {
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
             IQueryable<WorkflowDefinitionRow> q = ctx.WorkflowDefinitions.AsNoTracking();
 
@@ -67,14 +72,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         }
 
         /// <inheritdoc/>
-        public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int? version)
+        public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int? version,
+            string? environment = null)
         {
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             return Task.FromResult<WorkflowDefinition?>(op.Store.GetDefinition(definitionId, version));
         }
 
         /// <inheritdoc/>
-        public Task<bool> SaveDefinitionAsync(ClaimsPrincipal user, WorkflowDefinition definition)
+        public Task<bool> SaveDefinitionAsync(ClaimsPrincipal user, WorkflowDefinition definition,
+            string? environment = null)
         {
             if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Design }))
             {
@@ -93,7 +100,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
 
             try
             {
-                using WorkflowOperation op = BeginOperation();
+                using WorkflowOperation op = BeginOperation(environment);
                 op.Store.SaveDefinition(definition);
                 return Task.FromResult(true);
             }

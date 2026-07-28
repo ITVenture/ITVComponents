@@ -1,4 +1,5 @@
 @page "/Workflow/Instances"
+@page "/Workflow/env/{Environment}/Instances"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -28,6 +29,17 @@
                 <ToolBarContent>
                     <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="Refresh" OnClick="ReloadGrid" />
                     <MudText Typo="Typo.h6">Instances</MudText>
+                    @if (Environment is null)
+                    {
+                        <div class="ml-3">
+                            <WorkflowEnvironmentPicker Value="@pickedEnvironment" ValueChanged="OnEnvChanged"
+                                                       Required="Admin" />
+                        </div>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Icon="@Icons.Material.Filled.Dns" Size="Size.Small" Class="ml-3">@Environment</MudChip>
+                    }
                     <MudSpacer />
                     <MudSelect T="int?" @bind-Value="statusFilter" Label="Status" Clearable="true" Dense="true"
                                Style="max-width:170px" Margin="Margin.Dense" OnClearButtonClick="ReloadGrid">
@@ -69,10 +81,17 @@
 </SecureView>
 
 @code {
+    /// <summary>Die (optional) über das Nav-Segment vorgegebene Umgebung; null = Auswahl über den Picker.</summary>
+    [Parameter] public string? Environment { get; set; }
+
     private MudDataGrid<WorkflowInstanceListItem>? grid;
     private ClaimsPrincipal? currentUser;
     private string? search;
     private int? statusFilter;
+    private string? pickedEnvironment;
+
+    /// <summary>Die wirksame Umgebung: das Nav-Segment gewinnt, sonst die Picker-Auswahl.</summary>
+    private string? Env => Environment ?? pickedEnvironment;
 
     protected override async Task OnInitializedAsync()
     {
@@ -99,7 +118,7 @@
             Status = statusFilter
         };
 
-        var result = await Handler.ListInstancesAsync(currentUser, query);
+        var result = await Handler.ListInstancesAsync(currentUser, query, Env);
         return new GridData<WorkflowInstanceListItem> { Items = result.Items, TotalItems = result.TotalCount };
     }
 
@@ -111,9 +130,20 @@
         }
     }
 
+    /// <summary>Umgebung im Picker gewechselt (nur ohne Nav-Segment) - die Liste neu laden.</summary>
+    private async Task OnEnvChanged(string? environment)
+    {
+        pickedEnvironment = environment;
+        await ReloadGrid();
+    }
+
     private async Task OpenDetail(WorkflowInstanceListItem item)
     {
-        var parameters = new DialogParameters<WorkflowInstanceDetailDialog> { { d => d.InstanceId, item.Id } };
+        var parameters = new DialogParameters<WorkflowInstanceDetailDialog>
+        {
+            { d => d.InstanceId, item.Id },
+            { d => d.Environment, Env }
+        };
         var dlg = await DialogService.ShowAsync<WorkflowInstanceDetailDialog>(
             $"Instance {item.Id}", parameters, EditDialogDefaults.Detail);
         var result = await dlg.Result;

@@ -70,6 +70,9 @@
     /// <summary>Das wartende Token - die Aufgabe selbst.</summary>
     [Parameter] public string TokenId { get; set; } = "";
 
+    /// <summary>Die Workflow-Umgebung (Store) dieser Aufgabe; null = Standard.</summary>
+    [Parameter] public string? Environment { get; set; }
+
     /// <summary>Wie lange die weiche Sperre gilt, wenn niemand sie erneuert.</summary>
     private static readonly TimeSpan ClaimDuration = TimeSpan.FromMinutes(15);
 
@@ -88,13 +91,13 @@
         AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
 
-        UserTaskDescriptor? descriptor = await Handler.GetTaskAsync(currentUser, InstanceId, TokenId);
+        UserTaskDescriptor? descriptor = await Handler.GetTaskAsync(currentUser, InstanceId, TokenId, Environment);
         if (descriptor is not null)
         {
             customView = ResolveView(descriptor);
             taskContext = new WorkflowTaskContext(descriptor, CompleteAsync, Translate);
 
-            string? foreignOwner = await Handler.ClaimAsync(currentUser, InstanceId, TokenId, ClaimDuration);
+            string? foreignOwner = await Handler.ClaimAsync(currentUser, InstanceId, TokenId, ClaimDuration, Environment);
             claimed = true;
             if (!string.IsNullOrEmpty(foreignOwner))
             {
@@ -161,7 +164,7 @@
         try
         {
             UserTaskCompletionResult completion =
-                await Handler.CompleteAsync(currentUser!, InstanceId, TokenId, result);
+                await Handler.CompleteAsync(currentUser!, InstanceId, TokenId, result, Environment);
             switch (completion.Status)
             {
                 case UserTaskCompletionStatus.Completed:
@@ -218,7 +221,7 @@
         claimed = false;
         try
         {
-            await Handler.ReleaseClaimAsync(currentUser, InstanceId, TokenId);
+            await Handler.ReleaseClaimAsync(currentUser, InstanceId, TokenId, Environment);
         }
         catch (Exception ex)
         {

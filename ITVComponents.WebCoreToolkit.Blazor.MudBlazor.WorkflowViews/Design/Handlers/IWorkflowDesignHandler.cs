@@ -15,20 +15,28 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         /// <summary>Prueft, ob der aktuelle Benutzer eine der Berechtigungen hat.</summary>
         bool HasPermission(ClaimsPrincipal user, params string[] permissions);
 
-        /// <summary>Liefert eine Seite der Definition-Uebersicht (je Zeile eine Id+Version).</summary>
-        Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, ListQuery query);
+        /// <summary>
+        /// Liefert eine Seite der Definition-Uebersicht (je Zeile eine Id+Version). <paramref name="environment"/>
+        /// waehlt - falls konfiguriert - die Workflow-Umgebung (Store); null = die Standard-Umgebung.
+        /// </summary>
+        Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, ListQuery query,
+            string? environment = null);
 
         /// <summary>
         /// Laedt eine Definition. Ist <paramref name="version"/> null, wird die hoechste Version
-        /// geliefert. Liefert null, wenn nichts gefunden wird.
+        /// geliefert. Liefert null, wenn nichts gefunden wird. <paramref name="environment"/> waehlt die
+        /// Umgebung (null = Standard).
         /// </summary>
-        Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int? version);
+        Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int? version,
+            string? environment = null);
 
         /// <summary>
         /// Speichert eine Definition (Upsert nach Id+Version). Liefert false ohne
         /// <c>Workflow.Design</c>-Berechtigung, bei ungueltiger Eingabe oder wenn das Speichern
-        /// fehlschlaegt (der Grund wird protokolliert).
+        /// fehlschlaegt (der Grund wird protokolliert). <paramref name="environment"/> waehlt die Umgebung
+        /// (null = Standard).
         /// </summary>
-        Task<bool> SaveDefinitionAsync(ClaimsPrincipal user, WorkflowDefinition definition);
+        Task<bool> SaveDefinitionAsync(ClaimsPrincipal user, WorkflowDefinition definition,
+            string? environment = null);
     }
 }

@@ -1,5 +1,7 @@
 @page "/Workflow/Editor/new"
+@page "/Workflow/env/{Environment}/Editor/new"
 @page "/Workflow/Definitions/{DefinitionId}/{Version:int}/edit"
+@page "/Workflow/env/{Environment}/Definitions/{DefinitionId}/{Version:int}/edit"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using System.Globalization
@@ -172,6 +174,14 @@
 
     [Parameter] public int Version { get; set; }
 
+    /// <summary>Die (optional) über das Nav-Segment vorgegebene Umgebung; null = Standard.</summary>
+    [Parameter] public string? Environment { get; set; }
+
+    /// <summary>URL-Präfix für Navigationsziele - env-scoped, wenn eine Umgebung wirksam ist.</summary>
+    private string EnvPrefix => string.IsNullOrEmpty(Environment)
+        ? "Workflow"
+        : $"Workflow/env/{Uri.EscapeDataString(Environment!)}";
+
     private WorkflowDefinition? def;
     private bool loaded;
     private bool isNew;
@@ -239,7 +249,7 @@
         }
         else
         {
-            def = await Handler.GetDefinitionAsync(auth.User, DefinitionId!, Version);
+            def = await Handler.GetDefinitionAsync(auth.User, DefinitionId!, Version, Environment);
             if (def is not null)
             {
                 EnsureDiagram(def);
@@ -256,7 +266,7 @@
         try
         {
             var list = await Handler.ListDefinitionsAsync(auth.User,
-                new ListQuery { Page = 0, PageSize = 500 });
+                new ListQuery { Page = 0, PageSize = 500 }, Environment);
             subDefinitionIds = list.Items.Select(i => i.Id).Distinct().OrderBy(x => x).ToList();
         }
         catch (Exception ex)
@@ -728,11 +738,11 @@
         var auth = await AuthState.GetAuthenticationStateAsync();
         if (asNewVersion)
         {
-            WorkflowDefinition? latest = await Handler.GetDefinitionAsync(auth.User, def.Id, null);
+            WorkflowDefinition? latest = await Handler.GetDefinitionAsync(auth.User, def.Id, null, Environment);
             def.Version = (latest?.Version ?? def.Version) + 1;
         }
 
-        bool ok = await Handler.SaveDefinitionAsync(auth.User, def);
+        bool ok = await Handler.SaveDefinitionAsync(auth.User, def, Environment);
         if (ok)
         {
             if (hasErrors)
@@ -754,7 +764,7 @@
 
             // Relativ (ohne fuehrenden Slash) - loest gegen <base href="/{tenant}/"> auf; ein
             // fuehrender Slash verliesse den Tenant und ergaebe 404.
-            Nav.NavigateTo($"Workflow/Definitions/{Uri.EscapeDataString(def.Id)}/{def.Version}/edit");
+            Nav.NavigateTo($"{EnvPrefix}/Definitions/{Uri.EscapeDataString(def.Id)}/{def.Version}/edit");
         }
         else
         {
@@ -764,7 +774,7 @@
 
     private void Back()
     {
-        Nav.NavigateTo("Workflow/Definitions");
+        Nav.NavigateTo($"{EnvPrefix}/Definitions");
     }
 
     // --- View (zoom / pan / fit) -------------------------------------------------------------

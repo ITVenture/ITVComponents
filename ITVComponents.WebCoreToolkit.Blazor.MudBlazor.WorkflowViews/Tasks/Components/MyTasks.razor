@@ -1,4 +1,5 @@
 @page "/Workflow/Tasks"
+@page "/Workflow/env/{Environment}/Tasks"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -36,6 +37,17 @@
                 <ToolBarContent>
                     <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="@L["Refresh"]" OnClick="ReloadGrid" />
                     <MudText Typo="Typo.h6">@L["GridTitle"]</MudText>
+                    @if (Environment is null)
+                    {
+                        <div class="ml-3">
+                            <WorkflowEnvironmentPicker Value="@pickedEnvironment" ValueChanged="OnEnvChanged"
+                                                       Required="Forms" />
+                        </div>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Icon="@Icons.Material.Filled.Dns" Size="Size.Small" Class="ml-3">@Environment</MudChip>
+                    }
                     <MudSpacer />
                     <MudSelect T="UserTaskScope" Value="scope" Label="@L["ScopeLabel"]" Dense="true"
                                Margin="Margin.Dense" Style="max-width:190px"
@@ -131,6 +143,9 @@
 </SecureView>
 
 @code {
+    /// <summary>Die (optional) über das Nav-Segment vorgegebene Umgebung; null = Auswahl über den Picker.</summary>
+    [Parameter] public string? Environment { get; set; }
+
     private MudDataGrid<UserTaskListItem>? grid;
     private ClaimsPrincipal? currentUser;
     private IReadOnlyList<string> taskKeys = Array.Empty<string>();
@@ -139,12 +154,24 @@
     private UserTaskScope scope = UserTaskScope.Mine;
     private bool overdueOnly;
     private bool deepLinkHandled;
+    private string? pickedEnvironment;
+
+    /// <summary>Die wirksame Umgebung: das Nav-Segment gewinnt, sonst die Picker-Auswahl.</summary>
+    private string? Env => Environment ?? pickedEnvironment;
 
     protected override async Task OnInitializedAsync()
     {
         AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        taskKeys = await Handler.ListTaskKeysAsync(currentUser);
+        taskKeys = await Handler.ListTaskKeysAsync(currentUser, Env);
+    }
+
+    /// <summary>Umgebung im Picker gewechselt (nur ohne Nav-Segment) - Aufgabenarten und Liste neu laden.</summary>
+    private async Task OnEnvChanged(string? environment)
+    {
+        pickedEnvironment = environment;
+        taskKeys = currentUser is null ? Array.Empty<string>() : await Handler.ListTaskKeysAsync(currentUser, Env);
+        await ReloadGrid();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -193,7 +220,7 @@
             OverdueOnly = overdueOnly
         };
 
-        PagedResult<UserTaskListItem> result = await Handler.ListTasksAsync(currentUser, query);
+        PagedResult<UserTaskListItem> result = await Handler.ListTasksAsync(currentUser, query, Env);
         return new GridData<UserTaskListItem> { Items = result.Items, TotalItems = result.TotalCount };
     }
 
@@ -229,7 +256,8 @@
         var parameters = new DialogParameters<UserTaskDialog>
         {
             { d => d.InstanceId, instanceId },
-            { d => d.TokenId, tokenId }
+            { d => d.TokenId, tokenId },
+            { d => d.Environment, Env }
         };
 
         IDialogReference dlg = await DialogService.ShowAsync<UserTaskDialog>(L["PageTitle"], parameters,

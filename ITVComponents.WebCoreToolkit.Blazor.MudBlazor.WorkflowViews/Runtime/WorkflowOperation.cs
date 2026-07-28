@@ -54,16 +54,25 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
 
         private readonly IFreshInjectablePlugin<WorkflowContext> freshContext;
         private readonly WorkflowEngineFactory? engineFactory;
+        private readonly string? storeDependencyName;
         private readonly List<IDisposable> leases = new();
         private EfWorkflowStore? store;
         private WorkflowEngine? engine;
         private bool disposed;
 
+        /// <summary>
+        /// Erzeugt eine Operation. <paramref name="storeDependencyName"/> waehlt - fuer den
+        /// Mehr-Umgebungen-Betrieb - den Namen der scope-owned <c>WorkflowContext</c>-Dependency, die
+        /// geleast wird (der Store-Plugin-Name der gewaehlten Umgebung). Null = der Standard-Name aus dem
+        /// <see cref="ScopedDependencyAttribute"/> des <c>WorkflowContext</c> - also die einzelne, per DI
+        /// registrierte Umgebung (bisheriges Verhalten).
+        /// </summary>
         public WorkflowOperation(IFreshInjectablePlugin<WorkflowContext> freshContext,
-            WorkflowEngineFactory? engineFactory = null)
+            WorkflowEngineFactory? engineFactory = null, string? storeDependencyName = null)
         {
             this.freshContext = freshContext ?? throw new ArgumentNullException(nameof(freshContext));
             this.engineFactory = engineFactory;
+            this.storeDependencyName = string.IsNullOrWhiteSpace(storeDependencyName) ? null : storeDependencyName;
         }
 
         /// <summary>
@@ -74,7 +83,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
         public WorkflowContext LeaseContext()
         {
             EnsureNotDisposed();
-            IPluginLease<WorkflowContext> lease = freshContext.Lease(ContextPluginName);
+            // Standard-Name (eine Umgebung) ODER der Store-Plugin-Name der gewaehlten Umgebung. Beide
+            // treffen eine per Namen registrierte scope-owned WorkflowContext-Dependency (scope[name,true]).
+            IPluginLease<WorkflowContext> lease = freshContext.Lease(storeDependencyName ?? ContextPluginName);
             leases.Add(lease);
             return lease.Value;
         }

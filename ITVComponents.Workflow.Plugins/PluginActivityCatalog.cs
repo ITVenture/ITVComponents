@@ -45,13 +45,7 @@ namespace ITVComponents.Workflow.Plugins
             var result = new List<ActivityTypeInfo>();
             foreach ((PluginConfigurationItem item, Type type) in Activities())
             {
-                WorkflowActivityAttribute meta = type.GetCustomAttribute<WorkflowActivityAttribute>(true);
-                result.Add(new ActivityTypeInfo
-                {
-                    ActivityRef = item.Name,
-                    DisplayName = string.IsNullOrWhiteSpace(meta?.DisplayName) ? item.Name : meta.DisplayName,
-                    Description = meta?.Description
-                });
+                result.Add(ActivityReflection.ToActivityTypeInfo(item.Name, type));
             }
 
             // Bewusst als Array (nicht List): ueber die InterProcessCommunication muss der Laufzeittyp
@@ -63,25 +57,14 @@ namespace ITVComponents.Workflow.Plugins
         /// <inheritdoc/>
         public IReadOnlyList<ActivityParameter> GetParameters(string activityRef)
         {
-            Type type = TypeFor(activityRef);
-            if (type == null)
-            {
-                return Array.Empty<ActivityParameter>();
-            }
-
-            return type.GetCustomAttributes<ActivityParameterAttribute>(true)
-                .Select(ToParameter)
-                .OrderBy(p => p.Order)
-                .ThenBy(p => p.Name, StringComparer.Ordinal)
-                .ToArray();
+            return ActivityReflection.GetParameters(TypeFor(activityRef));
         }
 
         /// <inheritdoc/>
         public IReadOnlyList<ActivityParameterValue> GetValidValues(string activityRef, string parameterName)
         {
             Type type = TypeFor(activityRef);
-            ActivityParameterAttribute attr = type?.GetCustomAttributes<ActivityParameterAttribute>(true)
-                .FirstOrDefault(a => a.Name == parameterName);
+            ActivityParameterAttribute attr = ActivityReflection.FindParameter(type, parameterName);
             if (attr == null)
             {
                 return Array.Empty<ActivityParameterValue>();
@@ -90,7 +73,7 @@ namespace ITVComponents.Workflow.Plugins
             if (attr.Kind != ActivityParameterKind.CallbackList)
             {
                 // Statische Picklist (oder nichts).
-                return StaticValues(attr);
+                return ActivityReflection.StaticValues(attr);
             }
 
             // Der Provider wird ueber seinen UniqueName aufgeloest (DynamicLoader -> konfigurierter
@@ -172,41 +155,6 @@ namespace ITVComponents.Workflow.Plugins
                     }
                 }
             }
-        }
-
-        private static ActivityParameter ToParameter(ActivityParameterAttribute a)
-        {
-            return new ActivityParameter
-            {
-                Name = a.Name,
-                Kind = a.Kind,
-                Direction = a.Direction,
-                Required = a.Required,
-                Default = a.Default,
-                Description = a.Description,
-                Group = a.Group,
-                Order = a.Order,
-                // CallbackList-Werte kommen lazy ueber GetValidValues; statische nur bei Picklist inline.
-                Values = a.Kind == ActivityParameterKind.Picklist ? StaticValues(a) : Array.Empty<ActivityParameterValue>()
-            };
-        }
-
-        private static ActivityParameterValue[] StaticValues(ActivityParameterAttribute a)
-        {
-            var result = new List<ActivityParameterValue>();
-            if (a.Values != null)
-            {
-                for (int i = 0; i < a.Values.Length; i++)
-                {
-                    result.Add(new ActivityParameterValue
-                    {
-                        Value = a.Values[i],
-                        Label = a.Labels != null && i < a.Labels.Length ? a.Labels[i] : a.Values[i]
-                    });
-                }
-            }
-
-            return result.ToArray();
         }
 
         /// <summary>

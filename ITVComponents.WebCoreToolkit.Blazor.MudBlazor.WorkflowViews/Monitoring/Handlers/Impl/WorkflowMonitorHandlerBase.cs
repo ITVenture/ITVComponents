@@ -45,8 +45,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// Oeffnet eine neue Operation. Die Engine-Factory wird optional aufgeloest - fehlt sie, wirft
         /// erst ein tatsaechlicher Engine-Zugriff (Signal/Abbruch) mit erklaerender Meldung.
         /// </summary>
-        protected WorkflowOperation BeginOperation()
-            => new WorkflowOperation(freshContext, services.GetService<WorkflowEngineFactory>());
+        protected WorkflowOperation BeginOperation(string? environment = null)
+            => new WorkflowOperation(freshContext, services.GetService<WorkflowEngineFactory>(),
+                WorkflowEnvironmentResolver.StoreDependencyName(services, environment));
 
         /// <inheritdoc/>
         public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
@@ -55,9 +56,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <inheritdoc/>
-        public async Task<PagedResult<WorkflowInstanceListItem>> ListInstancesAsync(ClaimsPrincipal user, ListQuery query)
+        public async Task<PagedResult<WorkflowInstanceListItem>> ListInstancesAsync(ClaimsPrincipal user, ListQuery query,
+            string? environment = null)
         {
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
             IQueryable<WorkflowInstanceRow> q = ctx.WorkflowInstances.AsNoTracking();
 
@@ -85,28 +87,30 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <inheritdoc/>
-        public Task<WorkflowInstance?> GetInstanceAsync(ClaimsPrincipal user, string instanceId)
+        public Task<WorkflowInstance?> GetInstanceAsync(ClaimsPrincipal user, string instanceId, string? environment = null)
         {
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             return Task.FromResult<WorkflowInstance?>(op.Store.GetInstance(instanceId));
         }
 
         /// <inheritdoc/>
-        public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int version)
+        public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int version,
+            string? environment = null)
         {
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             return Task.FromResult<WorkflowDefinition?>(op.Store.GetDefinition(definitionId, version));
         }
 
         /// <inheritdoc/>
-        public async Task<bool> SignalAsync(ClaimsPrincipal user, string instanceId, string signalName)
+        public async Task<bool> SignalAsync(ClaimsPrincipal user, string instanceId, string signalName,
+            string? environment = null)
         {
             if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 return false;
             }
 
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             if (op.Store.GetInstance(instanceId) == null)
             {
                 return false;
@@ -116,7 +120,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <inheritdoc/>
-        public Task<bool> CancelAsync(ClaimsPrincipal user, string instanceId)
+        public Task<bool> CancelAsync(ClaimsPrincipal user, string instanceId, string? environment = null)
         {
             if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
@@ -125,7 +129,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
             // Abbruch ist in JEDEM Deployment eine reine Store-Operation (keine Aktivitaet laeuft) - daher
             // hier gemeinsam, unabhaengig von der Signal-Variante.
-            using WorkflowOperation op = BeginOperation();
+            using WorkflowOperation op = BeginOperation(environment);
             return Task.FromResult(op.Engine.CancelWorkflow(instanceId));
         }
 
