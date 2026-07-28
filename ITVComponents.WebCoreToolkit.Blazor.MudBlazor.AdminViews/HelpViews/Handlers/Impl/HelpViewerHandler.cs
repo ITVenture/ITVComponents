@@ -96,6 +96,70 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             return roots.ToArray();
         }
 
+        public async Task<HelpTreeNodeViewModel?> GetPublishedSubtreeAsync(string slug, string? culture, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return null;
+            }
+
+            var uiCulture = string.IsNullOrWhiteSpace(culture) ? CultureInfo.CurrentUICulture.Name : culture;
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var topics = await db.HelpTopics.AsNoTracking()
+                .Where(t => t.IsPublished)
+                .OrderBy(t => t.SortOrder).ThenBy(t => t.Slug)
+                .Select(t => new
+                {
+                    t.HelpTopicId,
+                    t.ParentId,
+                    t.Kind,
+                    t.Slug,
+                    t.Icon,
+                    Contents = t.Contents.Select(c => new CultureTitle { Culture = c.Culture, Title = c.Title }).ToList()
+                })
+                .ToListAsync(ct);
+
+            var root = topics.FirstOrDefault(t => t.Slug == slug);
+            if (root == null)
+            {
+                return null;
+            }
+
+            const int rootKey = 0;
+            var byParent = topics
+                .GroupBy(t => t.ParentId ?? rootKey)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            List<HelpTreeNodeViewModel> Build(int parentKey)
+            {
+                if (!byParent.TryGetValue(parentKey, out var children))
+                {
+                    return new List<HelpTreeNodeViewModel>();
+                }
+
+                return children.Select(t => new HelpTreeNodeViewModel
+                {
+                    HelpTopicId = t.HelpTopicId,
+                    Slug = t.Slug,
+                    Icon = t.Icon,
+                    Kind = t.Kind,
+                    Title = ResolveTitle(t.Contents, uiCulture, t.Slug),
+                    Children = Build(t.HelpTopicId)
+                }).ToList();
+            }
+
+            return new HelpTreeNodeViewModel
+            {
+                HelpTopicId = root.HelpTopicId,
+                Slug = root.Slug,
+                Icon = root.Icon,
+                Kind = root.Kind,
+                Title = ResolveTitle(root.Contents, uiCulture, root.Slug),
+                Children = Build(root.HelpTopicId)
+            };
+        }
+
         public async Task<HelpTopicViewViewModel?> GetPublishedTopicAsync(string slug, string? culture, bool userAuthenticated, CancellationToken ct = default)
         {
             var uiCulture = string.IsNullOrWhiteSpace(culture) ? CultureInfo.CurrentUICulture.Name : culture;
@@ -131,8 +195,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             }
 
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            return await db.HelpTopics.AsNoTracking()
-                .AnyAsync(t => t.IsPublished && t.Kind == HelpTopicKind.ContentPage && t.Slug == slug, ct);
+            var topic = await db.HelpTopics.AsNoTracking()
+                .Where(t => t.IsPublished && t.Slug == slug)
+                .Select(t => new { t.HelpTopicId, t.Kind })
+                .FirstOrDefaultAsync(ct);
+            if (topic == null)
+            {
+                return false;
+            }
+
+            // Ein Inhaltsthema hat immer etwas zu zeigen; ein Container nur dann, wenn er (veroeffentlichte)
+            // Kinder hat - dann bietet das Popup den Teilbaum als Navigation an. Ein leerer Container hat
+            // nichts anzuzeigen und die Kontexthilfe bleibt (wie bisher) unsichtbar.
+            return topic.Kind == HelpTopicKind.ContentPage
+                   || await db.HelpTopics.AsNoTracking()
+                       .AnyAsync(t => t.IsPublished && t.ParentId == topic.HelpTopicId, ct);
         }
 
         private static string ResolveTitle(List<CultureTitle> contents, string culture, string slug)

@@ -53,6 +53,7 @@
   <data name="Help_Title" xml:space="preserve"><value>Help</value></data>
   <data name="Help_NoTopics" xml:space="preserve"><value>No help topics available.</value></data>
   <data name="Help_SelectTopic" xml:space="preserve"><value>Select a topic from the navigation.</value></data>
+  <data name="Help_ToggleNav" xml:space="preserve"><value>Show or hide the navigation</value></data>
   <data name="Help_NotFound" xml:space="preserve"><value>This help topic was not found.</value></data>
   <data name="Help_Welcome" xml:space="preserve"><value>Select a topic from the navigation to get started.</value></data>
   <data name="Help_Close" xml:space="preserve"><value>Close</value></data>

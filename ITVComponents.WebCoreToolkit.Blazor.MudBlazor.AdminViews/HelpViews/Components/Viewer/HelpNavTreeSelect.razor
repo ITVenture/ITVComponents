@@ -1,0 +1,43 @@
+@* Recursive published-topic navigation for the CONTEXT-HELP POPUP. Unlike HelpNavTree (which links to
+   /help/{slug} and reloads the whole page), this raises OnSelect(slug) so the popup swaps its content pane
+   in place - the reader browses the referenced help area without leaving the current page. A node with
+   children renders as an expandable group; a content page that also has children gets both (its own link
+   plus the group). The selected node is highlighted. *@
+
+@foreach (var node in Nodes)
+{
+    @if (node.Children.Count > 0)
+    {
+        <MudNavGroup Title="@node.Title" Icon="@IconOf(node)" Expanded="true">
+            @if (node.Kind == HelpTopicKind.ContentPage)
+            {
+                <MudNavLink Icon="@Icons.Material.Filled.Article" Class="@ActiveClass(node.Slug)"
+                            OnClick="@(() => OnSelect.InvokeAsync(node.Slug))">@node.Title</MudNavLink>
+            }
+            <HelpNavTreeSelect Nodes="node.Children" SelectedSlug="@SelectedSlug" OnSelect="OnSelect" />
+        </MudNavGroup>
+    }
+    else
+    {
+        <MudNavLink Icon="@IconOf(node)" Class="@ActiveClass(node.Slug)"
+                    OnClick="@(() => OnSelect.InvokeAsync(node.Slug))">@node.Title</MudNavLink>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public List<HelpTreeNodeViewModel> Nodes { get; set; } = new();
+
+    /// <summary>Der aktuell im Popup angezeigte Slug (fuer die Hervorhebung).</summary>
+    [Parameter] public string? SelectedSlug { get; set; }
+
+    /// <summary>Wird mit dem Slug gerufen, wenn ein Thema angeklickt wird.</summary>
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+
+    private string? ActiveClass(string slug)
+        => string.Equals(slug, SelectedSlug, System.StringComparison.Ordinal) ? "mud-nav-link-active" : null;
+
+    private static string IconOf(HelpTreeNodeViewModel node)
+        => !string.IsNullOrEmpty(node.Icon)
+            ? node.Icon!
+            : (node.Kind == HelpTopicKind.Container ? Icons.Material.Filled.Folder : Icons.Material.Filled.Article);
+}

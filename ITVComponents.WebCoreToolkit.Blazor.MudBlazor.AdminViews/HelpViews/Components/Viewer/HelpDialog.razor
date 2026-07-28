@@ -1,9 +1,13 @@
-@* Popup that renders a single help topic (resolved by slug) as sanitized HTML. Opened by HelpButton. *@
+@* Context-help popup. Two modes, decided by the referenced topic:
+   - the slug points at a single content page -> renders that page (as before);
+   - the slug points at a whole help AREA (a topic that has published children) -> shows the referenced
+     subtree as a collapsible navigation tree next to the content, so the reader can browse the whole area
+     in place without leaving the current page. *@
 @inject IHelpViewerHandler Viewer
 @inject AuthenticationStateProvider AuthState
 
 <style>
-    /* Media is injected via MarkupString, so scoped CSS cannot reach it — force large images/videos to the
+    /* Media is injected via MarkupString, so scoped CSS cannot reach it - force large images/videos to the
        container width while keeping aspect-ratio (mirrors the full-page viewer). */
     .itv-help-content img,
     .itv-help-content video,
@@ -15,7 +19,16 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@(topic?.Title ?? string.Empty)</MudText>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            @if (TreeMode)
+            {
+                <MudTooltip Text="@L["Help_ToggleNav"]">
+                    <MudIconButton Icon="@(showTree ? Icons.Material.Filled.MenuOpen : Icons.Material.Filled.Menu)"
+                                   Size="Size.Small" OnClick="ToggleTree" aria-label="@L["Help_ToggleNav"]" />
+                </MudTooltip>
+            }
+            <MudText Typo="Typo.h6">@HeaderTitle</MudText>
+        </MudStack>
     </TitleContent>
     <DialogContent>
         @if (loading)
@@ -24,16 +37,60 @@
                 <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
             </div>
         }
-        else if (topic is not null && !string.IsNullOrEmpty(topic.Html))
-        {
-            <div class="itv-help-content">@((MarkupString)topic.Html)</div>
-        }
-        else
+        else if (root is null)
         {
             <MudText Typo="Typo.body1">@L["Help_NotFound"]</MudText>
         }
+        else if (!TreeMode)
+        {
+            @* Einzelseite - wie bisher. *@
+            @if (topic is not null && !string.IsNullOrEmpty(topic.Html))
+            {
+                <div class="itv-help-content">@((MarkupString)topic.Html)</div>
+            }
+            else
+            {
+                <MudText Typo="Typo.body1">@L["Help_NotFound"]</MudText>
+            }
+        }
+        else
+        {
+            @* Themenbaum: ausblendbarer Navigationsbaum + Inhaltsseite. *@
+            <MudGrid Spacing="2">
+                @if (showTree)
+                {
+                    <MudItem xs="12" md="4" lg="3">
+                        <MudPaper Outlined="true" Class="pa-1">
+                            <MudNavMenu>
+                                <HelpNavTreeSelect Nodes="treeNodes" SelectedSlug="@selectedSlug" OnSelect="SelectAsync" />
+                            </MudNavMenu>
+                        </MudPaper>
+                    </MudItem>
+                }
+                <MudItem xs="12" md="@(showTree ? 8 : 12)" lg="@(showTree ? 9 : 12)">
+                    @if (topicLoading)
+                    {
+                        <div class="d-flex justify-center pa-4">
+                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                        </div>
+                    }
+                    else if (topic is not null && topic.Kind == HelpTopicKind.ContentPage && !string.IsNullOrEmpty(topic.Html))
+                    {
+                        <MudText Typo="Typo.h5" GutterBottom="true">@topic.Title</MudText>
+                        <div class="itv-help-content">@((MarkupString)topic.Html)</div>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.h5" GutterBottom="true">@(topic?.Title ?? root.Title)</MudText>
+                        <MudText Typo="Typo.body1">@L["Help_SelectTopic"]</MudText>
+                    }
+                </MudItem>
+            </MudGrid>
+        }
     </DialogContent>
     <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.ExtraLarge" />
+        <MudSpacer />
         <MudButton OnClick="Close">@L["Help_Close"]</MudButton>
     </DialogActions>
 </MudDialog>
@@ -45,17 +102,74 @@
 
     [Inject] private IStringLocalizer<HelpMessages> L { get; set; } = default!;
 
+    private HelpTreeNodeViewModel? root;
+    private List<HelpTreeNodeViewModel> treeNodes = new();
     private HelpTopicViewViewModel? topic;
+    private string? selectedSlug;
     private bool loading = true;
+    private bool topicLoading;
+    private bool showTree = true;
+    private bool authenticated;
+
+    /// <summary>Baum-Modus: der referenzierte Slug ist ein Bereich (Thema mit veroeffentlichten Kindern).</summary>
+    private bool TreeMode => root is not null && root.Children.Count > 0;
+
+    private string HeaderTitle => topic?.Title ?? root?.Title ?? string.Empty;
 
     private static string Culture => System.Globalization.CultureInfo.CurrentUICulture.Name;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
-        var authenticated = auth.User?.Identity?.IsAuthenticated ?? false;
-        topic = await Viewer.GetPublishedTopicAsync(Slug, Culture, authenticated);
+        authenticated = auth.User?.Identity?.IsAuthenticated ?? false;
+
+        root = await Viewer.GetPublishedSubtreeAsync(Slug, Culture);
+        if (root is not null)
+        {
+            // Den Wurzelknoten selbst mit in den Baum nehmen (eine Inhaltsseite mit Kindern bleibt so
+            // erreichbar). Im Baum-Modus die erste Inhaltsseite vorauswaehlen, damit gleich etwas dasteht;
+            // sonst (Einzelseite) einfach den Slug selbst laden.
+            treeNodes = new List<HelpTreeNodeViewModel> { root };
+            selectedSlug = TreeMode ? (FirstContentSlug(root) ?? root.Slug) : root.Slug;
+            topic = await Viewer.GetPublishedTopicAsync(selectedSlug, Culture, authenticated);
+        }
+
         loading = false;
+    }
+
+    private async Task SelectAsync(string slug)
+    {
+        if (string.Equals(slug, selectedSlug, System.StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        selectedSlug = slug;
+        topicLoading = true;
+        topic = await Viewer.GetPublishedTopicAsync(slug, Culture, authenticated);
+        topicLoading = false;
+    }
+
+    private void ToggleTree() => showTree = !showTree;
+
+    /// <summary>Die erste Inhaltsseite (Tiefensuche) im Teilbaum - fuer die Vorauswahl.</summary>
+    private static string? FirstContentSlug(HelpTreeNodeViewModel node)
+    {
+        if (node.Kind == HelpTopicKind.ContentPage)
+        {
+            return node.Slug;
+        }
+
+        foreach (var child in node.Children)
+        {
+            var found = FirstContentSlug(child);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void Close() => MudDialog.Close();

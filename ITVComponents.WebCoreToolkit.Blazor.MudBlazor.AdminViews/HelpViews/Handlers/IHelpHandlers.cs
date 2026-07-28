@@ -59,6 +59,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
         Task<HelpTreeNodeViewModel[]> GetPublishedTreeAsync(string? culture, CancellationToken ct = default);
 
         /// <summary>
+        /// The published subtree ROOTED at the topic with <paramref name="slug"/> (that topic as the root, with
+        /// its nested published children), titles resolved for <paramref name="culture"/>; null when no
+        /// published topic has that slug. The context-help popup uses this to offer an in-place navigation tree
+        /// when a slug points at a whole help area rather than a single page (root with no children = a plain page).
+        /// </summary>
+        Task<HelpTreeNodeViewModel?> GetPublishedSubtreeAsync(string slug, string? culture, CancellationToken ct = default);
+
+        /// <summary>
         /// Resolves a published topic by slug and renders its localized body to HTML; null if not found.
         /// <paramref name="userAuthenticated"/> drives whether <c>module:</c> links render as (tenant-scoped)
         /// links or as plain title text.
