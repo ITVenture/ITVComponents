@@ -23,7 +23,7 @@ namespace ITVComponents.Workflow.Plugins
     /// werden kann (der Vertrag ist bewusst serialisierbar/typfrei gehalten). Der Client-Gegenpart ist
     /// <c>WorkflowActivityCatalogClient</c> in <c>ITVComponents.Workflow.Plugins.Ipc</c>.
     /// </remarks>
-    public sealed class PluginActivityCatalog : IWorkflowActivityCatalog, IPlugin
+    public sealed class PluginActivityCatalog : IInjectableWorkflowActivityCatalog
     {
         private readonly PluginFactory factory;
 

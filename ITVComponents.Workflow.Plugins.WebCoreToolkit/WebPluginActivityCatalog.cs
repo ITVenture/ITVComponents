@@ -40,7 +40,7 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
     /// Definition dieses Katalogs.
     /// </para>
     /// </remarks>
-    public sealed class WebPluginActivityCatalog : IWorkflowActivityCatalog, IPlugin
+    public sealed class WebPluginActivityCatalog : IInjectableWorkflowActivityCatalog
     {
         private readonly PluginFactory factory;
         private readonly IWebPluginsSelector selector;

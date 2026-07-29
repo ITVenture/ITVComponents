@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
@@ -10,8 +11,10 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.ViewMod
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
+using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Plugins;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers.Impl
@@ -27,12 +30,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
     {
         private readonly IServiceProvider services;
         private readonly IFreshInjectablePlugin<WorkflowContext> freshContext;
+        private readonly IFreshInjectablePlugin<IInjectableWorkflowActivityCatalog> freshCatalog;
 
         public WorkflowDesignHandler(IServiceProvider services,
-            IFreshInjectablePlugin<WorkflowContext> freshContext)
+            IFreshInjectablePlugin<WorkflowContext> freshContext,
+            IFreshInjectablePlugin<IInjectableWorkflowActivityCatalog> freshCatalog)
         {
             this.services = services;
             this.freshContext = freshContext;
+            this.freshCatalog = freshCatalog;
         }
 
         // Design-Operationen brauchen keine Engine -> keine Engine-Factory. Der Store richtet sich nach der
@@ -110,6 +116,65 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
                     $"Konnte Workflow-Definition '{definition.Id}' v{definition.Version} nicht speichern: {ex.OutlineException()}",
                     LogSeverity.Error);
                 return Task.FromResult(false);
+            }
+        }
+
+        /// <inheritdoc/>
+        public Task<IReadOnlyList<ActivityTypeInfo>> GetActivityTypesAsync(ClaimsPrincipal user, string? environment,
+            string? executionTarget)
+            => Task.FromResult(WithCatalog(environment, executionTarget,
+                c => c.GetActivityTypes(), (IReadOnlyList<ActivityTypeInfo>)Array.Empty<ActivityTypeInfo>()));
+
+        /// <inheritdoc/>
+        public Task<IReadOnlyList<ActivityParameter>> GetActivityParametersAsync(ClaimsPrincipal user,
+            string? environment, string? executionTarget, string activityRef)
+            => Task.FromResult(WithCatalog(environment, executionTarget,
+                c => c.GetParameters(activityRef), (IReadOnlyList<ActivityParameter>)Array.Empty<ActivityParameter>()));
+
+        /// <inheritdoc/>
+        public Task<IReadOnlyList<ActivityParameterValue>> GetActivityValidValuesAsync(ClaimsPrincipal user,
+            string? environment, string? executionTarget, string activityRef, string parameterName)
+            => Task.FromResult(WithCatalog(environment, executionTarget,
+                c => c.GetValidValues(activityRef, parameterName),
+                (IReadOnlyList<ActivityParameterValue>)Array.Empty<ActivityParameterValue>()));
+
+        /// <summary>
+        /// Loest den Instanz-Katalog fuer (Umgebung, ExecutionTarget) auf und fuehrt EINE Abfrage aus. Der
+        /// Katalog wird pro Abfrage frisch geleast und danach freigegeben (er haelt eine Factory-Referenz und
+        /// reflektiert live). Ohne passenden Instanz-Katalog-Namen wird der per DI registrierte Default-Katalog
+        /// geleast (Lease(null) -> DefaultPluginInjector). Ist ein benannter Katalog nicht aufloesbar, wird -
+        /// protokolliert - ebenfalls auf den Default zurueckgefallen.
+        /// </summary>
+        private T WithCatalog<T>(string? environment, string? executionTarget,
+            Func<IWorkflowActivityCatalog, T> query, T fallback)
+        {
+            string? catalogName = WorkflowEnvironmentResolver.ActivityCatalogPluginName(services, environment, executionTarget);
+            IPluginLease<IInjectableWorkflowActivityCatalog>? lease = null;
+            try
+            {
+                lease = freshCatalog.Lease(catalogName);
+                if (lease.Value == null && catalogName != null)
+                {
+                    // Benannter Instanz-Katalog nicht aufloesbar -> Default-Katalog verwenden.
+                    LogEnvironment.LogEvent(
+                        $"ActivityCatalog-Plugin '{catalogName}' konnte nicht aufgeloest werden - der Default-Katalog wird verwendet.",
+                        LogSeverity.Warning);
+                    lease.Dispose();
+                    lease = freshCatalog.Lease(null);
+                }
+
+                return lease.Value != null ? query(lease.Value) : fallback;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Katalog-Abfrage fuer Umgebung '{environment}'/Ziel '{executionTarget}' fehlgeschlagen: {ex.OutlineException()}",
+                    LogSeverity.Error);
+                return fallback;
+            }
+            finally
+            {
+                lease?.Dispose();
             }
         }
 

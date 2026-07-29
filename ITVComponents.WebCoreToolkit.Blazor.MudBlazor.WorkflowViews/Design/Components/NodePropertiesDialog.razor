@@ -29,7 +29,7 @@
            statt des generischen Id/Name-Kopfes. *@
         @if (Node is AutomatedActivityNode act)
         {
-            <AutomatedActivityEditor Node="act" Catalog="Catalog" Def="Def" />
+            <AutomatedActivityEditor Node="act" Environment="Environment" Def="Def" />
         }
         else if (Node is UserActivityNode userTask)
         {
@@ -137,8 +137,8 @@
     /// <summary>Die bearbeitete Verbindung, oder null wenn ein Knoten bearbeitet wird.</summary>
     [Parameter] public SequenceFlow? Flow { get; set; }
 
-    /// <summary>Optionaler Activity-Katalog (getypte Formulare statt Key/Value).</summary>
-    [Parameter] public IWorkflowActivityCatalog? Catalog { get; set; }
+    /// <summary>Die (optional) gewählte Umgebung - für die per-Instanz-Katalog-Auflösung im Aktivitäts-Editor.</summary>
+    [Parameter] public string? Environment { get; set; }
 
     /// <summary>Aufrufbare Definition-Ids fuer das Subworkflow-Dropdown (null -> Freitext).</summary>
     [Parameter] public IReadOnlyList<string>? SubDefinitionIds { get; set; }

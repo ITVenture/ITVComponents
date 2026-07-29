@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.ViewModels;
+using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Model;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers
@@ -38,5 +40,22 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         /// </summary>
         Task<bool> SaveDefinitionAsync(ClaimsPrincipal user, WorkflowDefinition definition,
             string? environment = null);
+
+        /// <summary>
+        /// Die verfuegbaren Aktivitaets-Typen aus dem Katalog der Instanz, deren <c>Name</c> dem
+        /// <paramref name="executionTarget"/> entspricht (in der gewaehlten <paramref name="environment"/>).
+        /// Ohne passendes Ziel/Instanz/Umgebung faellt es auf den per DI registrierten Default-Katalog zurueck
+        /// (bisheriges Ein-Katalog-Verhalten).
+        /// </summary>
+        Task<IReadOnlyList<ActivityTypeInfo>> GetActivityTypesAsync(ClaimsPrincipal user, string? environment,
+            string? executionTarget);
+
+        /// <summary>Die deklarierten Parameter einer Aktivitaet aus dem Instanz-Katalog (Fallback wie oben).</summary>
+        Task<IReadOnlyList<ActivityParameter>> GetActivityParametersAsync(ClaimsPrincipal user, string? environment,
+            string? executionTarget, string activityRef);
+
+        /// <summary>Die zulaessigen Werte eines Auswahl-Parameters aus dem Instanz-Katalog (Fallback wie oben).</summary>
+        Task<IReadOnlyList<ActivityParameterValue>> GetActivityValidValuesAsync(ClaimsPrincipal user,
+            string? environment, string? executionTarget, string activityRef, string parameterName);
     }
 }

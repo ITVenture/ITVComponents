@@ -1,7 +1,15 @@
 @using System.Globalization
+@using System.Security.Claims
+@using System.Threading
 @using ITVComponents.Workflow.Activities
 @using ITVComponents.Workflow.Model
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
+@using Microsoft.AspNetCore.Components.Authorization
 @inject IDialogService DialogService
+@inject IWorkflowDesignHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IServiceProvider Services
 
 @*
     Tab-basierter Editor für einen AutomatedActivityNode. Löst den früheren, überladenen Flach-Editor
@@ -31,10 +39,13 @@
             {
                 <MudTextField @bind-Value="Node.ActivityRef" Label="Activity reference" Margin="Margin.Dense" />
             }
-            <MudTextField T="string" Value="@Node.ExecutionTarget" ValueChanged="SetExecutionTarget"
-                          Label="Execution target" Placeholder="(any host)" Margin="Margin.Dense" />
+            <MudAutocomplete T="string" Value="@Node.ExecutionTarget" ValueChanged="SetExecutionTarget"
+                             SearchFunc="SearchInstances" CoerceValue="true" CoerceText="false"
+                             ResetValueOnEmptyText="false" Clearable="true"
+                             Label="Execution target" Placeholder="(any host)" Margin="Margin.Dense" />
             <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                Name of the host this activity must run on (e.g. "backend"). Empty = runs on any runner.
+                Name of the worker instance this activity must run on. Picks that instance's activity catalog.
+                Suggestions come from the environment's instances; free text is allowed. Empty = any runner.
             </MudText>
         </MudTabPanel>
 
@@ -119,24 +130,84 @@
     /// <summary>Der zu konfigurierende Aktivitäts-Knoten.</summary>
     [Parameter] public AutomatedActivityNode? Node { get; set; }
 
-    /// <summary>Der Activity-Katalog, oder null (dann nur Freitext/generisch).</summary>
-    [Parameter] public IWorkflowActivityCatalog? Catalog { get; set; }
+    /// <summary>Die (optional) gewählte Umgebung - bestimmt zusammen mit dem ExecutionTarget den
+    /// per-Instanz-Katalog. Ohne Umgebung/passende Instanz greift der Default-Katalog.</summary>
+    [Parameter] public string? Environment { get; set; }
 
     /// <summary>Die Definition - für die Anzeige des Fehler-Zielknotens.</summary>
     [Parameter] public WorkflowDefinition? Def { get; set; }
 
+    // Aktivitätstypen und -parameter kommen jetzt PRO INSTANZ (ExecutionTarget) über den Handler, der den
+    // passenden Katalog least, abfragt und wieder freigibt. Ergebnisse werden gecacht und nur bei Wechsel von
+    // ExecutionTarget (Katalog) bzw. ActivityRef (Parameter) neu geladen.
     private IReadOnlyList<ActivityTypeInfo> activityTypes = new List<ActivityTypeInfo>();
+    private IReadOnlyList<ActivityParameter> parameters = new List<ActivityParameter>();
+    private ClaimsPrincipal? user;
+    private string[] instanceNames = Array.Empty<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Node/Environment stehen hier bereits; der Benutzer wird fuer die Handler-Aufrufe geholt und die
+        // Aktivitaetstypen/-parameter EINMAL initial geladen (spaetere Wechsel laufen ueber die Setter).
+        AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
+        user = auth.User;
+        RefreshInstanceNames();
+        await ReloadTypesAsync();
+        await ReloadParametersAsync();
+    }
 
     protected override void OnParametersSet()
     {
-        activityTypes = Catalog?.GetActivityTypes() ?? new List<ActivityTypeInfo>();
+        // Umgebung koennte sich aendern -> Instanz-Vorschlaege auffrischen (Typen/Parameter haengen an den Settern).
+        RefreshInstanceNames();
     }
 
     // Die Configuration-Einträge als stabile Liste je Render (MudTable braucht IEnumerable<T>).
     private List<KeyValuePair<string, object>> ConfigRows
         => Node?.Configuration?.ToList() ?? new List<KeyValuePair<string, object>>();
 
-    private void OnActivitySelected(string activityRef)
+    // --- Katalog-Auflösung (per Instanz) --------------------------------------------------------
+
+    private void RefreshInstanceNames()
+    {
+        instanceNames = WorkflowEnvironmentResolver.Resolve(Services, Environment)?.Instances?
+            .Where(i => !string.IsNullOrWhiteSpace(i.Name)).Select(i => i.Name!).ToArray()
+            ?? Array.Empty<string>();
+    }
+
+    private async Task ReloadTypesAsync()
+    {
+        if (user is null || Node is null)
+        {
+            return;
+        }
+
+        activityTypes = await Handler.GetActivityTypesAsync(user, Environment, Node.ExecutionTarget);
+    }
+
+    private async Task ReloadParametersAsync()
+    {
+        if (user is null || Node is null || string.IsNullOrWhiteSpace(Node.ActivityRef))
+        {
+            parameters = new List<ActivityParameter>();
+            return;
+        }
+
+        parameters = await Handler.GetActivityParametersAsync(user, Environment, Node.ExecutionTarget, Node.ActivityRef);
+    }
+
+    private Task<IEnumerable<string>> SearchInstances(string value, CancellationToken ct)
+    {
+        IEnumerable<string> names = instanceNames;
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            names = names.Where(n => n.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult(names);
+    }
+
+    private async Task OnActivitySelected(string activityRef)
     {
         if (Node is null)
         {
@@ -152,39 +223,43 @@
         }
 
         Node.ActivityRef = activityRef;
+        await ReloadParametersAsync();
     }
 
-    private void SetExecutionTarget(string? value)
+    private async Task SetExecutionTarget(string? value)
     {
-        if (Node is not null)
+        if (Node is null)
         {
-            Node.ExecutionTarget = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            return;
         }
+
+        Node.ExecutionTarget = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        // Der Katalog hängt am ExecutionTarget: Typen UND Parameter neu laden.
+        await ReloadTypesAsync();
+        await ReloadParametersAsync();
     }
 
-    // --- Deklarierte Parameternamen aus dem Katalog (für die Auswahl in den Popups) ------------
+    // --- Deklarierte Parameternamen aus dem (gecachten) Katalog (für die Auswahl in den Popups) --
 
     private IReadOnlyList<string>? InputParameterNames()
     {
-        if (Catalog is null || Node is null || string.IsNullOrWhiteSpace(Node.ActivityRef))
+        if (parameters.Count == 0)
         {
             return null;
         }
 
-        return Catalog.GetParameters(Node.ActivityRef)
-            .Where(p => p.Direction != ActivityParameterDirection.Output)
+        return parameters.Where(p => p.Direction != ActivityParameterDirection.Output)
             .Select(p => p.Name).ToList();
     }
 
     private IReadOnlyList<string>? OutputParameterNames()
     {
-        if (Catalog is null || Node is null || string.IsNullOrWhiteSpace(Node.ActivityRef))
+        if (parameters.Count == 0)
         {
             return null;
         }
 
-        return Catalog.GetParameters(Node.ActivityRef)
-            .Where(p => p.Direction == ActivityParameterDirection.Output)
+        return parameters.Where(p => p.Direction == ActivityParameterDirection.Output)
             .Select(p => p.Name).ToList();
     }
 

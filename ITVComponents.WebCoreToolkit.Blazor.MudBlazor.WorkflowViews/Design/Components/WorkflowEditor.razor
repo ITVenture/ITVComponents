@@ -205,10 +205,6 @@
 
     private List<ValidationIssue> issues = new();
 
-    // Optional: nur wenn der Host einen Katalog registriert hat, gibt es getypte Activity-Formulare;
-    // sonst faellt ActivityConfigEditor auf den generischen Key/Value-Editor zurueck.
-    private IWorkflowActivityCatalog? catalog;
-
     // Verfuegbare Definition-Ids fuer das Subworkflow-Dropdown (leer -> Freitext im Editor).
     private IReadOnlyList<string>? subDefinitionIds;
 
@@ -239,7 +235,6 @@
     protected override async Task OnParametersSetAsync()
     {
         loaded = false;
-        catalog ??= Services.GetService<IWorkflowActivityCatalog>();
         isNew = string.IsNullOrEmpty(DefinitionId);
         var auth = await AuthState.GetAuthenticationStateAsync();
 
@@ -460,7 +455,7 @@
             { nameof(NodePropertiesDialog.Def), def },
             { nameof(NodePropertiesDialog.Node), selectedNode },
             { nameof(NodePropertiesDialog.Flow), selectedFlow },
-            { nameof(NodePropertiesDialog.Catalog), catalog },
+            { nameof(NodePropertiesDialog.Environment), Environment },
             { nameof(NodePropertiesDialog.SubDefinitionIds), subDefinitionIds }
         };
         var options = new DialogOptions

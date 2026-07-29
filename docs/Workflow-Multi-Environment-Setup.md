@@ -171,11 +171,27 @@ Aktivitäts-Plugin-Namen:
   (`IActivityHost`), der Aktivitäten je Vortrieb tenant-fixiert über `IWebPluginHelper.CreateOperationScope`
   auflöst.
 
-> **Aktueller Stand / Grenze:** Der **Editor** fragt den `IWorkflowActivityCatalog` heute noch aus dem
-> DI-Container ab (ein Katalog). Ein Host, der die WebPlugin-Auflösung schon nutzen will, registriert den
-> `WebPluginActivityCatalog` als diesen DI-`IWorkflowActivityCatalog`. Die **per-Instanz**-Auswahl im Editor
-> (Katalog anhand des `ExecutionTarget`/Workers einer Aktivität) ist der nächste, noch offene Ausbauschritt —
-> siehe [[workflow_multi_environment]].
+> **Per-Instanz-Auflösung im Editor (umgesetzt):** Der Editor fragt Aktivitäts-Typen und -Parameter jetzt
+> **pro Aktivität** über den `IWorkflowDesignHandler` ab (`GetActivityTypesAsync` /
+> `GetActivityParametersAsync` / `GetActivityValidValuesAsync(user, environment, executionTarget, …)`). Der
+> Handler löst über den `WorkflowEnvironmentResolver` den `ActivityCatalogPluginName` der Instanz auf, deren
+> `Name` dem `ExecutionTarget` der Aktivität entspricht, und leaset den Katalog über
+> `IFreshInjectablePlugin<IInjectableWorkflowActivityCatalog>.Lease(name)` — pro Abfrage frisch, danach
+> freigegeben. Das `ExecutionTarget`-Feld ist ein **Autocomplete** der Instanz-Namen der Umgebung (Freitext
+> weiter erlaubt).
+
+**Host-Verdrahtung für den Katalog:**
+- Je Instanz das `WebPluginActivityCatalog`-WebPlugin unter Namen = `Instance.ActivityCatalogPluginName` (wie
+  oben) — das ist der per-Instanz-Katalog, den der Handler namentlich leaset.
+- **Einen Default-Katalog** als `IInjectableWorkflowActivityCatalog` in DI registrieren — er ist der
+  **Fallback** (`Lease(null)` → `DefaultPluginInjector`), der greift, wenn kein `ExecutionTarget` gesetzt ist,
+  keine Instanz passt oder ein benannter Katalog nicht auflösbar ist (= bisheriges Ein-Katalog-Verhalten ohne
+  Multi-Env). `PluginActivityCatalog` und `WebPluginActivityCatalog` implementieren `IInjectableWorkflowActivityCatalog`.
+- `IFreshInjectablePlugin<>` ist offen-generisch registriert (kommt mit `UseInjectablePlugins`) — keine
+  typ-spezifische Registrierung nötig.
+
+Der Kern-Vertrag `IWorkflowActivityCatalog` bleibt bewusst **plugin-neutral** (IPC-tauglich); die
+`IPlugin`-Kopplung lebt nur im Kombi-Interface `IInjectableWorkflowActivityCatalog` (Plugin-Schicht).
 
 ---
 
@@ -299,8 +315,9 @@ der Max-Linger für die zeitnahe Aufnahme.
 
 ## 9. Grenzen / noch offen
 
-- **Per-Instanz-Katalog im Editor:** Der Editor wählt den ActivityCatalog noch nicht anhand des Workers
-  (`ExecutionTarget`) einer Aktivität aus — das ist der nächste Ausbauschritt.
+- **Ausführungs-seitiger per-Instanz-Katalog:** Der **Editor** wählt den Katalog jetzt per `ExecutionTarget`
+  (Abschnitt 5). Ob auch der **Runner/Worker** je Instanz einen anderen `IActivityHost`/Katalog braucht (statt
+  des geteilten `WebToolkitActivityHost`), ist bei Bedarf der nächste Schritt.
 - **Wake-Hook nur same-process:** Läuft der Worker in einem **getrennten** Prozess, greift der Poke nicht; die
   Aufnahme erfolgt dann über Timer-Terminierung und Max-Linger (Abschnitt 7).
 - Die Nav-Segment- und Picker-Wege münden beide in denselben `environment`-Parameter; sie sind bewusst

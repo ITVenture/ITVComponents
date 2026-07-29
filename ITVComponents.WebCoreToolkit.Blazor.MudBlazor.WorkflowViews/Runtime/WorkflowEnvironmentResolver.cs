@@ -54,5 +54,26 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
             string? name = Resolve(services, environmentName)?.WorkflowStorePluginName;
             return string.IsNullOrWhiteSpace(name) ? null : name;
         }
+
+        /// <summary>
+        /// Der Name des <c>ActivityCatalog</c>-Plugins der Instanz (Worker), deren <c>Name</c> dem
+        /// <paramref name="executionTarget"/> der Aktivitaet entspricht - oder null (kein Ziel, keine Umgebung,
+        /// keine passende Instanz oder kein Katalog-Name gesetzt). Null bedeutet: den per DI registrierten
+        /// Default-Katalog verwenden (Fallback).
+        /// </summary>
+        public static string? ActivityCatalogPluginName(IServiceProvider services, string? environmentName,
+            string? executionTarget)
+        {
+            if (string.IsNullOrWhiteSpace(executionTarget))
+            {
+                return null;
+            }
+
+            WorkflowEnvironmentInstance? instance = Resolve(services, environmentName)?.Instances?
+                .FirstOrDefault(i => string.Equals(i.Name, executionTarget, StringComparison.OrdinalIgnoreCase));
+
+            string? name = instance?.ActivityCatalogPluginName;
+            return string.IsNullOrWhiteSpace(name) ? null : name;
+        }
     }
 }
