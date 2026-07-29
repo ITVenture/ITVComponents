@@ -192,12 +192,25 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 // and would tear down an OUTER operation-scope (CreateOperationScope) that happens to be active while
                 // a constructor parameter is being resolved (→ KeyNotFoundException on scopedPlugins[outerScope]).
                 IPluginFactory loadingScope = null;
-                if (!pluginIsLoading.Value)
+                // Ist bereits ein expliziter (Operations-)Scope aktiv - z.B. CreateOperationScope oder ein
+                // FreshInjectablePlugin-Lease bzw. der NewScope im WebPluginActivityCatalog -, dann KEINEN
+                // eigenen transienten Ladescope oeffnen und die Transienten NICHT in transientPlugins sammeln:
+                // die transient erzeugten Abhaengigkeiten gehoeren dann dem aktiven Scope und werden mit dessen
+                // Freigabe disponiert (sonst wuerden sie bis zum naechsten ResetFactory ueberleben - ein Leak
+                // ueber die Lebensdauer des expliziten Scopes hinaus). Nur die aeusserste, scope-freie
+                // Aufloesung auf dem Thread oeffnet den transienten Ladescope.
+                if (!pluginIsLoading.Value && !pi.IsInLoadScope)
                 {
                     pluginIsLoading.Value = true;
                     cleanup = true;
                     loadingScope = pi.NewScope(null, null, true);
                 }
+
+                // Der Load laeuft IM transienten Ladescope, wenn dieser Aufruf ihn geoeffnet hat (aeusserste,
+                // scope-freie Aufloesung) - so setzt WithScope den CurrentScope und transient markierte Plugins
+                // landen wirklich im Ladescope. Bei genesteten Aufrufen (kein eigener Ladescope) laeuft der Load
+                // ueber die Haupt-Factory, der CurrentScope steht dann bereits vom aeusseren Aufruf.
+                IPluginFactory loadTarget = loadingScope ?? (IPluginFactory)pi;
 
                 try
                 {
@@ -234,14 +247,14 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                             {
                                 if (args.PluginType != null)
                                 {
-                                    pi.UseCurrentScope = plugin.Transient;
-                                    args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
+                                    pi.UseTransientScope = plugin.Transient;
+                                    args.Value = loadTarget.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
                                         new Dictionary<string, object> { { "CallingPlugin", args.PluginType } });
                                 }
                                 else
                                 {
-                                    pi.UseCurrentScope = plugin.Transient;
-                                    args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
+                                    pi.UseTransientScope = plugin.Transient;
+                                    args.Value = loadTarget.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
                                 }
 
                                 args.Handled = true;

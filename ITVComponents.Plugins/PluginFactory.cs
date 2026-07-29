@@ -67,7 +67,7 @@ namespace ITVComponents.Plugins
         /// </summary>
         private ScopeMode scopeMode = ScopeMode.PerThread;
 
-        private bool useCurrentScope = true;
+        private bool useTransientScope = true;
 
         /// <summary>
         /// A Reflection-only typelist that is used for test-only factories
@@ -284,10 +284,16 @@ namespace ITVComponents.Plugins
             }
         }
 
-        public bool UseCurrentScope
+        /// <summary>
+        /// Steuert, ob ein gerade geladenes Plugin in den aktiven TRANSIENTEN Ladescope aufgenommen wird
+        /// (true = transient laden). Betrifft AUSSCHLIESSLICH den transienten Ladescope: ein EXPLIZITER
+        /// Operations-/Fresh-Scope wird immer honoriert (siehe <see cref="HasActiveScope"/>) und kann nicht
+        /// umgangen werden.
+        /// </summary>
+        public bool UseTransientScope
         {
-            get { return useCurrentScope; }
-            set { useCurrentScope = value; }
+            get { return useTransientScope; }
+            set { useTransientScope = value; }
         }
 
         /// <summary>
@@ -343,9 +349,28 @@ namespace ITVComponents.Plugins
         {
             get
             {
-                return useCurrentScope && CurrentScope != null;
+                // Ein EXPLIZITER (nicht-transienter) Scope ist IMMER aktiv - so kann die Factory einen
+                // Operations-/Fresh-Scope nie umgehen (fruehere Gefahr: useTransientScope=false liess ein
+                // Plugin an einem aktiven expliziten Scope vorbei in pluginInstances laufen und untergrub die
+                // Fresh-Garantie). Ein TRANSIENTER Ladescope zaehlt nur, wenn gerade transient geladen wird.
+                return (useTransientScope && CurrentScope is { IsTransientLoadScope: true })
+                       || CurrentScope is { IsTransientLoadScope: false };
             }
         }
+
+        /// <summary>
+        /// True, wenn aktuell ein expliziter (Operations-)Scope aktiv ist - also waehrend der
+        /// Parameter-Aufloesung innerhalb von <c>CreateOperationScope</c>/<c>FreshInjectablePlugin</c> bzw.
+        /// eines <c>NewScope</c>. Ein transienter Ladescope wird NIE als <see cref="CurrentScope"/> gefuehrt,
+        /// darum bedeutet <c>CurrentScope != null</c> hier verlaesslich "in einem echten Scope".
+        /// </summary>
+        /// <remarks>
+        /// Dient dem <c>WebPluginHelper</c>, in diesem Fall KEINEN eigenen transienten Ladescope zu oeffnen:
+        /// die transient erzeugten Abhaengigkeiten gehoeren dann dem aktiven Scope und werden mit dessen
+        /// Freigabe disponiert - statt in der Factory-lebenslangen Transient-Sammlung bis zum naechsten
+        /// <c>ResetFactory()</c> zu ueberleben.
+        /// </remarks>
+        public bool IsInLoadScope => CurrentScope != null;
 
         /// <summary>
         /// Gets a PluginInstance with the given name

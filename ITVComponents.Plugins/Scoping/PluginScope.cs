@@ -23,6 +23,13 @@ namespace ITVComponents.Plugins.Scoping
             this.plugins = plugins;
         }
 
+        /// <summary>
+        /// True, wenn dieser Scope ein transienter Ladescope ist (kein expliziter Operations-/Fresh-Scope).
+        /// Aus dem Collector durchgereicht - die Factory unterscheidet damit in <c>HasActiveScope</c>, ob ein
+        /// expliziter Scope (immer verbindlich) oder ein transienter Ladescope (nur beim Transient-Load) aktiv ist.
+        /// </summary>
+        internal bool IsTransientLoadScope => plugins.IsTransientLoadScope;
+
         public void Dispose()
         {
             if (!closed)
@@ -101,7 +108,10 @@ namespace ITVComponents.Plugins.Scoping
 
         public T LoadPlugin<T>(string uniqueName, string pluginConstructor, Dictionary<string, object> customVariables, bool? doBuffer = null) where T : class, IPlugin
         {
-            throw new NotImplementedException();
+            // Wie die 2-arg-Variante: den Load in DIESEM Scope ausfuehren (WithScope setzt CurrentScope), damit
+            // ein transient markiertes Plugin tatsaechlich in diesen (transienten) Ladescope geladen wird - statt
+            // wie bisher an ihm vorbei in pluginInstances (der Grund, warum der Transient-Modus bisher ein No-op war).
+            return parent.WithScope(this, s => parent.LoadPlugin<T>(uniqueName, pluginConstructor, customVariables, doBuffer));
         }
 
         public T LoadPlugin<T>(string uniqueName, string pluginConstructor, bool buffer) where T : class, IPlugin
