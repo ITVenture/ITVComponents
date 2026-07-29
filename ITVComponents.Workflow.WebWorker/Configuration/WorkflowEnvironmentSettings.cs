@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using ITVComponents.WebCoreToolkit.Configuration;
 
-namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options
+namespace ITVComponents.Workflow.WebWorker.Configuration
 {
     /// <summary>
     /// Konfigurationssaetze fuer die Workflow-<b>Umgebungen</b> einer Host-Anwendung, die mehrere
@@ -19,6 +19,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options
     /// Die Verweise sind bewusst <b>Plugin-Namen</b> (Strings), keine Typen: Store und ActivityCatalog einer
     /// Umgebung werden zur Laufzeit ueber die WebPlugin-Schnittstelle namentlich aufgeloest. So bleibt die
     /// Einstellung serialisierbar und der konkrete Kontext-/Aktivitaets-Anbieter Host-Sache.
+    /// </para>
+    /// <para>
+    /// <b>Neutraler Ort:</b> Dieser Typ lag urspruenglich im Blazor-View-Projekt, wurde aber hierher (Worker,
+    /// UI-neutral) verschoben, damit sowohl die Views als auch der Background-Worker ihn konsumieren koennen,
+    /// ohne dass der Worker das Blazor-UI referenzieren muss.
     /// </para>
     /// </remarks>
     [SettingName("WorkflowEnvironmentSettings")]
@@ -64,6 +69,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options
         /// Umgebung namentlich aufgeloest statt fest per DI.
         /// </summary>
         public string? WorkflowStorePluginName { get; set; }
+
+        /// <summary>
+        /// Maximaler <b>Linger</b> (Poll-Obergrenze) des Background-Workers fuer diese Umgebung, in Sekunden.
+        /// <c>null</c> = der globale Worker-Default (<c>WorkflowWorkerOptions.MaxPollInterval</c>). So kann eine
+        /// Zahlungs-Umgebung enger takten (z.B. 30) als eine Archiv-Umgebung (3600). Der Wert ist nur die
+        /// Obergrenze fuer den Fall <i>keine bekannte Faelligkeit</i>; signalgetriebene Arbeit kommt sofort
+        /// (Wake-Hook) und Timer werden praezise auf ihre Faelligkeit terminiert.
+        /// </summary>
+        public int? MaxLingerSeconds { get; set; }
 
         /// <summary>
         /// Die <b>Service-Instanzen</b> (Worker) dieser Umgebung. Je Instanz ein eigener ActivityCatalog:

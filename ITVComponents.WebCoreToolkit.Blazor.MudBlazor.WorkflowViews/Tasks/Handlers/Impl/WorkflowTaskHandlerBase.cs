@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.WebWorker;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -228,6 +229,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             if (completion.Success)
             {
                 await AdvanceAsync(op, instanceId, completion.ActivatedTokenIds);
+                // Best-effort Wake des (evtl. im selben Prozess laufenden) Workers fuer diesen Tenant/diese
+                // Umgebung. Fehlt der Worker, ist der Service nicht registriert -> stiller No-op.
+                services.GetService<IWorkflowWorkerWake>()?.Poke(environment, op.Store.GetInstance(instanceId)?.TenantId);
             }
 
             return completion;

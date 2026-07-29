@@ -26,6 +26,7 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.csproj" />
     <ProjectReference Include="..\ITVComponents.Workflow\ITVComponents.Workflow.csproj" />
     <ProjectReference Include="..\ITVComponents.Workflow.EntityFramework\ITVComponents.Workflow.EntityFramework.csproj" />
+    <ProjectReference Include="..\ITVComponents.Workflow.WebWorker\ITVComponents.Workflow.WebWorker.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\" />

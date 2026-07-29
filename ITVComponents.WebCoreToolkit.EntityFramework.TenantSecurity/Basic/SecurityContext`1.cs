@@ -59,7 +59,7 @@ using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>
+    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>, IAllTenantsReader
     where TImpl:SecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -345,6 +345,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View", "DiagnosticsQueries.View", "DiagnosticsQueries.Write", "Tenants.SelectFK")]
         public DbSet<Tenant> Tenants { get; set; }
+
+        /// <summary>
+        /// Liefert alle Tenants (Id + Name) tenant-agnostisch fuer Hintergrund-Dienste (z.B. den
+        /// Workflow-Background-Worker). Die Tenant-Tabelle traegt keinen Query-Filter, daher werden alle
+        /// Zeilen geliefert - ohne ShowAllTenants-Escalation und ohne Per-Tenant-Permission.
+        /// </summary>
+        public IReadOnlyList<TenantIdentity> ReadAllTenants()
+            => Tenants.AsNoTracking().Select(t => new TenantIdentity(t.TenantId, t.TenantName)).ToList();
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Sysadmin")]
         public DbSet<TenantTemplate> TenantTemplates { get; set; }

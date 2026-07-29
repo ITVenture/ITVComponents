@@ -118,6 +118,17 @@ namespace ITVComponents.Workflow.Stores
         }
 
         /// <inheritdoc/>
+        public DateTime? PeekNextTimerDueUtc(DateTime nowUtc)
+        {
+            var future = instances.Values
+                .SelectMany(i => i.WaitingTokens)
+                .Where(t => t.DueUtc.HasValue && t.DueUtc.Value > nowUtc)
+                .Select(t => t.DueUtc.Value)
+                .ToList();
+            return future.Count == 0 ? (DateTime?)null : future.Min();
+        }
+
+        /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets)
         {
             var targetSet = new HashSet<string>(targets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);

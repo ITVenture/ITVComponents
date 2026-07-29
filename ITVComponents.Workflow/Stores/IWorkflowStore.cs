@@ -53,6 +53,13 @@ namespace ITVComponents.Workflow.Stores
         IEnumerable<WorkflowInstance> FindDueTimers(DateTime nowUtc);
 
         /// <summary>
+        /// Liefert die frueheste NOCH NICHT faellige Timer-Faelligkeit (DueUtc &gt; nowUtc) im Sichtbereich des
+        /// Stores, oder null, wenn kein Timer aussteht. Erlaubt einem Background-Worker, den naechsten Poll
+        /// exakt auf den naechsten Timer zu legen, statt blind zu pollen.
+        /// </summary>
+        DateTime? PeekNextTimerDueUtc(DateTime nowUtc);
+
+        /// <summary>
         /// Findet Instanzen mit einem Zweig, der auf eines der angegebenen Ausfuehrungs-Ziele wartet
         /// (Token-Status <see cref="TokenStatus.WaitingForTarget"/> mit passendem
         /// <see cref="Token.WaitingTarget"/>). Damit nimmt ein Runner die Zweige auf, die auf genau die von

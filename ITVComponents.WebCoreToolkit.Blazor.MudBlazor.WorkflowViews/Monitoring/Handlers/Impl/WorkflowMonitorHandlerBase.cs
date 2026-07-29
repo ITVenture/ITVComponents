@@ -10,6 +10,7 @@ using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.WebWorker;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -111,12 +112,22 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             }
 
             using WorkflowOperation op = BeginOperation(environment);
-            if (op.Store.GetInstance(instanceId) == null)
+            WorkflowInstance? instance = op.Store.GetInstance(instanceId);
+            if (instance == null)
             {
                 return false;
             }
 
-            return await DeliverSignalAsync(op, instanceId, signalName);
+            bool delivered = await DeliverSignalAsync(op, instanceId, signalName);
+            if (delivered)
+            {
+                // Best-effort Wake: einen (evtl. im selben Prozess laufenden) Worker sofort auf diesen Tenant/
+                // diese Umgebung aufmerksam machen, statt ihn bis zum Max-Linger warten zu lassen. Fehlt der
+                // Worker (kein Split-/Worker-Betrieb), ist der Service nicht registriert -> stiller No-op.
+                services.GetService<IWorkflowWorkerWake>()?.Poke(environment, instance.TenantId);
+            }
+
+            return delivered;
         }
 
         /// <inheritdoc/>

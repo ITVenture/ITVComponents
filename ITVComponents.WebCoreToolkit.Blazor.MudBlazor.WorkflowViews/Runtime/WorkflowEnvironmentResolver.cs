@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using ITVComponents.Logging;
-using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options;
+using ITVComponents.Workflow.WebWorker.Configuration;
 using ITVComponents.WebCoreToolkit.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

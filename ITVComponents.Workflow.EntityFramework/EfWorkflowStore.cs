@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
@@ -303,6 +304,18 @@ namespace ITVComponents.Workflow.EntityFramework
                 .Distinct()
                 .ToList();
             return LoadInstances(ctx, ids);
+        }
+
+        /// <inheritdoc/>
+        public DateTime? PeekNextTimerDueUtc(DateTime nowUtc)
+        {
+            using WorkflowContext ctx = contextFactory();
+            int waiting = (int)TokenStatus.Waiting;
+            // Frueheste kuenftige Timer-Faelligkeit (indizierter MIN-Query ueber die wartenden Timer-Token).
+            // Min() ueber DateTime? liefert null, wenn kein passender Token existiert.
+            return ctx.Tokens
+                .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc > nowUtc)
+                .Min(t => t.DueUtc);
         }
 
         /// <inheritdoc/>

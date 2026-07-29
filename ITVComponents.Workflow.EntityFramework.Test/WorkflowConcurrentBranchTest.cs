@@ -299,6 +299,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public WorkflowInstance GetInstance(string instanceId) => inner.GetInstance(instanceId);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
+            public DateTime? PeekNextTimerDueUtc(DateTime now) => inner.PeekNextTimerDueUtc(now);
             public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets) => inner.FindBranchesWaitingForTarget(targets);
             public IEnumerable<WorkflowInstance> FindRunnable() => inner.FindRunnable();
             public IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId) => inner.FindChildInstances(parentInstanceId);
@@ -355,6 +356,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
+            public DateTime? PeekNextTimerDueUtc(DateTime now) => inner.PeekNextTimerDueUtc(now);
             public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets) => inner.FindBranchesWaitingForTarget(targets);
             public IEnumerable<WorkflowInstance> FindRunnable() => inner.FindRunnable();
             public IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId) => inner.FindChildInstances(parentInstanceId);

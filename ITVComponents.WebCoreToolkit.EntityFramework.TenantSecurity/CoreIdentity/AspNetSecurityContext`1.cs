@@ -67,7 +67,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
             ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,
             FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin,
-            BaseTenantContextSecurityTrustConfig>
+            BaseTenantContextSecurityTrustConfig>, IAllTenantsReader
         where TImpl : AspNetSecurityContext<TImpl>
     {
         protected readonly DbContextModelBuilderOptions<TImpl> modelBuilderOptions;
@@ -252,6 +252,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "Navigation.Write", "Navigation.View",
             "DiagnosticsQueries.View", "DiagnosticsQueries.Write", "Tenants.SelectFK")]
         public DbSet<Tenant> Tenants { get; set; }
+
+        /// <summary>
+        /// Liefert alle Tenants (Id + Name) tenant-agnostisch fuer Hintergrund-Dienste (z.B. den
+        /// Workflow-Background-Worker). Die Tenant-Tabelle traegt keinen Query-Filter, daher werden alle
+        /// Zeilen geliefert - ohne ShowAllTenants-Escalation und ohne Per-Tenant-Permission.
+        /// </summary>
+        public IReadOnlyList<TenantIdentity> ReadAllTenants()
+            => Tenants.AsNoTracking().Select(t => new TenantIdentity(t.TenantId, t.TenantName)).ToList();
 
         public DbSet<FlatTenantSetting> TenantSettings { get; set; }
 
