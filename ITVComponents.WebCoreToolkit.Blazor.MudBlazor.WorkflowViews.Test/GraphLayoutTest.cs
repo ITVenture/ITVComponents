@@ -62,6 +62,43 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         }
 
         [TestMethod]
+        public void Compute_WaitingKinds_AreHexagons_ExecutingKinds_AreRounded()
+        {
+            var def = new WorkflowDefinition { Id = "wf", Version = 1, Name = "Kinds" };
+            def.Nodes.Add(new AutomatedActivityNode { Id = "auto", Name = "Auto", ActivityRef = "x" });
+            def.Nodes.Add(new CallWorkflowNode { Id = "sub", Name = "Sub", SubDefinitionId = "child" });
+            def.Nodes.Add(new WaitNode { Id = "wait", Name = "Wait" });
+            def.Nodes.Add(new TimerNode { Id = "timer", Name = "Timer" });
+
+            GraphLayout layout = GraphLayout.Compute(def);
+
+            // Wartende Knoten heben sich als Sechseck von den ausfuehrenden (abgerundetes Rechteck) ab.
+            Assert.AreEqual(NodeShape.RoundedRectangle, layout.Nodes.Single(n => n.Id == "auto").Shape);
+            Assert.AreEqual(NodeShape.RoundedRectangle, layout.Nodes.Single(n => n.Id == "sub").Shape);
+            Assert.AreEqual(NodeShape.Hexagon, layout.Nodes.Single(n => n.Id == "wait").Shape);
+            Assert.AreEqual(NodeShape.Hexagon, layout.Nodes.Single(n => n.Id == "timer").Shape);
+        }
+
+        [TestMethod]
+        public void Compute_NodeLabels_CarryKindIndicatorGlyphs()
+        {
+            var def = new WorkflowDefinition { Id = "wf", Version = 1, Name = "Glyphs" };
+            def.Nodes.Add(new AutomatedActivityNode { Id = "auto", Name = "Auto", ActivityRef = "x" });
+            def.Nodes.Add(new CallWorkflowNode { Id = "sub", Name = "Sub", SubDefinitionId = "child" });
+            def.Nodes.Add(new WaitNode { Id = "wait", Name = "Wait" });
+            def.Nodes.Add(new TimerNode { Id = "timer", Name = "Timer" });
+            def.Nodes.Add(new UserActivityNode { Id = "user", Name = "User" });
+
+            GraphLayout layout = GraphLayout.Compute(def);
+
+            Assert.AreEqual("⚙️ Auto", layout.Nodes.Single(n => n.Id == "auto").Label);
+            Assert.AreEqual("🔗 Sub", layout.Nodes.Single(n => n.Id == "sub").Label);
+            Assert.AreEqual("⏳ Wait", layout.Nodes.Single(n => n.Id == "wait").Label);
+            Assert.AreEqual("🕐 Timer", layout.Nodes.Single(n => n.Id == "timer").Label);
+            Assert.AreEqual("👤 User", layout.Nodes.Single(n => n.Id == "user").Label);
+        }
+
+        [TestMethod]
         public void ExplicitDiagram_UsesGivenCoordinates()
         {
             GraphLayout layout = GraphLayout.Compute(LinearDefinition(withDiagram: true));

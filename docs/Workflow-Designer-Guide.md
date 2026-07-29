@@ -125,6 +125,7 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 ### Activity ⚙ (`fa-gears`)
 
 - **Zweck:** ein automatisierter Schritt (eine registrierte Aktivität / ein Worker).
+- **Symbol im Graphen:** ⚙️ vor dem Namen, in einem **abgerundeten Rechteck** (ausführende Knoten).
 - **Ports:** grüner Erfolgs-Port + roter Fehler-Port.
 - **Eigenschaften:**
   - **Activity** — der Aktivitäts-Typ. Kennt der Host einen **Katalog**, gibt es ein Dropdown und ein
@@ -144,6 +145,7 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 ### User task 👤 (`fa-user-check`)
 
 - **Zweck:** wartet, bis eine Person eine Aufgabe aus ihrer Arbeitsliste erledigt.
+- **Symbol im Graphen:** 👤 vor dem Namen, in einem **abgerundeten Rechteck**.
 - **Ports:** ein Ausgang.
 - **Eigenschaften:**
   - **Task key** — der fachliche Schlüssel dieser Aufgabenart (z. B. `ApproveInvoice`). Filtert die
@@ -179,6 +181,7 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 ### Subworkflow ▤ (`fa-diagram-project`)
 
 - **Zweck:** ruft eine andere Definition als Kind auf und wartet auf deren Ende.
+- **Symbol im Graphen:** 🔗 vor dem Namen, in einem **abgerundeten Rechteck** (ausführende Knoten).
 - **Ports:** grüner Erfolgs-Port + roter Fehler-Port.
 - **Eigenschaften:**
   - **Definition** — die aufzurufende Definition (Dropdown der verfügbaren Ids, sonst Freitext).
@@ -193,6 +196,7 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 ### Wait ⏳ (`fa-hourglass-half`)
 
 - **Zweck:** parkt das Token, bis ein passendes **Signal** eintrifft.
+- **Symbol im Graphen:** ⏳ (Sanduhr) vor dem Namen, in einem **Sechseck** (wartende Knoten).
 - **Ports:** ein Ausgang.
 - **Eigenschaften:**
   - **Signal name** — auf welches Signal gewartet wird.
@@ -202,6 +206,7 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 ### Timer ⏰ (`fa-clock`)
 
 - **Zweck:** parkt das Token bis zu einem Fälligkeitszeitpunkt.
+- **Symbol im Graphen:** 🕐 (Uhr mit Zifferblatt) vor dem Namen, in einem **Sechseck** (wartende Knoten).
 - **Ports:** ein Ausgang.
 - **Eigenschaften:**
   - **Due (CScript: DateTime oder TimeSpan)** — ein absoluter Zeitpunkt (DateTime) oder eine Verzögerung

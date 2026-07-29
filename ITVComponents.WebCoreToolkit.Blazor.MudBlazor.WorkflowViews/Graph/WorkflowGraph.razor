@@ -87,6 +87,9 @@ else
                 case NodeShape.Diamond:
                     sb.Append($"<polygon points=\"{DiamondPoints(node)}\" {style} />");
                     break;
+                case NodeShape.Hexagon:
+                    sb.Append($"<polygon points=\"{HexagonPoints(node)}\" {style} />");
+                    break;
                 case NodeShape.Rectangle:
                     sb.Append($"<rect x=\"{N(node.X)}\" y=\"{N(node.Y)}\" width=\"{N(node.Width)}\" height=\"{N(node.Height)}\" {style} />");
                     break;
@@ -163,6 +166,18 @@ else
             $"{N(n.CenterX)},{N(n.Y)}",
             $"{N(n.X + n.Width)},{N(n.CenterY)}",
             $"{N(n.CenterX)},{N(n.Y + n.Height)}",
+            $"{N(n.X)},{N(n.CenterY)}");
+    }
+
+    private static string HexagonPoints(LaidOutNode n)
+    {
+        double k = Math.Min(18, n.Height / 2);
+        return string.Join(" ",
+            $"{N(n.X + k)},{N(n.Y)}",
+            $"{N(n.X + n.Width - k)},{N(n.Y)}",
+            $"{N(n.X + n.Width)},{N(n.CenterY)}",
+            $"{N(n.X + n.Width - k)},{N(n.Y + n.Height)}",
+            $"{N(n.X + k)},{N(n.Y + n.Height)}",
             $"{N(n.X)},{N(n.CenterY)}");
     }
 

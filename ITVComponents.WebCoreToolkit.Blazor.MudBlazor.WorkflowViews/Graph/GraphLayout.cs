@@ -17,6 +17,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// <summary>Rechteck (Wartepunkt/Timer).</summary>
         Rectangle,
 
+        /// <summary>
+        /// Sechseck (Wartepunkte: Wait/Timer). Die abweichende Grundform trennt die WARTENDEN Knoten
+        /// auf einen Blick von den AUSFUEHRENDEN (abgerundetes Rechteck) - welche Art Warten es ist,
+        /// sagt dann der Indikator (Uhr = Timer, Sanduhr = Signal).
+        /// </summary>
+        Hexagon,
+
         /// <summary>Raute (Gateway).</summary>
         Diamond
     }
@@ -573,7 +580,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     return NodeShape.Diamond;
                 case NodeKind.Wait:
                 case NodeKind.Timer:
-                    return NodeShape.Rectangle;
+                    return NodeShape.Hexagon;
                 default:
                     return NodeShape.RoundedRectangle;
             }
@@ -598,7 +605,23 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
 
             bool mapped = node is ParallelGatewayNode p
                           && (p.Outputs is { Count: > 0 } || p.ScopeMode == ActivityScopeMode.Replace);
-            return mapped ? "{…} " + text : text;
+            if (mapped)
+            {
+                return "{…} " + text;
+            }
+
+            // Ein knapper Indikator vor der Beschriftung macht die Art des Knotens erkennbar, auch wenn
+            // mehrere Arten dieselbe Grundform teilen: Zahnrad = automatischer Schritt, Kette = Aufruf
+            // eines Unter-Workflows (beide abgerundete Rechtecke); Uhr = Timer, Sanduhr = Signal-Wait
+            // (beide Sechsecke) - hier betont er, WORAUF gewartet wird. Gleiche Idee wie das 👤 oben.
+            return node.Kind switch
+            {
+                NodeKind.AutomatedActivity => "⚙️ " + text,
+                NodeKind.CallWorkflow => "🔗 " + text,
+                NodeKind.Timer => "🕐 " + text,
+                NodeKind.Wait => "⏳ " + text,
+                _ => text
+            };
         }
 
         private static string? EdgeLabel(SequenceFlow flow)

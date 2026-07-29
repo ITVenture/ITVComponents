@@ -938,6 +938,10 @@
                 case NodeShape.Diamond:
                     sb.Append($"<polygon points=\"{N(w / 2)},0 {N(w)},{N(h / 2)} {N(w / 2)},{N(h)} 0,{N(h / 2)}\" {style} />");
                     break;
+                case NodeShape.Hexagon:
+                    double k = Math.Min(18, h / 2);
+                    sb.Append($"<polygon points=\"{N(k)},0 {N(w - k)},0 {N(w)},{N(h / 2)} {N(w - k)},{N(h)} {N(k)},{N(h)} 0,{N(h / 2)}\" {style} />");
+                    break;
                 case NodeShape.Rectangle:
                     sb.Append($"<rect x=\"0\" y=\"0\" width=\"{N(w)}\" height=\"{N(h)}\" {style} />");
                     break;
