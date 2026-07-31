@@ -773,3 +773,63 @@ protokolliert ihn zusätzlich.
 
 **Keine Schema-Änderung, keine Migration.** `FormFields`/`FormDescription` stecken im Definitions-JSON;
 alte Definitionen deserialisieren mit leerer Feldliste und verhalten sich unverändert.
+
+---
+
+## 11. Fehlgeschlagene Instanzen wieder aufnehmen (Retry)
+
+In der Instanz-Übersicht hat eine **fehlgeschlagene** Instanz einen Retry-Knopf: Daten korrigieren und
+den Schritt, an dem es scheiterte, erneut ausführen.
+
+### Warum das ohne Zurückspulen funktioniert
+
+Beim Fault passiert weniger, als man denkt: `WorkflowEngine.Fault` setzt `Status = Faulted`, schreibt
+`FaultMessage` und einen Protokolleintrag — **der Token bleibt aktiv auf seinem Knoten stehen**. Er wird
+weder bewegt noch verbraucht. Der Wiederaufsatzpunkt ist also bereits da; `RetryFaulted` muss ihn nur
+wieder freigeben:
+
+```csharp
+engine.RetryFaulted(instanceId, variableUpdates, note);   // Status -> Running, Variablen korrigiert
+```
+
+Danach läuft der Vortrieb wie überall (Runner oder `Advance`) und führt **genau diesen** Schritt erneut
+aus. Es wird nichts zurückgespult und nichts übersprungen — bereits abgeschlossene Schritte laufen nicht
+noch einmal.
+
+Den Punkt bestimmt `WorkflowEngine.FindRetryPoint`: der Knoten aus dem letzten `Faulted`-Eintrag. Das ist
+nötig, weil bei parallelen Zweigen mehrere Tokens aktiv geblieben sein können — der Vortrieb bricht ab,
+sobald *ein* Zweig faultet. Dieselbe Methode benutzt die Oberfläche für die Anzeige, damit sie nicht
+etwas anderes behauptet, als der Retry dann tut.
+
+### Wohin die Korrekturen gehen
+
+In den Scope **des fehlgeschlagenen Tokens** (`WorkflowEngine.ScopeOf`) — innerhalb einer parallelen
+Region ist das der Zweig-Scope, sonst der Instanz-Scope. Also genau dorthin, wo die Aktivität beim
+nächsten Versuch liest; eine Korrektur im Instanz-Scope käme in einem Zweig sonst nie an.
+
+Die Maske zeigt die Variablen dieses Scopes, erlaubt das **Anlegen neuer** (der häufigste Fall ist eine
+*fehlende* Variable) und schickt nur, was tatsächlich angefasst wurde. Zusammengesetzte Werte
+(Objekte/Listen) sind read-only — sie im Textfeld zu bearbeiten wäre Raten. Die Rückübersetzung ist
+typ-erhaltend (`WorkflowVariableValue`), weil CScript typ-empfindlich ist: `amount > 0` braucht eine
+Zahl, keinen Text.
+
+### Rechte, Tenant, Deployment
+
+- Permission **`Workflow.Operate`** — kein eigenes Recht: das ist ein Eingriff an etwas Bestehendem,
+  genau wie Signal und Abbruch.
+- Der Tenant der Instanz wird **explizit** geprüft (`MayTouch`), damit das Erraten einer Instanz-Id
+  nicht genügt. Der Vortrieb läuft unter dem Tenant **der Instanz**, nicht dem der Anfrage.
+- Gleiche Weggabelung wie sonst: `Inline` advanced direkt im Web-Prozess (der Benutzer sieht sofort, ob
+  die Korrektur reichte), `Runner` lässt den Zweig vom Runner aufnehmen. Danach `Poke`.
+
+### Abgrenzung zum Fehler-Ausgang
+
+Der **Fehler-Ausgang** (`ErrorFlowId`, §8) ist der *modellierte* Weg: erwartete Fehler, im Graphen
+behandelt, mit Zähler und Retry-Schleife. Der Retry-Knopf ist der *unerwartete* Fall — der Prozess ist
+bereits gefaultet, ein Mensch schaut hin. Wer denselben Fehler regelmäßig von Hand repariert, sollte ihn
+stattdessen modellieren.
+
+**Nicht wiederaufsetzbar** sind Fehler, die an keinem Schritt hängen (kein aktives Token, z.B. eine nicht
+mehr ladbare Definition). Der Dialog sagt das mit Grund, statt einen willkürlichen Punkt zu wählen.
+
+**Keine Schema-Änderung, keine Migration.**

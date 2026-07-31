@@ -74,6 +74,18 @@
                     <PropertyColumn Property="x => x.UpdatedUtc" Title="Updated (UTC)" />
                     <TemplateColumn T="WorkflowInstanceListItem" Title="" Sortable="false">
                         <CellTemplate>
+                            @* Nur bei fehlgeschlagenen Instanzen - bei allen anderen gaebe es nichts zu
+                               wiederholen, und der Knopf wuerde nur zum Ausprobieren einladen. *@
+                            @if (context.Item.Status == nameof(WorkflowStatus.Faulted))
+                            {
+                                <SecureView RequiredPermissions="Workflow.Operate">
+                                    <Permitted>
+                                        <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small"
+                                                       Color="Color.Warning" Title="Correct data and retry"
+                                                       OnClick="@(() => OpenRetry(context.Item))" />
+                                    </Permitted>
+                                </SecureView>
+                            }
                             <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details"
                                            OnClick="@(() => OpenDetail(context.Item))" />
                         </CellTemplate>
@@ -163,6 +175,27 @@
         if (result is { Canceled: false, Data: string instanceId })
         {
             Snackbar.Add($"Instance {instanceId} started.", Severity.Success);
+            await ReloadGrid();
+        }
+    }
+
+    /// <summary>
+    /// Oeffnet die Retry-Maske einer fehlgeschlagenen Instanz. Danach neu laden: im Inline-Betrieb ist
+    /// der Schritt bereits gelaufen und der Status hat sich geaendert.
+    /// </summary>
+    private async Task OpenRetry(WorkflowInstanceListItem item)
+    {
+        var parameters = new DialogParameters<RetryWorkflowDialog>
+        {
+            { d => d.InstanceId, item.Id },
+            { d => d.Environment, Env }
+        };
+        IDialogReference dlg = await DialogService.ShowAsync<RetryWorkflowDialog>(
+            $"Retry {item.Id}", parameters, EditDialogDefaults.Detail);
+        DialogResult? result = await dlg.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            Snackbar.Add($"Instance {item.Id} resumed.", Severity.Success);
             await ReloadGrid();
         }
     }

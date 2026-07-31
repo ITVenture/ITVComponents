@@ -48,5 +48,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // wo die Plugins liegen - im Web-Prozess koennte er nur den EINEN Tenant der Anfrage treiben.
             return op.Engine.CreateInstance(definitionId, variables, correlationKey);
         }
+
+        /// <inheritdoc/>
+        protected override void ResumeAfterRetry(WorkflowOperation op, string instanceId)
+        {
+            // Store-only: die Instanz steht wieder auf Running mit einem aktiven Token. Den Zweig nimmt der
+            // Runner beim naechsten Poll auf und fuehrt ihn dort aus, wo die Plugins liegen.
+        }
     }
 }

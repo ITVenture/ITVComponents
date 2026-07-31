@@ -43,6 +43,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         Task<bool> CancelAsync(ClaimsPrincipal user, string instanceId, string? environment = null);
 
         /// <summary>
+        /// Liefert alles, was die Retry-Maske einer fehlgeschlagenen Instanz braucht: Fehlermeldung,
+        /// Wiederaufsatzpunkt und die Variablen im Scope des fehlgeschlagenen Schritts. Null ohne
+        /// Berechtigung (<see cref="WorkflowSecurity.Operate"/>) oder wenn es die Instanz nicht gibt.
+        /// </summary>
+        Task<WorkflowRetryInfo?> GetRetryInfoAsync(ClaimsPrincipal user, string instanceId,
+            string? environment = null);
+
+        /// <summary>
+        /// Nimmt eine fehlgeschlagene Instanz an der Fehlerstelle wieder auf (Operate) - optional mit
+        /// korrigierten Variablen. Der Rueckgabewert traegt im Fehlerfall den anzeigbaren Grund.
+        /// </summary>
+        Task<WorkflowRetryResult> RetryAsync(ClaimsPrincipal user, string instanceId,
+            IDictionary<string, object?>? variableUpdates = null, string? environment = null);
+
+        /// <summary>
         /// Liefert die Definitionen, die von Hand gestartet werden koennen - je Id die hoechste Version,
         /// ohne die fuer den Start gesperrten und die ohne Start-Knoten. Leer ohne Berechtigung
         /// (<see cref="WorkflowSecurity.Start"/>).

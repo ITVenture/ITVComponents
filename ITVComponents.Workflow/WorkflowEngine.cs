@@ -343,6 +343,119 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
+        /// Bestimmt den Token, an dem ein Wiederaufsatz ansetzen wuerde - den, der beim Fehler noch aktiv
+        /// auf seinem Knoten steht. Liefert null, wenn es keinen gibt (dann haengt der Fehler an keinem
+        /// Schritt und es gibt nichts zu wiederholen).
+        /// </summary>
+        /// <remarks>
+        /// Bei parallelen Zweigen koennen beim Fault mehrere Tokens aktiv geblieben sein - der Vortrieb
+        /// bricht ab, sobald EIN Zweig faultet. Der letzte Fehler-Protokolleintrag benennt den Knoten, um
+        /// den es geht; nur wenn der keinen Token traegt, wird auf den ersten aktiven zurueckgefallen.
+        /// Oeffentlich, damit Oberflaechen dieselbe Stelle anzeigen, an der der Retry dann wirklich ansetzt.
+        /// </remarks>
+        public static Token FindRetryPoint(WorkflowInstance instance)
+        {
+            if (instance == null)
+            {
+                return null;
+            }
+
+            HistoryEntry fault = instance.History?
+                .LastOrDefault(h => string.Equals(h.Event, "Faulted", StringComparison.Ordinal));
+            Token failed = fault?.NodeId != null
+                ? instance.ActiveTokens.FirstOrDefault(t => t.NodeId == fault.NodeId)
+                : null;
+            return failed ?? instance.ActiveTokens.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Der Variablen-Scope, in dem ein Token arbeitet: innerhalb einer parallelen Region der
+        /// Zweig-Scope des Tokens, sonst der Instanz-Scope. Oeffentlich, damit eine Oberflaeche genau die
+        /// Werte zeigt und korrigiert, die der betreffende Schritt auch liest.
+        /// </summary>
+        public static IDictionary<string, object> ScopeOf(WorkflowInstance instance, Token token)
+            => Scope(instance, token);
+
+        /// <summary>
+        /// Nimmt eine fehlgeschlagene Instanz an der <b>Fehlerstelle</b> wieder auf: optional werden
+        /// Variablen korrigiert, dann faellt der Status auf <see cref="WorkflowStatus.Running"/> zurueck.
+        /// Der Token, an dem der Fehler auftrat, steht noch AKTIV auf seinem Knoten - der naechste
+        /// Vortrieb (Runner oder <see cref="Advance(WorkflowInstance)"/>) fuehrt genau diesen Schritt
+        /// erneut aus. Es wird nichts zurueckgespult und nichts uebersprungen.
+        /// </summary>
+        /// <param name="instanceId">die Instanz-Id</param>
+        /// <param name="variableUpdates">
+        /// zu setzende Variablen (Name -&gt; Wert), oder null. Sie gehen in den Scope des fehlgeschlagenen
+        /// Tokens - also genau dorthin, wo die Aktivitaet beim naechsten Versuch liest (nach einem Split
+        /// ist das der Zweig-Scope, sonst der Instanz-Scope).
+        /// </param>
+        /// <param name="note">optionale Notiz fuer das Protokoll (z.B. wer korrigiert hat)</param>
+        /// <returns>true, wenn die Instanz wieder aufgenommen wurde; false, wenn es sie nicht gibt</returns>
+        /// <exception cref="InvalidOperationException">
+        /// wenn die Instanz nicht fehlgeschlagen ist oder es keinen Wiederaufsatzpunkt gibt.
+        /// </exception>
+        public bool RetryFaulted(string instanceId, IDictionary<string, object> variableUpdates = null,
+            string note = null)
+        {
+            WorkflowInstance instance = store.GetInstance(instanceId);
+            if (instance == null)
+            {
+                return false;
+            }
+
+            if (instance.Status != WorkflowStatus.Faulted)
+            {
+                // Eine laufende oder beendete Instanz "wieder aufzunehmen" hiesse, sie ein zweites Mal
+                // anzustossen bzw. einen Abschluss zurueckzunehmen - beides waere kein Retry.
+                throw new InvalidOperationException(
+                    $"Instance '{instanceId}' is not faulted (status {instance.Status}) - there is nothing to retry.");
+            }
+
+            Token failed = FindRetryPoint(instance);
+            if (failed == null)
+            {
+                // Kein aktives Token = kein Schritt, der wiederholt werden koennte. Das passiert bei
+                // instanzweiten Fehlern (z.B. eine Definition, die nicht mehr ladbar ist). Ein Retry
+                // muesste raten, wo er ansetzt - besser eine klare Meldung als ein willkuerlicher Neustart.
+                throw new InvalidOperationException(
+                    $"Instance '{instanceId}' has no active token to resume from. The failure was not tied to a " +
+                    "step (see the fault message and the history); it cannot be retried from here.");
+            }
+
+            Dictionary<string, object> scope = (Dictionary<string, object>)ScopeOf(instance, failed);
+            var changed = new List<string>();
+            if (variableUpdates != null)
+            {
+                foreach (KeyValuePair<string, object> pair in variableUpdates)
+                {
+                    if (string.IsNullOrWhiteSpace(pair.Key))
+                    {
+                        continue;
+                    }
+
+                    scope[pair.Key] = pair.Value;
+                    changed.Add(pair.Key);
+                }
+            }
+
+            string previousFault = instance.FaultMessage;
+            instance.Status = WorkflowStatus.Running;
+            instance.FaultMessage = null;
+
+            string detail = changed.Count == 0
+                ? $"retry after: {previousFault}"
+                : $"retry after: {previousFault} (corrected: {string.Join(", ", changed)})";
+            instance.Log("Retry", failed.NodeId,
+                string.IsNullOrWhiteSpace(note) ? detail : $"{detail} - {note}", HistorySeverity.Warning);
+
+            store.SaveInstance(instance);
+            LogEnvironment.LogEvent(
+                $"Workflow instance '{instanceId}' was resumed at node '{failed.NodeId}' after a failure " +
+                $"({previousFault}); {changed.Count} variable(s) corrected.", LogSeverity.Warning);
+            return true;
+        }
+
+        /// <summary>
         /// Treibt EINEN Zweig (Token) einer Instanz <b>nebenlaeufigkeits-sicher</b> voran: laedt die
         /// Instanz, fuehrt die Aktivitaet EINMAL aus und committet das Zweig-Delta optimistisch (Retry bei
         /// Versionskonflikt, OHNE die Aktivitaet erneut auszufuehren). Fertige Joins werden im

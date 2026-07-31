@@ -11,6 +11,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
+using ITVComponents.Workflow;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
@@ -148,6 +149,138 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // hier gemeinsam, unabhaengig von der Signal-Variante.
             using WorkflowOperation op = BeginOperation(environment);
             return Task.FromResult(op.Engine.CancelWorkflow(instanceId));
+        }
+
+        /// <inheritdoc/>
+        public Task<WorkflowRetryInfo?> GetRetryInfoAsync(ClaimsPrincipal user, string instanceId,
+            string? environment = null)
+        {
+            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            {
+                return Task.FromResult<WorkflowRetryInfo?>(null);
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowInstance? instance = op.Store.GetInstance(instanceId);
+            if (instance == null || !MayTouch(instance))
+            {
+                LogEnvironment.LogEvent(
+                    $"Retry-Info fuer Instanz '{instanceId}' abgelehnt: nicht vorhanden oder fremder Tenant.",
+                    LogSeverity.Warning);
+                return Task.FromResult<WorkflowRetryInfo?>(null);
+            }
+
+            HistoryEntry? fault = instance.History?
+                .LastOrDefault(h => string.Equals(h.Event, "Faulted", StringComparison.Ordinal));
+
+            if (instance.Status != WorkflowStatus.Faulted)
+            {
+                return Task.FromResult<WorkflowRetryInfo?>(new WorkflowRetryInfo
+                {
+                    InstanceId = instance.Id,
+                    FaultMessage = instance.FaultMessage,
+                    CanRetry = false,
+                    Reason = $"This instance is {instance.Status}, not faulted - there is nothing to retry."
+                });
+            }
+
+            Token? failed = WorkflowEngine.FindRetryPoint(instance);
+            if (failed == null)
+            {
+                return Task.FromResult<WorkflowRetryInfo?>(new WorkflowRetryInfo
+                {
+                    InstanceId = instance.Id,
+                    FaultMessage = instance.FaultMessage,
+                    NodeId = fault?.NodeId,
+                    FailedUtc = fault?.TimestampUtc,
+                    CanRetry = false,
+                    Reason = "The failure is not tied to a step, so there is no point to resume from. "
+                             + "See the fault message and the history."
+                });
+            }
+
+            // Genau die Werte zeigen, die der fehlgeschlagene Schritt beim naechsten Versuch liest -
+            // innerhalb einer parallelen Region ist das der Zweig-Scope, sonst der Instanz-Scope.
+            IDictionary<string, object> scope = WorkflowEngine.ScopeOf(instance, failed);
+            var variables = scope
+                .OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(p => new WorkflowRetryVariable
+                {
+                    Name = p.Key,
+                    Value = WorkflowVariableValue.Display(p.Value),
+                    Kind = WorkflowVariableValue.KindOf(p.Value),
+                    TypeName = p.Value?.GetType().Name
+                })
+                .ToList();
+
+            return Task.FromResult<WorkflowRetryInfo?>(new WorkflowRetryInfo
+            {
+                InstanceId = instance.Id,
+                FaultMessage = instance.FaultMessage,
+                NodeId = failed.NodeId,
+                NodeName = NodeName(op, instance, failed.NodeId),
+                FailedUtc = fault?.TimestampUtc,
+                CanRetry = true,
+                Variables = variables
+            });
+        }
+
+        /// <inheritdoc/>
+        public Task<WorkflowRetryResult> RetryAsync(ClaimsPrincipal user, string instanceId,
+            IDictionary<string, object?>? variableUpdates = null, string? environment = null)
+        {
+            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            {
+                LogEnvironment.LogEvent(
+                    $"Wiederaufnahme der Instanz '{instanceId}' ohne Berechtigung " +
+                    $"'{WorkflowSecurity.Operate}' abgelehnt.", LogSeverity.Warning);
+                return Task.FromResult(WorkflowRetryResult.Failed(
+                    "You have no permission to operate workflow instances."));
+            }
+
+            try
+            {
+                using WorkflowOperation op = BeginOperation(environment);
+                WorkflowInstance? instance = op.Store.GetInstance(instanceId);
+                if (instance == null || !MayTouch(instance))
+                {
+                    LogEnvironment.LogEvent(
+                        $"Wiederaufnahme der Instanz '{instanceId}' abgelehnt: nicht vorhanden oder fremder " +
+                        "Tenant.", LogSeverity.Warning);
+                    return Task.FromResult(WorkflowRetryResult.Failed("This instance does not exist."));
+                }
+
+                // Unter dem Tenant DER INSTANZ arbeiten - nicht dem der Anfrage. Beim Inline-Betrieb laeuft
+                // gleich danach die Aktivitaet, und die muss die Daten ihres eigenen Mandanten sehen.
+                using IDisposable? tenantScope = string.IsNullOrEmpty(instance.TenantId)
+                    ? null
+                    : WorkflowExecutionScope.UseTenant(instance.TenantId);
+
+                var updates = variableUpdates == null
+                    ? null
+                    : variableUpdates.ToDictionary(p => p.Key, p => p.Value!, StringComparer.Ordinal);
+
+                string? who = user?.Identity?.Name;
+                if (!op.Engine.RetryFaulted(instanceId, updates,
+                        string.IsNullOrEmpty(who) ? null : $"resumed by {who}"))
+                {
+                    return Task.FromResult(WorkflowRetryResult.Failed("This instance does not exist."));
+                }
+
+                // Weiter geht es wie ueberall: inline im Web-Prozess oder store-only durch den Runner.
+                ResumeAfterRetry(op, instanceId);
+                services.GetService<IWorkflowWorkerWake>()?.Poke(environment, instance.TenantId);
+                return Task.FromResult(WorkflowRetryResult.Ok());
+            }
+            catch (Exception ex)
+            {
+                // Die Engine wirft mit Absicht (nicht fehlgeschlagen, kein Wiederaufsatzpunkt). Der Grund
+                // gehoert ins Log UND an den Benutzer.
+                LogEnvironment.LogEvent(
+                    $"Konnte Instanz '{instanceId}' nicht wieder aufnehmen (Umgebung " +
+                    $"'{environment ?? "<default>"}'): {ex.OutlineException()}", LogSeverity.Error);
+                return Task.FromResult(WorkflowRetryResult.Failed(ex.Message));
+            }
         }
 
         /// <inheritdoc/>
@@ -349,6 +482,54 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// </summary>
         protected abstract WorkflowInstance StartInstanceCore(WorkflowOperation op, string definitionId,
             IDictionary<string, object> variables, string? correlationKey);
+
+        /// <summary>
+        /// Treibt die eben wieder aufgenommene Instanz weiter. Dieselbe Weggabelung wie bei Signal und
+        /// Start: inline wird im Web-Prozess advanced, store-only nimmt der Runner den nun aktiven Zweig auf.
+        /// </summary>
+        protected abstract void ResumeAfterRetry(WorkflowOperation op, string instanceId);
+
+        /// <summary>
+        /// Darf der aktuelle Tenant diese Instanz anfassen? Explizit geprueft und nicht dem Query-Filter
+        /// ueberlassen - ob der greift, entscheidet die Registrierung des Kontexts im Host. Ein Eingriff
+        /// darf davon nicht abhaengen, sonst genuegte das Erraten einer Instanz-Id.
+        /// </summary>
+        private bool MayTouch(WorkflowInstance instance)
+        {
+            string? tenant = CurrentTenant();
+            if (string.IsNullOrEmpty(tenant))
+            {
+                // Ein-Mandanten-Host: es gibt keine Trennung, die verletzt werden koennte.
+                return true;
+            }
+
+            return string.Equals(instance.TenantId, tenant, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Der Anzeigename eines Knotens aus der Definition der Instanz, oder die Id.</summary>
+        private static string? NodeName(WorkflowOperation op, WorkflowInstance instance, string? nodeId)
+        {
+            if (string.IsNullOrEmpty(nodeId))
+            {
+                return null;
+            }
+
+            try
+            {
+                WorkflowDefinition? def = op.Store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion);
+                WorkflowNode? node = def?.GetNode(nodeId);
+                return string.IsNullOrEmpty(node?.Name) ? nodeId : node!.Name;
+            }
+            catch (Exception ex)
+            {
+                // Nur ein Anzeigename - die Maske funktioniert auch mit der Id. Der Grund muss trotzdem
+                // nachvollziehbar sein (eine nicht ladbare Definition ist selten harmlos).
+                LogEnvironment.LogEvent(
+                    $"Konnte den Knotennamen '{nodeId}' der Instanz '{instance.Id}' nicht ermitteln: " +
+                    $"{ex.OutlineException()}", LogSeverity.Warning);
+                return nodeId;
+            }
+        }
 
         /// <summary>
         /// Der Tenant der aktuellen Anfrage - nach derselben Konvention wie in der Aufgaben-Arbeitsliste

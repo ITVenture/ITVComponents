@@ -44,5 +44,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // im Betrieb bliebe eine bloss angelegte Instanz sonst regungslos liegen.
             return op.Engine.StartWorkflow(definitionId, variables, correlationKey);
         }
+
+        /// <inheritdoc/>
+        protected override void ResumeAfterRetry(WorkflowOperation op, string instanceId)
+        {
+            // Inline: den wieder aktiven Schritt sofort im Web-Prozess ausfuehren, damit der Benutzer
+            // gleich sieht, ob seine Korrektur gereicht hat.
+            WorkflowInstance? instance = op.Store.GetInstance(instanceId);
+            if (instance != null)
+            {
+                op.Engine.Advance(instance);
+            }
+        }
     }
 }
