@@ -67,7 +67,9 @@
                     <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
                     <CScriptField @key="@("corr-" + Node.Id)" @ref="exprField" Height="240"
                                   Value="@wait.CorrelationExpression"
-                                  ValueChanged="@(v => wait.CorrelationExpression = v)" />
+                                  ValueChanged="@(v => wait.CorrelationExpression = v)"
+                                  Mode="wait.CorrelationExpressionMode"
+                                  ModeChanged="@(m => wait.CorrelationExpressionMode = m)" />
                     break;
                 case TimerNode timer:
                     <MudText Typo="Typo.caption" Class="mt-2">Due (CScript: DateTime or TimeSpan)</MudText>

@@ -1132,7 +1132,7 @@ namespace ITVComponents.Workflow
             {
                 try
                 {
-                    assignedTo = evaluator.Evaluate(node.Assignment, scope)?.ToString();
+                    assignedTo = evaluator.Evaluate(node.Assignment, scope, node.AssignmentMode)?.ToString();
                 }
                 catch (Exception ex)
                 {
@@ -1165,11 +1165,16 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
-        /// Der Titel, unter dem die Aufgabe in der Arbeitsliste steht. Ein
-        /// <see cref="UserActivityNode.TitleExpression"/> gewinnt (dann ist der Titel Klartext), sonst
-        /// bleibt <see cref="UserActivityNode.Title"/> stehen - Kultur-JSON wird erst beim Anzeigen
-        /// uebersetzt.
+        /// Der Titel, unter dem die Aufgabe in der Arbeitsliste steht: <see cref="UserActivityNode.Title"/>
+        /// (Klartext oder Kultur-JSON, uebersetzt wird erst beim Anzeigen), formatiert mit dem
+        /// <see cref="UserActivityNode.FormatData"/>-Objekt.
         /// </summary>
+        /// <remarks>
+        /// Einen eigenen Titel-AUSDRUCK gibt es nicht mehr: <see cref="UserActivityNode.Title"/> ist selbst
+        /// ein Format-Prototyp und zieht seine Werte aus demselben <see cref="UserActivityNode.FormatData"/>
+        /// wie die Beschreibung. Ein zweiter Weg zum selben Ziel haette nur die Frage aufgeworfen, welcher
+        /// gewinnt - und der Ausdrucks-Weg konnte zudem nicht mehrsprachig bleiben.
+        /// </remarks>
         /// <remarks>
         /// Der statische Titel wird - falls ein <see cref="UserActivityNode.FormatData"/>-Objekt vorliegt -
         /// hier schon mit den Werten des aktuellen Scopes formatiert (siehe <see cref="ApplyTitleFormat"/>).
@@ -1181,30 +1186,6 @@ namespace ITVComponents.Workflow
         private string ResolveTaskTitle(WorkflowInstance instance, Dictionary<string, object> scope,
             UserActivityNode node)
         {
-            if (!string.IsNullOrWhiteSpace(node.TitleExpression))
-            {
-                try
-                {
-                    string computed = evaluator.Evaluate(node.TitleExpression, scope)?.ToString();
-                    if (!string.IsNullOrWhiteSpace(computed))
-                    {
-                        return computed;
-                    }
-
-                    LogEnvironment.LogEvent(
-                        $"Title expression of user task '{node.Id}' in instance '{instance.Id}' produced no " +
-                        "text - falling back to the static title.", LogSeverity.Warning);
-                }
-                catch (Exception ex)
-                {
-                    // Anders als bei der Zuweisung nur eine Meldung: ein fehlender Titel ist kosmetisch,
-                    // und eine unerledigbare Aufgabe waere die teurere Folge.
-                    LogEnvironment.LogEvent(
-                        $"Title expression of user task '{node.Id}' in instance '{instance.Id}' failed - " +
-                        $"falling back to the static title: {ex.OutlineException()}", LogSeverity.Error);
-                }
-            }
-
             string title = string.IsNullOrWhiteSpace(node.Title) ? node.Name : node.Title;
             return ApplyTitleFormat(instance, scope, node, title);
         }
@@ -1227,7 +1208,7 @@ namespace ITVComponents.Workflow
             object data;
             try
             {
-                data = evaluator.Evaluate(node.FormatData, scope);
+                data = evaluator.Evaluate(node.FormatData, scope, node.FormatDataMode);
             }
             catch (Exception ex)
             {
@@ -1634,7 +1615,7 @@ namespace ITVComponents.Workflow
             {
                 try
                 {
-                    formatData = evaluator.Evaluate(node.FormatData, taskScope);
+                    formatData = evaluator.Evaluate(node.FormatData, taskScope, node.FormatDataMode);
                 }
                 catch (Exception ex)
                 {

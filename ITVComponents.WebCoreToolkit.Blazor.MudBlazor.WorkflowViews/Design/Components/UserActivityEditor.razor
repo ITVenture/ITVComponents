@@ -5,7 +5,7 @@
     Tab-basierter Editor für einen UserActivityNode (Benutzer-Aufgabe). Reiter: General (Identität +
     Zuständigkeit), Variable mapping (Datenfluss + Scope), View settings (Darstellung/Übersetzung),
     Input settings (Felder der generischen Maske). KeepPanelsAlive, damit die Monaco-Felder (Assignment/
-    TitleExpression) auch dann für FlushAsync erreichbar sind, wenn ihr Reiter gerade nicht aktiv ist.
+    FormatData) auch dann für FlushAsync erreichbar sind, wenn ihr Reiter gerade nicht aktiv ist.
     Der Aufrufer (NodePropertiesDialog) ruft FlushAsync() vor dem Schliessen.
 *@
 
@@ -31,7 +31,8 @@
                 that fails faults the instance on purpose — an unassigned task would be visible to everyone.
             </MudText>
             <CScriptField @ref="assignField" Height="120" Value="@Node.Assignment"
-                          ValueChanged="@(v => Node.Assignment = v)" />
+                          ValueChanged="@(v => Node.Assignment = v)"
+                          Mode="Node.AssignmentMode" ModeChanged="@(m => Node.AssignmentMode = m)" />
 
             <MudNumericField T="double?" @bind-Value="Node.DueInHours" Label="Due in hours" Margin="Margin.Dense"
                              Class="mt-3" Min="0"
@@ -66,13 +67,6 @@
             <CScriptField @ref="titleJsonField" Language="json" Height="90" Value="@Node.Title"
                           ValueChanged="@(v => Node.Title = v)" />
 
-            <MudText Typo="Typo.caption" Class="mt-3">Title from the data (CScript)</MudText>
-            <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                Optional. Wins over the static title — but the result is plain text and therefore not multilingual.
-            </MudText>
-            <CScriptField @ref="titleField" Height="90" Value="@Node.TitleExpression"
-                          ValueChanged="@(v => Node.TitleExpression = v)" />
-
             <MudText Typo="Typo.caption" Class="mt-3">Description (plain text or culture JSON)</MudText>
             <MudText Typo="Typo.caption" Class="mud-text-secondary">@CultureHint</MudText>
             <CScriptField @ref="descField" Language="json" Height="90" Value="@Node.Description"
@@ -87,7 +81,8 @@
                 prototype per culture). Empty = title and description are shown as-is.
             </MudText>
             <CScriptField @ref="formatDataField" Height="120" Value="@Node.FormatData"
-                          ValueChanged="@(v => Node.FormatData = v)" />
+                          ValueChanged="@(v => Node.FormatData = v)"
+                          Mode="Node.FormatDataMode" ModeChanged="@(m => Node.FormatDataMode = m)" />
         </MudTabPanel>
 
         @* --- Input settings (generische Maske) --- *@
@@ -132,13 +127,12 @@
         "Plain text, or a per-culture record like {\"de\":\"Freigabe\",\"fr\":\"Approbation\"} — the same convention as navigation entries.";
 
     private CScriptField? assignField;
-    private CScriptField? titleField;
     private CScriptField? titleJsonField;
     private CScriptField? descField;
     private CScriptField? formatDataField;
 
     /// <summary>
-    /// Holt den aktuellen Text der Monaco-Felder (Assignment, Title, TitleExpression, Description, FormatData)
+    /// Holt den aktuellen Text der Monaco-Felder (Assignment, Title, Description, FormatData)
     /// ins Modell. Monaco meldet seinen Wert erst beim Verlassen - der Editor ruft dies vor jedem
     /// Speichern/Schliessen.
     /// </summary>
@@ -157,11 +151,6 @@
         if (titleJsonField is not null)
         {
             Node.Title = await titleJsonField.GetValueAsync();
-        }
-
-        if (titleField is not null)
-        {
-            Node.TitleExpression = await titleField.GetValueAsync();
         }
 
         if (descField is not null)

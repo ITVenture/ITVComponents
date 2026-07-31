@@ -581,7 +581,7 @@ nebenläufigkeits-sicher über `TryCommitInstance`, mit einem eigenen Ausgang f�
 | `Assignment` | CScript → Benutzername. **Einmal** beim Parken ausgewertet und am Token festgeschrieben (eine Arbeitsliste ist eine Datenbankabfrage und kann kein Skript auswerten). Leer = Pool-Aufgabe. |
 | `ViewKey` | Optionaler Schlüssel der Oberflächen-Komponente. **Nie ein Typname** — Definitionen sind DB-Daten, ein Typname darin wäre Code-Ausführung per Datenpflege. |
 | `Title` / `Description` | Klartext **oder** Kultur-JSON (`{"de":"Freigabe","fr":"Approbation"}`) — dieselbe Konvention wie bei Navigations-Einträgen. |
-| `TitleExpression` | CScript für einen Titel aus den Daten („Rechnung 4711"). Gewinnt gegen `Title`, ist dann aber Klartext und **nicht** mehrsprachig. |
+
 | `Inputs` / `Outputs` | Was die Maske sieht bzw. zurückgibt (dieselbe Bindungs-Maschinerie wie an der Aktivität, inkl. `ScopeMode`/`RetainVariables`). |
 | `FormFields` | Deklaration der **generischen Maske**. Leer = die Aufgabe wird nur bestätigt. |
 | `DueInHours` | Frist ab dem Parken — reine Anzeige-/Sortierinformation. |
@@ -591,7 +591,7 @@ Zwei Dinge, die man nicht verwechseln darf: **Permission** = siehst du diese Sor
 
 Ein Zuweisungs-Ausdruck, der scheitert, **faultet die Instanz** — bewusst: die Aufgabe läge sonst im Pool
 und wäre für jeden mit der Permission sichtbar, also eine stille Sichtbarkeits-Ausweitung. Ein
-scheiternder `TitleExpression` ist dagegen nur eine Log-Zeile (der Titel fällt auf `Title` zurück) — eine
+scheiterndes `FormatData` ist dagegen nur eine Log-Zeile (der Titel bleibt unformatiert) — eine
 unerledigbare Aufgabe wäre die teurere Folge.
 
 Die Frist landet in `Token.TaskDueUtc`, **nicht** in `DueUtc`: letzteres ist die Timer-Fälligkeit, und der

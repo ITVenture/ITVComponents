@@ -79,7 +79,6 @@ namespace ITVComponents.Workflow.Test
                 Id = "u", TaskKey = "ApproveInvoice", RequiredPermission = "Invoice.Approve",
                 ViewKey = "invoice-approval", Assignment = "owner",
                 Title = "{\"de\":\"Freigabe\",\"fr\":\"Approbation\"}",
-                TitleExpression = "\"Invoice \" + number",
                 Description = "Bitte pruefen", DueInHours = 48,
                 ScopeMode = ActivityScopeMode.Replace
             };

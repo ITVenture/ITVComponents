@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Workflow.Activities;
+using ITVComponents.Workflow.Expressions;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Stores;
@@ -86,13 +87,18 @@ namespace ITVComponents.Workflow.Test
         }
 
         [TestMethod]
-        public void UserTask_TitleExpression_WinsOverTheStaticTitle()
+        public void UserTask_TitleIsFormattedFromTheFormatData()
         {
+            // Einen eigenen Titel-AUSDRUCK gibt es nicht mehr: der Titel ist selbst ein Format-Prototyp
+            // und zieht seine Werte aus demselben FormatData wie die Beschreibung.
             store.SaveDefinition(OneTask("t", node =>
             {
                 node.TaskKey = "Check";
-                node.Title = "generic";
-                node.TitleExpression = "\"Invoice \" + number";
+                node.Title = "Invoice [InvoiceNo]";
+                // Als Block: ein Objekt-Literal am Anfang lehnt der Ausdrucks-Parser ab - genau dafuer
+                // gibt es den Modus-Schalter am Feld.
+                node.FormatData = "return {InvoiceNo: number};";
+                node.FormatDataMode = ScriptMode.Block;
             }));
 
             WorkflowInstance instance = engine.StartWorkflow("t",

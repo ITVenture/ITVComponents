@@ -292,6 +292,12 @@ namespace ITVComponents.Workflow.Model
         /// es so die richtige wartende Instanz. Null bedeutet Korrelation ueber die Instanz-Id.
         /// </summary>
         public string CorrelationExpression { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="CorrelationExpression"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes
+        /// Skript mit <c>return</c>.
+        /// </summary>
+        public ScriptMode CorrelationExpressionMode { get; set; } = ScriptMode.Expression;
     }
 
     /// <summary>
@@ -336,6 +342,12 @@ namespace ITVComponents.Workflow.Model
         public string Assignment { get; set; }
 
         /// <summary>
+        /// Wie <see cref="Assignment"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes Skript mit
+        /// <c>return</c>.
+        /// </summary>
+        public ScriptMode AssignmentMode { get; set; } = ScriptMode.Expression;
+
+        /// <summary>
         /// Optionaler Schluessel der Oberflaechen-Komponente, die diese Aufgabe darstellt. Aufgeloest wird
         /// er von der konsumenten-seitigen Registry (<c>ViewKey</c>, sonst <see cref="TaskKey"/>, sonst die
         /// generische Maske aus <see cref="FormFields"/>).
@@ -356,13 +368,6 @@ namespace ITVComponents.Workflow.Model
         public string Title { get; set; }
 
         /// <summary>
-        /// Optionaler CScript-Ausdruck, der den Titel aus den Variablen des Zweigs berechnet (z.B.
-        /// "Rechnung " + rechnungsNr). Ist er gesetzt, gewinnt er gegen <see cref="Title"/> - der so
-        /// entstandene Titel ist dann aber Klartext und damit <b>nicht</b> mehrsprachig.
-        /// </summary>
-        public string TitleExpression { get; set; }
-
-        /// <summary>
         /// Optionale Beschreibung/Arbeitsanweisung fuer die Maske. Klartext oder Kultur-JSON wie
         /// <see cref="Title"/>.
         /// </summary>
@@ -379,6 +384,12 @@ namespace ITVComponents.Workflow.Model
         /// aktuelle Stand einfliesst. Leer/null = Titel und Beschreibung werden unveraendert angezeigt.
         /// </summary>
         public string FormatData { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="FormatData"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes Skript mit
+        /// <c>return</c>.
+        /// </summary>
+        public ScriptMode FormatDataMode { get; set; } = ScriptMode.Expression;
 
         /// <summary>
         /// Datenfluss <b>hinein</b>: was die Maske zu sehen bekommt. Die Bindungen werden aufgeloest, wenn
