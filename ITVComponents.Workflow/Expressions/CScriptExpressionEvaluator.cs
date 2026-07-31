@@ -29,19 +29,33 @@ namespace ITVComponents.Workflow.Expressions
 
         /// <inheritdoc/>
         public object Evaluate(string expression, IReadOnlyDictionary<string, object> variables)
+            => Evaluate(expression, variables, ScriptMode.Expression);
+
+        /// <inheritdoc/>
+        public object Evaluate(string expression, IReadOnlyDictionary<string, object> variables, ScriptMode mode)
         {
             if (string.IsNullOrWhiteSpace(expression))
             {
                 throw new ArgumentException("Expression must not be empty.", nameof(expression));
             }
 
-            return ScriptInterpreter.Parse(expression, Copy(variables), policy: policy);
+            // Zwei verschiedene Einstiege des Interpreters, nicht zwei Geschmacksrichtungen desselben:
+            // Parse wertet EINEN Ausdruck aus (und ignoriert stillschweigend, was danach kommt),
+            // ParseBlock ein ganzes Skript - dessen Ergebnis ist ohne 'return' null.
+            return mode == ScriptMode.Block
+                ? ScriptInterpreter.ParseBlock(expression, Copy(variables), policy: policy)
+                : ScriptInterpreter.Parse(expression, Copy(variables), policy: policy);
         }
 
         /// <inheritdoc/>
         public bool EvaluateCondition(string expression, IReadOnlyDictionary<string, object> variables)
+            => EvaluateCondition(expression, variables, ScriptMode.Expression);
+
+        /// <inheritdoc/>
+        public bool EvaluateCondition(string expression, IReadOnlyDictionary<string, object> variables,
+            ScriptMode mode)
         {
-            object result = Evaluate(expression, variables);
+            object result = Evaluate(expression, variables, mode);
             switch (result)
             {
                 case bool b:

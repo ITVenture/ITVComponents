@@ -1,3 +1,5 @@
+using ITVComponents.Workflow.Expressions;
+
 namespace ITVComponents.Workflow.Model
 {
     /// <summary>
@@ -62,6 +64,13 @@ namespace ITVComponents.Workflow.Model
         /// CScript-Ausdruck (bei <see cref="ParameterBindingKind.Expression"/>).
         /// </summary>
         public string Source { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="Source"/> bei <see cref="ParameterBindingKind.Expression"/> zu lesen ist:
+        /// EIN Ausdruck (Standard) oder ein ganzes Skript mit <c>return</c>. Bei den anderen
+        /// Bindungsarten ohne Bedeutung.
+        /// </summary>
+        public ScriptMode SourceMode { get; set; } = ScriptMode.Expression;
     }
 
     /// <summary>

@@ -42,7 +42,9 @@
             case ParameterBindingKind.Expression:
                 <MudText Typo="Typo.caption" Class="mt-3">Expression (CScript over the instance variables)</MudText>
                 <CScriptField @ref="exprField" Height="300" Value="@(Binding.Source ?? string.Empty)"
-                              ValueChanged="@(v => Binding.Source = string.IsNullOrEmpty(v) ? null : v)" />
+                              ValueChanged="@(v => Binding.Source = string.IsNullOrEmpty(v) ? null : v)"
+                              Mode="Binding.SourceMode"
+                              ModeChanged="@(m => Binding.SourceMode = m)" />
                 break;
             case ParameterBindingKind.Variable:
                 <MudTextField T="string" Value="@(Binding.Source ?? string.Empty)"

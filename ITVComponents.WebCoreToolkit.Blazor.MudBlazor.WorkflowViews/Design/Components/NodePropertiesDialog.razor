@@ -73,7 +73,9 @@
                     <MudText Typo="Typo.caption" Class="mt-2">Due (CScript: DateTime or TimeSpan)</MudText>
                     <CScriptField @key="@("due-" + Node.Id)" @ref="exprField" Height="240"
                                   Value="@timer.DueExpression"
-                                  ValueChanged="@(v => timer.DueExpression = v)" />
+                                  ValueChanged="@(v => timer.DueExpression = v)"
+                                  Mode="timer.DueExpressionMode"
+                                  ModeChanged="@(m => timer.DueExpressionMode = m)" />
                     break;
                 case ParallelGatewayNode par:
                     <ParallelGatewayConfigEditor Node="par" IsJoin="@(IncomingCount(par.Id) > 1)" />
@@ -96,7 +98,9 @@
             <MudText Typo="Typo.caption" Class="mt-2">Condition (CScript, for XOR gateways)</MudText>
             <CScriptField @key="@("cond-" + Flow.Id)" @ref="exprField" Height="240"
                           Value="@Flow.Condition"
-                          ValueChanged="@(v => Flow.Condition = v)" />
+                          ValueChanged="@(v => Flow.Condition = v)"
+                          Mode="Flow.ConditionMode"
+                          ModeChanged="@(m => Flow.ConditionMode = m)" />
 
             @* Mapping der Kante: was der Stack ist, wenn ein Token hier ankommt. Ergaenzt das
                Mapping am Zielknoten - typisch, um mehrere Pfade auf gleiche Namen zu bringen. *@

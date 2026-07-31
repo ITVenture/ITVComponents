@@ -1,3 +1,4 @@
+using ITVComponents.Workflow.Expressions;
 using System.Collections.Generic;
 
 namespace ITVComponents.Workflow.Model
@@ -25,6 +26,13 @@ namespace ITVComponents.Workflow.Model
         /// liefert. Nur an ausgehenden Kanten eines exklusiven Gateways ausgewertet.
         /// </summary>
         public string Condition { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="Condition"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes Skript mit
+        /// <c>return</c>. Achtung bei <see cref="ScriptMode.Block"/>: ohne <c>return</c> ist das
+        /// Ergebnis null und die Bedingung damit false.
+        /// </summary>
+        public ScriptMode ConditionMode { get; set; } = ScriptMode.Expression;
 
         /// <summary>
         /// Optionales Mapping der Kante: wie der Variablen-Stack aussieht, wenn ein Token <b>hier

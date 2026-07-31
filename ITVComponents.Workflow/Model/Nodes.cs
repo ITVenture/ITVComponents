@@ -1,3 +1,4 @@
+using ITVComponents.Workflow.Expressions;
 using System.Collections.Generic;
 
 namespace ITVComponents.Workflow.Model
@@ -525,6 +526,12 @@ namespace ITVComponents.Workflow.Model
         /// <see cref="System.TimeSpan"/> (Wartedauer ab Betreten des Knotens).
         /// </summary>
         public string DueExpression { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="DueExpression"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes Skript
+        /// mit <c>return</c>.
+        /// </summary>
+        public ScriptMode DueExpressionMode { get; set; } = ScriptMode.Expression;
     }
 
     /// <summary>

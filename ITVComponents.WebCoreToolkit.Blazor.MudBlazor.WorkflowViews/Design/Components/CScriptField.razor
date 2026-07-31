@@ -13,6 +13,28 @@
     von Hand gesetzte <script>-Tags sind nicht noetig und koennen entfernt werden.
 *@
 
+@* Der Modus steht UEBER dem Editor, weil er die Bedeutung des Textes darunter aendert - und weil ein
+   falsch gesetzter Modus nicht auffaellt: ein Block, als Ausdruck ausgewertet, liefert keinen Fehler,
+   sondern still einen falschen Wert. Nur sichtbar, wenn der Aufrufer den Modus auch fuehrt. *@
+@if (ModeChanged.HasDelegate)
+{
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-1">
+        <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+            <MudButton Color="@(Mode == ScriptMode.Expression ? Color.Primary : Color.Default)"
+                       Variant="@(Mode == ScriptMode.Expression ? Variant.Filled : Variant.Outlined)"
+                       OnClick="@(() => ModeChanged.InvokeAsync(ScriptMode.Expression))">Expression</MudButton>
+            <MudButton Color="@(Mode == ScriptMode.Block ? Color.Primary : Color.Default)"
+                       Variant="@(Mode == ScriptMode.Block ? Variant.Filled : Variant.Outlined)"
+                       OnClick="@(() => ModeChanged.InvokeAsync(ScriptMode.Block))">Script block</MudButton>
+        </MudButtonGroup>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            @(Mode == ScriptMode.Block
+                ? "Statements, ending in an explicit return — without a return the result is null."
+                : "A single expression; its value is the result.")
+        </MudText>
+    </MudStack>
+}
+
 @* Die Hoehe muss ueber die Klasse an das von Monaco erzeugte Kind-div durchgereicht werden
    (CScriptField.razor.css) - eine Hoehe nur am aeusseren div laesst den Editor auf ~5px kollabieren. *@
 <div class="itv-cscript-host"
@@ -29,6 +51,15 @@
 
     /// <summary>Editorhoehe in px.</summary>
     [Parameter] public int Height { get; set; } = 90;
+
+    /// <summary>
+    /// Wie der Text zu lesen ist. Der Umschalter erscheint nur, wenn <see cref="ModeChanged"/> gesetzt
+    /// ist - Felder, die den Modus (noch) nicht führen, sehen unverändert aus.
+    /// </summary>
+    [Parameter] public ScriptMode Mode { get; set; } = ScriptMode.Expression;
+
+    /// <summary>Wird beim Umschalten des Modus aufgerufen.</summary>
+    [Parameter] public EventCallback<ScriptMode> ModeChanged { get; set; }
 
     /// <summary>
     /// Monaco-Sprache. Standard "javascript" (kommt CScript syntaktisch am naechsten). Fuer reine

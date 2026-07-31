@@ -1876,7 +1876,7 @@ namespace ITVComponents.Workflow
                         break;
 
                     case ParameterBindingKind.Expression:
-                        result[binding.Parameter] = evaluator.Evaluate(binding.Source, scope);
+                        result[binding.Parameter] = evaluator.Evaluate(binding.Source, scope, binding.SourceMode);
                         break;
 
                     default:
@@ -2431,7 +2431,7 @@ namespace ITVComponents.Workflow
                 bool matched;
                 try
                 {
-                    matched = evaluator.EvaluateCondition(flow.Condition, Scope(instance, token));
+                    matched = evaluator.EvaluateCondition(flow.Condition, Scope(instance, token), flow.ConditionMode);
                 }
                 catch (Exception ex)
                 {
@@ -2471,7 +2471,7 @@ namespace ITVComponents.Workflow
             DateTime dueUtc;
             try
             {
-                object due = evaluator.Evaluate(node.DueExpression, Scope(instance, token));
+                object due = evaluator.Evaluate(node.DueExpression, Scope(instance, token), node.DueExpressionMode);
                 switch (due)
                 {
                     case DateTime dt:
