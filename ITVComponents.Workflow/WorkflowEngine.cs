@@ -308,8 +308,15 @@ namespace ITVComponents.Workflow
 
         /// <summary>
         /// Bricht eine Instanz ab: verbraucht ihre Tokens und setzt den Status auf
-        /// <see cref="WorkflowStatus.Cancelled"/>. Bereits beendete Instanzen bleiben unveraendert.
+        /// <see cref="WorkflowStatus.Cancelled"/>. Bereits <b>beendete</b> Instanzen (Completed,
+        /// Cancelled) bleiben unveraendert.
         /// </summary>
+        /// <remarks>
+        /// Eine <see cref="WorkflowStatus.Faulted"/>-Instanz ist ausdruecklich abbrechbar: sie ist nicht
+        /// beendet, sondern haengt - ihre Tokens stehen noch auf ihren Knoten (siehe
+        /// <see cref="RetryFaulted"/>). Wer den Wiederaufsatz aufgibt, muss den Fall schliessen koennen,
+        /// sonst bliebe er fuer immer in der Uebersicht liegen.
+        /// </remarks>
         /// <param name="instanceId">die Instanz-Id</param>
         /// <returns>true, wenn die Instanz abgebrochen wurde</returns>
         public bool CancelWorkflow(string instanceId)
@@ -317,11 +324,12 @@ namespace ITVComponents.Workflow
             WorkflowInstance instance = store.GetInstance(instanceId);
             if (instance == null
                 || instance.Status == WorkflowStatus.Completed
-                || instance.Status == WorkflowStatus.Faulted
                 || instance.Status == WorkflowStatus.Cancelled)
             {
                 return false;
             }
+
+            bool wasFaulted = instance.Status == WorkflowStatus.Faulted;
 
             foreach (Token token in instance.Tokens)
             {
@@ -329,7 +337,10 @@ namespace ITVComponents.Workflow
             }
 
             instance.Status = WorkflowStatus.Cancelled;
-            instance.Log("Cancelled", severity: HistorySeverity.Warning);
+            // Die Fehlermeldung bleibt bewusst stehen: sie ist der Grund, warum abgebrochen wurde, und
+            // waere nach dem Statuswechsel sonst nirgends mehr sichtbar.
+            instance.Log("Cancelled", severity: HistorySeverity.Warning,
+                detail: wasFaulted ? $"given up after: {instance.FaultMessage}" : null);
             store.SaveInstance(instance);
 
             // Abbruch-Kaskade: laufende Subworkflows dieser Instanz mit abbrechen (ihr Ergebnis wuerde

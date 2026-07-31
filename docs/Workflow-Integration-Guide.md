@@ -822,6 +822,43 @@ Zahl, keinen Text.
 - Gleiche Weggabelung wie sonst: `Inline` advanced direkt im Web-Prozess (der Benutzer sieht sofort, ob
   die Korrektur reichte), `Runner` lässt den Zweig vom Runner aufnehmen. Danach `Poke`.
 
+### Parallele Zweige
+
+Ein Fault stoppt **den ganzen Prozess**, nicht nur den fehlgeschlagenen Zweig — die Vortriebs-Schleife
+läuft nur, solange die Instanz nicht `Faulted` ist. Was das für den Nachbarzweig heißt, hängt davon ab,
+wo er gerade stand:
+
+| Zustand von Zweig A beim Fault in B | Nach dem Retry |
+|---|---|
+| noch **aktiv** (irgendwo in seiner Kette) | läuft weiter, wo er stand — nichts wird wiederholt |
+| bereits am Join **geparkt** (`Joining`) | bleibt geparkt und wartet auf B; läuft **nicht** noch einmal |
+| noch gar nicht gelaufen | startet jetzt |
+
+`RetryFaulted` fasst dabei **keine Tokens an** — es setzt nur den Status zurück. Die anderen Zweige
+resümieren also von selbst, weil ihre Tokens ohnehin noch aktiv (bzw. wartend) sind. Im
+Runner-Betrieb reiht der Poll alle aktiven Tokens einer `Running`-Instanz wieder als Zweig-Tasks ein
+(`FindRunnable` liefert nur `Running`, deshalb ruht eine gefaultete Instanz vorher komplett).
+
+**Sequenziell vs. nebenläufig:** im Inline-/`Advance`-Betrieb laufen Zweige nicht verschränkt, sondern
+einer nach dem anderen bis zu seiner nächsten Barriere. Ob A beim Fault von B schon durch ist oder noch
+gar nicht lief, entscheidet daher schlicht die Reihenfolge der Split-Kanten. Im Runner-Betrieb laufen
+sie echt parallel; ein Zweig, der währenddessen fertig wird, committet sein Delta noch (Joins und
+Endstatus werden bei gefaulteter Instanz aber nicht mehr aufgelöst).
+
+Die Korrektur landet im Scope **des fehlgeschlagenen Zweigs** — der Nachbarzweig hat seinen eigenen und
+sieht sie nicht. Das ist Absicht: der Join führt die Scopes anschließend zusammen.
+
+Beides ist als Test festgehalten (`WorkflowRetryTest.ParallelFault_*`), inklusive der Zusicherung, dass
+jede Aktivität genau einmal läuft — nur die fehlgeschlagene zweimal.
+
+### Aufgeben: Abbrechen einer fehlgeschlagenen Instanz
+
+`CancelWorkflow` akzeptiert **auch `Faulted`**. Eine fehlgeschlagene Instanz ist nicht beendet, sondern
+hängt — ihre Tokens stehen noch auf ihren Knoten. Wer den Wiederaufsatz aufgibt, muss den Fall
+schließen können, sonst bliebe er für immer in der Übersicht liegen. Der Protokolleintrag hält die
+ursprüngliche Fehlermeldung fest (`given up after: …`), weil sie nach dem Statuswechsel sonst nirgends
+mehr sichtbar wäre. Beendete Instanzen (`Completed`, `Cancelled`) bleiben wie bisher unverändert.
+
 ### Abgrenzung zum Fehler-Ausgang
 
 Der **Fehler-Ausgang** (`ErrorFlowId`, §8) ist der *modellierte* Weg: erwartete Fehler, im Graphen

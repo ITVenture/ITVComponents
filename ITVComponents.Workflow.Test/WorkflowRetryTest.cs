@@ -185,6 +185,156 @@ namespace ITVComponents.Workflow.Test
                 "the correction goes into the scope the failing activity actually reads.");
         }
 
+        // --- Parallele Zweige --------------------------------------------------------------------
+
+        /// <summary>
+        /// Split -> Zweig A (a1..a3) und Zweig B (b1..b5, scheitert an b2) -> AND-Join -> Ende.
+        /// Die Reihenfolge der Split-Kanten bestimmt, welcher Zweig sequenziell zuerst laeuft.
+        /// </summary>
+        private void SaveTwoBranches(bool branchBFirst)
+        {
+            var flows = new List<SequenceFlow> { F("s", "split") };
+            flows.Add(branchBFirst ? F("split", "b1") : F("split", "a1"));
+            flows.Add(branchBFirst ? F("split", "a1") : F("split", "b1"));
+            flows.AddRange(new[]
+            {
+                F("a1", "a2"), F("a2", "a3"), F("a3", "join"),
+                F("b1", "b2"), F("b2", "b3"), F("b3", "b4"), F("b4", "b5"), F("b5", "join"),
+                F("join", "e")
+            });
+
+            var nodes = new List<WorkflowNode>
+            {
+                new StartNode { Id = "s" },
+                new ParallelGatewayNode { Id = "split" },
+                new ParallelGatewayNode { Id = "join" },
+                new EndNode { Id = "e" }
+            };
+            nodes.AddRange(new[] { "a1", "a2", "a3" }
+                .Select(id => new AutomatedActivityNode { Id = id, ActivityRef = id }));
+            nodes.Add(new AutomatedActivityNode { Id = "b1", ActivityRef = "b1" });
+            nodes.Add(new AutomatedActivityNode { Id = "b2", ActivityRef = "step" });   // der Wackelkandidat
+            nodes.AddRange(new[] { "b3", "b4", "b5" }
+                .Select(id => new AutomatedActivityNode { Id = id, ActivityRef = id }));
+
+            store.SaveDefinition(new WorkflowDefinition { Id = "wf", Nodes = nodes, Flows = flows });
+        }
+
+        private static ActivityRegistry CountingActivities(IDictionary<string, int> runs)
+        {
+            ActivityRegistry activities = NeedsAmount(() => Count(runs, "b2"));
+            foreach (string id in new[] { "a1", "a2", "a3", "b1", "b3", "b4", "b5" })
+            {
+                string captured = id;
+                activities.Register(captured, _ => Count(runs, captured));
+            }
+
+            return activities;
+        }
+
+        private static void Count(IDictionary<string, int> runs, string id)
+            => runs[id] = runs.TryGetValue(id, out int n) ? n + 1 : 1;
+
+        [TestMethod]
+        public void ParallelFault_StopsTheOtherBranchWhereItStands_AndRetryResumesBoth()
+        {
+            // Zweig B laeuft zuerst und faultet an b2 - Zweig A ist zu diesem Zeitpunkt noch gar nicht
+            // gelaufen. Genau die Frage: bleibt A stehen, und nimmt der Retry ihn wieder mit?
+            SaveTwoBranches(branchBFirst: true);
+            var runs = new Dictionary<string, int>(StringComparer.Ordinal);
+            var engine = new WorkflowEngine(store, CountingActivities(runs));
+
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+
+            WorkflowInstance faulted = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, faulted.Status);
+            Assert.AreEqual(1, runs["b1"]);
+            Assert.AreEqual(1, runs["b2"], "b2 lief einmal und scheiterte.");
+            Assert.IsFalse(runs.ContainsKey("a1"),
+                "Zweig A ist gar nicht gelaufen - der Vortrieb bricht ab, sobald EIN Zweig faultet.");
+
+            // Beide Tokens sind aktiv: B steht auf b2 (Fehlerstelle), A noch am Anfang seines Zweigs.
+            Assert.AreEqual(2, faulted.ActiveTokens.Count());
+            Assert.AreEqual("b2", WorkflowEngine.FindRetryPoint(faulted).NodeId,
+                "der Wiederaufsatzpunkt ist die Fehlerstelle, nicht irgendein aktives Token.");
+            CollectionAssert.AreEquivalent(new[] { "a1", "b2" },
+                faulted.ActiveTokens.Select(t => t.NodeId).ToList());
+
+            engine.RetryFaulted(inst.Id, new Dictionary<string, object> { ["amount"] = 7m });
+            engine.Advance(store.GetInstance(inst.Id));
+
+            WorkflowInstance final = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, final.Status,
+                "beide Zweige laufen weiter und der Join feuert.");
+            Assert.AreEqual(2, runs["b2"], "b2 lief genau zweimal: einmal fehlgeschlagen, einmal nach der Korrektur.");
+            foreach (string id in new[] { "a1", "a2", "a3", "b1", "b3", "b4", "b5" })
+            {
+                Assert.AreEqual(1, runs[id], $"'{id}' darf genau einmal gelaufen sein.");
+            }
+        }
+
+        [TestMethod]
+        public void ParallelFault_AfterTheOtherBranchParkedAtTheJoin_RetryStillCompletes()
+        {
+            // Andere Kanten-Reihenfolge: A laeuft komplett durch und parkt am Join, DANN faultet B. A ist
+            // dann kein aktives Token mehr, sondern wartet (Joining) - der Retry darf ihn nicht anfassen.
+            SaveTwoBranches(branchBFirst: false);
+            var runs = new Dictionary<string, int>(StringComparer.Ordinal);
+            var engine = new WorkflowEngine(store, CountingActivities(runs));
+
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+
+            WorkflowInstance faulted = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, faulted.Status);
+            Assert.AreEqual(1, runs["a3"], "Zweig A lief bis zum Join durch, bevor B ueberhaupt startete.");
+            Assert.AreEqual("b2", WorkflowEngine.FindRetryPoint(faulted).NodeId);
+            Assert.AreEqual(1, faulted.ActiveTokens.Count(), "nur der fehlgeschlagene Zweig ist noch aktiv.");
+            Assert.IsTrue(faulted.Tokens.Any(t => t.Status == TokenStatus.Joining),
+                "Zweig A wartet am Join.");
+
+            engine.RetryFaulted(inst.Id, new Dictionary<string, object> { ["amount"] = 7m });
+            engine.Advance(store.GetInstance(inst.Id));
+
+            WorkflowInstance final = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, final.Status);
+            Assert.AreEqual(1, runs["a1"], "der wartende Zweig laeuft NICHT noch einmal.");
+            Assert.AreEqual(2, runs["b2"]);
+        }
+
+        // --- Abbruch einer fehlgeschlagenen Instanz ----------------------------------------------
+
+        [TestMethod]
+        public void FaultedInstance_CanBeCancelled()
+        {
+            // Wer den Wiederaufsatz aufgibt, muss den Fall schliessen koennen - sonst bliebe er fuer
+            // immer in der Uebersicht liegen.
+            SaveLinear();
+            var engine = new WorkflowEngine(store, NeedsAmount());
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+            Assert.AreEqual(WorkflowStatus.Faulted, store.GetInstance(inst.Id).Status);
+
+            Assert.IsTrue(engine.CancelWorkflow(inst.Id));
+
+            WorkflowInstance cancelled = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Cancelled, cancelled.Status);
+            Assert.IsTrue(cancelled.Tokens.All(t => t.Status == TokenStatus.Consumed));
+            StringAssert.Contains(cancelled.History.Last(h => h.Event == "Cancelled").Detail, "given up after",
+                "der Grund des Fehlschlags bleibt im Protokoll sichtbar.");
+        }
+
+        [TestMethod]
+        public void CancelledInstance_CannotBeRetried()
+        {
+            SaveLinear();
+            var engine = new WorkflowEngine(store, NeedsAmount());
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+            engine.CancelWorkflow(inst.Id);
+
+            InvalidOperationException ex = Assert.ThrowsException<InvalidOperationException>(
+                () => engine.RetryFaulted(inst.Id));
+            StringAssert.Contains(ex.Message, "not faulted");
+        }
+
         [TestMethod]
         public void Retry_OfARunningInstance_IsRejected()
         {

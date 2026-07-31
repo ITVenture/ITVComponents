@@ -105,12 +105,17 @@
                 </Permitted>
             </SecureView>
         }
+        @* Auch Faulted: eine fehlgeschlagene Instanz ist nicht beendet, sondern haengt - wer den
+           Wiederaufsatz aufgibt, muss den Fall schliessen koennen. *@
         @if (instance is not null
-             && (instance.Status == WorkflowStatus.Running || instance.Status == WorkflowStatus.Waiting))
+             && (instance.Status == WorkflowStatus.Running || instance.Status == WorkflowStatus.Waiting
+                 || instance.Status == WorkflowStatus.Faulted))
         {
             <SecureView RequiredPermissions="Workflow.Operate">
                 <Permitted>
-                    <MudButton Color="Color.Error" OnClick="Cancel">Cancel workflow</MudButton>
+                    <MudButton Color="Color.Error" OnClick="Cancel">
+                        @(instance.Status == WorkflowStatus.Faulted ? "Give up and cancel" : "Cancel workflow")
+                    </MudButton>
                 </Permitted>
             </SecureView>
         }
