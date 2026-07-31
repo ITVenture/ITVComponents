@@ -36,9 +36,30 @@ namespace ITVComponents.Workflow.Test
             call.Outputs.Add(new ActivityOutputBinding { Parameter = "res", Variable = "answer" });
 
             // Signatur und Ergebnis der Definition (Start-Parameter / End-Result).
-            var start = new StartNode { Id = "s", ScopeMode = ActivityScopeMode.Replace };
+            var start = new StartNode
+            {
+                Id = "s", ScopeMode = ActivityScopeMode.Replace,
+                FormDescription = "{\"de\":\"Neuen Fall eroeffnen\",\"fr\":\"Ouvrir un dossier\"}"
+            };
             start.RetainVariables.Add("corr");
             start.Inputs.Add(new ActivityInputBinding { Parameter = "seed", Kind = ParameterBindingKind.Literal, Literal = 5 });
+
+            // Die Start-MASKE: was ein Mensch eingibt, wenn er die Definition von Hand startet. Dieselbe
+            // Feldbeschreibung wie bei der Benutzer-Aufgabe.
+            start.FormFields.Add(new UserTaskField
+            {
+                Name = "seed", Kind = UserTaskFieldKind.Number, Required = true,
+                Label = "{\"de\":\"Startwert\",\"fr\":\"Valeur initiale\"}"
+            });
+            start.FormFields.Add(new UserTaskField
+            {
+                Name = "mode", Kind = UserTaskFieldKind.Choice, HelpText = "How fast?",
+                Choices = new List<UserTaskChoice>
+                {
+                    new UserTaskChoice { Value = "fast", Label = "Schnell" },
+                    new UserTaskChoice { Value = "slow" }
+                }
+            });
             var end = new EndNode { Id = "e" };
             end.Outputs.Add(new ActivityOutputBinding { Parameter = "total", Variable = "result" });
             end.RetainVariables.Add("corr");
@@ -176,6 +197,19 @@ namespace ITVComponents.Workflow.Test
             Assert.AreEqual(ActivityScopeMode.Replace, s.ScopeMode);
             CollectionAssert.AreEquivalent(new[] { "corr" }, s.RetainVariables);
             Assert.IsInstanceOfType<int>(s.Inputs.Single().Literal, "the start parameter literal round-trips as int.");
+
+            // Die Start-Maske ueberlebt den Round-Trip - sie ist Teil der Definition, nicht der Oberflaeche.
+            Assert.AreEqual("{\"de\":\"Neuen Fall eroeffnen\",\"fr\":\"Ouvrir un dossier\"}", s.FormDescription,
+                "the per-culture record stays raw - it is translated when displayed.");
+            Assert.AreEqual(2, s.FormFields.Count);
+            UserTaskField seed = s.FormFields.Single(f => f.Name == "seed");
+            Assert.AreEqual(UserTaskFieldKind.Number, seed.Kind);
+            Assert.IsTrue(seed.Required);
+            Assert.AreEqual("{\"de\":\"Startwert\",\"fr\":\"Valeur initiale\"}", seed.Label);
+            UserTaskField mode = s.FormFields.Single(f => f.Name == "mode");
+            Assert.AreEqual("How fast?", mode.HelpText);
+            Assert.AreEqual(2, mode.Choices.Count);
+            Assert.AreEqual("Schnell", mode.Choices.Single(ch => ch.Value == "fast").Label);
 
             var e = (EndNode)copy.GetNode("e");
             Assert.AreEqual("total", e.Outputs.Single().Parameter);

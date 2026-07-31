@@ -496,6 +496,80 @@ namespace ITVComponents.Workflow.Test
                           && i.Message.Contains("outgoing connections")));
         }
 
+        // --- Start-Maske (StartNode.FormFields) ---------------------------------------------------
+
+        [TestMethod]
+        public void StartFormWithDuplicateField_IsError()
+        {
+            Assert.IsTrue(WorkflowDefinitionValidator.Validate(WithStartForm(s =>
+                {
+                    s.FormFields.Add(new UserTaskField { Name = "amount" });
+                    s.FormFields.Add(new UserTaskField { Name = "Amount" });
+                }))
+                .Any(i => i.Severity == ValidationSeverity.Error && i.NodeId == "s"
+                          && i.Message.Contains("more than once")));
+        }
+
+        [TestMethod]
+        public void StartFormFieldNotInStrictSignature_IsWarning()
+        {
+            // Strikte Signatur: was nicht deklariert ist, wird eingegeben und sofort verworfen.
+            var issues = WorkflowDefinitionValidator.Validate(WithStartForm(s =>
+            {
+                s.ScopeMode = ActivityScopeMode.Replace;
+                s.Inputs.Add(new ActivityInputBinding
+                    { Parameter = "amount", Kind = ParameterBindingKind.Variable, Source = "amount" });
+                s.FormFields.Add(new UserTaskField { Name = "amount" });
+                s.FormFields.Add(new UserTaskField { Name = "comment" });
+            }));
+
+            Assert.IsFalse(HasError(issues), "a dropped field is a warning, not an error - it may be intended.");
+            Assert.IsTrue(issues.Any(i => i.NodeId == "s" && i.Message.Contains("'comment'")
+                                          && i.Message.Contains("dropped")));
+            Assert.IsFalse(issues.Any(i => i.Message.Contains("'amount'") && i.Message.Contains("dropped")),
+                "the declared field survives and must not be reported.");
+        }
+
+        [TestMethod]
+        public void StartFormFieldsWithExtendScope_AreNotReported()
+        {
+            // Ohne strikte Signatur bleibt alles Uebergebene stehen - es gibt nichts zu warnen.
+            var issues = WorkflowDefinitionValidator.Validate(WithStartForm(s =>
+            {
+                s.Inputs.Add(new ActivityInputBinding
+                    { Parameter = "amount", Kind = ParameterBindingKind.Variable, Source = "amount" });
+                s.FormFields.Add(new UserTaskField { Name = "comment" });
+            }));
+
+            Assert.IsFalse(issues.Any(i => i.Message.Contains("dropped")));
+        }
+
+        [TestMethod]
+        public void StartFormReadOnlyField_IsWarning()
+        {
+            // ReadOnly zeigt einen Payload an - beim Start gibt es keinen, das Feld erschiene gar nicht.
+            Assert.IsTrue(WorkflowDefinitionValidator.Validate(WithStartForm(s =>
+                    s.FormFields.Add(new UserTaskField { Name = "info", ReadOnly = true })))
+                .Any(i => i.Severity == ValidationSeverity.Warning && i.NodeId == "s"
+                          && i.Message.Contains("read-only")));
+        }
+
+        [TestMethod]
+        public void StartFormWithBrokenCultureJson_IsReported()
+        {
+            Assert.IsTrue(WorkflowDefinitionValidator.Validate(WithStartForm(s =>
+                    s.FormDescription = "{\"de\":\"Neuer Fall\""))
+                .Any(i => i.NodeId == "s" && i.Message.Contains("form description")));
+        }
+
+        /// <summary>Linear, mit Zugriff auf den Start-Knoten (Signatur + Start-Maske).</summary>
+        private static WorkflowDefinition WithStartForm(System.Action<StartNode> configure)
+        {
+            WorkflowDefinition def = Linear();
+            configure(def.Nodes.OfType<StartNode>().Single());
+            return def;
+        }
+
         /// <summary>Start → Benutzer-Aufgabe → Ende.</summary>
         private static WorkflowDefinition WithUserTask(System.Action<UserActivityNode> configure)
         {

@@ -48,7 +48,7 @@
             @switch (Node)
             {
                 case StartNode start:
-                    <StartConfigEditor Node="start" />
+                    <StartConfigEditor Node="start" @ref="startEditor" />
                     break;
                 case EndNode end:
                     <EndConfigEditor Node="end" />
@@ -145,6 +145,7 @@
 
     private CScriptField? exprField;
     private UserActivityEditor? userTaskEditor;
+    private StartConfigEditor? startEditor;
 
     private string NodeTitle => Node is null
         ? "Node"
@@ -173,6 +174,13 @@
         if (Node is UserActivityNode && userTaskEditor is not null)
         {
             await userTaskEditor.FlushAsync();
+            return;
+        }
+
+        if (Node is StartNode && startEditor is not null)
+        {
+            // Der Start-Editor hat ein eigenes Monaco-Feld (Beschreibung der Start-Maske).
+            await startEditor.FlushAsync();
             return;
         }
 

@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.EntityFramework;
+using ITVComponents.Workflow.Instances;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers.Impl
 {
@@ -32,6 +34,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         {
             // Inline: advanced synchron im aufrufenden (Web-)Prozess ueber die frisch gebaute Engine.
             return Task.FromResult(op.Engine.SignalWorkflow(instanceId, signalName));
+        }
+
+        /// <inheritdoc/>
+        protected override WorkflowInstance StartInstanceCore(WorkflowOperation op, string definitionId,
+            IDictionary<string, object> variables, string? correlationKey)
+        {
+            // Inline wie beim Signal: anlegen UND synchron bis zum ersten Wartepunkt treiben. Ohne Runner
+            // im Betrieb bliebe eine bloss angelegte Instanz sonst regungslos liegen.
+            return op.Engine.StartWorkflow(definitionId, variables, correlationKey);
         }
     }
 }

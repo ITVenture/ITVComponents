@@ -23,10 +23,16 @@
 
         <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Class="mt-2">
             <MudSwitch T="bool" @bind-Value="Field.Required" Color="Color.Primary" Label="Required" />
-            <MudSwitch T="bool" @bind-Value="Field.ReadOnly" Color="Color.Default" Label="Display only" />
+            @if (ShowPayloadOptions)
+            {
+                <MudSwitch T="bool" @bind-Value="Field.ReadOnly" Color="Color.Default" Label="Display only" />
+            }
         </MudStack>
-        <MudTextField @bind-Value="Field.PayloadName" Label="Payload name (prefill / display source)"
-                      Margin="Margin.Dense" Placeholder="(field name)" />
+        @if (ShowPayloadOptions)
+        {
+            <MudTextField @bind-Value="Field.PayloadName" Label="Payload name (prefill / display source)"
+                          Margin="Margin.Dense" Placeholder="(field name)" />
+        }
 
         <MudText Typo="Typo.caption" Class="mt-3">Label (plain text or culture JSON)</MudText>
         <MudText Typo="Typo.caption" Class="mud-text-secondary">
@@ -71,6 +77,13 @@
 
     /// <summary>true = neu anlegen (kein Löschen-Knopf, anderer Titel).</summary>
     [Parameter] public bool IsNew { get; set; }
+
+    /// <summary>
+    /// Zeigt die payload-bezogenen Optionen (Nur-Anzeige, Payload-Name). Für die START-Maske false: dort
+    /// gibt es noch keine Instanz und damit keinen Payload, aus dem vorbelegt oder angezeigt werden könnte -
+    /// die beiden Schalter wären dort ohne Wirkung und damit irreführend.
+    /// </summary>
+    [Parameter] public bool ShowPayloadOptions { get; set; } = true;
 
     private CScriptField? labelField;
     private CScriptField? helpField;

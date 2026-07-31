@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.EntityFramework;
+using ITVComponents.Workflow.Instances;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers.Impl
 {
@@ -35,6 +37,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // Store-only: nur wecken (Token ueber den Wartepunkt), NICHT ausfuehren. Der Runner advanced.
             // Liefert die Ids der nun aktiven Tokens - mindestens eines = Signal wurde zugestellt.
             return Task.FromResult(op.Engine.ReactivateSignal(instanceId, signalName).Count > 0);
+        }
+
+        /// <inheritdoc/>
+        protected override WorkflowInstance StartInstanceCore(WorkflowOperation op, string definitionId,
+            IDictionary<string, object> variables, string? correlationKey)
+        {
+            // Store-only: die Instanz entsteht mit AKTIVEN Start-Tokens, wird hier aber NICHT voran
+            // getrieben. Den ersten Zweig nimmt der Runner beim naechsten Poll auf und fuehrt ihn dort aus,
+            // wo die Plugins liegen - im Web-Prozess koennte er nur den EINEN Tenant der Anfrage treiben.
+            return op.Engine.CreateInstance(definitionId, variables, correlationKey);
         }
     }
 }

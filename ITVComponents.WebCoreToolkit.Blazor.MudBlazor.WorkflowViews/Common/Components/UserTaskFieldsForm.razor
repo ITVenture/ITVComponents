@@ -1,0 +1,256 @@
+@using System.Globalization
+@inject IStringLocalizer<WorkflowTaskMessages> L
+
+@*
+    Rendert eine Feld-Deklaration (UserTaskField) als Maske und sammelt das Ergebnis ein - OHNE zu wissen,
+    wozu die Maske gehoert. Zwei Aufrufer teilen sich sie: die generische Aufgaben-Maske (Payload aus der
+    laufenden Aufgabe) und der Start-Dialog (kein Payload, ReadOnly-Felder ausgeblendet). Die
+    Feldbeschreibung ist an beiden Stellen dieselbe - dann darf es auch nur EINEN Renderer geben.
+*@
+
+<MudGrid Spacing="2">
+    @foreach (UserTaskField field in VisibleFields)
+    {
+        <MudItem xs="12" sm="@(field.Kind == UserTaskFieldKind.MultilineText ? 12 : 6)">
+            @if (field.ReadOnly)
+            {
+                <MudField Label="@Label(field)" Variant="Variant.Text" Disabled="true">
+                    @DisplayValue(field)
+                </MudField>
+            }
+            else if (field.Kind == UserTaskFieldKind.MultilineText)
+            {
+                <MudTextField T="string" Label="@Label(field)" Lines="4"
+                              HelperText="@Help(field)"
+                              Required="@field.Required"
+                              Value="@AsString(field)"
+                              ValueChanged="@(v => Set(field, v))" />
+            }
+            else if (field.Kind == UserTaskFieldKind.Number)
+            {
+                <MudNumericField T="decimal?" Label="@Label(field)"
+                                 HelperText="@Help(field)"
+                                 Required="@field.Required"
+                                 Value="@AsDecimal(field)"
+                                 ValueChanged="@(v => Set(field, v))" />
+            }
+            else if (field.Kind == UserTaskFieldKind.Boolean)
+            {
+                <MudSwitch T="bool" Label="@Label(field)" Color="Color.Primary"
+                           Value="@AsBool(field)"
+                           ValueChanged="@(v => Set(field, v))" />
+            }
+            else if (field.Kind == UserTaskFieldKind.Date)
+            {
+                <MudDatePicker Label="@Label(field)"
+                               HelperText="@Help(field)"
+                               Required="@field.Required"
+                               Date="@AsDate(field)"
+                               DateChanged="@(d => Set(field, d))" />
+            }
+            else if (field.Kind == UserTaskFieldKind.Choice)
+            {
+                <MudSelect T="string" Label="@Label(field)"
+                           HelperText="@Help(field)"
+                           Required="@field.Required"
+                           Value="@AsString(field)"
+                           ValueChanged="@(v => Set(field, v))">
+                    @foreach (UserTaskChoice choice in field.Choices ?? new List<UserTaskChoice>())
+                    {
+                        <MudSelectItem T="string" Value="@choice.Value">@ChoiceLabel(choice)</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else
+            {
+                <MudTextField T="string" Label="@Label(field)"
+                              HelperText="@Help(field)"
+                              Required="@field.Required"
+                              Value="@AsString(field)"
+                              ValueChanged="@(v => Set(field, v))" />
+            }
+        </MudItem>
+    }
+</MudGrid>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <MudAlert Severity="Severity.Warning" Class="mt-3">@error</MudAlert>
+}
+
+@code {
+    /// <summary>Die zu rendernde Feld-Deklaration.</summary>
+    [Parameter] public IReadOnlyList<UserTaskField>? Fields { get; set; }
+
+    /// <summary>
+    /// Die Werte, aus denen vorbelegt (und bei ReadOnly-Feldern angezeigt) wird. Null = keine Vorbelegung -
+    /// so laeuft der Start-Dialog, bei dem es noch nichts gibt, woraus vorzubelegen waere.
+    /// </summary>
+    [Parameter] public IReadOnlyDictionary<string, object>? Payload { get; set; }
+
+    /// <summary>
+    /// Uebersetzt Beschriftung/Hilfetext (Klartext oder Kultur-JSON) in die Kultur des Lesers. Null = der
+    /// Wert wird unveraendert angezeigt.
+    /// </summary>
+    [Parameter] public Func<string?, string?>? TranslateText { get; set; }
+
+    /// <summary>
+    /// Duerfen Nur-Anzeige-Felder erscheinen? Beim Start nein: ReadOnly bezieht sich auf einen Payload, den
+    /// es vor der Instanz noch nicht gibt - ein leeres Feld waere dort nur verwirrend.
+    /// </summary>
+    [Parameter] public bool AllowReadOnly { get; set; } = true;
+
+    /// <summary>
+    /// Wechselt dieser Schluessel, wird neu vorbelegt (neue Aufgabe / andere Definition). Ohne ihn wuerde
+    /// jedes Rendern die Eingaben des Benutzers wieder mit der Vorbelegung ueberschreiben.
+    /// </summary>
+    [Parameter] public string? ResetKey { get; set; }
+
+    private readonly Dictionary<string, object?> values = new(StringComparer.Ordinal);
+    private string? error;
+    private string? initializedFor;
+
+    private IEnumerable<UserTaskField> VisibleFields
+        => (Fields ?? Array.Empty<UserTaskField>())
+            .Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Name) && (AllowReadOnly || !f.ReadOnly));
+
+    protected override void OnParametersSet()
+    {
+        // Vorbelegung genau EINMAL je ResetKey: sonst wuerde jedes Rendern die Eingaben des Benutzers
+        // wieder mit dem Payload ueberschreiben.
+        if (initializedFor == ResetKey)
+        {
+            return;
+        }
+
+        initializedFor = ResetKey;
+        values.Clear();
+        error = null;
+        if (Payload is null)
+        {
+            return;
+        }
+
+        foreach (UserTaskField field in VisibleFields)
+        {
+            if (Payload.TryGetValue(PayloadName(field), out object? prefill))
+            {
+                values[field.Name] = prefill;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sammelt das Ergebnis ein und prueft die Pflichtfelder. Liefert false samt angezeigter Meldung, wenn
+    /// etwas fehlt - der Aufrufer schliesst dann nicht ab.
+    /// </summary>
+    public bool TryGetResult(out Dictionary<string, object> result)
+    {
+        result = new Dictionary<string, object>(StringComparer.Ordinal);
+        error = null;
+
+        var missing = new List<string>();
+        foreach (UserTaskField field in VisibleFields)
+        {
+            if (field.ReadOnly)
+            {
+                // Nur-Anzeige-Felder gehen bewusst NICHT ins Ergebnis: sie kommen aus dem Payload und
+                // wuerden sonst als "Eingabe" zurueckgeschrieben.
+                continue;
+            }
+
+            values.TryGetValue(field.Name, out object? value);
+            if (field.Required && IsEmpty(value))
+            {
+                missing.Add(Label(field));
+                continue;
+            }
+
+            result[field.Name] = value!;
+        }
+
+        if (missing.Count > 0)
+        {
+            error = $"{L["RequiredField"]} ({string.Join(", ", missing)})";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsEmpty(object? value)
+        => value is null || (value is string s && string.IsNullOrWhiteSpace(s));
+
+    private static string PayloadName(UserTaskField field)
+        => string.IsNullOrWhiteSpace(field.PayloadName) ? field.Name : field.PayloadName!;
+
+    private string Label(UserTaskField field)
+        => string.IsNullOrWhiteSpace(field.Label) ? field.Name : Translate(field.Label) ?? field.Label!;
+
+    private string? Help(UserTaskField field)
+        => string.IsNullOrWhiteSpace(field.HelpText) ? null : Translate(field.HelpText);
+
+    private string ChoiceLabel(UserTaskChoice choice)
+        => string.IsNullOrWhiteSpace(choice.Label)
+            ? choice.Value ?? string.Empty
+            : Translate(choice.Label) ?? choice.Label!;
+
+    private string? Translate(string? value)
+        => TranslateText is null ? value : TranslateText(value);
+
+    private string DisplayValue(UserTaskField field)
+    {
+        object? value = Payload is not null && Payload.TryGetValue(PayloadName(field), out object? v) ? v : null;
+        return value switch
+        {
+            null => string.Empty,
+            bool b => b ? L["Yes"] : L["No"],
+            DateTime d => d.ToString("g", CultureInfo.CurrentCulture),
+            IFormattable f => f.ToString(null, CultureInfo.CurrentCulture),
+            _ => value.ToString() ?? string.Empty
+        };
+    }
+
+    private void Set(UserTaskField field, object? value)
+    {
+        values[field.Name] = value;
+        error = null;
+    }
+
+    private string? AsString(UserTaskField field)
+        => values.TryGetValue(field.Name, out object? v) ? v?.ToString() : null;
+
+    private bool AsBool(UserTaskField field)
+        => values.TryGetValue(field.Name, out object? v)
+           && v is not null
+           && (v is bool b ? b : bool.TryParse(v.ToString(), out bool parsed) && parsed);
+
+    private decimal? AsDecimal(UserTaskField field)
+    {
+        if (!values.TryGetValue(field.Name, out object? v) || v is null)
+        {
+            return null;
+        }
+
+        return v is decimal d
+            ? d
+            : decimal.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.CurrentCulture, out decimal parsed)
+              || decimal.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out parsed)
+                ? parsed
+                : null;
+    }
+
+    private DateTime? AsDate(UserTaskField field)
+    {
+        if (!values.TryGetValue(field.Name, out object? v) || v is null)
+        {
+            return null;
+        }
+
+        return v is DateTime dt
+            ? dt
+            : DateTime.TryParse(v.ToString(), CultureInfo.CurrentCulture, DateTimeStyles.None, out DateTime parsed)
+                ? parsed
+                : null;
+    }
+}

@@ -1,0 +1,223 @@
+@using System.Globalization
+@using ITVComponents.WebCoreToolkit.Extensions
+
+@inject IWorkflowMonitorHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+@*
+    Startet eine neue Instanz von Hand. Die Maske ist NICHT hier verdrahtet, sondern kommt aus der
+    Definition: der Start-Knoten deklariert seine Felder (StartNode.FormFields) genauso wie eine
+    Benutzer-Aufgabe die ihren - gerendert vom selben UserTaskFieldsForm. Die eingegebenen Werte sind die
+    UEBERGEBENEN Startvariablen; was daraus wird, entscheidet danach die Signatur (StartNode.Inputs).
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="mr-2" />
+            <span>Start a workflow</span>
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (loading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (definitions.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">
+                There is no workflow you may start here. A definition appears once it has a start node and is
+                not disabled by validation errors.
+            </MudAlert>
+        }
+        else
+        {
+            <MudSelect T="string" Value="@definitionId" ValueChanged="OnDefinitionChanged" Label="Workflow"
+                       Dense="true" Margin="Margin.Dense">
+                @foreach (WorkflowStartableDefinition def in definitions)
+                {
+                    <MudSelectItem T="string" Value="@def.Id">@DefinitionLabel(def)</MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (formLoading)
+            {
+                <MudProgressCircular Indeterminate="true" Class="mt-3" />
+            }
+            else if (form is not null)
+            {
+                @if (!string.IsNullOrWhiteSpace(Description))
+                {
+                    <MudText Typo="Typo.body2" Class="mt-3">@Description</MudText>
+                }
+
+                <MudTextField @bind-Value="correlationKey" Label="Correlation key (optional)"
+                              Margin="Margin.Dense" Class="mt-3"
+                              HelperText="Your own reference — later signals address the instance by it." />
+
+                @if (form.Fields.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-3">
+                        This workflow declares no start form. It is started without values — add fields on the
+                        start node in the designer if it needs input.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudDivider Class="my-3" />
+                    <UserTaskFieldsForm @ref="fields"
+                                        Fields="form.Fields"
+                                        AllowReadOnly="false"
+                                        TranslateText="Translate"
+                                        ResetKey="@form.DefinitionId" />
+                }
+
+                @if (form.StrictSignature)
+                {
+                    @* Bei strikter Signatur ueberlebt nur, was in StartNode.Inputs steht - ein Feld, das
+                       dort fehlt, ist nach dem Start weg. Das sieht man der Maske sonst nicht an. *@
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                        This workflow has a strict signature: only the parameters declared on its start node
+                        survive. Values entered here that are not declared there are dropped.
+                    </MudAlert>
+                }
+            }
+        }
+
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.Medium" />
+        <MudSpacer />
+        <MudButton OnClick="Cancel" Disabled="@starting">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.PlayArrow"
+                   OnClick="Start" Disabled="@(starting || form is null)">Start</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die (optional) gewählte Workflow-Umgebung; null = die Standard-Umgebung.</summary>
+    [Parameter] public string? Environment { get; set; }
+
+    /// <summary>Optional vorausgewählte Definition (z.B. aus der Definitions-Übersicht heraus gestartet).</summary>
+    [Parameter] public string? DefinitionId { get; set; }
+
+    private IReadOnlyList<WorkflowStartableDefinition> definitions = Array.Empty<WorkflowStartableDefinition>();
+    private WorkflowStartForm? form;
+    private UserTaskFieldsForm? fields;
+    private ClaimsPrincipal? currentUser;
+    private string? definitionId;
+    private string? correlationKey;
+    private string? error;
+    private bool loading = true;
+    private bool formLoading;
+    private bool starting;
+
+    private string? Description => Translate(form?.Description);
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        definitions = await Handler.ListStartableDefinitionsAsync(currentUser, Environment);
+        loading = false;
+
+        // Vorauswahl: die mitgegebene Definition, sonst - wenn es nur eine gibt - eben diese. Ein Dialog
+        // mit genau einer Wahl soll sie nicht erst abgefragt haben wollen.
+        string? preselect = !string.IsNullOrWhiteSpace(DefinitionId)
+                            && definitions.Any(d => d.Id == DefinitionId)
+            ? DefinitionId
+            : definitions.Count == 1 ? definitions[0].Id : null;
+
+        if (preselect is not null)
+        {
+            await OnDefinitionChanged(preselect);
+        }
+    }
+
+    private async Task OnDefinitionChanged(string? value)
+    {
+        definitionId = value;
+        form = null;
+        error = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        formLoading = true;
+        try
+        {
+            form = await Handler.GetStartFormAsync(currentUser!, value!, Environment);
+            if (form is null)
+            {
+                error = "This workflow could not be loaded. It may have been removed in the meantime.";
+            }
+        }
+        finally
+        {
+            formLoading = false;
+        }
+    }
+
+    private async Task Start()
+    {
+        if (form is null || starting)
+        {
+            return;
+        }
+
+        error = null;
+
+        // Kein Formular = keine Werte; sonst muessen die Pflichtfelder sitzen, bevor eine Instanz entsteht.
+        var variables = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (form.Fields.Count > 0)
+        {
+            if (fields is null || !fields.TryGetResult(out variables))
+            {
+                return;
+            }
+        }
+
+        starting = true;
+        try
+        {
+            var request = new WorkflowStartRequest
+            {
+                DefinitionId = form.DefinitionId,
+                CorrelationKey = correlationKey,
+                Variables = variables
+            };
+
+            WorkflowStartResult result = await Handler.StartInstanceAsync(currentUser!, request, Environment);
+            if (!result.Started)
+            {
+                error = result.Error ?? "The workflow could not be started.";
+                return;
+            }
+
+            MudDialog.Close(DialogResult.Ok(result.InstanceId));
+        }
+        finally
+        {
+            starting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private static string DefinitionLabel(WorkflowStartableDefinition def)
+        => string.IsNullOrWhiteSpace(def.Name) ? $"{def.Id} (v{def.Version})" : $"{def.Name} — {def.Id} (v{def.Version})";
+
+    /// <summary>
+    /// Loest Kultur-JSON aus der Definition in die Kultur des Lesers auf (dieselbe Konvention wie bei den
+    /// Navigations-Eintraegen und den Aufgaben-Titeln).
+    /// </summary>
+    private string? Translate(string? value)
+        => string.IsNullOrEmpty(value) ? value : value.Translate(CultureInfo.CurrentUICulture?.Name);
+}

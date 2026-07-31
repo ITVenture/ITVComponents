@@ -121,6 +121,17 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
     Ausdruck = berechnen).
   - **Scope** mit Schalter **„Strict signature (replace)"** — die Instanz startet mit genau diesen Parametern
     (plus keep-Liste); alles andere, was der Aufrufer übergibt, wird verworfen.
+  - **Start form** — die Felder, die ein **Mensch** ausfüllt, wenn er den Workflow von Hand startet
+    (*Instances → New instance*). Gleiche Feldbeschreibung und gleicher Feld-Dialog wie bei der
+    Benutzer-Aufgabe, nur ohne die Payload-Optionen („Display only", „Payload name"): beim Start gibt es
+    noch keine Instanz und damit keinen Payload. Keine Felder = der Workflow wird ohne Eingaben gestartet.
+  - **Form description** — optionale Anleitung über den Feldern (Klartext oder Kultur-JSON).
+
+> **Maske ≠ Signatur.** Der **Feldname** der Maske ist der Name der *übergebenen* Variable — also genau
+> das, wogegen die Signatur anschließend aufgelöst wird. Bei **strikter** Signatur überlebt nur, was oben
+> in den Start parameters (oder in der keep-Liste) steht; der Editor rechnet das aus und nennt die Felder,
+> die sonst verloren gingen. Die Maske ist rein beschreibend — die Engine liest sie nicht, ein
+> programmatischer Start bleibt unverändert möglich.
 
 ### Activity ⚙ (`fa-gears`)
 

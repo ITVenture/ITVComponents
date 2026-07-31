@@ -1,18 +1,24 @@
 @using ITVComponents.Workflow.Model
+@inject IDialogService DialogService
 
 @*
-    Konfiguriert den Start-Knoten: die SIGNATUR des Workflows. Die Bindungen werden beim Anlegen der
-    Instanz gegen die uebergebenen Startwerte aufgeloest - Konstante = Vorgabewert, Variable =
-    durchreichen/umbenennen, Ausdruck = berechnen. Das gilt fuer jeden Einstieg, auch wenn die Definition
-    als Subworkflow aufgerufen wird.
+    Konfiguriert den Start-Knoten: die SIGNATUR des Workflows und die START-MASKE.
+
+    Zwei Ebenen, die man nicht verwechseln darf:
+    - Die MASKE (unten) beschreibt, was ein MENSCH eingibt, wenn er den Workflow von Hand startet. Sie ist
+      rein beschreibend - die Engine liest sie nicht.
+    - Die SIGNATUR (oben) beschreibt, was aus den uebergebenen Werten wird. Sie gilt fuer JEDEN Einstieg:
+      Start von Hand, programmatischer Start und Aufruf als Subworkflow.
+    Der Feldname der Maske ist der Name der uebergebenen Variable - also genau das, wogegen die Signatur
+    anschliessend aufgeloest wird.
 *@
 
 @if (Node is not null)
 {
-    <MudText Typo="Typo.caption" Class="mt-4">Start parameters</MudText>
+    <MudText Typo="Typo.caption" Class="mt-4">Start parameters (signature)</MudText>
     <MudText Typo="Typo.caption" Class="mud-text-secondary">
         The declared signature of this workflow. Each row becomes an instance variable, resolved against the
-        values the caller passed in.
+        values the caller passed in — no matter whether a person, a program or a calling workflow started it.
     </MudText>
     <InputBindingList Bindings="Node.Inputs" NamePlaceholder="variable" SourcePlaceholder="passed variable"
                       AddPlaceholder="new parameter" NameWidth="120px" />
@@ -21,9 +27,185 @@
                       RetainVariables="Node.RetainVariables"
                       SwitchLabel="Strict signature (replace)"
                       HelperText="@("The instance starts with exactly the parameters above plus the variables kept here - anything else the caller passed is dropped.")" />
+
+    <MudDivider Class="my-3" />
+    <MudText Typo="Typo.caption">Start form</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        What a person fills in when starting this workflow by hand (Instances → New instance). The field name
+        is the name of the passed variable — the signature above is resolved against it. No fields = the
+        workflow is started without input.
+    </MudText>
+
+    <MudTable Items="@Node.FormFields" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Class="mt-2"
+              RowsPerPageOptions="@(new[] { 5, 10, 25 })">
+        <ToolBarContent>
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                       Color="Color.Primary" OnClick="AddField">Add field</MudButton>
+            <MudSpacer />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Field name</MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh>Required</MudTh>
+            <MudTh Style="width:1%"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Field name">@context.Name</MudTd>
+            <MudTd DataLabel="Type">@context.Kind</MudTd>
+            <MudTd DataLabel="Required">
+                @if (context.Required)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" Color="Color.Primary" />
+                }
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => EditField(context))" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+
+    @if (Node.FormFields.Count > 0 && Node.Inputs.Count > 0 && Node.ScopeMode == ActivityScopeMode.Replace)
+    {
+        @* Strikte Signatur + Maske: nur was oben deklariert ist, ueberlebt den Start. Ein Feld, das dort
+           fehlt, wird stillschweigend verworfen - das faellt sonst erst zur Laufzeit auf. *@
+        <MudAlert Severity="@(UndeclaredFields.Count > 0 ? Severity.Warning : Severity.Info)" Dense="true" Class="mt-2">
+            @if (UndeclaredFields.Count > 0)
+            {
+                <span>
+                    The signature is strict, so these fields would be dropped right after the start:
+                    <b>@string.Join(", ", UndeclaredFields)</b>. Declare them above (or keep them via the
+                    retained variables) if the workflow needs them.
+                </span>
+            }
+            else
+            {
+                <span>The signature is strict — every form field is declared above and survives the start.</span>
+            }
+        </MudAlert>
+    }
+
+    <MudText Typo="Typo.caption" Class="mt-3">Form description (plain text or culture JSON)</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Optional guidance shown above the fields — e.g.
+        <code>{"de":"Neuen Fall eroeffnen","fr":"Ouvrir un nouveau dossier"}</code>. Same convention as the
+        task titles.
+    </MudText>
+    <CScriptField @ref="descField" Language="json" Height="90" Value="@(Node.FormDescription ?? string.Empty)"
+                  ValueChanged="@(v => Node.FormDescription = string.IsNullOrEmpty(v) ? null : v)" />
 }
 
 @code {
     /// <summary>Der zu konfigurierende Start-Knoten.</summary>
     [Parameter] public StartNode? Node { get; set; }
+
+    private CScriptField? descField;
+
+    /// <summary>
+    /// Die Felder der Maske, die in der Signatur NICHT deklariert sind. Nur bei strikter Signatur
+    /// interessant - dort verschwinden sie unmittelbar nach dem Start.
+    /// </summary>
+    private List<string> UndeclaredFields
+        => Node is null
+            ? new List<string>()
+            : Node.FormFields
+                .Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Name))
+                .Select(f => f.Name)
+                .Where(name => !Node.Inputs.Any(i =>
+                    string.Equals(i.Parameter, name, StringComparison.OrdinalIgnoreCase))
+                    && !Node.RetainVariables.Any(r =>
+                        string.Equals(r, name, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+    /// <summary>
+    /// Holt den Text des Monaco-Feldes (Beschreibung) ins Modell. Monaco meldet seinen Wert erst beim
+    /// Verlassen - der Aufrufer (NodePropertiesDialog) ruft dies vor dem Schliessen.
+    /// </summary>
+    public async Task FlushAsync()
+    {
+        if (Node is null || descField is null)
+        {
+            return;
+        }
+
+        string v = await descField.GetValueAsync();
+        Node.FormDescription = string.IsNullOrEmpty(v) ? null : v;
+    }
+
+    private async Task AddField()
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        var fresh = new UserTaskField();
+        UserTaskFieldEditDialog.Result? result = await ShowFieldDialog(fresh, isNew: true);
+        if (result is { Delete: false } && !string.IsNullOrWhiteSpace(result.Field.Name)
+            && !Node.FormFields.Any(f => string.Equals(f.Name, result.Field.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            Node.FormFields.Add(result.Field);
+        }
+    }
+
+    private async Task EditField(UserTaskField field)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        int idx = Node.FormFields.IndexOf(field);
+        if (idx < 0)
+        {
+            return;
+        }
+
+        UserTaskFieldEditDialog.Result? result = await ShowFieldDialog(Clone(field), isNew: false);
+        if (result is null)
+        {
+            return;
+        }
+
+        if (result.Delete)
+        {
+            Node.FormFields.RemoveAt(idx);
+        }
+        else if (!string.IsNullOrWhiteSpace(result.Field.Name))
+        {
+            Node.FormFields[idx] = result.Field;
+        }
+    }
+
+    /// <summary>
+    /// Oeffnet den Feld-Dialog OHNE die Payload-Optionen: beim Start gibt es keinen Payload, aus dem
+    /// vorbelegt oder angezeigt werden koennte.
+    /// </summary>
+    private async Task<UserTaskFieldEditDialog.Result?> ShowFieldDialog(UserTaskField field, bool isNew)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(UserTaskFieldEditDialog.Field), field },
+            { nameof(UserTaskFieldEditDialog.IsNew), isNew },
+            { nameof(UserTaskFieldEditDialog.ShowPayloadOptions), false }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<UserTaskFieldEditDialog>(string.Empty, parameters, options);
+        DialogResult? result = await dialog.Result;
+        return result?.Data as UserTaskFieldEditDialog.Result;
+    }
+
+    private static UserTaskField Clone(UserTaskField f) => new()
+    {
+        Name = f.Name,
+        Label = f.Label,
+        Kind = f.Kind,
+        Required = f.Required,
+        HelpText = f.HelpText,
+        Choices = f.Choices?.Select(c => new UserTaskChoice { Value = c.Value, Label = c.Label }).ToList()
+                  ?? new List<UserTaskChoice>()
+    };
 }

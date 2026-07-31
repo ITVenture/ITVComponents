@@ -130,6 +130,36 @@ wird — anhand von drei Deployment-Szenarien:
 
    Die Views kennen nur den einen Seam; sie sehen den Unterschied global/tenant nicht.
 
+   **Alternative im Ein-Kontext-Fall: `WorkflowContext` direkt aus der DI statt aus der Plugin-Factory.**
+   Betreibt der Host genau **eine** Umgebung, muss der `WorkflowContext` nicht zwingend als scope-owned
+   Factory-Dependency (`AddDependency(..., disposeWithScope: true)`) laufen — er kann auch schlicht der im
+   DI-Container registrierte Service sein. Dazu wird für `WorkflowContext` ein `ServiceProviderPluginInjector`
+   registriert; der Konsument hängt weiterhin nur an `IFreshInjectablePlugin<WorkflowContext>` (ein Ctor,
+   keine DI-Mehrdeutigkeit), bekommt die Instanz aber aus der DI:
+
+   ```csharp
+   services.Configure<InjectablePluginOptions>(o =>
+       // disposeWithContext: true ist beim Fresh-Weg PFLICHT (siehe Kasten) — es ist der bewusste Opt-in.
+       o.UseServiceInstance<WorkflowContext>(disposeWithContext: true));
+   ```
+
+   > **Wichtig — was `disposeWithContext: true` zusichert.** Der Fresh-Weg (`IFreshInjectablePlugin`) öffnet je
+   > `Lease()` einen eigenen Operations-Scope und disposed ihn am Op-Ende; er erwartet, dass die geleaste
+   > Instanz **von diesem Scope besessen** und mit ihm disposed wird. Der `ServiceProviderPluginInjector` zieht
+   > die Instanz aber aus dem **äußeren** `ServiceProvider` — der Scope besitzt sie nicht. Ohne Deklaration
+   > **wirft** der Fresh-Weg deshalb bewusst (klare Trennung „frisch" vs. „geteilt"); der reguläre
+   > `IInjectablePlugin<WorkflowContext>`-Weg (geteilte Instanz) bleibt davon unberührt. Setzt du das Flag,
+   > **übernimmst du die Zusage**, dass die DI-Registrierung je Lease eine **frische, disposbare** Instanz
+   > liefert — sonst bekommst du entweder einen über den ganzen Scope/Circuit **geteilten** Kontext
+   > (Change-Tracker-Bleed unter Nebenläufigkeit) oder ein **Disposal-Leck**. Registriere `WorkflowContext`
+   > dafür so, dass jede Auflösung frisch ist (z.B. das Delegate zieht aus `IDbContextFactory<WorkflowContext>`
+   > bzw. Transient-Registrierung), **nicht** als geteilten Scoped-Service. Die falsche Zusage ist eine
+   > bewusste Fehlkonfiguration und quittiert sich meist schnell mit einem Laufzeitfehler.
+   >
+   > Der `WorkflowContext` wird **benannt** geleast (`Lease(spec.StorePluginName)`); auf dem DI-Weg ist der
+   > Name bedeutungslos (die DI kennt genau eine `WorkflowContext`-Registrierung) — der `ServiceProviderPluginInjector`
+   > liefert in beiden Fällen (benannt/namenlos) dieselbe DI-Instanz.
+
    Für **Signal/Abbruch** registriert der Host zusätzlich eine `WorkflowEngineFactory` — sie baut eine
    Engine über den *pro Op frisch gebauten* Store und kapselt die Engine-Konfiguration des Hosts:
 
@@ -466,6 +496,8 @@ hier nur der Überblick mit den deployment-relevanten Hinweisen:
   `Outputs` gesetzt, besteht der Variablenstack beim Übergang auf `Completed` genau daraus (plus
   `RetainVariables`) — der Re-Base passiert beim Statuswechsel, nicht beim Verbrauch des Tokens, damit
   bei parallelen Zweigen nicht der erste ankommende den Stack der anderen abräumt.
+  Der Start-Knoten trägt zusätzlich die **Start-Maske** (`FormFields`/`FormDescription`) für den Start
+  von Hand über die Oberfläche — siehe [§10](#10-einen-workflow-von-hand-starten).
   Beides gilt für **jeden** Einstieg: ein als Subworkflow aufgerufener Workflow wendet seine eigene
   Signatur auf die Werte an, die die `Inputs` des `CallWorkflowNode` liefern, und was der Aufrufer als
   Ergebnis sieht, ist genau das deklarierte Result — die Aufruferseite bleibt dadurch unverändert
@@ -631,3 +663,82 @@ Zwei Ebenen, die getrennt bleiben:
   bestimmte die Kultur des ausführenden Runners die Sprache des Lesers. Der Kultur-Fallback ist
   `de-CH` → `de` → Schlüssel `Default` → Rohwert; ein kaputter Datensatz wird angezeigt *und* geloggt,
   und der Validator meldet ihn schon beim Speichern.
+
+---
+
+## 10. Einen Workflow von Hand starten
+
+Bis hierhin entstand eine Instanz nur aus Code (`engine.CreateInstance` / `StartWorkflow`). Es gibt jetzt
+zusätzlich einen **Weg über die Oberfläche**: `Workflow/Instances` → **New instance**. Die Maske dafür
+steht nicht im Code, sondern **in der Definition** — genau wie bei den Benutzer-Aufgaben.
+
+### Die Start-Maske am Knoten
+
+Der `StartNode` hat zwei neue, rein beschreibende Eigenschaften:
+
+| Eigenschaft | Bedeutung |
+|---|---|
+| `FormFields` (`List<UserTaskField>`) | Die Felder, die ein Mensch beim Start ausfüllt. **Dieselbe** Feldbeschreibung wie `UserActivityNode.FormFields` (Name, Label, Kind, Required, HelpText, Choices) — für „Formular aus Daten" gibt es damit nur eine Sprache und nur einen Renderer (`UserTaskFieldsForm`). |
+| `FormDescription` (`string`) | Optionale Anleitung über den Feldern. Klartext oder Kultur-JSON, wie die Aufgaben-Titel. |
+
+Zwei Eigenschaften des Feldes sind beim Start **ohne Bedeutung** und werden ignoriert: `ReadOnly` und
+`PayloadName`. Beide beziehen sich auf den Payload einer laufenden Aufgabe — beim Start gibt es noch
+keinen. Der Feld-Dialog blendet sie für den Start-Knoten deshalb aus.
+
+**Die Engine liest die Felder nicht.** Sie sind eine Zusage der Oberfläche, kein Vertrag: ein
+programmatischer Start bleibt unverändert möglich und übergibt seine Werte direkt. Wer Werte
+*erzwingen* will, deklariert sie zusätzlich in der Signatur (`StartNode.Inputs`).
+
+### Wie Maske und Signatur zusammenspielen
+
+Das ist die Stelle, an der man sich vertun kann — die beiden Ebenen sind bewusst getrennt:
+
+```
+Eingabe der Maske ──► übergebene Startvariablen ──► StartNode.Inputs (Signatur) ──► Instanz-Variablen
+   FormFields[].Name  =  Name der übergebenen Variable        auflösen/umbenennen/berechnen
+```
+
+Der **Feldname der Maske ist der Name der übergebenen Variable** — also genau das, wogegen die Signatur
+anschließend aufgelöst wird. Ohne Signatur landen die Eingaben unverändert als Instanz-Variablen.
+
+Achtung bei **strikter Signatur** (`ScopeMode = Replace`): dann überlebt nur, was in `Inputs` (oder
+`RetainVariables`) steht — ein Feld, das dort fehlt, ist unmittelbar nach dem Start weg. Der Editor
+rechnet das aus und warnt namentlich; der Start-Dialog weist zusätzlich darauf hin.
+
+### Rechte
+
+Neue Permission **`Workflow.Start`** neben `Monitor`/`Operate`/`Design`/`Tasks`. Bewusst nicht
+`Operate` mitbenutzt: einen laufenden Prozess anzustoßen oder abzubrechen ist Betrieb an etwas
+Bestehendem — einen neuen Geschäftsfall zu eröffnen ist eine fachliche Handlung, die typisch andere
+Leute dürfen. Sie **ergänzt** `Workflow.Monitor` (der Knopf sitzt in der Instanz-Übersicht), ersetzt es
+also nicht.
+
+Serverseitig geprüft, nicht nur im Razor-Wrapper: alle drei neuen Handler-Methoden
+(`ListStartableDefinitionsAsync`, `GetStartFormAsync`, `StartInstanceAsync`) rufen
+`services.VerifyUserPermissions` selbst auf.
+
+### Deployment-Verhalten
+
+Der Start folgt derselben Weggabelung wie die Signal-Zustellung (`WorkflowViewsOptions.SignalDelivery`):
+
+| | `Inline` (Web-Only) | `Runner` (Split / Multi-Tenant) |
+|---|---|---|
+| Aufruf | `engine.StartWorkflow(...)` | `engine.CreateInstance(...)` |
+| Wirkung | anlegen **und** synchron bis zum ersten Wartepunkt treiben | anlegen; der Runner nimmt die aktiven Start-Tokens beim nächsten Poll auf |
+
+Danach wird — best effort — `IWorkflowWorkerWake.Poke(environment, tenantId)` gerufen, damit ein im
+selben Prozess laufender Worker nicht bis zum Max-Linger wartet. Ohne Worker-Betrieb ist der Service
+nicht registriert → stiller No-op.
+
+### Was in der Auswahl erscheint
+
+Gelistet wird je Definition-Id nur die **höchste Version** (die, die ein Start ohnehin erwischt), und
+davon nicht: für den Start gesperrte Definitionen (`DisabledForStart`, vom Validator beim Speichern
+gesetzt) und solche ohne Start-Knoten. Beide würden beim Klick nur mit einer Ausnahme quittieren.
+
+Schlägt der Start doch fehl (Definition zwischenzeitlich gesperrt, Start-Parameter nicht auflösbar),
+zeigt der Dialog **den Grund** aus der Engine-Ausnahme — nicht bloß „hat nicht geklappt" — und
+protokolliert ihn zusätzlich.
+
+**Keine Schema-Änderung, keine Migration.** `FormFields`/`FormDescription` stecken im Definitions-JSON;
+alte Definitionen deserialisieren mit leerer Feldliste und verhalten sich unverändert.

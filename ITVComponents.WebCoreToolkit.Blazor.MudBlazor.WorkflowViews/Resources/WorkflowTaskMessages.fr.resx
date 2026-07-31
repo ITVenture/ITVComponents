@@ -59,10 +59,10 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="PageTitle" xml:space="preserve">
-    <value>Mes tÃ¢ches</value>
+    <value>Mes tâches</value>
   </data>
   <data name="GridTitle" xml:space="preserve">
-    <value>TÃ¢ches ouvertes</value>
+    <value>Tâches ouvertes</value>
   </data>
   <data name="ScopeLabel" xml:space="preserve">
     <value>Vue</value>
@@ -71,7 +71,7 @@
     <value>Les miennes</value>
   </data>
   <data name="ScopePool" xml:space="preserve">
-    <value>Non assignÃ©es</value>
+    <value>Non assignées</value>
   </data>
   <data name="ScopeAll" xml:space="preserve">
     <value>Toutes les visibles</value>
@@ -83,22 +83,22 @@
     <value>Tous les types</value>
   </data>
   <data name="ColumnTitle" xml:space="preserve">
-    <value>TÃ¢che</value>
+    <value>Tâche</value>
   </data>
   <data name="ColumnAssignedTo" xml:space="preserve">
-    <value>AssignÃ©e Ã </value>
+    <value>Assignée à</value>
   </data>
   <data name="ColumnCreated" xml:space="preserve">
-    <value>CrÃ©Ã©e</value>
+    <value>Créée</value>
   </data>
   <data name="ColumnDue" xml:space="preserve">
-    <value>Ã‰chÃ©ance</value>
+    <value>Échéance</value>
   </data>
   <data name="ColumnReference" xml:space="preserve">
-    <value>RÃ©fÃ©rence</value>
+    <value>Référence</value>
   </data>
   <data name="SearchPlaceholder" xml:space="preserve">
-    <value>Rechercher tÃ¢che, type ou instanceâ€¦</value>
+    <value>Rechercher tâche, type ou instance…</value>
   </data>
   <data name="OverdueOnly" xml:space="preserve">
     <value>En retard seulement</value>
@@ -107,7 +107,7 @@
     <value>En retard</value>
   </data>
   <data name="Unassigned" xml:space="preserve">
-    <value>Non assignÃ©e</value>
+    <value>Non assignée</value>
   </data>
   <data name="Refresh" xml:space="preserve">
     <value>Actualiser</value>
@@ -116,13 +116,13 @@
     <value>Ouvrir</value>
   </data>
   <data name="NoTasks" xml:space="preserve">
-    <value>Aucune tÃ¢che ouverte.</value>
+    <value>Aucune tâche ouverte.</value>
   </data>
   <data name="NoPermission" xml:space="preserve">
-    <value>Vous n&apos;avez pas l&apos;autorisation de traiter des tÃ¢ches.</value>
+    <value>Vous n&apos;avez pas l&apos;autorisation de traiter des tâches.</value>
   </data>
   <data name="Loading" xml:space="preserve">
-    <value>Chargementâ€¦</value>
+    <value>Chargement…</value>
   </data>
   <data name="Complete" xml:space="preserve">
     <value>Terminer</value>
@@ -134,28 +134,28 @@
     <value>Fermer</value>
   </data>
   <data name="Completed" xml:space="preserve">
-    <value>TÃ¢che terminÃ©e.</value>
+    <value>Tâche terminée.</value>
   </data>
   <data name="AlreadyCompleted" xml:space="preserve">
-    <value>Quelqu&apos;un d&apos;autre a terminÃ© cette tÃ¢che avant vous - vos saisies n&apos;ont pas Ã©tÃ© enregistrÃ©es.</value>
+    <value>Quelqu&apos;un d&apos;autre a terminé cette tâche avant vous - vos saisies n&apos;ont pas été enregistrées.</value>
   </data>
   <data name="CompletionFaulted" xml:space="preserve">
-    <value>Le workflow a rencontrÃ© une erreur en continuant. La tÃ¢che est terminÃ©e, mais le processus nÃ©cessite une attention.</value>
+    <value>Le workflow a rencontré une erreur en continuant. La tâche est terminée, mais le processus nécessite une attention.</value>
   </data>
   <data name="TaskGone" xml:space="preserve">
-    <value>Cette tÃ¢che n&apos;existe plus.</value>
+    <value>Cette tâche n&apos;existe plus.</value>
   </data>
   <data name="ClaimedByOther" xml:space="preserve">
-    <value>{0} a cette tÃ¢che ouverte depuis {1}. Vous pouvez continuer - le premier Ã  enregistrer l&apos;emporte.</value>
+    <value>{0} a cette tâche ouverte depuis {1}. Vous pouvez continuer - le premier à enregistrer l&apos;emporte.</value>
   </data>
   <data name="RequiredField" xml:space="preserve">
     <value>Champ obligatoire.</value>
   </data>
   <data name="NoFormConfigured" xml:space="preserve">
-    <value>Cette tÃ¢che doit seulement Ãªtre confirmÃ©e.</value>
+    <value>Cette tâche doit seulement être confirmée.</value>
   </data>
   <data name="DetailsSection" xml:space="preserve">
-    <value>DÃ©tails</value>
+    <value>Détails</value>
   </data>
   <data name="Yes" xml:space="preserve">
     <value>Oui</value>

@@ -39,6 +39,36 @@ namespace ITVComponents.Workflow.Model
         /// <see cref="ActivityScopeMode.Extend"/> ohne Wirkung.
         /// </summary>
         public List<string> RetainVariables { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Die Deklaration der <b>Start-Maske</b>: was ein Mensch eingibt, wenn er diese Definition von
+        /// Hand startet. Dieselbe Feldbeschreibung wie bei der Benutzer-Aufgabe
+        /// (<see cref="UserActivityNode.FormFields"/>), damit es fuer "Formular aus Daten" nicht zwei
+        /// Sprachen gibt. Der <see cref="UserTaskField.Name"/> ist der Name der <b>uebergebenen</b>
+        /// Startvariable - also genau das, wogegen <see cref="Inputs"/> anschliessend aufgeloest wird.
+        /// Leer = kein Formular; die Definition wird programmatisch (oder ohne Werte) gestartet.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Rein <b>beschreibend</b> und ausschliesslich fuer die Oberflaeche: die Engine liest die Felder
+        /// nicht. Ein programmatischer Start bleibt unveraendert moeglich - er uebergibt die Werte direkt.
+        /// Die Pflicht-Pruefung (<see cref="UserTaskField.Required"/>) ist damit eine Zusage der Maske, kein
+        /// Engine-Vertrag; wer die Werte erzwingen will, deklariert sie zusaetzlich in <see cref="Inputs"/>.
+        /// </para>
+        /// <para>
+        /// Zwei Eigenschaften des Feldes haben beim Start <b>keine</b> Bedeutung und werden ignoriert:
+        /// <see cref="UserTaskField.ReadOnly"/> und <see cref="UserTaskField.PayloadName"/>. Beide beziehen
+        /// sich auf den Payload einer laufenden Aufgabe - beim Start gibt es noch keinen.
+        /// </para>
+        /// </remarks>
+        public List<UserTaskField> FormFields { get; set; } = new List<UserTaskField>();
+
+        /// <summary>
+        /// Optionale Anleitung ueber der Start-Maske ("Was starte ich hier eigentlich?"). Klartext ODER
+        /// JSON-Objekt nach Kultur (<c>{"de":"...","fr":"..."}</c>) - dieselbe Konvention wie bei
+        /// <see cref="UserActivityNode.Description"/>.
+        /// </summary>
+        public string FormDescription { get; set; }
     }
 
     /// <summary>

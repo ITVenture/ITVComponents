@@ -23,4 +23,15 @@
 @using ITVComponents.Workflow.Model
 @using Microsoft.Extensions.Localization
 
+@* Die KOMPONENTEN-Namespaces. Das @namespace unten ist nur die BASIS - der Razor-SDK haengt den
+   Unterordner-Pfad an, jeder Ordner bekommt also einen eigenen Namespace. Ohne diese Zeilen findet eine
+   Komponente nur ihre Ordner-Nachbarn; ein Verweis ueber die Ordnergrenze wird still als unbekanntes
+   HTML-Element gerendert (nur eine RZ10012-Warnung, kein Fehler) und die Komponente erscheint nicht.
+   Die Namespaces darueber sind die der C#-Klassen (Handler, ViewModels) - die decken das NICHT ab. *@
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Components.Common.Components
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Components.Graph
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Components.Design.Components
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Components.Monitoring.Components
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Components.Tasks.Components
+
 @namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Components

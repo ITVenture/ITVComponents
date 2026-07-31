@@ -15,6 +15,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews
         /// <summary>Aspekt: operativ eingreifen (Signal senden, abbrechen).</summary>
         public const string Operate = "Workflow.Operate";
 
+        /// <summary>
+        /// Aspekt: eine neue Instanz von Hand starten. Bewusst getrennt von <see cref="Operate"/>: einen
+        /// laufenden Prozess anzustossen oder abzubrechen ist Betrieb an etwas Bestehendem - einen neuen
+        /// Geschaeftsfall zu eroeffnen ist eine fachliche Handlung, die typisch andere Leute duerfen.
+        /// </summary>
+        /// <remarks>
+        /// Ergaenzt <see cref="Monitor"/>, ersetzt es nicht: der Startknopf sitzt in der Instanz-Uebersicht,
+        /// die <see cref="Monitor"/> verlangt. Wer starten koennen soll, braucht also beide - was zusammen
+        /// passt, denn eine gestartete Instanz will man auch sehen.
+        /// </remarks>
+        public const string Start = "Workflow.Start";
+
         /// <summary>Aspekt: Definitionen anlegen/bearbeiten (Editor).</summary>
         public const string Design = "Workflow.Design";
 

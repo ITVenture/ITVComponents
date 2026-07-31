@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
@@ -40,5 +41,28 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
         /// <summary>Bricht eine Instanz ab (Operate). Liefert false ohne Berechtigung.</summary>
         Task<bool> CancelAsync(ClaimsPrincipal user, string instanceId, string? environment = null);
+
+        /// <summary>
+        /// Liefert die Definitionen, die von Hand gestartet werden koennen - je Id die hoechste Version,
+        /// ohne die fuer den Start gesperrten und die ohne Start-Knoten. Leer ohne Berechtigung
+        /// (<see cref="WorkflowSecurity.Start"/>).
+        /// </summary>
+        Task<IReadOnlyList<WorkflowStartableDefinition>> ListStartableDefinitionsAsync(ClaimsPrincipal user,
+            string? environment = null);
+
+        /// <summary>
+        /// Liefert die Start-Maske einer Definition (Felder, Anleitung, Signatur-Hinweise) oder null, wenn
+        /// es die Definition nicht gibt bzw. die Berechtigung fehlt.
+        /// </summary>
+        Task<WorkflowStartForm?> GetStartFormAsync(ClaimsPrincipal user, string definitionId,
+            string? environment = null);
+
+        /// <summary>
+        /// Startet eine neue Instanz (Start). Der Rueckgabewert traegt im Fehlerfall den anzeigbaren Grund -
+        /// eine Definition kann fuer den Start gesperrt sein oder Start-Parameter haben, die sich nicht
+        /// aufloesen lassen.
+        /// </summary>
+        Task<WorkflowStartResult> StartInstanceAsync(ClaimsPrincipal user, WorkflowStartRequest request,
+            string? environment = null);
     }
 }

@@ -223,6 +223,11 @@ namespace ITVComponents.Workflow.Validation
                     issues.AddRange(UserTaskIssues(task, outs));
                 }
 
+                if (n is StartNode startNode)
+                {
+                    issues.AddRange(StartFormIssues(startNode));
+                }
+
                 // Fehler-Ausgang (Aktivitaet ODER Subworkflow-Aufruf): die Fehler-Kante muss eine der
                 // ausgehenden Kanten sein, und es muss GENAU eine weitere (Erfolgs-)Kante geben.
                 string errorFlowId = n switch
@@ -327,39 +332,113 @@ namespace ITVComponents.Workflow.Validation
                     "it is ignored."));
             }
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (UserTaskField field in node.FormFields ?? new List<UserTaskField>())
+            issues.AddRange(FormFieldIssues(node.Id, $"User task '{Label(node)}'", node.FormFields,
+                readOnlyMeaningful: true));
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Prueft die START-Maske eines Start-Knotens. Die Felder selbst sind dieselben wie bei einer
+        /// Benutzer-Aufgabe (daher <see cref="FormFieldIssues"/>); dazu kommt, was nur beim Start gilt:
+        /// eine strikte Signatur verschluckt jedes Feld, das nicht deklariert ist.
+        /// </summary>
+        private static List<ValidationIssue> StartFormIssues(StartNode node)
+        {
+            var issues = new List<ValidationIssue>();
+            AddIfBrokenCultureJson(issues, node.Id, node.FormDescription,
+                $"Start node '{Label(node)}' form description");
+
+            // ReadOnly/PayloadName sind beim Start bedeutungslos (es gibt noch keinen Payload) - deshalb
+            // hier kein "read-only und required"-Hinweis, sondern der Hinweis, dass ReadOnly nichts tut.
+            issues.AddRange(FormFieldIssues(node.Id, $"Start node '{Label(node)}'", node.FormFields,
+                readOnlyMeaningful: false));
+
+            if (node.FormFields == null || node.FormFields.Count == 0
+                || node.ScopeMode != ActivityScopeMode.Replace
+                || node.Inputs == null || node.Inputs.Count == 0)
+            {
+                return issues;
+            }
+
+            // Strikte Signatur: nach dem Start besteht der Stack genau aus den deklarierten Parametern
+            // (plus keep-Liste). Ein Feld, das dort fehlt, wird eingegeben und sofort verworfen - das
+            // sieht man der Maske nicht an und faellt sonst erst zur Laufzeit auf.
+            foreach (UserTaskField field in node.FormFields)
             {
                 if (field == null || string.IsNullOrWhiteSpace(field.Name))
                 {
+                    continue;
+                }
+
+                bool declared = node.Inputs.Any(b =>
+                                    b != null && string.Equals(b.Parameter, field.Name, StringComparison.OrdinalIgnoreCase))
+                                || (node.RetainVariables != null && node.RetainVariables.Any(r =>
+                                    string.Equals(r, field.Name, StringComparison.OrdinalIgnoreCase)));
+                if (!declared)
+                {
                     issues.Add(Warn(node.Id,
-                        $"User task '{Label(node)}' has a form field without a name - it is ignored."));
+                        $"Start node '{Label(node)}' form field '{field.Name}' is not declared in the strict " +
+                        "signature - it is dropped right after the start."));
+                }
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Prueft eine Feld-Deklaration (<see cref="UserTaskField"/>). Geteilt von der Aufgaben-Maske und
+        /// der Start-Maske: dieselbe Beschreibung darf nicht zweimal verschieden geprueft werden.
+        /// <paramref name="readOnlyMeaningful"/> unterscheidet die eine Stelle, an der sich die beiden
+        /// Kontexte unterscheiden - beim Start gibt es keinen Payload und damit kein Nur-Anzeige-Feld.
+        /// </summary>
+        private static List<ValidationIssue> FormFieldIssues(string nodeId, string what,
+            List<UserTaskField> fields, bool readOnlyMeaningful)
+        {
+            var issues = new List<ValidationIssue>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (UserTaskField field in fields ?? new List<UserTaskField>())
+            {
+                if (field == null || string.IsNullOrWhiteSpace(field.Name))
+                {
+                    issues.Add(Warn(nodeId, $"{what} has a form field without a name - it is ignored."));
                     continue;
                 }
 
                 if (!seen.Add(field.Name))
                 {
-                    issues.Add(Error(node.Id,
-                        $"User task '{Label(node)}' declares the form field '{field.Name}' more than once - " +
+                    issues.Add(Error(nodeId,
+                        $"{what} declares the form field '{field.Name}' more than once - " +
                         "only one of them could ever reach the result."));
                 }
 
-                AddIfBrokenCultureJson(issues, node.Id, field.Label,
-                    $"User task '{Label(node)}' label of field '{field.Name}'");
-                AddIfBrokenCultureJson(issues, node.Id, field.HelpText,
-                    $"User task '{Label(node)}' help text of field '{field.Name}'");
+                AddIfBrokenCultureJson(issues, nodeId, field.Label, $"{what} label of field '{field.Name}'");
+                AddIfBrokenCultureJson(issues, nodeId, field.HelpText, $"{what} help text of field '{field.Name}'");
 
                 if (field.Kind == UserTaskFieldKind.Choice && (field.Choices == null || field.Choices.Count == 0))
                 {
-                    issues.Add(Warn(node.Id,
-                        $"User task '{Label(node)}' field '{field.Name}' is a choice without any options."));
+                    issues.Add(Warn(nodeId, $"{what} field '{field.Name}' is a choice without any options."));
                 }
 
-                if (field.Required && field.ReadOnly)
+                if (!field.ReadOnly)
                 {
-                    issues.Add(Warn(node.Id,
-                        $"User task '{Label(node)}' field '{field.Name}' is both read-only and required - " +
-                        "read-only fields never reach the result, so the requirement has no effect."));
+                    continue;
+                }
+
+                if (readOnlyMeaningful)
+                {
+                    if (field.Required)
+                    {
+                        issues.Add(Warn(nodeId,
+                            $"{what} field '{field.Name}' is both read-only and required - " +
+                            "read-only fields never reach the result, so the requirement has no effect."));
+                    }
+                }
+                else
+                {
+                    issues.Add(Warn(nodeId,
+                        $"{what} field '{field.Name}' is marked read-only - there is no payload before the " +
+                        "instance exists, so the field is not shown at all."));
                 }
             }
 

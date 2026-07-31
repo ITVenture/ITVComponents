@@ -98,7 +98,7 @@
     <value>Reference</value>
   </data>
   <data name="SearchPlaceholder" xml:space="preserve">
-    <value>Search task, type or instanceâ€¦</value>
+    <value>Search task, type or instance…</value>
   </data>
   <data name="OverdueOnly" xml:space="preserve">
     <value>Overdue only</value>
@@ -122,7 +122,7 @@
     <value>You have no permission to work on tasks.</value>
   </data>
   <data name="Loading" xml:space="preserve">
-    <value>Loadingâ€¦</value>
+    <value>Loading…</value>
   </data>
   <data name="Complete" xml:space="preserve">
     <value>Complete</value>

@@ -6,6 +6,7 @@
 @inject IWorkflowMonitorHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>Workflow instances</PageTitle>
 
@@ -40,6 +41,15 @@
                     {
                         <MudChip T="string" Icon="@Icons.Material.Filled.Dns" Size="Size.Small" Class="ml-3">@Environment</MudChip>
                     }
+                    @* Der einzige UI-Weg, einen Prozess von Hand zu eroeffnen. Eigenes Recht: einen neuen
+                       Geschaeftsfall anzulegen ist etwas anderes als Zusehen oder Eingreifen. *@
+                    <SecureView RequiredPermissions="Workflow.Start">
+                        <Permitted>
+                            <MudButton StartIcon="@Icons.Material.Filled.PlayArrow" Size="Size.Small"
+                                       Variant="Variant.Filled" Color="Color.Primary" Class="ml-3"
+                                       OnClick="OpenStart">New instance</MudButton>
+                        </Permitted>
+                    </SecureView>
                     <MudSpacer />
                     <MudSelect T="int?" @bind-Value="statusFilter" Label="Status" Clearable="true" Dense="true"
                                Style="max-width:170px" Margin="Margin.Dense" OnClearButtonClick="ReloadGrid">
@@ -135,6 +145,26 @@
     {
         pickedEnvironment = environment;
         await ReloadGrid();
+    }
+
+    /// <summary>
+    /// Oeffnet den Start-Dialog. Nach einem Start wird die Liste neu geladen - die neue Instanz soll man
+    /// sofort sehen (und im Split-Betrieb erkennen, dass sie noch auf den Runner wartet).
+    /// </summary>
+    private async Task OpenStart()
+    {
+        var parameters = new DialogParameters<StartWorkflowDialog>
+        {
+            { d => d.Environment, Env }
+        };
+        IDialogReference dlg = await DialogService.ShowAsync<StartWorkflowDialog>(
+            "Start a workflow", parameters, EditDialogDefaults.Detail);
+        DialogResult? result = await dlg.Result;
+        if (result is { Canceled: false, Data: string instanceId })
+        {
+            Snackbar.Add($"Instance {instanceId} started.", Severity.Success);
+            await ReloadGrid();
+        }
     }
 
     private async Task OpenDetail(WorkflowInstanceListItem item)
