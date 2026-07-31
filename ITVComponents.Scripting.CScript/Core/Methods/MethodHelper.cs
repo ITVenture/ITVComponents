@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -454,9 +455,123 @@ namespace ITVComponents.Scripting.CScript.Core.Methods
                         return true;
                     }
                 }
+                else if (arguments.Length == parameters.Length)
+                {
+                    // KEIN params-Array: bis hierher gab es fuer diesen Fall gar keinen Versuch - die
+                    // Methode fiel direkt auf 'return false'. Damit war jede Ueberladung unerreichbar,
+                    // deren Parametertypen nicht EXAKT den Argumenttypen entsprachen; 'new TimeSpan(500)'
+                    // fand die (long ticks)-Ueberladung nicht, weil das Literal ein int ist.
+                    return TryWidenArguments(parameters, originTypes, arguments, capableArguments);
+                }
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Versucht, die Argumente auf die Parametertypen zu bringen - aber nur ueber <b>verlustfreie</b>
+        /// Erweiterungen (int -&gt; long, int -&gt; double, abgeleiteter Typ -&gt; Basistyp, ...). Eine
+        /// einengende Umwandlung wird bewusst NICHT gemacht: sie waehlte sonst still eine Ueberladung, die
+        /// Nachkommastellen oder Vorzeichen verschluckt.
+        /// </summary>
+        private static bool TryWidenArguments(ParameterInfo[] parameters, Type[] originTypes, object[] arguments,
+            object[] capableArguments)
+        {
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                Type target = parameters[i].ParameterType;
+                object value = arguments[i];
+
+                if (value == null)
+                {
+                    // null passt auf jeden Referenz- und Nullable-Typ, aber auf keinen Werttyp.
+                    if (target.IsValueType && Nullable.GetUnderlyingType(target) == null)
+                    {
+                        return false;
+                    }
+
+                    capableArguments[i] = null;
+                    continue;
+                }
+
+                if (target.IsInstanceOfType(value))
+                {
+                    capableArguments[i] = value;
+                    continue;
+                }
+
+                Type source = originTypes.Length > i && originTypes[i] != null ? originTypes[i] : value.GetType();
+                Type effective = Nullable.GetUnderlyingType(target) ?? target;
+                if (!IsWideningConversion(source, effective))
+                {
+                    return false;
+                }
+
+                try
+                {
+                    capableArguments[i] = effective.IsEnum
+                        ? Enum.ToObject(effective, value)
+                        : Convert.ChangeType(value, effective, CultureInfo.InvariantCulture);
+                }
+                catch (Exception ex)
+                {
+                    // Die Pruefung oben sollte das ausschliessen - wenn nicht, ist dieser Kandidat eben
+                    // nicht der richtige. Still darf es trotzdem nicht bleiben.
+                    LogEnvironment.LogEvent(
+                        $"Could not widen argument {i} from '{source}' to '{effective}': {ex.OutlineException()}",
+                        LogSeverity.Warning);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Ist die Umwandlung von <paramref name="source"/> nach <paramref name="target"/> verlustfrei?
+        /// Orientiert sich an den impliziten numerischen Umwandlungen von C#.
+        /// </summary>
+        private static bool IsWideningConversion(Type source, Type target)
+        {
+            if (source == target || target.IsAssignableFrom(source))
+            {
+                return true;
+            }
+
+            // Ein ganzzahliger Wert darf in einen groesseren Ganzzahl-, Gleitkomma- oder Dezimaltyp; ein
+            // Gleitkommawert nur in einen groesseren Gleitkommatyp. Zeichen zaehlen als kleine Ganzzahl.
+            int rank = NumericRank(source);
+            int targetRank = NumericRank(target);
+            if (rank == 0 || targetRank == 0)
+            {
+                return target.IsEnum && NumericRank(Enum.GetUnderlyingType(target)) >= rank && rank != 0;
+            }
+
+            // decimal nimmt jede Ganzzahl, aber KEIN float/double (das waere nicht verlustfrei).
+            if (target == typeof(decimal))
+            {
+                return source != typeof(float) && source != typeof(double);
+            }
+
+            if (source == typeof(decimal))
+            {
+                return false;
+            }
+
+            return targetRank >= rank;
+        }
+
+        /// <summary>Die Groessenordnung eines numerischen Typs (0 = nicht numerisch).</summary>
+        private static int NumericRank(Type type)
+        {
+            if (type == typeof(byte) || type == typeof(sbyte)) return 1;
+            if (type == typeof(short) || type == typeof(ushort) || type == typeof(char)) return 2;
+            if (type == typeof(int) || type == typeof(uint)) return 3;
+            if (type == typeof(long) || type == typeof(ulong)) return 4;
+            if (type == typeof(float)) return 5;
+            if (type == typeof(double)) return 6;
+            if (type == typeof(decimal)) return 7;
+            return 0;
         }
 
         private static MethodBuffer[] SelectGenerics(IEnumerable<MethodInfo> methods, Type[] typeArguments,
