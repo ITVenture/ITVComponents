@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE148</Version>
+    <Version>5.0.0-PRE149</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <LangVersion>latest</LangVersion>
