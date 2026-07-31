@@ -24,6 +24,24 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
     public sealed class ServiceProviderPluginInjector<T> : CustomPluginInjector<T> where T : class, IPlugin
     {
         /// <summary>
+        /// Initialisiert eine neue Instanz der ServiceProviderPluginInjector-Klasse.
+        /// </summary>
+        /// <param name="disposeWithContext">
+        /// Deklariert, dass die aus der DI bezogene Instanz mit dem frischen Lade-Scope
+        /// (<see cref="IFreshInjectablePlugin{T}"/>) besessen und disposed wird - andernfalls wirft der
+        /// Fresh-Weg. Nur setzen, wenn <typeparamref name="T"/> in der DI so registriert ist, dass je Lease
+        /// eine frische, aufrufer-besessene Instanz entsteht (z.B. Transient bzw. per frischem Scope). Fuer den
+        /// regulaeren <see cref="IInjectablePlugin{T}"/>-Weg (geteilte Instanz) ist das Flag ohne Bedeutung.
+        /// </param>
+        public ServiceProviderPluginInjector(bool disposeWithContext = false)
+        {
+            DisposeWithContext = disposeWithContext;
+        }
+
+        /// <inheritdoc/>
+        public override bool DisposeWithContext { get; }
+
+        /// <summary>
         /// Wird bei diesem Injector NICHT verwendet (er umgeht die Plugin-Factory), muss aber - weil
         /// <see cref="CustomPluginInjector{T}.GetPluginUniqueName"/> abstrakt ist - implementiert werden.
         /// </summary>
@@ -35,7 +53,15 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
             => services.GetService<T>();
 
         /// <inheritdoc/>
+        public override T GetPluginInstance(IServiceProvider services, IPluginFactory scope, bool prefixWithArea)
+            => services.GetService<T>();
+
+        /// <inheritdoc/>
         public override T GetPluginInstance(IServiceProvider services, string explicitRequestedName)
+            => services.GetService<T>();
+
+        /// <inheritdoc/>
+        public override T GetPluginInstance(IServiceProvider services, IPluginFactory scope, string explicitRequestedName)
             => services.GetService<T>();
     }
 }

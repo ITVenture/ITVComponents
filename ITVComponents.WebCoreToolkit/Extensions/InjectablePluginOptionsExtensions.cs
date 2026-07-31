@@ -34,9 +34,15 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// </summary>
         /// <typeparam name="T">der (Plugin-)Typ, der aus der DI bezogen wird</typeparam>
         /// <param name="options">die Plugin-Injection-Optionen</param>
+        /// <param name="disposeWithContext">
+        /// Erlaubt zusaetzlich die Nutzung ueber den Fresh-Weg (<see cref="IFreshInjectablePlugin{T}"/>). Nur
+        /// setzen, wenn <typeparamref name="T"/> in der DI so registriert ist, dass je Lease eine frische,
+        /// aufrufer-besessene und mit dem Scope disposbare Instanz entsteht. Default <c>false</c>: der
+        /// Fresh-Weg wirft dann bewusst, um „frische" und „geteilte" Services klar zu trennen.
+        /// </param>
         /// <returns>die uebergebenen Optionen (Method-Chaining)</returns>
-        public static InjectablePluginOptions UseServiceInstance<T>(this InjectablePluginOptions options)
+        public static InjectablePluginOptions UseServiceInstance<T>(this InjectablePluginOptions options, bool disposeWithContext = false)
             where T : class, IPlugin
-            => options.ConfigureInjectablePlugin<T>(() => new ServiceProviderPluginInjector<T>());
+            => options.ConfigureInjectablePlugin<T>(() => new ServiceProviderPluginInjector<T>(disposeWithContext));
     }
 }

@@ -46,6 +46,43 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
             var injector = (CustomPluginInjector<T>) injectors[typeof(T)];
             return injector.GetPluginInstance(services, CheckForAreaPrefixedNames);
         }
+        
+        /// <summary>
+        /// Creates the requested proxy object
+        /// </summary>
+        /// <typeparam name="T">the proxy-type to return</typeparam>
+        /// <param name="services">a services collection that provides required services</param>
+        /// <param name="scope">the scope that contains the plugin</param>
+        /// <returns>the created proxy instance</returns>
+        internal T GetPlugIn<T>(IServiceProvider services, IPluginFactory scope, string explicitRequestedName) where T : class, IPlugin
+        {
+            if (!injectors.ContainsKey(typeof(T)))
+            {
+                return null;
+            }
+
+            var injector = (CustomPluginInjector<T>)injectors[typeof(T)];
+            if (!injector.DisposeWithContext)
+            {
+                // Der Fresh-Weg (IFreshInjectablePlugin) besitzt die Instanz ueber den frischen Lade-Scope und
+                // disposed sie mit ihm. Ein Injector, der die Instanz aus einem aeusseren ServiceProvider bezieht
+                // (nicht scope-besessen), gehoert hier NICHT hin - sonst gaebe es unter Nebenlaeufigkeit eine
+                // geteilte Instanz bzw. ein Disposal-Leck. Klar trennen statt still das Falsche liefern.
+                throw new InvalidOperationException(
+                    $"The injector registered for '{typeof(T).Name}' is not configured for fresh leases " +
+                    $"(IFreshInjectablePlugin): it does not declare DisposeWithContext. Either consume it via " +
+                    $"IInjectablePlugin<{typeof(T).Name}> (shared instance), or - if the DI registration really " +
+                    $"produces a fresh, scope-owned instance per lease - opt in explicitly " +
+                    $"(e.g. UseServiceInstance<{typeof(T).Name}>(disposeWithContext: true)).");
+            }
+
+            if (string.IsNullOrEmpty(explicitRequestedName))
+            {
+                return injector.GetPluginInstance(services, scope, CheckForAreaPrefixedNames);
+            }
+
+            return injector.GetPluginInstance(services, scope, explicitRequestedName);
+        }
 
         /// <summary>
         /// Creates the requested proxy object

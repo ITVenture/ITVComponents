@@ -1,8 +1,9 @@
-using System;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using System;
 
 namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
 {
@@ -15,23 +16,27 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
     internal sealed class FreshInjectablePluginImpl<T> : IFreshInjectablePlugin<T> where T : class, IPlugin
     {
         private readonly IServiceProvider services;
+        private readonly IOptions<InjectablePluginOptions> options;
 
-        public FreshInjectablePluginImpl(IServiceProvider services)
+        public FreshInjectablePluginImpl(IServiceProvider services, IOptions<InjectablePluginOptions> options)
         {
             this.services = services;
+            this.options = options;
         }
 
         public IPluginLease<T> Lease(string name = null)
         {
             IWebPluginHelper helper = services.GetRequiredService<IWebPluginHelper>();
             IPluginFactory scope = helper.CreateOperationScope(); // frischer, aufrufer-besessener Lade-Scope
+            var opt = options.Value;
             try
             {
-                T plugin = name != null
-                    ? scope[name, true] as T
-                    // Standard-Namensaufloesung (inkl. Tenant-Prefix) wie der regulaere Injector, aber aus
-                    // dem frischen Scope statt dem CurrentScope der Factory.
-                    : new DefaultPluginInjector<T>().GetPluginInstance(services, scope, false);
+                // Registrierter Injector zuerst (der Fresh-Guard in GetPlugIn stellt sicher, dass nur
+                // scope-besessene Injectoren hierher gelangen); ohne registrierten Injector faellt es auf die
+                // Standard-Namensaufloesung aus dem frischen Scope zurueck (inkl. Tenant-Prefix).
+                var plugin = opt.GetPlugIn<T>(services, scope, name)
+                             ??
+                             new DefaultPluginInjector<T>().GetPluginInstance(services, scope, false);
                 if (plugin == null)
                 {
                     throw new InvalidOperationException(

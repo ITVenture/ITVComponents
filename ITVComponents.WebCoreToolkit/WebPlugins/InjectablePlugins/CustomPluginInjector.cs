@@ -15,6 +15,17 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
     public abstract class CustomPluginInjector<T>:ICustomPluginInjector where T:class,IPlugin
     {
         /// <summary>
+        /// Gibt an, ob die von diesem Injector gelieferte Instanz mit dem frischen Lade-Scope
+        /// (<see cref="IFreshInjectablePlugin{T}"/>) besessen und disposed wird. Nur dann darf der Injector auf
+        /// dem Fresh-Weg verwendet werden. Factory-basierte Injectoren laden aus dem uebergebenen Scope und
+        /// sind damit von Natur aus scope-besessen (Default <c>true</c>). Injectoren, die die Instanz aus einem
+        /// aeusseren <see cref="IServiceProvider"/> beziehen (z.B. <c>ServiceProviderPluginInjector</c>),
+        /// muessen dies bewusst deklarieren - sonst wirft der Fresh-Weg (siehe
+        /// <c>InjectablePluginOptions.GetPlugIn</c> mit Scope).
+        /// </summary>
+        public virtual bool DisposeWithContext => true;
+
+        /// <summary>
         /// Gets the name of the Plugin to create with this injector
         /// </summary>
         /// <param name="services">the service-collection that contains services required to estimate the name</param>
@@ -82,6 +93,21 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins
         public virtual T GetPluginInstance(IServiceProvider services, IPluginFactory scope, bool prefixWithArea)
         {
             return (T)scope[GetPluginUniqueName(services, prefixWithArea), true];
+        }
+
+        /// <summary>
+        /// Loest ein namentlich angefordertes Plugin aus einem BEREITS GEOEFFNETEN Scope auf (Pendant zu
+        /// <see cref="GetPluginInstance(IServiceProvider,IPluginFactory,bool)"/> fuer den benannten Fall). Die
+        /// <paramref name="services"/> werden fuer den Factory-Standardweg nicht benoetigt, stehen aber
+        /// Injectoren zur Verfuegung, die die Instanz aus der DI beziehen (z.B. <c>ServiceProviderPluginInjector</c>).
+        /// </summary>
+        /// <param name="services">die DI-Services der aktuellen Anfrage</param>
+        /// <param name="scope">der frische Lade-Scope, aus dem geladen wird</param>
+        /// <param name="explicitRequestedName">the name of the required plugin</param>
+        /// <returns>the demanded plugin instance</returns>
+        public virtual T GetPluginInstance(IServiceProvider services, IPluginFactory scope, string explicitRequestedName)
+        {
+            return (T)scope[explicitRequestedName,true];
         }
     }
 }
