@@ -43,11 +43,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// <summary>Die Zeichenform.</summary>
         public NodeShape Shape { get; init; }
 
-        /// <summary>Linke Kante.</summary>
-        public double X { get; init; }
+        /// <summary>
+        /// Linke Kante. Setzbar, weil ein Fristen-Timer nach dem Aufbau an den Rand seines Schritts
+        /// gerueckt wird (<c>DockBoundaryTimers</c>) - seine Position ist abgeleitet, nicht gezeichnet.
+        /// </summary>
+        public double X { get; internal set; }
 
-        /// <summary>Obere Kante.</summary>
-        public double Y { get; init; }
+        /// <summary>Obere Kante. Setzbar aus demselben Grund wie <see cref="X"/>.</summary>
+        public double Y { get; internal set; }
 
         /// <summary>Breite.</summary>
         public double Width { get; init; }
@@ -222,6 +225,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     byId[laid.Id] = laid;
                 }
             }
+
+            // Fristen-Timer an den Rand ihres Schritts setzen - VOR der Kantenfuehrung, damit ihr
+            // Nebenpfad von der endgueltigen Position aus geroutet wird.
+            DockBoundaryTimers(definition, byId);
 
             IReadOnlyList<LaidOutEdge> edges = RouteEdges(definition, byId, nodes);
 
@@ -553,6 +560,42 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             return result;
         }
 
+        /// <summary>
+        /// Setzt jeden Fristen-Timer auf den unteren Rand des Schritts, an dem er haengt - halb
+        /// ueberlappend, wie man ein Boundary-Event kennt. Mehrere Timer am selben Schritt werden von
+        /// rechts nach links aufgereiht.
+        /// </summary>
+        /// <remarks>
+        /// Die Position eines Fristen-Timers ist <b>abgeleitet</b>, nicht gezeichnet: sie folgt seinem
+        /// Schritt. Deshalb gewinnt sie auch gegen ein explizites <c>Diagram</c> aus dem Editor - ein
+        /// Timer, der neben seinem Schritt herumschwebt, waere schlicht falsch zu lesen. Haengt er an
+        /// einem Schritt, den es nicht gibt, bleibt er, wo das Layout ihn hingelegt hat (der Validator
+        /// meldet den Fall).
+        /// </remarks>
+        private static void DockBoundaryTimers(WorkflowDefinition definition,
+            IReadOnlyDictionary<string, LaidOutNode> byId)
+        {
+            var perHost = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (BoundaryTimerNode timer in definition.Nodes.OfType<BoundaryTimerNode>())
+            {
+                if (timer.Id == null || timer.AttachedToNodeId == null
+                    || !byId.TryGetValue(timer.Id, out LaidOutNode? laid)
+                    || !byId.TryGetValue(timer.AttachedToNodeId, out LaidOutNode? host))
+                {
+                    continue;
+                }
+
+                int index = perHost.TryGetValue(timer.AttachedToNodeId, out int n) ? n : 0;
+                perHost[timer.AttachedToNodeId] = index + 1;
+
+                // Von der rechten unteren Ecke nach links: der erste sitzt eingerueckt, jeder weitere
+                // eine Timerbreite daneben.
+                double step = laid.Width + 6;
+                laid.X = host.X + host.Width - laid.Width - 12 - (index * step);
+                laid.Y = host.Y + host.Height - (laid.Height / 2);
+            }
+        }
+
         private static (double W, double H) SizeFor(NodeKind kind)
         {
             switch (kind)
@@ -563,6 +606,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.ExclusiveGateway:
                 case NodeKind.ParallelGateway:
                     return (50, 50);
+                case NodeKind.SidePathEnd:
+                    // Etwas kleiner als das Ende: ein Nebenpfad-Abschluss ist die leisere Aussage.
+                    return (38, 38);
+                case NodeKind.BoundaryTimer:
+                    // Klein, weil er am Rand seines Schritts klebt und ihn nicht verdecken soll.
+                    return (34, 34);
                 default:
                     return (140, 54);
             }
