@@ -438,6 +438,80 @@ namespace ITVComponents.Workflow.Test
                 "genau der noch nicht korrigierte Zweig steht noch da.");
         }
 
+        [TestMethod]
+        public void TwoFaultedBranches_PerBranchCorrections_FixBothInOneGo()
+        {
+            // Der Gegenentwurf: Korrekturen JE ZWEIG - dann reicht ein Durchgang.
+            SaveTwoFailingBranches();
+            var runs = new Dictionary<string, int>(StringComparer.Ordinal);
+            var engine = new WorkflowEngine(store, NeedsOwnVariable(runs));
+
+            WorkflowInstance inst = engine.CreateInstance("wf");
+            foreach (string branch in engine.RunBranch(inst.Id, inst.ActiveTokens.Single().Id))
+            {
+                engine.RunBranch(inst.Id, branch);
+            }
+
+            IReadOnlyList<Token> stalled = WorkflowEngine.FindStalledBranches(store.GetInstance(inst.Id));
+            Assert.AreEqual(2, stalled.Count, "beide gescheiterten Zweige werden angeboten.");
+            CollectionAssert.AreEquivalent(new[] { "a1", "b1" }, stalled.Select(t => t.NodeId).ToList());
+
+            var updates = stalled.ToDictionary(
+                t => t.Id,
+                t => (IDictionary<string, object>)new Dictionary<string, object>
+                {
+                    [t.NodeId == "a1" ? "okA" : "okB"] = true
+                });
+
+            Assert.IsTrue(engine.RetryFaultedBranches(inst.Id, updates));
+
+            DriveToCompletion(engine, inst.Id);
+
+            WorkflowInstance final = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Completed, final.Status,
+                "beide Zweige laufen durch und der Join feuert - EIN Durchgang genuegt.");
+            Assert.AreEqual(2, runs["okA"], "a1: einmal gescheitert, einmal erfolgreich.");
+            Assert.AreEqual(2, runs["okB"], "b1 ebenso.");
+        }
+
+        [TestMethod]
+        public void RetryWithUnknownTokenId_IsIgnored_AndDoesNotBlockTheResume()
+        {
+            // Ein Zweig kann zwischen Anzeige und Absenden weitergelaufen sein - das darf den Wiederaufsatz
+            // nicht scheitern lassen (die Korrektur faellt dann eben weg und steht im Log).
+            SaveLinear();
+            var engine = new WorkflowEngine(store, NeedsAmount());
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+
+            var updates = new Dictionary<string, IDictionary<string, object>>
+            {
+                ["does-not-exist"] = new Dictionary<string, object> { ["amount"] = 5m }
+            };
+
+            Assert.IsTrue(engine.RetryFaultedBranches(inst.Id, updates));
+            Assert.AreEqual(WorkflowStatus.Running, store.GetInstance(inst.Id).Status);
+        }
+
+        /// <summary>Treibt alle aktiven Zweige, bis keiner mehr aktiv ist (nebenlaeufiger Weg von Hand).</summary>
+        private void DriveToCompletion(WorkflowEngine engine, string instanceId)
+        {
+            for (int round = 0; round < 10; round++)
+            {
+                List<Token> active = store.GetInstance(instanceId).ActiveTokens.ToList();
+                if (active.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (Token t in active)
+                {
+                    engine.RunBranch(instanceId, t.Id);
+                }
+            }
+
+            Assert.Fail("der Vortrieb kam in 10 Runden nicht zum Ende.");
+        }
+
         // --- Abbruch einer fehlgeschlagenen Instanz ----------------------------------------------
 
         [TestMethod]

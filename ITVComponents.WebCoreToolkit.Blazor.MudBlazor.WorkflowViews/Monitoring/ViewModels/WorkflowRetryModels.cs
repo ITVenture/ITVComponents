@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.ViewModels
 {
@@ -46,25 +47,52 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
     }
 
     /// <summary>
-    /// Alles, was die Retry-Maske braucht: warum es scheiterte, WO es scheiterte und welche Daten der
-    /// fehlgeschlagene Schritt sieht.
+    /// Ein stehen gebliebener Zweig: ein aktives Token samt seinem Scope. Nach einem Split hat jeder
+    /// Zweig seinen EIGENEN Scope - deshalb ist die Korrektur je Zweig zu machen und nicht instanzweit.
+    /// </summary>
+    public sealed class WorkflowRetryBranch
+    {
+        /// <summary>Das Token - es IST der Zweig; darueber laeuft die Zuordnung der Korrekturen.</summary>
+        public string TokenId { get; init; } = "";
+
+        /// <summary>Der Knoten, auf dem der Zweig steht.</summary>
+        public string? NodeId { get; init; }
+
+        /// <summary>Der Anzeigename dieses Knotens (aus der Definition), oder die Id.</summary>
+        public string? NodeName { get; init; }
+
+        /// <summary>
+        /// Ist DIESER Zweig gescheitert? False bedeutet: er kam nur nicht mehr dran, weil der Vortrieb
+        /// beim Fehler eines anderen Zweigs abbrach. Auch er laeuft beim Retry weiter.
+        /// </summary>
+        public bool Faulted { get; init; }
+
+        /// <summary>Die zu diesem Knoten protokollierte Fehlermeldung, oder null.</summary>
+        public string? FaultMessage { get; init; }
+
+        /// <summary>Der Zeitpunkt dieses Fehlers (UTC), oder null.</summary>
+        public DateTime? FailedUtc { get; init; }
+
+        /// <summary>
+        /// Die Variablen im Scope dieses Zweigs - genau die, die er beim naechsten Versuch liest.
+        /// </summary>
+        public IReadOnlyList<WorkflowRetryVariable> Variables { get; init; } = Array.Empty<WorkflowRetryVariable>();
+    }
+
+    /// <summary>
+    /// Alles, was die Retry-Maske braucht: warum es scheiterte und welche Zweige stehen geblieben sind -
+    /// mit den Daten, die jeder von ihnen sieht.
     /// </summary>
     public sealed class WorkflowRetryInfo
     {
         /// <summary>Die betroffene Instanz.</summary>
         public string InstanceId { get; init; } = "";
 
-        /// <summary>Die Fehlermeldung der Instanz.</summary>
+        /// <summary>
+        /// Die Fehlermeldung der Instanz. Bei mehreren gleichzeitig gescheiterten Zweigen ist das die
+        /// des zuletzt gemeldeten - die einzelnen stehen an den <see cref="Branches"/>.
+        /// </summary>
         public string? FaultMessage { get; init; }
-
-        /// <summary>Die Id des Knotens, an dem wieder aufgesetzt wird.</summary>
-        public string? NodeId { get; init; }
-
-        /// <summary>Der Anzeigename dieses Knotens (aus der Definition), oder null.</summary>
-        public string? NodeName { get; init; }
-
-        /// <summary>Der Zeitpunkt des Fehlers (UTC), oder null.</summary>
-        public DateTime? FailedUtc { get; init; }
 
         /// <summary>
         /// Kann ueberhaupt wieder aufgesetzt werden? False, wenn der Fehler an keinem Schritt haengt
@@ -76,10 +104,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public string? Reason { get; init; }
 
         /// <summary>
-        /// Die Variablen im Scope des fehlgeschlagenen Tokens - also genau die, die der Schritt beim
-        /// naechsten Versuch liest.
+        /// Die stehen gebliebenen Zweige - gescheiterte zuerst (zuletzt gemeldeter Fehler vorne).
         /// </summary>
-        public IReadOnlyList<WorkflowRetryVariable> Variables { get; init; } = Array.Empty<WorkflowRetryVariable>();
+        public IReadOnlyList<WorkflowRetryBranch> Branches { get; init; } = Array.Empty<WorkflowRetryBranch>();
+
+        /// <summary>Die Knoten-Ids der gescheiterten Zweige - fuer die Markierung im Graphen.</summary>
+        public IReadOnlyList<string> FaultedNodeIds
+            => Branches.Where(b => b.Faulted && b.NodeId != null).Select(b => b.NodeId!).Distinct().ToList();
     }
 
     /// <summary>Das Ergebnis eines Wiederaufsatzes - mit Grund, wenn er nicht ging.</summary>

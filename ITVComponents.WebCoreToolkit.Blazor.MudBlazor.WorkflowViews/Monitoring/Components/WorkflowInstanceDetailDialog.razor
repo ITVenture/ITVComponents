@@ -1,6 +1,7 @@
 @inject IWorkflowMonitorHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudDialog>
     <DialogContent>
@@ -34,7 +35,23 @@
                     }
                     else
                     {
-                        <WorkflowGraph Definition="definition" HighlightedNodeIds="activeNodeIds" />
+                        @if (faultedNodeIds.Length > 0)
+                        {
+                            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
+                                @(faultedNodeIds.Length == 1
+                                    ? "The step marked in red failed."
+                                    : $"{faultedNodeIds.Length} steps marked in red failed.")
+                                <SecureView RequiredPermissions="Workflow.Operate">
+                                    <Permitted>
+                                        <span> Double-click a step to correct its data and retry.</span>
+                                    </Permitted>
+                                </SecureView>
+                            </MudAlert>
+                        }
+                        <WorkflowGraph Definition="definition"
+                                       HighlightedNodeIds="activeNodeIds"
+                                       FaultedNodeIds="faultedNodeIds"
+                                       OnNodeActivated="OpenBranchCorrection" />
                     }
                 </MudTabPanel>
                 <MudTabPanel Text="@($"Variables ({instance.Variables.Count})")">
@@ -135,6 +152,7 @@
     private WorkflowInstance? instance;
     private ITVComponents.Workflow.Model.WorkflowDefinition? definition;
     private string[] activeNodeIds = Array.Empty<string>();
+    private string[] faultedNodeIds = Array.Empty<string>();
     private ClaimsPrincipal? currentUser;
     private string? signalName;
 
@@ -158,19 +176,67 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
         instance = await Handler.GetInstanceAsync(currentUser, InstanceId, Environment);
-        if (instance is not null)
+        faultedNodeIds = Array.Empty<string>();
+        if (instance is null)
         {
-            // Aktuelle Token-Positionen: alles, was nicht bereits verbraucht ist, wird im Graphen
-            // hervorgehoben.
-            activeNodeIds = instance.Tokens
-                .Where(t => t.Status != TokenStatus.Consumed && !string.IsNullOrEmpty(t.NodeId))
-                .Select(t => t.NodeId!)
-                .Distinct()
-                .ToArray();
-            definition = await Handler.GetDefinitionAsync(currentUser, instance.DefinitionId, instance.DefinitionVersion, Environment);
+            return;
+        }
+
+        // Aktuelle Token-Positionen: alles, was nicht bereits verbraucht ist, wird im Graphen
+        // hervorgehoben.
+        activeNodeIds = instance.Tokens
+            .Where(t => t.Status != TokenStatus.Consumed && !string.IsNullOrEmpty(t.NodeId))
+            .Select(t => t.NodeId!)
+            .Distinct()
+            .ToArray();
+        definition = await Handler.GetDefinitionAsync(currentUser, instance.DefinitionId, instance.DefinitionVersion, Environment);
+
+        // Die Fehlerstellen kommen vom Handler und nicht aus einer eigenen Auswertung: er benutzt
+        // WorkflowEngine.FindStalledBranches - dieselbe Quelle, an der der Retry dann wirklich ansetzt.
+        if (instance.Status == WorkflowStatus.Faulted)
+        {
+            WorkflowRetryInfo? retry = await Handler.GetRetryInfoAsync(currentUser, InstanceId, Environment);
+            faultedNodeIds = retry?.FaultedNodeIds.ToArray() ?? Array.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// Doppelklick auf einen Knoten im Graphen: oeffnet die Korrektur-Maske auf DIESEM Zweig. Nur fuer
+    /// gescheiterte Instanzen und nur mit Operate-Recht sinnvoll - der Handler prueft beides noch einmal
+    /// selbst, hier geht es nur darum, dem Benutzer keinen leeren Dialog vorzusetzen.
+    /// </summary>
+    private async Task OpenBranchCorrection(string nodeId)
+    {
+        if (instance is null || instance.Status != WorkflowStatus.Faulted
+            || !Handler.HasPermission(currentUser!, WorkflowSecurity.Operate))
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<RetryWorkflowDialog>
+        {
+            { d => d.InstanceId, InstanceId },
+            { d => d.Environment, Environment },
+            { d => d.FocusNodeId, nodeId }
+        };
+        IDialogReference dlg = await DialogService.ShowAsync<RetryWorkflowDialog>(
+            $"Retry {InstanceId}", parameters, EditDialogDefaults.Detail);
+        DialogResult? result = await dlg.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            Snackbar.Add("Instance resumed.", Severity.Success);
+            // Der Stand hat sich geaendert (inline ist der Schritt schon gelaufen) - neu laden statt
+            // eine veraltete Ansicht stehen zu lassen.
+            await LoadAsync();
+            StateHasChanged();
         }
     }
 

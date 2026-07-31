@@ -51,11 +51,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             string? environment = null);
 
         /// <summary>
-        /// Nimmt eine fehlgeschlagene Instanz an der Fehlerstelle wieder auf (Operate) - optional mit
-        /// korrigierten Variablen. Der Rueckgabewert traegt im Fehlerfall den anzeigbaren Grund.
+        /// Nimmt eine fehlgeschlagene Instanz an ihren Fehlerstellen wieder auf (Operate) - optional mit
+        /// korrigierten Variablen <b>je Zweig</b> (Schluessel = <c>WorkflowRetryBranch.TokenId</c>, weil
+        /// nach einem Split jeder Zweig seinen eigenen Scope hat). Der Rueckgabewert traegt im Fehlerfall
+        /// den anzeigbaren Grund.
         /// </summary>
         Task<WorkflowRetryResult> RetryAsync(ClaimsPrincipal user, string instanceId,
-            IDictionary<string, object?>? variableUpdates = null, string? environment = null);
+            IDictionary<string, IDictionary<string, object?>>? branchUpdates = null,
+            string? environment = null);
 
         /// <summary>
         /// Liefert die Definitionen, die von Hand gestartet werden koennen - je Id die hoechste Version,

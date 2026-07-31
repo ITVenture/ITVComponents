@@ -2,10 +2,14 @@
 @inject AuthenticationStateProvider AuthState
 
 @*
-    Nimmt eine fehlgeschlagene Instanz an der Fehlerstelle wieder auf. Der Token steht beim Fault noch
+    Nimmt eine fehlgeschlagene Instanz an ihren Fehlerstellen wieder auf. Der Token steht beim Fault noch
     AKTIV auf seinem Knoten - es wird also nichts zurueckgespult und nichts uebersprungen, sondern genau
-    der Schritt wiederholt, der scheiterte. Gezeigt und korrigiert werden die Variablen im Scope EBEN
-    DIESES Tokens (in einer parallelen Region der Zweig-Scope) - also genau das, was der Schritt liest.
+    der Schritt wiederholt, der scheiterte.
+
+    Es kann MEHRERE stehen gebliebene Zweige geben (nebenlaeufiger Betrieb: ein Fault sperrt RunBranch
+    nicht, ein bereits laufender Zweig fuehrt seinen Schritt zu Ende). Jeder hat nach einem Split seinen
+    EIGENEN Scope - deshalb ein Reiter je Zweig statt einer gemeinsamen Variablenliste. Der Aufrufer kann
+    ueber FocusNodeId direkt auf einen Zweig springen (Doppelklick im Graphen).
 *@
 
 <MudDialog>
@@ -20,94 +24,120 @@
         {
             <MudProgressCircular Indeterminate="true" />
         }
-        else
+        else if (!info.CanRetry)
         {
             <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">
                 @(info.FaultMessage ?? "The instance failed without a message.")
             </MudAlert>
-
-            @if (!info.CanRetry)
+            <MudAlert Severity="Severity.Warning">@info.Reason</MudAlert>
+        }
+        else
+        {
+            @if (branches.Count > 1)
             {
-                <MudAlert Severity="Severity.Warning">@info.Reason</MudAlert>
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                    @branches.Count(b => b.Source.Faulted) of @branches.Count stalled branches failed. Each branch has
+                    its own variables — correct them per branch; one retry resumes all of them.
+                </MudAlert>
             }
-            else
-            {
-                <MudText Typo="Typo.body2">
-                    Resumes at <b>@(info.NodeName ?? info.NodeId)</b>@(info.FailedUtc is null
-                        ? (MarkupString)""
-                        : (MarkupString)$" (failed {info.FailedUtc:g} UTC)"). The step is executed again —
-                    nothing before it is repeated.
-                </MudText>
 
-                <MudDivider Class="my-3" />
-                <MudText Typo="Typo.caption">Data the step will see</MudText>
-                <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">
-                    Correct what made it fail. Empty clears the variable; composite values (objects, lists)
-                    are shown read-only.
-                </MudText>
+            <MudTabs Elevation="0" Rounded="true" PanelClass="pt-3" KeepPanelsAlive="true"
+                     @bind-ActivePanelIndex="activeTab">
+                @foreach (BranchRows branch in branches)
+                {
+                    <MudTabPanel Text="@BranchTitle(branch)"
+                                 Icon="@(branch.Source.Faulted ? Icons.Material.Filled.ErrorOutline : null)"
+                                 IconColor="Color.Error">
+                        @if (branch.Source.Faulted)
+                        {
+                            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">
+                                @(branch.Source.FaultMessage ?? info.FaultMessage
+                                  ?? "This step failed without a message.")
+                            </MudAlert>
+                        }
+                        else
+                        {
+                            @* Kein eigener Fehler: dieser Zweig kam nur nicht mehr dran. Er laeuft beim
+                               Retry trotzdem weiter - das muss man ihm ansehen. *@
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                                This branch did not fail — it just did not get its turn before the workflow
+                                stopped. It continues on retry; correct its data only if you need to.
+                            </MudAlert>
+                        }
 
-                <MudTable Items="@rows" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
-                          RowsPerPageOptions="@(new[] { 10, 25, 50 })">
-                    <HeaderContent>
-                        <MudTh Style="width:30%">Variable</MudTh>
-                        <MudTh>Value</MudTh>
-                        <MudTh Style="width:1%"></MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="Variable">
-                            <MudText Typo="Typo.body2">@context.Name</MudText>
-                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Kind</MudText>
-                        </MudTd>
-                        <MudTd DataLabel="Value">
-                            @if (context.Kind == WorkflowVariableKind.Complex)
-                            {
-                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Text</MudText>
-                            }
-                            else if (context.Kind == WorkflowVariableKind.Boolean)
-                            {
-                                <MudSelect T="string" Value="@context.Text" Dense="true" Margin="Margin.Dense"
-                                           ValueChanged="@(v => context.Text = v)">
-                                    <MudSelectItem T="string" Value="@("true")">true</MudSelectItem>
-                                    <MudSelectItem T="string" Value="@("false")">false</MudSelectItem>
-                                </MudSelect>
-                            }
-                            else
-                            {
-                                <MudTextField T="string" Value="@context.Text" Margin="Margin.Dense"
-                                              ValueChanged="@(v => context.Text = v)" />
-                            }
-                        </MudTd>
-                        <MudTd>
-                            @if (context.IsNew)
-                            {
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                               Color="Color.Error" OnClick="@(() => rows.Remove(context))" />
-                            }
-                            else if (context.Changed)
-                            {
-                                <MudTooltip Text="@($"was: {context.Original}")">
-                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Warning" />
-                                </MudTooltip>
-                            }
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">
+                            Data this branch will see. Empty clears the variable; composite values (objects,
+                            lists) are shown read-only.
+                        </MudText>
 
-                @* Der Fehler ist oft eine FEHLENDE Variable - dann muss man eine anlegen koennen. *@
-                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mt-2">
-                    <MudTextField T="string" @bind-Value="newName" Placeholder="new variable"
-                                  Margin="Margin.Dense" Style="max-width:200px" />
-                    <MudSelect T="WorkflowVariableKind" @bind-Value="newKind" Dense="true" Margin="Margin.Dense"
-                               Style="max-width:150px">
-                        <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Text">Text</MudSelectItem>
-                        <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Number">Number</MudSelectItem>
-                        <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Boolean">Yes/No</MudSelectItem>
-                        <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.DateTime">Date</MudSelectItem>
-                    </MudSelect>
-                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary"
-                                   OnClick="AddVariable" />
-                </MudStack>
-            }
+                        <MudTable Items="@branch.Rows" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
+                                  RowsPerPageOptions="@(new[] { 10, 25, 50 })">
+                            <HeaderContent>
+                                <MudTh Style="width:30%">Variable</MudTh>
+                                <MudTh>Value</MudTh>
+                                <MudTh Style="width:1%"></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Variable">
+                                    <MudText Typo="Typo.body2">@context.Name</MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Kind</MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Value">
+                                    @if (context.Kind == WorkflowVariableKind.Complex)
+                                    {
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Text</MudText>
+                                    }
+                                    else if (context.Kind == WorkflowVariableKind.Boolean)
+                                    {
+                                        <MudSelect T="string" Value="@context.Text" Dense="true" Margin="Margin.Dense"
+                                                   ValueChanged="@(v => context.Text = v)">
+                                            <MudSelectItem T="string" Value="@("true")">true</MudSelectItem>
+                                            <MudSelectItem T="string" Value="@("false")">false</MudSelectItem>
+                                        </MudSelect>
+                                    }
+                                    else
+                                    {
+                                        <MudTextField T="string" Value="@context.Text" Margin="Margin.Dense"
+                                                      ValueChanged="@(v => context.Text = v)" />
+                                    }
+                                </MudTd>
+                                <MudTd>
+                                    @if (context.IsNew)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       Color="Color.Error"
+                                                       OnClick="@(() => branch.Rows.Remove(context))" />
+                                    }
+                                    else if (context.Changed)
+                                    {
+                                        <MudTooltip Text="@($"was: {context.Original}")">
+                                            <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                     Color="Color.Warning" />
+                                        </MudTooltip>
+                                    }
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+
+                        @* Der Fehler ist oft eine FEHLENDE Variable - dann muss man eine anlegen koennen. *@
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mt-2">
+                            <MudTextField T="string" Value="@branch.NewName" Placeholder="new variable"
+                                          Margin="Margin.Dense" Style="max-width:200px"
+                                          ValueChanged="@(v => branch.NewName = v)" />
+                            <MudSelect T="WorkflowVariableKind" Value="@branch.NewKind" Dense="true"
+                                       Margin="Margin.Dense" Style="max-width:150px"
+                                       ValueChanged="@(k => branch.NewKind = k)">
+                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Text">Text</MudSelectItem>
+                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Number">Number</MudSelectItem>
+                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Boolean">Yes/No</MudSelectItem>
+                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.DateTime">Date</MudSelectItem>
+                            </MudSelect>
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary"
+                                           OnClick="@(() => AddVariable(branch))" />
+                        </MudStack>
+                    </MudTabPanel>
+                }
+            </MudTabs>
         }
 
         @if (!string.IsNullOrEmpty(error))
@@ -120,7 +150,9 @@
         <MudSpacer />
         <MudButton OnClick="Cancel" Disabled="@retrying">Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.RestartAlt"
-                   OnClick="Retry" Disabled="@(retrying || info is null || !info.CanRetry)">Retry</MudButton>
+                   OnClick="Retry" Disabled="@(retrying || info is null || !info.CanRetry)">
+            @(branches.Count > 1 ? "Retry all branches" : "Retry")
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -138,6 +170,15 @@
         public bool Changed => IsNew || !string.Equals(Text ?? string.Empty, Original, StringComparison.Ordinal);
     }
 
+    /// <summary>Ein Zweig samt seinen bearbeitbaren Zeilen (jeder Zweig hat seinen eigenen Scope).</summary>
+    private sealed class BranchRows
+    {
+        public WorkflowRetryBranch Source { get; init; } = default!;
+        public List<Row> Rows { get; init; } = new();
+        public string? NewName { get; set; }
+        public WorkflowVariableKind NewKind { get; set; } = WorkflowVariableKind.Text;
+    }
+
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
     /// <summary>Die fehlgeschlagene Instanz.</summary>
@@ -146,11 +187,15 @@
     /// <summary>Die (optional) gewählte Workflow-Umgebung.</summary>
     [Parameter] public string? Environment { get; set; }
 
+    /// <summary>
+    /// Optional: der Knoten, dessen Zweig beim Öffnen aktiv sein soll (Doppelklick im Graphen).
+    /// </summary>
+    [Parameter] public string? FocusNodeId { get; set; }
+
     private WorkflowRetryInfo? info;
-    private List<Row> rows = new();
+    private List<BranchRows> branches = new();
     private ClaimsPrincipal? currentUser;
-    private string? newName;
-    private WorkflowVariableKind newKind = WorkflowVariableKind.Text;
+    private int activeTab;
     private string? error;
     private bool retrying;
 
@@ -165,28 +210,43 @@
             return;
         }
 
-        rows = info.Variables
-            .Select(v => new Row { Name = v.Name, Original = v.Value, Text = v.Value, Kind = v.Kind })
+        branches = info.Branches
+            .Select(b => new BranchRows
+            {
+                Source = b,
+                Rows = b.Variables
+                    .Select(v => new Row { Name = v.Name, Original = v.Value, Text = v.Value, Kind = v.Kind })
+                    .ToList()
+            })
             .ToList();
+
+        // Auf den angeklickten Zweig springen; ohne Vorgabe steht der zuletzt gemeldete Fehler vorne.
+        int idx = FocusNodeId is null
+            ? -1
+            : branches.FindIndex(b => b.Source.NodeId == FocusNodeId);
+        activeTab = idx >= 0 ? idx : 0;
     }
 
-    private void AddVariable()
+    private string BranchTitle(BranchRows branch)
+        => branch.Source.NodeName ?? branch.Source.NodeId ?? "branch";
+
+    private void AddVariable(BranchRows branch)
     {
-        if (string.IsNullOrWhiteSpace(newName)
-            || rows.Any(r => string.Equals(r.Name, newName, StringComparison.OrdinalIgnoreCase)))
+        if (string.IsNullOrWhiteSpace(branch.NewName)
+            || branch.Rows.Any(r => string.Equals(r.Name, branch.NewName, StringComparison.OrdinalIgnoreCase)))
         {
             return;
         }
 
-        rows.Add(new Row
+        branch.Rows.Add(new Row
         {
-            Name = newName!.Trim(),
+            Name = branch.NewName!.Trim(),
             Original = string.Empty,
-            Text = newKind == WorkflowVariableKind.Boolean ? "false" : string.Empty,
-            Kind = newKind,
+            Text = branch.NewKind == WorkflowVariableKind.Boolean ? "false" : string.Empty,
+            Kind = branch.NewKind,
             IsNew = true
         });
-        newName = null;
+        branch.NewName = null;
     }
 
     private async Task Retry()
@@ -200,12 +260,20 @@
         retrying = true;
         try
         {
-            // Nur das schicken, was der Benutzer tatsaechlich angefasst hat - sonst wuerde jeder Retry
-            // den ganzen Scope neu schreiben und dabei Typen umformen, die niemand aendern wollte.
-            var updates = rows
-                .Where(r => r.Kind != WorkflowVariableKind.Complex && r.Changed)
-                .ToDictionary(r => r.Name, r => WorkflowVariableValue.Parse(r.Text, r.Kind),
-                    StringComparer.Ordinal);
+            // Je Zweig nur das schicken, was der Benutzer tatsaechlich angefasst hat - sonst wuerde jeder
+            // Retry den ganzen Scope neu schreiben und dabei Typen umformen, die niemand aendern wollte.
+            var updates = new Dictionary<string, IDictionary<string, object?>>(StringComparer.Ordinal);
+            foreach (BranchRows branch in branches)
+            {
+                var changed = branch.Rows
+                    .Where(r => r.Kind != WorkflowVariableKind.Complex && r.Changed)
+                    .ToDictionary(r => r.Name, r => WorkflowVariableValue.Parse(r.Text, r.Kind),
+                        StringComparer.Ordinal);
+                if (changed.Count > 0)
+                {
+                    updates[branch.Source.TokenId] = changed;
+                }
+            }
 
             WorkflowRetryResult result = await Handler.RetryAsync(currentUser!, InstanceId, updates, Environment);
             if (!result.Resumed)

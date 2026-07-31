@@ -170,9 +170,6 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 return Task.FromResult<WorkflowRetryInfo?>(null);
             }
 
-            HistoryEntry? fault = instance.History?
-                .LastOrDefault(h => string.Equals(h.Event, "Faulted", StringComparison.Ordinal));
-
             if (instance.Status != WorkflowStatus.Faulted)
             {
                 return Task.FromResult<WorkflowRetryInfo?>(new WorkflowRetryInfo
@@ -184,50 +181,61 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 });
             }
 
-            Token? failed = WorkflowEngine.FindRetryPoint(instance);
-            if (failed == null)
+            IReadOnlyList<Token> stalled = WorkflowEngine.FindStalledBranches(instance);
+            if (stalled.Count == 0)
             {
                 return Task.FromResult<WorkflowRetryInfo?>(new WorkflowRetryInfo
                 {
                     InstanceId = instance.Id,
                     FaultMessage = instance.FaultMessage,
-                    NodeId = fault?.NodeId,
-                    FailedUtc = fault?.TimestampUtc,
                     CanRetry = false,
                     Reason = "The failure is not tied to a step, so there is no point to resume from. "
                              + "See the fault message and the history."
                 });
             }
 
-            // Genau die Werte zeigen, die der fehlgeschlagene Schritt beim naechsten Versuch liest -
-            // innerhalb einer parallelen Region ist das der Zweig-Scope, sonst der Instanz-Scope.
-            IDictionary<string, object> scope = WorkflowEngine.ScopeOf(instance, failed);
-            var variables = scope
-                .OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(p => new WorkflowRetryVariable
+            // Die Definition EINMAL laden - sonst ein Store-Zugriff je Zweig.
+            WorkflowDefinition? definition = LoadDefinition(op, instance);
+            var branches = stalled.Select(t =>
+            {
+                HistoryEntry? fault = instance.History?
+                    .LastOrDefault(h => string.Equals(h.Event, "Faulted", StringComparison.Ordinal)
+                                        && h.NodeId == t.NodeId);
+                return new WorkflowRetryBranch
                 {
-                    Name = p.Key,
-                    Value = WorkflowVariableValue.Display(p.Value),
-                    Kind = WorkflowVariableValue.KindOf(p.Value),
-                    TypeName = p.Value?.GetType().Name
-                })
-                .ToList();
+                    TokenId = t.Id,
+                    NodeId = t.NodeId,
+                    NodeName = NodeName(definition, t.NodeId),
+                    Faulted = fault != null,
+                    FaultMessage = fault?.Detail,
+                    FailedUtc = fault?.TimestampUtc,
+                    // Genau die Werte, die DIESER Zweig beim naechsten Versuch liest - in einer parallelen
+                    // Region sein eigener Scope, sonst der Instanz-Scope.
+                    Variables = WorkflowEngine.ScopeOf(instance, t)
+                        .OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(p => new WorkflowRetryVariable
+                        {
+                            Name = p.Key,
+                            Value = WorkflowVariableValue.Display(p.Value),
+                            Kind = WorkflowVariableValue.KindOf(p.Value),
+                            TypeName = p.Value?.GetType().Name
+                        })
+                        .ToList()
+                };
+            }).ToList();
 
             return Task.FromResult<WorkflowRetryInfo?>(new WorkflowRetryInfo
             {
                 InstanceId = instance.Id,
                 FaultMessage = instance.FaultMessage,
-                NodeId = failed.NodeId,
-                NodeName = NodeName(op, instance, failed.NodeId),
-                FailedUtc = fault?.TimestampUtc,
                 CanRetry = true,
-                Variables = variables
+                Branches = branches
             });
         }
 
         /// <inheritdoc/>
         public Task<WorkflowRetryResult> RetryAsync(ClaimsPrincipal user, string instanceId,
-            IDictionary<string, object?>? variableUpdates = null, string? environment = null)
+            IDictionary<string, IDictionary<string, object?>>? branchUpdates = null, string? environment = null)
         {
             if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
@@ -256,12 +264,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                     ? null
                     : WorkflowExecutionScope.UseTenant(instance.TenantId);
 
-                var updates = variableUpdates == null
-                    ? null
-                    : variableUpdates.ToDictionary(p => p.Key, p => p.Value!, StringComparer.Ordinal);
+                // Je Zweig (Token-Id) ein eigener Satz Korrekturen - nach einem Split hat jeder Zweig
+                // seinen eigenen Scope, eine Korrektur im einen erreicht den anderen nicht.
+                var updates = branchUpdates?.ToDictionary(
+                    b => b.Key,
+                    b => (IDictionary<string, object>)b.Value.ToDictionary(
+                        p => p.Key, p => p.Value!, StringComparer.Ordinal),
+                    StringComparer.Ordinal);
 
                 string? who = user?.Identity?.Name;
-                if (!op.Engine.RetryFaulted(instanceId, updates,
+                if (!op.Engine.RetryFaultedBranches(instanceId, updates,
                         string.IsNullOrEmpty(who) ? null : $"resumed by {who}"))
                 {
                     return Task.FromResult(WorkflowRetryResult.Failed("This instance does not exist."));
@@ -506,29 +518,36 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             return string.Equals(instance.TenantId, tenant, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>Der Anzeigename eines Knotens aus der Definition der Instanz, oder die Id.</summary>
-        private static string? NodeName(WorkflowOperation op, WorkflowInstance instance, string? nodeId)
+        /// <summary>
+        /// Laedt die Definition einer Instanz. Sie wird nur fuer Anzeigenamen gebraucht - scheitert das,
+        /// funktioniert die Maske mit den Knoten-Ids weiter, der Grund muss aber ins Log (eine nicht
+        /// ladbare Definition ist selten harmlos).
+        /// </summary>
+        private static WorkflowDefinition? LoadDefinition(WorkflowOperation op, WorkflowInstance instance)
+        {
+            try
+            {
+                return op.Store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Konnte die Definition '{instance.DefinitionId}' v{instance.DefinitionVersion} der Instanz " +
+                    $"'{instance.Id}' nicht laden: {ex.OutlineException()}", LogSeverity.Warning);
+                return null;
+            }
+        }
+
+        /// <summary>Der Anzeigename eines Knotens, oder die Id.</summary>
+        private static string? NodeName(WorkflowDefinition? definition, string? nodeId)
         {
             if (string.IsNullOrEmpty(nodeId))
             {
                 return null;
             }
 
-            try
-            {
-                WorkflowDefinition? def = op.Store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion);
-                WorkflowNode? node = def?.GetNode(nodeId);
-                return string.IsNullOrEmpty(node?.Name) ? nodeId : node!.Name;
-            }
-            catch (Exception ex)
-            {
-                // Nur ein Anzeigename - die Maske funktioniert auch mit der Id. Der Grund muss trotzdem
-                // nachvollziehbar sein (eine nicht ladbare Definition ist selten harmlos).
-                LogEnvironment.LogEvent(
-                    $"Konnte den Knotennamen '{nodeId}' der Instanz '{instance.Id}' nicht ermitteln: " +
-                    $"{ex.OutlineException()}", LogSeverity.Warning);
-                return nodeId;
-            }
+            WorkflowNode? node = definition?.GetNode(nodeId);
+            return string.IsNullOrEmpty(node?.Name) ? nodeId : node!.Name;
         }
 
         /// <summary>

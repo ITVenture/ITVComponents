@@ -855,21 +855,42 @@ zweite Zweig läuft dann gar nicht erst). `RunBranch` hat keine Faulted-Sperre: 
 Zweig führt seinen Schritt zu Ende und committet, auch wenn die Instanz inzwischen gefaultet ist. Es
 können also mehrere Tokens auf je eigener Fehlerstelle stehen.
 
-**Ein Retry stößt dann alle wieder an** — wieder, weil er keine Tokens anfasst: alle bleiben aktiv, der
+**Ein Retry stößt alle wieder an** — wieder, weil er keine Tokens anfasst: alle bleiben aktiv, der
 Runner reiht alle wieder ein. Belegt in `TwoFaultedBranches_BothTokensStayActive_AndBothRestartOnRetry`
 über Ausführungszähler.
 
-**Aber die Korrektur erreicht nur einen Zweig.** `FindRetryPoint` liefert *einen* Punkt (den zuletzt
-gemeldeten Fehler), und die Werte gehen in dessen Scope. Der zweite kaputte Zweig scheitert nach dem
-Retry erneut — er braucht einen zweiten Durchgang, bei dem er dann selbst der Wiederaufsatzpunkt ist.
-Die Maske zeigt entsprechend auch nur die Fehlermeldung des zuletzt gemeldeten Fehlers
-(`instance.FaultMessage` wird vom jeweils letzten Commit überschrieben; die History behält alle
-`Faulted`-Einträge). Festgehalten in
-`TwoFaultedBranches_CorrectionReachesOnlyTheBranchOfTheRetryPoint`.
+**Korrigiert wird je Zweig.** `WorkflowEngine.FindStalledBranches` liefert *alle* stehen gebliebenen
+Zweige (gescheiterte zuerst, zuletzt gemeldeter Fehler vorne), und
+`RetryFaultedBranches(instanceId, updatesByTokenId)` nimmt einen eigenen Satz Korrekturen **je
+Token-Id** entgegen — die Token-Id ist der Zweig. Ein Durchgang genügt also auch bei mehreren kaputten
+Zweigen (`TwoFaultedBranches_PerBranchCorrections_FixBothInOneGo`).
 
-Das ist bewusst nicht „schlau" gelöst: mehrere gleichzeitige, *unabhängige* Fehler sind selten, und ein
-Retry, der stillschweigend mehrere Scopes gleichzeitig beschreibt, wäre schwerer nachzuvollziehen als
-zwei bewusste Durchgänge.
+Der einfache Aufruf `RetryFaulted(instanceId, variableUpdates)` bleibt bestehen und meint den
+*Wiederaufsatzpunkt* — praktisch für den Normalfall mit genau einer Fehlerstelle. Er ist damit der
+Sonderfall des allgemeinen Wegs, nicht eine zweite Mechanik.
+
+Unbekannte Token-Ids werden protokolliert und übergangen: ein Zweig kann zwischen Anzeige und Absenden
+weitergelaufen sein, und das darf den Wiederaufsatz nicht scheitern lassen
+(`RetryWithUnknownTokenId_IsIgnored_AndDoesNotBlockTheResume`).
+
+Beachte: `instance.FaultMessage` trägt nur den **zuletzt** gemeldeten Fehler (jeder Commit überschreibt
+ihn) — die einzelnen Meldungen stehen in der History und werden von dort je Zweig herausgesucht.
+
+#### In der Oberfläche
+
+- Die **Graph-Ansicht** des Instanz-Details markiert alle Fehlerstellen rot (`FaultedNodeIds`, gewinnt
+  gegen die blaue Token-Hervorhebung). Ein **Doppelklick** auf einen Knoten öffnet die Korrektur-Maske
+  direkt auf diesem Zweig.
+- Die **Korrektur-Maske** hat einen Reiter je stehen gebliebenem Zweig, jeder mit *seinem* Scope. Ein
+  Klick auf „Retry all branches" schickt alle Korrekturen zusammen.
+- Zweige ohne eigenen Fehler erscheinen ebenfalls (sie kamen nur nicht mehr dran) — mit einem Hinweis,
+  dass sie beim Retry ohnehin weiterlaufen und Korrektur dort optional ist.
+- Der Retry-Knopf in der Instanz-Liste bleibt als Schnellweg und öffnet dieselbe Maske ohne Vorauswahl.
+
+Die Klickbarkeit kommt aus `wwwroot/workflow-graph.js`: das SVG wird als `MarkupString` erzeugt, kann
+also keine Blazor-Handler tragen. Das Modul hängt **einen** Listener an den Container und ordnet über
+`closest('[data-wf-node]')` zu — das überlebt jedes Neu-Rendern des SVG-Körpers. Ohne JS bleibt der
+Graph als Anzeige nutzbar (der Ausfall wird protokolliert).
 
 Beides ist als Test festgehalten (`WorkflowRetryTest.ParallelFault_*`), inklusive der Zusicherung, dass
 jede Aktivität genau einmal läuft — nur die fehlgeschlagene zweimal.

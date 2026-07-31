@@ -354,6 +354,44 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
+        /// Traegt die Korrekturen EINES Zweigs in dessen Scope ein und liefert die geaenderten Namen.
+        /// </summary>
+        private static IEnumerable<string> ApplyBranchUpdates(WorkflowInstance instance, Token token,
+            IDictionary<string, object> updates)
+        {
+            if (updates == null)
+            {
+                yield break;
+            }
+
+            IDictionary<string, object> scope = ScopeOf(instance, token);
+            foreach (KeyValuePair<string, object> pair in updates)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key))
+                {
+                    continue;
+                }
+
+                scope[pair.Key] = pair.Value;
+                yield return pair.Key;
+            }
+        }
+
+        /// <summary>
+        /// Marker fuer den einfachen Aufruf (<see cref="RetryFaulted"/>): die Korrekturen gelten dem
+        /// Wiederaufsatzpunkt, dessen Token-Id der Aufrufer nicht kennen muss.
+        /// </summary>
+        private sealed class RetryPointUpdates : Dictionary<string, IDictionary<string, object>>
+        {
+            public RetryPointUpdates(IDictionary<string, object> updates)
+            {
+                Updates = updates;
+            }
+
+            public IDictionary<string, object> Updates { get; }
+        }
+
+        /// <summary>
         /// Bestimmt den Token, an dem ein Wiederaufsatz ansetzen wuerde - den, der beim Fehler noch aktiv
         /// auf seinem Knoten steht. Liefert null, wenn es keinen gibt (dann haengt der Fehler an keinem
         /// Schritt und es gibt nichts zu wiederholen).
@@ -365,18 +403,52 @@ namespace ITVComponents.Workflow
         /// Oeffentlich, damit Oberflaechen dieselbe Stelle anzeigen, an der der Retry dann wirklich ansetzt.
         /// </remarks>
         public static Token FindRetryPoint(WorkflowInstance instance)
+            => FindStalledBranches(instance).FirstOrDefault();
+
+        /// <summary>
+        /// Alle Zweige, die beim Fehlschlag stehen geblieben sind - je ein aktives Token. Zuerst die, deren
+        /// Knoten im Protokoll als fehlgeschlagen vermerkt ist (der zuletzt gemeldete Fehler vorne), danach
+        /// die uebrigen aktiven Tokens: Zweige, die schlicht nicht mehr drankamen, weil der Vortrieb beim
+        /// Fault abbrach.
+        /// </summary>
+        /// <remarks>
+        /// Im nebenlaeufigen Betrieb koennen mehrere Zweige gleichzeitig scheitern (<c>RunBranch</c> hat
+        /// keine Faulted-Sperre - ein bereits laufender Zweig fuehrt seinen Schritt zu Ende und committet).
+        /// Jeder von ihnen hat seinen EIGENEN Scope; eine Korrektur muss deshalb je Zweig moeglich sein.
+        /// Oeffentlich, damit die Oberflaeche genau die Zweige anbietet, die der Retry auch anfasst.
+        /// </remarks>
+        public static IReadOnlyList<Token> FindStalledBranches(WorkflowInstance instance)
         {
             if (instance == null)
             {
-                return null;
+                return Array.Empty<Token>();
             }
 
-            HistoryEntry fault = instance.History?
-                .LastOrDefault(h => string.Equals(h.Event, "Faulted", StringComparison.Ordinal));
-            Token failed = fault?.NodeId != null
-                ? instance.ActiveTokens.FirstOrDefault(t => t.NodeId == fault.NodeId)
-                : null;
-            return failed ?? instance.ActiveTokens.FirstOrDefault();
+            // Die Knoten mit Fehler-Eintrag, juengster zuerst - das ist die Reihenfolge, in der ein Mensch
+            // sie erwartet (der zuletzt gemeldete Fehler ist der, den er gerade gesehen hat).
+            var faultedNodes = new List<string>();
+            if (instance.History != null)
+            {
+                for (int i = instance.History.Count - 1; i >= 0; i--)
+                {
+                    HistoryEntry h = instance.History[i];
+                    if (string.Equals(h.Event, "Faulted", StringComparison.Ordinal)
+                        && h.NodeId != null && !faultedNodes.Contains(h.NodeId))
+                    {
+                        faultedNodes.Add(h.NodeId);
+                    }
+                }
+            }
+
+            var active = instance.ActiveTokens.ToList();
+            var ordered = new List<Token>();
+            foreach (string nodeId in faultedNodes)
+            {
+                ordered.AddRange(active.Where(t => t.NodeId == nodeId && !ordered.Contains(t)));
+            }
+
+            ordered.AddRange(active.Where(t => !ordered.Contains(t)));
+            return ordered;
         }
 
         /// <summary>
@@ -407,6 +479,24 @@ namespace ITVComponents.Workflow
         /// </exception>
         public bool RetryFaulted(string instanceId, IDictionary<string, object> variableUpdates = null,
             string note = null)
+            => RetryFaultedBranches(instanceId,
+                variableUpdates == null ? null : new RetryPointUpdates(variableUpdates), note);
+
+        /// <summary>
+        /// Wie <see cref="RetryFaulted"/>, aber mit Korrekturen <b>je Zweig</b>: der Schluessel ist die
+        /// Token-Id (siehe <see cref="FindStalledBranches"/>), der Wert sind die zu setzenden Variablen.
+        /// Noetig, wenn mehrere Zweige gleichzeitig gescheitert sind - jeder hat seinen eigenen Scope, und
+        /// eine Korrektur im einen erreicht den anderen nicht.
+        /// </summary>
+        /// <param name="instanceId">die Instanz-Id</param>
+        /// <param name="updatesByTokenId">
+        /// Korrekturen je Token, oder null. Unbekannte Token-Ids werden protokolliert und uebergangen -
+        /// ein zwischenzeitlich weitergelaufener Zweig soll den Wiederaufsatz nicht scheitern lassen.
+        /// </param>
+        /// <param name="note">optionale Notiz fuer das Protokoll</param>
+        /// <returns>true, wenn die Instanz wieder aufgenommen wurde; false, wenn es sie nicht gibt</returns>
+        public bool RetryFaultedBranches(string instanceId,
+            IDictionary<string, IDictionary<string, object>> updatesByTokenId = null, string note = null)
         {
             WorkflowInstance instance = store.GetInstance(instanceId);
             if (instance == null)
@@ -433,19 +523,29 @@ namespace ITVComponents.Workflow
                     "step (see the fault message and the history); it cannot be retried from here.");
             }
 
-            Dictionary<string, object> scope = (Dictionary<string, object>)ScopeOf(instance, failed);
+            // Korrekturen je Zweig einspielen. RetryPointUpdates ist der Sonderfall "eine Korrektur, gemeint
+            // ist der Wiederaufsatzpunkt" - so bleibt der einfache Aufruf einfach.
             var changed = new List<string>();
-            if (variableUpdates != null)
+            if (updatesByTokenId is RetryPointUpdates single)
             {
-                foreach (KeyValuePair<string, object> pair in variableUpdates)
+                changed.AddRange(ApplyBranchUpdates(instance, failed, single.Updates));
+            }
+            else if (updatesByTokenId != null)
+            {
+                foreach (KeyValuePair<string, IDictionary<string, object>> pair in updatesByTokenId)
                 {
-                    if (string.IsNullOrWhiteSpace(pair.Key))
+                    Token target = instance.Tokens.FirstOrDefault(t => t.Id == pair.Key);
+                    if (target == null)
                     {
+                        LogEnvironment.LogEvent(
+                            $"Retry of instance '{instanceId}': corrections for token '{pair.Key}' were " +
+                            "dropped - no such token (the branch moved on in the meantime).",
+                            LogSeverity.Warning);
                         continue;
                     }
 
-                    scope[pair.Key] = pair.Value;
-                    changed.Add(pair.Key);
+                    changed.AddRange(ApplyBranchUpdates(instance, target, pair.Value)
+                        .Select(name => $"{target.NodeId}.{name}"));
                 }
             }
 

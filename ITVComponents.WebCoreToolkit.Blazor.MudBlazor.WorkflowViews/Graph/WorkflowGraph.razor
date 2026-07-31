@@ -1,7 +1,11 @@
 @using System.Globalization
 @using System.Text
 @using System.Net
+@using ITVComponents.Helpers
+@using ITVComponents.Logging
 @using ITVComponents.Workflow.Model
+@implements IDisposable
+@inject IJSRuntime JS
 
 @*
     Zeichnet eine WorkflowDefinition als statisches, theme-faehiges SVG (read-only). Genutzt vom
@@ -16,7 +20,8 @@
 }
 else
 {
-    <div style="overflow:auto; width:100%; border:1px solid var(--mud-palette-lines-default); border-radius:6px;">
+    <div @ref="hostEl"
+         style="overflow:auto; width:100%; border:1px solid var(--mud-palette-lines-default); border-radius:6px;">
         <svg width="@N(layout.Width)" height="@N(layout.Height)"
              viewBox="0 0 @N(layout.Width) @N(layout.Height)"
              style="display:block; min-width:100%; font-family:var(--mud-typography-body1-family, sans-serif);">
@@ -41,7 +46,28 @@ else
     /// <summary>Optional hervorzuhebende Knoten (z.B. aktuelle Token-Positionen).</summary>
     [Parameter] public IReadOnlyCollection<string>? HighlightedNodeIds { get; set; }
 
+    /// <summary>
+    /// Optional als FEHLERSTELLE zu markierende Knoten. Sie gewinnen gegen
+    /// <see cref="HighlightedNodeIds"/> - ein gescheiterter Schritt ist die wichtigere Aussage als
+    /// "hier steht ein Token".
+    /// </summary>
+    [Parameter] public IReadOnlyCollection<string>? FaultedNodeIds { get; set; }
+
+    /// <summary>
+    /// Doppelklick auf einen Knoten (liefert dessen Id). Nur wenn gesetzt, wird ueberhaupt JS angehaengt -
+    /// die reine Anzeige bleibt ohne Interop.
+    /// </summary>
+    [Parameter] public EventCallback<string> OnNodeActivated { get; set; }
+
+    /// <summary>Einfacher Klick auf einen Knoten (liefert dessen Id).</summary>
+    [Parameter] public EventCallback<string> OnNodeSelected { get; set; }
+
     private GraphLayout layout = GraphLayout.Compute(new WorkflowDefinition());
+    private ElementReference hostEl;
+    private DotNetObjectReference<WorkflowGraph>? selfRef;
+    private bool jsAttached;
+
+    private bool Interactive => OnNodeActivated.HasDelegate || OnNodeSelected.HasDelegate;
 
     protected override void OnParametersSet()
     {
@@ -50,6 +76,52 @@ else
             layout = GraphLayout.Compute(Definition, HighlightedNodeIds);
         }
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Nur EINMAL anhaengen: der Listener sitzt am Container, der ueber alle Renders derselbe bleibt.
+        if (jsAttached || !Interactive || Definition is null)
+        {
+            return;
+        }
+
+        jsAttached = true;
+        selfRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeAsync<IJSObjectReference>("import",
+                "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews/workflow-graph.js");
+            await JS.InvokeVoidAsync("itvWfGraph.attach", hostEl, selfRef);
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException ex)
+        {
+            // Erwarteter Normalfall (Dialog geschlossen, Circuit weg) - nur als Spur.
+            jsAttached = false;
+            LogEnvironment.LogEvent(
+                $"WorkflowGraph: Circuit vor dem Anhaengen des JS-Interop beendet: {ex.Message}",
+                LogSeverity.Report);
+        }
+        catch (Exception ex)
+        {
+            // Ohne JS bleibt der Graph als Anzeige nutzbar - nur eben nicht anklickbar. Der Grund
+            // muss ins Log, sonst sucht jemand den Fehler in der Maske.
+            jsAttached = false;
+            LogEnvironment.LogEvent(
+                $"WorkflowGraph: JS-Interop nicht initialisiert - Knoten sind nicht anklickbar: " +
+                $"{ex.OutlineException()}", LogSeverity.Warning);
+        }
+    }
+
+    @* Der JS-Name ist explizit gesetzt: die Methode kann nicht heissen wie der gleichnamige Parameter. *@
+    /// <summary>Vom JS-Modul gerufen: Doppelklick auf einen Knoten.</summary>
+    [JSInvokable("OnNodeActivated")]
+    public Task OnNodeActivatedFromJs(string nodeId) => OnNodeActivated.InvokeAsync(nodeId);
+
+    /// <summary>Vom JS-Modul gerufen: einfacher Klick auf einen Knoten.</summary>
+    [JSInvokable("OnNodeSelected")]
+    public Task OnNodeSelectedFromJs(string nodeId) => OnNodeSelected.InvokeAsync(nodeId);
+
+    public void Dispose() => selfRef?.Dispose();
 
     private MarkupString Body()
     {
@@ -72,11 +144,22 @@ else
 
         foreach (var node in layout.Nodes)
         {
-            string stroke = node.Highlighted ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
-            string strokeWidth = node.Highlighted ? "3" : "1.5";
-            string fill = node.Highlighted
-                ? "var(--mud-palette-primary-hover, var(--mud-palette-surface))"
-                : "var(--mud-palette-surface)";
+            // Eine Gruppe je Knoten: sie traegt die Id, ueber die das JS-Modul den Klick zuordnet (per
+            // Delegation ueber closest - deshalb genuegt EIN Listener am Container).
+            sb.Append($"<g data-wf-node=\"{WebUtility.HtmlEncode(node.Id)}\">");
+
+            // Eine Fehlerstelle gewinnt gegen die blosse Token-Hervorhebung: dass hier etwas gescheitert
+            // ist, ist die wichtigere Aussage als dass hier ein Token steht.
+            bool faulted = FaultedNodeIds is not null && FaultedNodeIds.Contains(node.Id);
+            string stroke = faulted
+                ? "var(--mud-palette-error)"
+                : node.Highlighted ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
+            string strokeWidth = faulted || node.Highlighted ? "3" : "1.5";
+            string fill = faulted
+                ? "var(--mud-palette-error-hover, var(--mud-palette-surface))"
+                : node.Highlighted
+                    ? "var(--mud-palette-primary-hover, var(--mud-palette-surface))"
+                    : "var(--mud-palette-surface)";
             string style = $"fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{strokeWidth}\"";
 
             switch (node.Shape)
@@ -111,6 +194,8 @@ else
             {
                 Text(sb, node.CenterX, node.CenterY, "middle", "var(--mud-palette-text-primary)", 12, Clip(node.Label), "central");
             }
+
+            sb.Append("</g>");
         }
 
         return new MarkupString(sb.ToString());
