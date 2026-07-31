@@ -730,6 +730,37 @@ Danach wird — best effort — `IWorkflowWorkerWake.Poke(environment, tenantId)
 selben Prozess laufender Worker nicht bis zum Max-Linger wartet. Ohne Worker-Betrieb ist der Service
 nicht registriert → stiller No-op.
 
+### Der Tenant der neuen Instanz
+
+Die Engine kennt **keinen** Tenant-Parameter. Der Store schreibt beim Anlegen
+`instance.TenantId ?? ctx.CurrentTenant` fest — und ob der Workflow-Kontext von sich aus einen Tenant
+hat, entscheidet die **Registrierung im Host**: der Weg über die `IDbContextFactory` ist bewusst
+filterfrei und liefert `null`.
+
+Der Start-Handler setzt deshalb **explizit** den ambienten Ausführungs-Scope, bevor er die Engine ruft:
+
+```csharp
+string tenant = services.GetService<IPermissionScope>()?.PermissionPrefix?.ToLower();
+using (WorkflowExecutionScope.UseTenant(tenant)) { /* CreateInstance / StartWorkflow */ }
+```
+
+Das ist derselbe Mechanismus, mit dem der tenant-übergreifende Runner jede Instanz unter *ihrem*
+Tenant vorantreibt (`WorkflowEngine.RunBranch`). Er gewinnt gegen die Kontext-Registrierung und deckt
+zugleich den **Inline-Vortrieb** ab, der im Web-Only-Betrieb unmittelbar nach dem Anlegen Aktivitäten
+ausführt.
+
+**Warum das zwingend ist:** `WebToolkitActivityHost.OpenScope(instance)` öffnet seinen Plugin-Scope aus
+`instance.TenantId`. Eine tenant-los angelegte Instanz scheitert später mit
+`Fuer den ActivityRef 'X' konnte im Tenant '(none)' kein Workflow-Aktivitaets-Plugin aufgeloest werden.`
+Bleibt der Tenant trotzdem leer (Ein-Mandanten-Host), wird das als Warnung protokolliert statt still
+hingenommen.
+
+**Ebenfalls explizit gefiltert** — und nicht dem Query-Filter überlassen — wird der Tenant in der
+Startauswahl und beim Laden der Start-Maske: dieselbe Begründung wie bei der Arbeitsliste (§9). Tenant-lose
+Definitionen sind öffentlich und bleiben im Kontext jedes Tenants startbar; `StartInstanceAsync` prüft
+die Zugehörigkeit vor dem Anlegen noch einmal selbst, damit das Erraten einer fremden Definition-Id
+nicht genügt.
+
 ### Was in der Auswahl erscheint
 
 Gelistet wird je Definition-Id nur die **höchste Version** (die, die ein Start ohnehin erwischt), und

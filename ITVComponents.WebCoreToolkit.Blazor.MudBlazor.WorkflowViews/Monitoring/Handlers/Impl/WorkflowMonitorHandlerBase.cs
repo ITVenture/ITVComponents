@@ -9,10 +9,12 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.ViewModels;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Serialization;
 using ITVComponents.Workflow.WebWorker;
 using Microsoft.EntityFrameworkCore;
@@ -160,9 +162,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
 
+            // Der Tenant wird EXPLIZIT gefiltert und nicht dem globalen Query-Filter ueberlassen: ob der
+            // ueberhaupt greift, entscheidet die Registrierung des Kontexts im Host (der Weg ueber die
+            // DbContext-Factory ist bewusst filterfrei und wuerde die Definitionen ALLER Tenants zeigen).
+            // Eine Startauswahl darf davon nicht abhaengen. Tenant-lose Definitionen sind oeffentlich und
+            // bleiben startbar - dieselbe Regel wie im Query-Filter der Definitionen.
+            string? tenant = CurrentTenant();
+
             // Nur die hoechste Version je Id - genau die, die ein Start erwischen wuerde. Als korrelierte
             // Unterabfrage, damit EINE Abfrage genuegt (statt Ids holen und je Id nachladen).
-            IQueryable<WorkflowDefinitionRow> all = ctx.WorkflowDefinitions.AsNoTracking();
+            IQueryable<WorkflowDefinitionRow> all = ctx.WorkflowDefinitions.AsNoTracking()
+                .Where(r => r.TenantId == null || r.TenantId == tenant);
             var rows = await all
                 .Where(r => r.Version == all.Where(o => o.Id == r.Id).Max(o => o.Version))
                 .OrderBy(r => r.Id)
@@ -210,6 +220,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 return Task.FromResult<WorkflowStartForm?>(null);
             }
 
+            if (!MayStart(def))
+            {
+                // Wie bei der Liste: nicht dem Query-Filter vertrauen. Sonst genuegte das Erraten einer
+                // Definition-Id, um die Maske einer fremden Definition zu sehen.
+                LogEnvironment.LogEvent(
+                    $"Start-Maske der Definition '{definitionId}' (Tenant '{def.TenantId ?? "<public>"}') " +
+                    $"fuer Tenant '{CurrentTenant() ?? "<none>"}' abgelehnt.", LogSeverity.Warning);
+                return Task.FromResult<WorkflowStartForm?>(null);
+            }
+
             // Der Editor erzwingt genau EINEN Start-Knoten; aeltere Definitionen koennen mehrere haben.
             // Dann gewinnt der einzige, der ueberhaupt etwas deklariert - sonst der erste.
             var starts = def.StartNodes().ToList();
@@ -251,10 +271,51 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
             try
             {
+                // Der Tenant, unter dem die Instanz laufen soll. Er muss HIER gesetzt werden: die Engine
+                // kennt keinen Tenant-Parameter, und der Store schreibt beim Anlegen
+                // 'instance.TenantId ?? ctx.CurrentTenant' fest. Ob der Kontext von sich aus einen Tenant
+                // hat, entscheidet aber die Registrierung im Host - der Weg ueber die DbContext-Factory ist
+                // bewusst filterfrei und liefert null. Die Instanz waere dann tenant-los, und der
+                // Aktivitaets-Host (der seinen Scope aus instance.TenantId oeffnet) faende spaeter kein
+                // Plugin ("... im Tenant '(none)' ..."). Derselbe ambiente Scope, den auch der
+                // tenant-uebergreifende Runner beim Vortrieb setzt - er gewinnt gegen die Registrierung und
+                // deckt zugleich den Inline-Vortrieb ab, der direkt im Anschluss Aktivitaeten ausfuehrt.
+                string? tenant = CurrentTenant();
+                using IDisposable? tenantScope = string.IsNullOrEmpty(tenant)
+                    ? null
+                    : WorkflowExecutionScope.UseTenant(tenant);
+
                 using WorkflowOperation op = BeginOperation(environment);
+
+                // Vor dem Anlegen pruefen, WESSEN Definition da gestartet wird - der Dialog liefert zwar nur
+                // erlaubte Ids, aber das Erraten einer fremden Id darf nicht genuegen. Kostet einen
+                // zusaetzlichen Store-Lesezugriff; ein Start ist selten und die Alternative waere, sich auf
+                // die Oberflaeche zu verlassen.
+                WorkflowDefinition? def = op.Store.GetDefinition(request.DefinitionId);
+                if (def != null && !MayStart(def))
+                {
+                    LogEnvironment.LogEvent(
+                        $"Start der Definition '{request.DefinitionId}' (Tenant " +
+                        $"'{def.TenantId ?? "<public>"}') fuer Tenant '{tenant ?? "<none>"}' abgelehnt.",
+                        LogSeverity.Warning);
+                    return Task.FromResult(WorkflowStartResult.Failed(
+                        "This workflow does not belong to your tenant."));
+                }
+
                 WorkflowInstance instance = StartInstanceCore(op, request.DefinitionId,
                     request.Variables ?? new Dictionary<string, object>(),
                     string.IsNullOrWhiteSpace(request.CorrelationKey) ? null : request.CorrelationKey);
+
+                if (string.IsNullOrEmpty(instance.TenantId))
+                {
+                    // Kein Fehler (ein Ein-Mandanten-Host betreibt Workflows legitim tenant-frei), aber die
+                    // Ursache spaeterer "kein Plugin im Tenant '(none)'"-Meldungen - deshalb sichtbar.
+                    LogEnvironment.LogEvent(
+                        $"Workflow '{request.DefinitionId}' wurde OHNE Tenant gestartet (Instanz " +
+                        $"'{instance.Id}'): weder IPermissionScope.PermissionPrefix noch der Workflow-Kontext " +
+                        "liefern einen Tenant. Tenant-abhaengige Aktivitaeten werden nicht aufloesbar sein.",
+                        LogSeverity.Warning);
+                }
 
                 // Best-effort Wake wie beim Signal: einen (evtl. im selben Prozess laufenden) Worker sofort
                 // auf die frischen Start-Tokens aufmerksam machen, statt ihn bis zum Max-Linger warten zu
@@ -288,6 +349,22 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// </summary>
         protected abstract WorkflowInstance StartInstanceCore(WorkflowOperation op, string definitionId,
             IDictionary<string, object> variables, string? correlationKey);
+
+        /// <summary>
+        /// Der Tenant der aktuellen Anfrage - nach derselben Konvention wie in der Aufgaben-Arbeitsliste
+        /// (<c>IPermissionScope.PermissionPrefix</c>, klein geschrieben). Null in einem Host ohne
+        /// Mandanten-Trennung.
+        /// </summary>
+        private string? CurrentTenant()
+            => services.GetService<IPermissionScope>()?.PermissionPrefix?.ToLower();
+
+        /// <summary>
+        /// Darf der aktuelle Tenant diese Definition starten? Tenant-lose Definitionen sind oeffentlich
+        /// (dieselbe Regel wie im Query-Filter der Definitionen) und im Kontext jedes Tenants startbar.
+        /// </summary>
+        private bool MayStart(WorkflowDefinition definition)
+            => string.IsNullOrEmpty(definition.TenantId)
+               || string.Equals(definition.TenantId, CurrentTenant(), StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Liest eine Definition aus der Zeile. Fehlerhaftes/aelteres JSON darf die Startauswahl nicht
