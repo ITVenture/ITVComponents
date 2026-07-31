@@ -1257,13 +1257,11 @@ namespace ITVComponents.Plugins
                         crit.CriticalError -= CriticalOccurred;
                     }
 
-                    IPlugin tmp;
-                    plugins(null).TryRemove(src.UniqueName, out tmp);
-                    if (tmp != src)
-                    {
-                        plugins(null).TryAdd(tmp.UniqueName, tmp);
-                    }
-
+                    // Das Entfernen aus der Collection macht die Collection SELBST (PluginCollector
+                    // abonniert beim Aufnehmen). Hier waere es falsch: plugins(null) loest den Scope zum
+                    // DISPOSE-Zeitpunkt auf - ein Plugin, das in einem Scope lebt, wurde dann in der
+                    // Default-Collection gesucht, nicht gefunden (tmp == null) und anschliessend ueber
+                    // tmp.UniqueName mit einer NullReferenceException wieder eingefuegt.
                     if (src is IConfigurableComponent cfgComponent)
                     {
                         JsonSettings.UnRegisterSettingsConsumer(cfgComponent);
