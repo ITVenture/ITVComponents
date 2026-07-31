@@ -1,0 +1,94 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Bearbeitet EINE Frist eines Fristen-Timers. Derselbe Zuschnitt wie beim gewöhnlichen Timer: ein
+    CScript-Feld, wahlweise als Ausdruck oder als Block mit `return`. Der Ausdruck darf eine TimeSpan
+    (Dauer), einen DateTime (Zeitpunkt) oder eine Zahl (Stunden) liefern — Letzteres ist die Kurzform,
+    die den früheren Stunden-Feldern entspricht.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsNew ? "Add deadline" : "Edit deadline")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2">
+            When this deadline is up. It is measured from the moment the step parks — or, for the second and
+            later entries, from the previous trigger.
+        </MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            May return a <b>TimeSpan</b> (a duration), a <b>DateTime</b> (an absolute point in time) or a
+            plain <b>number</b> — a number counts as hours. Evaluated over the variables of the step it hangs
+            on. A duration of zero or less is an error, not "immediately".
+        </MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary mt-1">
+            Examples: <code>24</code> · <code>tageBisFrist * 24</code> · <code>faelligAm</code> (a DateTime
+            variable) · <code>'System.TimeSpan'.FromHours(36)</code>. Static calls need the type name in
+            quotes — that is CScript syntax, the same as in the plain timer.
+        </MudText>
+
+        <div class="mt-2">
+            <CScriptField @ref="expressionField" Height="150" Value="@(Deadline.Expression ?? string.Empty)"
+                          ValueChanged="@(v => Deadline.Expression = v)"
+                          Mode="Deadline.ExpressionMode"
+                          ModeChanged="@(m => Deadline.ExpressionMode = m)" />
+        </div>
+
+        @if (RepeatsForever)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                This is the last deadline and "repeat the last one forever" is on — so it is used again and
+                again. Return a <b>duration</b> here: an absolute point in time would be in the past from the
+                second round on, and the timer stops instead of firing repeatedly.
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <DialogMaximizeToggle NormalMaxWidth="MaxWidth.Medium" />
+        @if (!IsNew)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Text"
+                       OnClick="Delete">Delete</MudButton>
+        }
+        <MudSpacer />
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Done">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    /// <summary>Ergebnis: die (bearbeitete) Frist und ob sie gelöscht werden soll.</summary>
+    public record Result(BoundaryDeadline Deadline, bool Delete);
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die zu bearbeitende Frist (Add: frisch, Edit: Kopie des Originals).</summary>
+    [Parameter] public BoundaryDeadline Deadline { get; set; } = new();
+
+    /// <summary>true = neu anlegen (kein Löschen-Knopf, anderer Titel).</summary>
+    [Parameter] public bool IsNew { get; set; }
+
+    /// <summary>
+    /// true, wenn diese Frist die letzte der Liste ist UND „letzte wiederholen" eingeschaltet ist. Dann
+    /// ist ein absoluter Zeitpunkt die falsche Antwort - der Hinweis sagt es an der Stelle, an der man
+    /// ihn braucht, statt in der Doku.
+    /// </summary>
+    [Parameter] public bool RepeatsForever { get; set; }
+
+    private CScriptField? expressionField;
+
+    private async Task Done()
+    {
+        // Monaco meldet seinen Text erst beim Verlassen - vor dem Schliessen einmal abholen.
+        if (expressionField is not null)
+        {
+            Deadline.Expression = await expressionField.GetValueAsync();
+        }
+
+        MudDialog.Close(DialogResult.Ok(new Result(Deadline, false)));
+    }
+
+    private void Delete() => MudDialog.Close(DialogResult.Ok(new Result(Deadline, true)));
+
+    private void Cancel() => MudDialog.Cancel();
+}

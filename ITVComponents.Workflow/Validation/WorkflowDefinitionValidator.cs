@@ -391,21 +391,25 @@ namespace ITVComponents.Workflow.Validation
                 }
             }
 
-            if (timer.IntervalsInHours == null || timer.IntervalsInHours.Count == 0)
+            // Die Fristen sind jetzt Ausdruecke: WAS sie liefern, steht erst zur Laufzeit fest (die Engine
+            // meldet einen unbrauchbaren Wert dann in Log und Historie). Statisch pruefbar bleibt, DASS es
+            // eine gibt und dass keine leer ist.
+            IReadOnlyList<BoundaryDeadline> deadlines = timer.EffectiveDeadlines();
+            if (deadlines.Count == 0)
             {
                 issues.Add(Error(timer.Id,
-                    $"Boundary timer '{Label(timer)}' has no interval - it would never fire."));
+                    $"Boundary timer '{Label(timer)}' has no deadline - it would never fire."));
             }
-            else if (timer.IntervalsInHours.Any(h => h <= 0))
+            else if (deadlines.Any(d => string.IsNullOrWhiteSpace(d.Expression)))
             {
                 issues.Add(Error(timer.Id,
-                    $"Boundary timer '{Label(timer)}' has an interval of zero or less."));
+                    $"Boundary timer '{Label(timer)}' has a deadline without an expression."));
             }
-            else if (timer.Interrupting && timer.IntervalsInHours.Count > 1)
+            else if (timer.Interrupting && deadlines.Count > 1)
             {
-                // Nach dem Unterbrechen steht das Token woanders - ein zweites Intervall kaeme nie dran.
+                // Nach dem Unterbrechen steht das Token woanders - eine zweite Frist kaeme nie dran.
                 issues.Add(Warn(timer.Id,
-                    $"Boundary timer '{Label(timer)}' is interrupting, so only the first interval is used - " +
+                    $"Boundary timer '{Label(timer)}' is interrupting, so only the first deadline is used - " +
                     "the others (and 'repeat last') have no effect."));
             }
 

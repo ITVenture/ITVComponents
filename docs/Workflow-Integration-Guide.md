@@ -943,11 +943,41 @@ Schritt.
 
 ### Wiederholung
 
-`IntervalsInHours` ist eine Liste, die der Reihe nach abgearbeitet wird: `24, 12` = erste Erinnerung nach
-24 Stunden, die zweite 12 Stunden später. Ist die Liste durch, schweigt der Timer — es sei denn,
-`RepeatLast` ist gesetzt: dann wird das letzte Intervall endlos wiederholt („danach alle 2 Stunden").
+`Deadlines` ist eine Liste von **Ausdrücken**, die der Reihe nach abgearbeitet wird: die erste Frist zählt
+ab dem Parken, jede weitere ab der vorigen Auslösung. Ist die Liste durch, schweigt der Timer — es sei
+denn, `RepeatLast` ist gesetzt: dann wird die letzte Frist endlos wiederholt („danach alle 2 Stunden").
 `CountVariable` bekommt die Nummer der Auslösung (1 beim ersten Mal) in den Scope des Nebenpfads, damit
 die dritte Mahnung anders klingen kann als die erste.
+
+Jede Frist ist ein CScript-Feld mit Modus-Schalter (Ausdruck oder Block mit `return`, siehe §16) und darf
+**dreierlei** liefern — dieselbe Konvention wie beim gewöhnlichen `TimerNode`, um eine Kurzform erweitert:
+
+| Ergebnis | Bedeutung | Beispiel |
+| --- | --- | --- |
+| Zahl | Dauer in **Stunden** | `24`, `tageBisFrist * 24` |
+| `TimeSpan` | Dauer | `'System.TimeSpan'.FromHours(36)` |
+| `DateTime` | absoluter Zeitpunkt | `faelligAm` |
+
+Statische Aufrufe schreibt CScript mit dem **Typnamen in Anführungszeichen**; `TimeSpan.FromHours(36)`
+ohne sie läuft auf einen Aufruf gegen null und scheitert zur Laufzeit.
+
+Eine Dauer von **null oder weniger** ist ein Fehler, kein „sofort" — zusammen mit `RepeatLast` feuerte sie
+endlos. Aus demselben Grund passt ein **absoluter Zeitpunkt nicht zu `RepeatLast`**: er bliebe für immer
+derselbe und wäre ab der zweiten Runde vergangen. Die Engine lässt den Timer dann verstummen (Warnung im
+Log und in der Historie), statt in einer Schleife zu feuern.
+
+**Wenn ein Fristen-Ausdruck scheitert** (Tippfehler, fehlende Variable), hängt es an der Art des Timers:
+ein **nicht unterbrechender** Timer wird nicht scharf, der Grund landet in Log *und* Instanz-Historie
+(`BoundaryTimerFailed`, Severity Error) — der Schritt selbst läuft normal weiter, denn eine tadellose
+Aufgabe wegen einer kaputten Erinnerung abzuschiessen wäre schlimmer als die fehlende Erinnerung. Ein
+**unterbrechender** Timer dagegen ist die einzige Ausstiegstür des Schritts; fällt er aus, faultet die
+Instanz, statt für immer stehenzubleiben.
+
+> **Altbestand:** Das frühere Feld `IntervalsInHours` (reine Stundenzahlen) wird weiterhin **gelesen** —
+> bereits gespeicherte Definitionen laufen unverändert. Beim Öffnen im Editor wird es einmalig nach
+> `Deadlines` übernommen (aus `24` wird der Ausdruck `24`), und das nächste Speichern schreibt die neue
+> Form. Zu entfernen war es nicht: die Definitionen liegen als JSON in der Datenbank, ein verschwundenes
+> Feld hätte bestehende Timer still verstummen lassen.
 
 ### Nebenpfad-Ende
 

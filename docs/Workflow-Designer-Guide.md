@@ -256,9 +256,16 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 - **Eigenschaften:**
   - **Attached to** — der Schritt, an dem er hängt. Angeboten werden nur Schritte, an denen wirklich
     geparkt wird: Benutzer-Aufgabe, Subworkflow, Aktivität mit Ausführungsziel.
-  - **Deadlines in hours** — Liste, der Reihe nach: `24, 12` = erste Erinnerung nach 24h, die zweite 12h
-    später.
-  - **Repeat the last interval forever** — „danach alle 2 Stunden", bis der Schritt weiterläuft.
+  - **Deadlines** — eine Liste, der Reihe nach: die erste Frist zählt ab dem Parken, jede weitere ab der
+    vorigen Auslösung. **Add deadline** bzw. das Stift-Symbol öffnen einen Dialog mit demselben
+    CScript-Editor wie beim gewöhnlichen Timer (Ausdruck **oder** Block mit `return`); die Pfeile ändern
+    die Reihenfolge, denn die ist die Fachaussage. Ein Eintrag darf eine **Zahl** (= Stunden), einen
+    **TimeSpan** oder einen **DateTime** liefern — `24`, `'System.TimeSpan'.FromHours(36)`, `faelligAm`.
+    Beim **unterbrechenden** Timer gibt es genau *eine* Frist; weitere kämen nie dran, deshalb bietet die
+    Maske dort keine an.
+  - **Repeat the last deadline forever** — „danach alle 2 Stunden", bis der Schritt weiterläuft. Die
+    wiederholte Frist muss eine **Dauer** sein: ein absoluter Zeitpunkt wäre ab der zweiten Runde
+    vergangen, und der Timer verstummt dann (statt in einer Schleife zu feuern).
   - **Count variable** — bekommt die Nummer der Auslösung (1 beim ersten Mal) in den Scope des Nebenpfads.
   - **Interrupting** — aus (normal): Nebenpfad, der Schritt wartet weiter. An: das **Haupt**-Token nimmt
     den Pfad, der Schritt wird abgebrochen (eine wartende Aufgabe verschwindet aus der Arbeitsliste).

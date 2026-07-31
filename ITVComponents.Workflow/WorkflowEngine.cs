@@ -262,7 +262,7 @@ namespace ITVComponents.Workflow
                 // Nebenpfad aus (oder unterbricht), statt selbst weiterzuziehen.
                 if (definition.GetNode(token.NodeId) is BoundaryTimerNode boundary)
                 {
-                    FireBoundaryTimer(instance, definition, token, boundary);
+                    FireBoundaryTimer(instance, definition, token, boundary, nowUtc);
                     continue;
                 }
 
@@ -778,7 +778,7 @@ namespace ITVComponents.Workflow
                     // weiterzuziehen. Liefert die Id des neu aktiven Tokens, oder null (Timer war stale).
                     if (definition.GetNode(token.NodeId) is BoundaryTimerNode boundary)
                     {
-                        string spawned = FireBoundaryTimer(fresh, definition, token, boundary);
+                        string spawned = FireBoundaryTimer(fresh, definition, token, boundary, nowUtc);
                         if (fresh.Status == WorkflowStatus.Faulted)
                         {
                             return ids;
@@ -984,7 +984,7 @@ namespace ITVComponents.Workflow
             // Timer oder Handoff. Hier und nur hier werden die Fristen-Timer des Schritts scharf.
             if (token.Status is TokenStatus.Waiting or TokenStatus.WaitingForTarget)
             {
-                ArmBoundaryTimers(instance, definition, token);
+                return ArmBoundaryTimers(instance, definition, token);
             }
 
             return true;
@@ -1151,7 +1151,12 @@ namespace ITVComponents.Workflow
             token.WaitingTarget = null;
             token.DueUtc = null;
             token.TaskKey = node.TaskKey;
-            token.TaskPermission = node.RequiredPermission;
+            // Leer wird zu null normalisiert - sonst waere "" eine Permission, die NIEMAND hat, und die
+            // Aufgabe verschwaende aus jeder Arbeitsliste, obwohl der Knoten "keine Permission noetig"
+            // meint. Ein leeres Feld aus dem Editor ist genau dieser Fall.
+            token.TaskPermission = string.IsNullOrWhiteSpace(node.RequiredPermission)
+                ? null
+                : node.RequiredPermission;
             token.AssignedTo = string.IsNullOrWhiteSpace(assignedTo) ? null : assignedTo;
             token.TaskTitle = ResolveTaskTitle(instance, scope, node);
             token.TaskCreatedUtc = DateTime.UtcNow;
@@ -1279,7 +1284,8 @@ namespace ITVComponents.Workflow
         /// durchlaeuft, koennte ein Timer ohnehin nie feuern - er wuerde nur angelegt und sofort wieder
         /// verworfen.
         /// </summary>
-        private static void ArmBoundaryTimers(WorkflowInstance instance, WorkflowDefinition definition,
+        /// <returns>false, wenn die Instanz dabei auf Faulted gelaufen ist</returns>
+        private bool ArmBoundaryTimers(WorkflowInstance instance, WorkflowDefinition definition,
             Token owner)
         {
             foreach (BoundaryTimerNode timer in definition.Nodes.OfType<BoundaryTimerNode>()
@@ -1295,52 +1301,190 @@ namespace ITVComponents.Workflow
                     continue;
                 }
 
-                double? first = NextInterval(timer, 0);
-                if (first == null)
+                DeadlineOutcome outcome = ResolveDeadline(instance, timer, Scope(instance, owner), 0,
+                    out DateTime dueUtc, DateTime.UtcNow);
+                if (outcome == DeadlineOutcome.Silent)
                 {
-                    continue; // keine Intervalle deklariert - der Validator meldet das bereits.
+                    continue; // keine Frist deklariert - der Validator meldet das bereits.
+                }
+
+                if (outcome == DeadlineOutcome.Failed)
+                {
+                    if (!ReportDeadlineFailure(instance, timer))
+                    {
+                        return false; // unterbrechender Timer: die Instanz ist gefaultet.
+                    }
+
+                    continue;
                 }
 
                 instance.Tokens.Add(new Token
                 {
                     NodeId = timer.Id,
                     Status = TokenStatus.Waiting,
-                    DueUtc = DateTime.UtcNow.AddHours(first.Value),
+                    DueUtc = dueUtc,
                     BoundaryOwnerTokenId = owner.Id,
                     BoundaryIteration = 0
                 });
 
                 instance.Log("BoundaryTimerArmed", timer.Id,
-                    $"{owner.NodeId} in {first.Value}h", HistorySeverity.Verbose);
+                    $"{owner.NodeId} due {dueUtc:o}", HistorySeverity.Verbose);
+            }
+
+            return true;
+        }
+
+        /// <summary>Wie die Aufloesung einer Frist ausgegangen ist.</summary>
+        private enum DeadlineOutcome
+        {
+            /// <summary>Es gibt eine Frist und sie steht fest.</summary>
+            Armed,
+
+            /// <summary>Keine (weitere) Frist deklariert - der Timer soll schweigen.</summary>
+            Silent,
+
+            /// <summary>Der Ausdruck ist gescheitert oder hat nichts Brauchbares geliefert.</summary>
+            Failed
+        }
+
+        /// <summary>
+        /// Wertet die Frist mit der Nummer <paramref name="iteration"/> aus (0 = die erste). Der Ausdruck
+        /// darf eine <see cref="TimeSpan"/> (Dauer ab jetzt), einen <see cref="DateTime"/> (absoluter
+        /// Zeitpunkt) oder eine Zahl (Dauer in Stunden) liefern - dieselbe Konvention wie beim
+        /// gewoehnlichen Timer, um die Kurzform der frueheren Stunden-Liste erweitert.
+        /// </summary>
+        /// <param name="nowUtc">
+        /// der Zeitpunkt, ab dem eine DAUER zaehlt. Beim Scharfstellen ist das jetzt, beim Nachstellen der
+        /// Zeitpunkt des Aufgriffs - ein nachgeholter Aufgriff soll die naechste Frist nicht ab "jetzt"
+        /// rechnen und die verstrichene Zeit dadurch verschenken.
+        /// </param>
+        private DeadlineOutcome ResolveDeadline(WorkflowInstance instance, BoundaryTimerNode timer,
+            Dictionary<string, object> scope, int iteration, out DateTime dueUtc, DateTime nowUtc)
+        {
+            dueUtc = default;
+            IReadOnlyList<BoundaryDeadline> deadlines = timer.EffectiveDeadlines();
+            if (deadlines.Count == 0)
+            {
+                return DeadlineOutcome.Silent;
+            }
+
+            // Liste erschoepft: entweder die letzte Frist endlos wiederholen oder Ruhe geben.
+            BoundaryDeadline deadline = iteration < deadlines.Count
+                ? deadlines[iteration]
+                : (timer.RepeatLast ? deadlines[deadlines.Count - 1] : null);
+            if (deadline == null)
+            {
+                return DeadlineOutcome.Silent;
+            }
+
+            if (string.IsNullOrWhiteSpace(deadline.Expression))
+            {
+                LogEnvironment.LogEvent(
+                    $"Boundary timer '{timer.Id}' in instance '{instance.Id}': deadline #{iteration + 1} has no "
+                    + "expression.", LogSeverity.Error);
+                return DeadlineOutcome.Failed;
+            }
+
+            object value;
+            try
+            {
+                value = evaluator.Evaluate(deadline.Expression, scope, deadline.ExpressionMode);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Boundary timer '{timer.Id}' in instance '{instance.Id}': deadline #{iteration + 1} could "
+                    + $"not be evaluated: {ex.OutlineException()}", LogSeverity.Error);
+                return DeadlineOutcome.Failed;
+            }
+
+            switch (value)
+            {
+                case DateTime dt:
+                    // Ohne Zeitzone als UTC lesen - wie beim gewoehnlichen Timer (siehe ArmTimer).
+                    dueUtc = dt.Kind == DateTimeKind.Unspecified
+                        ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+                        : dt.ToUniversalTime();
+                    return DeadlineOutcome.Armed;
+
+                case TimeSpan span:
+                    if (span <= TimeSpan.Zero)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"Boundary timer '{timer.Id}' in instance '{instance.Id}': deadline #{iteration + 1} "
+                            + $"yielded '{span}' - a duration must be greater than zero.", LogSeverity.Error);
+                        return DeadlineOutcome.Failed;
+                    }
+
+                    dueUtc = nowUtc + span;
+                    return DeadlineOutcome.Armed;
+
+                default:
+                    if (TryHours(value, out double hours))
+                    {
+                        if (hours <= 0)
+                        {
+                            LogEnvironment.LogEvent(
+                                $"Boundary timer '{timer.Id}' in instance '{instance.Id}': deadline "
+                                + $"#{iteration + 1} yielded {hours} hours - it must be greater than zero.",
+                                LogSeverity.Error);
+                            return DeadlineOutcome.Failed;
+                        }
+
+                        dueUtc = nowUtc.AddHours(hours);
+                        return DeadlineOutcome.Armed;
+                    }
+
+                    LogEnvironment.LogEvent(
+                        $"Boundary timer '{timer.Id}' in instance '{instance.Id}': deadline #{iteration + 1} "
+                        + $"yielded '{value ?? "null"}' - a TimeSpan, a DateTime or a number of hours was "
+                        + "expected.", LogSeverity.Error);
+                    return DeadlineOutcome.Failed;
             }
         }
 
         /// <summary>
-        /// Das naechste Intervall (in Stunden) nach <paramref name="iteration"/> Ausloesungen, oder null,
-        /// wenn der Timer schweigen soll.
+        /// Eine Zahl als Stundenwert lesen. Bewusst NUR echte Zahlen - ein <c>bool</c> ist zwar
+        /// konvertierbar, aber als Frist offensichtlich ein Missverstaendnis, und ein Text ("24") liesse
+        /// die Kultur entscheiden, wo der Dezimalpunkt steht.
         /// </summary>
-        private static double? NextInterval(BoundaryTimerNode timer, int iteration)
+        private static bool TryHours(object value, out double hours)
         {
-            List<double> intervals = timer.IntervalsInHours;
-            if (intervals == null || intervals.Count == 0)
+            switch (value)
             {
-                return null;
+                case double d: hours = d; return true;
+                case int i: hours = i; return true;
+                case long l: hours = l; return true;
+                case decimal m: hours = (double)m; return true;
+                case float f: hours = f; return true;
+                case short s: hours = s; return true;
+                case byte b: hours = b; return true;
+                default: hours = 0; return false;
+            }
+        }
+
+        /// <summary>
+        /// Meldet eine Frist, die sich nicht bestimmen liess. Ein <b>nicht unterbrechender</b> Timer ist
+        /// Beiwerk des Schritts: er wird nicht scharf, der Fehler steht im Log UND in der Instanz-Historie,
+        /// der Hauptfluss laeuft weiter - eine tadellose Benutzer-Aufgabe wegen eines Tippfehlers in der
+        /// Erinnerung abzuschiessen waere schlimmer als die fehlende Erinnerung. Ein <b>unterbrechender</b>
+        /// Timer dagegen IST die Ausstiegstuer des Schritts; faellt er stillschweigend aus, stuende der
+        /// Schritt fuer immer - deshalb faultet die Instanz.
+        /// </summary>
+        /// <returns>true, wenn der Vortrieb weiterlaufen darf; false, wenn gefaultet wurde</returns>
+        private static bool ReportDeadlineFailure(WorkflowInstance instance, BoundaryTimerNode timer)
+        {
+            if (timer.Interrupting)
+            {
+                Fault(instance,
+                    $"Deadline of interrupting boundary timer '{timer.Id}' could not be determined - the step "
+                    + "would wait forever (see log for the expression error).", timer.Id);
+                return false;
             }
 
-            if (iteration < intervals.Count)
-            {
-                double value = intervals[iteration];
-                return value > 0 ? value : (double?)null;
-            }
-
-            // Liste erschoepft: entweder das letzte Intervall endlos wiederholen oder Ruhe geben.
-            if (!timer.RepeatLast)
-            {
-                return null;
-            }
-
-            double last = intervals[intervals.Count - 1];
-            return last > 0 ? last : (double?)null;
+            instance.Log("BoundaryTimerFailed", timer.Id,
+                "deadline could not be determined - no reminder is armed (see log)", HistorySeverity.Error);
+            return true;
         }
 
         /// <summary>
@@ -1349,8 +1493,13 @@ namespace ITVComponents.Workflow
         /// sein naechstes Intervall; unterbrechend nimmt das HAUPT-Token die Kante und der Schritt gilt als
         /// abgebrochen. Liefert die Id des nun aktiven Tokens (fuer die Zweig-Tasks des Runners), oder null.
         /// </summary>
+        /// <param name="nowUtc">
+        /// der Zeitpunkt, zu dem der Aufgriff rechnet. Die naechste Frist wird gegen IHN geprueft, nicht
+        /// gegen die Systemuhr: sonst beurteilte ein nachgeholter Aufgriff (oder ein Test mit gestellter
+        /// Zeit) eine laengst vergangene Frist als "noch in der Zukunft".
+        /// </param>
         private string FireBoundaryTimer(WorkflowInstance instance, WorkflowDefinition definition,
-            Token timerToken, BoundaryTimerNode timer)
+            Token timerToken, BoundaryTimerNode timer, DateTime nowUtc)
         {
             Token owner = instance.Tokens.FirstOrDefault(t => t.Id == timerToken.BoundaryOwnerTokenId);
             bool ownerParked = owner is { Status: TokenStatus.Waiting or TokenStatus.WaitingForTarget };
@@ -1413,18 +1562,43 @@ namespace ITVComponents.Workflow
 
             instance.Tokens.Add(side);
 
-            // Den Timer auf sein naechstes Intervall stellen, BEVOR der Nebenpfad laeuft - so bleibt die
-            // Frist auch dann gesetzt, wenn der Nebenpfad gleich faultet.
+            // Den Timer auf seine naechste Frist stellen, BEVOR der Nebenpfad laeuft - so bleibt die Frist
+            // auch dann gesetzt, wenn der Nebenpfad gleich faultet.
             timerToken.BoundaryIteration = iteration;
-            double? next = NextInterval(timer, iteration);
-            if (next == null)
+            DeadlineOutcome outcome = ResolveDeadline(instance, timer, Scope(instance, owner), iteration,
+                out DateTime nextUtc, nowUtc);
+
+            // Eine naechste Frist, die NICHT in der Zukunft liegt, laesst den Timer verstummen statt in
+            // einer Schleife zu feuern. Der Fall entsteht mit "letzte Frist wiederholen" und einem
+            // absoluten Zeitpunkt: der bliebe fuer immer derselbe und waere ab sofort vergangen.
+            bool inFuture = outcome == DeadlineOutcome.Armed && nextUtc > nowUtc;
+            if (inFuture)
             {
-                timerToken.Status = TokenStatus.Consumed;
-                timerToken.DueUtc = null;
+                timerToken.DueUtc = nextUtc;
             }
             else
             {
-                timerToken.DueUtc = DateTime.UtcNow.AddHours(next.Value);
+                timerToken.Status = TokenStatus.Consumed;
+                timerToken.DueUtc = null;
+
+                if (outcome == DeadlineOutcome.Failed)
+                {
+                    // Hier immer nur melden: ein unterbrechender Timer kommt nie hierher (er nimmt oben
+                    // die Kante und stellt sich nicht neu), und der Schritt selbst laeuft weiter.
+                    instance.Log("BoundaryTimerFailed", timer.Id,
+                        "the next deadline could not be determined - the timer stops here (see log)",
+                        HistorySeverity.Error);
+                }
+                else if (outcome == DeadlineOutcome.Armed)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Boundary timer '{timer.Id}' in instance '{instance.Id}': the next deadline "
+                        + $"({nextUtc:o}) is not in the future - the timer was stopped instead of firing "
+                        + "repeatedly. Use a duration rather than an absolute time when repeating.",
+                        LogSeverity.Warning);
+                    instance.Log("BoundaryTimerStopped", timer.Id,
+                        "the next deadline is not in the future", HistorySeverity.Warning);
+                }
             }
 
             instance.Log("BoundaryTimerElapsed", timer.Id,
@@ -2984,7 +3158,7 @@ namespace ITVComponents.Workflow
             public BranchSnapshot(WorkflowInstance instance)
             {
                 variables = new Dictionary<string, object>(instance.Variables);
-                tokens = instance.Tokens.ToDictionary(t => t.Id, CopyToken);
+                tokens = instance.Tokens.ToDictionary(t => t.Id, t => t.CloneState());
                 historyCount = instance.History.Count;
             }
 
@@ -3017,9 +3191,9 @@ namespace ITVComponents.Workflow
                 foreach (Token t in instance.Tokens)
                 {
                     currentIds.Add(t.Id);
-                    if (!tokens.TryGetValue(t.Id, out Token old) || !SameState(old, t))
+                    if (!tokens.TryGetValue(t.Id, out Token old) || !Token.SameState(old, t))
                     {
-                        delta.TokenUpserts.Add(CopyToken(t));
+                        delta.TokenUpserts.Add(t.CloneState());
                     }
                 }
 
@@ -3045,44 +3219,6 @@ namespace ITVComponents.Workflow
                 return delta;
             }
 
-            // Der Zweig-Scope wird MIT kopiert (eigene Dictionary-Instanz) - sonst zeigte der Schnappschuss
-            // auf denselben Stack, den der Zweig gerade veraendert, und das Delta waere leer.
-            private static Token CopyToken(Token t) => new Token
-            {
-                Id = t.Id, NodeId = t.NodeId, Status = t.Status, WaitingSignal = t.WaitingSignal,
-                DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget,
-                WaitingForChildInstanceId = t.WaitingForChildInstanceId,
-                Variables = CopyScope(t.Variables), SplitTokenId = t.SplitTokenId,
-                // Der Aufgaben-Stempel gehoert in den Vergleich: entsteht eine Aufgabe im Zweig-Vortrieb,
-                // ist sie sonst nicht Teil des Deltas und das Token kaeme ohne Aufgabenart in die
-                // Datenbank - unsichtbar fuer jede Arbeitsliste.
-                TaskKey = t.TaskKey, TaskPermission = t.TaskPermission, AssignedTo = t.AssignedTo,
-                TaskTitle = t.TaskTitle, TaskCreatedUtc = t.TaskCreatedUtc, TaskDueUtc = t.TaskDueUtc
-            };
-
-            private static bool SameState(Token a, Token b)
-                => a.NodeId == b.NodeId && a.Status == b.Status && a.WaitingSignal == b.WaitingSignal
-                   && Nullable.Equals(a.DueUtc, b.DueUtc) && a.WaitingTarget == b.WaitingTarget
-                   && a.WaitingForChildInstanceId == b.WaitingForChildInstanceId
-                   && a.SplitTokenId == b.SplitTokenId && a.TaskKey == b.TaskKey
-                   && a.TaskPermission == b.TaskPermission && a.AssignedTo == b.AssignedTo
-                   && a.TaskTitle == b.TaskTitle && Nullable.Equals(a.TaskCreatedUtc, b.TaskCreatedUtc)
-                   && Nullable.Equals(a.TaskDueUtc, b.TaskDueUtc) && SameScope(a.Variables, b.Variables);
-
-            private static bool SameScope(Dictionary<string, object> a, Dictionary<string, object> b)
-            {
-                if (ReferenceEquals(a, b))
-                {
-                    return true;
-                }
-
-                if (a == null || b == null || a.Count != b.Count)
-                {
-                    return false;
-                }
-
-                return a.All(kv => b.TryGetValue(kv.Key, out object other) && Equals(kv.Value, other));
-            }
         }
 
         /// <summary>
@@ -3119,31 +3255,21 @@ namespace ITVComponents.Workflow
                     fresh.Variables.Remove(key);
                 }
 
+                // Der Merge uebertraegt den GANZEN Zustand - ueber dieselbe Feldliste, die auch
+                // Schnappschuss und Diff benutzen (Token.CopyStateFrom). Eine eigene Auswahl hier hiesse:
+                // der Diff meldet eine Aenderung, die der Merge nicht mitnimmt - das Feld bliebe still auf
+                // dem alten Stand. Der Zweig-Scope wird dabei ganz ersetzt, nicht gemergt: nur DIESER Zweig
+                // schreibt ihn (parallele Geschwister haben ihre eigene Kopie).
                 foreach (Token t in TokenUpserts)
                 {
                     Token existing = fresh.Tokens.FirstOrDefault(x => x.Id == t.Id);
                     if (existing == null)
                     {
-                        fresh.Tokens.Add(new Token
-                        {
-                            Id = t.Id, NodeId = t.NodeId, Status = t.Status,
-                            WaitingSignal = t.WaitingSignal, DueUtc = t.DueUtc, WaitingTarget = t.WaitingTarget,
-                            WaitingForChildInstanceId = t.WaitingForChildInstanceId,
-                            Variables = CopyScope(t.Variables), SplitTokenId = t.SplitTokenId
-                        });
+                        fresh.Tokens.Add(t.CloneState());
                     }
                     else
                     {
-                        existing.NodeId = t.NodeId;
-                        existing.Status = t.Status;
-                        existing.WaitingSignal = t.WaitingSignal;
-                        existing.DueUtc = t.DueUtc;
-                        existing.WaitingTarget = t.WaitingTarget;
-                        existing.WaitingForChildInstanceId = t.WaitingForChildInstanceId;
-                        // Der Zweig-Scope gehoert dem Zweig: er wird ganz ersetzt, nicht gemergt - nur
-                        // DIESER Zweig schreibt ihn (parallele Geschwister haben ihre eigene Kopie).
-                        existing.Variables = CopyScope(t.Variables);
-                        existing.SplitTokenId = t.SplitTokenId;
+                        existing.CopyStateFrom(t);
                     }
                 }
 

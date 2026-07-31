@@ -1,5 +1,5 @@
-@using System.Globalization
 @using ITVComponents.Workflow.Model
+@inject IDialogService DialogService
 
 @*
     Konfiguriert einen Fristen-Timer am Schritt. Er haengt an einem Schritt, an dem ein Token PARKT, und
@@ -23,16 +23,81 @@
         never fire.
     </MudText>
 
-    <MudTextField T="string" Value="@IntervalText" ValueChanged="SetIntervals" Label="Deadlines in hours"
-                  Margin="Margin.Dense" Class="mt-3"
-                  HelperText="Comma-separated, in order: 24, 12 = first reminder after 24h, the next 12h later." />
-
-    <MudSwitch T="bool" Value="@Node.RepeatLast" ValueChanged="@(v => Node.RepeatLast = v)"
-               Color="Color.Primary" Label="Repeat the last interval forever" Class="mt-2" />
+    @* Die Fristen. Beim unterbrechenden Timer gibt es genau EINE: danach steht das Token woanders, eine
+       zweite käme nie dran. Deshalb dort kein Grid, sondern die eine Frist - sonst böte die Oberfläche
+       etwas an, das nachweislich wirkungslos bleibt. *@
+    <MudText Typo="Typo.subtitle2" Class="mt-4">@(Node.Interrupting ? "Deadline" : "Deadlines")</MudText>
     <MudText Typo="Typo.caption" Class="mud-text-secondary">
-        „24, 2" plus this = after 24h, then every 2 hours until the step moves on. Without it the timer
-        goes quiet once the list is used up.
+        @if (Node.Interrupting)
+        {
+            <text>When the step is abandoned. An expression returning a TimeSpan, a DateTime or a number of hours.</text>
+        }
+        else
+        {
+            <text>
+                In order: the first counts from the moment the step parks, each further one from the previous
+                trigger. Each is an expression returning a TimeSpan, a DateTime or a number of hours.
+            </text>
+        }
     </MudText>
+
+    <MudTable Items="@Deadlines" Hover="true" Dense="true" Elevation="0" Class="mt-1"
+              Breakpoint="Breakpoint.Sm" T="BoundaryDeadline">
+        <ToolBarContent>
+            @if (!Node.Interrupting || Deadlines.Count == 0)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                           Color="Color.Primary" OnClick="AddDeadline">Add deadline</MudButton>
+            }
+            <MudSpacer />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh Style="width:1%">#</MudTh>
+            <MudTh>Expression</MudTh>
+            <MudTh Style="width:1%">Mode</MudTh>
+            <MudTh Style="width:1%"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="#">@(Deadlines.IndexOf(context) + 1)</MudTd>
+            <MudTd DataLabel="Expression">
+                <span style="font-family:var(--mud-typography-caption-family, monospace)">@Summary(context)</span>
+            </MudTd>
+            <MudTd DataLabel="Mode">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@context.ExpressionMode</MudChip>
+            </MudTd>
+            <MudTd>
+                @if (!Node.Interrupting)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Title="Move up"
+                                   Disabled="@(Deadlines.IndexOf(context) == 0)"
+                                   OnClick="@(() => Move(context, -1))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Title="Move down"
+                                   Disabled="@(Deadlines.IndexOf(context) == Deadlines.Count - 1)"
+                                   OnClick="@(() => Move(context, 1))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Title="Edit"
+                               OnClick="@(() => EditDeadline(context))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    @if (Deadlines.Count == 0)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mt-1">
+            Without a deadline this timer can never fire.
+        </MudAlert>
+    }
+
+    @if (!Node.Interrupting)
+    {
+        <MudSwitch T="bool" Value="@Node.RepeatLast" ValueChanged="@(v => Node.RepeatLast = v)"
+                   Color="Color.Primary" Label="Repeat the last deadline forever" Class="mt-2" />
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            „24" then „2" plus this = after 24h, then every 2 hours until the step moves on. Without it the
+            timer goes quiet once the list is used up. The repeated entry must return a <b>duration</b> — an
+            absolute time would be in the past from the second round on, and the timer stops.
+        </MudText>
+    }
 
     <MudTextField T="string" Value="@Node.CountVariable" ValueChanged="@(v => Node.CountVariable = v)"
                   Label="Count variable (optional)" Margin="Margin.Dense" Class="mt-3"
@@ -86,33 +151,107 @@
     private static string HostLabel(WorkflowNode node)
         => string.IsNullOrWhiteSpace(node.Name) ? $"{node.Kind} ({node.Id})" : $"{node.Name} ({node.Id})";
 
-    /// <summary>
-    /// Die Intervalle als Text. Bewusst ein Textfeld statt einer Liste: drei Zahlen tippt man schneller,
-    /// als man drei Zeilen anlegt.
-    /// </summary>
-    private string IntervalText
-        => Node?.IntervalsInHours is null
-            ? string.Empty
-            : string.Join(", ", Node.IntervalsInHours.Select(h => h.ToString(CultureInfo.InvariantCulture)));
+    /// <summary>Die Fristen des Timers (nie null, damit die Tabelle nicht sonderbehandelt werden muss).</summary>
+    private List<BoundaryDeadline> Deadlines => Node?.Deadlines ??= new List<BoundaryDeadline>();
 
-    private void SetIntervals(string? text)
+    /// <summary>
+    /// Holt eine noch als Stunden-Liste gespeicherte Definition einmalig in die neue Form. Beim ÖFFNEN und
+    /// nicht beim Laufenlassen: so steht die migrierte Fassung beim nächsten Speichern in der Datenbank,
+    /// und der Vortrieb muss die Definition nie umschreiben.
+    /// </summary>
+    protected override void OnParametersSet()
     {
-        if (Node is null)
+        Node?.MigrateLegacyDeadlines();
+    }
+
+    /// <summary>Die Kurzfassung einer Frist für die Tabelle - einzeilig, gekürzt.</summary>
+    private static string Summary(BoundaryDeadline deadline)
+    {
+        string text = (deadline.Expression ?? string.Empty)
+            .Replace("\r", " ").Replace("\n", " ").Trim();
+        while (text.Contains("  "))
+        {
+            text = text.Replace("  ", " ");
+        }
+
+        if (text.Length == 0)
+        {
+            return "(empty)";
+        }
+
+        return text.Length <= 70 ? text : text.Substring(0, 68) + "…";
+    }
+
+    private async Task AddDeadline()
+    {
+        var fresh = new BoundaryDeadline();
+        BoundaryDeadlineEditDialog.Result? result = await ShowDeadlineDialog(fresh, isNew: true,
+            repeatsForever: false);
+        if (result is { Delete: false } && !string.IsNullOrWhiteSpace(result.Deadline.Expression))
+        {
+            Deadlines.Add(result.Deadline);
+        }
+    }
+
+    private async Task EditDeadline(BoundaryDeadline deadline)
+    {
+        int index = Deadlines.IndexOf(deadline);
+        if (index < 0)
         {
             return;
         }
 
-        // Unlesbare Eingaben werden ausgelassen statt auf 0 gesetzt - eine 0 waere ein Intervall, das der
-        // Validator dann als Fehler meldet, obwohl der Benutzer nur mitten im Tippen war.
-        Node.IntervalsInHours = (text ?? string.Empty)
-            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => part.Trim())
-            .Where(part => part.Length > 0)
-            .Select(part => double.TryParse(part, NumberStyles.Any, CultureInfo.InvariantCulture, out double h)
-                            || double.TryParse(part, NumberStyles.Any, CultureInfo.CurrentCulture, out h)
-                ? h
-                : double.NaN)
-            .Where(h => !double.IsNaN(h))
-            .ToList();
+        bool repeats = Node is { Interrupting: false, RepeatLast: true } && index == Deadlines.Count - 1;
+        BoundaryDeadlineEditDialog.Result? result = await ShowDeadlineDialog(Clone(deadline), isNew: false,
+            repeatsForever: repeats);
+        if (result is null)
+        {
+            return;
+        }
+
+        if (result.Delete)
+        {
+            Deadlines.RemoveAt(index);
+        }
+        else
+        {
+            Deadlines[index] = result.Deadline;
+        }
     }
+
+    /// <summary>Verschiebt eine Frist in der Reihenfolge - sie ist die Fachaussage, nicht bloss Sortierung.</summary>
+    private void Move(BoundaryDeadline deadline, int delta)
+    {
+        int index = Deadlines.IndexOf(deadline);
+        int target = index + delta;
+        if (index < 0 || target < 0 || target >= Deadlines.Count)
+        {
+            return;
+        }
+
+        Deadlines.RemoveAt(index);
+        Deadlines.Insert(target, deadline);
+    }
+
+    private async Task<BoundaryDeadlineEditDialog.Result?> ShowDeadlineDialog(BoundaryDeadline deadline,
+        bool isNew, bool repeatsForever)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(BoundaryDeadlineEditDialog.Deadline), deadline },
+            { nameof(BoundaryDeadlineEditDialog.IsNew), isNew },
+            { nameof(BoundaryDeadlineEditDialog.RepeatsForever), repeatsForever }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<BoundaryDeadlineEditDialog>(string.Empty,
+            parameters, options);
+        DialogResult? result = await dialog.Result;
+        return result?.Data as BoundaryDeadlineEditDialog.Result;
+    }
+
+    private static BoundaryDeadline Clone(BoundaryDeadline deadline) => new()
+    {
+        Expression = deadline.Expression,
+        ExpressionMode = deadline.ExpressionMode
+    };
 }

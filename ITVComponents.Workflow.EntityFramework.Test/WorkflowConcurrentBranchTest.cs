@@ -214,6 +214,87 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual(1, final.Variables["x"]);
         }
 
+        [TestMethod]
+        public void RunBranch_UserTaskStamp_SurvivesTheBranchCommit()
+        {
+            // Der Stempel entsteht WAEHREND des Zweig-Vortriebs (das Token parkt an der Aufgabe) und muss
+            // deshalb ueber das Zweig-Delta auf den frisch geladenen Stand kommen. Uebertraegt der Merge nur
+            // eine Teilmenge der Felder, steht das Token danach zwar korrekt auf dem Aufgaben-Knoten und
+            // wartet - aber ohne Aufgabenart. Es ist dann in KEINER Arbeitsliste sichtbar (weder "meine"
+            // noch "nicht zugewiesen"), und der Fehler faellt nirgends auf.
+            EfWorkflowStore store = NewStore();
+            WorkflowEngine engine = EngineOver(store);
+            store.SaveDefinition(UserTaskDefinition());
+
+            WorkflowInstance instance = engine.CreateInstance("ut",
+                new Dictionary<string, object> { { "owner", "anna" } });
+            engine.RunBranch(instance.Id, instance.Tokens.Single().Id);
+
+            WorkflowInstance parked = store.GetInstance(instance.Id);
+            Token task = parked.Tokens.Single(t => t.Status == TokenStatus.Waiting);
+            Assert.AreEqual("u", task.NodeId, "the branch parked on the user task.");
+            Assert.AreEqual("ApproveInvoice", task.TaskKey, "the task kind must survive the branch commit.");
+            Assert.AreEqual("Invoice.Approve", task.TaskPermission);
+            Assert.AreEqual("anna", task.AssignedTo);
+            Assert.AreEqual("Rechnung freigeben", task.TaskTitle);
+            Assert.IsNotNull(task.TaskCreatedUtc);
+            Assert.IsNotNull(task.TaskDueUtc);
+        }
+
+        [TestMethod]
+        public void RunBranch_BoundaryTimerLink_SurvivesTheBranchCommit()
+        {
+            // Dasselbe fuer den Fristen-Timer: sein Token entsteht ebenfalls erst im Zweig-Vortrieb. Ohne
+            // die Verknuepfung zum Haupt-Token raeumt niemand es wieder ab - die Instanz koennte nie
+            // abschliessen.
+            EfWorkflowStore store = NewStore();
+            WorkflowEngine engine = EngineOver(store);
+            store.SaveDefinition(UserTaskDefinition(withBoundaryTimer: true));
+
+            WorkflowInstance instance = engine.CreateInstance("ut",
+                new Dictionary<string, object> { { "owner", "anna" } });
+            engine.RunBranch(instance.Id, instance.Tokens.Single().Id);
+
+            WorkflowInstance parked = store.GetInstance(instance.Id);
+            Token owner = parked.Tokens.Single(t => t.NodeId == "u");
+            Token timer = parked.Tokens.Single(t => t.NodeId == "bt");
+            Assert.AreEqual(owner.Id, timer.BoundaryOwnerTokenId,
+                "the timer must still know whose deadline it is watching.");
+            Assert.AreEqual(0, timer.BoundaryIteration);
+            Assert.IsNotNull(timer.DueUtc);
+        }
+
+        private static WorkflowDefinition UserTaskDefinition(bool withBoundaryTimer = false)
+        {
+            var nodes = new List<WorkflowNode>
+            {
+                new StartNode { Id = "s" },
+                new UserActivityNode
+                {
+                    Id = "u",
+                    TaskKey = "ApproveInvoice",
+                    RequiredPermission = "Invoice.Approve",
+                    Assignment = "owner",
+                    Title = "Rechnung freigeben",
+                    DueInHours = 24
+                },
+                new EndNode { Id = "e" }
+            };
+            var flows = new List<SequenceFlow> { Flow("s", "u"), Flow("u", "e") };
+
+            if (withBoundaryTimer)
+            {
+                nodes.Add(new BoundaryTimerNode
+                {
+                    Id = "bt", AttachedToNodeId = "u", IntervalsInHours = new List<double> { 4 }
+                });
+                nodes.Add(new SidePathEndNode { Id = "se" });
+                flows.Add(Flow("bt", "se"));
+            }
+
+            return new WorkflowDefinition { Id = "ut", Version = 1, Nodes = nodes, Flows = flows };
+        }
+
         private static WorkflowInstance ActiveAtWriteX(IWorkflowStore store)
         {
             var instance = new WorkflowInstance

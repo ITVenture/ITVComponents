@@ -177,5 +177,109 @@ namespace ITVComponents.Workflow.Instances
         /// Intervall aus <see cref="Model.BoundaryTimerNode.IntervalsInHours"/> als naechstes gilt.
         /// </summary>
         public int? BoundaryIteration { get; set; }
+
+        /// <summary>
+        /// Uebernimmt den GESAMTEN Zustand eines anderen Tokens (alles ausser <see cref="Id"/>).
+        /// </summary>
+        /// <remarks>
+        /// Diese Methode - und nicht der Aufrufer - kennt die Feldliste. Der Zweig-Commit kopiert und
+        /// vergleicht Tokens an mehreren Stellen (Schnappschuss, Diff, Merge); wird dort je eine eigene
+        /// Feldliste gefuehrt, faellt beim naechsten neuen Feld eine davon durch, und der Fehler ist nicht
+        /// zu sehen, sondern nur zu merken: die Spalte bleibt in der Datenbank leer. Genau so verschwanden
+        /// Benutzer-Aufgaben aus der Arbeitsliste (Stempel im Diff, aber nicht im Merge).
+        /// </remarks>
+        /// <param name="source">das Token, dessen Zustand uebernommen wird</param>
+        public void CopyStateFrom(Token source)
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            NodeId = source.NodeId;
+            Status = source.Status;
+            WaitingSignal = source.WaitingSignal;
+            DueUtc = source.DueUtc;
+            WaitingTarget = source.WaitingTarget;
+            WaitingForChildInstanceId = source.WaitingForChildInstanceId;
+            // Der Zweig-Scope gehoert dem Zweig: eine eigene Kopie, damit Quelle und Ziel nicht auf
+            // demselben Stack stehen (sonst waere ein Diff dagegen immer leer).
+            Variables = CopyScope(source.Variables);
+            SplitTokenId = source.SplitTokenId;
+            BoundaryOwnerTokenId = source.BoundaryOwnerTokenId;
+            BoundaryIteration = source.BoundaryIteration;
+            TaskKey = source.TaskKey;
+            TaskPermission = source.TaskPermission;
+            AssignedTo = source.AssignedTo;
+            TaskTitle = source.TaskTitle;
+            TaskCreatedUtc = source.TaskCreatedUtc;
+            TaskDueUtc = source.TaskDueUtc;
+        }
+
+        /// <summary>Ein neues Token mit derselben <see cref="Id"/> und einer eigenen Kopie des Zustands.</summary>
+        public Token CloneState()
+        {
+            var copy = new Token { Id = Id };
+            copy.CopyStateFrom(this);
+            return copy;
+        }
+
+        /// <summary>
+        /// Tragen beide Tokens denselben Zustand (alles ausser <see cref="Id"/>)? Der Gegenpart zu
+        /// <see cref="CopyStateFrom"/> - beide Feldlisten muessen deckungsgleich bleiben, sonst meldet ein
+        /// Diff eine Aenderung nicht, die der Merge uebertragen wuerde.
+        /// </summary>
+        public static bool SameState(Token a, Token b)
+        {
+            if (ReferenceEquals(a, b))
+            {
+                return true;
+            }
+
+            if (a == null || b == null)
+            {
+                return false;
+            }
+
+            return a.NodeId == b.NodeId && a.Status == b.Status && a.WaitingSignal == b.WaitingSignal
+                   && Nullable.Equals(a.DueUtc, b.DueUtc) && a.WaitingTarget == b.WaitingTarget
+                   && a.WaitingForChildInstanceId == b.WaitingForChildInstanceId
+                   && SameScope(a.Variables, b.Variables)
+                   && a.SplitTokenId == b.SplitTokenId
+                   && a.BoundaryOwnerTokenId == b.BoundaryOwnerTokenId
+                   && Nullable.Equals(a.BoundaryIteration, b.BoundaryIteration)
+                   && a.TaskKey == b.TaskKey && a.TaskPermission == b.TaskPermission
+                   && a.AssignedTo == b.AssignedTo && a.TaskTitle == b.TaskTitle
+                   && Nullable.Equals(a.TaskCreatedUtc, b.TaskCreatedUtc)
+                   && Nullable.Equals(a.TaskDueUtc, b.TaskDueUtc);
+        }
+
+        /// <summary>Eine flache Kopie eines Zweig-Scopes, oder null.</summary>
+        private static Dictionary<string, object> CopyScope(Dictionary<string, object> scope)
+            => scope == null ? null : new Dictionary<string, object>(scope, StringComparer.Ordinal);
+
+        /// <summary>Vergleicht zwei Zweig-Scopes flach (Schluessel und Werte).</summary>
+        private static bool SameScope(Dictionary<string, object> a, Dictionary<string, object> b)
+        {
+            if (ReferenceEquals(a, b))
+            {
+                return true;
+            }
+
+            if (a == null || b == null || a.Count != b.Count)
+            {
+                return false;
+            }
+
+            foreach (KeyValuePair<string, object> kv in a)
+            {
+                if (!b.TryGetValue(kv.Key, out object other) || !Equals(kv.Value, other))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     }
 }

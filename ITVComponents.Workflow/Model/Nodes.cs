@@ -1,5 +1,8 @@
 using ITVComponents.Workflow.Expressions;
+using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 
 namespace ITVComponents.Workflow.Model
 {
@@ -458,9 +461,9 @@ namespace ITVComponents.Workflow.Model
     /// einem Schritt, an dem nie geparkt wird (schnelle Aktivitaet), feuert nie - der Validator meldet das.
     /// </para>
     /// <para>
-    /// <b>Wiederholung:</b> <see cref="IntervalsInHours"/> wird der Reihe nach abgearbeitet (z.B. 24, 12 =
-    /// erste Erinnerung nach 24h, zweite 12h spaeter). Ist die Liste erschoepft, wiederholt
-    /// <see cref="RepeatLast"/> das letzte Intervall endlos; sonst schweigt der Timer.
+    /// <b>Wiederholung:</b> <see cref="Deadlines"/> wird der Reihe nach abgearbeitet (z.B. "24h, dann 12h"
+    /// = erste Erinnerung nach 24h, zweite 12h spaeter). Ist die Liste erschoepft, wiederholt
+    /// <see cref="RepeatLast"/> die letzte Frist endlos; sonst schweigt der Timer.
     /// </para>
     /// </remarks>
     public class BoundaryTimerNode : WorkflowNode
@@ -477,15 +480,33 @@ namespace ITVComponents.Workflow.Model
         public string AttachedToNodeId { get; set; }
 
         /// <summary>
-        /// Die Fristen in Stunden, der Reihe nach ab dem Parken. Der erste Wert ist der Abstand zum
-        /// Parken, jeder weitere der Abstand zur vorigen Ausloesung.
+        /// Die Fristen, der Reihe nach ab dem Parken. Die erste gilt ab dem Parken, jede weitere ab der
+        /// vorigen Ausloesung. Beim <see cref="Interrupting"/>-Timer zaehlt nur die erste - danach steht
+        /// das Token woanders.
         /// </summary>
+        public List<BoundaryDeadline> Deadlines { get; set; } = new List<BoundaryDeadline>();
+
+        /// <summary>
+        /// <b>Altbestand:</b> die frueheren Fristen als reine Stundenzahlen. Wird nur noch gelesen, damit
+        /// bereits gespeicherte Definitionen unveraendert weiterlaufen; <see cref="EffectiveDeadlines"/>
+        /// bildet sie auf <see cref="Deadlines"/> ab, und der Editor migriert sie beim Oeffnen einmalig.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst NICHT entfernt: die Definitionen liegen als JSON in der Datenbank. Ein entferntes Feld
+        /// haette bestehende Timer still verstummen lassen - der Graph saehe unveraendert aus, die
+        /// Eskalation bliebe einfach aus.
+        /// </remarks>
         public List<double> IntervalsInHours { get; set; } = new List<double>();
 
         /// <summary>
-        /// Nach dem letzten Eintrag aus <see cref="IntervalsInHours"/> dieses Intervall endlos
-        /// wiederholen? ("danach alle 2 Stunden"). Ohne das schweigt der Timer, wenn die Liste durch ist.
+        /// Nach dem letzten Eintrag aus <see cref="Deadlines"/> die letzte Frist endlos wiederholen?
+        /// ("danach alle 2 Stunden"). Ohne das schweigt der Timer, wenn die Liste durch ist.
         /// </summary>
+        /// <remarks>
+        /// Sinnvoll nur mit einer Frist, die eine <b>Dauer</b> liefert. Eine absolute Zeitangabe
+        /// (<see cref="System.DateTime"/>) ergaebe wiederholt denselben, dann vergangenen Zeitpunkt; die
+        /// Engine laesst den Timer in diesem Fall verstummen, statt in einer Schleife zu feuern.
+        /// </remarks>
         public bool RepeatLast { get; set; }
 
         /// <summary>
@@ -505,6 +526,82 @@ namespace ITVComponents.Workflow.Model
         /// steht im Scope des Nebenpfads - so kann die Eskalation "zum dritten Mal" anders formulieren.
         /// </summary>
         public string CountVariable { get; set; }
+
+        /// <summary>
+        /// Die tatsaechlich geltenden Fristen: <see cref="Deadlines"/>, oder - solange die leer ist -
+        /// der Altbestand aus <see cref="IntervalsInHours"/> als gleichwertige Ausdruecke. Reine
+        /// Abfrage, sie veraendert den Knoten nicht (der Vortrieb darf die Definition nicht umschreiben).
+        /// </summary>
+        public IReadOnlyList<BoundaryDeadline> EffectiveDeadlines()
+        {
+            if (Deadlines != null && Deadlines.Count != 0)
+            {
+                return Deadlines;
+            }
+
+            if (IntervalsInHours == null || IntervalsInHours.Count == 0)
+            {
+                return Array.Empty<BoundaryDeadline>();
+            }
+
+            return IntervalsInHours
+                .Select(h => new BoundaryDeadline
+                {
+                    Expression = h.ToString(CultureInfo.InvariantCulture)
+                })
+                .ToList();
+        }
+
+        /// <summary>
+        /// Uebernimmt den Altbestand einmalig in <see cref="Deadlines"/> und leert ihn. Der Editor ruft
+        /// das beim Oeffnen, damit die Definition beim naechsten Speichern in der neuen Form liegt.
+        /// Liefert true, wenn dabei etwas umgestellt wurde.
+        /// </summary>
+        public bool MigrateLegacyDeadlines()
+        {
+            if (IntervalsInHours == null || IntervalsInHours.Count == 0
+                || (Deadlines != null && Deadlines.Count != 0))
+            {
+                return false;
+            }
+
+            Deadlines = EffectiveDeadlines().ToList();
+            IntervalsInHours = new List<double>();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// EINE Frist eines <see cref="BoundaryTimerNode"/>: ein CScript-Ausdruck, der sagt, wann sie ablaeuft.
+    /// </summary>
+    /// <remarks>
+    /// Erlaubt sind drei Ergebnisse - dieselbe Konvention wie beim gewoehnlichen <see cref="TimerNode"/>,
+    /// erweitert um die Kurzform, die den frueheren Stunden-Feldern entspricht:
+    /// <list type="bullet">
+    /// <item><description>eine <see cref="System.TimeSpan"/> - Dauer ab dem Parken bzw. ab der vorigen
+    /// Ausloesung,</description></item>
+    /// <item><description>ein <see cref="System.DateTime"/> - ein absoluter Zeitpunkt,</description></item>
+    /// <item><description>eine Zahl - Dauer in <b>Stunden</b> (so bleibt "24" die kuerzeste Schreibweise
+    /// des haeufigsten Falls).</description></item>
+    /// </list>
+    /// Eine Dauer von null oder weniger ist ein Fehler, kein "sofort": sie wuerde zusammen mit
+    /// <see cref="BoundaryTimerNode.RepeatLast"/> endlos feuern.
+    /// <para>
+    /// Beispiele: <c>24</c>, <c>tageBisFrist * 24</c>, <c>faelligAm</c> (eine DateTime-Variable),
+    /// <c>'System.TimeSpan'.FromHours(36)</c>. Statische Aufrufe schreibt CScript mit dem Typnamen in
+    /// Anfuehrungszeichen - <c>TimeSpan.FromHours(36)</c> ohne sie laeuft auf einen Aufruf gegen null.
+    /// </para>
+    /// </remarks>
+    public class BoundaryDeadline
+    {
+        /// <summary>Der CScript-Ausdruck, ausgewertet ueber dem Scope des Haupt-Tokens.</summary>
+        public string Expression { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="Expression"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes Skript mit
+        /// <c>return</c>.
+        /// </summary>
+        public ScriptMode ExpressionMode { get; set; } = ScriptMode.Expression;
     }
 
     /// <summary>

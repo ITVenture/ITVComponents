@@ -164,6 +164,163 @@ namespace ITVComponents.Workflow.Test
                 store.GetInstance(inst.Id).Tokens.Single(t => t.NodeId == "esc").Status);
         }
 
+        // --- Fristen als Ausdruck -------------------------------------------------------------------
+        // Die Frist ist ein CScript-Ausdruck ueber dem Scope des Schritts. Erlaubt sind TimeSpan (Dauer),
+        // DateTime (Zeitpunkt) und eine Zahl (Stunden) - dieselbe Konvention wie beim gewoehnlichen Timer,
+        // um die Kurzform der frueheren Stunden-Liste erweitert.
+
+        /// <summary>Setzt die Fristen als Ausdruecke (statt der alten Stundenliste).</summary>
+        private static void Deadlines(BoundaryTimerNode timer, params string[] expressions)
+        {
+            timer.IntervalsInHours = new List<double>();
+            timer.Deadlines = expressions
+                .Select(e => new BoundaryDeadline { Expression = e })
+                .ToList();
+        }
+
+        [TestMethod]
+        public void Deadline_MayBeANumber_CountingAsHours()
+        {
+            SaveTaskWithTimer(t => Deadlines(t, "20 + 4"));
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+
+            Assert.AreEqual(0, Fire(inst.Id, 23).Tokens.Count(t => t.NodeId == "remind"),
+                "vor Ablauf der 24h passiert nichts.");
+            Fire(inst.Id, 25);
+            CollectionAssert.AreEqual(new[] { "remind#1" }, escalations);
+        }
+
+        [TestMethod]
+        public void Deadline_MayReturnATimeSpan()
+        {
+            // CScript ruft statische Methoden ueber den Typnamen in Anfuehrungszeichen auf - dieselbe
+            // Schreibweise wie beim gewoehnlichen Timer (siehe WorkflowEngineTest).
+            SaveTaskWithTimer(t => Deadlines(t, "'System.TimeSpan'.FromHours(24)"));
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+
+            Fire(inst.Id, 25);
+            CollectionAssert.AreEqual(new[] { "remind#1" }, escalations);
+        }
+
+        [TestMethod]
+        public void Deadline_MayReturnAnAbsoluteDateTime()
+        {
+            // Absolute Frist aus einer Instanz-Variablen - der Fall "bis zum vereinbarten Termin".
+            SaveTaskWithTimer(t => Deadlines(t, "faelligAm"));
+            WorkflowInstance inst = engine.StartWorkflow("wf",
+                new Dictionary<string, object> { { "faelligAm", DateTime.UtcNow.AddHours(24) } });
+
+            Token armed = store.GetInstance(inst.Id).Tokens.Single(t => t.NodeId == "esc");
+            Assert.IsTrue(armed.DueUtc > DateTime.UtcNow.AddHours(23)
+                          && armed.DueUtc < DateTime.UtcNow.AddHours(25),
+                "die absolute Frist steht unveraendert am Token.");
+
+            Fire(inst.Id, 25);
+            CollectionAssert.AreEqual(new[] { "remind#1" }, escalations);
+        }
+
+        [TestMethod]
+        public void Deadline_EvaluatesAgainstTheScopeOfTheStep()
+        {
+            SaveTaskWithTimer(t => Deadlines(t, "stunden"));
+            WorkflowInstance inst = engine.StartWorkflow("wf",
+                new Dictionary<string, object> { { "stunden", 10 } });
+
+            Assert.AreEqual(0, escalations.Count);
+            Fire(inst.Id, 11);
+            CollectionAssert.AreEqual(new[] { "remind#1" }, escalations,
+                "die Frist kommt aus den Variablen der Instanz.");
+        }
+
+        [TestMethod]
+        public void RepeatLast_WithAnAbsoluteDeadline_StopsInsteadOfFiringForever()
+        {
+            // Der gefaehrliche Fall: ein absoluter Zeitpunkt bleibt beim Wiederholen derselbe und waere ab
+            // der zweiten Runde vergangen - ohne Schutz feuerte der Timer in einer Schleife.
+            SaveTaskWithTimer(t =>
+            {
+                Deadlines(t, "faelligAm");
+                t.RepeatLast = true;
+            });
+            WorkflowInstance inst = engine.StartWorkflow("wf",
+                new Dictionary<string, object> { { "faelligAm", DateTime.UtcNow.AddHours(24) } });
+
+            WorkflowInstance after = Fire(inst.Id, 25);
+            Assert.AreEqual(1, escalations.Count, "einmal ausgeloest...");
+            Assert.AreEqual(TokenStatus.Consumed, after.Tokens.Single(t => t.NodeId == "esc").Status,
+                "...danach verstummt der Timer, statt endlos zu feuern.");
+
+            Fire(inst.Id, 100);
+            Assert.AreEqual(1, escalations.Count);
+        }
+
+        [TestMethod]
+        public void FailingDeadline_OfAReminder_LeavesTheTaskAlone_ButIsRecorded()
+        {
+            SaveTaskWithTimer(t => Deadlines(t, "gibtsNicht.quatsch()"));
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+
+            WorkflowInstance parked = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Waiting, parked.Status,
+                "eine tadellose Aufgabe darf nicht an einer kaputten Erinnerung sterben.");
+            Assert.AreEqual("Approve", parked.Tokens.Single(t => t.NodeId == "task").TaskKey);
+            Assert.IsFalse(parked.Tokens.Any(t => t.NodeId == "esc" && t.Status == TokenStatus.Waiting),
+                "der Timer wurde nicht scharf.");
+            Assert.IsTrue(parked.History.Any(h => h.Event == "BoundaryTimerFailed"
+                                                  && h.Severity == HistorySeverity.Error),
+                "...aber der Grund steht in der Historie - still verschwinden darf das nicht.");
+        }
+
+        [TestMethod]
+        public void FailingDeadline_OfAnInterruptingTimer_FaultsTheInstance()
+        {
+            // Beim unterbrechenden Timer ist die Frist die einzige Ausstiegstuer des Schritts. Faellt sie
+            // aus, stuende die Aufgabe fuer immer - das ist ein Fehler, keine fehlende Erinnerung.
+            SaveTaskWithTimer(t =>
+            {
+                t.Interrupting = true;
+                Deadlines(t, "gibtsNicht.quatsch()");
+            });
+            WorkflowInstance inst = engine.StartWorkflow("wf");
+
+            WorkflowInstance after = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, after.Status);
+            StringAssert.Contains(after.FaultMessage, "esc");
+        }
+
+        [TestMethod]
+        public void LegacyHourList_KeepsWorking_AndMigratesOnDemand()
+        {
+            // Bereits gespeicherte Definitionen tragen die Stundenliste. Sie muessen unveraendert laufen -
+            // ein stiller Ausfall waere im Graphen nicht zu sehen.
+            var timer = new BoundaryTimerNode { Id = "esc", IntervalsInHours = new List<double> { 24, 12 } };
+
+            IReadOnlyList<BoundaryDeadline> effective = timer.EffectiveDeadlines();
+            Assert.AreEqual(2, effective.Count);
+            Assert.AreEqual("24", effective[0].Expression);
+            Assert.AreEqual("12", effective[1].Expression);
+
+            Assert.IsTrue(timer.MigrateLegacyDeadlines(), "die Migration hat etwas zu tun...");
+            Assert.AreEqual(2, timer.Deadlines.Count);
+            Assert.AreEqual(0, timer.IntervalsInHours.Count, "...und raeumt das alte Feld ab.");
+            Assert.IsFalse(timer.MigrateLegacyDeadlines(), "ein zweiter Lauf aendert nichts mehr.");
+        }
+
+        [TestMethod]
+        public void Deadlines_WinOverTheLegacyHourList()
+        {
+            var timer = new BoundaryTimerNode
+            {
+                Id = "esc",
+                IntervalsInHours = new List<double> { 99 },
+                Deadlines = new List<BoundaryDeadline> { new BoundaryDeadline { Expression = "1" } }
+            };
+
+            Assert.AreEqual("1", timer.EffectiveDeadlines().Single().Expression,
+                "die neue Liste ist massgeblich, sobald sie etwas enthaelt.");
+            Assert.IsFalse(timer.MigrateLegacyDeadlines(), "und wird von der Migration nicht ueberschrieben.");
+        }
+
         [TestMethod]
         public void CompletingTheTask_KillsTheTimer_AndTheWorkflowCompletes()
         {

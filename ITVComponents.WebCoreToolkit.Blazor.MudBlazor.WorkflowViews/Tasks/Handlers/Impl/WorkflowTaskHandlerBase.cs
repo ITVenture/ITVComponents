@@ -279,7 +279,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         private async Task<IReadOnlyCollection<string>> AllowedPermissionsAsync(IQueryable<TokenRow> tasks)
         {
             List<string> required = await tasks
-                .Where(t => t.TaskPermission != null)
+                .Where(t => t.TaskPermission != null && t.TaskPermission != "")
                 .Select(t => t.TaskPermission!)
                 .Distinct()
                 .ToListAsync();
@@ -287,12 +287,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             return required.Where(p => services.VerifyUserPermissions(new[] { p })).ToList();
         }
 
-        /// <summary>Schraenkt auf die Aufgaben ein, die der Benutzer sehen darf.</summary>
+        /// <summary>
+        /// Schraenkt auf die Aufgaben ein, die der Benutzer sehen darf. "Keine Permission noetig" ist
+        /// null ODER leer: der Knoten-Editor schreibt fuer ein geleertes Feld einen Leerstring, und eine
+        /// leere Permission hat niemand - die Aufgabe waere sonst fuer JEDEN unsichtbar.
+        /// </summary>
         private static IQueryable<TokenRow> RestrictToVisible(IQueryable<TokenRow> tasks,
             IReadOnlyCollection<string> allowed)
         {
             var allowedList = allowed.ToList();
-            return tasks.Where(t => t.TaskPermission == null || allowedList.Contains(t.TaskPermission));
+            return tasks.Where(t => t.TaskPermission == null || t.TaskPermission == ""
+                                    || allowedList.Contains(t.TaskPermission));
         }
 
         /// <summary>
@@ -321,7 +326,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                 return false;
             }
 
-            return found.TaskPermission == null
+            return string.IsNullOrWhiteSpace(found.TaskPermission)
                    || services.VerifyUserPermissions(new[] { found.TaskPermission });
         }
 
