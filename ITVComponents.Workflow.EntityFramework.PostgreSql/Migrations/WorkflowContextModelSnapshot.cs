@@ -78,6 +78,12 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<string>("AssignedTo")
                         .HasColumnType("text");
 
+                    b.Property<int?>("BoundaryIteration")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("BoundaryOwnerTokenId")
+                        .HasColumnType("text");
+
                     b.Property<string>("ClaimedBy")
                         .HasColumnType("text");
 

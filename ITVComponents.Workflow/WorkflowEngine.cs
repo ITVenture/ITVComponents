@@ -258,6 +258,14 @@ namespace ITVComponents.Workflow
             WorkflowDefinition definition = LoadDefinition(instance);
             foreach (Token token in due)
             {
+                // Ein Fristen-Timer am Schritt laeuft anders ab als ein Wartepunkt: er loest einen
+                // Nebenpfad aus (oder unterbricht), statt selbst weiterzuziehen.
+                if (definition.GetNode(token.NodeId) is BoundaryTimerNode boundary)
+                {
+                    FireBoundaryTimer(instance, definition, token, boundary);
+                    continue;
+                }
+
                 instance.Log("TimerElapsed", token.NodeId);
                 token.DueUtc = null;
                 token.WaitingSignal = null;
@@ -766,6 +774,24 @@ namespace ITVComponents.Workflow
                 var ids = new List<string>();
                 foreach (Token token in due)
                 {
+                    // Fristen-Timer am Schritt: Nebenpfad ausloesen (oder unterbrechen) statt selbst
+                    // weiterzuziehen. Liefert die Id des neu aktiven Tokens, oder null (Timer war stale).
+                    if (definition.GetNode(token.NodeId) is BoundaryTimerNode boundary)
+                    {
+                        string spawned = FireBoundaryTimer(fresh, definition, token, boundary);
+                        if (fresh.Status == WorkflowStatus.Faulted)
+                        {
+                            return ids;
+                        }
+
+                        if (spawned != null)
+                        {
+                            ids.Add(spawned);
+                        }
+
+                        continue;
+                    }
+
                     fresh.Log("TimerElapsed", token.NodeId);
                     token.DueUtc = null;
                     token.WaitingSignal = null;
@@ -954,6 +980,13 @@ namespace ITVComponents.Workflow
                 }
             }
 
+            // Der EINE Ort, an dem ein Token parkt - egal ob Benutzer-Aufgabe, Subworkflow-Aufruf, Signal,
+            // Timer oder Handoff. Hier und nur hier werden die Fristen-Timer des Schritts scharf.
+            if (token.Status is TokenStatus.Waiting or TokenStatus.WaitingForTarget)
+            {
+                ArmBoundaryTimers(instance, definition, token);
+            }
+
             return true;
         }
 
@@ -976,6 +1009,21 @@ namespace ITVComponents.Workflow
                 case StartNode:
                     instance.Log("Entered", node.Id, node.Name, HistorySeverity.Verbose);
                     return MoveAlongSingleOutgoing(instance, definition, token);
+
+                case SidePathEndNode:
+                    // Ein Nebenpfad laeuft aus: Token weg, sonst nichts. Kein Ergebnis-Re-Base und kein
+                    // Beitrag zum Abschluss des Workflows - der Timer wartet auf sein naechstes Intervall.
+                    token.Status = TokenStatus.Consumed;
+                    instance.Log("SidePathEnded", node.Id, node.Name, HistorySeverity.Verbose);
+                    return true;
+
+                case BoundaryTimerNode:
+                    // Ein Fristen-Timer wird nie als aktives Token verarbeitet - er wartet, bis er faellig
+                    // ist. Landet hier trotzdem eines, stimmt etwas am Modell nicht.
+                    Fault(instance,
+                        $"Token stands on boundary timer '{node.Id}' as an active step - a boundary timer is " +
+                        "armed when its step parks and must not be a target of a connection.", node.Id);
+                    return false;
 
                 case EndNode:
                     token.Status = TokenStatus.Consumed;
@@ -1240,6 +1288,206 @@ namespace ITVComponents.Workflow
             }
 
             return data.FormatText(text, TextFormat.DefaultFormatPolicyWithPrimitives);
+        }
+
+        // --- Fristen-Timer am Schritt (Boundary-Timer) --------------------------------------------
+
+        /// <summary>
+        /// Stellt die an einem Schritt haengenden Fristen-Timer scharf, sobald das Token dort <b>parkt</b>.
+        /// Bewusst erst beim Parken und nicht beim Betreten: an einem Schritt, den das Token synchron
+        /// durchlaeuft, koennte ein Timer ohnehin nie feuern - er wuerde nur angelegt und sofort wieder
+        /// verworfen.
+        /// </summary>
+        private static void ArmBoundaryTimers(WorkflowInstance instance, WorkflowDefinition definition,
+            Token owner)
+        {
+            foreach (BoundaryTimerNode timer in definition.Nodes.OfType<BoundaryTimerNode>()
+                         .Where(b => b.AttachedToNodeId == owner.NodeId))
+            {
+                // Ein Token kann denselben Schritt mehrfach erreichen (Schleife) oder mehrfach geparkt
+                // werden (Signal, Handoff) - je Timer darf trotzdem nur EIN wartendes Token existieren.
+                bool alreadyArmed = instance.Tokens.Any(t => t.NodeId == timer.Id
+                                                             && t.BoundaryOwnerTokenId == owner.Id
+                                                             && t.Status == TokenStatus.Waiting);
+                if (alreadyArmed)
+                {
+                    continue;
+                }
+
+                double? first = NextInterval(timer, 0);
+                if (first == null)
+                {
+                    continue; // keine Intervalle deklariert - der Validator meldet das bereits.
+                }
+
+                instance.Tokens.Add(new Token
+                {
+                    NodeId = timer.Id,
+                    Status = TokenStatus.Waiting,
+                    DueUtc = DateTime.UtcNow.AddHours(first.Value),
+                    BoundaryOwnerTokenId = owner.Id,
+                    BoundaryIteration = 0
+                });
+
+                instance.Log("BoundaryTimerArmed", timer.Id,
+                    $"{owner.NodeId} in {first.Value}h", HistorySeverity.Verbose);
+            }
+        }
+
+        /// <summary>
+        /// Das naechste Intervall (in Stunden) nach <paramref name="iteration"/> Ausloesungen, oder null,
+        /// wenn der Timer schweigen soll.
+        /// </summary>
+        private static double? NextInterval(BoundaryTimerNode timer, int iteration)
+        {
+            List<double> intervals = timer.IntervalsInHours;
+            if (intervals == null || intervals.Count == 0)
+            {
+                return null;
+            }
+
+            if (iteration < intervals.Count)
+            {
+                double value = intervals[iteration];
+                return value > 0 ? value : (double?)null;
+            }
+
+            // Liste erschoepft: entweder das letzte Intervall endlos wiederholen oder Ruhe geben.
+            if (!timer.RepeatLast)
+            {
+                return null;
+            }
+
+            double last = intervals[intervals.Count - 1];
+            return last > 0 ? last : (double?)null;
+        }
+
+        /// <summary>
+        /// Loest einen faelligen Fristen-Timer aus. Nicht unterbrechend entsteht ein ZUSAETZLICHES Token
+        /// auf dem Nebenpfad (mit einer Kopie des Scopes des Haupt-Tokens), und der Timer stellt sich auf
+        /// sein naechstes Intervall; unterbrechend nimmt das HAUPT-Token die Kante und der Schritt gilt als
+        /// abgebrochen. Liefert die Id des nun aktiven Tokens (fuer die Zweig-Tasks des Runners), oder null.
+        /// </summary>
+        private string FireBoundaryTimer(WorkflowInstance instance, WorkflowDefinition definition,
+            Token timerToken, BoundaryTimerNode timer)
+        {
+            Token owner = instance.Tokens.FirstOrDefault(t => t.Id == timerToken.BoundaryOwnerTokenId);
+            bool ownerParked = owner is { Status: TokenStatus.Waiting or TokenStatus.WaitingForTarget };
+            if (!ownerParked)
+            {
+                // Das Haupt-Token ist inzwischen weitergelaufen - der Timer ist gegenstandslos. Kein
+                // Fehler: der Aufraeumer und dieser Aufgriff koennen sich ueberholen.
+                timerToken.Status = TokenStatus.Consumed;
+                timerToken.DueUtc = null;
+                return null;
+            }
+
+            IReadOnlyList<SequenceFlow> outgoing = definition.OutgoingFlows(timer.Id);
+            if (outgoing.Count != 1)
+            {
+                Fault(instance,
+                    $"Boundary timer '{timer.Id}' must have exactly one outgoing flow, but has {outgoing.Count}.",
+                    timer.Id);
+                return null;
+            }
+
+            int iteration = (timerToken.BoundaryIteration ?? 0) + 1;
+
+            if (timer.Interrupting)
+            {
+                // Der Schritt wird abgebrochen: das Haupt-Token nimmt die Kante. Eine wartende Aufgabe
+                // verschwindet damit aus der Arbeitsliste - sonst stuende sie dort weiter, obwohl der
+                // Prozess laengst woanders ist. Das Aufraeumen der Timer erledigt MoveToken.
+                ClearUserTask(owner);
+                owner.WaitingSignal = null;
+                owner.WaitingTarget = null;
+                owner.WaitingForChildInstanceId = null;
+                owner.DueUtc = null;
+                owner.Status = TokenStatus.Active;
+
+                Dictionary<string, object> ownerScope = Scope(instance, owner);
+                if (!string.IsNullOrEmpty(timer.CountVariable))
+                {
+                    ownerScope[timer.CountVariable] = iteration;
+                }
+
+                instance.Log("BoundaryTimerInterrupted", timer.Id,
+                    $"{owner.NodeId} after deadline #{iteration}", HistorySeverity.Warning);
+                return MoveToken(instance, owner, outgoing[0]) ? owner.Id : null;
+            }
+
+            // Nicht unterbrechend: ein eigenes Token fuer den Nebenpfad. Es bekommt eine KOPIE des Scopes
+            // des Haupt-Tokens - was die Eskalation schreibt, darf nicht in den Hauptfluss zurueckfliessen.
+            var side = new Token
+            {
+                NodeId = timer.Id,
+                Status = TokenStatus.Active,
+                BoundaryOwnerTokenId = owner.Id,
+                Variables = CopyScope(Scope(instance, owner)) ?? new Dictionary<string, object>(StringComparer.Ordinal)
+            };
+            if (!string.IsNullOrEmpty(timer.CountVariable))
+            {
+                side.Variables[timer.CountVariable] = iteration;
+            }
+
+            instance.Tokens.Add(side);
+
+            // Den Timer auf sein naechstes Intervall stellen, BEVOR der Nebenpfad laeuft - so bleibt die
+            // Frist auch dann gesetzt, wenn der Nebenpfad gleich faultet.
+            timerToken.BoundaryIteration = iteration;
+            double? next = NextInterval(timer, iteration);
+            if (next == null)
+            {
+                timerToken.Status = TokenStatus.Consumed;
+                timerToken.DueUtc = null;
+            }
+            else
+            {
+                timerToken.DueUtc = DateTime.UtcNow.AddHours(next.Value);
+            }
+
+            instance.Log("BoundaryTimerElapsed", timer.Id,
+                $"{owner.NodeId}, escalation #{iteration}", HistorySeverity.Warning);
+            return MoveToken(instance, side, outgoing[0]) ? side.Id : null;
+        }
+
+        /// <summary>
+        /// Verwirft alle Tokens, die zu einem Haupt-Token gehoeren: den wartenden Timer und einen eventuell
+        /// laufenden Nebenpfad. Aufgerufen, sobald das Haupt-Token seinen Schritt verlaesst.
+        /// </summary>
+        private static void KillBoundaryTokens(WorkflowInstance instance, string ownerTokenId)
+        {
+            if (string.IsNullOrEmpty(ownerTokenId))
+            {
+                return;
+            }
+
+            foreach (Token t in instance.Tokens.Where(t => t.BoundaryOwnerTokenId == ownerTokenId
+                                                           && t.Status != TokenStatus.Consumed))
+            {
+                t.Status = TokenStatus.Consumed;
+                t.DueUtc = null;
+            }
+        }
+
+        /// <summary>
+        /// Sicherheitsnetz: verwirft Timer- und Nebenpfad-Tokens, deren Haupt-Token nicht mehr parkt. Das
+        /// eigentliche Aufraeumen macht <see cref="MoveToken"/> beim Weiterziehen; diese Sonde faengt die
+        /// Wege ab, auf denen ein Haupt-Token OHNE Bewegung verschwindet (Ende, Join, Abbruch) - sonst
+        /// bliebe ein wartendes Timer-Token stehen und die Instanz koennte nie abschliessen.
+        /// </summary>
+        private static void CollectOrphanedBoundaryTokens(WorkflowInstance instance)
+        {
+            foreach (Token t in instance.Tokens.Where(t => t.BoundaryOwnerTokenId != null
+                                                           && t.Status != TokenStatus.Consumed))
+            {
+                Token owner = instance.Tokens.FirstOrDefault(o => o.Id == t.BoundaryOwnerTokenId);
+                if (owner is not { Status: TokenStatus.Waiting or TokenStatus.WaitingForTarget })
+                {
+                    t.Status = TokenStatus.Consumed;
+                    t.DueUtc = null;
+                }
+            }
         }
 
         /// <summary>
@@ -2609,6 +2857,11 @@ namespace ITVComponents.Workflow
                 return false;
             }
 
+            // Das Haupt-Token verlaesst seinen Schritt: die dort haengenden Fristen-Timer und ein
+            // eventuell laufender Nebenpfad sind damit gegenstandslos. Der EINE Durchgang, durch den
+            // jedes Token einen Knoten verlaesst - deshalb hier und nicht an jeder Aufrufstelle.
+            KillBoundaryTokens(instance, token.Id);
+
             token.NodeId = flow.TargetId;
             token.Status = TokenStatus.Active;
             return true;
@@ -2665,6 +2918,10 @@ namespace ITVComponents.Workflow
 
         private static void UpdateTerminalStatus(WorkflowInstance instance, WorkflowDefinition definition)
         {
+            // Erst aufraeumen, dann urteilen: ein verwaistes Timer-Token wuerde die Instanz sonst ewig
+            // als "wartend" fuehren, obwohl sein Schritt laengst vorbei ist.
+            CollectOrphanedBoundaryTokens(instance);
+
             if (instance.Tokens.Any(t => t.Status == TokenStatus.Active))
             {
                 instance.Status = WorkflowStatus.Running;

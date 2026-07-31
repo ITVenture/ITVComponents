@@ -33,7 +33,16 @@ namespace ITVComponents.Workflow.Model
         ParallelGateway,
 
         /// <summary>Ruft einen anderen Workflow als Subworkflow auf (mit Ein-/Ausgabewerten).</summary>
-        CallWorkflow
+        CallWorkflow,
+
+        /// <summary>
+        /// Ein Fristen-Timer, der an einem Schritt <b>haengt</b> und einen Nebenpfad ausloest (Eskalation),
+        /// ohne den Hauptfluss anzuhalten.
+        /// </summary>
+        BoundaryTimer,
+
+        /// <summary>Endpunkt eines <b>Nebenpfads</b>: verbraucht das Token, ohne den Workflow zu beenden.</summary>
+        SidePathEnd
     }
 
     /// <summary>
@@ -58,6 +67,8 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(ExclusiveGatewayNode), "xor")]
     [JsonDerivedType(typeof(ParallelGatewayNode), "and")]
     [JsonDerivedType(typeof(CallWorkflowNode), "call")]
+    [JsonDerivedType(typeof(BoundaryTimerNode), "boundarytimer")]
+    [JsonDerivedType(typeof(SidePathEndNode), "sidepathend")]
     public abstract class WorkflowNode
     {
         /// <summary>Innerhalb der Definition eindeutige Kennung des Knotens.</summary>

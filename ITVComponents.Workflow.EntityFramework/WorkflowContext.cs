@@ -125,6 +125,18 @@ namespace ITVComponents.Workflow.EntityFramework
         public string SplitTokenId { get; set; }
 
         /// <summary>
+        /// Bei einem Token, das zu einem Fristen-Timer am Schritt gehoert (wartender Timer ODER laufender
+        /// Nebenpfad): die Id des Haupt-Tokens, an dessen Schritt der Timer haengt; sonst null. Verlaesst
+        /// das Haupt-Token seinen Schritt, werden alle Tokens mit dieser Id verbraucht.
+        /// </summary>
+        public string BoundaryOwnerTokenId { get; set; }
+
+        /// <summary>
+        /// Beim wartenden Timer-Token: wie oft bereits ausgeloest wurde. Bestimmt das naechste Intervall.
+        /// </summary>
+        public int? BoundaryIteration { get; set; }
+
+        /// <summary>
         /// Der Tenant der zugehoerigen Instanz - <b>denormalisiert</b>. Die Token-Zeile selbst hat keinen
         /// Query-Filter; ohne diese Spalte gaebe es kein serverseitiges Filtern/Sortieren/Paginieren einer
         /// Arbeitsliste ueber alle Instanzen hinweg (nur einen Join, den kein Index traegt).

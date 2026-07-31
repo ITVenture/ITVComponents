@@ -53,6 +53,15 @@
                 case EndNode end:
                     <EndConfigEditor Node="end" />
                     break;
+                case BoundaryTimerNode boundary:
+                    <BoundaryTimerConfigEditor Node="boundary" Def="Def" />
+                    break;
+                case SidePathEndNode:
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                        Closes an escalation path: the token is consumed and nothing else happens — the
+                        workflow is <b>not</b> completed. Its deadline waits for the next interval.
+                    </MudAlert>
+                    break;
                 case WaitNode wait:
                     <MudTextField @bind-Value="wait.SignalName" Label="Signal name" Margin="Margin.Dense" />
                     <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>

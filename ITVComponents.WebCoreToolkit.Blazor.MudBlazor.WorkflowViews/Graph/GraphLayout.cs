@@ -580,7 +580,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     return NodeShape.Diamond;
                 case NodeKind.Wait:
                 case NodeKind.Timer:
+                case NodeKind.BoundaryTimer:
                     return NodeShape.Hexagon;
+                case NodeKind.SidePathEnd:
+                    // Wie das Ende - aber der Nebenpfad-Endpunkt beendet nur seinen Pfad, nicht die
+                    // Instanz. Die Beschriftung unter dem Kreis macht den Unterschied lesbar.
+                    return NodeShape.Ellipse;
                 default:
                     return NodeShape.RoundedRectangle;
             }
@@ -620,6 +625,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 NodeKind.CallWorkflow => "🔗 " + text,
                 NodeKind.Timer => "🕐 " + text,
                 NodeKind.Wait => "⏳ " + text,
+                // Glocke = Frist am Schritt (loest einen Nebenpfad aus), bewusst anders als die Uhr des
+                // gewoehnlichen Timers: der eine haelt den Zweig an, der andere laeuft nebenher.
+                NodeKind.BoundaryTimer => "🔔 " + text,
                 _ => text
             };
         }

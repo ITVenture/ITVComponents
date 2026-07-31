@@ -914,3 +914,69 @@ stattdessen modellieren.
 mehr ladbare Definition). Der Dialog sagt das mit Grund, statt einen willkürlichen Punkt zu wählen.
 
 **Keine Schema-Änderung, keine Migration.**
+
+---
+
+## 12. Fristen am Schritt (Boundary-Timer) und Eskalation
+
+`UserActivityNode.DueInHours` ist reine Anzeige-Information — eine überfällige Aufgabe läuft davon
+**nicht** weiter. Wer will, dass eine Frist etwas *auslöst*, hängt einen **`BoundaryTimerNode`** an den
+Schritt.
+
+> **Korrektur zur früheren Empfehlung.** In älteren Ständen stand hier „für Eskalation einen `TimerNode`
+> in einen parallelen Zweig". Das ist **falsch** und sollte nicht mehr so gebaut werden: der AND-Join
+> feuert erst, wenn auf *jeder* eingehenden Kante ein Token liegt — der Hauptfluss hinge also bis zum
+> Ablauf der Frist, selbst wenn die Aufgabe längst erledigt ist. Und die Eskalation liefe unbedingt, denn
+> nach dem Split hat jeder Strang seine eigene Scope-Kopie: der Timer-Zweig kann gar nicht prüfen, ob die
+> Aufgabe fertig ist.
+
+### Was der Boundary-Timer tut
+
+- Er **hängt** an einem Schritt (`AttachedToNodeId`) und wird scharf, wenn das Token dort **parkt** —
+  Benutzer-Aufgabe, Subworkflow-Aufruf, oder Aktivität mit `ExecutionTarget`. An einem Schritt, den das
+  Token synchron durchläuft, könnte er nie feuern; der Validator warnt.
+- Läuft die Frist ab, entsteht ein **zusätzliches Token** auf seiner ausgehenden Kante — der
+  **Nebenpfad**. Der Hauptfluss läuft unverändert weiter und wartet auf nichts.
+- Der Nebenpfad arbeitet auf einer **Kopie** des Scopes des Haupt-Tokens. Was er schreibt, fliesst
+  **nicht** zurück.
+- Zieht das Haupt-Token weiter, werden Timer **und** ein noch laufender Nebenpfad verworfen.
+
+### Wiederholung
+
+`IntervalsInHours` ist eine Liste, die der Reihe nach abgearbeitet wird: `24, 12` = erste Erinnerung nach
+24 Stunden, die zweite 12 Stunden später. Ist die Liste durch, schweigt der Timer — es sei denn,
+`RepeatLast` ist gesetzt: dann wird das letzte Intervall endlos wiederholt („danach alle 2 Stunden").
+`CountVariable` bekommt die Nummer der Auslösung (1 beim ersten Mal) in den Scope des Nebenpfads, damit
+die dritte Mahnung anders klingen kann als die erste.
+
+### Nebenpfad-Ende
+
+Ein Nebenpfad darf den **Workflow nicht beenden**. Er endet deshalb an einem **`SidePathEndNode`**: das
+Token wird verbraucht, sonst passiert nichts — kein Ergebnis-Re-Base, kein Beitrag zum Abschluss. Ohne
+diesen Knoten scheiterte der letzte Schritt des Nebenpfads an der Regel „genau eine ausgehende Kante",
+und ein regulärer End-Knoten würde das Ergebnis der ganzen Instanz festschreiben, obwohl nur die
+Eskalation durchgelaufen ist. Der Validator prüft, dass der Nebenpfad den End-Knoten nicht erreichen kann.
+
+### Unterbrechend
+
+`Interrupting = true` dreht die Bedeutung um: statt eines Nebenpfads nimmt das **Haupt-Token** die Kante.
+Der Schritt gilt damit als abgebrochen, eine wartende Aufgabe verschwindet aus der Arbeitsliste
+(„Frist verstrichen → automatisch abgelehnt"). Das feuert naturgemäss **einmal** — danach steht das Token
+woanders; weitere Intervalle und `RepeatLast` haben keine Wirkung, der Validator weist darauf hin. Da der
+Pfad hier der Hauptfluss ist, **darf** er zum End-Knoten führen.
+
+### Technisch
+
+Scharfgestellt wird über `Token.DueUtc` — also über den bestehenden, **indizierten** Timer-Aufgriff
+(`FindDueTimers`/`ReactivateTimers`). Kein neuer Sweep, keine neue Abfrage, und der Runner nimmt es ohne
+Änderung auf. `Token.TaskDueUtc` bleibt was es war: Anzeige und Sortierung der Arbeitsliste.
+
+Zwei Stellen tragen die Lebensdauer: `Token.BoundaryOwnerTokenId` (Timer **und** Nebenpfad-Tokens zeigen
+auf ihr Haupt-Token) und `Token.BoundaryIteration` (der Zähler am wartenden Timer). Aufgeräumt wird
+zweifach — eifrig in `MoveToken`, sobald das Haupt-Token weiterzieht, und als Sicherheitsnetz in
+`UpdateTerminalStatus` für die Wege, auf denen ein Haupt-Token *ohne* Bewegung verschwindet (Ende, Join,
+Abbruch). Ohne das Netz bliebe ein wartendes Timer-Token stehen und die Instanz könnte nie abschliessen.
+
+**Schema-Änderung:** zwei nullable Spalten auf `Tokens` (`BoundaryOwnerTokenId`, `BoundaryIteration`) →
+Migration **`BoundaryTimers`** je Provider-Projekt. Laufende Instanzen bleiben gültig (beide Spalten null
+= kein Boundary-Token).

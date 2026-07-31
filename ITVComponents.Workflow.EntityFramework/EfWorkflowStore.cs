@@ -227,6 +227,8 @@ namespace ITVComponents.Workflow.EntityFramework
                 // bleibt die Spalte null (und die Zeile so klein wie bisher).
                 tr.VariablesJson = token.Variables == null ? null : WorkflowJson.Serialize(token.Variables);
                 tr.SplitTokenId = token.SplitTokenId;
+                tr.BoundaryOwnerTokenId = token.BoundaryOwnerTokenId;
+                tr.BoundaryIteration = token.BoundaryIteration;
                 // Denormalisiert, damit die Arbeitsliste eine Abfrage ist und kein Auspacken von JSON:
                 // der Tenant kommt von der Instanz (die Token-Zeile hat keinen eigenen Filter), der Rest
                 // ist der Aufgaben-Stempel, den die Engine beim Parken setzt und beim Abschluss leert.
@@ -515,6 +517,8 @@ namespace ITVComponents.Workflow.EntityFramework
                         ? null
                         : WorkflowJson.Deserialize<Dictionary<string, object>>(t.VariablesJson),
                     SplitTokenId = t.SplitTokenId,
+                    BoundaryOwnerTokenId = t.BoundaryOwnerTokenId,
+                    BoundaryIteration = t.BoundaryIteration,
                     TaskKey = t.TaskKey,
                     TaskPermission = t.TaskPermission,
                     AssignedTo = t.AssignedTo,

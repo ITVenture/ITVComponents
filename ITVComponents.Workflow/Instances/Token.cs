@@ -141,7 +141,9 @@ namespace ITVComponents.Workflow.Instances
         /// <remarks>
         /// Bewusst NICHT <see cref="DueUtc"/>: das ist die Timer-Faelligkeit, und der Timer-Aufgriff
         /// (<c>FindDueTimers</c>/<c>ReactivateTimers</c>) wuerde eine ueberfaellige Aufgabe kurzerhand
-        /// selbst weiterlaufen lassen. Die Frist ist hier reine Anzeige- und Sortierinformation.
+        /// selbst weiterlaufen lassen. Die Frist ist hier reine Anzeige- und Sortierinformation. Soll sie
+        /// etwas ausloesen, haengt am Schritt ein <see cref="Model.BoundaryTimerNode"/> - der bringt sein
+        /// EIGENES wartendes Token mit <see cref="DueUtc"/> mit und laesst die Aufgabe in Ruhe.
         /// </remarks>
         public DateTime? TaskDueUtc { get; set; }
 
@@ -157,5 +159,23 @@ namespace ITVComponents.Workflow.Instances
         /// ueber denselben Split nicht miteinander vermischt werden.
         /// </remarks>
         public string SplitTokenId { get; set; }
+
+        /// <summary>
+        /// Bei einem Token, das zu einem <see cref="Model.BoundaryTimerNode"/> gehoert: die Id des
+        /// HAUPT-Tokens, an dessen Schritt der Timer haengt. Sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Traegt die gesamte Lebensdauer: sowohl das wartende Timer-Token (es steht auf dem Timer-Knoten
+        /// und zaehlt ueber <see cref="BoundaryIteration"/> die Ausloesungen) als auch jedes Token des
+        /// ausgeloesten Nebenpfads verweisen hierueber auf ihr Haupt-Token. Verlaesst das Haupt-Token
+        /// seinen Schritt, werden alle Tokens mit dieser Id verbraucht - Timer wie laufender Nebenpfad.
+        /// </remarks>
+        public string BoundaryOwnerTokenId { get; set; }
+
+        /// <summary>
+        /// Beim wartenden Timer-Token: wie oft bereits ausgeloest wurde (0 = noch nie). Bestimmt, welches
+        /// Intervall aus <see cref="Model.BoundaryTimerNode.IntervalsInHours"/> als naechstes gilt.
+        /// </summary>
+        public int? BoundaryIteration { get; set; }
     }
 }

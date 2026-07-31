@@ -157,19 +157,29 @@ namespace ITVComponents.Workflow.Validation
                 int outs = outCount.TryGetValue(n.Id, out int o) ? o : 0;
                 int ins = inCount.TryGetValue(n.Id, out int i) ? i : 0;
 
-                if (n.Kind != NodeKind.End && outs == 0)
+                // Nebenpfad-Ende verbraucht sein Token wie das End - nur ohne den Workflow zu beenden.
+                if (n.Kind != NodeKind.End && n.Kind != NodeKind.SidePathEnd && outs == 0)
                 {
                     issues.Add(Error(n.Id, $"Node '{Label(n)}' has no outgoing connection - a token would get stuck."));
                 }
 
-                if (n.Kind == NodeKind.End && outs > 0)
+                if ((n.Kind == NodeKind.End || n.Kind == NodeKind.SidePathEnd) && outs > 0)
                 {
                     issues.Add(Warn(n.Id, $"End node '{Label(n)}' has outgoing connections - they are ignored."));
                 }
 
-                if (n.Kind != NodeKind.Start && ins == 0)
+                // Ein Fristen-Timer haengt an seinem Schritt, statt angeflossen zu werden - er hat
+                // bewusst keine eingehende Kante.
+                if (n.Kind != NodeKind.Start && n.Kind != NodeKind.BoundaryTimer && ins == 0)
                 {
                     issues.Add(Warn(n.Id, $"Node '{Label(n)}' has no incoming connection - it is unreachable."));
+                }
+
+                if (n.Kind == NodeKind.BoundaryTimer && ins > 0)
+                {
+                    issues.Add(Error(n.Id,
+                        $"Boundary timer '{Label(n)}' has an incoming connection - it is armed by the step it " +
+                        "is attached to, not reached by a connection."));
                 }
 
                 if (n.Kind == NodeKind.Start && ins > 0)
@@ -226,6 +236,11 @@ namespace ITVComponents.Workflow.Validation
                 if (n is StartNode startNode)
                 {
                     issues.AddRange(StartFormIssues(startNode));
+                }
+
+                if (n is BoundaryTimerNode boundary)
+                {
+                    issues.AddRange(BoundaryTimerIssues(boundary, byId, flows, ends));
                 }
 
                 // Fehler-Ausgang (Aktivitaet ODER Subworkflow-Aufruf): die Fehler-Kante muss eine der
@@ -336,6 +351,120 @@ namespace ITVComponents.Workflow.Validation
                 readOnlyMeaningful: true));
 
             return issues;
+        }
+
+        /// <summary>
+        /// Prueft einen Fristen-Timer am Schritt: woran er haengt, ob er dort ueberhaupt feuern kann und
+        /// ob sein Nebenpfad ein Nebenpfad bleibt.
+        /// </summary>
+        private static List<ValidationIssue> BoundaryTimerIssues(BoundaryTimerNode timer,
+            Dictionary<string, WorkflowNode> byId, List<SequenceFlow> flows, List<WorkflowNode> ends)
+        {
+            var issues = new List<ValidationIssue>();
+
+            if (string.IsNullOrWhiteSpace(timer.AttachedToNodeId))
+            {
+                issues.Add(Error(timer.Id, $"Boundary timer '{Label(timer)}' is not attached to a step."));
+            }
+            else if (!byId.TryGetValue(timer.AttachedToNodeId, out WorkflowNode host))
+            {
+                issues.Add(Error(timer.Id,
+                    $"Boundary timer '{Label(timer)}' is attached to unknown step '{timer.AttachedToNodeId}'."));
+            }
+            else
+            {
+                // Feuern kann er nur, wo das Token stehen bleibt. Eine gewoehnliche Aktivitaet laeuft
+                // synchron durch - dort waere der Timer eine stille Attrappe.
+                bool parks = host switch
+                {
+                    UserActivityNode => true,
+                    CallWorkflowNode => true,
+                    AutomatedActivityNode a => !string.IsNullOrWhiteSpace(a.ExecutionTarget),
+                    _ => false
+                };
+                if (!parks)
+                {
+                    issues.Add(Warn(timer.Id,
+                        $"Boundary timer '{Label(timer)}' is attached to '{Label(host)}', where the token does " +
+                        "not park - it can never fire. Attach it to a user task, a subworkflow call or an " +
+                        "activity with an execution target."));
+                }
+            }
+
+            if (timer.IntervalsInHours == null || timer.IntervalsInHours.Count == 0)
+            {
+                issues.Add(Error(timer.Id,
+                    $"Boundary timer '{Label(timer)}' has no interval - it would never fire."));
+            }
+            else if (timer.IntervalsInHours.Any(h => h <= 0))
+            {
+                issues.Add(Error(timer.Id,
+                    $"Boundary timer '{Label(timer)}' has an interval of zero or less."));
+            }
+            else if (timer.Interrupting && timer.IntervalsInHours.Count > 1)
+            {
+                // Nach dem Unterbrechen steht das Token woanders - ein zweites Intervall kaeme nie dran.
+                issues.Add(Warn(timer.Id,
+                    $"Boundary timer '{Label(timer)}' is interrupting, so only the first interval is used - " +
+                    "the others (and 'repeat last') have no effect."));
+            }
+
+            List<SequenceFlow> outgoing = flows.Where(f => f.SourceId == timer.Id).ToList();
+            if (outgoing.Count > 1)
+            {
+                issues.Add(Error(timer.Id,
+                    $"Boundary timer '{Label(timer)}' has {outgoing.Count} outgoing connections - it must have " +
+                    "exactly one (use a gateway on the side path to branch)."));
+            }
+
+            // Der Nebenpfad darf den Workflow nicht beenden: sein Token wird verworfen, sobald der Schritt
+            // weiterlaeuft - ein End-Knoten dort wuerde entweder nie erreicht oder wuerde das Ergebnis der
+            // ganzen Instanz festschreiben, obwohl nur die Eskalation durchgelaufen ist.
+            if (outgoing.Count == 1 && ends.Count > 0)
+            {
+                var endIds = new HashSet<string>(ends.Select(e => e.Id), StringComparer.Ordinal);
+                if (Reaches(outgoing[0].TargetId, endIds, flows))
+                {
+                    issues.Add(Error(timer.Id,
+                        $"The side path of boundary timer '{Label(timer)}' can reach the end node - a side path " +
+                        "must not end the workflow. Close it with a side-path end instead."));
+                }
+            }
+
+            return issues;
+        }
+
+        /// <summary>Ist einer der Zielknoten von <paramref name="startId"/> aus erreichbar?</summary>
+        private static bool Reaches(string startId, HashSet<string> targets, List<SequenceFlow> flows)
+        {
+            if (startId == null)
+            {
+                return false;
+            }
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var queue = new Queue<string>();
+            queue.Enqueue(startId);
+            while (queue.Count > 0)
+            {
+                string current = queue.Dequeue();
+                if (!seen.Add(current))
+                {
+                    continue;
+                }
+
+                if (targets.Contains(current))
+                {
+                    return true;
+                }
+
+                foreach (SequenceFlow f in flows.Where(f => f.SourceId == current && f.TargetId != null))
+                {
+                    queue.Enqueue(f.TargetId);
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

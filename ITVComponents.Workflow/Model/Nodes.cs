@@ -412,12 +412,103 @@ namespace ITVComponents.Workflow.Model
         public List<UserTaskField> FormFields { get; set; } = new List<UserTaskField>();
 
         /// <summary>
-        /// Optionale Frist in Stunden ab dem Parken. Setzt <see cref="Instances.Token.DueUtc"/> - die
+        /// Optionale Frist in Stunden ab dem Parken. Setzt <see cref="Instances.Token.TaskDueUtc"/> - die
         /// Aufgabenliste kann danach sortieren und Ueberfaelliges hervorheben. Der Ablauf laesst die
-        /// Aufgabe <b>nicht</b> automatisch weiterlaufen (dafuer gibt es den <see cref="TimerNode"/> in
-        /// einem parallelen Zweig). Null/0 = keine Frist.
+        /// Aufgabe <b>nicht</b> automatisch weiterlaufen. Null/0 = keine Frist.
         /// </summary>
+        /// <remarks>
+        /// Soll die Frist etwas <b>ausloesen</b> (Erinnerung, Eskalation, automatische Ablehnung), gehoert
+        /// ein <see cref="BoundaryTimerNode"/> an diesen Schritt. Ein <see cref="TimerNode"/> in einem
+        /// parallelen Zweig taugt dafuer NICHT: der zugehoerige Join wartet auf beide Straenge, der
+        /// Hauptfluss haenge also bis zum Ablauf der Frist - und da jeder Strang nach dem Split seine
+        /// eigene Scope-Kopie hat, koennte der Timer-Zweig gar nicht pruefen, ob die Aufgabe erledigt ist.
+        /// </remarks>
         public double? DueInHours { get; set; }
+    }
+
+    /// <summary>
+    /// Ein <b>Fristen-Timer am Schritt</b> (BPMN: Boundary-Timer-Event). Er haengt an einem Schritt, an
+    /// dem ein Token parkt, und loest nach Ablauf einen <b>Nebenpfad</b> aus - typisch eine Eskalation
+    /// ("erinnere den Zustaendigen").
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Nicht unterbrechend</b> (Standard): der Hauptfluss laeuft unveraendert weiter und wartet nicht.
+    /// Ausgeloest wird ein ZUSAETZLICHES Token auf der ausgehenden Kante dieses Timers; es traegt eine
+    /// Kopie des Scopes des Haupt-Tokens, und was es schreibt, fliesst NICHT zurueck. Genau deshalb ist das
+    /// kein AND-Split: dort muesste jeder Strang wieder gejoint werden, und der Hauptfluss haenge bis zum
+    /// Ablauf der Frist.
+    /// </para>
+    /// <para>
+    /// <b>Lebensdauer:</b> der Timer wird scharf, wenn das Haupt-Token an seinem Schritt <b>parkt</b>
+    /// (Benutzer-Aufgabe, Subworkflow-Aufruf, Warten auf ein Ausfuehrungs-Ziel). Verlaesst das Haupt-Token
+    /// den Schritt, werden der Timer UND ein eventuell noch laufender Nebenpfad verworfen. Ein Timer an
+    /// einem Schritt, an dem nie geparkt wird (schnelle Aktivitaet), feuert nie - der Validator meldet das.
+    /// </para>
+    /// <para>
+    /// <b>Wiederholung:</b> <see cref="IntervalsInHours"/> wird der Reihe nach abgearbeitet (z.B. 24, 12 =
+    /// erste Erinnerung nach 24h, zweite 12h spaeter). Ist die Liste erschoepft, wiederholt
+    /// <see cref="RepeatLast"/> das letzte Intervall endlos; sonst schweigt der Timer.
+    /// </para>
+    /// </remarks>
+    public class BoundaryTimerNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.BoundaryTimer;
+
+        /// <summary>
+        /// Die Id des Schritts, an dem dieser Timer haengt. Erlaubt sind Schritte, an denen ein Token
+        /// parken kann: <see cref="UserActivityNode"/>, <see cref="CallWorkflowNode"/> und
+        /// <see cref="AutomatedActivityNode"/> (dort nur mit <c>ExecutionTarget</c>, sonst laeuft das
+        /// Token synchron durch).
+        /// </summary>
+        public string AttachedToNodeId { get; set; }
+
+        /// <summary>
+        /// Die Fristen in Stunden, der Reihe nach ab dem Parken. Der erste Wert ist der Abstand zum
+        /// Parken, jeder weitere der Abstand zur vorigen Ausloesung.
+        /// </summary>
+        public List<double> IntervalsInHours { get; set; } = new List<double>();
+
+        /// <summary>
+        /// Nach dem letzten Eintrag aus <see cref="IntervalsInHours"/> dieses Intervall endlos
+        /// wiederholen? ("danach alle 2 Stunden"). Ohne das schweigt der Timer, wenn die Liste durch ist.
+        /// </summary>
+        public bool RepeatLast { get; set; }
+
+        /// <summary>
+        /// <b>Unterbrechend</b>: statt eines Nebenpfads nimmt das HAUPT-Token die ausgehende Kante - der
+        /// Schritt gilt damit als abgebrochen (eine wartende Benutzer-Aufgabe verschwindet aus der
+        /// Arbeitsliste). Fuer "Frist verstrichen -&gt; automatisch abgelehnt". Standard false.
+        /// </summary>
+        /// <remarks>
+        /// Unterbrechend feuert naturgemaess <b>einmal</b>: danach steht das Token woanders, und es gibt
+        /// nichts mehr, woran der Timer haengen koennte. <see cref="RepeatLast"/> und weitere Intervalle
+        /// haben dann keine Wirkung.
+        /// </remarks>
+        public bool Interrupting { get; set; }
+
+        /// <summary>
+        /// Optionaler Variablenname, in dem die Nummer der Ausloesung landet (1 beim ersten Mal). Sie
+        /// steht im Scope des Nebenpfads - so kann die Eskalation "zum dritten Mal" anders formulieren.
+        /// </summary>
+        public string CountVariable { get; set; }
+    }
+
+    /// <summary>
+    /// Der Endpunkt eines <b>Nebenpfads</b> (Eskalation): verbraucht das Token und sonst nichts.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst ein eigener Knoten und nicht der <see cref="EndNode"/>: der beendet den WORKFLOW (er
+    /// deklariert das Ergebnis und es darf genau einen davon geben). Ein Nebenpfad soll aber nur
+    /// auslaufen - und ohne Endpunkt wuerde sein letzter Schritt an der Regel "genau eine ausgehende
+    /// Kante" scheitern. Erreicht ein Nebenpfad diesen Knoten, ist die Runde vorbei; der zugehoerige
+    /// Timer wartet auf sein naechstes Intervall.
+    /// </remarks>
+    public class SidePathEndNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.SidePathEnd;
     }
 
     /// <summary>

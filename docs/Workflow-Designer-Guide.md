@@ -181,8 +181,10 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
   - **Assignment (CScript → user name)** — wird **einmal** ausgewertet, wenn die Aufgabe erscheint. Leer =
     Aufgabe geht in den Pool. Ein fehlschlagender Ausdruck **faultet die Instanz bewusst** (eine unzugewiesene
     Aufgabe wäre sonst für alle sichtbar).
-  - **Due in hours** — nur Anzeige/Sortierung; eine überfällige Aufgabe läuft **nicht** von selbst weiter (dafür
-    einen Timer in einem parallelen Zweig nutzen).
+  - **Due in hours** — nur Anzeige/Sortierung; eine überfällige Aufgabe läuft **nicht** von selbst weiter.
+    Soll die Frist etwas *auslösen* (erinnern, eskalieren, automatisch ablehnen), hängt eine **Deadline**
+    (🔔) an diesen Schritt — nicht ein Timer in einem parallelen Zweig, der würde den Hauptfluss am Join
+    aufhalten.
   - **What the form sees** (Inputs) — Payload, aufgelöst beim Öffnen der Aufgabe (immer aktueller Stand).
   - **What the form returns** (Outputs) + **Scope** — Ergebnis des Formulars auf Variablen abbilden.
   - **Generic form** — Felder für die generische Maske, falls keine Komponente registriert ist (Name, Art,
@@ -244,6 +246,36 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
     auf die Namen ab, mit denen es weitergeht. Leer = alles, was die Zweige geschrieben haben, fließt weiter.
     Schrieben **zwei Zweige denselben Namen**, entscheidet man hier, indem man jedem Zweig einen eigenen
     Ergebnisnamen gibt. Plus **Scope** (Konsolidierung).
+
+### Deadline 🔔 (`fa-bell`)
+
+- **Zweck:** Eine **Frist am Schritt** (BPMN: Boundary-Timer). Hängt an einem Schritt, an dem das Token
+  *parkt*, und löst nach Ablauf einen **Nebenpfad** aus — typisch eine Erinnerung. Der Hauptfluss läuft
+  dabei unverändert weiter.
+- **Ports:** ein Ausgang, **kein** Eingang (er wird nicht angeflossen, sondern hängt an seinem Schritt).
+- **Eigenschaften:**
+  - **Attached to** — der Schritt, an dem er hängt. Angeboten werden nur Schritte, an denen wirklich
+    geparkt wird: Benutzer-Aufgabe, Subworkflow, Aktivität mit Ausführungsziel.
+  - **Deadlines in hours** — Liste, der Reihe nach: `24, 12` = erste Erinnerung nach 24h, die zweite 12h
+    später.
+  - **Repeat the last interval forever** — „danach alle 2 Stunden", bis der Schritt weiterläuft.
+  - **Count variable** — bekommt die Nummer der Auslösung (1 beim ersten Mal) in den Scope des Nebenpfads.
+  - **Interrupting** — aus (normal): Nebenpfad, der Schritt wartet weiter. An: das **Haupt**-Token nimmt
+    den Pfad, der Schritt wird abgebrochen (eine wartende Aufgabe verschwindet aus der Arbeitsliste).
+
+> **Das ist NICHT ein AND-Split.** Beim Split müsste jeder Strang wieder gejoint werden — der Hauptfluss
+> hinge dann bis zum Ablauf der Frist, auch wenn die Aufgabe längst erledigt ist. Der Nebenpfad hier
+> hängt niemanden auf: er bekommt eine **Kopie** des Scopes, schreibt nicht zurück, und wird verworfen,
+> sobald das Haupt-Token weiterzieht.
+
+### Side end ⏹ (`fa-circle-stop`)
+
+- **Zweck:** Schliesst einen **Nebenpfad** ab. Verbraucht das Token — und **beendet den Workflow nicht**.
+- **Ports:** ein Eingang, kein Ausgang.
+- **Warum es das braucht:** Der letzte Schritt eines Nebenpfads bräuchte sonst eine ausgehende Kante
+  (sonst Fehler), und ein regulärer End-Knoten würde das *Ergebnis der ganzen Instanz* festschreiben,
+  obwohl nur die Eskalation gelaufen ist. Der Validator meldet es als Fehler, wenn ein Nebenpfad den
+  End-Knoten erreichen kann.
 
 ### End ⚑ (`fa-flag-checkered`)
 

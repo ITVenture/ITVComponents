@@ -1,0 +1,118 @@
+@using System.Globalization
+@using ITVComponents.Workflow.Model
+
+@*
+    Konfiguriert einen Fristen-Timer am Schritt. Er haengt an einem Schritt, an dem ein Token PARKT, und
+    loest nach Ablauf einen Nebenpfad aus - der Hauptfluss laeuft dabei unveraendert weiter. Das ist der
+    Unterschied zum AND-Split: dort muesste jeder Strang wieder gejoint werden, und der Hauptfluss haenge
+    bis zum Ablauf der Frist.
+*@
+
+@if (Node is not null)
+{
+    <MudSelect T="string" Value="@Node.AttachedToNodeId" Label="Attached to" Margin="Margin.Dense"
+               Dense="true" ValueChanged="@(v => Node.AttachedToNodeId = v)">
+        @foreach (WorkflowNode host in Hosts)
+        {
+            <MudSelectItem T="string" Value="@host.Id">@HostLabel(host)</MudSelectItem>
+        }
+    </MudSelect>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Only steps where the token actually parks can carry a deadline: user tasks, subworkflow calls and
+        activities with an execution target. A plain activity runs straight through — a timer there would
+        never fire.
+    </MudText>
+
+    <MudTextField T="string" Value="@IntervalText" ValueChanged="SetIntervals" Label="Deadlines in hours"
+                  Margin="Margin.Dense" Class="mt-3"
+                  HelperText="Comma-separated, in order: 24, 12 = first reminder after 24h, the next 12h later." />
+
+    <MudSwitch T="bool" Value="@Node.RepeatLast" ValueChanged="@(v => Node.RepeatLast = v)"
+               Color="Color.Primary" Label="Repeat the last interval forever" Class="mt-2" />
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        „24, 2" plus this = after 24h, then every 2 hours until the step moves on. Without it the timer
+        goes quiet once the list is used up.
+    </MudText>
+
+    <MudTextField T="string" Value="@Node.CountVariable" ValueChanged="@(v => Node.CountVariable = v)"
+                  Label="Count variable (optional)" Margin="Margin.Dense" Class="mt-3"
+                  HelperText="Receives the number of this trigger (1 the first time) — lets the escalation word itself differently the third time round." />
+
+    <MudDivider Class="my-3" />
+    <MudSwitch T="bool" Value="@Node.Interrupting" ValueChanged="@(v => Node.Interrupting = v)"
+               Color="Color.Error" Label="Interrupting (cancels the step)" />
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Off (normal): a side path runs and the step keeps waiting — use it to remind someone. On: the
+        <b>main</b> token takes this path and the step is cancelled — a waiting task disappears from the
+        work list. Interrupting fires once; further intervals have no effect.
+    </MudText>
+
+    @if (Node.Interrupting)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+            The step is abandoned when the deadline passes. Make sure the path leads somewhere that closes
+            the case — it continues as the main flow, so it may end at the workflow's end node.
+        </MudAlert>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+            The side path must not reach the end node — close it with a <b>side-path end</b>. Its variables
+            are a copy: what the escalation computes does not flow back into the main branch.
+        </MudAlert>
+    }
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Fristen-Timer.</summary>
+    [Parameter] public BoundaryTimerNode? Node { get; set; }
+
+    /// <summary>Die Definition - fuer die Auswahl des Schritts, an dem der Timer haengt.</summary>
+    [Parameter] public WorkflowDefinition Def { get; set; } = default!;
+
+    /// <summary>
+    /// Die Schritte, an denen ein Token parken kann. Andere anzubieten hiesse, einen Timer zu erlauben,
+    /// der nie feuert - der Validator meldet das ohnehin, aber gar nicht erst anbieten ist besser.
+    /// </summary>
+    private IEnumerable<WorkflowNode> Hosts
+        => (Def?.Nodes ?? new List<WorkflowNode>()).Where(n => n switch
+        {
+            UserActivityNode => true,
+            CallWorkflowNode => true,
+            AutomatedActivityNode a => !string.IsNullOrWhiteSpace(a.ExecutionTarget),
+            _ => false
+        });
+
+    private static string HostLabel(WorkflowNode node)
+        => string.IsNullOrWhiteSpace(node.Name) ? $"{node.Kind} ({node.Id})" : $"{node.Name} ({node.Id})";
+
+    /// <summary>
+    /// Die Intervalle als Text. Bewusst ein Textfeld statt einer Liste: drei Zahlen tippt man schneller,
+    /// als man drei Zeilen anlegt.
+    /// </summary>
+    private string IntervalText
+        => Node?.IntervalsInHours is null
+            ? string.Empty
+            : string.Join(", ", Node.IntervalsInHours.Select(h => h.ToString(CultureInfo.InvariantCulture)));
+
+    private void SetIntervals(string? text)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        // Unlesbare Eingaben werden ausgelassen statt auf 0 gesetzt - eine 0 waere ein Intervall, das der
+        // Validator dann als Fehler meldet, obwohl der Benutzer nur mitten im Tippen war.
+        Node.IntervalsInHours = (text ?? string.Empty)
+            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Trim())
+            .Where(part => part.Length > 0)
+            .Select(part => double.TryParse(part, NumberStyles.Any, CultureInfo.InvariantCulture, out double h)
+                            || double.TryParse(part, NumberStyles.Any, CultureInfo.CurrentCulture, out h)
+                ? h
+                : double.NaN)
+            .Where(h => !double.IsNaN(h))
+            .ToList();
+    }
+}
