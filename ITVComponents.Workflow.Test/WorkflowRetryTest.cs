@@ -301,6 +301,143 @@ namespace ITVComponents.Workflow.Test
             Assert.AreEqual(2, runs["b2"]);
         }
 
+        /// <summary>
+        /// Split -> zwei einstufige Zweige, die BEIDE scheitern koennen (jeder an seiner eigenen
+        /// Variable) -> AND-Join -> Ende. Nur ueber den nebenlaeufigen Weg erreichbar: sequenziell
+        /// bricht der Vortrieb beim ersten Fault ab, der zweite Zweig laeuft dann gar nicht erst.
+        /// </summary>
+        private void SaveTwoFailingBranches()
+        {
+            store.SaveDefinition(new WorkflowDefinition
+            {
+                Id = "wf",
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    new ParallelGatewayNode { Id = "split" },
+                    new AutomatedActivityNode { Id = "a1", ActivityRef = "needsA" },
+                    new AutomatedActivityNode { Id = "b1", ActivityRef = "needsB" },
+                    new ParallelGatewayNode { Id = "join" },
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    F("s", "split"), F("split", "a1"), F("split", "b1"),
+                    F("a1", "join"), F("b1", "join"), F("join", "e")
+                }
+            });
+        }
+
+        /// <remarks>
+        /// Gezaehlt wird die AUSFUEHRUNG, nicht das Protokoll: <see cref="InMemoryWorkflowStore"/> gibt bei
+        /// <c>GetInstance</c> dieselbe Objektreferenz zurueck (der EF-Store deserialisiert dagegen je
+        /// Aufruf). Beim direkten Treiben ueber <see cref="WorkflowEngine.RunBranch"/> sind das
+        /// in-memory-Objekt und der "frische" Stand im Commit deshalb dasselbe, und die History-Eintraege
+        /// des Zweig-Deltas landen ein zweites Mal darin. Token, Variablen und Status sind davon nicht
+        /// betroffen (das Anwenden ist dort idempotent) - Zaehler sind hier also die verlaessliche Sonde.
+        /// </remarks>
+        private static ActivityRegistry NeedsOwnVariable(IDictionary<string, int> runs)
+            => new ActivityRegistry()
+                .Register("needsA", ctx => Require(ctx, "okA", runs))
+                .Register("needsB", ctx => Require(ctx, "okB", runs));
+
+        private static void Require(WorkflowActivityContext ctx, string name, IDictionary<string, int> runs)
+        {
+            Count(runs, name);
+            if (!ctx.Variables.TryGetValue(name, out object v) || !Equals(v, true))
+            {
+                throw new InvalidOperationException($"{name} is not set");
+            }
+        }
+
+        [TestMethod]
+        public void TwoFaultedBranches_BothTokensStayActive_AndBothRestartOnRetry()
+        {
+            SaveTwoFailingBranches();
+            var runs = new Dictionary<string, int>(StringComparer.Ordinal);
+            var engine = new WorkflowEngine(store, NeedsOwnVariable(runs));
+
+            // Nebenlaeufiger Weg von Hand nachgestellt: je Zweig ein RunBranch, wie es der Runner tut.
+            WorkflowInstance inst = engine.CreateInstance("wf");
+            string startToken = inst.ActiveTokens.Single().Id;
+            IReadOnlyList<string> branches = engine.RunBranch(inst.Id, startToken);
+            Assert.AreEqual(2, branches.Count, "der Split erzeugt zwei Zweige.");
+
+            foreach (string branch in branches)
+            {
+                engine.RunBranch(inst.Id, branch);
+            }
+
+            WorkflowInstance faulted = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, faulted.Status);
+            Assert.AreEqual(1, runs["okA"], "Zweig A lief einmal und scheiterte.");
+            Assert.AreEqual(1, runs["okB"], "Zweig B ebenfalls - ein Fault blockiert RunBranch nicht.");
+            CollectionAssert.AreEquivalent(new[] { "a1", "b1" },
+                faulted.ActiveTokens.Select(t => t.NodeId).ToList(),
+                "beide Tokens bleiben aktiv auf ihrem Knoten stehen.");
+
+            // Der Wiederaufsatzpunkt ist EINER - der zuletzt gemeldete Fehler.
+            Token point = WorkflowEngine.FindRetryPoint(faulted);
+            Assert.IsNotNull(point);
+            CollectionAssert.Contains(new[] { "a1", "b1" }, point.NodeId);
+
+            // Ein Retry gibt die Instanz frei; angefasst wird kein einziges Token.
+            engine.RetryFaulted(inst.Id);
+            WorkflowInstance resumed = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Running, resumed.Status);
+            Assert.AreEqual(2, resumed.ActiveTokens.Count(), "beide Zweige sind weiterhin aktiv...");
+
+            // ...und werden beide erneut ausgefuehrt (der Runner reiht alle aktiven Tokens ein).
+            foreach (Token t in resumed.ActiveTokens.ToList())
+            {
+                engine.RunBranch(inst.Id, t.Id);
+            }
+
+            WorkflowInstance again = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, again.Status, "ohne Korrektur scheitern wieder beide.");
+            Assert.AreEqual(2, runs["okA"], "Zweig A wurde tatsaechlich erneut ausgefuehrt...");
+            Assert.AreEqual(2, runs["okB"], "...und Zweig B ebenso. EIN Retry stoesst BEIDE wieder an.");
+            Assert.AreEqual(2, again.ActiveTokens.Count(), "und beide stehen wieder auf ihrer Fehlerstelle.");
+        }
+
+        [TestMethod]
+        public void TwoFaultedBranches_CorrectionReachesOnlyTheBranchOfTheRetryPoint()
+        {
+            // WICHTIG: die Korrektur geht in den Scope EINES Tokens (des Wiederaufsatzpunkts). Nach einem
+            // Split hat jeder Zweig seinen eigenen Scope - der andere sieht sie also nicht. Zwei kaputte
+            // Zweige brauchen deshalb zwei Durchgaenge.
+            SaveTwoFailingBranches();
+            var runs = new Dictionary<string, int>(StringComparer.Ordinal);
+            var engine = new WorkflowEngine(store, NeedsOwnVariable(runs));
+
+            WorkflowInstance inst = engine.CreateInstance("wf");
+            foreach (string branch in engine.RunBranch(inst.Id, inst.ActiveTokens.Single().Id))
+            {
+                engine.RunBranch(inst.Id, branch);
+            }
+
+            // Beide Korrekturen mitgeben - ankommen kann nur die des Wiederaufsatz-Zweigs.
+            engine.RetryFaulted(inst.Id, new Dictionary<string, object> { ["okA"] = true, ["okB"] = true });
+
+            WorkflowInstance resumed = store.GetInstance(inst.Id);
+            Token a = resumed.Tokens.Single(t => t.NodeId == "a1");
+            Token b = resumed.Tokens.Single(t => t.NodeId == "b1");
+            int corrected = new[] { a, b }.Count(t => t.Variables != null && t.Variables.ContainsKey("okA"));
+            Assert.AreEqual(1, corrected,
+                "nur der Zweig des Wiederaufsatzpunkts bekommt die Korrektur - der andere hat seinen eigenen Scope.");
+
+            foreach (Token t in resumed.ActiveTokens.ToList())
+            {
+                engine.RunBranch(inst.Id, t.Id);
+            }
+
+            WorkflowInstance after = store.GetInstance(inst.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, after.Status,
+                "ein Zweig laeuft durch, der andere scheitert erneut - der Fall braucht einen zweiten Retry.");
+            Assert.AreEqual(1, after.ActiveTokens.Count(),
+                "genau der noch nicht korrigierte Zweig steht noch da.");
+        }
+
         // --- Abbruch einer fehlgeschlagenen Instanz ----------------------------------------------
 
         [TestMethod]

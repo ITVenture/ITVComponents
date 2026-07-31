@@ -848,6 +848,29 @@ Endstatus werden bei gefaulteter Instanz aber nicht mehr aufgelöst).
 Die Korrektur landet im Scope **des fehlgeschlagenen Zweigs** — der Nachbarzweig hat seinen eigenen und
 sieht sie nicht. Das ist Absicht: der Join führt die Scopes anschließend zusammen.
 
+#### Wenn *mehrere* Zweige gescheitert sind
+
+Das kann nur im **Runner-Betrieb** passieren (sequenziell bricht der Vortrieb beim ersten Fault ab, der
+zweite Zweig läuft dann gar nicht erst). `RunBranch` hat keine Faulted-Sperre: ein bereits laufender
+Zweig führt seinen Schritt zu Ende und committet, auch wenn die Instanz inzwischen gefaultet ist. Es
+können also mehrere Tokens auf je eigener Fehlerstelle stehen.
+
+**Ein Retry stößt dann alle wieder an** — wieder, weil er keine Tokens anfasst: alle bleiben aktiv, der
+Runner reiht alle wieder ein. Belegt in `TwoFaultedBranches_BothTokensStayActive_AndBothRestartOnRetry`
+über Ausführungszähler.
+
+**Aber die Korrektur erreicht nur einen Zweig.** `FindRetryPoint` liefert *einen* Punkt (den zuletzt
+gemeldeten Fehler), und die Werte gehen in dessen Scope. Der zweite kaputte Zweig scheitert nach dem
+Retry erneut — er braucht einen zweiten Durchgang, bei dem er dann selbst der Wiederaufsatzpunkt ist.
+Die Maske zeigt entsprechend auch nur die Fehlermeldung des zuletzt gemeldeten Fehlers
+(`instance.FaultMessage` wird vom jeweils letzten Commit überschrieben; die History behält alle
+`Faulted`-Einträge). Festgehalten in
+`TwoFaultedBranches_CorrectionReachesOnlyTheBranchOfTheRetryPoint`.
+
+Das ist bewusst nicht „schlau" gelöst: mehrere gleichzeitige, *unabhängige* Fehler sind selten, und ein
+Retry, der stillschweigend mehrere Scopes gleichzeitig beschreibt, wäre schwerer nachzuvollziehen als
+zwei bewusste Durchgänge.
+
 Beides ist als Test festgehalten (`WorkflowRetryTest.ParallelFault_*`), inklusive der Zusicherung, dass
 jede Aktivität genau einmal läuft — nur die fehlgeschlagene zweimal.
 
