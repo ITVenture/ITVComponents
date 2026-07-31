@@ -18,6 +18,10 @@ window.itvWfEditor = window.itvWfEditor || (function () {
         style.textContent =
             '[data-wf-node] { cursor: grab; }' +
             '[data-wf-node]:active { cursor: grabbing; }' +
+            // Ein angedockter Fristen-Timer wird nicht gezogen (seine Lage folgt seinem Schritt) - der
+            // Zeiger soll das ankuendigen, statt ein Ziehen anzubieten, das gleich wieder zurueckspringt.
+            '[data-wf-dock-host] { cursor: pointer; }' +
+            '[data-wf-dock-host]:active { cursor: pointer; }' +
             '[data-wf-port] { cursor: crosshair; }' +
             '.itv-wf-temp-edge { stroke: var(--mud-palette-primary, #594ae2); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }' +
             '.itv-wf-temp-err { stroke: var(--mud-palette-error, #f44336); }';
@@ -378,6 +382,37 @@ window.itvWfEditor = window.itvWfEditor || (function () {
         });
     }
 
+    // --- Angedockte Fristen-Timer -------------------------------------------------------------------
+    // Ein Boundary-Timer hat keine eigene Position: er klebt am Rand seines Schritts. Den fertigen
+    // Versatz rechnet die .NET-Seite aus (GraphLayout.DockBoundaryTimers) und schreibt ihn als
+    // data-wf-dock-dx/-dy ans Timer-Element. Hier wird er nur noch auf die neue Host-Position addiert -
+    // die Andock-REGEL liegt damit weiterhin an genau einer Stelle.
+
+    function dockedTimers(svg, hostId) {
+        if (!hostId) return [];
+        const sel = '[data-wf-dock-host="' + (window.CSS && CSS.escape ? CSS.escape(hostId) : hostId) + '"]';
+        return Array.prototype.slice.call(svg.querySelectorAll(sel));
+    }
+
+    // Zieht die Timer eines Schritts auf dessen (neue) Position nach und routet ihre Nebenpfad-Kanten
+    // neu. Ohne das bliebe der Timer waehrend des Ziehens am alten Platz stehen und spraenge erst beim
+    // Loslassen zurueck an seinen Schritt.
+    function moveDockedTimers(svg, hostId, hostX, hostY) {
+        const timers = dockedTimers(svg, hostId);
+        for (let i = 0; i < timers.length; i++) {
+            const g = timers[i];
+            const dx = parseFloat(g.getAttribute('data-wf-dock-dx')) || 0;
+            const dy = parseFloat(g.getAttribute('data-wf-dock-dy')) || 0;
+            g.setAttribute('transform', 'translate(' + (hostX + dx) + ',' + (hostY + dy) + ')');
+        }
+
+        // Erst NACH dem Verschieben aller Timer routen: sonst sieht die Kante des ersten Timers die
+        // Geschwister noch an ihrer alten Stelle und weicht einem Hindernis aus, das dort nicht mehr ist.
+        for (let i = 0; i < timers.length; i++) {
+            redrawEdges(svg, timers[i].getAttribute('data-node-id'));
+        }
+    }
+
     function detachHost(hostEl) {
         const it = instances.get(hostEl);
         if (!it) return;
@@ -472,6 +507,14 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                     return;
                 }
 
+                // Angedockter Fristen-Timer: nur auswaehlen/bearbeiten, nicht ziehen. Seine Position ist
+                // abgeleitet - ein Zug wuerde beim naechsten Server-Render kommentarlos zurueckspringen.
+                if (nodeEl && nodeEl.hasAttribute('data-wf-dock-host')) {
+                    drag = { mode: 'selectNode', nodeId: nodeEl.getAttribute('data-node-id') };
+                    e.preventDefault();
+                    return;
+                }
+
                 if (nodeEl) {
                     const p = parseTranslate(nodeEl);
                     const pt = toSvgPoint(svgEl, e.clientX, e.clientY);
@@ -520,6 +563,9 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                     drag.lastX = pt.x - drag.offsetX;
                     drag.lastY = pt.y - drag.offsetY;
                     drag.g.setAttribute('transform', 'translate(' + drag.lastX + ',' + drag.lastY + ')');
+                    // Die Fristen-Timer dieses Schritts hängen mit dran - sonst löste sich der Timer
+                    // beim Ziehen sichtbar von seinem Schritt.
+                    moveDockedTimers(svgEl, drag.nodeId, drag.lastX, drag.lastY);
                     redrawEdges(svgEl, drag.nodeId);
                 } else if (drag.mode === 'edge') {
                     drag.moved = true;
@@ -565,6 +611,9 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                     } else {
                         dotNet.invokeMethodAsync('OnSelectNode', d.sourceId).catch(function () { });
                     }
+                } else if (mode === 'selectNode') {
+                    // Nicht ziehbarer Knoten (angedockter Fristen-Timer): Auswahl bzw. Eigenschaften.
+                    clickOrDouble(d.nodeId, 'OnSelectNode', 'OnEditNode');
                 } else if (mode === 'selectEdge') {
                     clickOrDouble(d.edgeId, 'OnSelectEdge', 'OnEditEdge');
                 } else if (mode === 'pan') {

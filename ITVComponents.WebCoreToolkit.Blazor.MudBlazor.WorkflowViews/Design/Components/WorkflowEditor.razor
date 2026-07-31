@@ -321,12 +321,31 @@
     // --- Interop callbacks -------------------------------------------------------------------
 
     /// <summary>Ein Knoten wurde im Canvas verschoben (finale Position in SVG-Koordinaten).</summary>
+    /// <remarks>
+    /// Ein Fristen-Timer wird hier bewusst NICHT uebernommen: seine Lage ist abgeleitet (er klebt am Rand
+    /// seines Schritts, <c>GraphLayout.DockBoundaryTimers</c>) und wuerde beim naechsten Render ohnehin
+    /// wieder ueberschrieben. Die JS-Seite laesst ihn gar nicht erst ziehen - dies ist der zweite Riegel
+    /// gegen einen veralteten Client, der sonst still eine tote Koordinate ins Modell schriebe.
+    /// </remarks>
     [JSInvokable]
     public void OnNodeMoved(string nodeId, double x, double y)
     {
         WorkflowNode? node = def?.GetNode(nodeId);
         if (node is null)
         {
+            return;
+        }
+
+        // Nur ein TATSAECHLICH angedockter Timer wird abgewiesen. Ein eben abgelegter Timer hat noch
+        // keinen Schritt - er muss frei platzierbar bleiben, bis einer zugewiesen ist (sonst klebte er
+        // unverrueckbar dort, wo die Palette ihn hingelegt hat).
+        if (node is BoundaryTimerNode timerNode
+            && !string.IsNullOrEmpty(timerNode.AttachedToNodeId)
+            && def?.GetNode(timerNode.AttachedToNodeId!) is not null)
+        {
+            LogEnvironment.LogEvent(
+                $"Workflow-Editor: Verschieben des Fristen-Timers '{nodeId}' ignoriert - seine Position "
+                + $"folgt dem Schritt '{timerNode.AttachedToNodeId}', an dem er haengt.", LogSeverity.Report);
             return;
         }
 
@@ -891,6 +910,23 @@
             }
         }
 
+        // Fristen-Timer haengen am Rand ihres Schritts; ihre Position ist ABGELEITET (GraphLayout
+        // .DockBoundaryTimers hat sie oben schon gesetzt). Damit sie auch WAEHREND des Ziehens am Schritt
+        // kleben, bekommt jeder Timer den fertigen Versatz zu seinem Host mit ins Markup - die JS-Seite
+        // rechnet ihn nur noch auf die neue Host-Position drauf. Bewusst der Versatz statt der Andock-
+        // Formel: sonst laege dieselbe Regel ein zweites Mal in graph-editor.js und beide koennten
+        // auseinanderlaufen (wie beim Kanten-Routing, das genau deshalb doppelt gepflegt werden muss).
+        var dockHostOf = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (BoundaryTimerNode timer in def.Nodes.OfType<BoundaryTimerNode>())
+        {
+            if (!string.IsNullOrEmpty(timer.Id) && !string.IsNullOrEmpty(timer.AttachedToNodeId))
+            {
+                dockHostOf[timer.Id!] = timer.AttachedToNodeId!;
+            }
+        }
+
+        var laidById = layout.Nodes.Where(n => n.Id != null).ToDictionary(n => n.Id!, n => n, StringComparer.Ordinal);
+
         // Kanten zuerst (liegen unter den Knoten).
         foreach (LaidOutEdge edge in layout.Edges)
         {
@@ -932,7 +968,17 @@
             double w = node.Width;
             double h = node.Height;
 
-            sb.Append($"<g data-wf-node data-node-id=\"{Enc(node.Id)}\" data-w=\"{N(w)}\" data-h=\"{N(h)}\" transform=\"translate({N(node.X)},{N(node.Y)})\">");
+            // Angedockter Fristen-Timer: Host + Versatz mitgeben. Das Attribut ist zugleich das Signal
+            // an die JS-Seite, dass dieser Knoten NICHT selbst gezogen wird - seine Lage folgt dem Schritt.
+            string dock = string.Empty;
+            if (node.Id != null && dockHostOf.TryGetValue(node.Id, out string? dockHostId)
+                && laidById.TryGetValue(dockHostId, out LaidOutNode? dockHost))
+            {
+                dock = $" data-wf-dock-host=\"{Enc(dockHostId)}\" data-wf-dock-dx=\"{N(node.X - dockHost.X)}\""
+                       + $" data-wf-dock-dy=\"{N(node.Y - dockHost.Y)}\"";
+            }
+
+            sb.Append($"<g data-wf-node data-node-id=\"{Enc(node.Id)}\" data-w=\"{N(w)}\" data-h=\"{N(h)}\"{dock} transform=\"translate({N(node.X)},{N(node.Y)})\">");
 
             switch (node.Shape)
             {
