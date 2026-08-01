@@ -151,16 +151,21 @@ else
             // Eine Fehlerstelle gewinnt gegen die blosse Token-Hervorhebung: dass hier etwas gescheitert
             // ist, ist die wichtigere Aussage als dass hier ein Token steht.
             bool faulted = FaultedNodeIds is not null && FaultedNodeIds.Contains(node.Id);
+            // Eine Fehlerstelle gewinnt auch gegen die eigene Konturfarbe eines Knotens; sonst gilt sie
+            // (Fristen-Timer: unterbrechend/nicht) vor der Token-Hervorhebung - sie ist die dauerhafte
+            // Aussage, das Token steht nur gerade dort.
             string stroke = faulted
                 ? "var(--mud-palette-error)"
-                : node.Highlighted ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
-            string strokeWidth = faulted || node.Highlighted ? "3" : "1.5";
+                : node.OutlineColor
+                  ?? (node.Highlighted ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)");
+            string strokeWidth = faulted || node.Highlighted ? "3" : (node.OutlineColor != null ? "2" : "1.5");
+            string dash = node.DashedOutline ? " stroke-dasharray=\"5 3\"" : string.Empty;
             string fill = faulted
                 ? "var(--mud-palette-error-hover, var(--mud-palette-surface))"
                 : node.Highlighted
                     ? "var(--mud-palette-primary-hover, var(--mud-palette-surface))"
                     : "var(--mud-palette-surface)";
-            string style = $"fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{strokeWidth}\"";
+            string style = $"fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{strokeWidth}\"{dash}";
 
             switch (node.Shape)
             {
@@ -181,12 +186,13 @@ else
                     break;
             }
 
-            if (GatewaySymbol(node.Kind) is string symbol)
+            if (node.Symbol is { } symbol)
             {
-                Text(sb, node.CenterX, node.CenterY, "middle", "var(--mud-palette-text-primary)", 20, symbol, "central");
+                Text(sb, node.CenterX, node.CenterY, "middle", "var(--mud-palette-text-primary)",
+                    symbol.FontSize, symbol.Text, "central");
             }
 
-            if (LabelBelow(node.Shape))
+            if (node.LabelBelow)
             {
                 Text(sb, node.CenterX, node.Y + node.Height + 13, "middle", "var(--mud-palette-text-primary)", 11, node.Label, null);
             }
@@ -256,7 +262,7 @@ else
 
     private static string HexagonPoints(LaidOutNode n)
     {
-        double k = Math.Min(18, n.Height / 2);
+        double k = GraphLayout.HexagonInset(n.Width, n.Height);
         return string.Join(" ",
             $"{N(n.X + k)},{N(n.Y)}",
             $"{N(n.X + n.Width - k)},{N(n.Y)}",
@@ -265,15 +271,6 @@ else
             $"{N(n.X + k)},{N(n.Y + n.Height)}",
             $"{N(n.X)},{N(n.CenterY)}");
     }
-
-    private static string? GatewaySymbol(NodeKind kind) => kind switch
-    {
-        NodeKind.ExclusiveGateway => "×",
-        NodeKind.ParallelGateway => "+",
-        _ => null
-    };
-
-    private static bool LabelBelow(NodeShape shape) => shape is NodeShape.Ellipse or NodeShape.Diamond;
 
     private static string Clip(string label) => label.Length <= 18 ? label : label.Substring(0, 16) + "…";
 }

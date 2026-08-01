@@ -17,7 +17,7 @@ Der Editor besteht aus drei Bereichen:
 | Bereich | Zweck |
 |---|---|
 | **Kopfleiste** | Id/Name/Version, Import/Export, Validieren, Speichern. |
-| **Toolbox (links, schmal)** | Eine Spalte von Symbolen — je ein Symbol pro Elementtyp. Der Tooltip erklärt jedes. Ein Klick fügt das Element in die Mitte des sichtbaren Ausschnitts ein. |
+| **Toolbox (links, schmal)** | Eine Spalte von Symbolen — je ein Symbol pro Elementtyp. Der Tooltip erklärt jedes. Ein Klick fügt das Element in die Mitte des sichtbaren Ausschnitts ein; **ziehen** legt es dort ab, wo man loslässt. Die **Deadline** 🔔 kann man dabei direkt auf einen Schritt ziehen — sie hängt sich an ihn. |
 | **Canvas** | Die Zeichenfläche. Sie füllt genau das Fenster — die Seite scrollt nie horizontal; große Graphen erreicht man über **Zoom/Pan**. |
 
 ### Auswählen, Bearbeiten, Löschen
@@ -252,10 +252,32 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 - **Zweck:** Eine **Frist am Schritt** (BPMN: Boundary-Timer). Hängt an einem Schritt, an dem das Token
   *parkt*, und löst nach Ablauf einen **Nebenpfad** aus — typisch eine Erinnerung. Der Hauptfluss läuft
   dabei unverändert weiter.
+- **Symbol im Graphen:** 🔔 in einem kurzen Sechseck (wie der Timer, nur klein), der Name darunter. Er
+  klebt halb überlappend am unteren Rand seines Schritts; mehrere reihen sich von rechts nach links auf.
+- **Man sieht ihm an, was er tut** — der Unterschied zwischen „erinnert nebenher" und „bricht den Schritt
+  ab" ist zu gross, um nur im Popup zu stehen:
+
+  | | Kontur | Bedeutung |
+  |---|---|---|
+  | **nicht unterbrechend** | **blau, gestrichelt** | Nebenpfad läuft nebenher, der Schritt wartet weiter |
+  | **unterbrechend** | **orange, durchgezogen** | der Hauptfluss nimmt den Pfad, der Schritt wird abgebrochen |
+
+  Gestrichelt/durchgezogen ist dieselbe Lesart wie in BPMN und bleibt auch dort erhalten, wo die Farbe
+  nicht ankommt (Schwarzweiss-Ausdruck, Farbfehlsichtigkeit). Die Konturfarbe schlägt die Auswahlfarbe —
+  ausgewählt zeigt sich in der Strichstärke, wie bei den Fehler-Kanten. Die beiden Punkte rechts in der
+  Canvas-Leiste sind die Legende dazu.
 - **Ports:** ein Ausgang, **kein** Eingang (er wird nicht angeflossen, sondern hängt an seinem Schritt).
+- **Anhängen per Ziehen:** die Glocke aus der Toolbox **auf einen Schritt ziehen** — der Rahmen des
+  Schritts wird dicker, sobald er als Ziel in Frage kommt; beim Loslassen dockt der Timer dort an. Genauso
+  hängt man ihn später um: den Timer selbst auf einen anderen Schritt ziehen. Neben einem Schritt
+  losgelassen springt er an seinen bisherigen zurück — seine Lage ist abgeleitet, nicht gezeichnet.
+  (Das gilt für die ganze Toolbox: jedes Werkzeug lässt sich statt anklicken auch an die Stelle ziehen,
+  an der der Knoten entstehen soll.)
 - **Eigenschaften:**
   - **Attached to** — der Schritt, an dem er hängt. Angeboten werden nur Schritte, an denen wirklich
-    geparkt wird: Benutzer-Aufgabe, Subworkflow, Aktivität mit Ausführungsziel.
+    geparkt wird: Benutzer-Aufgabe, Subworkflow, Aktivität mit Ausführungsziel. Dasselbe entscheidet, wo
+    das Ziehen andocken darf — die Regel steht am Modell (`BoundaryTimerNode.CanHost`), nicht dreifach
+    in Validator, Maske und Designer.
   - **Deadlines** — eine Liste, der Reihe nach: die erste Frist zählt ab dem Parken, jede weitere ab der
     vorigen Auslösung. **Add deadline** bzw. das Stift-Symbol öffnen einen Dialog mit demselben
     CScript-Editor wie beim gewöhnlichen Timer (Ausdruck **oder** Block mit `return`); die Pfeile ändern

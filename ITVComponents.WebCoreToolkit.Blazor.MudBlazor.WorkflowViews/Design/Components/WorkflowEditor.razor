@@ -97,7 +97,11 @@
             <div class="wf-designer">
                 <div class="wf-designer-row">
                     @* Toolbox: nur Symbole + Tooltip. Die Icons sind FontAwesome (in den Hosts ohnehin
-                       geladen) - Text braucht es nicht, der Tooltip erklaert jedes Element. *@
+                       geladen) - Text braucht es nicht, der Tooltip erklaert jedes Element.
+                       Jedes Werkzeug laesst sich auch auf die Flaeche ZIEHEN (data-wf-tool): dann
+                       entsteht der Knoten dort, wo er losgelassen wird, statt in der Mitte. Beim
+                       Fristen-Timer ist das mehr als Bequemlichkeit - auf einem Schritt losgelassen
+                       haengt er sich gleich an ihn. *@
                     <MudPaper Class="wf-rail pa-1" Elevation="1">
                         @foreach (var p in Palette)
                         {
@@ -107,7 +111,9 @@
                                         Text="@(AlreadyPresent(p.Kind) ? $"A workflow has exactly one {p.Label.ToLowerInvariant()} node." : p.Tooltip)">
                                 <MudButton Variant="Variant.Text" Class="wf-rail-btn"
                                            Disabled="@AlreadyPresent(p.Kind)"
-                                           OnClick="@(() => AddNode(p.Kind))" aria-label="@p.Label">
+                                           OnClick="@(() => { AddNode(p.Kind); })" aria-label="@p.Label"
+                                           data-wf-tool="@p.Kind"
+                                           draggable="@(AlreadyPresent(p.Kind) ? "false" : "true")">
                                     <i class="@p.Icon"></i>
                                 </MudButton>
                             </MudTooltip>
@@ -127,10 +133,18 @@
                             <MudText Typo="Typo.body2" Class="ml-2 wf-sel-label">@SelectionLabel()</MudText>
                             <MudSpacer />
                             <MudText Typo="Typo.caption" Class="mud-text-secondary wf-hint mr-3">
-                                Drag to move · double-click to edit · drag from a port to connect
+                                Drag to move · double-click to edit · drag from a port to connect ·
+                                drop a deadline on a step to attach it
                             </MudText>
                             <MudTooltip Text="Normal path"><span class="wf-legend"><span class="wf-dot wf-dot-ok"></span></span></MudTooltip>
                             <MudTooltip Text="Error path"><span class="wf-legend"><span class="wf-dot wf-dot-err"></span></span></MudTooltip>
+                            @* Die beiden Fristen-Timer sehen sonst gleich aus, tun aber Verschiedenes. *@
+                            <MudTooltip Text="Deadline, side path — reminds, the step keeps waiting (dashed outline)">
+                                <span class="wf-legend"><span class="wf-dot wf-dot-side"></span></span>
+                            </MudTooltip>
+                            <MudTooltip Text="Deadline, interrupting — cancels the step, the main flow takes the path">
+                                <span class="wf-legend"><span class="wf-dot wf-dot-interrupt"></span></span>
+                            </MudTooltip>
                         </div>
 
                         <div class="wf-canvas-host" @ref="hostEl">
@@ -322,10 +336,11 @@
 
     /// <summary>Ein Knoten wurde im Canvas verschoben (finale Position in SVG-Koordinaten).</summary>
     /// <remarks>
-    /// Ein Fristen-Timer wird hier bewusst NICHT uebernommen: seine Lage ist abgeleitet (er klebt am Rand
-    /// seines Schritts, <c>GraphLayout.DockBoundaryTimers</c>) und wuerde beim naechsten Render ohnehin
-    /// wieder ueberschrieben. Die JS-Seite laesst ihn gar nicht erst ziehen - dies ist der zweite Riegel
-    /// gegen einen veralteten Client, der sonst still eine tote Koordinate ins Modell schriebe.
+    /// Ein angedockter Fristen-Timer wird hier bewusst NICHT uebernommen: seine Lage ist abgeleitet (er
+    /// klebt am Rand seines Schritts, <c>GraphLayout.DockBoundaryTimers</c>) und wuerde beim naechsten
+    /// Render ohnehin wieder ueberschrieben. Die JS-Seite meldet sein Ablegen ueber
+    /// <see cref="OnBoundaryTimerDropped"/> - dies ist der zweite Riegel gegen einen veralteten Client,
+    /// der sonst still eine tote Koordinate ins Modell schriebe.
     /// </remarks>
     [JSInvokable]
     public void OnNodeMoved(string nodeId, double x, double y)
@@ -346,12 +361,116 @@
             LogEnvironment.LogEvent(
                 $"Workflow-Editor: Verschieben des Fristen-Timers '{nodeId}' ignoriert - seine Position "
                 + $"folgt dem Schritt '{timerNode.AttachedToNodeId}', an dem er haengt.", LogSeverity.Report);
+            // Neu zeichnen, damit der Timer sichtbar an seinen Schritt zurueckspringt, statt dort liegen
+            // zu bleiben, wo der Client ihn hingezogen hat - sonst zeigt das Bild eine Lage, die das
+            // Modell nicht kennt.
+            StateHasChanged();
             return;
         }
 
         node.Diagram ??= new DiagramShape();
         node.Diagram.X = Math.Round(x, 1);
         node.Diagram.Y = Math.Round(y, 1);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Ein Werkzeug wurde aus der Toolbox auf die Zeichenflaeche gezogen: neuer Knoten an der
+    /// Ablagestelle. Wurde ein Fristen-Timer ueber einem geeigneten Schritt losgelassen, haengt er
+    /// gleich an ihm - genau das ist der Sinn der Geste, sonst muesste man den Schritt anschliessend
+    /// im Eigenschaften-Popup auswaehlen.
+    /// </summary>
+    /// <param name="kind">die Art des Knotens (Name aus <see cref="NodeKind"/>)</param>
+    /// <param name="x">Ablagestelle X in Zeichenkoordinaten</param>
+    /// <param name="y">Ablagestelle Y</param>
+    /// <param name="targetNodeId">der Knoten unter dem Zeiger, oder null</param>
+    [JSInvokable]
+    public void OnToolDropped(string kind, double x, double y, string? targetNodeId)
+    {
+        if (def is null)
+        {
+            return;
+        }
+
+        if (!Enum.TryParse(kind, out NodeKind parsed) || !Palette.Any(p => p.Kind == parsed))
+        {
+            LogEnvironment.LogEvent(
+                $"Workflow-Editor: unbekanntes Werkzeug '{kind}' abgelegt - kein Knoten angelegt.",
+                LogSeverity.Warning);
+            return;
+        }
+
+        if (AlreadyPresent(parsed))
+        {
+            // Die Schaltflaeche ist in diesem Fall gesperrt; ein Zug koennte sie umgehen (veralteter
+            // Client, Tastatur-Drag). Zweiter Riegel, damit kein zweiter Start/Ende entsteht.
+            LogEnvironment.LogEvent(
+                $"Workflow-Editor: '{parsed}' abgelegt, obwohl bereits vorhanden - ignoriert.",
+                LogSeverity.Report);
+            return;
+        }
+
+        WorkflowNode? node = AddNode(parsed, x, y);
+        if (node is BoundaryTimerNode timer && !string.IsNullOrEmpty(targetNodeId)
+            && BoundaryTimerNode.CanHost(def.GetNode(targetNodeId!)))
+        {
+            timer.AttachedToNodeId = targetNodeId;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Ein Fristen-Timer wurde im Canvas losgelassen. Auf einem geeigneten Schritt heisst das
+    /// <b>andocken</b> (bzw. umhaengen), sonst ist es ein gewoehnliches Verschieben - solange der Timer
+    /// noch an keinem Schritt haengt.
+    /// </summary>
+    /// <remarks>
+    /// Ein bereits angedockter Timer, der NEBEN einen gueltigen Schritt fallen gelassen wird, springt
+    /// zurueck: seine Lage ist abgeleitet (<c>GraphLayout.DockBoundaryTimers</c>), eine freie Position
+    /// waere eine Angabe, die beim naechsten Zeichnen ohnehin verfaellt. Loesen tut man ihn ueber den
+    /// Schritt im Eigenschaften-Popup, nicht durch Wegziehen - sonst waere jedes ungenaue Ablegen ein
+    /// stilles Abhaengen.
+    /// </remarks>
+    /// <param name="nodeId">Id des gezogenen Fristen-Timers</param>
+    /// <param name="hostNodeId">der Schritt unter dem Zeiger, oder null</param>
+    /// <param name="x">Ablagestelle X (linke obere Ecke) in Zeichenkoordinaten</param>
+    /// <param name="y">Ablagestelle Y</param>
+    [JSInvokable]
+    public void OnBoundaryTimerDropped(string nodeId, string? hostNodeId, double x, double y)
+    {
+        if (def?.GetNode(nodeId) is not BoundaryTimerNode timer)
+        {
+            LogEnvironment.LogEvent(
+                $"Workflow-Editor: Ablegen ignoriert - '{nodeId}' ist kein Fristen-Timer (mehr).",
+                LogSeverity.Warning);
+            return;
+        }
+
+        WorkflowNode? host = string.IsNullOrEmpty(hostNodeId) ? null : def.GetNode(hostNodeId!);
+        if (host is not null && BoundaryTimerNode.CanHost(host))
+        {
+            timer.AttachedToNodeId = host.Id;
+            selectedFlow = null;
+            selectedNode = timer;
+            StateHasChanged();
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(timer.AttachedToNodeId) && def.GetNode(timer.AttachedToNodeId!) is not null)
+        {
+            LogEnvironment.LogEvent(
+                $"Workflow-Editor: Fristen-Timer '{nodeId}' neben einem Schritt losgelassen - er bleibt "
+                + $"an '{timer.AttachedToNodeId}' haengen.", LogSeverity.Report);
+            StateHasChanged();
+            return;
+        }
+
+        // Noch an keinem Schritt: frei platzierbar, sonst klebte er unverrueckbar dort, wo die Toolbox
+        // ihn hingelegt hat.
+        timer.Diagram ??= new DiagramShape();
+        timer.Diagram.X = Math.Round(x, 1);
+        timer.Diagram.Y = Math.Round(y, 1);
         StateHasChanged();
     }
 
@@ -499,11 +618,21 @@
 
     // --- Editing -----------------------------------------------------------------------------
 
-    private void AddNode(NodeKind kind)
+    /// <summary>
+    /// Legt einen neuen Knoten an und waehlt ihn aus.
+    /// </summary>
+    /// <param name="kind">die Art des Knotens</param>
+    /// <param name="dropX">
+    /// Ablagepunkt (Mitte des neuen Knotens) in Zeichenkoordinaten, wenn er per Ziehen aus der Toolbox
+    /// entstanden ist - sonst null: dann landet er in der Mitte des Sichtfensters.
+    /// </param>
+    /// <param name="dropY">Ablagepunkt Y, siehe <paramref name="dropX"/>.</param>
+    /// <returns>der neue Knoten, oder null, wenn keiner angelegt werden konnte</returns>
+    private WorkflowNode? AddNode(NodeKind kind, double? dropX = null, double? dropY = null)
     {
         if (def is null)
         {
-            return;
+            return null;
         }
 
         WorkflowNode node = kind switch
@@ -523,20 +652,41 @@
         };
 
         node.Id = NewId("n");
-        node.Name = kind.ToString();
-        // Neue Knoten in die Mitte des aktuellen Sichtfensters setzen (leicht kaskadiert), damit sie
-        // auch bei gezoomtem/verschobenem Canvas sichtbar landen und nicht ausserhalb entstehen.
-        int cascade = def.Nodes.Count % 6;
-        node.Diagram = new DiagramShape
+        // Der Name aus der Toolbox statt des Enum-Bezeichners: er ist kuerzer und in derselben Sprache
+        // wie die Leiste, aus der der Knoten kommt. Bei den kleinen Arten zaehlt das doppelt - ihre
+        // Beschriftung steht UNTER der Form und waere sonst breiter als der Knoten selbst.
+        int tool = Array.FindIndex(Palette, p => p.Kind == kind);
+        node.Name = tool >= 0 ? Palette[tool].Label : kind.ToString();
+        (double w, double h) = GraphLayout.SizeOf(kind);
+        if (dropX.HasValue && dropY.HasValue)
         {
-            X = Math.Round(viewX + viewW / 2 - 60 + (cascade * 24), 1),
-            Y = Math.Round(viewY + viewH / 2 - 30 + (cascade * 24), 1)
-        };
+            // Aus der Toolbox gezogen: der Knoten entsteht MITTIG unter dem Zeiger. Die Groesse kommt
+            // vom Layout, weil sie je Art verschieden ist - mit einem festen Versatz laege ein Gateway
+            // oder ein Fristen-Timer sichtbar neben der Stelle, auf die gezielt wurde.
+            node.Diagram = new DiagramShape
+            {
+                X = Math.Round(dropX.Value - (w / 2), 1),
+                Y = Math.Round(dropY.Value - (h / 2), 1)
+            };
+        }
+        else
+        {
+            // Ueber die Schaltflaeche angelegt: in die Mitte des aktuellen Sichtfensters (leicht
+            // kaskadiert), damit er auch bei gezoomtem/verschobenem Canvas sichtbar landet.
+            int cascade = def.Nodes.Count % 6;
+            node.Diagram = new DiagramShape
+            {
+                X = Math.Round(viewX + (viewW / 2) - (w / 2) + (cascade * 24), 1),
+                Y = Math.Round(viewY + (viewH / 2) - (h / 2) + (cascade * 24), 1)
+            };
+        }
+
         def.Nodes.Add(node);
         def.RebuildIndex();
 
         selectedFlow = null;
         selectedNode = node;
+        return node;
     }
 
     /// <summary>Loescht das aktuell gewaehlte Element (Knoten oder Kante).</summary>
@@ -961,15 +1111,20 @@
         foreach (LaidOutNode node in layout.Nodes)
         {
             bool sel = selectedNode != null && node.Id == selectedNode.Id;
-            string stroke = sel ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
-            string strokeWidth = sel ? "3" : "1.5";
+            // Die eigene Konturfarbe (Fristen-Timer: unterbrechend/nicht) schlaegt die Auswahlfarbe -
+            // dieselbe Regel wie bei den Fehler-Kanten: die Eigenschaft ist dauerhaft, die Auswahl
+            // nicht. Ausgewaehlt zeigt deshalb die Strichstaerke.
+            string stroke = node.OutlineColor
+                ?? (sel ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)");
+            string strokeWidth = sel ? "3" : (node.OutlineColor != null ? "2" : "1.5");
+            string dash = node.DashedOutline ? " stroke-dasharray=\"5 3\"" : string.Empty;
             string fill = "var(--mud-palette-surface)";
-            string style = $"fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{strokeWidth}\"";
+            string style = $"fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"{strokeWidth}\"{dash}";
             double w = node.Width;
             double h = node.Height;
 
-            // Angedockter Fristen-Timer: Host + Versatz mitgeben. Das Attribut ist zugleich das Signal
-            // an die JS-Seite, dass dieser Knoten NICHT selbst gezogen wird - seine Lage folgt dem Schritt.
+            // Angedockter Fristen-Timer: Host + Versatz mitgeben. Damit zieht die JS-Seite ihn mit, wenn
+            // sein Schritt bewegt wird, ohne die Andock-Formel ein zweites Mal zu kennen.
             string dock = string.Empty;
             if (node.Id != null && dockHostOf.TryGetValue(node.Id, out string? dockHostId)
                 && laidById.TryGetValue(dockHostId, out LaidOutNode? dockHost))
@@ -978,7 +1133,16 @@
                        + $" data-wf-dock-dy=\"{N(node.Y - dockHost.Y)}\"";
             }
 
-            sb.Append($"<g data-wf-node data-node-id=\"{Enc(node.Id)}\" data-w=\"{N(w)}\" data-h=\"{N(h)}\"{dock} transform=\"translate({N(node.X)},{N(node.Y)})\">");
+            // Ein Schritt, an dem ein Fristen-Timer haengen darf. Die Regel gehoert dem Modell
+            // (BoundaryTimerNode.CanHost) - hier steht nur ihr Ergebnis, damit die JS-Seite beim Ziehen
+            // sofort weiss, wo sie ein Andocken anbieten darf, ohne dafuer zurueckzufragen.
+            if (BoundaryTimerNode.CanHost(def.GetNode(node.Id)))
+            {
+                dock += " data-wf-dock-target=\"1\"";
+            }
+
+            sb.Append($"<g data-wf-node data-node-id=\"{Enc(node.Id)}\" data-wf-kind=\"{node.Kind}\" ")
+              .Append($"data-w=\"{N(w)}\" data-h=\"{N(h)}\"{dock} transform=\"translate({N(node.X)},{N(node.Y)})\">");
 
             switch (node.Shape)
             {
@@ -989,7 +1153,7 @@
                     sb.Append($"<polygon points=\"{N(w / 2)},0 {N(w)},{N(h / 2)} {N(w / 2)},{N(h)} 0,{N(h / 2)}\" {style} />");
                     break;
                 case NodeShape.Hexagon:
-                    double k = Math.Min(18, h / 2);
+                    double k = GraphLayout.HexagonInset(w, h);
                     sb.Append($"<polygon points=\"{N(k)},0 {N(w - k)},0 {N(w)},{N(h / 2)} {N(w - k)},{N(h)} {N(k)},{N(h)} 0,{N(h / 2)}\" {style} />");
                     break;
                 case NodeShape.Rectangle:
@@ -1000,12 +1164,13 @@
                     break;
             }
 
-            if (GatewaySymbol(node.Kind) is string symbol)
+            if (node.Symbol is { } symbol)
             {
-                AppendText(sb, w / 2, h / 2, "middle", "var(--mud-palette-text-primary)", 20, symbol, "central");
+                AppendText(sb, w / 2, h / 2, "middle", "var(--mud-palette-text-primary)",
+                    symbol.FontSize, symbol.Text, "central");
             }
 
-            if (node.Shape is NodeShape.Ellipse or NodeShape.Diamond)
+            if (node.LabelBelow)
             {
                 AppendText(sb, w / 2, h + 13, "middle", "var(--mud-palette-text-primary)", 11, node.Label, null);
             }
@@ -1058,13 +1223,6 @@
     }
 
     private static string Enc(string? s) => WebUtility.HtmlEncode(s ?? string.Empty);
-
-    private static string? GatewaySymbol(NodeKind kind) => kind switch
-    {
-        NodeKind.ExclusiveGateway => "×",
-        NodeKind.ParallelGateway => "+",
-        _ => null
-    };
 
     private static string Clip(string label) => label.Length <= 18 ? label : label.Substring(0, 16) + "…";
 

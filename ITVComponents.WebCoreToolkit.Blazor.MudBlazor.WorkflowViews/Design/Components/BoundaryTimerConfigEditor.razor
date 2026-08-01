@@ -110,6 +110,8 @@
         Off (normal): a side path runs and the step keeps waiting — use it to remind someone. On: the
         <b>main</b> token takes this path and the step is cancelled — a waiting task disappears from the
         work list. Interrupting fires once; further intervals have no effect.
+        The graph shows the difference: <b>blue and dashed</b> while it only reminds, <b>orange and
+        solid</b> once it cancels the step.
     </MudText>
 
     @if (Node.Interrupting)
@@ -140,13 +142,7 @@
     /// der nie feuert - der Validator meldet das ohnehin, aber gar nicht erst anbieten ist besser.
     /// </summary>
     private IEnumerable<WorkflowNode> Hosts
-        => (Def?.Nodes ?? new List<WorkflowNode>()).Where(n => n switch
-        {
-            UserActivityNode => true,
-            CallWorkflowNode => true,
-            AutomatedActivityNode a => !string.IsNullOrWhiteSpace(a.ExecutionTarget),
-            _ => false
-        });
+        => (Def?.Nodes ?? new List<WorkflowNode>()).Where(BoundaryTimerNode.CanHost);
 
     private static string HostLabel(WorkflowNode node)
         => string.IsNullOrWhiteSpace(node.Name) ? $"{node.Kind} ({node.Id})" : $"{node.Name} ({node.Id})";

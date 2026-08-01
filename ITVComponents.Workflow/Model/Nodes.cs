@@ -553,6 +553,33 @@ namespace ITVComponents.Workflow.Model
         }
 
         /// <summary>
+        /// Ob an dem angegebenen Schritt ein Fristen-Timer haengen darf: nur dort, wo das Token
+        /// tatsaechlich PARKT. Eine gewoehnliche Aktivitaet laeuft synchron durch - ein Timer an ihr
+        /// koennte nie feuern.
+        /// </summary>
+        /// <remarks>
+        /// Die Regel steht bewusst am Modell und nicht im Validator: sie wird an drei Stellen
+        /// gebraucht (Pruefung, Auswahlliste im Editor, Andocken per Ziehen im Designer). Drei Kopien
+        /// derselben Bedingung wuerden frueher oder spaeter auseinanderlaufen - und die Oberflaeche
+        /// boete dann etwas an, das der Validator gleich darauf beanstandet.
+        /// </remarks>
+        /// <param name="node">der Schritt (darf null sein)</param>
+        /// <returns>true, wenn an diesem Schritt ein Fristen-Timer haengen darf</returns>
+        public static bool CanHost(WorkflowNode node)
+        {
+            switch (node)
+            {
+                case UserActivityNode _:
+                case CallWorkflowNode _:
+                    return true;
+                case AutomatedActivityNode a:
+                    return !string.IsNullOrWhiteSpace(a.ExecutionTarget);
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
         /// Uebernimmt den Altbestand einmalig in <see cref="Deadlines"/> und leert ihn. Der Editor ruft
         /// das beim Oeffnen, damit die Definition beim naechsten Speichern in der neuen Form liegt.
         /// Liefert true, wenn dabei etwas umgestellt wurde.

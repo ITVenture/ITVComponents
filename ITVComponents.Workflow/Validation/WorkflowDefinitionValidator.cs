@@ -375,14 +375,7 @@ namespace ITVComponents.Workflow.Validation
             {
                 // Feuern kann er nur, wo das Token stehen bleibt. Eine gewoehnliche Aktivitaet laeuft
                 // synchron durch - dort waere der Timer eine stille Attrappe.
-                bool parks = host switch
-                {
-                    UserActivityNode => true,
-                    CallWorkflowNode => true,
-                    AutomatedActivityNode a => !string.IsNullOrWhiteSpace(a.ExecutionTarget),
-                    _ => false
-                };
-                if (!parks)
+                if (!BoundaryTimerNode.CanHost(host))
                 {
                     issues.Add(Warn(timer.Id,
                         $"Boundary timer '{Label(timer)}' is attached to '{Label(host)}', where the token does " +

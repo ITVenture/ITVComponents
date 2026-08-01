@@ -18,11 +18,12 @@ window.itvWfEditor = window.itvWfEditor || (function () {
         style.textContent =
             '[data-wf-node] { cursor: grab; }' +
             '[data-wf-node]:active { cursor: grabbing; }' +
-            // Ein angedockter Fristen-Timer wird nicht gezogen (seine Lage folgt seinem Schritt) - der
-            // Zeiger soll das ankuendigen, statt ein Ziehen anzubieten, das gleich wieder zurueckspringt.
-            '[data-wf-dock-host] { cursor: pointer; }' +
-            '[data-wf-dock-host]:active { cursor: pointer; }' +
             '[data-wf-port] { cursor: crosshair; }' +
+            // Der Schritt unter einem Fristen-Timer, der gerade gezogen wird: dickerer, farbiger Rand.
+            // CSS schlaegt die als Attribut gesetzte Kontur - deshalb genuegt eine Regel, ohne dass der
+            // Server-Render davon wissen muesste.
+            '[data-wf-dock-over] > polygon, [data-wf-dock-over] > rect, [data-wf-dock-over] > ellipse {' +
+            ' stroke: var(--mud-palette-primary, #594ae2); stroke-width: 4; }' +
             '.itv-wf-temp-edge { stroke: var(--mud-palette-primary, #594ae2); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }' +
             '.itv-wf-temp-err { stroke: var(--mud-palette-error, #f44336); }';
         document.head.appendChild(style);
@@ -383,10 +384,12 @@ window.itvWfEditor = window.itvWfEditor || (function () {
     }
 
     // --- Angedockte Fristen-Timer -------------------------------------------------------------------
-    // Ein Boundary-Timer hat keine eigene Position: er klebt am Rand seines Schritts. Den fertigen
-    // Versatz rechnet die .NET-Seite aus (GraphLayout.DockBoundaryTimers) und schreibt ihn als
+    // Ein angedockter Boundary-Timer hat keine eigene Position: er klebt am Rand seines Schritts. Den
+    // fertigen Versatz rechnet die .NET-Seite aus (GraphLayout.DockBoundaryTimers) und schreibt ihn als
     // data-wf-dock-dx/-dy ans Timer-Element. Hier wird er nur noch auf die neue Host-Position addiert -
     // die Andock-REGEL liegt damit weiterhin an genau einer Stelle.
+    // Ziehen laesst er sich trotzdem: nicht um ihn frei zu legen, sondern um ihn auf einen ANDEREN
+    // Schritt zu setzen (siehe "Andocken per Ziehen" weiter unten).
 
     function dockedTimers(svg, hostId) {
         if (!hostId) return [];
@@ -413,6 +416,41 @@ window.itvWfEditor = window.itvWfEditor || (function () {
         }
     }
 
+    // --- Andocken per Ziehen ------------------------------------------------------------------------
+    // Ein Fristen-Timer haengt an einem Schritt. Man kann ihn dorthin ZIEHEN - aus der Toolbox oder von
+    // seinem bisherigen Schritt weg. Welche Schritte in Frage kommen, entscheidet die .NET-Seite
+    // (BoundaryTimerNode.CanHost) und markiert sie mit data-wf-dock-target; hier steht nur die Geste.
+
+    const TIMER_KIND = 'BoundaryTimer';
+
+    // Der Schritt unter einem Punkt, an dem ein Fristen-Timer haengen darf - oder null.
+    function dockTargetAt(el) {
+        if (!el || !el.closest) return null;
+        return el.closest('[data-wf-node][data-wf-dock-target]');
+    }
+
+    function dockTargetAtPoint(clientX, clientY) {
+        return dockTargetAt(document.elementFromPoint(clientX, clientY));
+    }
+
+    // Genau EIN Schritt ist hervorgehoben. Bewusst nur bei Wechsel angefasst: bei jedem Zeigerschritt
+    // Attribute zu setzen und zu loeschen laesst den Rand flackern.
+    function showDockHint(svg, g) {
+        const current = svg.querySelector('[data-wf-dock-over]');
+        if (current === g) return;
+        if (current) current.removeAttribute('data-wf-dock-over');
+        if (g) g.setAttribute('data-wf-dock-over', '1');
+    }
+
+    function clearDockHint(svg) {
+        showDockHint(svg, null);
+    }
+
+    // Das Werkzeug, das gerade aus der Toolbox gezogen wird (HTML5-Drag). Modulweit, weil dragstart am
+    // Dokument haengt: die Toolbox liegt ausserhalb des Canvas, und waehrend eines Zuges kommt man an
+    // die Nutzlast (dataTransfer) nur beim Ablegen heran - fuer die Vorschau braucht es sie frueher.
+    let toolDrag = null;
+
     function detachHost(hostEl) {
         const it = instances.get(hostEl);
         if (!it) return;
@@ -421,7 +459,12 @@ window.itvWfEditor = window.itvWfEditor || (function () {
         it.svgEl.removeEventListener('pointerup', it.onUp);
         it.svgEl.removeEventListener('pointercancel', it.onUp);
         it.svgEl.removeEventListener('wheel', it.onWheel);
+        it.svgEl.removeEventListener('dragover', it.onDragOver);
+        it.svgEl.removeEventListener('dragleave', it.onDragLeave);
+        it.svgEl.removeEventListener('drop', it.onDrop);
         document.removeEventListener('keydown', it.onKey);
+        document.removeEventListener('dragstart', it.onToolDragStart);
+        document.removeEventListener('dragend', it.onToolDragEnd);
         if (it.viewTimer) clearTimeout(it.viewTimer);
         instances.delete(hostEl);
     }
@@ -507,14 +550,6 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                     return;
                 }
 
-                // Angedockter Fristen-Timer: nur auswaehlen/bearbeiten, nicht ziehen. Seine Position ist
-                // abgeleitet - ein Zug wuerde beim naechsten Server-Render kommentarlos zurueckspringen.
-                if (nodeEl && nodeEl.hasAttribute('data-wf-dock-host')) {
-                    drag = { mode: 'selectNode', nodeId: nodeEl.getAttribute('data-node-id') };
-                    e.preventDefault();
-                    return;
-                }
-
                 if (nodeEl) {
                     const p = parseTranslate(nodeEl);
                     const pt = toSvgPoint(svgEl, e.clientX, e.clientY);
@@ -522,6 +557,10 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                         mode: 'node',
                         nodeId: nodeEl.getAttribute('data-node-id'),
                         g: nodeEl,
+                        // Ein Fristen-Timer wird nicht bloss verschoben: er wird auf einen Schritt
+                        // GEZOGEN. Deshalb wird beim Ziehen der Schritt darunter hervorgehoben und
+                        // beim Loslassen ein anderer Rueckweg genommen.
+                        isTimer: nodeEl.getAttribute('data-wf-kind') === TIMER_KIND,
                         offsetX: pt.x - p.x,
                         offsetY: pt.y - p.y,
                         startClientX: e.clientX,
@@ -530,6 +569,11 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                         lastY: p.y,
                         moved: false
                     };
+                    // Der gezogene Timer liegt selbst unter dem Zeiger und wuerde den Schritt darunter
+                    // verdecken - ohne das faende elementFromPoint immer nur ihn.
+                    if (drag.isTimer) {
+                        nodeEl.style.pointerEvents = 'none';
+                    }
                     try { svgEl.setPointerCapture(e.pointerId); } catch (_) { /* no capture */ }
                     e.preventDefault();
                     return;
@@ -567,6 +611,9 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                     // beim Ziehen sichtbar von seinem Schritt.
                     moveDockedTimers(svgEl, drag.nodeId, drag.lastX, drag.lastY);
                     redrawEdges(svgEl, drag.nodeId);
+                    if (drag.isTimer) {
+                        showDockHint(svgEl, drag.moved ? dockTargetAtPoint(e.clientX, e.clientY) : null);
+                    }
                 } else if (drag.mode === 'edge') {
                     drag.moved = true;
                     drag.tempLine.setAttribute('x2', pt.x);
@@ -595,10 +642,22 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                 drag = null;
 
                 if (mode === 'node') {
-                    if (d.moved) {
-                        dotNet.invokeMethodAsync('OnNodeMoved', d.nodeId, d.lastX, d.lastY).catch(function () { });
-                    } else {
+                    if (d.isTimer) {
+                        d.g.style.pointerEvents = '';
+                        clearDockHint(svgEl);
+                    }
+
+                    if (!d.moved) {
                         clickOrDouble(d.nodeId, 'OnSelectNode', 'OnEditNode');
+                    } else if (d.isTimer) {
+                        // Auf einem geeigneten Schritt losgelassen = andocken; sonst entscheidet die
+                        // .NET-Seite, ob der Timer frei liegen bleibt oder an seinen Schritt zurueckspringt.
+                        const host = dockTargetAtPoint(e.clientX, e.clientY);
+                        dotNet.invokeMethodAsync('OnBoundaryTimerDropped', d.nodeId,
+                            host ? host.getAttribute('data-node-id') : null, d.lastX, d.lastY)
+                            .catch(function () { });
+                    } else {
+                        dotNet.invokeMethodAsync('OnNodeMoved', d.nodeId, d.lastX, d.lastY).catch(function () { });
                     }
                 } else if (mode === 'edge') {
                     let targetId = null;
@@ -611,9 +670,6 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                     } else {
                         dotNet.invokeMethodAsync('OnSelectNode', d.sourceId).catch(function () { });
                     }
-                } else if (mode === 'selectNode') {
-                    // Nicht ziehbarer Knoten (angedockter Fristen-Timer): Auswahl bzw. Eigenschaften.
-                    clickOrDouble(d.nodeId, 'OnSelectNode', 'OnEditNode');
                 } else if (mode === 'selectEdge') {
                     clickOrDouble(d.edgeId, 'OnSelectEdge', 'OnEditEdge');
                 } else if (mode === 'pan') {
@@ -644,6 +700,64 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                 reportView();
             }
 
+            // --- Werkzeug aus der Toolbox ziehen (HTML5-Drag) --------------------------------------
+            // Die Toolbox liegt ausserhalb des Canvas; deshalb faengt der Start am Dokument an. Ein
+            // delegierter Listener statt einer je Schaltflaeche: Blazor baut die Leiste bei jedem Render
+            // neu auf, direkt angehaengte Listener waeren danach an Elementen, die es nicht mehr gibt.
+            function onToolDragStart(e) {
+                const tool = e.target && e.target.closest ? e.target.closest('[data-wf-tool]') : null;
+                if (!tool || tool.hasAttribute('disabled')) {
+                    return;
+                }
+
+                toolDrag = { kind: tool.getAttribute('data-wf-tool') };
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'copy';
+                    // Ohne Nutzlast startet in manchen Browsern gar kein Zug.
+                    try { e.dataTransfer.setData('text/plain', toolDrag.kind); } catch (_) { /* egal */ }
+                }
+            }
+
+            function onToolDragEnd() {
+                toolDrag = null;
+                clearDockHint(svgEl);
+            }
+
+            function onDragOver(e) {
+                if (!toolDrag) {
+                    return;
+                }
+
+                // Ohne preventDefault lehnt der Browser das Ablegen ab (Standard: kein Ziel).
+                e.preventDefault();
+                if (e.dataTransfer) {
+                    e.dataTransfer.dropEffect = 'copy';
+                }
+
+                showDockHint(svgEl, toolDrag.kind === TIMER_KIND ? dockTargetAt(e.target) : null);
+            }
+
+            function onDragLeave(e) {
+                if (!e.relatedTarget || !svgEl.contains(e.relatedTarget)) {
+                    clearDockHint(svgEl);
+                }
+            }
+
+            function onDrop(e) {
+                if (!toolDrag) {
+                    return;
+                }
+
+                e.preventDefault();
+                const kind = toolDrag.kind;
+                toolDrag = null;
+                const host = kind === TIMER_KIND ? dockTargetAt(e.target) : null;
+                clearDockHint(svgEl);
+                const pt = toSvgPoint(svgEl, e.clientX, e.clientY);
+                dotNet.invokeMethodAsync('OnToolDropped', kind, pt.x, pt.y,
+                    host ? host.getAttribute('data-node-id') : null).catch(function () { });
+            }
+
             // Entf-Taste loescht die Auswahl - aber nicht, waehrend in einem Feld/Editor getippt wird.
             function onKey(e) {
                 if (e.key !== 'Delete') return;
@@ -660,12 +774,22 @@ window.itvWfEditor = window.itvWfEditor || (function () {
             svgEl.addEventListener('pointerup', onUp);
             svgEl.addEventListener('pointercancel', onUp);
             svgEl.addEventListener('wheel', onWheel, { passive: false });
+            svgEl.addEventListener('dragover', onDragOver);
+            svgEl.addEventListener('dragleave', onDragLeave);
+            svgEl.addEventListener('drop', onDrop);
             document.addEventListener('keydown', onKey);
+            document.addEventListener('dragstart', onToolDragStart);
+            document.addEventListener('dragend', onToolDragEnd);
             inst.onDown = onDown;
             inst.onMove = onMove;
             inst.onUp = onUp;
             inst.onWheel = onWheel;
             inst.onKey = onKey;
+            inst.onToolDragStart = onToolDragStart;
+            inst.onToolDragEnd = onToolDragEnd;
+            inst.onDragOver = onDragOver;
+            inst.onDragLeave = onDragLeave;
+            inst.onDrop = onDrop;
             instances.set(hostEl, inst);
         },
 

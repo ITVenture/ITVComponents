@@ -61,11 +61,51 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// <summary>Hervorgehoben (z.B. aktuelle Token-Position einer Instanz).</summary>
         public bool Highlighted { get; init; }
 
+        /// <summary>
+        /// Die Konturfarbe, wenn dieser Knoten eine eigene traegt - sonst null (uebliche Linienfarbe).
+        /// </summary>
+        /// <remarks>
+        /// Sie schlaegt die Auswahlfarbe, genau wie bei den Fehler-Kanten: die Eigenschaft ist
+        /// dauerhaft, die Auswahl nicht - die zeigt sich in der Strichstaerke.
+        /// </remarks>
+        public string? OutlineColor { get; init; }
+
+        /// <summary>
+        /// Gestrichelte Kontur. Zweites, <b>farbunabhaengiges</b> Merkmal - es bleibt auch im
+        /// Schwarzweiss-Ausdruck und fuer Farbfehlsichtige erhalten.
+        /// </summary>
+        public bool DashedOutline { get; init; }
+
         /// <summary>Mittelpunkt X.</summary>
         public double CenterX => X + (Width / 2);
 
         /// <summary>Mittelpunkt Y.</summary>
         public double CenterY => Y + (Height / 2);
+
+        /// <summary>
+        /// Das Zeichen, das <b>in</b> der Form steht, samt Schriftgroesse - oder null, wenn dieser
+        /// Knoten keines hat.
+        /// </summary>
+        /// <remarks>
+        /// Kleine Knoten tragen ihre Aussage im Symbol statt im Text: die Form ist zu klein fuer eine
+        /// Beschriftung, das Zeichen nicht. Die Beschriftung steht bei ihnen unter der Form
+        /// (<see cref="LabelBelow"/>).
+        /// </remarks>
+        public (string Text, int FontSize)? Symbol => Kind switch
+        {
+            NodeKind.ExclusiveGateway => ("×", 20),
+            NodeKind.ParallelGateway => ("+", 20),
+            NodeKind.BoundaryTimer => ("🔔", 15),
+            _ => null
+        };
+
+        /// <summary>
+        /// Ob die Beschriftung <b>unter</b> der Form steht statt in ihr. Gilt fuer alle Knoten, deren
+        /// Form kleiner ist als ein lesbarer Text - ein Name mitten durch eine 40px-Raute waere
+        /// breiter als der Knoten selbst.
+        /// </summary>
+        public bool LabelBelow => Shape is NodeShape.Ellipse or NodeShape.Diamond
+                                  || Kind == NodeKind.BoundaryTimer;
     }
 
     /// <summary>
@@ -217,7 +257,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     Y = y,
                     Width = w,
                     Height = h,
-                    Highlighted = node.Id != null && highlight.Contains(node.Id)
+                    Highlighted = node.Id != null && highlight.Contains(node.Id),
+                    OutlineColor = OutlineColorFor(node),
+                    // Gestrichelt = der Nebenpfad laeuft NEBENHER; durchgezogen = der Hauptfluss nimmt
+                    // ihn. Dieselbe Lesart wie in BPMN, wo das nicht unterbrechende Boundary-Event
+                    // gestrichelt gezeichnet wird.
+                    DashedOutline = node is BoundaryTimerNode { Interrupting: false }
                 };
                 nodes.Add(laid);
                 if (laid.Id != null)
@@ -596,6 +641,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             }
         }
 
+        /// <summary>
+        /// Die Zeichengroesse eines Knotens seiner Art. Oeffentlich, weil der Editor sie braucht, um
+        /// einen abgelegten Knoten auf den Mauszeiger zu zentrieren - mit einer eigenen Annahme laege
+        /// er bei den kleinen Arten (Gateway, Fristen-Timer) sichtbar daneben.
+        /// </summary>
+        /// <param name="kind">die Art des Knotens</param>
+        /// <returns>Breite und Hoehe</returns>
+        public static (double W, double H) SizeOf(NodeKind kind) => SizeFor(kind);
+
         private static (double W, double H) SizeFor(NodeKind kind)
         {
             switch (kind)
@@ -610,11 +664,37 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     // Etwas kleiner als das Ende: ein Nebenpfad-Abschluss ist die leisere Aussage.
                     return (38, 38);
                 case NodeKind.BoundaryTimer:
-                    // Klein, weil er am Rand seines Schritts klebt und ihn nicht verdecken soll.
-                    return (34, 34);
+                    // Klein, weil er am Rand seines Schritts klebt und ihn nicht verdecken soll - aber
+                    // breiter als hoch, damit die Grundform ein kurzes Sechseck bleibt (bei gleicher
+                    // Breite und Hoehe faellt sie zur Raute zusammen und sieht aus wie ein Gateway).
+                    return (44, 32);
                 default:
                     return (140, 54);
             }
+        }
+
+        /// <summary>
+        /// Die Konturfarbe eines Knotens, oder null fuer die uebliche Linienfarbe.
+        /// </summary>
+        /// <remarks>
+        /// Bisher nur der Fristen-Timer, und dort aus gutem Grund: <b>unterbrechend</b> oder nicht ist
+        /// der groesste Unterschied, den zwei sonst gleich aussehende Knoten haben koennen - einmal
+        /// laeuft eine Erinnerung nebenher, einmal wird der Schritt ABGEBROCHEN und die wartende
+        /// Aufgabe verschwindet aus der Arbeitsliste. Das stand bisher nur im Eigenschaften-Popup; im
+        /// Bild waren beide dasselbe Symbol.
+        /// <para>
+        /// Orange = greift in den Hauptfluss ein, Blau = laeuft nebenher. Bewusst nicht Rot: der
+        /// unterbrechende Timer ist kein Fehlerpfad, und Rot ist im Graphen bereits vergeben.
+        /// </para>
+        /// </remarks>
+        private static string? OutlineColorFor(WorkflowNode node)
+        {
+            if (node is not BoundaryTimerNode timer)
+            {
+                return null;
+            }
+
+            return timer.Interrupting ? "var(--mud-palette-warning)" : "var(--mud-palette-info)";
         }
 
         private static NodeShape ShapeFor(NodeKind kind)
@@ -639,6 +719,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     return NodeShape.RoundedRectangle;
             }
         }
+
+        /// <summary>
+        /// Die waagrechte Einrueckung der beiden schraegen Sechseck-Kanten. Die Deckelung auf ein
+        /// Viertel der Breite ist der Grund, warum auch ein kleines Sechseck eines bleibt: ohne sie
+        /// waere die Einrueckung bei einem 44px breiten Knoten die halbe Breite - und die Form damit
+        /// eine Raute.
+        /// </summary>
+        /// <param name="width">Breite des Knotens</param>
+        /// <param name="height">Hoehe des Knotens</param>
+        /// <returns>die Einrueckung in Zeichenkoordinaten</returns>
+        public static double HexagonInset(double width, double height)
+            => Math.Min(18, Math.Min(width / 4, height / 2));
 
         /// <summary>
         /// Beschriftung eines Knotens. Ein Join, der das Ergebnis seiner parallelen Region deklariert,
@@ -674,9 +766,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 NodeKind.CallWorkflow => "🔗 " + text,
                 NodeKind.Timer => "🕐 " + text,
                 NodeKind.Wait => "⏳ " + text,
-                // Glocke = Frist am Schritt (loest einen Nebenpfad aus), bewusst anders als die Uhr des
-                // gewoehnlichen Timers: der eine haelt den Zweig an, der andere laeuft nebenher.
-                NodeKind.BoundaryTimer => "🔔 " + text,
+                // Der Fristen-Timer bekommt hier bewusst KEINEN Marker: seine Glocke steht in der Form
+                // (LaidOutNode.Symbol), sein Name darunter. Als Praefix vorangestellt waere sie Teil
+                // eines Textes, der neben einem 44px-Knoten stuende - deshalb dort und nicht hier.
                 _ => text
             };
         }
