@@ -97,6 +97,11 @@ window.itvWfEditor = window.itvWfEditor || (function () {
     // ---------------------------------------------------------------------------------------------
 
     const CLEARANCE = 14;
+    // Endstueck vor dem ZIEL - dort sitzt die Pfeilspitze. Laenger als CLEARANCE, weil der Marker in
+    // Vielfachen der Strichstaerke gezeichnet wird: seine 8 Einheiten sind bei 1.5 rund 12 und bei einer
+    // ausgewaehlten Kante (2.5) rund 20 Pixel. Auf 14 blieben davon wenige Pixel gerade Linie uebrig, und
+    // die Richtung war nicht mehr abzulesen. Muss zu EdgeRouter.TargetStub passen.
+    const TARGET_STUB = 2 * CLEARANCE;
     const TURN_PENALTY = 30;
     const ESCAPE_MARGIN = 40;
     const LOCAL_MARGIN = 160;
@@ -336,7 +341,7 @@ window.itvWfEditor = window.itvWfEditor || (function () {
         const p = anchorOf(sourceBox, sSide, sOff);
         const q = alignEnds(sourceBox, sSide, p, targetBox, tSide, anchorOf(targetBox, tSide, tOff));
         const s = advance(p, sSide, CLEARANCE);
-        const t = advance(q, tSide, CLEARANCE);
+        const t = advance(q, tSide, TARGET_STUB);
         const middle = findPath(s, sSide, t, tSide, obstacles) || fallbackPath(s, sSide, t, tSide);
         return simplify([p].concat(middle).concat([q]));
     }

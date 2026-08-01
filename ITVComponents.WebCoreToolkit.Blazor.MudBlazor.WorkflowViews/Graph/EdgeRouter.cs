@@ -121,6 +121,20 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// <summary>Abstand, den eine Linie zu jedem Knoten haelt.</summary>
         public const double Clearance = 14;
 
+        /// <summary>
+        /// Laenge des geraden Endstuecks VOR dem Zielknoten - dort, wo die Pfeilspitze sitzt.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst laenger als <see cref="Clearance"/>: der Marker wird in Vielfachen der Strichstaerke
+        /// gezeichnet (SVG-Standard <c>markerUnits="strokeWidth"</c>), seine 8 Einheiten sind bei
+        /// Strichstaerke 1.5 also 12 und bei einer ausgewaehlten Kante (2.5) rund 20 Pixel. Mit einem
+        /// Endstueck von 14 blieben davon wenige Pixel gerade Linie uebrig - der Pfeil sass praktisch
+        /// auf der letzten Ecke und die Richtung war nicht mehr abzulesen. Der Selbstbezug
+        /// (<see cref="RouteSelfLoop"/>) faehrt aus demselben Grund schon immer mit
+        /// <c>2 * Clearance</c> ein.
+        /// </remarks>
+        public const double TargetStub = 2 * Clearance;
+
         /// <summary>Aufschlag je Richtungswechsel - macht wenige Ecken billiger als kurze Wege.</summary>
         private const double TurnPenalty = 30;
 
@@ -162,7 +176,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             GraphPoint q = Anchor(target, targetSide, targetOffset);
             (p, q) = Align(source, sourceSide, p, target, targetSide, q);
             GraphPoint s = Advance(p, sourceSide, Clearance);
-            GraphPoint t = Advance(q, targetSide, Clearance);
+            // Zielseite laenger: dort steht die Pfeilspitze (siehe TargetStub). Der Punkt liegt damit
+            // ausserhalb des aufgeblasenen Hindernis-Rechtecks statt genau auf dessen Rand - fuer die
+            // Wegsuche unkritisch, sie sucht ohnehin nur ab hier.
+            GraphPoint t = Advance(q, targetSide, TargetStub);
 
             IReadOnlyList<GraphPoint> middle = FindPath(s, sourceSide, t, targetSide, obstacles)
                                               ?? Fallback(s, sourceSide, t, targetSide);
