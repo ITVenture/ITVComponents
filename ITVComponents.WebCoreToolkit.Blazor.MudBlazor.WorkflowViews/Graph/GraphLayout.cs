@@ -246,10 +246,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             foreach (WorkflowNode node in definition.Nodes)
             {
                 (double w, double h) = SizeFor(node.Kind);
-                (double x, double y) = positions.TryGetValue(node.Id, out var p) ? p : (Margin, Margin);
+                // Die Id einmal greifen: sie kann fehlen (der Validator meldet das, gezeichnet wird
+                // trotzdem). Ohne sie gibt es keinen Eintrag in der Positionstabelle - TryGetValue
+                // wuerfe mit null sogar -, und der Knoten landet am Rand wie jeder unbekannte auch.
+                string? id = node.Id;
+                (double x, double y) = id != null && positions.TryGetValue(id, out var p)
+                    ? p
+                    : (Margin, Margin);
                 var laid = new LaidOutNode
                 {
-                    Id = node.Id,
+                    Id = id ?? string.Empty,
                     Label = NodeLabel(node),
                     Kind = node.Kind,
                     Shape = ShapeFor(node.Kind),
@@ -257,7 +263,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     Y = y,
                     Width = w,
                     Height = h,
-                    Highlighted = node.Id != null && highlight.Contains(node.Id),
+                    Highlighted = id != null && highlight.Contains(id),
                     OutlineColor = OutlineColorFor(node),
                     // Gestrichelt = der Nebenpfad laeuft NEBENHER; durchgezogen = der Hauptfluss nimmt
                     // ihn. Dieselbe Lesart wie in BPMN, wo das nicht unterbrechende Boundary-Event
@@ -265,7 +271,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     DashedOutline = node is BoundaryTimerNode { Interrupting: false }
                 };
                 nodes.Add(laid);
-                if (laid.Id != null)
+                // Ein Knoten ohne Id bleibt aus der Nachschlagetabelle heraus: Kanten koennen ihn nicht
+                // meinen, und mehrere von ihnen wuerden sich sonst unter demselben leeren Schluessel
+                // gegenseitig verdraengen.
+                if (!string.IsNullOrEmpty(laid.Id))
                 {
                     byId[laid.Id] = laid;
                 }
