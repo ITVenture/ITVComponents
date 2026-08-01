@@ -33,6 +33,22 @@ namespace ITVComponents.Workflow.ParallelProcessing
         /// der faellige Timer aufgenommen und liegengebliebene Zweige wieder aufgegriffen werden.
         /// </summary>
         public int PollTimeMs { get; set; } = 1000;
+
+        /// <summary>
+        /// Wie lange ein aufgegriffener faelliger Timer fuer diesen Runner reserviert bleibt
+        /// (Millisekunden). Muss laenger sein als ein normaler Timer-Antrieb dauert, sonst greift ein
+        /// zweiter Runner nach - schaedlich ist das nicht (der Commit laesst nur einen durch), es
+        /// verschenkt aber den Nutzen. Deutlich zu lang verzoegert nur den Fall, dass dieser Runner
+        /// mittendrin abstuerzt.
+        /// </summary>
+        public int TimerLeaseMs { get; set; } = 60000;
+
+        /// <summary>
+        /// Wie viele Instanzen mit faelligen Timern ein Poll hoechstens aufgreift. Der Rest bleibt fuer
+        /// den naechsten Poll oder einen anderen Runner liegen - ohne die Grenze risse bei einem Stau
+        /// (z.B. nach einem Ausfall) der erste Runner die ganze Nachhol-Arbeit an sich.
+        /// </summary>
+        public int MaxTimerBatch { get; set; } = 200;
     }
 
     /// <summary>
@@ -52,6 +68,8 @@ namespace ITVComponents.Workflow.ParallelProcessing
         private readonly IWorkflowStore store;
         private readonly WorkflowEngine engine;
         private readonly string owner;
+        private readonly TimeSpan timerLease;
+        private readonly int maxTimerBatch;
         private readonly ParallelTaskProcessor<WorkflowTask> processor;
         private bool disposed;
 
@@ -62,6 +80,8 @@ namespace ITVComponents.Workflow.ParallelProcessing
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             options ??= new WorkflowRunnerOptions();
             owner = string.IsNullOrEmpty(options.Owner) ? Environment.MachineName : options.Owner;
+            timerLease = TimeSpan.FromMilliseconds(Math.Max(1000, options.TimerLeaseMs));
+            maxTimerBatch = Math.Max(1, options.MaxTimerBatch);
 
             processor = new ParallelTaskProcessor<WorkflowTask>(
                 options.Identifier,
@@ -154,8 +174,12 @@ namespace ITVComponents.Workflow.ParallelProcessing
                 }
             }
 
-            // Faellige Timer aufnehmen.
-            foreach (WorkflowInstance instance in store.FindDueTimers(DateTime.UtcNow).ToList())
+            // Faellige Timer aufnehmen - und dabei gleich fuer diesen Runner beanspruchen. Ohne den
+            // Anspruch laedt in einer Mehr-Instanzen-Umgebung JEDER Runner dieselben faelligen
+            // Instanzen, und alle bis auf einen scheitern danach am Commit. Der Ausschluss selbst haengt
+            // weiterhin nicht daran (das tut der Versions-Check), nur die verschwendete Arbeit.
+            foreach (WorkflowInstance instance in
+                     store.ClaimDueTimers(DateTime.UtcNow, owner, timerLease, maxTimerBatch).ToList())
             {
                 processor.EnqueueTask(new WorkflowTask(instance.Id, WorkflowTrigger.Timer));
             }

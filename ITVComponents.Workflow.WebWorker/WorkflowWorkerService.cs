@@ -226,7 +226,12 @@ namespace ITVComponents.Workflow.WebWorker
                     }
                 }
 
-                foreach (WorkflowInstance inst in store.FindDueTimers(DateTime.UtcNow).ToList())
+                // Faellige Timer beanspruchen statt nur lesen: sonst laedt jeder Prozess (und jeder
+                // Deskriptor) dieselben faelligen Instanzen und alle bis auf einen scheitern danach am
+                // Commit. Derselbe Owner wie bei den Branch-Locks - so raeumt der Neustart oben beides ab.
+                foreach (WorkflowInstance inst in
+                         store.ClaimDueTimers(DateTime.UtcNow, lockOwner, opt.TimerLease, opt.MaxTimerBatch)
+                             .ToList())
                 {
                     work.Enqueue(new DriveItem(DriveTrigger.Timer, inst.Id, null));
                 }

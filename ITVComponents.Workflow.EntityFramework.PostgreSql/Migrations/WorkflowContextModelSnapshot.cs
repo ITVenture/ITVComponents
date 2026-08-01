@@ -120,6 +120,12 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<string>("TenantId")
                         .HasColumnType("text");
 
+                    b.Property<string>("TimerLeaseOwner")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("TimerLeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("VariablesJson")
                         .HasColumnType("text");
 

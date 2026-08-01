@@ -118,6 +118,22 @@ namespace ITVComponents.Workflow.Stores
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Ohne verteilte Sicht gibt es nichts zu beanspruchen: dieser Store lebt in EINEM Prozess und
+        /// liefert dieselben Objekt-Referenzen an alle Aufrufer - ein Stempel haette darauf keine
+        /// Wirkung. Liefert daher schlicht die faelligen Instanzen (auf <paramref name="maxInstances"/>
+        /// begrenzt). Dass ein Timer trotzdem genau einmal feuert, sichert hier wie ueberall der
+        /// Versions-Check beim Commit.
+        /// </remarks>
+        public IEnumerable<WorkflowInstance> ClaimDueTimers(DateTime nowUtc, string owner, TimeSpan lease,
+            int maxInstances)
+        {
+            return maxInstances <= 0
+                ? new List<WorkflowInstance>()
+                : FindDueTimers(nowUtc).Take(maxInstances).ToList();
+        }
+
+        /// <inheritdoc/>
         public DateTime? PeekNextTimerDueUtc(DateTime nowUtc)
         {
             var future = instances.Values

@@ -221,6 +221,12 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.Status = (int)token.Status;
                 tr.WaitingSignal = token.WaitingSignal;
                 tr.DueUtc = token.DueUtc;
+                // Der Timer-Anspruch gehoert dem AUFGRIFF, nicht dem Token: schreibt die Engine diese
+                // Zeile, ist der Aufgriff vorbei - der Timer hat gefeuert oder steht auf einer neuen
+                // Frist. Bliebe der Stempel liegen, waere ein neu gestellter Fristen-Timer bis zum
+                // Ablauf des ALTEN Anspruchs fuer jeden Runner unsichtbar (er feuerte also verspaetet).
+                tr.TimerLeaseOwner = null;
+                tr.TimerLeaseUntilUtc = null;
                 tr.WaitingTarget = token.WaitingTarget;
                 tr.WaitingForChildInstanceId = token.WaitingForChildInstanceId;
                 // Zweig-Scope: nur gesetzt, solange das Token in einer parallelen Region laeuft - sonst
@@ -302,6 +308,70 @@ namespace ITVComponents.Workflow.EntityFramework
             int waiting = (int)TokenStatus.Waiting;
             List<string> ids = ctx.Tokens
                 .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc)
+                .Select(t => t.InstanceId)
+                .Distinct()
+                .ToList();
+            return LoadInstances(ctx, ids);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Drei Schritte statt eines Roh-SQL-Befehls (<c>OUTPUT inserted</c> / <c>FOR UPDATE SKIP
+        /// LOCKED</c>): Kandidaten waehlen, stempeln, das Gestempelte zurueckholen. Der mittlere Schritt
+        /// ist der entscheidende - <c>ExecuteUpdate</c> prueft die Bedingung beim Ausfuehren erneut und
+        /// ist pro Zeile atomar; wer verliert, aktualisiert schlicht nichts. Damit bleibt der Store
+        /// provider-neutral und braucht keine Sonderfassung je Datenbank.
+        /// </remarks>
+        public IEnumerable<WorkflowInstance> ClaimDueTimers(DateTime nowUtc, string owner, TimeSpan lease,
+            int maxInstances)
+        {
+            if (string.IsNullOrEmpty(owner))
+            {
+                throw new ArgumentNullException(nameof(owner));
+            }
+
+            if (maxInstances <= 0)
+            {
+                return new List<WorkflowInstance>();
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            int waiting = (int)TokenStatus.Waiting;
+            DateTime until = nowUtc.Add(lease);
+            string claim = owner + "#" + Guid.NewGuid().ToString("N");
+
+            // 1. Kandidaten: faellige Timer, die niemand (mehr) beansprucht. Nach der aeltesten
+            //    Faelligkeit je Instanz, damit bei einem Stau die am laengsten ueberfaelligen zuerst
+            //    drankommen und nicht eine Instanz dauerhaft hinten liegen bleibt.
+            List<string> candidates = ctx.Tokens
+                .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc
+                            && (t.TimerLeaseUntilUtc == null || t.TimerLeaseUntilUtc <= nowUtc))
+                .GroupBy(t => t.InstanceId)
+                .Select(g => new { InstanceId = g.Key, Due = g.Min(t => t.DueUtc) })
+                .OrderBy(x => x.Due)
+                .Take(maxInstances)
+                .Select(x => x.InstanceId)
+                .ToList();
+            if (candidates.Count == 0)
+            {
+                return new List<WorkflowInstance>();
+            }
+
+            // 2. Stempeln. Die Bedingung steht hier ein zweites Mal - genau darin liegt der Ausschluss:
+            //    zwischen Auswahl und Update kann ein anderer Runner dieselben Zeilen genommen haben,
+            //    dann trifft dieses Update sie nicht mehr.
+            _ = ctx.Tokens
+                .Where(t => candidates.Contains(t.InstanceId)
+                            && t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc
+                            && (t.TimerLeaseUntilUtc == null || t.TimerLeaseUntilUtc <= nowUtc))
+                .ExecuteUpdate(s => s
+                    .SetProperty(t => t.TimerLeaseOwner, claim)
+                    .SetProperty(t => t.TimerLeaseUntilUtc, until));
+
+            // 3. Was DIESER Aufruf bekommen hat - erkennbar an der Aufruf-Guid. Nur dessen Instanzen
+            //    werden geladen; das ist die eigentliche Ersparnis gegenueber FindDueTimers.
+            List<string> ids = ctx.Tokens
+                .Where(t => t.TimerLeaseOwner == claim)
                 .Select(t => t.InstanceId)
                 .Distinct()
                 .ToList();
@@ -443,6 +513,17 @@ namespace ITVComponents.Workflow.EntityFramework
 
             using WorkflowContext ctx = contextFactory();
             ctx.BranchLocks.Where(l => l.Owner == owner).ExecuteDelete();
+
+            // Dazu die eigenen Timer-Ansprueche: sie tragen den Owner als Praefix vor der Aufruf-Guid
+            // (siehe TokenRow.TimerLeaseOwner). Sie liefen zwar von selbst ab - aber ein gerade
+            // gestarteter Runner soll die liegengebliebene Arbeit sofort aufholen koennen und nicht
+            // erst vor seinen eigenen Leichen warten.
+            string prefix = owner + "#";
+            ctx.Tokens
+                .Where(t => t.TimerLeaseOwner != null && t.TimerLeaseOwner.StartsWith(prefix))
+                .ExecuteUpdate(s => s
+                    .SetProperty(t => t.TimerLeaseOwner, (string)null)
+                    .SetProperty(t => t.TimerLeaseUntilUtc, (DateTime?)null));
         }
 
         private void ReleaseBranch(string instanceId, string tokenId, string owner)

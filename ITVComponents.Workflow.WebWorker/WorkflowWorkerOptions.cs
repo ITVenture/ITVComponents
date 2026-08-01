@@ -39,5 +39,18 @@ namespace ITVComponents.Workflow.WebWorker
         /// Locks dieses Owners frei (ein gehaltener Lock nach Neustart = mitten im Lauf abgestuerzt).
         /// </summary>
         public string LockOwnerName { get; set; } = "WorkflowWebWorker";
+
+        /// <summary>
+        /// Wie lange ein aufgegriffener faelliger Timer fuer diesen Worker reserviert bleibt. Muss
+        /// laenger sein als ein Timer-Antrieb dauert; laenger als noetig verzoegert nur die Uebernahme
+        /// durch einen anderen Prozess, falls dieser hier mittendrin abstuerzt.
+        /// </summary>
+        public TimeSpan TimerLease { get; set; } = TimeSpan.FromMinutes(1);
+
+        /// <summary>
+        /// Wie viele Instanzen mit faelligen Timern ein Antrieb hoechstens aufgreift. Der Rest bleibt
+        /// fuer den naechsten Durchgang oder einen anderen Prozess liegen.
+        /// </summary>
+        public int MaxTimerBatch { get; set; } = 200;
     }
 }

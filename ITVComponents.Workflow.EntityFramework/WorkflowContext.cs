@@ -178,6 +178,30 @@ namespace ITVComponents.Workflow.EntityFramework
 
         /// <summary>Bis wann die weiche Sperre gilt (UTC). Danach gilt die Aufgabe als frei.</summary>
         public DateTime? ClaimedUntil { get; set; }
+
+        /// <summary>
+        /// Der <b>Timer-Anspruch</b>: welcher Runner diesen faelligen Timer gerade aufgegriffen hat, in
+        /// der Form <c>&lt;Owner&gt;#&lt;Aufruf-Guid&gt;</c>; sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Zwei Angaben in einer Spalte, beide gebraucht: der <b>Owner</b>-Teil, damit
+        /// <c>ReleaseLocksOfOwner</c> die Ansprueche eines neu gestarteten Runners findet; die
+        /// <b>Aufruf-Guid</b>, damit ein Aufgriff nach dem Stempeln exakt zurueckliest, welche Zeilen ER
+        /// bekommen hat - der blosse Owner-Name genuegt dafuer nicht, derselbe Runner kann noch Zeilen
+        /// aus einem frueheren, gescheiterten Durchgang halten.
+        /// <para>
+        /// Bewusst nicht <see cref="ClaimedBy"/> mitbenutzt: das ist die weiche Sperre der
+        /// <b>Oberflaeche</b> auf einer Benutzer-Aufgabe. Beide sassen auf derselben Zeile und wuerden
+        /// sich gegenseitig ueberschreiben.
+        /// </para>
+        /// </remarks>
+        public string TimerLeaseOwner { get; set; }
+
+        /// <summary>
+        /// Bis wann der Timer-Anspruch gilt (UTC). Danach darf ihn ein anderer Runner uebernehmen - das
+        /// ist die Selbstheilung fuer einen mittendrin abgestuerzten Halter.
+        /// </summary>
+        public DateTime? TimerLeaseUntilUtc { get; set; }
     }
 
     /// <summary>

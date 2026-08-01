@@ -46,8 +46,13 @@ wird — anhand von drei Deployment-Szenarien:
   **diese** Engine/dieser Host bedient. Trifft ein Zweig auf einen Knoten mit fremdem Ziel, **parkt**
   er (`TokenStatus.WaitingForTarget`) und wird von einem Runner mit passendem Ziel aufgenommen.
 - **`WorkflowRunnerOptions.Owner`** (stabiler Runner-Name, Standard `Environment.MachineName`):
-  Besitzer der Zweig-Sperren. Muss über Neustarts **gleich** bleiben (beim Start räumt der Runner
-  seine eigenen, nach einem Absturz hängengebliebenen Sperren über diesen Namen ab).
+  Besitzer der Zweig-Sperren **und der Timer-Ansprüche**. Muss über Neustarts **gleich** bleiben (beim
+  Start räumt der Runner seine eigenen, nach einem Absturz hängengebliebenen Sperren und Ansprüche über
+  diesen Namen ab).
+- **`WorkflowRunnerOptions.TimerLeaseMs`** (Standard 60 000) und **`.MaxTimerBatch`** (Standard 200):
+  wie lange ein aufgegriffener fälliger Timer für diesen Runner reserviert bleibt und wie viele
+  Instanzen ein Poll höchstens nimmt. Beim Web-Worker heissen sie `WorkflowWorkerOptions.TimerLease`
+  und `.MaxTimerBatch`. Siehe §6, „Timer-Ansprüche".
 
 ---
 
@@ -426,6 +431,23 @@ runner.Start();
   `store.ReleaseLocksOfOwner(name)` als Admin-Übernahme.
 - **Zweig-Sperren** haben **keine TTL** (lange Aktivitäten blockieren nicht). Sie leben, bis sie
   freigegeben oder über den Owner zurückgesetzt werden.
+- **Timer-Ansprüche** (`IWorkflowStore.ClaimDueTimers`) haben umgekehrt **immer** eine TTL. Fällige
+  Timer stehen im gemeinsamen Store, also sieht sie ohne Anspruch *jeder* Runner: alle laden dieselben
+  Instanzen, und alle bis auf einen scheitern danach am Commit. Der Anspruch stempelt die aufgegriffenen
+  Timer für `TimerLeaseMs` auf den Owner und macht die Scheiben damit disjunkt.
+
+  Wichtig für das Verständnis: **das ist Lastverteilung, keine Sperre.** Dass ein Timer genau einmal
+  feuert, sichert weiterhin allein der Versions-Check beim Commit (`ReactivateTimers` läuft in
+  `ReactivateAndCommit`) — er *muss* es, denn ein Anspruch kann ablaufen, während sein Halter noch
+  arbeitet. Genau deshalb darf ein abgelaufener Anspruch gefahrlos übernommen werden, und genau deshalb
+  ist ein abgestürzter Runner unkritisch. Beide Zusicherungen sind in
+  `WorkflowConcurrentTimerTest` festgehalten.
+
+  Ein Commit auf die Instanz beendet den Anspruch sofort — sonst wäre ein **neu gestellter**
+  Fristen-Timer bis zum Ablauf des alten Anspruchs unsichtbar und die Eskalation käme zu spät.
+
+  Der In-Memory-Store kennt keine Ansprüche (ein Prozess, dieselben Referenzen) und liefert schlicht
+  die fälligen Instanzen.
 - **Optimistische Nebenläufigkeit.** Kurze Merge-Sektion pro Instanz über `WorkflowInstance.Version`
   (EF-Concurrency-Token). Die eigentliche Ausführung bleibt parallel.
 - **Konflikt-Policy.** Seit den **Zweig-Scopes** (§8) arbeitet jeder parallele Zweig in seiner eigenen
@@ -998,7 +1020,7 @@ Pfad hier der Hauptfluss ist, **darf** er zum End-Knoten führen.
 ### Technisch
 
 Scharfgestellt wird über `Token.DueUtc` — also über den bestehenden, **indizierten** Timer-Aufgriff
-(`FindDueTimers`/`ReactivateTimers`). Kein neuer Sweep, keine neue Abfrage, und der Runner nimmt es ohne
+(`ClaimDueTimers`/`ReactivateTimers`). Kein neuer Sweep, keine neue Abfrage, und der Runner nimmt es ohne
 Änderung auf. `Token.TaskDueUtc` bleibt was es war: Anzeige und Sortierung der Arbeitsliste.
 
 Zwei Stellen tragen die Lebensdauer: `Token.BoundaryOwnerTokenId` (Timer **und** Nebenpfad-Tokens zeigen
@@ -1010,3 +1032,11 @@ Abbruch). Ohne das Netz bliebe ein wartendes Timer-Token stehen und die Instanz 
 **Schema-Änderung:** zwei nullable Spalten auf `Tokens` (`BoundaryOwnerTokenId`, `BoundaryIteration`) →
 Migration **`BoundaryTimers`** je Provider-Projekt. Laufende Instanzen bleiben gültig (beide Spalten null
 = kein Boundary-Token).
+
+**Schema-Änderung (Timer-Ansprüche):** zwei weitere nullable Spalten auf `Tokens`
+(`TimerLeaseOwner`, `TimerLeaseUntilUtc`) → Migration **`TimerLease`** je Provider-Projekt. Ebenfalls
+rückwärtsverträglich: null = kein Anspruch, und ein abgelaufener wird ohnehin überholt. Der
+`TimerLeaseOwner` trägt `<Owner>#<Aufruf-Guid>` — der Owner-Teil, damit `ReleaseLocksOfOwner` ihn beim
+Neustart findet, die Guid, damit ein Aufgriff exakt zurücklesen kann, welche Zeilen *er* bekommen hat.
+Nicht zu verwechseln mit `ClaimedBy`/`ClaimedUntil` auf derselben Zeile: das ist die weiche Sperre der
+**Oberfläche** auf einer Benutzer-Aufgabe.

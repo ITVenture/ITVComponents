@@ -50,7 +50,44 @@ namespace ITVComponents.Workflow.Stores
         IEnumerable<WorkflowInstance> FindWaitingForSignal(string signalName, string correlationKey = null);
 
         /// <summary>Findet Instanzen mit einem faelligen Timer-Token (DueUtc &lt;= nowUtc).</summary>
+        /// <remarks>
+        /// Reines Lesen - jeder Aufrufer sieht jeden faelligen Timer. Fuer den Aufgriff durch einen
+        /// Runner ist <see cref="ClaimDueTimers"/> gedacht; diese Abfrage bleibt fuer Diagnose und
+        /// Tests.
+        /// </remarks>
         IEnumerable<WorkflowInstance> FindDueTimers(DateTime nowUtc);
+
+        /// <summary>
+        /// Nimmt faellige Timer fuer sich in Anspruch und liefert die zugehoerigen Instanzen. Anders als
+        /// <see cref="FindDueTimers"/> ist das kein blosses Lesen: die aufgegriffenen Timer werden fuer
+        /// die Dauer von <paramref name="lease"/> auf <paramref name="owner"/> gestempelt und sind fuer
+        /// andere Runner so lange unsichtbar.
+        /// </summary>
+        /// <remarks>
+        /// Der Anspruch dient der <b>Last</b>, nicht der Korrektheit. Dass ein Timer genau einmal
+        /// feuert, sichert weiterhin allein der Versions-Check beim Commit
+        /// (<c>WorkflowEngine.ReactivateTimers</c>) - er muss es auch, denn ein Anspruch kann ablaufen,
+        /// waehrend sein Halter noch arbeitet. Was der Anspruch verhindert, ist, dass N Runner dieselben
+        /// Instanzen laden, um danach N-1 mal am Commit zu scheitern. Genau deshalb darf ein
+        /// <b>abgelaufener</b> Anspruch gefahrlos uebernommen werden - ein abgestuerzter Runner haelt
+        /// nichts fest.
+        /// <para>
+        /// Ein Store ohne verteilte Sicht (In-Memory) darf schlicht die faelligen Instanzen liefern.
+        /// </para>
+        /// </remarks>
+        /// <param name="nowUtc">der Jetzt-Zeitpunkt</param>
+        /// <param name="owner">
+        /// der aufgreifende Runner - derselbe stabile Name wie bei den Zweig-Sperren, damit
+        /// <see cref="ReleaseLocksOfOwner"/> beim Neustart auch seine Ansprueche mit abraeumt
+        /// </param>
+        /// <param name="lease">wie lange der Anspruch gilt</param>
+        /// <param name="maxInstances">
+        /// Obergrenze je Aufruf; der Rest bleibt fuer den naechsten Poll oder einen anderen Runner
+        /// liegen. Ohne sie riesse bei einem Stau der erste Runner alles an sich.
+        /// </param>
+        /// <returns>die Instanzen, deren faellige Timer dieser Aufruf bekommen hat</returns>
+        IEnumerable<WorkflowInstance> ClaimDueTimers(DateTime nowUtc, string owner, TimeSpan lease,
+            int maxInstances);
 
         /// <summary>
         /// Liefert die frueheste NOCH NICHT faellige Timer-Faelligkeit (DueUtc &gt; nowUtc) im Sichtbereich des
@@ -97,11 +134,17 @@ namespace ITVComponents.Workflow.Stores
         IWorkflowBranchLock TryAcquireBranchLock(string instanceId, string tokenId, string owner);
 
         /// <summary>
-        /// Gibt alle Sperren des angegebenen Owners frei. Ein Runner ruft das beim Neustart mit seinem
-        /// eigenen Namen auf (ein noch gehaltener Lock nach Neustart bedeutet: er ist mittendrin
-        /// abgestuerzt) - so werden die betroffenen Zweige sofort wieder frei, ohne Wartefrist.
-        /// Dient zugleich als Admin-/Uebernahme-Operation fuer einen endgueltig toten Runner.
+        /// Gibt alle Sperren des angegebenen Owners frei - Zweig-Sperren und Timer-Ansprueche
+        /// (<see cref="ClaimDueTimers"/>). Ein Runner ruft das beim Neustart mit seinem eigenen Namen
+        /// auf (ein noch gehaltener Lock nach Neustart bedeutet: er ist mittendrin abgestuerzt) - so
+        /// werden die betroffenen Zweige sofort wieder frei, ohne Wartefrist. Dient zugleich als
+        /// Admin-/Uebernahme-Operation fuer einen endgueltig toten Runner.
         /// </summary>
+        /// <remarks>
+        /// Fuer die Timer-Ansprueche ist das reine Beschleunigung: die laufen ohnehin ab. Ohne diesen
+        /// Aufruf staende ein neu gestarteter Runner aber bis zum Ablauf vor seinen eigenen, verwaisten
+        /// Anspruechen - und zwar genau in dem Moment, in dem er die liegengebliebene Arbeit aufholen soll.
+        /// </remarks>
         void ReleaseLocksOfOwner(string owner);
     }
 }

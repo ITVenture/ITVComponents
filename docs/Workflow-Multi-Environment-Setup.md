@@ -256,9 +256,12 @@ services.AddWorkflowWebWorker(o =>
   `WorkflowEnvironmentSettings` und materialisiert je **(Tenant, Umgebung mit `UseWorker`)** einen passiven
   **Deskriptor** mit Store-Namen und `hostTargets` (= die `Instance.Name` der Umgebung). Ohne Tenant-Modell
   (kein `IAllTenantsReader`) → ein globaler, filterfreier Deskriptor je Umgebung.
-- **Antrieb (schnell, geteilter Pool):** je Deskriptor die vier Store-Fragen (`FindRunnable`, `FindDueTimers`,
-  `FindBranchesWaitingForTarget(hostTargets)`, `FindFinishedChildrenWithWaitingParent`) → Engine, mit
-  prozessübergreifendem Branch-Lock. Der Store wird je Antrieb **frisch geleast** (wie `WorkflowOperation`);
+- **Antrieb (schnell, geteilter Pool):** je Deskriptor die vier Store-Fragen (`FindRunnable`,
+  `ClaimDueTimers`, `FindBranchesWaitingForTarget(hostTargets)`, `FindFinishedChildrenWithWaitingParent`)
+  → Engine, mit prozessübergreifendem Branch-Lock. Fällige Timer werden dabei **beansprucht**, nicht nur
+  gelesen (Owner = derselbe wie beim Branch-Lock, also `LockOwnerName|Deskriptor-Key`) — sonst zöge in
+  einer Mehr-Instanzen-Umgebung jeder Prozess dieselben Instanzen und alle bis auf einen scheiterten
+  danach am Commit. Der Store wird je Antrieb **frisch geleast** (wie `WorkflowOperation`);
   tenant-gepinnt (`PrepareBackgroundContext`) bzw. global filterfrei (`PrepareEmptyContext`).
 - **Terminierung (kein blindes Polling):** der nächste Poll liegt exakt auf dem **nächsten fälligen Timer**
   (`PeekNextTimerDueUtc`), sonst auf dem **Max-Linger** (Sicherheitsnetz für Crash-Recovery/Handoff), und bleibt
